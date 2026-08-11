@@ -7,6 +7,7 @@ import logging
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
@@ -28,6 +29,7 @@ from sase.notification_gates.durability import (
 from sase.notification_gates.executor_inputs import (
     redact_option_inputs,
     redact_secrets_in_result,
+    redact_secrets_in_text,
     redact_shared_input,
     resolve_option_inputs,
 )
@@ -138,7 +140,16 @@ def execute_gate_selection(
         )
         for option in selected:
             target = f"option {option.id} input"
-            with recorded_rejection(bundle_path, option.id, source):
+            with recorded_rejection(
+                bundle_path,
+                option.id,
+                source,
+                message_transform=partial(
+                    _redact_option_message,
+                    option,
+                    resolved_inputs[option.id],
+                ),
+            ):
                 check_input_bounds(resolved_inputs[option.id], target)
                 validate_json_instance(
                     resolved_inputs[option.id], option.input_schema, target
@@ -291,17 +302,27 @@ def _execute_one_option(
             target=option.id,
         )
     except GateError as exc:
+        message = redact_secrets_in_text(option, normalized_input, str(exc)) or ""
         record_execution_error(
             bundle_path,
             option_id=option.id,
             code=exc.code,
-            message=str(exc),
+            message=message,
             source=source,
         )
+        if message != str(exc):
+            raise GateError(exc.code, exc.target, message) from None
         raise
     if completed.returncode != 0:
-        message = decode_output(completed.stderr) or (
-            f"command exited with status {completed.returncode}"
+        raw_stderr = decode_output(completed.stderr)
+        stdout = redact_secrets_in_text(
+            option, normalized_input, decode_output(completed.stdout)
+        )
+        stderr = redact_secrets_in_text(option, normalized_input, raw_stderr)
+        message = (
+            "command failed; output redacted because it contained a submitted secret"
+            if raw_stderr and stderr != raw_stderr
+            else stderr or f"command exited with status {completed.returncode}"
         )
         record_execution_error(
             bundle_path,
@@ -310,8 +331,8 @@ def _execute_one_option(
             message=message,
             source=source,
             returncode=completed.returncode,
-            stdout=decode_output(completed.stdout),
-            stderr=decode_output(completed.stderr),
+            stdout=stdout,
+            stderr=stderr,
         )
         raise GateError("command_failed", option.id, message)
 
@@ -322,10 +343,14 @@ def _execute_one_option(
             bundle_path,
             option_id=option.id,
             code="invalid_command_output",
-            message=str(exc),
+            message=redact_secrets_in_text(option, normalized_input, str(exc)) or "",
             source=source,
-            stdout=decode_output(completed.stdout),
-            stderr=decode_output(completed.stderr),
+            stdout=redact_secrets_in_text(
+                option, normalized_input, decode_output(completed.stdout)
+            ),
+            stderr=redact_secrets_in_text(
+                option, normalized_input, decode_output(completed.stderr)
+            ),
         )
         raise GateError(
             "invalid_command_output",
@@ -339,15 +364,22 @@ def _execute_one_option(
             f"option {option.id} result",
         )
     except GateError as exc:
+        message = redact_secrets_in_text(option, normalized_input, str(exc)) or ""
         record_execution_error(
             bundle_path,
             option_id=option.id,
             code=exc.code,
-            message=str(exc),
+            message=message,
             source=source,
-            stdout=decode_output(completed.stdout),
-            stderr=decode_output(completed.stderr),
+            stdout=redact_secrets_in_text(
+                option, normalized_input, decode_output(completed.stdout)
+            ),
+            stderr=redact_secrets_in_text(
+                option, normalized_input, decode_output(completed.stderr)
+            ),
         )
+        if message != str(exc):
+            raise GateError(exc.code, exc.target, message) from None
         raise
 
     current_envelope, _current_adapter = load_and_verify_bundle(bundle_path)
@@ -358,6 +390,10 @@ def _execute_one_option(
             "request changed during execution",
         )
     return result
+
+
+def _redact_option_message(option: GateOption, resolved: Any, message: str) -> str:
+    return redact_secrets_in_text(option, resolved, message) or ""
 
 
 def _begin_attempt(

@@ -420,7 +420,8 @@ def test_secret_echoed_by_a_command_is_redacted_out_of_both_audit_files(
         "import json, sys\n"
         "value = json.load(sys.stdin)\n"
         "print(json.dumps({'status': 'ok', 'input': value, "
-        "'note': 'used ' + value['token']}))\n"
+        "'note': 'used ' + value['token'], "
+        "'lookup': {'token-' + value['token']: 'matched', 'safe': 'kept'}}))\n"
     )
     spec: dict[str, Any] = custom_gate_spec(request_id="secret-journal")
     spec["options"][0].pop("input_schema", None)
@@ -459,4 +460,78 @@ def test_secret_echoed_by_a_command_is_redacted_out_of_both_audit_files(
         assert stored["input"]["token"] == {"$redacted": True}
         assert stored["input"]["reason"] == "rotation"
         assert stored["note"] == {"$redacted": True}
+        assert stored["lookup"] == {"$redacted": True}
         assert stored["status"] == "ok"
+
+
+def test_secret_echoed_by_a_failing_command_is_redacted_from_error_record(
+    gate_home: Path,
+) -> None:
+    failing_echo = (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "value = json.load(sys.stdin)['token']\n"
+        "print('stdout-' + value)\n"
+        "sys.stderr.write('stderr-' + value)\n"
+        "raise SystemExit(9)\n"
+    )
+    spec: dict[str, Any] = custom_gate_spec(request_id="secret-error")
+    spec["options"][0].pop("input_schema", None)
+    spec["options"][0]["inputs"] = [
+        {
+            "id": "token",
+            "label": "Token",
+            "type": "text",
+            "required": True,
+            "secret": True,
+        }
+    ]
+    spec["resources"][0]["content"] = failing_echo
+    result = create_gate(spec)
+
+    with pytest.raises(GateError, match="command failed; output redacted") as exc_info:
+        execute_gate_selection(
+            result.bundle_path,
+            ["proceed"],
+            {"token": "hunter2"},
+        )
+    assert exc_info.value.code == "command_failed"
+
+    [error_path] = (result.bundle_path / "errors").glob("*.json")
+    error_text = error_path.read_text(encoding="utf-8")
+    error = json.loads(error_text)
+    assert "hunter2" not in error_text
+    assert error["message"] == (
+        "command failed; output redacted because it contained a submitted secret"
+    )
+    assert error["stdout"] == "<redacted>"
+    assert error["stderr"] == "<redacted>"
+
+
+def test_rejected_secret_input_is_redacted_from_error_record(gate_home: Path) -> None:
+    spec: dict[str, Any] = custom_gate_spec(request_id="secret-rejection")
+    spec["options"][0].pop("input_schema", None)
+    spec["options"][0]["inputs"] = [
+        {
+            "id": "token",
+            "label": "Token",
+            "type": "word",
+            "required": True,
+            "secret": True,
+        }
+    ]
+    result = create_gate(spec)
+
+    with pytest.raises(GateError, match="<redacted>") as exc_info:
+        execute_gate_selection(
+            result.bundle_path,
+            ["proceed"],
+            {"token": "hunter two"},
+        )
+    assert exc_info.value.code == "schema_validation_failed"
+
+    [error_path] = (result.bundle_path / "errors").glob("*.json")
+    error_text = error_path.read_text(encoding="utf-8")
+    error = json.loads(error_text)
+    assert "hunter two" not in error_text
+    assert error["message"] == "<redacted>"

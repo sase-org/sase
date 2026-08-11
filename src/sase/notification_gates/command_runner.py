@@ -251,7 +251,11 @@ def record_execution_error(
 
 @contextmanager
 def recorded_rejection(
-    bundle_path: Path, option_id: str, source: str
+    bundle_path: Path,
+    option_id: str,
+    source: str,
+    *,
+    message_transform: Callable[[str], str] | None = None,
 ) -> Iterator[None]:
     """Write a pre-execution rejection to ``errors/`` before it propagates.
 
@@ -263,19 +267,28 @@ def recorded_rejection(
     rejects with its own type -- the plan adapter raises
     ``PlanApprovalValidationError`` from ``validate_edited_resource`` -- and a
     narrower clause let exactly those rejections reach the reviewer with an
-    empty ``errors/``. The exception itself propagates unchanged so callers
-    that discriminate on the adapter's own type still can.
+    empty ``errors/``. The exception itself normally propagates unchanged so
+    callers that discriminate on the adapter's own type still can. When
+    ``message_transform`` sanitizes a :class:`GateError`, a replacement with
+    the same code and target propagates so its raw message does not escape
+    through the caller either.
     """
     try:
         yield
     except Exception as exc:
+        raw_message = str(exc)
+        message = (
+            raw_message if message_transform is None else message_transform(raw_message)
+        )
         record_execution_error(
             bundle_path,
             option_id=option_id,
             code=exc.code if isinstance(exc, GateError) else "adapter_rejected",
-            message=str(exc),
+            message=message,
             source=source,
         )
+        if isinstance(exc, GateError) and message != raw_message:
+            raise GateError(exc.code, exc.target, message) from None
         raise
 
 

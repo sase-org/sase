@@ -145,12 +145,26 @@ def redact_secrets_in_result(option: GateOption, resolved: Any, result: Any) -> 
 
     Any string that *contains* a secret is replaced whole rather than spliced:
     a result field built out of the secret is contaminated in full, and
-    partial scrubbing would leave its length and surroundings behind.
+    partial scrubbing would leave its length and surroundings behind. A mapping
+    with a contaminated key is likewise replaced whole because JSON object keys
+    cannot hold the structured redaction marker safely.
     """
     secrets = _submitted_secret_strings(option, resolved)
     if not secrets:
         return result
     return _scrub(result, secrets)
+
+
+def redact_secrets_in_text(
+    option: GateOption, resolved: Any, value: str | None
+) -> str | None:
+    """Redact command diagnostics that contain a submitted secret."""
+    if value is None:
+        return None
+    secrets = _submitted_secret_strings(option, resolved)
+    if any(secret in value for secret in secrets):
+        return "<redacted>"
+    return value
 
 
 def _submitted_secret_strings(option: GateOption, resolved: Any) -> tuple[str, ...]:
@@ -168,6 +182,11 @@ def _submitted_secret_strings(option: GateOption, resolved: Any) -> tuple[str, .
 
 def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
     if isinstance(value, Mapping):
+        if any(
+            isinstance(key, str) and any(secret in key for secret in secrets)
+            for key in value
+        ):
+            return {"$redacted": True}
         return {key: _scrub(item, secrets) for key, item in value.items()}
     if isinstance(value, list):
         return [_scrub(item, secrets) for item in value]
@@ -179,6 +198,7 @@ def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
 __all__ = [
     "redact_option_inputs",
     "redact_secrets_in_result",
+    "redact_secrets_in_text",
     "redact_shared_input",
     "resolve_option_inputs",
 ]
