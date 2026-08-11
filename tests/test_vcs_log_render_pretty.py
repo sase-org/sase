@@ -47,6 +47,7 @@ def test_pretty_day_groups_labels_and_order(
     assert "↑0 ↓1" in text
     assert "↑ unpushed" in text
     assert "↓ GitHub-only" in text
+    assert "✎ manual" in text
     assert "vs origin/main · fetched" in text
     # Rows carry short SHA, repo label, subject, author, and time.
     assert "a1b2c3d" in text
@@ -73,8 +74,8 @@ def test_pretty_merge_free_output_keeps_existing_spacing(
     text = _render(_result(), "pretty")
 
     assert "◆ merge" not in text
-    assert "a1b2c3d  sase       fix(sdd): link store" in text
-    assert "9f8e7d6  sase-core  feat(core): parser" in text
+    assert "a1b2c3d  sase       ✎ fix(sdd): link store" in text
+    assert "9f8e7d6  sase-core  ✎ feat(core): parser" in text
 
 
 def test_pretty_reverse_uses_ascending_day_groups(
@@ -107,8 +108,25 @@ def test_pretty_tags_suffix_before_author(
 
     text = _render(_tagged_result(), "pretty")
 
+    assert "↻ auto" in text
     assert "tagged subject  · ◆ sdd · plan sdd/foo.md  · bryan" in text
     assert "plain subject  · bryan" in text
+
+
+def test_pretty_origin_legend_is_adaptive() -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry("sase", "stitch00", 300, "tracked", origin="stitch"),
+            _entry("sase", "auto000", 200, "automatic", origin="auto"),
+        ),
+        warnings=(),
+    )
+
+    text = _render(result, "pretty")
+
+    assert "✦ stitch  ↻ auto" in text
+    assert "✎ manual" not in text
 
 
 def test_pretty_marks_merges_and_condenses_pull_request_headline(
@@ -149,8 +167,8 @@ def test_pretty_marks_merges_and_condenses_pull_request_headline(
     text = _render(result, "pretty")
 
     assert "◆ merge" in text
-    assert "merge00  sase  ◆ #123  Add the feature title here" in text
-    assert "plain00  sase    ordinary subject" in text
+    assert "merge00  sase  ◆ ✎ #123  Add the feature title here" in text
+    assert "plain00  sase    ✎ ordinary subject" in text
     assert "Merge pull request #123 from org/feature" not in text
 
 
@@ -179,7 +197,7 @@ def test_pretty_keeps_raw_merge_subject_when_summary_is_not_safe(
 
     text = _render(result, "pretty")
 
-    assert "merge00  sase  ◆ Merge something custom" in text
+    assert "merge00  sase  ◆ ✎ Merge something custom" in text
 
 
 def test_pretty_keeps_raw_pull_request_subject_without_headline(
@@ -217,7 +235,7 @@ def test_pretty_keeps_raw_pull_request_subject_without_headline(
 
     text = _render(result, "pretty")
 
-    assert "merge00  sase  ◆ Merge pull request #123 from org/feature" in text
+    assert "merge00  sase  ◆ ✎ Merge pull request #123 from org/feature" in text
 
 
 def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
@@ -233,6 +251,7 @@ def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
             "SASE_AGENT=worker-1\n"
             "SASE_TYPE=sdd"
         ),
+        origin="auto",
     )
 
     line = console_mod.commit_line(
@@ -275,7 +294,7 @@ def test_pretty_merge_marker_spans_use_merge_accent(
         merge_column=True,
     )
 
-    assert "◆ Merge something custom" in line.plain
+    assert "◆ ✎ Merge something custom" in line.plain
     assert _styles_covering(line, "◆") == ["#D787FF"]
 
 
@@ -356,7 +375,7 @@ def test_timeline_row_marks_merge_when_visible(
 
     row = build_timeline_commit(entry, result, show_tags=False, show_author=False)
 
-    assert "◆ #123  Add the feature title here" in row.plain
+    assert "◆ ✎ #123  Add the feature title here" in row.plain
     assert row.no_wrap is True
     assert row.overflow == "ellipsis"
 

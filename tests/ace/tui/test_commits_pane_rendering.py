@@ -49,6 +49,8 @@ def test_commits_renderer_builds_compact_single_line_rows() -> None:
     assert "alpha-platform-repository (1)" in legend.plain
     assert "↑1 ↓0" in legend.plain
     assert "↑ unpushed" in legend.plain
+    assert "↻ auto" in legend.plain
+    assert "✎ manual" in legend.plain
     assert selected == 0
     assert timeline.option_count == 3  # one day banner + two commit rows
     first = timeline.get_option_at_index(1).prompt
@@ -234,6 +236,8 @@ def test_commit_detail_preserves_full_metadata_for_every_presence(
     assert "Ada Lovelace, Principal Analytical Engine Programmer" in text
     assert "Monday, July 6, 2026 at 10:30:00" in text
     assert indicator in text
+    assert "Origin" in text
+    assert "↻ auto · bead_work" in text
     assert entry.commit.subject in text
     assert "Render the selected commit's complete metadata" in text
     assert "type" in text and "bead_work" in text
@@ -285,6 +289,7 @@ def test_commit_detail_omits_empty_author() -> None:
     )
 
     assert "Author" not in _rendered_text(detail)
+    assert "Origin" in _rendered_text(detail)
 
 
 def test_commit_view_spec_preserves_owner_context_and_full_tagged_message() -> None:

@@ -135,6 +135,71 @@ async def test_commits_timeline_and_detail_png_snapshot(
         )
 
 
+async def test_commits_origin_legend_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    long_base = _result(timestamp)
+    base = replace(
+        long_base,
+        repos=(
+            replace(long_base.repos[0], name="alpha"),
+            replace(long_base.repos[1], name="core"),
+        ),
+        commits=(
+            replace(long_base.commits[0], repo="alpha"),
+            replace(long_base.commits[1], repo="core"),
+        ),
+        remote_states=(
+            replace(long_base.remote_states[0], name="alpha"),
+            replace(long_base.remote_states[1], name="core"),
+        ),
+    )
+    stitch_entry = replace(
+        base.commits[1],
+        commit=replace(
+            base.commits[1].commit,
+            full_id="c" * 40,
+            short_id="ccccccc",
+            timestamp=timestamp - 120,
+            subject="feat(stitches): record tracked workflow commit",
+            origin="stitch",
+        ),
+    )
+    result = replace(base, commits=(*base.commits, stitch_entry))
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: _ArtifactsProjectChoices((), (), {}),
+    )
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        initial_tab="patches",
+    ) as page:
+        await wait_for_startup(page)
+        await page.expect_state("artifacts_subtab", "stitches")
+        pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        await wait_for_svg_contains(page, "✦")
+        await wait_for_svg_contains(page, "↻")
+        await wait_for_svg_contains(page, "✎")
+        await wait_for_svg_contains(page, "stitch")
+        await wait_for_svg_contains(page, "auto")
+        await wait_for_svg_contains(page, "manual")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_stitches_origin_legend_120x40",
+            title="ACE Artifacts Stitches origin legend",
+        )
+
+
 async def test_commits_merge_row_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

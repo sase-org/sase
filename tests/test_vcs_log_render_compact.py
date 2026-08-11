@@ -21,9 +21,9 @@ from ._vcs_log_render_helpers import (
 
 def test_oneline_golden() -> None:
     assert _render(_result(), "oneline") == (
-        "↑ a1b2c3d sase      fix(sdd): link store\n"
-        "↓ 9f8e7d6 sase-core feat(core): parser\n"
-        "● 4c5d6e7 sase      docs: notes\n"
+        "↑ a1b2c3d sase      ✎ fix(sdd): link store\n"
+        "↓ 9f8e7d6 sase-core ✎ feat(core): parser\n"
+        "● 4c5d6e7 sase      ✎ docs: notes\n"
     )
 
 
@@ -44,8 +44,8 @@ def test_oneline_marks_merges_when_present() -> None:
     )
 
     assert _render(result, "oneline") == (
-        "● merge00 sase ◆ Merge pull request #123 from org/feature\n"
-        "● plain00 sase   ordinary subject\n"
+        "● merge00 sase ◆ ✎ Merge pull request #123 from org/feature\n"
+        "● plain00 sase   ✎ ordinary subject\n"
     )
 
 
@@ -56,14 +56,14 @@ def test_oneline_empty_is_blank() -> None:
 
 def test_oneline_tags_suffix() -> None:
     assert _render(_tagged_result(), "oneline") == (
-        "● a1b2c3d sase tagged subject [TYPE=sdd PLAN=sdd/foo.md]\n"
-        "● b2c3d4e sase plain subject\n"
+        "● a1b2c3d sase ↻ tagged subject [TYPE=sdd PLAN=sdd/foo.md]\n"
+        "● b2c3d4e sase ✎ plain subject\n"
     )
 
 
 def test_oneline_no_tags_suppresses_suffix() -> None:
     assert _render(_tagged_result(), "oneline", show_tags=False) == (
-        "● a1b2c3d sase tagged subject\n● b2c3d4e sase plain subject\n"
+        "● a1b2c3d sase ↻ tagged subject\n● b2c3d4e sase ✎ plain subject\n"
     )
 
 
@@ -83,6 +83,7 @@ def test_json_shape_and_ordering() -> None:
         "full_id": "a1b2c3d4",
         "is_merge": False,
         "merge": None,
+        "origin": "manual",
         "parent_ids": [],
         "presence": "local_only",
         "repo": "sase",
@@ -120,6 +121,8 @@ def test_json_tags_shape() -> None:
         "PLAN": "sdd/foo.md",
         "TYPE": "sdd",
     }
+    assert payload["commits"][0]["origin"] == "auto"
+    assert payload["commits"][1]["origin"] == "manual"
     assert payload["commits"][1]["sase_tags"] == {}
 
 

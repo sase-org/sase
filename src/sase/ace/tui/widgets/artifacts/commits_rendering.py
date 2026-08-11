@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_d
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.repo_inventory import RepoKind
+from sase.vcs_log._origin_style import build_origin_detail
 from sase.vcs_log._style import GOLD, MERGE, repo_colors
 from sase.vcs_log._tag_style import full_tag_lines
 from sase.vcs_log.filter_query import to_query_tokens
@@ -204,6 +205,7 @@ def build_commit_detail(
 ) -> RenderableType:
     """Build the selected commit's metadata, summary, and lazy diff."""
     commit = entry.commit
+    tag_view = commit_tag_view(commit)
     colors = repo_colors(result.repos if result is not None else ())
     header = Text()
     header.append(entry.repo, style=f"bold {colors.get(entry.repo, '#87D7FF')}")
@@ -214,6 +216,13 @@ def build_commit_detail(
     if commit.author_name:
         header.append("\nAuthor     ", style="dim")
         header.append(commit.author_name)
+    header.append("\nOrigin     ", style="dim")
+    header.append_text(
+        build_origin_detail(
+            commit.origin,
+            automation_type=_tag_value(tag_view.tags, "TYPE"),
+        )
+    )
     if commit.is_merge:
         header.append("\nParents    ", style="dim")
         header.append(
@@ -235,7 +244,6 @@ def build_commit_detail(
     message = Text()
     message.append("Message\n", style="bold #87D7FF")
     message.append(commit.subject or "(message unavailable)", style="bold #D7D7FF")
-    tag_view = commit_tag_view(commit)
     if tag_view.body:
         message.append("\n")
         message.append(tag_view.body.rstrip(), style="#D7D7FF")
@@ -302,3 +310,10 @@ def _change_summary(diff_text: str | None) -> Text | None:
 def _short_parent_ids(parent_ids: tuple[str, ...], *, width: int) -> str:
     short_width = max(1, width)
     return " ".join(parent_id[:short_width] for parent_id in parent_ids)
+
+
+def _tag_value(tags: tuple[tuple[str, str], ...], key: str) -> str | None:
+    for tag_key, value in tags:
+        if tag_key == key:
+            return value
+    return None

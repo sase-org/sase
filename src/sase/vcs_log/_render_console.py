@@ -18,6 +18,12 @@ from rich.text import Text
 from sase.core.vcs_log_facade import merge_summary
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
 from sase.vcs_log.models import CommitFilters, VcsLogResult
+from sase.vcs_log._origin_style import (
+    build_commit_origin,
+    build_origin_legend,
+    origin_glyph,
+    origin_style,
+)
 from sase.vcs_log._render_util import (
     build_commit_presence,
     day_label,
@@ -165,6 +171,10 @@ def legend(
         text.append("  ", style="dim")
         text.append("◆", style=MERGE)
         text.append(" merge", style="dim")
+    origin_legend = build_origin_legend(entry.commit.origin for entry in commits)
+    if origin_legend.plain:
+        text.append("  ", style="dim")
+        text.append_text(origin_legend)
     remote_states = (
         tuple(state for state in result.remote_states if state.name in visible_names)
         if visible_repos_only
@@ -216,6 +226,7 @@ def commit_line(
             line.append("◆ ", style=MERGE)
         else:
             line.append("  ")
+    line.append(f"{origin_glyph(commit.origin)} ", style=origin_style(commit.origin))
     line.append_text(_timeline_subject_text(commit))
     if show_tags:
         tags = commit_tag_view(commit).tags
@@ -251,6 +262,8 @@ def _full_commit_lines(
     header = Text("   ")
     if commit.is_merge:
         header.append("◆ ", style=MERGE)
+    header.append_text(build_commit_origin(commit.origin))
+    header.append("  ")
     header.append("▌ ", style=repo_color or None)
     header.append(entry.repo, style=f"bold {repo_color}".strip() or None)
     header.append("  ")

@@ -57,13 +57,11 @@ _PRESENCE_VALUES: frozenset[str] = frozenset(
     ("synced", "remote_only", "local_only", "unknown")
 )
 
-#: Whether a commit was produced through the SASE tracked commit workflow
-#: (any terminal ``SASE_*`` footer tag) or authored outside it. Mirrors
-#: ``sase-core``'s ``CommitOriginWire`` enum (``Manual``/``Sase``,
-#: serialized lowercase).
-CommitOrigin = Literal["manual", "sase"]
+#: Whether a commit was produced by ``sase stitch create``, another SASE
+#: automation, or by hand. Mirrors ``sase-core``'s ``CommitOriginWire`` enum.
+CommitOrigin = Literal["stitch", "auto", "manual"]
 
-_ORIGIN_VALUES: frozenset[str] = frozenset(("manual", "sase"))
+_ORIGIN_VALUES: frozenset[str] = frozenset(("stitch", "auto", "manual"))
 
 
 @dataclass(frozen=True)
@@ -84,7 +82,7 @@ class VcsCommitWire:
         subject: First line of the commit message.
         body: Remaining commit-message body (may be empty or multi-line).
         presence: Local/remote presence classification.
-        origin: Manual/SASE origin classification.
+        origin: Stitch/auto/manual origin classification.
     """
 
     full_id: str

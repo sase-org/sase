@@ -255,7 +255,7 @@ def test_vcs_commit_round_trips_through_dict() -> None:
     commit = replace(
         _commit("deadbeef", 42, "subject", parent_ids=("parent0",)),
         presence="local_only",
-        origin="sase",
+        origin="stitch",
     )
     assert vcs_commit_from_dict(asdict(commit)) == commit
 
@@ -325,7 +325,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
         "subject": "fix: thing",
         "body": "",
         "presence": "remote_only",
-        "origin": "sase",
+        "origin": "auto",
     }
     row = aggregated_commit_from_dict(flat)
     assert row == AggregatedCommitWire(
@@ -340,7 +340,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
             subject="fix: thing",
             body="",
             presence="remote_only",
-            origin="sase",
+            origin="auto",
         ),
     )
 
@@ -403,6 +403,8 @@ def test_classify_matches_python_golden() -> None:
     [
         ("fix: handwritten", ""),
         ("fix: tracked", "Details\n\nSASE_TYPE=stitch\nSASE_BEAD=sase-1"),
+        ("fix: automatic", "Details\n\nSASE_TYPE=sase init"),
+        ("fix: legacy", "Details\n\nSASE_AGENT=sase-1"),
         ("fix: handwritten", "SASE_TYPE=not terminal\n\nMore"),
     ],
 )
@@ -424,7 +426,22 @@ def test_parse_computes_origin_from_footer() -> None:
         "Details\n\nSASE_TYPE=stitch",
     )
     parsed = parse_git_log(stream)
-    assert parsed[0].origin == "sase"
+    assert parsed[0].origin == "stitch"
+
+
+def test_parse_computes_auto_origin_from_footer() -> None:
+    stream = _record(
+        "h1",
+        "s1",
+        "bryan",
+        "b@x",
+        "300",
+        "",
+        "fix: automatic",
+        "Details\n\nSASE_TYPE=sase init",
+    )
+    parsed = parse_git_log(stream)
+    assert parsed[0].origin == "auto"
 
 
 def test_parse_manual_commit_has_manual_origin() -> None:

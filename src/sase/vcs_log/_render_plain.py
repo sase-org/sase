@@ -12,6 +12,7 @@ import json
 from sase.core.vcs_log_facade import merge_summary
 from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
+from sase.vcs_log._origin_style import origin_glyph
 from sase.vcs_log._render_util import presence_glyph
 from sase.vcs_log.tags import commit_tag_view
 
@@ -61,6 +62,7 @@ def _commit_json(entry: AggregatedCommitWire, *, show_tags: bool) -> dict[str, o
         "merge": _merge_json(entry),
         "subject": entry.commit.subject,
         "presence": entry.commit.presence,
+        "origin": entry.commit.origin,
     }
     if show_tags:
         item["sase_tags"] = dict(commit_tag_view(entry.commit).tags)
@@ -99,6 +101,7 @@ def render_oneline(
         f"{entry.commit.short_id.ljust(sha_width)} "
         f"{entry.repo.ljust(repo_width)} "
         f"{_oneline_merge_marker(entry) if merge_column else ''}"
+        f"{origin_glyph(entry.commit.origin)} "
         f"{entry.commit.subject}"
         f"{_oneline_tag_suffix(entry) if show_tags else ''}"
         for entry in commits

@@ -74,7 +74,7 @@ def test_full_format_marks_merge_and_lists_all_parents(
 
     text = _render(result, "full")
 
-    assert "◆ ▌ sase  Merge pull request #123 from org/feature" in text
+    assert "◆ ✎ manual  ▌ sase  Merge pull request #123 from org/feature" in text
     assert "parents  parent0  parent1  parent2" in text
 
 
@@ -90,6 +90,7 @@ def test_full_tags_line_and_footer_cleanup(
 
     text = _render(_tagged_result(), "full")
 
+    assert "↻ auto  ▌ sase  tagged subject" in text
     assert "body text" in text
     assert "     ◆ type  sdd" in text
     assert "       plan  sdd/foo.md" in text

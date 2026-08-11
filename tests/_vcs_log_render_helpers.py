@@ -92,7 +92,7 @@ def _tagged_result() -> VcsLogResult:
                 300,
                 "tagged subject",
                 body="body text\n\nSASE_TYPE=sdd\nSASE_PLAN=sdd/foo.md",
-                origin="sase",
+                origin="auto",
             ),
             _entry("sase", "b2c3d4e5", 200, "plain subject"),
         ),
@@ -113,6 +113,7 @@ def _linked_tagged_result() -> VcsLogResult:
                     "body text\n\nSASE_PLAN=[202607/foo.md][1]\n\n"
                     "[1]: https://github.com/acme/plans/blob/main/202607/foo.md"
                 ),
+                origin="stitch",
             ),
         ),
         warnings=(),

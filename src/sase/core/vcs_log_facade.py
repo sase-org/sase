@@ -83,16 +83,28 @@ def _parse_parent_ids(value: str) -> tuple[str, ...]:
 
 
 def _classify_commit_origin_python(subject: str, body: str) -> CommitOrigin:
-    """Pure-Python golden-contract implementation of :func:`classify_commit_origin`.
+    """Pure-Python golden-contract implementation of the Rust origin classifier.
 
-    Mirrors ``sase-core``'s ``classify_commit_origin``: a commit is
-    ``"sase"``-originated when its message carries at least one terminal
-    structured ``SASE_*`` footer tag, ``"manual"`` otherwise. Reuses the
-    Rust footer grammar via :func:`parse_commit_footer` rather than
-    re-implementing it.
+    Mirrors ``sase-core``'s ``classify_commit_origin``. Reuses the Rust
+    footer grammar via :func:`parse_commit_footer` rather than
+    re-implementing canonical key handling.
     """
     message = f"{subject}\n\n{body}" if body else subject
-    return "sase" if parse_commit_footer(message).tags else "manual"
+    return _classify_commit_message_origin_python(message)
+
+
+def _classify_commit_message_origin_python(message: str) -> CommitOrigin:
+    footer = parse_commit_footer(message)
+    type_tag = next(
+        (tag for tag in reversed(footer.tags) if tag.key == "TYPE"),
+        None,
+    )
+    if type_tag is not None:
+        return "stitch" if type_tag.label.strip().casefold() == "stitch" else "auto"
+    legacy_keys = {"AGENT", "BEAD", "PLAN"}
+    if any(tag.key in legacy_keys for tag in footer.tags):
+        return "stitch"
+    return "manual"
 
 
 def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
