@@ -47,6 +47,10 @@ also manage it directly with `sase axe start` and `sase axe stop`.
   proposals. The runner, never the script, launches those agents. Chops can declare
   cadence, triggers, guards, target fan-out, environment, and dedupe policy.
 
+- **Candidate Patches**: Every cycle (checks, chops, and the lumberjack job list) first
+  filters out Patches with [`PR_ORIGIN: external`](change_spec.md#pr_origin) before any
+  job evaluates them. Axe never acts on a Patch adopted from a PR it didn't create.
+
 ## CLI Commands
 
 `sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked

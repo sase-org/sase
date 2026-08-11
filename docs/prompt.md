@@ -278,7 +278,10 @@ press `Ctrl+X` there to switch to snippet mode and choose which config file shou
 the new `ace.snippets` entry. Thus `Ctrl+G Ctrl+X Ctrl+X` opens the panel and
 immediately selects snippet mode. Prompt-input `Ctrl+T` remains completion. If the
 prompt bar contains a stack, ACE saves the non-empty panes as one `---`-separated
-xprompt body, while snippet mode saves only the active pane.
+xprompt body, while snippet mode saves only the active pane. When you already know
+you're authoring a snippet trigger, `gt`/`Ctrl+G t` opens a faster, dedicated snippet
+pane instead of this general save panel — see
+[Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
 
 ### Export a prompt to a file
 

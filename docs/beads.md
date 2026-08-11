@@ -318,7 +318,11 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    prior status and assignee. A partial dispatch failure terminates the partial launch
    but preserves the `in_progress` assignment for recovery. The worker receives the task
    ID, description, and notes through the `work_task_bead` xprompt and is instructed to
-   close the task with verification evidence.
+   close the task with verification evidence. A successful `sase stitch create` commit
+   or PR from the task worker's primary-repo workspace also auto-closes the assigned
+   `in_progress` task bead on its own, unless `-B/--do-not-close-bead` was passed — see
+   [Task Bead Autoclose](commit_workflows.md#task-bead-autoclose). Pass an intermediate
+   commit with `-B` so it does not close the bead before the task is actually done.
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size
    selects the corresponding `@xsmall_worker`, `@small_worker`, `@medium_worker`,
@@ -522,6 +526,14 @@ For a semantic duplicate, the skill uses `sase bead +1` and does not create a ta
 an in-progress epic credibly caused the issue—not merely shares its topic—the skill
 records a `DISCOVERED ISSUE:` note on that epic and does not create a task. Both records
 are made when both cases apply. Only a genuinely distinct issue becomes a sized draft.
+
+Duplicate detection is not text search alone: the skill also sweeps
+`sase bead list --type task --since 1w --status all` before drafting, because a
+duplicate filed hours ago by another agent often shares no term with your query. If the
+closest match is a closed task whose close reason declares it retired and forbids `+1`
+(a "retired umbrella"), the skill does not corroborate or reopen it — it routes the
+reporter to a new, node-specific task bead instead, with a
+`RELATED: <retired-task-id> — <why>` note linking back to the retired umbrella.
 
 The task stays `open` while its title, description, size, model, references, and
 dependencies are drafted. Marking it `ready` proposes it to the project owner. The
@@ -879,12 +891,16 @@ and plan or phase beads are rejected. See
 
 ### `sase bead close <id> [<id2> ...]`
 
-Close one or more issues. Every requested bead is checked before the first write, so a
-batch either closes completely or leaves the store untouched. A bead with any non-closed
-descendant is rejected and names the unfinished work; phase agents should continue to
-close only their assigned phase bead, not the parent epic. Closing does not touch a
-bead's existing [close history](#close-history); a new record is only archived there the
-next time the bead reopens.
+Close one or more issues. (An in-progress task bead is also closed automatically after
+its worker's commit or PR lands — see
+[Standalone Task Workflow](#standalone-task-workflow) — so an explicit close is usually
+only needed for canceling, superseding, or a non-commit resolution.) Every requested
+bead is checked before the first write, so a batch either closes completely or leaves
+the store untouched. A bead with any non-closed descendant is rejected and names the
+unfinished work; phase agents should continue to close only their assigned phase bead,
+not the parent epic. Closing does not touch a bead's existing
+[close history](#close-history); a new record is only archived there the next time the
+bead reopens.
 
 Closing a bead that is already closed exits successfully and reports `Already closed`
 without appending another close event, changing `issues.jsonl`, or creating a store
@@ -939,18 +955,19 @@ batching bead mutations, then publish the batch with a later `sase bead sync`.
 
 Create a new issue.
 
-| Flag                           | Required             | Description                                                                                                                                                                                                                       |
-| ------------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                       |
-| `-T, --type`                   | yes                  | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                          |
-| `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                 |
-| `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                     |
-| `--tier`                       | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                  |
-| `--patch` / `-c, --changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                           |
-| `-b, --bug-id`                 | no                   | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                                                                               |
-| `-m, --model`                  | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model. |
-| `-R, --ref`                    | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                       |
-| `-z, --size`                   | task: yes; phase: no | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. It controls model routing and whether large/xlarge work receives a plan-first handoff. Legacy sizeless tasks remain readable.                                 |
+| Flag                           | Required             | Description                                                                                                                                                                                                                                                         |
+| ------------------------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                                                         |
+| `-T, --type`                   | yes                  | Bead type: `task`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand                                                                                                                                            |
+| `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                                                   |
+| `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                                                       |
+| `-x, --external-ref`           | no                   | Project-qualified external issue identity, e.g. `bug:sase#42`; accepts a bare number, `#N`, `<project>#N`, `bug:<project>#N`, or a `github.com/<owner>/<repo>/issues\|pull/<n>` URL, and normalizes to `bug:<project-key>#<issue-id>`. Must be unique across beads. |
+| `--tier`                       | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                                                    |
+| `--patch` / `-c, --changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                                                             |
+| `-b, --bug-id`                 | no                   | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                                                                                                                 |
+| `-m, --model`                  | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model.                                   |
+| `-R, --ref`                    | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                                                         |
+| `-z, --size`                   | task: yes; phase: no | Phase/task size: `xsmall`, `small`, `medium`, `large`, or `xlarge`. It controls model routing and whether large/xlarge work receives a plan-first handoff. Legacy sizeless tasks remain readable.                                                                   |
 
 Patch metadata is valid only on plan beads. It is used by the epic-approval and
 `sase bead work` flows to keep plan beads linked to the Patch they are intended to
@@ -1255,10 +1272,11 @@ search is case-insensitive unless the pattern starts with `(?-i)`. Regex matchin
 unanchored, and `^`/`$` anchor the whole field unless the pattern uses `(?m)`. A pattern
 that starts with `-` needs the `--` separator, such as
 `sase bead search --regex -- '-x'`. Current indexed fields include ID, title,
-description, notes, design/plan path, artifact references, owner, assignee, model,
-phase/task size, Patch name/bug ID, status, type, and tier; timestamps are not searched.
-Unlike `sase bead list`, search includes `open`, `claimed`, `ready`, `in_progress`, and
-`closed` beads by default, so it is the quickest way to recover older context.
+description, notes, design/plan path, artifact references, external issue reference,
+owner, assignee, model, phase/task size, Patch name/bug ID, status, type, and tier;
+timestamps are not searched. Unlike `sase bead list`, search includes `open`, `claimed`,
+`ready`, `snoozed`, `in_progress`, and `closed` beads by default, so it is the quickest
+way to recover older context.
 
 Compact output prints each matching bead with the same type/status/size gutter as
 `sase bead list`, followed by a short snippet. For multi-line fields such as
@@ -1289,21 +1307,22 @@ sase bead search auth --type plan --tier epic
 
 Display complete details for an issue including status, type, tier, parent lineage,
 dependencies, blockers, description, notes, Patch metadata, model, linked plan path,
-artifact references, creator, and the hosted page URL when one resolves locally. The
-`CREATED BY` block localizes an agent's durable global name and links to its hosted
-agents-sidecar page when that URL resolves. A human-created bead shows the creator's
-email without a link. `sase bead list --format full` and
-`sase bead search --format full` share the same `CREATED BY` block but never resolve or
-print the hosted-agent link — only `sase bead show` does. Compact
-`sase bead list`/`sase bead search` rows never show the creator at all. Closed beads
-include their resolution, close reason, and close timestamp; legacy closures without a
-resolution show `(unrecorded)`. Phase and task detail views always print a size: they
-use the stored value when present and `small (default)` when it is absent. Legacy
-sizeless task launches use the same `@small_worker` fallback. Any bead's children are
-grouped as phases (with status and size) and child epics (with tier and status),
-including child epics owned by a phase bead. Nested beads show their complete lineage
-back to the root plan. A `claimed` bead also prints
-`Claimed by: <assignee> (agent has not started working yet)`.
+artifact references, external issue reference, creator, and the hosted page URL when one
+resolves locally. An `EXTERNAL` section (`Ref: <value>`) appears only when the bead has
+an external reference set via `-x/--external-ref`. The `CREATED BY` block localizes an
+agent's durable global name and links to its hosted agents-sidecar page when that URL
+resolves. A human-created bead shows the creator's email without a link.
+`sase bead list --format full` and `sase bead search --format full` share the same
+`CREATED BY` block but never resolve or print the hosted-agent link — only
+`sase bead show` does. Compact `sase bead list`/`sase bead search` rows never show the
+creator at all. Closed beads include their resolution, close reason, and close
+timestamp; legacy closures without a resolution show `(unrecorded)`. Phase and task
+detail views always print a size: they use the stored value when present and
+`small (default)` when it is absent. Legacy sizeless task launches use the same
+`@small_worker` fallback. Any bead's children are grouped as phases (with status and
+size) and child epics (with tier and status), including child epics owned by a phase
+bead. Nested beads show their complete lineage back to the root plan. A `claimed` bead
+also prints `Claimed by: <assignee> (agent has not started working yet)`.
 
 Detail resolution — the target issue plus its ancestors, children, dependencies, and
 blockers — comes from a single Rust-side store read instead of the three independent
@@ -1321,7 +1340,9 @@ twice.
 resolves and `created_by_url` when the creator's hosted agent page resolves; every
 relationship reference includes a `resolved` flag and fixed null-valued fields for
 unresolved IDs. The `issue.size` key is always present and is `null` for a bead with no
-stored size.
+stored size. The `issue.external_ref` key is always present and is an empty string for a
+bead with no external reference set. `sase bead list --format json` and
+`sase bead search --format json` include the same `external_ref` key on every issue.
 
 `--format full` renders a semantically colored, syntax-highlighted detail block
 controlled by `-s/--style`. Styling is purely additive ANSI: stripping SGR escapes from
@@ -1405,17 +1426,19 @@ field value leaves every named bead untouched. Duplicate IDs, including a shorth
 alongside its resolved full form, collapse to a single update. A single-ID invocation is
 unaffected — same syntax, output line, and commit message as before.
 
-| Flag                | Description                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `-s, --status`      | Change status                                                                         |
-| `-t, --title`       | Change title                                                                          |
-| `-d, --description` | Change description                                                                    |
-| `-n, --notes`       | Replace notes                                                                         |
-| `-D, --design`      | Change plan path                                                                      |
-| `-a, --assignee`    | Change assignee                                                                       |
-| `--tier`            | Change plan tier                                                                      |
-| `-m, --model`       | Change the launch model. Pass an empty string to clear.                               |
-| `-z, --size`        | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size. |
+| Flag                       | Description                                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `-s, --status`             | Change status                                                                                                                                                |
+| `-t, --title`              | Change title                                                                                                                                                 |
+| `-d, --description`        | Change description                                                                                                                                           |
+| `-n, --notes`              | Replace notes                                                                                                                                                |
+| `-D, --design`             | Change plan path                                                                                                                                             |
+| `-a, --assignee`           | Change assignee                                                                                                                                              |
+| `-x, --external-ref`       | Set the external issue identity (mutually exclusive with `-X`); see [`sase bead create`](#sase-bead-create) for accepted forms. Must be unique across beads. |
+| `-X, --clear-external-ref` | Clear the external issue identity (mutually exclusive with `-x`)                                                                                             |
+| `--tier`                   | Change plan tier                                                                                                                                             |
+| `-m, --model`              | Change the launch model. Pass an empty string to clear.                                                                                                      |
+| `-z, --size`               | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size.                                                                        |
 
 Use `sase bead update --notes` for an explicit field replacement. Use `sase bead note`
 when recording progress that should accumulate with earlier notes.

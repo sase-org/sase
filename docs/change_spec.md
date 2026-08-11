@@ -28,6 +28,7 @@ DESCRIPTION:
   <BODY>
 PARENT: <PARENT>
 PR: <PR>
+PR_ORIGIN: <PR_ORIGIN>
 BUG: <BUG>
 STATUS: <STATUS>
 REFS:
@@ -164,6 +165,33 @@ as `PR:` when touched.
 
 ```text
 PR: https://github.com/org/repo/pull/42
+```
+
+### PR_ORIGIN
+
+Tracks how the Patch's PR came to exist. `sase stitch create` stamps `sase` on every PR
+it creates through the tracked PR workflow; a Patch adopted from a PR SASE didn't create
+should be marked `external`. Absent or unrecognized values normalize to `unknown`.
+
+**Values:**
+
+- `sase`: created through SASE's tracked PR workflow (`sase stitch create -t pr`).
+- `external`: adopted from a PR SASE did not create.
+- `unknown` (default): no evidence either way.
+
+**Behavioral consequence:** AXE excludes `external`-origin Patches from candidate
+selection entirely, before query evaluation — SASE automation never acts on them. See
+[AXE](axe.md).
+
+**Setting it:** `sase patch set-origin <name> <sase|external|unknown>` (see
+[CLI Reference](cli.md#work-tracking-and-planning)), or press `o` on a PR row in ACE's
+PRs sub-tab (see [PR Origin Chip](ace.md#pr-origin-chip)).
+
+**Example:**
+
+```text
+PR: https://github.com/org/repo/pull/42
+PR_ORIGIN: external
 ```
 
 ### BUG

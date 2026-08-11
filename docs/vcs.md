@@ -47,7 +47,7 @@ The hooks are organized into several groups:
   `vcs_apply_patch`, `vcs_apply_patches`, `vcs_add_remove`, `vcs_clean_workspace`,
   `vcs_commit`, `vcs_amend`, `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`,
   `vcs_prune`, `vcs_stash_and_clean`
-- **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_changespec_head_ref`,
+- **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_patch_head_ref`,
   `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
   `vcs_get_default_parent_revision`, `vcs_diff_name_status`, `vcs_diff_line_stats`,
   `vcs_log`, `vcs_repo_stats`, `vcs_file_at_revision`
@@ -63,6 +63,8 @@ The hooks are organized into several groups:
 - **VCS-agnostic operations** — `vcs_abandon_change`,
   `vcs_prepare_description_for_reword`, `vcs_normalize_bug_value`, `vcs_get_change_url`,
   `vcs_get_change_body`
+- **Pull-request operations** — `vcs_list_pull_requests` (list existing pull requests;
+  only implemented by providers with native PR support, such as `sase-github`)
 - **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`,
   `vcs_get_branch_name`, `vcs_get_pr_number`, `vcs_get_workspace_name`,
   `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`, `vcs_upload`,
@@ -278,6 +280,14 @@ request remain visible. `--merges show` applies no Git merge filter and marks vi
 merge commits in the output. `--merges only` maps to Git's `--merges` and shows merge
 commits alone, without adding `--first-parent`; for the same repo, revision, and other
 filters, `hide` plus `only` partitions the same commit set shown by `show`.
+
+When merge commits are visible (`show` or `only`), `pretty`/`timeline`/`oneline` output
+prefixes each merge commit's subject with a `◆` glyph, and a `◆ merge` legend entry is
+added to the output whenever any shown commit is a merge. A recognized GitHub PR merge
+condenses its subject to `#<PR-number>  <headline>` instead of the raw merge-commit
+subject, so the PR's actual change summary is what you see rather than the generic
+"Merge pull request #N from ..." text. `--format full` additionally prints a
+`parents  <id1>  <id2>` line under each merge commit, listing both parent revisions.
 
 `DATE` accepts relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`,
 or `YYYY-MM-DDTHH:MM`. Dates are resolved in the configured SASE timezone and pushed

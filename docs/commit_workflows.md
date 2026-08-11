@@ -1,9 +1,9 @@
 # Commit Workflows
 
 Sase provides three unified workflows for landing code changes: **commit**, **propose**,
-and **pull request**. All three share the same PatchI command (`sase stitch create`),
-the same `CommitWorkflow` orchestrator, and the same VCS provider abstraction, but
-differ in what they produce and how they track the result.
+and **pull request**. All three share the same commit CLI command
+(`sase stitch create`), the same `CommitWorkflow` orchestrator, and the same VCS
+provider abstraction, but differ in what they produce and how they track the result.
 
 ## Overview
 
@@ -137,7 +137,7 @@ Subject gate       (reject a non-Conventional-Commit subject before any side eff
     |
 Bead association   (append linked SASE_BEAD= footer when SASE_BEAD_ID is set)
     |
-Bead lifecycle     (close bead, sync beads)                               [skip for proposals]
+Bead sync          (sync beads; warn if the assigned bead will not auto-close) [skip for proposals]
     |
 Plan handling      (store/copy plan, append storage-relative SASE_PLAN=,  [skip for proposals]
                     mark plan done)
@@ -176,6 +176,8 @@ STITCHES entry      (append entry to project file)                         [comm
 Final marker       (rewrite with the new stitch ID)           [commit/propose, if appended]
     |
 DELTAS refresh     (recompute the tracked diff summary)       [commit/propose, if Patch found]
+    |
+Task bead autoclose (close the eligible in-progress task bead)      [commit/PR only, last]
 ```
 
 The marker is deliberately written before publication and STITCHES tracking so a
@@ -198,6 +200,33 @@ For PRs, the subject is validated exactly as the agent authored it.
 `vcs_provider.use_project_pr_prefix: true` prepends a `[project] ` prefix to the PR
 title _after_ validation, so the final title on the pull request can differ from the
 validated subject.
+
+#### Task Bead Autoclose
+
+As the last stage of `CommitWorkflow`, `create_commit` and `create_pull_request` (never
+`create_proposal`) auto-close the bead assigned to the commit, provided all of the
+following hold:
+
+- The bead's `issue_type` is `task` — phase, epic, and plan beads are skipped.
+- The bead's `status` is `in_progress`.
+- The commit's repository root is the project's primary repo — commits made in a
+  configured linked repository or an SDD sidecar are skipped, since those never carry
+  the project's own task lifecycle.
+
+When all conditions hold, SASE runs the equivalent of
+`sase bead close <id> --resolution done --note "<note>"`, where the note reads:
+
+> Auto-closed by `sase stitch create` after `<method>` landed `<short-sha>`
+> ("`<subject>`"). No verification is implied by this note. Reopen with
+> `sase bead open <id>`, or pass `-B`/`--do-not-close-bead` on mid-flight commits.
+
+and the CLI prints
+`Auto-closed task bead <id>. Reopen with sase bead open <id> if more work remains.` Pass
+`-B/--do-not-close-bead` (see [CLI Arguments](#cli-arguments) above) on any commit that
+is not the task's final commit, since an intermediate commit would otherwise close the
+bead before the work is done. See
+[Standalone Task Workflow](beads.md#standalone-task-workflow) for how this fits into the
+broader task-bead lifecycle.
 
 ### 4. XPrompt reads the result
 

@@ -206,17 +206,20 @@ repeated values within one facet combine with OR semantics. Free-text terms must
 match. Press `Tab` to accept the highlighted key or value completion.
 
 Stitches accepts singular `project:` plus `repo:`, `author:`, `since:`, `until:`,
-`sidecar:`, and `limit:` and free text matched against the commit subject. `project:` is
-not repeatable, comma-listable, or negatable because it selects the repository
-constellation before commits are collected. With no `project:` token, collection truly
-spans all projects. It accepts a configured project name, ProjectSpec directory key, or
-alias; committed known values are rewritten to the configured project name. The project
-picker replaces that token while preserving every other committed token; its **All
-projects** choice removes it. The compatibility `a` action removes an active project
-token and restores the last automatic or picked project on the next press.
+`sidecar:`, `merges:`, and `limit:` and free text matched against the commit subject.
+`merges:hide/show/only` controls merge-commit visibility exactly like
+`sase stitch log`'s `--merges` flag (see
+[VCS Provider Reference](vcs.md#sase-stitch-log)). `project:` is not repeatable,
+comma-listable, or negatable because it selects the repository constellation before
+commits are collected. With no `project:` token, collection truly spans all projects. It
+accepts a configured project name, ProjectSpec directory key, or alias; committed known
+values are rewritten to the configured project name. The project picker replaces that
+token while preserving every other committed token; its **All projects** choice removes
+it. The compatibility `a` action removes an active project token and restores the last
+automatic or picked project on the next press.
 
-The bundled initial query is `sidecar:false since:24h`; it is configurable with
-`ace.artifacts.stitches.default_query` (`ace.artifacts.commits.default_query` is a
+The bundled initial query is `sidecar:false merges:hide since:24h`; it is configurable
+with `ace.artifacts.stitches.default_query` (`ace.artifacts.commits.default_query` is a
 deprecated alias), and changes take effect the next time ACE starts. Before the pane is
 mounted, an explicit project in the ACE query overrides a configured `project:`, a
 configured project overrides current-directory inference, and an inferred registered
@@ -622,6 +625,7 @@ launch routing uses the same `@small_worker` fallback.
 | `M`             | Mail PR                                                                   |
 | `m`             | Mark / unmark current PR (auto-advances to next)                          |
 | `n`             | Rename PR (non-Sub/Rev PRs only)                                          |
+| `o`             | Mark PR origin (`sase`/`external`/`unknown`)                              |
 | `R`             | Rewind to previous commit (`!` suffix skips VCS operations)               |
 | `s`             | Change status (opens status modal)                                        |
 | `S`             | Bulk status change for all marked PRs                                     |
@@ -1034,8 +1038,12 @@ toggle, or direct selection clears real per-section overrides. Fold state is sha
 the Agents metadata panel: an ordinary agent's own three-level scale shapes its
 `NEIGHBORS` and `SLOW TOOL CALLS` sections, so `z*` chords have a visible effect on a
 regular-agent lane, and the same session scope carries over to the next selected clan or
-family container. Other sections on a regular-agent panel stay fold-inert. A selected
-whole tribe panel adds level 4 for exhaustive detail. These keys are configurable; see
+family container. Most other sections on a regular-agent panel stay fold-inert, except
+the `SASE CONTEXT / BEAD` lane's multi-line values: at scale position 1 (`z1`,
+Collapsed), a task or phase worker's `Notes`, and a task worker's `+1 Evidence`,
+collapse to a one-line digest, `N lines (zz to show)`; single-line values never fold,
+and at positions 2-3 the full value renders. A selected whole tribe panel adds level 4
+for exhaustive detail. These keys are configurable; see
 [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel
@@ -1058,7 +1066,12 @@ fields as `unavailable`, without exposing the epic goal, dependencies, or any pe
 phase.
 
 For planner/author and lander rows, the lane body contains the complete normalized
-`Title`, `Goal`, and canonical `Path`. Its header shows the effective user-facing tier
+`Title`, `Goal`, and canonical `Path`; a tale additionally gets a `Size` row between
+`Goal` and `Path`, showing the authored `xsmall`/`small`/`medium` chip, or the `medium`
+chip plus a `(default)` marker when the tale's `size` was missing or an over-sized
+legacy `large`/`xlarge` normalized at launch (see
+[Plan Frontmatter Schema and Validation](sdd.md#plan-frontmatter-schema-and-validation));
+epics never show a `Size` row here. The lane header shows the effective user-facing tier
 (`plan`, `tale`, or `epic`) and, for epics, the phase count. The tier records how the
 user approved the plan: `approve` means a plan approved without an SDD commit, `tale`
 (and the legacy commit-only action) means a committed tale, and `epic` means a committed
@@ -1078,15 +1091,15 @@ phase metadata unavailable. Each entry shows its one-based authored order and di
 title, fixed-width literal size chip, canonical ID, `no dependencies` or
 `after <id>, ...`, plus an authored phase model when present. Optional descriptions get
 their own hanging-indented line. The order and diamond glyph describe static plan
-structure, not execution state or live bead progress. Tales retain the compact three-row
-form. The chip remains visible while the title and other long ASCII or wide-Unicode
-values fold completely without ellipses; the lane caps content at 80 terminal cells on
-wide panels and reflows to the normal metadata panel or metadata zoom width. Logical
-header text contains the same size labels for search, copy, and style inspection. In
-hint mode only `Path` receives a numbered file hint, allocated in the plan's visual
-reading order. Missing or damaged plans keep their known lane and path visible; when
-epic context is known, validation failure renders one quiet `phases unavailable` header
-state rather than partial phase data.
+structure, not execution state or live bead progress. Tales retain the compact four-row
+form (`Title`, `Goal`, `Size`, `Path`). The chip remains visible while the title and
+other long ASCII or wide-Unicode values fold completely without ellipses; the lane caps
+content at 80 terminal cells on wide panels and reflows to the normal metadata panel or
+metadata zoom width. Logical header text contains the same size labels for search, copy,
+and style inspection. In hint mode only `Path` receives a numbered file hint, allocated
+in the plan's visual reading order. Missing or damaged plans keep their known lane and
+path visible; when epic context is known, validation failure renders one quiet
+`phases unavailable` header state rather than partial phase data.
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the
 normal Agents-tab working set: active rows plus recent completed, non-hidden rows.
@@ -1364,13 +1377,14 @@ panel has a `❖` title and shows a fold-aware `TRIBE` summary in the metadata p
 it is selected, `j` / `k` cycle whole panels without descending; `l` or `Esc` returns to
 the remembered row. A second `h` collapses the selected panel when another panel remains
 visible. On a collapsed panel, the first `l` expands it while keeping whole-panel focus
-and the second returns to the remembered row; uppercase `L` expands it and enters its
-first selectable row. Lowercase `h` on a collapsed panel selects the visually
-bottom-most expanded panel without changing any panel folds, and `Ctrl+O` returns to the
-collapsed origin. When every live panel is collapsed, `h` remains a no-op and shows the
-existing `Panel is already collapsed` warning. Apostrophe jump hints include every
-split-panel title, even a lone expanded panel, as well as collapsed titles, and support
-the normal `Ctrl+O` jump back.
+and the second returns to the remembered row; `L` on a collapsed panel does not expand
+it — it repeats the usual already-collapsed warning instead (see uppercase `H`/`L`
+below). Lowercase `h` on a collapsed panel selects the visually bottom-most expanded
+panel without changing any panel folds, and `Ctrl+O` returns to the collapsed origin.
+When every live panel is collapsed, `h` remains a no-op and shows the existing
+`Panel is already collapsed` warning. Apostrophe jump hints include every split-panel
+title, even a lone expanded panel, as well as collapsed titles, and support the normal
+`Ctrl+O` jump back.
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate
 workflow/family owner, so a visible hidden leaf under an already fully expanded workflow
@@ -1487,16 +1501,16 @@ therefore be visible at once:
 | ----------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands; `-` never sweeps banners                                   |
 | Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group lanes, then group clans; `l` expands; `-` sweeps every open lane and clan in the panel at once |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` or `L` expands                                                                    |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints a lane/clan/banner fold to toggle         |
 
-| Key | Action                                                                                                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                       |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                 |
-| `L` | Expand a collapsed focused panel and enter its first selectable row                                                                                    |
-| `H` | Collapse group lanes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail                                      |
-| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                  |
-| `-` | Sweep every open lane and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself |
+| Key | Action                                                                                                                                                            |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                  |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                            |
+| `L` | On an expanded selected panel, hint every visible lane/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning |
+| `H` | Collapse group lanes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail                                                 |
+| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                             |
+| `-` | Sweep every open lane and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself            |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -1556,15 +1570,18 @@ clan owners are skipped without blocking valid siblings.
 
 Whole-panel focus gives `H` a hinted collapse instead of the group-scoped ladder,
 because it has no selected row or grouping scope to walk. It enumerates every currently
-expanded lane, clan, and top-level grouping banner in the selected panel — including
-owners hidden behind a collapsed banner — assigns each one an adaptive hint key, and
-shows the chips in place of jump hints. Typing a hint fully collapses that one fold; an
-already collapsed fold is never offered, so every hint does something. `H` never expands
-and never collapses the panel itself, which stays lowercase `h`'s job. A panel with no
-expanded folds warns without arming hint mode; an already collapsed panel keeps the
-existing `Panel is already collapsed` warning. The footer shows the configured
+visible expanded lane, clan, and top-level grouping banner in the selected panel — never
+an owner hidden behind a still-collapsed parent banner, since that owner isn't emitted
+as a row at all until its parent is expanded — assigns each one an adaptive hint key,
+and shows the chips in place of jump hints. Typing a hint fully collapses that one fold;
+an already collapsed fold is never offered, so every hint does something. `H` never
+expands and never collapses the panel itself, which stays lowercase `h`'s job. A panel
+with no expanded folds warns without arming hint mode; an already collapsed panel keeps
+the existing `Panel is already collapsed` warning. The footer shows the configured
 `hooks_or_collapse_all` key as `collapse fold` whenever the selected panel has an
-expanded lane, clan, or top-level banner to hint.
+expanded lane, clan, or top-level banner to hint. `L`'s hint mode uses the same
+enumeration but is not restricted to collapsible targets, so it also offers currently
+collapsed lanes, clans, and banners and toggles whichever one you pick.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  `
 segment per ancestor L0/L1 banner (in the parent tier's dim accent — project blue or
@@ -2947,6 +2964,21 @@ shows inline stats:
 These stats are computed from the latest stitch's finished mentors. They update as you
 accept or read comments in the Mentor Review modal.
 
+## PR Origin Chip
+
+A Patch with a `pr_url` shows a `PR_ORIGIN` chip next to its PR badge in the PRs sub-tab
+list and in the detail panel: nothing for the default `sase` origin (a PR SASE created
+through the tracked PR workflow), `external` for a PR SASE adopted but did not create,
+and `origin?` for `unknown` (no evidence either way). The detail panel adds a one-line
+note for `external` Patches, since AXE excludes external-origin Patches from its
+candidate selection entirely (see [AXE](axe.md)). Press `o` on a PR row (see
+[PR Actions](#pr-actions) above) to open the Mark PR Origin modal and set it explicitly,
+or run `sase patch set-origin <name> <sase|external|unknown>` (see
+[CLI Reference](cli.md#work-tracking-and-planning)). See
+[PR_ORIGIN](change_spec.md#pr_origin) and
+[Origin Matching](query_language.md#origin-matching) for the underlying Patch field and
+the `origin:` query property.
+
 ## Tab Bar Display
 
 The tab bar renders plain tab labels (`Agents`, `Artifacts`, `AXE`). Per-bucket counts
@@ -2979,11 +3011,11 @@ the complete content.
 Press `Z` on an agent row in the Agents tab to open a near-fullscreen view of the active
 detail panel. With a whole tribe panel selected, `Z` opens that tribe's metadata
 document instead. Press `=` to isolate the focused tribe panel or restore the previously
-remembered panel layout (see Whole-Panel Focus above). In the detail modal, the header
-shows the available panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel
-highlighted; use `]` / `[` to cycle those panels with wrap-around. A tribe zoom exposes
-only the `METADATA` target, so panel cycling and file paging are inert there while
-search, copy, edit, and refresh continue to work.
+remembered panel layout (see [Tribe Side Panels](#tribe-side-panels) above). In the
+detail modal, the header shows the available panel tabs (`METADATA`, `FILE`, `TOOLS`)
+with the active panel highlighted; use `]` / `[` to cycle those panels with wrap-around.
+A tribe zoom exposes only the `METADATA` target, so panel cycling and file paging are
+inert there while search, copy, edit, and refresh continue to work.
 
 When the zoom modal shows files, the file list is fixed for the life of that modal so
 refreshes cannot add, remove, reorder, or jump the selected file. Use `Ctrl+N` /
@@ -3300,23 +3332,29 @@ pinned attempt view resets the cursor.
   explicit phase metadata avoids bead-store reads. The parent goal, dependencies, and
   peer phases are never rendered, and the parent plan does not become a generic
   artifact. For a task worker, the fields are `Task Title`, `Description`, optional
-  `Notes`, `Size`, optional `+1 Reports` / `+1 Evidence`, and `Created`.
+  `Notes`, `Size`, optional `+1 Reports` / `+1 Evidence`, and `Created`. A multi-line
+  `Notes` value (both bead types) or `+1 Evidence` value (task only) collapses to a
+  one-line `N lines (zz to show)` digest at metadata fold level 1 and renders in full at
+  levels 2-3; single-line values never fold.
 - **SASE CONTEXT / PLAN**: Shown for the epic-authoring planner, epic lander, and task
   workers with a distinct authored plan when direct metadata or a confirmed legacy epic
   association resolves a plan. Phase workers deliberately omit the parent epic lane; no
   goal or peer roadmap phase is rendered. A task bead's own `design` field is never
   rendered as the task worker's `PLAN` lane. For plan-bearing roles, the body rows are
-  `Title`, `Goal`, and canonical `Path`, in that order. The lane header carries the
-  effective tier (`plan`, `tale`, or `epic`) and an epic's phase count. An `approve`
-  action displays `plan`, `tale` and legacy commit-only actions display `tale`, and an
-  `epic` action displays `epic`, even when the corresponding commit or launch later
-  fails. Without action metadata, a valid authored tale or epic supplies the tier;
-  legacy committed plans without a readable authored tier display `tale`, and unresolved
-  values display `tier unavailable`. Canonical path selection remains separate:
-  committed paths are workspace-relative, while pending or explicitly uncommitted paths
-  use the home-shortened machine-local archive. Valid authored epics then show every
-  phase in authored order with its title, fixed-width literal size chip, ID, dependency
-  IDs, optional model, and optional description; these are static roadmap ordinals, not
+  `Title`, `Goal`, and canonical `Path`, in that order; a tale additionally gets a
+  `Size` row between `Goal` and `Path` (the authored `xsmall`/`small`/`medium` chip, or
+  a defaulted `medium` chip when the tale's `size` was missing or an over-sized legacy
+  `large`/`xlarge` normalized at launch). The lane header carries the effective tier
+  (`plan`, `tale`, or `epic`) and an epic's phase count. An `approve` action displays
+  `plan`, `tale` and legacy commit-only actions display `tale`, and an `epic` action
+  displays `epic`, even when the corresponding commit or launch later fails. Without
+  action metadata, a valid authored tale or epic supplies the tier; legacy committed
+  plans without a readable authored tier display `tale`, and unresolved values display
+  `tier unavailable`. Canonical path selection remains separate: committed paths are
+  workspace-relative, while pending or explicitly uncommitted paths use the
+  home-shortened machine-local archive. Valid authored epics then show every phase in
+  authored order with its title, fixed-width literal size chip, ID, dependency IDs,
+  optional model, and optional description; these are static roadmap ordinals, not
   progress indicators. Launch-consumption validation normalizes only an omitted
   historical size to `small`; explicit invalid sizes remain unavailable. The chip stays
   visible while the title and every other value wrap without truncation in the normal
@@ -5002,7 +5040,12 @@ and choose which config file should store the new `ace.snippets` entry;
 rows are grouped by source and sorted alphabetically by trigger; snippet completions
 elsewhere are listed in trigger order, too, for stable display. As soon as ACE reports
 the snippet as created or saved, it is available to every prompt input already open in
-the current TUI; no prompt remount or restart is needed.
+the current TUI; no prompt remount or restart is needed. When
+[`ace.snippet_config_path`](configuration.md#acesnippet_config_path) is configured, this
+panel's row list always offers it, pre-selected, as a synthetic destination row — even
+when it points outside the standard discovered locations — and shows why if it falls
+back to a discovered location instead (for example
+`configured path unusable: read-only`).
 
 When `use_chezmoi` is enabled, the save panel writes the chezmoi source file first. ACE
 keeps that successfully written snippet live as session state even before deployment.

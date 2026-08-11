@@ -20,12 +20,14 @@ Each non-README note declares its tier in YAML frontmatter:
 Use [initialization](init.md#memory-initialization) to create or refresh the files. Use
 [`sase memory agent-docs list`](init.md#agent-documents) to inspect `AGENTS.md` and
 provider instruction file status. Initialization always generates the short
-`sase/memory/sase.md` workspace note, and additionally generates the long
-`sase/memory/sase_beads.md` bead reference for SASE-managed project repositories;
-managed agent instructions list the latter in Tier 2 there. Day to day, the usual order
-is: inspect loaded context with `sase memory list`, have agents use `sase memory read`
-for audited long-term reads, have agents use `sase memory write` only to create
-proposals, then have a human approve or reject those proposals with
+`sase/memory/sase.md` workspace note. For SASE-managed project repositories it
+additionally generates two long notes: the `sase/memory/sase_beads.md` bead reference,
+listed in Tier 2 of managed agent instructions, and, nested under it as a child,
+`sase/memory/sase_sizes.md` size-scale guidance — surfaced via `sase_beads.md`'s
+`## Children` section on an audited read rather than as its own Tier 2 entry. Day to
+day, the usual order is: inspect loaded context with `sase memory list`, have agents use
+`sase memory read` for audited long-term reads, have agents use `sase memory write` only
+to create proposals, then have a human approve or reject those proposals with
 `sase memory review`.
 
 ## XPrompt Inclusion

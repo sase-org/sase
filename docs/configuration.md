@@ -1020,9 +1020,14 @@ parent directory must be writable.
 
 A configured value that is unusable — wrong suffix, unwritable parent, invalid YAML, or
 a project `sase/sase.yml` that still needs its legacy migration — falls back to the
-default and reports why: the trigger-name panel appends the reason to the destination
-line (e.g. `configured path unusable: read-only`) rather than silently writing somewhere
-else.
+default and reports why: both the `gt` trigger-name panel and the `gx` save panel's
+snippet mode append the reason to the destination line (e.g.
+`configured path unusable: read-only`) rather than silently writing somewhere else. The
+`gx` panel additionally always offers the resolved `ace.snippet_config_path` destination
+as a selectable, pre-highlighted row — even when it is a custom filename or path that
+falls outside the standard discovered locations (`sase.yml` / `sase_*.yml` under
+`~/.config/sase/` or the chezmoi equivalent, and the project's `sase/sase.yml`) — so a
+configured preference is never silently dropped from the picker.
 
 ```yaml
 ace:
