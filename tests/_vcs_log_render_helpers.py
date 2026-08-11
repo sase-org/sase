@@ -14,6 +14,7 @@ import sase.vcs_log._render_util as util_mod
 import sase.vcs_log.render as render_mod
 from sase.core.vcs_log_wire import (
     AggregatedCommitWire,
+    CommitOrigin,
     CommitPresence,
     VcsCommitWire,
 )
@@ -30,6 +31,7 @@ def _entry(
     body: str = "",
     presence: CommitPresence = "synced",
     parent_ids: tuple[str, ...] = (),
+    origin: CommitOrigin = "manual",
 ) -> AggregatedCommitWire:
     return AggregatedCommitWire(
         repo=repo,
@@ -43,6 +45,7 @@ def _entry(
             subject=subject,
             body=body,
             presence=presence,
+            origin=origin,
         ),
     )
 
@@ -89,6 +92,7 @@ def _tagged_result() -> VcsLogResult:
                 300,
                 "tagged subject",
                 body="body text\n\nSASE_TYPE=sdd\nSASE_PLAN=sdd/foo.md",
+                origin="sase",
             ),
             _entry("sase", "b2c3d4e5", 200, "plain subject"),
         ),

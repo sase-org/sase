@@ -164,7 +164,7 @@ def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
 
 
 def _validate_vcs_log_wire_schema(module: ModuleType) -> bool:
-    expected = {"vcs_log_wire_schema_version": 3}
+    expected = {"vcs_log_wire_schema_version": 4}
     valid = True
     for binding_name, expected_version in expected.items():
         try:

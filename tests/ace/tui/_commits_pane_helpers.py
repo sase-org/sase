@@ -63,6 +63,7 @@ def _result(timestamp: int | None = None) -> VcsLogResult:
                     "SASE_BUG=42"
                 ),
                 presence="local_only",
+                origin="sase",
             ),
         ),
         AggregatedCommitWire(

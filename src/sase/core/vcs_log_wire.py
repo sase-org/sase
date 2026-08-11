@@ -34,7 +34,7 @@ JSON shape conventions
   job.
 - ``AggregatedCommitWire`` JSON is flat:
   ``{"repo", "full_id", "short_id", "author_name", "author_email",
-  "timestamp", "parent_ids", "subject", "body", "presence"}``.
+  "timestamp", "parent_ids", "subject", "body", "presence", "origin"}``.
 
 Schema version
 --------------
@@ -49,13 +49,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-VCS_LOG_WIRE_SCHEMA_VERSION = 3
+VCS_LOG_WIRE_SCHEMA_VERSION = 4
 
 CommitPresence = Literal["synced", "remote_only", "local_only", "unknown"]
 
 _PRESENCE_VALUES: frozenset[str] = frozenset(
     ("synced", "remote_only", "local_only", "unknown")
 )
+
+#: Whether a commit was produced through the SASE tracked commit workflow
+#: (any terminal ``SASE_*`` footer tag) or authored outside it. Mirrors
+#: ``sase-core``'s ``CommitOriginWire`` enum (``Manual``/``Sase``,
+#: serialized lowercase).
+CommitOrigin = Literal["manual", "sase"]
+
+_ORIGIN_VALUES: frozenset[str] = frozenset(("manual", "sase"))
 
 
 @dataclass(frozen=True)
@@ -76,6 +84,7 @@ class VcsCommitWire:
         subject: First line of the commit message.
         body: Remaining commit-message body (may be empty or multi-line).
         presence: Local/remote presence classification.
+        origin: Manual/SASE origin classification.
     """
 
     full_id: str
@@ -87,6 +96,7 @@ class VcsCommitWire:
     subject: str
     body: str
     presence: CommitPresence = "unknown"
+    origin: CommitOrigin = "manual"
 
     @property
     def is_merge(self) -> bool:
@@ -124,6 +134,7 @@ def vcs_commit_from_dict(data: dict[str, Any]) -> VcsCommitWire:
         subject=str(data["subject"]),
         body=str(data["body"]),
         presence=_presence_from_dict(data),
+        origin=_origin_from_dict(data),
     )
 
 
@@ -143,6 +154,7 @@ def aggregated_commit_from_dict(data: dict[str, Any]) -> AggregatedCommitWire:
 __all__ = [
     "VCS_LOG_WIRE_SCHEMA_VERSION",
     "AggregatedCommitWire",
+    "CommitOrigin",
     "CommitPresence",
     "VcsCommitWire",
     "aggregated_commit_from_dict",
@@ -155,6 +167,13 @@ def _presence_from_dict(data: dict[str, Any]) -> CommitPresence:
     if raw in _PRESENCE_VALUES:
         return raw  # type: ignore[return-value]
     return "unknown"
+
+
+def _origin_from_dict(data: dict[str, Any]) -> CommitOrigin:
+    raw = str(data.get("origin", "manual"))
+    if raw in _ORIGIN_VALUES:
+        return raw  # type: ignore[return-value]
+    return "manual"
 
 
 def _parent_ids_from_dict(data: dict[str, Any]) -> tuple[str, ...]:

@@ -33,9 +33,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Literal
 
+from sase.core.commit_footer_facade import parse_commit_footer
 from sase.core.rust import require_rust_binding
 from sase.core.vcs_log_wire import (
     AggregatedCommitWire,
+    CommitOrigin,
     CommitPresence,
     VcsCommitWire,
     aggregated_commit_from_dict,
@@ -80,6 +82,19 @@ def _parse_parent_ids(value: str) -> tuple[str, ...]:
     return tuple(part for part in value.split(" ") if part)
 
 
+def _classify_commit_origin_python(subject: str, body: str) -> CommitOrigin:
+    """Pure-Python golden-contract implementation of :func:`classify_commit_origin`.
+
+    Mirrors ``sase-core``'s ``classify_commit_origin``: a commit is
+    ``"sase"``-originated when its message carries at least one terminal
+    structured ``SASE_*`` footer tag, ``"manual"`` otherwise. Reuses the
+    Rust footer grammar via :func:`parse_commit_footer` rather than
+    re-implementing it.
+    """
+    message = f"{subject}\n\n{body}" if body else subject
+    return "sase" if parse_commit_footer(message).tags else "manual"
+
+
 def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
     """Pure-Python golden-contract implementation of :func:`parse_git_log`.
 
@@ -122,6 +137,7 @@ def _parse_git_log_python(stdout: str) -> list[VcsCommitWire]:
                 parent_ids=parent_ids,
                 subject=subject,
                 body=body,
+                origin=_classify_commit_origin_python(subject, body),
             )
         )
     return commits

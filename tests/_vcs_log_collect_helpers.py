@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from sase.core.vcs_log_wire import VcsCommitWire
+from sase.core.vcs_log_wire import CommitOrigin, VcsCommitWire
 from sase.vcs_log.models import CommitFilters
 from sase.vcs_provider._types import MergeVisibility
 
 
-def commit(full: str, ts: int, subject: str = "s") -> VcsCommitWire:
+def commit(
+    full: str, ts: int, subject: str = "s", origin: CommitOrigin = "manual"
+) -> VcsCommitWire:
     return VcsCommitWire(
         full_id=full,
         short_id=full[:7],
@@ -16,6 +18,7 @@ def commit(full: str, ts: int, subject: str = "s") -> VcsCommitWire:
         timestamp=ts,
         subject=subject,
         body="",
+        origin=origin,
     )
 
 

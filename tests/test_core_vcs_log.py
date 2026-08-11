@@ -24,13 +24,14 @@ from typing import Any
 
 import pytest
 
-from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.core.rust import RUST_EXTENSION_MODULE_NAME, require_rust_binding
 from sase.core.vcs_log_facade import (
     VCS_LOG_GIT_FORMAT,
     VCS_LOG_RECORD_SEP,
     VCS_LOG_UNIT_SEP,
     _MergeSummary,
     _aggregate_commit_log_python,
+    _classify_commit_origin_python,
     _classify_commit_presence_python,
     _parse_git_log_python,
     aggregate_commit_log,
@@ -244,8 +245,8 @@ def test_aggregate_negative_limit_is_unlimited() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_vcs_log_wire_schema_version_is_three() -> None:
-    assert VCS_LOG_WIRE_SCHEMA_VERSION == 3
+def test_vcs_log_wire_schema_version_is_four() -> None:
+    assert VCS_LOG_WIRE_SCHEMA_VERSION == 4
 
 
 def test_vcs_commit_round_trips_through_dict() -> None:
@@ -254,8 +255,36 @@ def test_vcs_commit_round_trips_through_dict() -> None:
     commit = replace(
         _commit("deadbeef", 42, "subject", parent_ids=("parent0",)),
         presence="local_only",
+        origin="sase",
     )
     assert vcs_commit_from_dict(asdict(commit)) == commit
+
+
+def test_vcs_commit_missing_origin_defaults_manual() -> None:
+    data = {
+        "full_id": "deadbeef",
+        "short_id": "deadbee",
+        "author_name": "bryan",
+        "author_email": "bryan@example.com",
+        "timestamp": 42,
+        "subject": "subject",
+        "body": "",
+    }
+    assert vcs_commit_from_dict(data).origin == "manual"
+
+
+def test_vcs_commit_unrecognized_origin_defaults_manual() -> None:
+    data = {
+        "full_id": "deadbeef",
+        "short_id": "deadbee",
+        "author_name": "bryan",
+        "author_email": "bryan@example.com",
+        "timestamp": 42,
+        "subject": "subject",
+        "body": "",
+        "origin": "bogus",
+    }
+    assert vcs_commit_from_dict(data).origin == "manual"
 
 
 def test_vcs_commit_missing_presence_defaults_unknown() -> None:
@@ -296,6 +325,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
         "subject": "fix: thing",
         "body": "",
         "presence": "remote_only",
+        "origin": "sase",
     }
     row = aggregated_commit_from_dict(flat)
     assert row == AggregatedCommitWire(
@@ -310,6 +340,7 @@ def test_aggregated_commit_from_flat_dict() -> None:
             subject="fix: thing",
             body="",
             presence="remote_only",
+            origin="sase",
         ),
     )
 
@@ -365,6 +396,43 @@ def test_classify_matches_python_golden() -> None:
     assert classify_commit_presence(
         commits, {"ahead"}, {"behind"}
     ) == _classify_commit_presence_python(commits, {"ahead"}, {"behind"})
+
+
+@pytest.mark.parametrize(
+    ("subject", "body"),
+    [
+        ("fix: handwritten", ""),
+        ("fix: tracked", "Details\n\nSASE_TYPE=stitch\nSASE_BEAD=sase-1"),
+        ("fix: handwritten", "SASE_TYPE=not terminal\n\nMore"),
+    ],
+)
+def test_classify_origin_matches_python_golden(subject: str, body: str) -> None:
+    message = f"{subject}\n\n{body}" if body else subject
+    binding = require_rust_binding("classify_commit_origin")
+    assert binding(message) == _classify_commit_origin_python(subject, body)
+
+
+def test_parse_computes_origin_from_footer() -> None:
+    stream = _record(
+        "h1",
+        "s1",
+        "bryan",
+        "b@x",
+        "300",
+        "",
+        "fix: tracked",
+        "Details\n\nSASE_TYPE=stitch",
+    )
+    parsed = parse_git_log(stream)
+    assert parsed[0].origin == "sase"
+
+
+def test_parse_manual_commit_has_manual_origin() -> None:
+    stream = _record(
+        "h1", "s1", "bryan", "b@x", "300", "", "fix: handwritten", "no footer here"
+    )
+    parsed = parse_git_log(stream)
+    assert parsed[0].origin == "manual"
 
 
 # ---------------------------------------------------------------------------

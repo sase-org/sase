@@ -177,17 +177,17 @@ def test_validate_sase_core_rs_requires_vcs_log_bindings() -> None:
         )
 
 
-def test_validate_sase_core_rs_requires_vcs_log_wire_schema_three() -> None:
+def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     validator = _load_validate_sase_core_rs()
 
     def _raise() -> int:
         raise RuntimeError("stale wheel")
 
     assert validator._validate_vcs_log_wire_schema(
-        SimpleNamespace(vcs_log_wire_schema_version=lambda: 3)
+        SimpleNamespace(vcs_log_wire_schema_version=lambda: 4)
     )
     assert not validator._validate_vcs_log_wire_schema(
-        SimpleNamespace(vcs_log_wire_schema_version=lambda: 2)
+        SimpleNamespace(vcs_log_wire_schema_version=lambda: 3)
     )
     assert not validator._validate_vcs_log_wire_schema(
         SimpleNamespace(vcs_log_wire_schema_version=_raise)
