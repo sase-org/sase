@@ -262,10 +262,14 @@ as `plans`, `research`, or `designs`. `kind:archive` matches committed documents
 are not linked from a live bead, while `kind:designs` narrows documents to that sidecar.
 
 Beads accepts repeatable `type:`, `tier:`, `status:`, `size:`, `project:`, `assignee:`,
-`owner:`, `model:`, `has:`, `since:`, and `until:` terms. Status values include the five
-stored states plus the derived `blocked`, `launched`, and `triage` states. `has:`
-accepts `plan`, `bug`, `deps`, `notes`, and `triage`; free text matches the bead id,
-title, description, notes, design, references, and ownership metadata.
+`owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`, and `until:` terms. Status
+values include the five stored states plus the derived `blocked`, `launched`, and
+`triage` states. `has:` accepts `plan`, `bug`, `deps`, `notes`, and `triage`. `bug:`
+matches issue state, reference, relation, or project, with completion for `none`,
+`open`, `closed`, `stale`, `drift`, `mirrored`, and `referenced`; `label:` matches
+cached provider labels. Free text also searches cached external issue title, body, URL,
+and labels alongside the bead id, title, description, notes, design, references, and
+ownership metadata.
 
 A leading unquoted `-` excludes a match. Stitches can exclude repositories, authors, and
 subject text; Beads and Plans can exclude their filter facets and free text. Exclusion
@@ -284,9 +288,11 @@ The top-level Beads view (`3`) is the work-item home for standalone tasks, epic 
 beads, and their phase beads. Every bead appears once: tasks occupy their own section,
 while epics expand with `l` and collapse with `h` to reveal phases. Rows show stored
 status and ownership metadata, `✦` when a task has a pending TaskTriage decision, and
-`▤` when the bead links a plan document. Closed beads are loaded but hidden by the
-visible `-status:closed` default; press `f` to edit or clear that query. Section
-headings report matched and total counts while a filter is active.
+`▤` when the bead links a plan document. Linked issue chips use `○` for open, `●` for
+closed, and `?` for a stale issue absent from the complete cached listing; stale or
+drifted links are highlighted, and `+N` summarizes additional links. Closed beads are
+loaded but hidden by the visible `-status:closed` default; press `f` to edit or clear
+that query. Section headings report matched and total counts while a filter is active.
 
 The pane supports the full bead workflow:
 
@@ -303,9 +309,21 @@ The pane supports the full bead workflow:
 | `n`       | Create a task bead in the selected project                                            |
 | `c`       | Close with a required reason and optional note, or reopen a closed bead               |
 | `w`       | Launch an epic or launchable task; phase work launches with its epic                  |
-| `o`       | Open the linked external bug                                                          |
+| `o`       | Open a linked external issue                                                          |
+| `y`       | Copy a linked issue reference                                                         |
+| `b`       | Enter issue-action prefix mode                                                        |
 | `L`       | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
 | `R`       | Refresh beads                                                                         |
+
+When a bead has several issue links, `o`, `y`, and issue mutations first open a
+selector. In `b` prefix mode, press `v` to view the cached body, `e` to edit supported
+title/body/label fields, `s` to close or reopen after confirmation, `u` to copy the
+provider URL, `a` to attach an existing numeric issue, or `c` to create and attach a new
+issue. Availability follows the active VCS provider's capabilities. The detail reader
+shows each link's relation, state, labels, assignees, author, update/comment metadata,
+and cached body. The info line reports linked, remote-only, stale, and drifted counts,
+plus provider unavailability and per-project errors, so tracker health remains visible
+without a separate Bugs pane.
 
 Closing offers `done`, `canceled`, and `superseded` resolutions. A bead with unfinished
 descendants is rejected unless the close modal's force option is enabled with a

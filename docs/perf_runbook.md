@@ -15,7 +15,7 @@ just test-cost
 ```
 
 The lane runs the default fast suite, records per-file wall/CPU time, collection time,
-peak worker RSS, and attributed hot causes, then prints `tools/test_cost_report`.
+the worker RSS curve, and attributed hot causes, then prints `tools/test_cost_report`.
 Recordings live under `${SASE_HOME:-~/.sase}/test-selection/<project>/timings/cost/`;
 set `SASE_TEST_COST_DIR` to redirect them. `tools/check_test_cost_budgets` compares the
 newest recording with `tests/perf/baselines/test_cost_budgets.json`, and
@@ -30,18 +30,22 @@ silently defeats the gate:
   record's worker count (falling back to the number of worker payloads that reported
   collection time, then to 1) before comparing against the limit.
 - Every other summary entry (`total_file_wall_seconds`, `idle_seconds`,
-  `peak_worker_rss_kib`) and every `causes.*` entry is a **suite-wide total**, not
-  normalized by worker count.
+  `peak_worker_rss_kib`, `median_worker_rss_kib`, and `post_collection_worker_rss_kib`)
+  and every `causes.*` entry is a **suite-wide** metric, not normalized by worker count.
 - `peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run
   (`worker_rss_curve_kib.peak`), not the curve's `post_collection` reading — workers
   stabilize around ~520 MiB right after collection, then grow substantially over the
   run.
+- `median_worker_rss_kib` and `post_collection_worker_rss_kib` are flat aliases for
+  `worker_rss_curve_kib.median` and `.post_collection`. The report and budget suggestion
+  tooling expose all three RSS checkpoints, so memory growth after collection can be
+  distinguished from a high initial footprint.
 
 Read failures by bucket:
 
 - `total_file_wall_seconds` and `idle_seconds` point to broad suite cost or waiting.
-- `collection_seconds`, `collection_cpu_seconds`, and `peak_worker_rss_kib` point to
-  import-time or retained worker state.
+- `collection_seconds`, `collection_cpu_seconds`, and post-collection RSS point to
+  import-time state; median and peak RSS make retained or run-time growth visible.
 - Cause entries such as `textual_app_run_test_enter`, `ace_page_enter`, `parser_create`,
   `yaml_load`, and `subprocess_run` point to the hot pattern to audit.
 

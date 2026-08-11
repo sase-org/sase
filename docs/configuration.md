@@ -21,6 +21,7 @@ sections, environment variables, and CLI flags.
   - [machine_name (deprecated)](#machine_name-deprecated)
   - [ace](#ace)
   - [artifacts](#artifacts)
+  - [artifact_refs](#artifact_refs)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
   - [repos](#repos)
@@ -1306,6 +1307,46 @@ predicates to `0` leaves a policy that selects nothing.
 Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`,
 `src/sase/core/artifact_file_retention.py`, `src/sase/axe/run_agent_exec_finalize.py`
 
+### artifact_refs
+
+Allow-lists path-backed `@file:<path>` prompt references. Indexed
+`@file:default:<digest>` and `@file:explicit:<digest>` references do not need these
+roots; this section controls only references authored as absolute or `~/` paths.
+
+```yaml
+artifact_refs:
+  file:
+    roots:
+      - name: notes
+        path: ~/notes
+        path_globs: ["**/*.md", "!private/**"]
+      - name: reports
+        path: /srv/reports
+```
+
+| Field                                   | Type         | Required | Description                                                 |
+| --------------------------------------- | ------------ | -------- | ----------------------------------------------------------- |
+| `artifact_refs.file.roots[].name`       | string       | yes      | Stable lowercase slug used in published logical identities. |
+| `artifact_refs.file.roots[].path`       | string       | yes      | Absolute or `~/`-rooted allow-list directory.               |
+| `artifact_refs.file.roots[].path_globs` | list[string] | no       | Root-relative POSIX includes and `!`-prefixed exclusions.   |
+
+Root lists concatenate across ordinary config layers. A layer using the global
+list-replacement merge strategy replaces the inherited list instead. When the same
+`name` appears more than once, the later root overrides the earlier definition without
+changing its position. Invalid entries are skipped with a warning rather than disabling
+all usable roots.
+
+Resolution accepts existing regular files only, requires the path to stay within an
+effective root and its glob policy, and never interprets relative paths against the
+current directory. At launch SASE snapshots accepted bytes into the workspace-local
+artifact pool, so subsequent changes to the source file do not change the agent's
+captured input. The normal `artifacts.capture.max_file_size_bytes` limit applies.
+
+Run `sase doctor -C config.artifact_refs` to find malformed, missing, nested,
+overlapping, or zero-usable-root configurations. See
+[Artifact References](xprompt.md#artifact-references) for prompt syntax and context
+rules.
+
 ### llm_provider
 
 Configures which LLM backend sase uses and how model tiers map to concrete models. See
@@ -1646,6 +1687,8 @@ repos:
     builtin:
       plans:
         auto_clone: true
+        ref:
+          use: plan
       agents:
         visibility: private
     custom:
@@ -1653,37 +1696,51 @@ repos:
         description: Durable SASE research reports and generated media.
         visibility: public
         ref:
-          xprompt: "the {{ file_path }} research note"
-          filters:
-            path_globs: ["**/*.md", "!drafts/**"]
+          inventory:
+            globs: ["reports/**/*.md", "!drafts/**"]
 ```
 
-| Field                                           | Type           | Default                             | Description                                                                         |
-| ----------------------------------------------- | -------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
-| `github_orgs`                                   | string or list | -                                   | GitHub user/org namespaces available to provider completion and PR workflows.       |
-| `default_linked_repos`                          | boolean        | `true`                              | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
-| `repos.linked[].auto_clone`                     | boolean        | `false`                             | Materialize and prepare the repository automatically before each agent launch.      |
-| `repos.linked[].name`                           | string         | required                            | Stable alias used in generated environment variable names and memory summaries.     |
-| `repos.linked[].path`                           | string         | required                            | Primary checkout path. Relative paths resolve from the project's primary workspace. |
-| `repos.linked[].description`                    | string         | required                            | Human-readable purpose used when generating agent memory for the linked repository. |
-| `repos.sidecar.builtin.<role>`                  | object         | -                                   | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.        |
-| `repos.sidecar.custom.<role>`                   | object         | -                                   | User-declared document sidecar; the key is the role and must not be a reserved one. |
-| `repos.sidecar.*.<role>.repo`                   | string         | derived                             | Optional bare slug or `owner/repo` pin.                                             |
-| `repos.sidecar.*.<role>.description`            | string         | -                                   | Purpose shown in inventory; required in generated instructions for lazy entries.    |
-| `repos.sidecar.*.<role>.auto_clone`             | boolean        | `false`                             | Materialize before agent launch; intrinsically ignored for `agents`.                |
-| `repos.sidecar.*.<role>.visibility`             | public/private | `public`                            | Remote visibility; project-local `private` overrides the `agents` default.          |
-| `repos.sidecar.*.<role>.disabled`               | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
-| `repos.sidecar.*.<role>.ref.xprompt`            | string         | generated                           | Markdown/Jinja renderer body for the known artifact-reference kind.                 |
-| `repos.sidecar.*.<role>.ref.filters.path_globs` | list[string]   | `["**/*.md"]` for document sidecars | Repo-relative POSIX path filters for document artifact references.                  |
+| Field                                         | Type           | Default                             | Description                                                                         |
+| --------------------------------------------- | -------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
+| `github_orgs`                                 | string or list | -                                   | GitHub user/org namespaces available to provider completion and PR workflows.       |
+| `default_linked_repos`                        | boolean        | `true`                              | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
+| `repos.linked[].auto_clone`                   | boolean        | `false`                             | Materialize and prepare the repository automatically before each agent launch.      |
+| `repos.linked[].name`                         | string         | required                            | Stable alias used in generated environment variable names and memory summaries.     |
+| `repos.linked[].path`                         | string         | required                            | Primary checkout path. Relative paths resolve from the project's primary workspace. |
+| `repos.linked[].description`                  | string         | required                            | Human-readable purpose used when generating agent memory for the linked repository. |
+| `repos.sidecar.builtin.<role>`                | object         | -                                   | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.        |
+| `repos.sidecar.custom.<role>`                 | object         | -                                   | User-declared document sidecar; the key is the role and must not be a reserved one. |
+| `repos.sidecar.*.<role>.repo`                 | string         | derived                             | Optional bare slug or `owner/repo` pin.                                             |
+| `repos.sidecar.*.<role>.description`          | string         | -                                   | Purpose shown in inventory; required in generated instructions for lazy entries.    |
+| `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                             | Materialize before agent launch; intrinsically ignored for `agents`.                |
+| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                            | Remote visibility; project-local `private` overrides the `agents` default.          |
+| `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
+| `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent             | Installed artifact-reference provider ID to use as the base policy.                 |
+| `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)      | Prompt kind exposed as `@<kind>:<path>`.                                            |
+| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `{kind}:{argument}`                 | Provider expansion format.                                                          |
+| `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                | Typed metadata fields extracted by the provider.                                    |
+| `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                | Metadata fields shown by completion and detail surfaces.                            |
+| `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                | Optional provider identity rule.                                                    |
+| `repos.sidecar.*.<role>.ref.inventory.globs`  | list[string]   | `["**/*.md"]` for document sidecars | Repo-relative POSIX includes and `!` exclusions.                                    |
+| `repos.sidecar.*.<role>.ref.publication`      | object         | VCS permalink / Markdown references | Publication link and reverse-reference policy.                                      |
 
-Every enabled document sidecar exposes both compact `@<role>:<path>` references and the
-contextual `#ref/<role>:<path>` xprompt form. The `ref.xprompt` body customizes only the
-rendered prose; artifact availability and completion are still controlled by the
-artifact registry and `ref.filters.path_globs`. The built-in `beads` and `agents`
-sidecars map to the singular `bead` and `agent` kinds and may customize `ref.xprompt`,
-but `ref.filters` is invalid for them. See
-[Artifact Reference XPrompts](xprompt.md#artifact-reference-xprompts) for source
-precedence, canonical inputs, template context, and exact glob semantics.
+Every enabled document sidecar exposes one compact `@<kind>:<path>` reference. Plans use
+the built-in `plan` provider, and `sase repo init` records `ref: {use: plan}`. Other
+document roles default to their role name, `{kind}:{argument}` expansion, and `**/*.md`
+inventory even when `ref` is omitted.
+
+`ref.use` selects a declarative provider installed through the `sase_artifact_refs`
+plugin entry-point group. Any sibling keys deep-merge over that provider's base spec. A
+cloned sidecar does not install its provider: when `use` names an unavailable provider,
+the role's reference policy is disabled and `sase doctor -C config.repos` reports how to
+fix it. Authors may omit `use` and provide the inline fields in the table instead.
+
+`ref.xprompt` is retired and invalid. `ref.filters.path_globs` remains a deprecated
+alias that warns and maps to `ref.inventory.globs`; new configuration must use
+`inventory.globs`. The `beads` and `agents` sidecars are entity-backed rather than
+document inventories, so document filters do not apply to them. See
+[Artifact References](xprompt.md#artifact-references) for canonical prompt forms and
+project-context rules.
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace
 numbers use `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by
@@ -2189,13 +2246,21 @@ file_hooks:
 
 Hook fields:
 
-| Field         | Type     | Required | Default | Description                                                                 |
-| ------------- | -------- | -------- | ------- | --------------------------------------------------------------------------- |
-| `name`        | string   | yes      | -       | Unique lowercase slug shown in notifications and `sase file-hook list`.     |
-| `description` | string   | no       | -       | Human-readable purpose for the hook.                                        |
-| `command`     | string   | yes      | -       | Shell command; the matched absolute file path is appended as its final arg. |
-| `filters`     | object   | no       | `{}`    | Event-selection criteria. Omitted or empty means unrestricted.              |
-| `timeout`     | duration | no       | `120s`  | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.             |
+| Field         | Type     | Required | Default           | Description                                                                  |
+| ------------- | -------- | -------- | ----------------- | ---------------------------------------------------------------------------- |
+| `use`         | string   | no       | -                 | Installed `sase_file_hooks` provider ID whose template supplies base fields. |
+| `name`        | string   | yes\*    | provider ID       | Unique lowercase slug shown in notifications and `sase file-hook list`.      |
+| `description` | string   | no       | provider          | Human-readable purpose for the hook.                                         |
+| `command`     | string   | yes\*    | provider          | Shell command; the matched absolute file path is appended as its final arg.  |
+| `filters`     | object   | no       | `{}` / provider   | Event-selection criteria. Omitted or empty means unrestricted.               |
+| `timeout`     | duration | no       | `120s` / provider | Per-run integer duration with an `ms`, `s`, `m`, or `h` suffix.              |
+
+Without `use`, `name` and `command` are required. With `use`, SASE deep-merges the local
+entry over the installed provider's template, defaults `name` to the provider ID, and
+requires any fields the provider marks as local. An unknown provider disables only that
+invalid entry and is reported while `sase file-hook list` loads effective hooks. A
+plugin can therefore ship safe defaults while requiring the machine-specific command or
+destination in user configuration.
 
 Filter fields under `filters`:
 
@@ -3065,14 +3130,16 @@ the lock, recovery snapshot, and failed-integration cooldown behavior.
 
 ### Plugin System
 
-These switches affect plugin-provided resource loading. The VCS, workspace, and LLM
-provider registries load provider entry points directly.
+These switches affect plugin-provided resources and declarative artifact providers. The
+VCS, workspace, and LLM registries load provider entry points directly.
 
-| Variable                       | Description                                                             |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`         | Disable plugin-provided xprompts, workflows, and config defaults.       |
-| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable plugin-provided xprompt and workflow files.                     |
-| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin-provided `default_config.yml` files and config xprompts. |
+| Variable                            | Description                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`              | Disable plugin resources and declarative artifact providers.            |
+| `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable plugin-provided xprompt and workflow files.                     |
+| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin-provided `default_config.yml` files and config xprompts. |
+| `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable plugin-provided artifact-reference specifications.              |
+| `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable plugin-provided file-hook templates.                            |
 
 ### State Root
 
@@ -4229,9 +4296,10 @@ consumption. Pretty output is a Rich panel with KIND, REF, LABEL, PROJECT (displ
 name), AGENT, SIZE, and CREATED columns; `-j/--json` emits every record field —
 including `sha256`, `size_bytes`, and `mime_type` — plus the rendered `ref`.
 
-`show`, `path`, and `open` accept any artifact reference (`file:`, `chat:`, `bug:`,
-`commit:`, `bead:`, `agent:`, and document roles such as `plans:`, `research:`,
-`designs:`). Document roles, `chat:`, and `file:` preserve supported `#L`, `#page=`, and
+`show`, `path`, and `open` accept canonical artifact references (`file:`, `stitch:`,
+`patch:`, `bead:`, `agent:`, and document kinds such as `plan:`, `research:`, or
+`designs:`). Historical `commit:`, `chat:`, `bug:`, and `plans:` aliases remain readable
+for compatibility. Document kinds and `file:` preserve supported `#L`, `#page=`, and
 `#t=` fragments; `bead:` and `agent:` reject fragments because they resolve to
 regenerated pages whose anchors can drift. `bead:` resolves to the generated bead page
 in the current project's beads sidecar, and `agent:` resolves to the generated
@@ -4244,13 +4312,15 @@ scanning every enabled project.
 A bare `default:<hash>` or `explicit:<hash>` index id is accepted as sugar for
 `file:<id>`. `path` exits 0 on success, 1 when the reference is malformed, missing, or
 ambiguous (status and candidates go to stderr), and 2 for kinds with no filesystem
-identity (`commit:`, `bug:`), pointing at `show` instead. `open` refuses `commit:` refs
-the same way and opens `bug:` refs in a browser. `show` also reports consumption from
-the append-only `~/.sase/artifacts/consumption.jsonl` ledger: `consumption_count`,
-`consumed_by_agents`, `consuming_agents`, and `last_consumed_at` in pretty output, plus
-an additive `consumption` object in `-j/--json` output. `doctor` exits 1 when it finds
-missing enrichment fields, missing stored files, duplicate ids, unsupported schema
-versions, malformed rows, or digest mismatches, and 0 on a clean bill of health.
+identity (`stitch:`, `patch:`, and historical `commit:` / `bug:`), pointing at `show`
+instead. `open` treats historical `commit:` as non-viewable, opens historical `bug:` in
+a browser, and currently opens a canonical `stitch:` at its resolved checkout; `patch:`
+has no viewer path. `show` also reports consumption from the append-only
+`~/.sase/artifacts/consumption.jsonl` ledger: `consumption_count`, `consumed_by_agents`,
+`consuming_agents`, and `last_consumed_at` in pretty output, plus an additive
+`consumption` object in `-j/--json` output. `doctor` exits 1 when it finds missing
+enrichment fields, missing stored files, duplicate ids, unsupported schema versions,
+malformed rows, or digest mismatches, and 0 on a clean bill of health.
 
 `stats`, `prune`, `reclaim`, and opt-in automatic retention use one shared protection
 collector. It unions IDs found in persistent ProjectSpec and SDD text with canonical

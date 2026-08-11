@@ -68,7 +68,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS repositories      | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                          |
 | Argument assistance   | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                                                                                                                                                              |
 | Directive completion  | Completes SASE prompt directives and fixed directive values, including `%model:` values from the live model catalog.                                                                                                                                                                                    |
-| Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:` and `#ref/kind:`, including local commit references.                                                                |
+| Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as canonical artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local stitch references.                                                                       |
 | File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                |
 | Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                           |
 | Hover                 | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints. Memory entries also show their kind and tier (`short`/`long`).                                                                                                                                      |
@@ -86,25 +86,23 @@ Artifact assistance is local-only. Before a `:` appears, `@` completion withhold
 file rows whenever the query prefix-matches an artifact kind (including bare `@`), and
 returns them automatically when no kind prefix-matches. A manually invoked completion
 request includes the file rows explicitly. Completion labels are the reference that gets
-inserted, such as `@plans:` and `@src/`. Document-role kinds (including dynamic sidecar
-roles), chats, indexed artifact files, beads, agents, and commits are enumerated or
+inserted, such as `@plan:` and `@src/`. Document kinds (including dynamic sidecar
+roles), indexed artifact files, Patches, beads, agents, and stitches are enumerated or
 resolved from the selected project's local catalog roots and checkout paths. `bead` and
-`agent` payloads resolve locally from generated sidecar pages, and `commit` payloads are
+`agent` payloads resolve locally from generated sidecar pages, and `stitch` payloads are
 enumerated from local git checkouts, excluding SDD sidecar repositories (`plans`,
 `beads`, `agents`, `research`) since their commits are machine-written bookkeeping
-rather than a human's recent work. A sidecar commit reference still resolves when
-written out in full, such as `@commit:plans@<sha>` — the exclusion only curates what
-completion offers. The same filtered payload inventory is used for `#ref/<kind>`
-argument completion, so a sidecar path excluded from `@research:` is also absent from
-`#ref/research:`. `bug` references still receive shape validation only because issue
-enumeration would require a network tracker. The LSP never contacts git hosts, issue
-trackers, or other network providers. Unknown `@kind:` text remains ordinary prose.
+rather than a human's recent work. A sidecar stitch reference still resolves when
+written out in full, such as `@stitch:plans@<sha>` — the exclusion only curates what
+completion offers. Historical aliases such as `@commit:`, `@plans:`, `@chat:`, and
+`@bug:` are not offered by completion. The LSP never contacts git hosts, issue trackers,
+or other network providers. Unknown `@kind:` text remains ordinary prose.
 
 Matching is **fuzzy and ranked on the server** for every enumerated kind — document
-roles, chats, indexed artifact files, beads, agents, and commits — against the inserted
-payload, the row's title, and, for scoped rows, the qualified `scope@title` target. For
-example, `@commit:core@fix` can match the `sase-core` repository scope and a commit
-subject containing `fix` in the same query. Likewise, `@research:site` finds
+roles, indexed artifact files, Patches, beads, agents, and stitches — against the
+inserted payload, the row's title, and, for scoped rows, the qualified `scope@title`
+target. For example, `@stitch:core@fix` can match the `sase-core` repository scope and a
+commit subject containing `fix` in the same query. Likewise, `@research:site` finds
 `@research:202607/sase_sites_hub_and_pages/sase_sites_hub_and_pages.md`,
 `@agent:sase-b3` finds `@agent:bbugyi200.athena.sase-b3.5` from a mid-name fragment, and
 `@file:panel` finds a `default:<hex>` indexed file by its file name. Rows are grouped

@@ -1891,7 +1891,7 @@ and formatting work.
 | Early | Prompt directives          | `%model`, `%m`, other `%...` directives    | Extract directives after xprompt expansion               |
 | Late  | Disabled/fenced protection | `%xprompts_enabled:false`, fenced code     | Protect regions that should not be rewritten             |
 | Late  | Command substitution       | `$(cmd)`                                   | Execute shell commands and inline their output           |
-| Late  | Artifact references        | `@kind:payload`, `#ref/kind:payload`       | Resolve known artifact kinds into launch-ready locators  |
+| Late  | Artifact references        | `@kind:payload`                            | Resolve known artifact kinds into launch-ready locators  |
 | Late  | File references            | `@path`                                    | Process, validate, or skip file references               |
 | Late  | Top-level Jinja2           | `{{ var }}`                                | Render remaining top-level Jinja2 templates              |
 | Late  | Prettier formatting        | -                                          | Format with prettier for consistent markdown             |
@@ -1903,12 +1903,12 @@ and formatting work.
 The pipeline runs in strict order. Prompt directives are extracted after xprompt
 expansion, so directives embedded in xprompts are honored. Late-phase command
 substitution and reference processing run with fenced blocks protected, so examples
-inside code fences are not executed or rewritten. Explicit `#ref/<kind>` calls are
-rewritten to canonical artifact references, then artifact references are expanded before
-file references: document-role, chat, artifact-file, bead, and agent references become
-`@path` tokens; commit and bug references become local locators. Unknown `@kind:`
-references remain unchanged as prose, while unknown `#ref/<kind>` calls fail as invalid
-ref xprompts. Inline-code references also remain literal.
+inside code fences are not executed or rewritten. Canonical artifact references are
+expanded before ordinary file references: document and artifact-file references become
+`@path` tokens, while stitch, Patch, bead, and agent references become context-aware
+locators. Unknown `@kind:` references remain unchanged as prose. The retired
+`#ref/<kind>` renderer syntax is not accepted. Inline-code references also remain
+literal.
 
 During the same pass, SASE stages prompt references for later archive publication. File
 references are recorded in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl`

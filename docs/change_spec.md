@@ -2,8 +2,11 @@
 
 A **Patch** is SASE's durable local record for one unit of reviewable work. Every PR
 created or managed by SASE is associated with exactly one Patch, but a Patch may exist
-without a PR; in that case the `PR:` field is absent. SASE does not discover external
-PRs and create local Patches for them automatically.
+without a PR; in that case the `PR:` field is absent. The `external_pr_mirror` AXE chop
+and `sase patch sync-external` command discover eligible remote PRs that did not come
+from SASE's tracked workflow and adopt them as local Patches. Open PRs remain active;
+merged or closed PRs are archived directly. Configure `external_mirror.pr_authors` when
+only selected authors should be adopted.
 
 Each Patch lives inside a project `.sase` file and records the change's description,
 dependency metadata, PR URL, lifecycle status, stitches, hooks, comments, mentor runs,
@@ -251,8 +254,9 @@ REFS:
   bead:sase-b7
 ```
 
-Accepted kinds include `file:`, `chat:`, `bug:`, `commit:`, `agent:`, `bead:`, and
-configured document roles such as `plans:` and `research:`. `sase patch ref add`
+Canonical kinds include `file:`, `stitch:`, `patch:`, `agent:`, `bead:`, and configured
+document kinds such as `plan:` and `research:`. Historical `commit:`, `chat:`, `bug:`,
+and `plans:` references remain readable for compatibility. `sase patch ref add`
 normalizes entries before writing, deduplicates them while preserving first-write order,
 and stores the canonical rendered form. Hand-edited entries are preserved by the parser
 so `sase doctor -C project.changespec_refs` can report malformed or unresolved

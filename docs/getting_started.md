@@ -180,38 +180,36 @@ persisted automatically while finalizing successful runs.
 
 Artifact references cover more than indexed files:
 
-| Prompt form               | What it identifies                                                        |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `@file:<source>:<digest>` | One file in the persistent artifact index                                 |
-| `@<document-role>:<path>` | One SDD document in a configured sidecar, such as `plans:` or `research:` |
-| `@chat:<path>`            | One saved chat transcript                                                 |
-| `@bead:<id>`              | One published bead page in the current project                            |
-| `@agent:<global-name>`    | One published agent page in the current project                           |
-| `@commit:<repo>@<sha>`    | One repository revision                                                   |
-| `@bug:<project>#<number>` | One issue in the project's configured tracker                             |
+| Prompt form               | What it identifies                                                   |
+| ------------------------- | -------------------------------------------------------------------- |
+| `@file:<source>:<digest>` | Indexed file; source is `explicit` or `default`                      |
+| `@file:<absolute-path>`   | One file below a configured allow-listed root                        |
+| `@<document-kind>:<path>` | One document in a configured sidecar, such as `plan:` or `research:` |
+| `@bead:<id>`              | One published bead page in the current project                       |
+| `@agent:<global-name>`    | One published agent page in the current project                      |
+| `@patch:<name>`           | One Patch                                                            |
+| `@stitch:<repo>@<sha>`    | One repository revision                                              |
 
-Document sidecars also have an explicit xprompt spelling: `#ref/research:path.md`
-resolves and renders the same artifact as `@research:path.md`. Use whichever spelling is
-clearer in the prompt you are composing; completion and filtering are shared.
+Use `@plan:<path>` for the built-in plans sidecar. `@commit:` remains an alias for
+`@stitch:`; the old `#ref/<kind>` renderer syntax has been retired.
 
 ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the
 grouped reference menu, or press `%` on an Artifacts entry to open **Copy as…**. The
-prompt bar and editor LSP both complete `@commit:` from local git checkouts, excluding
+prompt bar and editor LSP both complete `@stitch:` from local git checkouts, excluding
 SDD sidecar repositories, inserting the repository name plus a short SHA that resolves
 at launch. Choose **Reference in new agent prompt** to open a prompt pre-filled with the
 entry's project and prompt-ready `@` reference; choose **Copy artifact reference** when
 you only want the reference on the clipboard.
 
-At launch, document, chat, file, bead, and agent references become local `@path` tokens.
-Commit references become a repository-and-revision locator plus the local checkout,
-while bug references become an issue number and URL. A malformed or missing known
-reference stops the launch with a diagnostic instead of silently giving the agent bad
-context. Inline-code and fenced-code examples stay literal.
+At launch, file-backed references become local `@path` tokens, while entity and revision
+references become stable locators with the selected project context. A malformed or
+missing known reference stops the launch with a diagnostic instead of silently giving
+the agent bad context. Inline-code and fenced-code examples stay literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The
-[Artifact Reference XPrompts](xprompt.md#artifact-reference-xprompts) section documents
-custom renderers, `sase/refs/`, and sidecar filters. The
+[Artifact References](xprompt.md#artifact-references) section documents canonical forms,
+project context, compatibility aliases, and allow-listed files. The
 [prompt preprocessing reference](llms.md#prompt-preprocessing-pipeline) explains
 expansion order and literal regions.
 

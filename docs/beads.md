@@ -566,10 +566,10 @@ proposals as `task` beads, marks them `ready`, and records why it declined any o
 The `external_issue_mirror` AXE chop (see
 [checks lane](axe.md#checks-5-minute-interval)) keeps every enabled project's issue
 tracker mirrored into task beads: each pass diffs the tracker against local beads on
-`external_ref` and creates an unsized, `open` task bead — never `ready` — for every
-uncovered issue, so a first-pass backlog never floods the `TaskTriage` gate queue. Run
-`sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview the
-same pass manually.
+`external_ref` and creates an explicitly `small`, `open` task bead — never `ready` — for
+every uncovered issue, so a first-pass backlog never floods the `TaskTriage` gate queue.
+Run `sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview
+the same pass manually.
 
 A mirrored bead carries `external_ref` (the mirror's idempotency key, project-key
 qualified) and a matching `bug:<display-name>#<n>` entry in `refs` (the human-facing,
@@ -585,7 +585,7 @@ from mirroring.
 Every bead can carry a `refs` list: an ordered, deduplicated set of canonical artifact
 references. This is distinct from `design`. `design` points to the one plan that
 produced the bead; `refs` can point to many supporting artifacts such as research
-reports, explicit files, related beads, agents, commits, bugs, chats, or configured
+reports, explicit files, related beads, agents, Patches, stitches, or configured
 document roles.
 
 Reference entries are stored without the prompt-time `@` sigil:

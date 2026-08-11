@@ -55,10 +55,10 @@ diffs, chats, and artifact files from one control surface.
 
 <em>Select the still to watch the 29-second demo.</em>
 
-**Land tracked changes.** The PRs tab follows the Patch lifecycle from WIP to Submitted,
-with grouping, search, commits, and diffs.
+**Land tracked changes.** The Patches view follows the Patch lifecycle from WIP to
+Submitted, with grouping, search, stitches, and diffs.
 
-<a href="demos/out/sase_ace_prs_pipeline.mp4"><img src="docs/images/blog/sase_ace_prs_pipeline_still.png" alt="SASE ACE PRs tab showing Patches moving through the review and submission pipeline" width="830"></a>
+<a href="demos/out/sase_ace_prs_pipeline.mp4"><img src="docs/images/blog/sase_ace_prs_pipeline_still.png" alt="SASE ACE Patches view showing work moving through the review and submission pipeline" width="830"></a>
 
 <em>Select the still to watch the 26-second demo.</em>
 

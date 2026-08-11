@@ -12,10 +12,12 @@ internal workflows, or integrations without changing the core package.
 
 ## Plugin Groups
 
-Sase defines six entry point groups:
+Sase defines eight entry point groups:
 
 | Entry Point Group      | Entry Point Value | Purpose                                             | Example Plugin                  |
 | ---------------------- | ----------------- | --------------------------------------------------- | ------------------------------- |
+| `sase_artifact_refs`   | Provider class    | Declarative document artifact-reference providers   | third-party document provider   |
+| `sase_file_hooks`      | Provider class    | Reusable declarative file-hook templates            | third-party integration         |
 | `sase_vcs`             | Provider class    | VCS provider plugins (git, hg, etc.)                | `sase-github`                   |
 | `sase_workspace`       | Provider class    | Workspace provider plugins (ref resolution, submit) | `sase-github`                   |
 | `sase_llm`             | Provider class    | LLM provider plugins                                | built-in or third-party         |
@@ -31,12 +33,12 @@ An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                           |
-| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `sase` (core)   | Bare-git VCS, bare-git workspaces, and built-in LLM providers                           | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_llm: agy, claude, codex, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github` |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                  |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                               |
+| Package         | Description                                                                             | Entry Points                                                                                                                          |
+| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_llm: agy, claude, codex, muse, opencode, qwen` |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`                                |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                 |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                              |
 
 ## Installation
 
@@ -470,9 +472,10 @@ supplies the contributed entry-point groups displayed by `sase plugin show`.
 
 There are two discovery paths:
 
-1. **Provider classes**: `sase_vcs`, `sase_workspace`, and `sase_llm` entry points
-   resolve to classes. The relevant registry loads the class, instantiates it, and
-   registers the instance with a pluggy `PluginManager`.
+1. **Provider classes**: `sase_artifact_refs`, `sase_file_hooks`, `sase_vcs`,
+   `sase_workspace`, and `sase_llm` entry points resolve to classes. The relevant
+   registry loads the class, instantiates it, and registers the instance with a pluggy
+   `PluginManager`.
 2. **Package resources**: `sase_xprompts`, `sase_config`, and `sase_plugin_manifest`
    entry points resolve to modules. The shared helper in
    `src/sase/main/plugin_discovery.py` sorts config and xprompt entry points by name,
@@ -591,6 +594,27 @@ configs are merged between the bundled package defaults and the user's `sase.yml
 the [Deep-Merge System](configuration.md#deep-merge-system) for details on the merge
 chain.
 
+### Artifact Reference and File-Hook Providers
+
+The `sase_artifact_refs` and `sase_file_hooks` groups share the declarative artifact
+provider host. A provider class can implement either or both hooks:
+
+- `artifact_ref_provider_specs()` returns one mapping or an iterable of mappings. Each
+  schema-versioned specification has a unique provider ID and `ref.kind`, plus its
+  expansion, metadata, inventory, identity, and publication policy. A sidecar selects it
+  with `ref: {use: <provider-id>}`; local sidecar fields deep-merge over the base.
+- `artifact_file_hook_provider_specs()` returns schema-versioned file-hook templates.
+  Each template has a unique provider ID, a `file_hook` mapping, and an optional list of
+  required fields. A configured hook selects it with `use` and supplies the required
+  values.
+
+SASE validates all returned specifications before adding them to the registry. Duplicate
+provider IDs, duplicate reference kinds, reserved kinds, invalid schemas, load errors,
+and hook failures are diagnosed rather than silently taking precedence. The core package
+provides the built-in `plan` reference provider through the same path. Run
+`sase doctor -C config.repos` for sidecar provider problems and `sase file-hook list`
+for configured file hooks.
+
 ### Chop Script Packages
 
 Chop scripts are installed console scripts, not a pluggy entry-point group. Axe resolves
@@ -629,17 +653,19 @@ allocation rule.
 
 ## Disabling Plugins
 
-Resource plugins can be disabled via environment variables:
+Plugin resources and declarative artifact providers can be disabled via environment
+variables:
 
-| Variable                       | Effect                                                    |
-| ------------------------------ | --------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`         | Disable resource plugin loading for config and xprompts   |
-| `SASE_DISABLE_PLUGIN_XPROMPTS` | Disable xprompt/workflow resource plugins only            |
-| `SASE_DISABLE_PLUGIN_CONFIG`   | Disable plugin `default_config.yml` resource loading only |
+| Variable                            | Effect                                                      |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `SASE_DISABLE_PLUGINS`              | Disable resource plugins and declarative artifact providers |
+| `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable xprompt/workflow resource plugins only              |
+| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin `default_config.yml` resource loading only   |
+| `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
+| `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
 
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries
-currently load their provider entry points directly and do not consult these
-resource-plugin disable switches.
+load their provider entry points directly and do not consult these switches.
 
 ## Writing a Plugin
 
@@ -747,6 +773,66 @@ my_sase_plugin/
 Plugin configs are merged using the
 [deep-merge system](configuration.md#deep-merge-system). User config in `sase.yml` takes
 precedence over plugin defaults.
+
+### Example: Declarative Artifact Providers
+
+Register artifact-reference and file-hook providers separately. Each class implements
+only the hook for its entry-point group:
+
+```toml
+[project.entry-points."sase_artifact_refs"]
+my_docs = "my_sase_plugin.artifacts:DocumentProviders"
+
+[project.entry-points."sase_file_hooks"]
+my_hooks = "my_sase_plugin.artifacts:FileHookProviders"
+```
+
+```python
+from sase.artifact_providers import hookimpl
+
+
+class DocumentProviders:
+    @hookimpl
+    def artifact_ref_provider_specs(self):
+        return ({
+            "schema_version": 1,
+            "provider": "design",
+            "ref": {
+                "kind": "design",
+                "expansion_format": "{kind}:{argument}",
+                "properties": {},
+                "detail": {},
+                "identity": {},
+                "inventory": {"globs": ["**/*.md", "!drafts/**"]},
+                "publication": {
+                    "link": "vcs_permalink",
+                    "referenced_by": "markdown_table",
+                },
+            },
+        },)
+
+
+class FileHookProviders:
+    @hookimpl
+    def artifact_file_hook_provider_specs(self):
+        return ({
+            "schema_version": 1,
+            "provider": "research-highlights",
+            "required": ["command"],
+            "file_hook": {
+                "description": "Render new research reports into Highlights PDFs.",
+                "filters": {"sidecars": ["research"], "ops": ["ADD"]},
+                "timeout": "120s",
+            },
+        },)
+```
+
+The project can then select the document provider with
+`repos.sidecar.custom.design.ref.use: design` and instantiate the hook with a
+`file_hooks` entry containing `use: research-highlights` plus its required `command`.
+Provider and kind names must not collide with another installed provider or a reserved
+built-in kind. Use `sase doctor -C config.repos` and `sase file-hook list` to verify the
+effective configuration.
 
 ### Example: Chop Script Package
 

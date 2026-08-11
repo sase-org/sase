@@ -299,8 +299,8 @@ human-facing lifecycle.
 `external_issue_mirror` expands to one instance per enabled project via
 `for_each: {source: projects, vcs: [git, gh]}` (`external_issue_mirror[<project>]`), the
 first production use of `for_each`. Each pass diffs that project's tracker against local
-beads on `external_ref` and creates unsized, `open` (never `ready`) task beads for
-uncovered issues, so no `TaskTriage` gate fires on a first-pass backlog. The
+beads on `external_ref` and creates explicitly `small`, `open` (never `ready`) task
+beads for uncovered issues, so no `TaskTriage` gate fires on a first-pass backlog. The
 issue-listing seam has no page cursor or ordering guarantee, so every pass lists the
 tracker's full inventory (`state="all"`, `limit=0`); the per-pass bound instead caps
 local writes — at most 25 bead creations and 50 notes per pass, within a wall-clock work

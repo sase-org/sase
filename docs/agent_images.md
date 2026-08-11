@@ -122,7 +122,7 @@ Clean tracked files inside a known repository are recorded as VCS-backed rows in
 copied into `pool/`. External files are hashed and pooled unless they exceed
 `artifacts.capture.max_file_size_bytes`; oversized files are still hashed and recorded
 with a skip reason, but their bytes are not copied. Locator-only references such as
-`@agent:`, `@bug:`, and `@commit:` get manifest rows without file bytes.
+`@agent:`, `@patch:`, and `@stitch:` get manifest rows without file bytes.
 
 When `sase commit` publishes the canonical prompt archive, it reads the manifest rows
 for that run, copies pooled files to the agents sidecar under `artifacts/<YYYYMM>/`, and
@@ -314,17 +314,17 @@ Each line is a schema-versioned envelope:
 `@file:default:<digest>#L1-L5` records `ref: file:default:<digest>` and stores the
 discarded anchor as `fragment: L1-L5`, so all fragments of the same artifact aggregate
 together. `artifact_id` is populated only for `file:` references; non-file references
-such as `chat:`, `bead:`, `bug:`, `plans:`, and `research:` leave it null but are still
-recorded and summarized by `show`.
+such as `plan:`, `bead:`, `agent:`, `patch:`, `stitch:`, and `research:` leave it null
+but are still recorded and summarized by `show`.
 
 The v1 role vocabulary is deliberately small:
 
-| Role          | Derivation                                                                                                                         |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `report`      | `chat:` and document-role references; `file:` references whose resolved path is Markdown, plain text, or PDF                       |
-| `image`       | Visual media by suffix, including images and videos such as PNG, JPEG, GIF, SVG, WebP, MP4, MOV, and WebM                          |
-| `source`      | Code, data, `bead:`, `agent:`, `commit:`, `bug:`, unknown suffixes, and other references that are neither reports nor visual media |
-| `test-result` | Reserved for future writers; no v1 code emits it                                                                                   |
+| Role          | Derivation                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `report`      | Document and historical `chat:` references; `file:` references whose resolved path is Markdown, plain text, or PDF                   |
+| `image`       | Visual media by suffix, including images and videos such as PNG, JPEG, GIF, SVG, WebP, MP4, MOV, and WebM                            |
+| `source`      | Code, data, entity/revision references (including historical aliases), unknown suffixes, and other non-report, non-visual references |
+| `test-result` | Reserved for future writers; no v1 code emits it                                                                                     |
 
 Grouping videos under `image` is intentional: in this ledger the role means visual
 media, and keeping the v1 vocabulary to four values leaves later lineage work additive.

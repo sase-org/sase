@@ -50,6 +50,7 @@ resolver order.
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
 - [Reference Syntax](#reference-syntax)
+  - [Artifact References](#artifact-references)
 - [Arguments](#arguments)
 - [Shorthand Syntax](#shorthand-syntax)
 - [Typed Inputs](#typed-inputs)
@@ -517,6 +518,86 @@ contexts (e.g., shell completion or certain prompt editors).
 
 Markdown headings like `# Heading` are not matched because a space after `#` prevents
 the pattern from firing.
+
+### Artifact References
+
+Artifact references are prompt syntax, not xprompts. They use `@kind:argument` and are
+resolved late in prompt preprocessing, after xprompt expansion and command substitution.
+Use them to give an agent a durable document, entity, revision, or file without pasting
+its contents or relying on a recycled workspace path.
+
+| Canonical form                  | Target                                                               |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `@stitch:<sha>`                 | Revision in the selected project's primary repository                |
+| `@stitch:<repo>@<sha>`          | Revision in a named primary, linked, or sidecar repository           |
+| `@patch:<name>`                 | Patch by name                                                        |
+| `@bead:<id>`                    | Bead by full id or an unambiguous shorthand                          |
+| `@agent:<name>`                 | Published agent page, accepting local or global names                |
+| `@plan:<path>`                  | Plan document from the configured plans sidecar                      |
+| `@<document-kind>:<path>`       | Document from another configured sidecar, such as `@research:<path>` |
+| `@file:<absolute-or-home-path>` | File below an allow-listed `artifact_refs.file.roots` directory      |
+| `@file:<source>:<digest>`       | Indexed file; source is `explicit` or `default`                      |
+
+`@commit:` is a permanent compatibility alias for `@stitch:`. The historical `@plans:`,
+`@chat:`, and `@bug:` spellings are still recognized when their targets are available,
+but emit migration guidance to `@plan:`, `@agent:`, and `@bead:` respectively.
+Completion offers canonical live kinds only. The former `#ref/<kind>:<argument>` syntax
+and its custom Jinja renderer files are retired and do not resolve.
+
+#### Project context and ambiguity
+
+Each top-level prompt segment resolves references using that segment's own leading
+`#git:` or provider tag such as `#gh:`. If the segment has no tag, SASE uses the launch
+identity supplied by the caller. It never guesses artifact-reference context from the
+current directory or a workspace marker.
+
+This matters most for short forms:
+
+- `@stitch:<sha>` uses the selected project's primary repository. Use
+  `@stitch:<repo>@<sha>` or add an explicit VCS tag when no project context is
+  available.
+- `@patch:<name>` searches the selected project first. Without project context, SASE
+  searches enabled projects and rejects an ambiguous name.
+- A short `@bead:<suffix>` checks the selected project's bead store first, then other
+  enabled projects, and rejects ambiguity instead of choosing silently.
+- `@agent:<local-name>` is normalized to the global agent identity. When both the prompt
+  page and chat page exist, the expanded context links the sibling page too.
+
+A malformed or missing reference for a known kind stops the launch with a diagnostic. An
+unknown `@kind:` token remains ordinary prose so domain-specific notation is not
+silently consumed. Inline code, fenced code, and `%xprompts_enabled:false` regions stay
+literal.
+
+#### Explicit file references
+
+Path-backed `@file:` references are opt-in. Configure one or more allow-listed roots;
+relative paths are deliberately rejected and are never interpreted against the current
+working directory:
+
+```yaml
+artifact_refs:
+  file:
+    roots:
+      - name: notes
+        path: ~/notes
+        path_globs: ["**/*.md", "!private/**"]
+```
+
+The root name is a stable lowercase slug used in published metadata. `path` must be
+absolute or `~/` rooted. Optional `path_globs` are root-relative POSIX globs; `!`
+entries exclude matches. A reference must identify an existing regular file under one of
+the effective roots, pass its glob policy, and fit
+`artifacts.capture.max_file_size_bytes`.
+
+At launch SASE snapshots the selected bytes into the workspace-local content-addressed
+artifact pool and expands the prompt to that captured copy. The manifest retains the
+authored path, logical root-relative identity, digest, and size so later source edits do
+not change what the agent received and the committing agent can publish the reference to
+the agents sidecar. Run `sase doctor -C config.artifact_refs` to diagnose invalid,
+missing, overlapping, or unusable roots. See
+[artifact reference configuration](configuration.md#artifact_refs) and
+[prompt artifact staging](agent_images.md#prompt-artifact-staging-and-archive) for the
+full persistence model.
 
 ## Arguments
 

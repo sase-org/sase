@@ -110,8 +110,8 @@ under `artifacts/<YYYYMM>/<sha12>-<basename>`. The prefix is the first twelve
 hexadecimal characters of the file's SHA-256 digest, so identical bytes publish once and
 differing bytes do not overwrite each other. Clean tracked files inside known
 repositories are not duplicated; their prompt links point to hosted source blobs at the
-recorded revision. Non-file references such as `@agent:`, `@bug:`, and `@commit:` remain
-links without copied bytes.
+recorded revision. Non-file references such as `@agent:`, `@patch:`, and `@stitch:`
+remain links without copied bytes.
 
 Prompt-archive publication is not a separate durable queue. The commit path publishes
 the archive directly, and the outbox request enqueued for that commit's hood also owns
