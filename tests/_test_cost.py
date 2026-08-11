@@ -57,6 +57,8 @@ _SUMMARY_FIELDS: tuple[tuple[str, str], ...] = (
     ("worker_wall_seconds", "worker wall"),
     ("worker_cpu_seconds", "worker CPU"),
     ("peak_worker_rss_kib", "peak worker RSS KiB"),
+    ("median_worker_rss_kib", "median worker RSS KiB"),
+    ("post_collection_worker_rss_kib", "post-collection worker RSS KiB"),
 )
 
 
@@ -324,6 +326,8 @@ def build_cost_record(
             "collection_seconds": _round_seconds(collection),
             "collection_cpu_seconds": _round_seconds(collection_cpu),
             "peak_worker_rss_kib": peak_rss,
+            "median_worker_rss_kib": rss_curve["median"],
+            "post_collection_worker_rss_kib": rss_curve["post_collection"],
             "worker_rss_curve_kib": rss_curve,
             "causes": causes,
         },

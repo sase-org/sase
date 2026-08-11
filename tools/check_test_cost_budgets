@@ -44,6 +44,8 @@ SUGGESTED_SUMMARY_METRICS: tuple[tuple[str, bool], ...] = (
     ("total_file_wall_seconds", False),
     ("idle_seconds", False),
     ("peak_worker_rss_kib", False),
+    ("median_worker_rss_kib", False),
+    ("post_collection_worker_rss_kib", False),
     ("collection_seconds", True),
     ("collection_cpu_seconds", True),
 )
