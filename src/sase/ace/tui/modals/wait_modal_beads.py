@@ -22,7 +22,7 @@ _TITLE_WIDTH = 32
 
 @dataclass(frozen=True)
 class BeadsValidation:
-    """Mirrors ``_TimeValidation``'s shape for the beads field's live preview."""
+    """Mirrors ``TimeValidation``'s shape for the beads field's live preview."""
 
     valid: bool
     bead_ids: list[str]
