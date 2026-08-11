@@ -5,17 +5,31 @@ from __future__ import annotations
 import logging
 import os
 import json
-import shlex
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
-from sase.bead.epic_launch import build_epic_launch_argv
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
+)
+from sase.axe.run_agent_exec_plan_accept_models import (
+    FollowupModel as _FollowupModel,
+    custom_coder_prompt_model as _custom_coder_prompt_model,
+    plan_followup_base_meta as _plan_followup_base_meta,
+    resolve_followup_model as _resolve_followup_model,
+    resolve_model_meta as _resolve_model_meta,
+    resolve_tale_size_followup as _resolve_tale_size_followup,
+)
+from sase.axe.run_agent_exec_plan_accept_sdd import (
+    accepted_plan_action_for_meta as _accepted_plan_action_for_meta,
+    epic_launch_is_host_owned as _epic_launch_is_host_owned,
+    notify_epic_launch_failure as _notify_epic_launch_failure,
+    publish_planner_prompt_archive as _publish_planner_prompt_archive,
+    record_epic_store_failure,
+    require_usable_sdd_store as _require_usable_sdd_store,
+    store_failure_detail as _store_failure_detail,
 )
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs,
@@ -35,16 +49,11 @@ from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.llm_provider.config import (
-    format_model_directive_value,
-    normalize_model_alias_reference,
-)
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
 )
-from sase.tale_followup_routing import validated_tale_followup_model_directive
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -52,62 +61,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _store_followup_prompt_artifact = store_followup_prompt_artifact
-
-
-def _publish_planner_prompt_archive(
-    ctx: AgentExecContext,
-    state: LoopState,
-    *,
-    agent_name: str,
-    prompt_content: str,
-    plan_name: str,
-    yyyymm: str,
-) -> Path | None:
-    """Publish the approved planner prompt to the canonical agents sidecar."""
-
-    from sase.agents_sync.git import run_git
-    from sase.agents_sync.prompt_archive import publish_prompt_archive
-
-    revision_result = run_git(
-        Path(ctx.workspace_dir),
-        ["rev-parse", "HEAD"],
-        op="prompt_archive.planner_revision",
-    )
-    primary_revision = revision_result.stdout.strip()
-    if revision_result.returncode != 0 or not primary_revision:
-        logger.warning(
-            "Planner prompt archive publication skipped: primary revision unavailable"
-        )
-        return None
-    outcome = publish_prompt_archive(
-        agent_name,
-        primary_revision,
-        project=ctx.project_name,
-        commit_cwd=ctx.workspace_dir,
-        agent_artifacts_dir=state.current_artifacts_dir,
-        prompt_content=prompt_content,
-        plan_ref=f"plans:{yyyymm}/{plan_name}.md",
-        prompt_name=plan_name,
-        yyyymm=yyyymm,
-    )
-    if outcome.error or outcome.skip_reason:
-        logger.warning(
-            "Planner prompt archive publication deferred: %s",
-            outcome.error or outcome.skip_reason,
-        )
-    return outcome.prompt_path
-
-
-def _accepted_plan_action_for_meta(plan_result: Any) -> str:
-    if plan_result.action == "approve" and not plan_result.run_coder:
-        return "commit"
-    if (
-        plan_result.action == "approve"
-        and plan_result.commit_plan
-        and plan_result.run_coder
-    ):
-        return "tale"
-    return str(plan_result.action)
 
 
 def _commit_sdd_files(
@@ -120,97 +73,6 @@ def _commit_sdd_files(
         logger=logger,
         subprocess_run=subprocess.run,
     )
-
-
-@dataclass(frozen=True)
-class _FollowupModel:
-    """The follow-up agent's model directive prefix and the meta to record.
-
-    ``model_prefix`` is prepended to the generated follow-up prompt (e.g.
-    ``"%model:codex/gpt-5.6-sol\n"`` or
-    ``"%model:@medium_worker\n"``). ``meta`` is the
-    ``(provider_or_none, model)`` to write into the follow-up's
-    ``agent_meta.json`` so the recorded model matches the directive; it is
-    ``None`` when the inherited planner metadata is already correct and the
-    rewrite should be skipped.
-    """
-
-    model_prefix: str
-    meta: tuple[str | None, str] | None = None
-    model_alias: str | None = None
-
-
-def _resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
-    """Resolve a ``%model`` directive value to ``(provider_or_none, model)``."""
-    from sase.llm_provider.registry import resolve_model_provider
-    from sase.xprompt.effort import split_model_effort
-
-    clean_model, _ = split_model_effort(model_directive)
-    return resolve_model_provider(clean_model)
-
-
-def _resolve_tale_size_followup(plan_file: str | Path) -> _FollowupModel:
-    """Route a coder follow-up through the tale's size-specific worker alias."""
-    directive = validated_tale_followup_model_directive(plan_file)
-    model_alias, _ = normalize_model_alias_reference(directive)
-    return _FollowupModel(
-        model_prefix=f"%model:{directive}\n",
-        meta=_resolve_model_meta(directive),
-        model_alias=model_alias,
-    )
-
-
-def _resolve_followup_model(
-    plan_result: Any,
-    ctx: AgentExecContext,
-    *,
-    followup_plan_file: str | Path,
-) -> _FollowupModel:
-    """Decide the follow-up agent's ``%model`` prefix and recorded metadata.
-
-    Precedence:
-
-    1. An explicit approval picker model (``plan_result.coder_model``) other
-       than the legacy ``"worker"`` sentinel wins; its meta is recorded unless
-       it equals the planner's model (the inherited meta is already correct).
-    2. Otherwise coder follow-ups (``approve`` / ``tale``) validate the plan
-       being handed off as a launch-mode tale and route through that tale's
-       size-specific phase-worker alias.
-
-    A ``%model`` directive embedded in a custom coder prompt is handled by the
-    caller and supersedes this result.
-    """
-    coder_model = plan_result.coder_model
-    if coder_model and coder_model.strip() != "worker":
-        directive_value = format_model_directive_value(coder_model)
-        prefix = f"%model:{directive_value}\n"
-        model_alias, _ = normalize_model_alias_reference(directive_value)
-        if coder_model == ctx.agent_model:
-            return _FollowupModel(model_prefix=prefix, model_alias=model_alias)
-        return _FollowupModel(
-            model_prefix=prefix,
-            meta=_resolve_model_meta(coder_model),
-            model_alias=model_alias,
-        )
-
-    return _resolve_tale_size_followup(followup_plan_file)
-
-
-def _custom_coder_prompt_model(
-    coder_prompt: str | None,
-) -> tuple[str, str | None] | None:
-    """Return an explicit custom-prompt model directive, if one is present."""
-    if not coder_prompt:
-        return None
-    from sase.xprompt._exceptions import DirectiveError
-    from sase.xprompt.directives import extract_prompt_directives, has_model_directive
-
-    if not has_model_directive(coder_prompt):
-        return None
-    directives = extract_prompt_directives(coder_prompt)[1]
-    if not directives.model:
-        raise DirectiveError("Custom coder prompt model directive requires a model")
-    return directives.model, directives.model_alias
 
 
 def _write_followup_model_alias_meta(
@@ -273,144 +135,21 @@ def _write_followup_effort_meta(state: LoopState, followup_prompt: str) -> None:
         )
 
 
-def _plan_followup_base_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
-    """Return parent metadata minus effort for accepted plan-chain handoffs.
-
-    Accepted coder follow-ups resolve effort from their own final prompt.
-    Dropping the inherited value here lets an unset follow-up omit
-    ``reasoning_effort`` instead of accidentally displaying the planner's
-    explicit effort.
-    """
-    if "reasoning_effort" not in base_meta:
-        return base_meta
-    return {key: value for key, value in base_meta.items() if key != "reasoning_effort"}
-
-
-def _notify_epic_launch_failure(
-    ctx: AgentExecContext,
-    plan_file: str,
-    output_tail: tuple[str, ...],
-) -> None:
-    """Best-effort error notification with a direct resume command."""
-    argv = build_epic_launch_argv(plan_file)
-    resume_command = shlex.join(argv)
-    notes = [
-        f"Epic launch failed for {Path(plan_file).name}",
-        f"Resume with: {resume_command}",
-    ]
-    if output_tail:
-        notes.append(f"Last output: {output_tail[-1]}")
-    try:
-        from sase.notifications.senders import notify_workflow_complete
-
-        notify_workflow_complete(
-            sender="user-agent",
-            cl_name=ctx.cl_name,
-            success=False,
-            notes=notes,
-            action="ViewErrorReport",
-            action_data={
-                "error_report_path": ctx.output_path,
-                "patch_name": ctx.cl_name,
-                "cl_name": ctx.cl_name,
-                **({"agent_name": ctx.agent_name} if ctx.agent_name else {}),
-            },
-            extra_files=[ctx.output_path] if Path(ctx.output_path).is_file() else None,
-        )
-    except Exception:
-        logger.warning("Failed to send epic-launch error notification", exc_info=True)
-
-
-def _epic_launch_is_host_owned(plan_result: Any) -> bool:
-    """Whether the approval response handed the epic launch to the host.
-
-    Every modern approval surface submits the detached ``sase bead work``
-    task itself and marks the response ``epic_launch_owner="host"``, so the
-    planner no longer owns (and must not report) that launch's outcome.
-    """
-    return (
-        plan_result.action == "epic"
-        and getattr(plan_result, "epic_launch_owner", None) == "host"
-    )
-
-
 def _record_epic_store_failure(
     plan_result: Any,
     ctx: AgentExecContext,
     state: LoopState,
     store_unusable_error: str,
 ) -> str | None:
-    """Record an epic SDD store failure and return the loop outcome, if any.
-
-    When the host owns the launch the failure is the planner's own SDD
-    publication failing, not the launch: it is recorded under
-    ``sdd_publication_error`` and ``None`` is returned so the caller falls
-    through to ``epic_approved``.  Otherwise the launch really was the
-    planner's to make, and the failure stays a launch failure.
-    """
-    if _epic_launch_is_host_owned(plan_result):
-        update_meta_field(
-            state.current_artifacts_dir,
-            "sdd_publication_error",
-            store_unusable_error,
-        )
-        logger.warning(
-            "Approved epic SDD publication failed (%s); the host-owned epic "
-            "launch continues independently",
-            store_unusable_error,
-        )
-        return None
-    update_meta_field(
-        state.current_artifacts_dir,
-        "epic_launch_error",
-        store_unusable_error,
-    )
-    _notify_epic_launch_failure(
+    return record_epic_store_failure(
+        plan_result,
         ctx,
-        plan_result.plan_file,
-        (store_unusable_error,),
+        state,
+        store_unusable_error,
+        update_meta=update_meta_field,
+        notify_failure=_notify_epic_launch_failure,
+        log=logger,
     )
-    return "epic_launch_failed"
-
-
-def _store_failure_detail(exc: Exception) -> str:
-    """Describe an epic SDD store failure, naming a mid-run code swap if any.
-
-    A ``sase dev update`` that swaps editable source under this runner surfaces
-    as an ``ImportError`` wrapped verbatim in a store error. Blaming the store
-    for that is what made the original incident unreadable, so when the source
-    revision moved the recorded detail names the swap and both revisions.
-    """
-    from sase.axe.source_skew import code_swap_explanation
-
-    detail = str(exc) or type(exc).__name__
-    swap = code_swap_explanation(exc)
-    if swap is None:
-        return detail
-    return f"mid-run sase code swap, not an unusable store: {detail} -- {swap}"
-
-
-def _require_usable_sdd_store(repo_root: Path) -> None:
-    """Validate a materialized SDD repository before any accepted-plan write."""
-    if not (repo_root / ".git").exists():
-        return
-    from sase.sdd._git_contention import store_git_write_lock
-    from sase.sdd._repository_transaction import (
-        SddRepositoryHealthError,
-        require_sdd_repository_health,
-    )
-
-    with store_git_write_lock(
-        repo_root,
-        op="axe.accepted_plan_preflight",
-        mutates_worktree=True,
-    ) as acquired:
-        if not acquired:
-            raise SddRepositoryHealthError(
-                f"SDD repository {repo_root.resolve()} could not acquire its store "
-                "write lock; the approved plan was not copied"
-            )
-        require_sdd_repository_health(repo_root)
 
 
 def handle_accepted_plan(
