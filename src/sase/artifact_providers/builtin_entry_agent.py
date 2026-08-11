@@ -35,7 +35,13 @@ def resolve_agent_entry(
     resolution = resolve_artifact_ref(reference, context=context)
     entry = None
     if resolution.resolved_path is not None:
-        entry = _agent_entry(reference.payload.name or "", resolution.resolved_path)
+        authored_name = reference.payload.name or ""
+        canonical_name = resolution.rendered.removeprefix("agent:")
+        entry = _agent_entry(
+            authored_name,
+            canonical_name=canonical_name,
+            resolved_path=resolution.resolved_path,
+        )
     return BuiltinEntryOutcome(
         status=resolution.status,
         entry=entry,
@@ -49,7 +55,12 @@ def resolve_agent_entry(
     )
 
 
-def _agent_entry(name: str, resolved_path: Path) -> ArtifactEntry | None:
+def _agent_entry(
+    name: str,
+    *,
+    canonical_name: str,
+    resolved_path: Path,
+) -> ArtifactEntry | None:
     page_dir = resolved_path.parent
     properties: dict[str, str] = {}
     _add_meta_properties(page_dir / "meta.json", properties)
@@ -64,9 +75,9 @@ def _agent_entry(name: str, resolved_path: Path) -> ArtifactEntry | None:
 
     return validate_builtin_entry(
         ArtifactEntry(
-            stable_id=f"agent:{name}",
+            stable_id=f"agent:{canonical_name}",
             ref_kind="agent",
-            canonical_argument=name,
+            canonical_argument=canonical_name,
             display_label=name,
             origin="prompt_ref",
             project_display_name=properties.get("project"),

@@ -104,6 +104,8 @@ def test_properties_come_from_meta_and_state_json(tmp_path: Path) -> None:
     assert outcome.resolved_path == readme
     assert outcome.canonical_reference == "agent:alice.athena.9w"
     assert outcome.entry is not None
+    assert outcome.entry.stable_id == "agent:alice.athena.9w"
+    assert outcome.entry.canonical_argument == "alice.athena.9w"
     props = outcome.entry.properties
     assert props["project"] == "sase"
     assert props["agent"] == "9w"

@@ -264,6 +264,27 @@ def test_validation_records_nothing(
     assert append_calls == []
 
 
+def test_validation_does_not_capture_file_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "bob"
+    root.mkdir()
+    source = root / "gtd.md"
+    source.write_text("tasks", encoding="utf-8")
+    context = replace(
+        make_context(tmp_path),
+        file_roots=(ArtifactRefFileRoot("bob", root),),
+        home_dir=tmp_path,
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+
+    validate_artifact_references(f"@file:{source}", context=context)
+
+    assert not (tmp_path / ".sase/artifacts").exists()
+
+
 def test_failed_expansion_records_nothing(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

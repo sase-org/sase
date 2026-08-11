@@ -218,6 +218,7 @@ def _expand_artifact_references(
                     resolution,
                     outcome,
                     raw_candidate,
+                    capture_file_ref=rewrite,
                     context=ref_context.artifact_context,
                     jinja_protection=jinja_protection,
                 )
@@ -308,6 +309,7 @@ def _replacement_for_candidate(
     outcome: BuiltinEntryOutcome | None,
     raw_ref: str,
     *,
+    capture_file_ref: bool,
     context: ArtifactRefContext,
     jinja_protection: ArtifactRendererJinjaProtection | None,
 ) -> tuple[str, Path | None, dict[str, object] | None]:
@@ -319,10 +321,10 @@ def _replacement_for_candidate(
     materialized_path = _materialized_artifact_path(
         reference, resolution, context=context
     )
-    captured_record, captured_path = _capture_file_path_ref(
-        reference,
-        resolution,
-        raw_ref,
+    captured_record, captured_path = (
+        _capture_file_path_ref(reference, resolution, raw_ref)
+        if capture_file_ref
+        else (None, None)
     )
     if captured_record is not None and captured_record.get("skipped_reason"):
         raise RuntimeError(
