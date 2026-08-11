@@ -219,6 +219,37 @@ def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
         help="VCS workspace directory to query (default: current directory)",
     )
 
+    # sase patch sync-external [-d|--dry-run] [-f|--full] [-p|--project PROJECT]
+    sync_external_parser = cs_subparsers.add_parser(
+        "sync-external",
+        help="Mirror remote pull requests into local Patch records",
+        description=(
+            "List pull requests on enabled project remotes and adopt PRs "
+            "that were not created by SASE's tracked PR workflow. "
+            "Merged and closed PRs are written directly into the archive "
+            "ProjectSpec."
+        ),
+    )
+    sync_external_parser.set_defaults(changespec_subcommand="sync-external")
+    sync_external_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Show creations and repairs without writing Patches or advancing cursors",
+    )
+    sync_external_parser.add_argument(
+        "-f",
+        "--full",
+        action="store_true",
+        help="Run an unbounded repair scan instead of the incremental fetch limit",
+    )
+    sync_external_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project key, configured name, or alias to sync (default: all enabled projects)",
+    )
+
     # sase patch migrate-extension [--force] [--projects-dir DIR]
     migrate_parser = cs_subparsers.add_parser(
         "migrate-extension",

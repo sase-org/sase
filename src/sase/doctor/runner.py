@@ -58,6 +58,9 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
         agent_publication_digest_check_specs,
     )
     from sase.doctor.checks_axe import axe_check_specs
+    from sase.doctor.checks_external_pr_mirror import (
+        external_pr_mirror_check_specs,
+    )
     from sase.doctor.checks_beads import bead_check_specs
     from sase.doctor.checks_changespec_refs import (  # legacy module path
         patch_ref_check_specs,
@@ -82,6 +85,7 @@ def build_doctor_registry(context: DoctorContext) -> DiagnosticRegistry:
             *plugin_check_specs(context),
             *resource_check_specs(context),
             *axe_check_specs(context),
+            *external_pr_mirror_check_specs(context),
             *project_check_specs(context),
             *patch_ref_check_specs(context),
             *workspace_check_specs(context),

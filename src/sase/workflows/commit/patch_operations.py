@@ -3,9 +3,7 @@
 import os
 
 from sase.ace.patch import patch_lock, write_patch_atomic
-from sase.ace.patch.models import normalize_pr_origin
-from sase.ace.patch.review_field import format_review_url_line
-from sase.ace.patch.storage import DEFAULT_STITCH_SECTION_HEADER
+from sase.ace.patch.storage import DEFAULT_STITCH_SECTION_HEADER, format_patch_block
 from sase.output import print_status
 from sase.workflows.utils import get_project_file_path
 
@@ -306,10 +304,6 @@ def add_patch_to_project_file(
         if not create_project_file(project):
             return None
 
-    # Format the description with 2-space indent
-    description_lines = description.strip().split("\n")
-    formatted_description = "\n".join(f"  {line}" for line in description_lines)
-
     # PARENT line and BUG line are built later, after parent resolution and
     # potential parent inheritance.
 
@@ -426,16 +420,6 @@ def add_patch_to_project_file(
                 # No parent - append to end of file
                 insert_index = len(lines)
 
-            # Build PARENT line (after validation) and BUG line (may be
-            # inherited from parent above).
-            parent_line = f"PARENT: {parent}\n" if parent else ""
-            bug_line = f"BUG: {bug}\n" if bug else ""
-            pr_origin_line = (
-                f"PR_ORIGIN: {normalize_pr_origin(pr_origin)}\n"
-                if pr_origin is not None
-                else ""
-            )
-
             # Build HOOKS field with initial hooks + inherited parent hooks
             all_hooks = list(initial_hooks or []) + parent_hooks_to_add
             hooks_block = ""
@@ -446,14 +430,18 @@ def add_patch_to_project_file(
                 hooks_block = "".join(hooks_lines)
 
             # Build the Patch block with the suffixed name
-            pr_line = format_review_url_line(pr_url) if pr_url else ""
-            patch_block = f"""
-
-NAME: {cl_name}
-DESCRIPTION:
-{formatted_description}
-{parent_line}{pr_line}{pr_origin_line}{bug_line}STATUS: {status}
-{commits_block}{hooks_block}{timestamps_block}"""
+            patch_block = format_patch_block(
+                name=cl_name,
+                description=description,
+                parent=parent,
+                pr_url=pr_url,
+                pr_origin=pr_origin,
+                bug=bug,
+                status=status,
+                commits_block=commits_block,
+                hooks_block=hooks_block,
+                timestamps_block=timestamps_block,
+            )
 
             # Insert the new Patch
             lines.insert(insert_index, patch_block)

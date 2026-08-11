@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sase.ace.patch import Patch, find_all_patches
@@ -27,6 +28,7 @@ from sase.core.patch import (
     patch_name_to_branch_with_suffix,
     strip_reverted_suffix,
 )
+from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.project_display_names import humanize_cl_name, project_display_name_for
 from sase.vcs_provider import VCSProvider, get_vcs_provider
 from sase.workflows.utils import get_project_file_path, get_project_from_workspace
@@ -529,6 +531,110 @@ def _handle_sync_deltas(args: argparse.Namespace) -> int:
     return 1
 
 
+def _handle_sync_external(args: argparse.Namespace) -> int:
+    from rich.table import Table
+
+    from sase.axe.state import ensure_lumberjack_dirs
+    from sase.core.paths import sase_projects_dir
+    from sase.core.project_lifecycle_facade import list_project_records
+    from sase.core.project_lifecycle_wire import effective_project_name
+    from sase.external_mirror.pr_sync import sync_external_pull_requests
+    from sase.output import console
+    from sase.project_aliases import resolve_project_alias_ref
+
+    records = [
+        record
+        for record in list_project_records(
+            sase_projects_dir(),
+            "enabled",
+            include_home=False,
+            projects_only=True,
+        )
+        if record.is_project and record.vcs_kind in {"git", "gh"}
+    ]
+    if args.project:
+        selected = _select_sync_external_project(
+            records,
+            resolve_project_alias_ref(str(args.project)),
+        )
+        if selected is None:
+            print(
+                f"[{_command_prefix(args, 'sync-external')}] project not found: "
+                f"{args.project}",
+                file=sys.stderr,
+            )
+            return 1
+        records = [selected]
+
+    if args.dry_run:
+        console.print("[bold yellow]Dry run:[/bold yellow] no Patches will be written.")
+
+    state_dir = ensure_lumberjack_dirs("checks")
+    table = Table(title="External PR Mirror")
+    table.add_column("Project", style="cyan")
+    table.add_column("Fetched", justify="right")
+    table.add_column("Adopted", justify="right", style="green")
+    table.add_column("Repaired", justify="right", style="green")
+    table.add_column("Skipped", justify="right")
+    table.add_column("Errors", justify="right", style="red")
+    table.add_column("Reason")
+
+    exit_code = 0
+    for record in sorted(records, key=lambda item: effective_project_name(item)):
+        project_label = effective_project_name(record)
+        if not record.workspace_dir:
+            table.add_row(project_label, "0", "0", "0", "0", "1", "missing_workspace")
+            exit_code = 1
+            continue
+        try:
+            provider = get_vcs_provider(record.workspace_dir)
+            report = sync_external_pull_requests(
+                project_key=record.project_name,
+                workspace_dir=record.workspace_dir,
+                state_dir=state_dir,
+                provider=provider,
+                now=datetime.now(UTC),
+                dry_run=bool(args.dry_run),
+                full=bool(args.full),
+            )
+        except Exception as exc:  # noqa: BLE001 - CLI reports per-project failures.
+            table.add_row(project_label, "0", "0", "0", "0", "1", str(exc))
+            exit_code = 1
+            continue
+        if report.errors:
+            exit_code = 1
+        table.add_row(
+            project_label,
+            str(report.fetched),
+            str(report.created),
+            str(report.repaired),
+            str(report.skipped),
+            str(report.errors),
+            report.reason() or "",
+        )
+
+    console.print(table)
+    return exit_code
+
+
+def _select_sync_external_project(
+    records: list[ProjectRecordWire],
+    project_ref: str,
+) -> ProjectRecordWire | None:
+    from sase.core.project_lifecycle_wire import effective_project_name
+
+    folded = project_ref.casefold()
+    for record in records:
+        if record.project_name == project_ref:
+            return record
+    for record in records:
+        if effective_project_name(record).casefold() == folded:
+            return record
+        if any(alias.casefold() == folded for alias in record.aliases):
+            return record
+    return None
+
+
 def _resolve_set_origin_patch(
     name: str, project_file: str | None, args: argparse.Namespace
 ) -> Patch | None:
@@ -620,13 +726,15 @@ def handle_patch_command(args: argparse.Namespace) -> None:
         sys.exit(_handle_ref(args))
     if sub == "sync-deltas":
         sys.exit(_handle_sync_deltas(args))
+    if sub == "sync-external":
+        sys.exit(_handle_sync_external(args))
     if sub == "set-origin":
         sys.exit(_handle_set_origin(args))
     if sub == "migrate-extension":
         sys.exit(_handle_migrate_extension(args))
     print(
         f"Usage: sase {_command_name(args)} "
-        "{current,migrate-extension,ref,search,set-origin,sync-deltas} [-h]",
+        "{current,migrate-extension,ref,search,set-origin,sync-deltas,sync-external} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)

@@ -245,6 +245,7 @@ Lower-frequency status checks:
 | Chop                    | Description                                        |
 | ----------------------- | -------------------------------------------------- |
 | `bead_task_triage`      | Reconcile the one pending gate each task bead owns |
+| `external_pr_mirror`    | Adopt remote pull requests as local Patches        |
 | `pr_submitted_checks`   | Start PR submission status checks                  |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup                |
 
@@ -796,6 +797,27 @@ with a name-collision reason, releases its once-per key, and relinks dependent w
 same way once-per dedupe does. If every proposal is skipped the run finishes `skipped`;
 otherwise launched proposals proceed normally. Collisions on runner-derived names (which
 embed a per-run token) and in clan batch launches remain hard failures.
+
+#### Builtin `external_pr_mirror`
+
+`sase_chop_external_pr_mirror` fans out across enabled `git` and `gh` projects with
+`for_each: {source: projects, vcs: [git, gh]}`. Each instance uses the target's
+ProjectSpec directory key for local Patch files and the target workspace directory for
+provider calls. A structural capability probe skips providers that cannot list PRs.
+
+Incremental runs fetch a bounded PR inventory because the provider seam exposes a record
+limit, not pagination. The chop records `seen`, `fetched`, `created`, `repaired`,
+`skipped`, `conflicts`, `errors`, `budget_exhausted`, and `checkpoint_advanced` in its
+summary. Cursor state lives in the checks lumberjack directory with a ten-minute overlap
+window; the cursor advances only after a clean pass. A daily full scan ignores the
+incremental cursor so missed repairs are eventually found.
+
+Open draft PRs become `Draft` Patches, open non-draft PRs become `Mailed`, and merged or
+closed PRs are appended directly to the archive ProjectSpec as `Submitted` or
+`Archived`. The `SASE_PATCH` marker identifies PRs created by SASE's tracked PR
+workflow, not PRs created by any SASE agent. An agent that bypasses the tracked workflow
+and calls `gh pr create` directly is indistinguishable from a human and is adopted as
+`external`.
 
 #### Builtin `refresh_docs`
 

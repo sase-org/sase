@@ -285,11 +285,19 @@ Common optional fields include:
   no dependency.
 - **PR**: URL for the created review, omitted until the PR exists. New files write
   `PR:`; legacy `CL:` fields remain readable during the compatibility window.
+- **PR_ORIGIN**: Tri-state origin for the PR URL. `sase` means SASE's tracked PR
+  workflow created it, `external` means it was adopted from the remote, and `unknown`
+  marks ambiguous evidence for manual review with `sase patch set-origin`.
 - **BUG**: Bug or issue reference for this Patch.
 - **REFS**: References attached with `sase patch ref`; see
   [`change_spec.md`](change_spec.md#refs).
 - **STITCHES**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**:
   See [`change_spec.md`](change_spec.md) for details.
+
+The `external_pr_mirror` chop may adopt remote PRs that SASE did not create. Adopted
+Patches get `NAME:`, `DESCRIPTION:`, `PR:`, `PR_ORIGIN:`, and `STATUS:` only. They do
+not get fabricated `PARENT:`, `STITCHES:`, `HOOKS:`, `TIMESTAMPS:`, workspace claims, or
+inferred dependencies from the PR base branch.
 
 ## Example
 

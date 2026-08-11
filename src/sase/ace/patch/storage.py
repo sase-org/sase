@@ -36,9 +36,47 @@ def stitch_section_header_for(line: str) -> str | None:
     return None
 
 
+def format_patch_block(
+    *,
+    name: str,
+    description: str,
+    parent: str | None = None,
+    pr_url: str | None = None,
+    pr_origin: str | None = None,
+    bug: str | None = None,
+    status: str = "Draft",
+    commits_block: str = "",
+    hooks_block: str = "",
+    timestamps_block: str = "",
+) -> str:
+    """Render one ProjectSpec Patch block in the canonical writer shape."""
+    from sase.ace.patch.models import normalize_pr_origin
+    from sase.ace.patch.review_field import format_review_url_line
+
+    description_lines = description.strip().split("\n")
+    formatted_description = "\n".join(f"  {line}" for line in description_lines)
+    parent_line = f"PARENT: {parent}\n" if parent else ""
+    pr_line = format_review_url_line(pr_url) if pr_url else ""
+    pr_origin_line = (
+        f"PR_ORIGIN: {normalize_pr_origin(pr_origin)}\n"
+        if pr_origin is not None
+        else ""
+    )
+    bug_line = f"BUG: {bug}\n" if bug else ""
+
+    return f"""
+
+NAME: {name}
+DESCRIPTION:
+{formatted_description}
+{parent_line}{pr_line}{pr_origin_line}{bug_line}STATUS: {status}
+{commits_block}{hooks_block}{timestamps_block}"""
+
+
 __all__ = [
     "CANONICAL_PATCH_HEADING",
     "DEFAULT_STITCH_SECTION_HEADER",
+    "format_patch_block",
     "LEGACY_PATCH_HEADING",
     "LEGACY_STITCH_SECTION_HEADER",
     "STITCH_SECTION_HEADERS",
