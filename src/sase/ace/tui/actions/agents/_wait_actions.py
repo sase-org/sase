@@ -27,7 +27,9 @@ from ._wait_helpers import (
     TabName,
     prompt_wait_spec,
     result_has_wait_spec,
+    wait_bead_project_key,
     wait_modal_candidates,
+    wait_own_bead_ids,
     wait_spec_label,
 )
 
@@ -98,6 +100,8 @@ class AgentWaitActionsMixin:
                 ),
                 candidates=candidates,
                 is_running=is_running,
+                bead_project_key=wait_bead_project_key(agent),
+                own_bead_ids=wait_own_bead_ids(agent),
             ),
             handle_wait_result,
         )

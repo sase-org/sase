@@ -18,6 +18,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     visual_agents,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -247,6 +248,90 @@ async def test_wait_modal_png_snapshot(
             page,
             "wait_modal_100x32",
             title="ACE wait modal",
+        )
+
+
+async def test_wait_modal_beads_focused_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=visual_agents())
+
+    async with AcePage(query='"visual"', patches=patches(), size=(100, 32)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        from textual.widgets import Input
+
+        from sase.ace.tui.modals.wait_modal import WaitModal
+        from sase.ace.tui.models.wait_bead_catalog import (
+            WaitBeadCandidate,
+            WaitBeadCatalog,
+        )
+
+        catalog = WaitBeadCatalog(
+            candidates=(
+                WaitBeadCandidate(
+                    bead_id="sase-91.3",
+                    title="Add bead picker to Wait modal",
+                    status="in_progress",
+                    type_label="task",
+                    created_at="2026-07-01T00:00:00",
+                    updated_at="2026-08-10T00:00:00",
+                ),
+                WaitBeadCandidate(
+                    bead_id="sase-91.4",
+                    title="Regenerate wait modal snapshot",
+                    status="ready",
+                    type_label="task",
+                    created_at="2026-07-02T00:00:00",
+                    updated_at="2026-08-09T00:00:00",
+                ),
+                WaitBeadCandidate(
+                    bead_id="sase-88",
+                    title="Bead store performance sweep",
+                    status="open",
+                    type_label="plan",
+                    created_at="2026-06-01T00:00:00",
+                    updated_at="2026-08-05T00:00:00",
+                ),
+            ),
+            available=True,
+        )
+
+        modal = WaitModal(
+            current_waiting_for_beads=["sase-91.3"],
+            bead_project_key="visual-project",
+            bead_catalog_loader=lambda project_key, **_: catalog,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("WaitModal")
+        await wait_for_svg_contains(page, "Wait")
+
+        beads_input = modal.query_one("#beads-input", Input)
+        beads_input.focus()
+        await wait_for_state(
+            page,
+            lambda: beads_input.has_focus,
+            description="beads input focus",
+        )
+        # Trailing comma clears the active completion fragment so the full
+        # candidate list renders, with "sase-91.3" still marked selected.
+        beads_input.value = "sase-91.3, "
+        await wait_for_svg_contains(page, "sase-91.4")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "sase-91.3")
+        assert_page_svg_contains(page, "sase-91.4")
+        assert_page_svg_contains(page, "selected")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "wait_modal_beads_focused_100x32",
+            title="ACE wait modal beads focused",
         )
 
 

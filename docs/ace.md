@@ -1190,31 +1190,57 @@ repo discards local clone changes without re-cloning from the network.
 
 ### Wait Modal
 
-Press `w` on the Agents tab to open the WaitModal. It has four editable fields —
-**Agents**, **Time**, **Runners**, and **Priority** — each prefilled from the agent's
-current wait. Time, Runners, and Priority render a live preview of how the typed value
-will be interpreted, and an invalid value blocks apply and focuses the offending field.
-Beads the agent is waiting on appear above the fields as a read-only summary; they are
-preserved but cannot be edited here.
+Press `w` on the Agents tab to open the WaitModal. It has five editable fields —
+**Agents**, **Beads**, **Time**, **Runners**, and **Priority** — each prefilled from the
+agent's current wait. Time, Runners, Priority, and Beads render a live preview of how
+the typed value will be interpreted; an invalid Time, Runners, or Priority value blocks
+apply and focuses the offending field.
+
+Beads completes against every non-closed bead in the agent's project, read from the same
+canonical store the wait resolver consults, so a bead offered by the picker is always
+one the resolver can see. The agent's own epic/phase bead is excluded from candidates —
+an agent can never wait on the bead it exists to close. Candidates are ordered by status
+(`in_progress`, `claimed`, `ready`, `open`, `snoozed`), then by most-recently-updated,
+then by ID; the filter fragment matches bead ID or title. At most 100 rows render per
+keystroke, with a trailing `…N more — keep typing` row when more match. A bead already
+present in the field renders with a dim `· selected` suffix.
+
+The Agents and Beads fields each have their own completion list directly beneath them,
+but only one is ever visible at a time — whichever of the two fields was focused most
+recently (Agents by default). Focusing Time, Runners, or Priority never changes which
+list is shown, and the hidden list is not part of keyboard focus traversal.
+
+The beads preview reports one of: an empty-field neutral message, a loading message
+while the bead catalog loads in the background, a neutral "bead store unavailable" state
+when the project's store can't be read (IDs are not verified in that case), a valid
+summary of up to three typed beads with their status glyphs plus an aggregate count, or
+an error when a typed ID isn't in the project's bead store or is the agent's own bead.
+Applying an error-state bead wait is a soft, two-step guard rather than a hard block:
+the first `Enter` focuses the Beads field and changes the footer instead of dismissing;
+a second `Enter` applies the wait as typed. Any edit to the Beads field disarms the
+guard. A store that can't be read never arms the guard, since bead stores sync through
+git and a locally-missing ID can still be valid upstream.
 
 Behavior depends on the agent's status:
 
-- **WAITING or QUEUED agent**: Edit dependency names, a time floor, the `runners`
-  threshold, or the runner-slot `priority`. A runner-slot-parked agent applies a
-  runners- or priority-only edit live on its next poll; changing earlier wait stages
+- **WAITING or QUEUED agent**: Edit dependency names, bead gates, a time floor, the
+  `runners` threshold, or the runner-slot `priority`. A runner-slot-parked agent applies
+  a runners- or priority-only edit live on its next poll; changing earlier wait stages
   restarts the agent. Clearing an explicit runner threshold returns it to the global
   `max_running_agents` cap rather than bypassing that cap.
-- **RUNNING agent**: Enter a dependency, time floor, runners threshold, or priority to
-  kill and restart the current agent with a canonical `%wait(...)` directive.
+- **RUNNING agent**: Enter a dependency, bead gate, time floor, runners threshold, or
+  priority to kill and restart the current agent with a canonical `%wait(...)`
+  directive.
 
 Priority must be a non-negative integer and defaults to `10`; lower values are admitted
 first. See [Runner slot waits](troubleshooting/runner-slots.md) for how priority
 interacts with FIFO order and the bounded deference window applied to deprioritized
 waiters.
 
-`Enter` applies, `Tab` accepts an agent-name completion, `Ctrl+R` runs the agent now by
-clearing every wait condition, and `Escape` cancels. The modal supports readline-style
-keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
+`Enter` applies, `Tab` accepts a highlighted agent- or bead-name completion and
+otherwise moves focus to the next field, `Ctrl+R` runs the agent now by clearing every
+wait condition, and `Escape` cancels. The modal supports readline-style keybindings
+(`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
 
 ### VCS Tag Resolution in Fork/Wait
 

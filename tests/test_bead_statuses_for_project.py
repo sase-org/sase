@@ -8,7 +8,10 @@ import pytest
 
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
-from sase.bead.store_locator import bead_statuses_for_project
+from sase.bead.store_locator import (
+    bead_statuses_for_project,
+    open_bead_candidates_for_project,
+)
 
 
 def test_bead_statuses_for_project_reads_requested_ids_from_canonical_store(
@@ -35,3 +38,36 @@ def test_bead_statuses_for_project_reads_requested_ids_from_canonical_store(
         claimed.id: "claimed",
     }
     assert bead_statuses_for_project("unknown", [closed.id]) is None
+
+
+def test_open_bead_candidates_for_project_excludes_closed_beads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject.init(tmp_path, beads_dirname="beads") as project:
+        closed = project.create("Closed", IssueType.PLAN)
+        claimed = project.create("Claimed", IssueType.PLAN)
+        project.update(closed.id, status="closed")
+        project.update(claimed.id, status="claimed")
+
+    beads_dir = tmp_path / "beads"
+    monkeypatch.setattr(
+        "sase.bead.store_locator.get_project_beads_dirs_for_project",
+        lambda project: [beads_dir] if project == "known" else [],
+    )
+
+    candidates = open_bead_candidates_for_project("known")
+    assert candidates is not None
+    candidate_ids = {issue.id for issue in candidates}
+    assert claimed.id in candidate_ids
+    assert closed.id not in candidate_ids
+
+
+def test_open_bead_candidates_for_project_returns_none_for_unknown_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.store_locator.get_project_beads_dirs_for_project",
+        lambda project: [],
+    )
+    assert open_bead_candidates_for_project("unknown") is None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.tui.agent_completion import (
@@ -122,6 +123,22 @@ def wait_candidate_from_completion(
         tribe=candidate.tribe,
         vcs_workflow=candidate.vcs_workflow,
         prompt_snippet=candidate.prompt_snippet,
+    )
+
+
+def wait_bead_project_key(agent: Agent) -> str | None:
+    """Return the project key whose bead store gates *agent*'s waits."""
+    project_file = agent.project_file
+    if not project_file:
+        return None
+    project_key = Path(project_file).parent.name
+    return project_key or None
+
+
+def wait_own_bead_ids(agent: Agent) -> frozenset[str]:
+    """Return the bead IDs *agent* exists to close, which can never gate it."""
+    return frozenset(
+        bead_id for bead_id in (agent.epic_bead_id, agent.phase_bead_id) if bead_id
     )
 
 

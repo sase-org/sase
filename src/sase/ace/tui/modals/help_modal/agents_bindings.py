@@ -87,7 +87,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.add_tag),
                     "Start wait; @tribe binds next",
                 ),
-                (d(a.reword), "Edit one current agent's wait deps/time / run now"),
+                (
+                    d(a.reword),
+                    "Edit one current agent's wait deps/beads/time / run now",
+                ),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),
                 (d(a.kill_agent), "Clean row/panel/group/clan/marks"),
                 (d(a.toggle_mark), "Mark/unmark current agent or focused group"),

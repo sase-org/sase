@@ -5,9 +5,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from sase.bead.model import Status
+from sase.bead.model import Issue, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
 from sase.bead.workspace import get_project_beads_dirs_for_project
+
+_NON_CLOSED_STATUSES: list[Status] = [
+    status for status in Status if status is not Status.CLOSED
+]
 
 
 def canonical_beads_dir_for_project(project: str) -> Path | None:
@@ -39,6 +43,19 @@ def closed_bead_ids_for_project(project: str) -> frozenset[str] | None:
     except Exception:  # noqa: BLE001 - unavailable stores must fail closed.
         return None
     return frozenset(issue.id for issue in issues)
+
+
+def open_bead_candidates_for_project(project: str) -> tuple[Issue, ...] | None:
+    """Return non-closed beads from the canonical store, or ``None``."""
+    try:
+        beads_dir = canonical_beads_dir_for_project(project)
+        if beads_dir is None:
+            return None
+        with open_bead_project_for_beads_dir(beads_dir) as bead_project:
+            issues = bead_project.list_issues(statuses=_NON_CLOSED_STATUSES)
+    except Exception:  # noqa: BLE001 - unavailable stores must fail closed.
+        return None
+    return tuple(issues)
 
 
 def bead_statuses_for_project(

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Literal
 
 from rich.text import Text
 from textual import events
@@ -12,6 +14,7 @@ from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
+from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.agent_completion import AgentVcsWorkflow, status_style
 from sase.ace.tui.models.agent_time import format_compact_duration, format_wait_until
@@ -20,9 +23,28 @@ from sase.ace.tui.models.tribe_display import (
     compose_tribe_identity_style,
     named_tribe_identity_colors,
 )
+from sase.ace.tui.models.wait_bead_catalog import (
+    WaitBeadCandidate,
+    WaitBeadCatalog,
+    filter_wait_bead_candidates,
+    load_wait_bead_catalog,
+)
 from sase.core.time import local_now
+from sase.project_display_names import project_display_name_for
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 from sase.xprompt._exceptions import DirectiveError
+
+from .wait_modal_beads import (
+    BeadsValidation,
+    bead_candidate_option,
+    empty_bead_option,
+    loading_bead_option,
+    overflow_bead_option,
+    validate_beads_selection,
+)
+
+_BEAD_ROW_LIMIT = 100
+_ActiveCompletion = Literal["agents", "beads"]
 
 
 @dataclass(frozen=True)
@@ -98,9 +120,18 @@ class _AgentCompletionList(OptionList):
     """Local completion list for waitable agents."""
 
 
+class _BeadCompletionList(OptionList):
+    """Local completion list for waitable beads."""
+
+
 def _parse_agents_value(value: str) -> list[str]:
     """Parse comma-separated wait targets."""
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _parse_beads_value(value: str) -> list[str]:
+    """Parse comma-separated bead wait targets, order-preserving and deduplicated."""
+    return list(dict.fromkeys(_parse_agents_value(value)))
 
 
 def _active_fragment(value: str) -> str:
@@ -360,11 +391,15 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         current_wait_priority: int | None = None,
         candidates: list[WaitAgentCandidate] | None = None,
         is_running: bool = False,
+        bead_project_key: str | None = None,
+        own_bead_ids: frozenset[str] = frozenset(),
+        bead_catalog_loader: Callable[..., WaitBeadCatalog] = load_wait_bead_catalog,
     ) -> None:
         """Initialize the wait modal."""
         super().__init__()
         self._current_waiting_for = current_waiting_for or []
         self._current_waiting_for_beads = current_waiting_for_beads or []
+        self._bead_prefill = ", ".join(self._current_waiting_for_beads)
         self._time_prefill = _prefill_time_token(
             current_wait_duration,
             current_wait_until,
@@ -388,21 +423,26 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         self._is_running = is_running
         self._programmatic_highlight = False
 
+        self._bead_project_key = bead_project_key
+        self._own_bead_ids = frozenset(own_bead_ids)
+        self._bead_catalog_loader = bead_catalog_loader
+        self._bead_catalog: WaitBeadCatalog | None = None
+        self._project_label = bead_project_key or ""
+        self._filtered_bead_candidates: list[WaitBeadCandidate] = []
+        self._programmatic_bead_highlight = False
+        self._active_completion: _ActiveCompletion = "agents"
+        self._bead_guard_armed = False
+        self._bead_catalog_worker: Worker[tuple[WaitBeadCatalog, str]] | None = None
+
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         agent_prefill = ", ".join(self._current_waiting_for)
-        with Container():
+        with Container(id="wait-modal-body"):
             yield Label("Wait", id="modal-title")
             yield Static(
-                "Wait for agents, a time floor, and/or a runner threshold.",
+                "Wait for agents, beads, a time floor, and/or a runner threshold.",
                 id="wait-modal-summary",
             )
-            if self._current_waiting_for_beads:
-                yield Label("Beads (read-only)", classes="wait-field-label")
-                yield Static(
-                    ", ".join(self._current_waiting_for_beads),
-                    id="wait-beads-summary",
-                )
             yield Label("Agents", classes="wait-field-label")
             yield _WaitInput(
                 value=agent_prefill,
@@ -410,6 +450,14 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
                 id="agents-input",
             )
             yield _AgentCompletionList(id="agent-completion")
+            yield Label("Beads", classes="wait-field-label")
+            yield _WaitInput(
+                value=self._bead_prefill,
+                placeholder="bead-1, bead-2",
+                id="beads-input",
+            )
+            yield _BeadCompletionList(id="bead-completion")
+            yield Static("", id="beads-preview")
             yield Label("Time", classes="wait-field-label")
             yield _WaitInput(
                 value=self._time_prefill,
@@ -431,32 +479,60 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
                 id="priority-input",
             )
             yield Static("", id="priority-preview")
-            footer = "enter apply | tab complete | ^r run now | esc cancel"
-            if self._is_running:
-                footer = f"{footer} | active agents restart"
-            yield Static(footer, id="wait-footer")
+            yield Static(self._footer_text(), id="wait-footer")
 
     def on_mount(self) -> None:
-        """Focus the agents field and initialize live state."""
+        """Focus the agents field, initialize live state, and load beads."""
         self._refresh_completion()
+        self._refresh_bead_completion()
         self._update_time_preview()
         self._update_runners_preview()
         self._update_priority_preview()
+        self._update_beads_preview()
+        self._apply_active_completion_visibility()
         agents_input = self.query_one("#agents-input", _WaitInput)
         agents_input.focus()
         agents_input.cursor_position = len(agents_input.value)
+        self.call_after_refresh(self._scroll_body_home)
+        self._bead_catalog_worker = self.run_worker(
+            self._load_bead_catalog, thread=True, exclusive=True
+        )
+
+    def _scroll_body_home(self) -> None:
+        """Keep the title in view even though focusing a field can autoscroll."""
+        self.query_one("#wait-modal-body", Container).scroll_home(animate=False)
 
     def on_key(self, event: events.Key) -> None:
         """Keep completion keys local to the modal."""
-        if event.key == "enter" and isinstance(self.focused, _AgentCompletionList):
+        if event.key != "enter":
+            return
+        if isinstance(self.focused, _AgentCompletionList):
             self._accept_highlighted_candidate()
             event.prevent_default()
             event.stop()
+        elif isinstance(self.focused, _BeadCompletionList):
+            self._accept_highlighted_bead_candidate()
+            event.prevent_default()
+            event.stop()
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        """Track which completion field last had focus."""
+        widget_id = getattr(event.widget, "id", None)
+        if widget_id == "agents-input":
+            self._set_active_completion("agents")
+        elif widget_id == "beads-input":
+            self._set_active_completion("beads")
 
     def on_input_changed(self, event: Input.Changed) -> None:
-        """Refresh completions and time validation as inputs change."""
+        """Refresh completions and live validation as inputs change."""
         if event.input.id == "agents-input":
             self._refresh_completion()
+            return
+        if event.input.id == "beads-input":
+            self._bead_guard_armed = False
+            self._refresh_bead_completion()
+            self._update_beads_preview()
+            self._update_footer()
             return
         if event.input.id == "time-input":
             self._update_time_preview()
@@ -468,24 +544,33 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
             self._update_priority_preview()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle Enter in either input."""
+        """Handle Enter in any input."""
         event.stop()
         if event.input.id == "agents-input" and _active_fragment(event.value):
             if self._accept_highlighted_candidate():
                 return
+        elif event.input.id == "beads-input" and _active_fragment(event.value):
+            if self._accept_highlighted_bead_candidate():
+                return
         self._apply()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        """Accept an agent completion row."""
-        if event.option_list.id != "agent-completion":
-            return
-        self._accept_candidate_index(event.option_index)
+        """Accept a completion row from whichever list it belongs to."""
+        if event.option_list.id == "agent-completion":
+            self._accept_candidate_index(event.option_index)
+        elif event.option_list.id == "bead-completion":
+            self._accept_bead_candidate_index(event.option_index)
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
     ) -> None:
         """Suppress programmatic completion highlight echoes."""
         if event.option_list.id == "agent-completion" and self._programmatic_highlight:
+            event.stop()
+        elif (
+            event.option_list.id == "bead-completion"
+            and self._programmatic_bead_highlight
+        ):
             event.stop()
 
     def action_cancel(self) -> None:
@@ -499,20 +584,60 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         )
 
     def action_accept_completion(self) -> None:
-        """Accept the highlighted agent completion, if any."""
-        self._accept_highlighted_candidate()
+        """Accept the highlighted completion, if any, else move focus."""
+        accepted = (
+            self._accept_highlighted_bead_candidate()
+            if self._active_completion == "beads"
+            else self._accept_highlighted_candidate()
+        )
+        if not accepted:
+            self.focus_next()
 
     def action_next_candidate(self) -> None:
-        """Move to the next completion candidate."""
-        option_list = self.query_one("#agent-completion", _AgentCompletionList)
+        """Move to the next completion candidate in the active list."""
+        option_list = self._active_completion_list()
         if option_list.option_count:
             option_list.action_cursor_down()
 
     def action_prev_candidate(self) -> None:
-        """Move to the previous completion candidate."""
-        option_list = self.query_one("#agent-completion", _AgentCompletionList)
+        """Move to the previous completion candidate in the active list."""
+        option_list = self._active_completion_list()
         if option_list.option_count:
             option_list.action_cursor_up()
+
+    def _active_completion_list(self) -> OptionList:
+        widget_id = (
+            "bead-completion"
+            if self._active_completion == "beads"
+            else "agent-completion"
+        )
+        return self.query_one(f"#{widget_id}", OptionList)
+
+    def _set_active_completion(self, name: _ActiveCompletion) -> None:
+        if self._active_completion == name:
+            return
+        self._active_completion = name
+        self._apply_active_completion_visibility()
+
+    def _apply_active_completion_visibility(self) -> None:
+        agent_list = self.query_one("#agent-completion", _AgentCompletionList)
+        bead_list = self.query_one("#bead-completion", _BeadCompletionList)
+        show_agents = self._active_completion == "agents"
+        agent_list.display = show_agents
+        agent_list.can_focus = show_agents
+        bead_list.display = not show_agents
+        bead_list.can_focus = not show_agents
+
+    def _footer_text(self) -> str:
+        if self._bead_guard_armed:
+            return "enter again to wait on unverified beads | esc cancel"
+        footer = "enter apply | tab complete | ^r run now | esc cancel"
+        if self._is_running:
+            footer = f"{footer} | active agents restart"
+        return footer
+
+    def _update_footer(self) -> None:
+        self.query_one("#wait-footer", Static).update(self._footer_text())
 
     def _refresh_completion(self) -> None:
         """Filter the dropdown on the active comma fragment."""
@@ -547,6 +672,38 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         finally:
             self._programmatic_highlight = False
 
+    def _refresh_bead_completion(self) -> None:
+        """Filter the bead dropdown on the active comma fragment."""
+        beads_input = self.query_one("#beads-input", _WaitInput)
+        fragment = _active_fragment(beads_input.value)
+        selected_ids = frozenset(_parse_beads_value(beads_input.value))
+        option_list = self.query_one("#bead-completion", _BeadCompletionList)
+
+        if self._bead_catalog is None:
+            self._filtered_bead_candidates = []
+            options: list[Option] = [loading_bead_option()]
+        else:
+            results = filter_wait_bead_candidates(
+                self._bead_catalog, fragment, limit=_BEAD_ROW_LIMIT
+            )
+            self._filtered_bead_candidates = list(results.rows)
+            options = [
+                bead_candidate_option(candidate, index, selected_ids=selected_ids)
+                for index, candidate in enumerate(results.rows)
+            ]
+            if not options:
+                options = [empty_bead_option()]
+            elif results.omitted:
+                options.append(overflow_bead_option(results.omitted))
+
+        self._programmatic_bead_highlight = True
+        try:
+            option_list.clear_options()
+            option_list.add_options(options)
+            option_list.highlighted = 0 if self._filtered_bead_candidates else None
+        finally:
+            self._programmatic_bead_highlight = False
+
     def _update_time_preview(self) -> _TimeValidation:
         """Update the time preview label and return the current validation state."""
         time_input = self.query_one("#time-input", _WaitInput)
@@ -580,6 +737,23 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         preview.add_class(validation.css_class)
         return validation
 
+    def _update_beads_preview(self) -> BeadsValidation:
+        """Update the beads preview label and return the current validation state."""
+        beads_input = self.query_one("#beads-input", _WaitInput)
+        preview = self.query_one("#beads-preview", Static)
+        bead_ids = _parse_beads_value(beads_input.value)
+        validation = validate_beads_selection(
+            self._bead_catalog,
+            bead_ids,
+            own_bead_ids=self._own_bead_ids,
+            project_label=self._project_label,
+        )
+        preview.update(validation.message)
+        for css_class in self._TIME_CLASSES:
+            preview.remove_class(css_class)
+        preview.add_class(validation.css_class)
+        return validation
+
     def _accept_highlighted_candidate(self) -> bool:
         """Accept the currently highlighted candidate."""
         option_list = self.query_one("#agent-completion", _AgentCompletionList)
@@ -603,6 +777,61 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         self._refresh_completion()
         return True
 
+    def _accept_highlighted_bead_candidate(self) -> bool:
+        """Accept the currently highlighted bead candidate."""
+        option_list = self.query_one("#bead-completion", _BeadCompletionList)
+        highlighted = option_list.highlighted
+        if highlighted is None:
+            return False
+        return self._accept_bead_candidate_index(highlighted)
+
+    def _accept_bead_candidate_index(self, index: int | None) -> bool:
+        """Insert a bead candidate into the beads input."""
+        if index is None or not (0 <= index < len(self._filtered_bead_candidates)):
+            return False
+        candidate = self._filtered_bead_candidates[index]
+        beads_input = self.query_one("#beads-input", _WaitInput)
+        beads_input.value = _replace_active_fragment(
+            beads_input.value,
+            candidate.bead_id,
+        )
+        beads_input.cursor_position = len(beads_input.value)
+        beads_input.focus()
+        self._bead_guard_armed = False
+        self._refresh_bead_completion()
+        self._update_beads_preview()
+        self._update_footer()
+        return True
+
+    def _load_bead_catalog(self) -> tuple[WaitBeadCatalog, str]:
+        """Load the bead catalog and its project label off the event loop."""
+        try:
+            if not self._bead_project_key:
+                return WaitBeadCatalog(), ""
+            catalog = self._bead_catalog_loader(
+                self._bead_project_key, own_bead_ids=self._own_bead_ids
+            )
+            label = project_display_name_for(self._bead_project_key)
+            return catalog, label
+        except Exception:  # noqa: BLE001 - a failed load must degrade, never raise.
+            return WaitBeadCatalog(), self._project_label
+
+    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Apply the loaded bead catalog once the worker completes."""
+        if event.worker is not self._bead_catalog_worker:
+            return
+        if event.state != WorkerState.SUCCESS:
+            return
+        result = event.worker.result
+        if result is None:
+            return
+        catalog, label = result
+        self._bead_catalog = catalog
+        if label:
+            self._project_label = label
+        self._refresh_bead_completion()
+        self._update_beads_preview()
+
     def _apply(self) -> None:
         """Validate and dismiss with a structured wait result."""
         validation = self._update_time_preview()
@@ -617,10 +846,19 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         if not priority_validation.valid:
             self.query_one("#priority-input", _WaitInput).focus()
             return
+
+        beads_validation = self._update_beads_preview()
+        if beads_validation.guard_armed and not self._bead_guard_armed:
+            self._bead_guard_armed = True
+            self.query_one("#beads-input", _WaitInput).focus()
+            self._update_footer()
+            return
+
         agents = _parse_agents_value(self.query_one("#agents-input", _WaitInput).value)
+        beads = beads_validation.bead_ids
         run_now = (
             not agents
-            and not self._current_waiting_for_beads
+            and not beads
             and validation.token is None
             and runners_validation.value is None
             and priority_validation.value is None
@@ -634,7 +872,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
                 update_priority=(
                     priority_validation.value != self._current_wait_priority
                 ),
-                beads=list(self._current_waiting_for_beads),
+                beads=beads,
                 run_now=run_now,
             )
         )
