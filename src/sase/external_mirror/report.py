@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 class MirrorReport:
     seen: int = 0
     fetched: int = 0
+    #: Fetched records dropped by ``external_mirror.pr_authors``.
+    unmirrored: int = 0
     created: int = 0
     repaired: int = 0
     skipped: int = 0
@@ -24,6 +26,7 @@ class MirrorReport:
         return {
             "seen": self.seen,
             "fetched": self.fetched,
+            "unmirrored": self.unmirrored,
             "created": self.created,
             "repaired": self.repaired,
             "skipped": self.skipped,

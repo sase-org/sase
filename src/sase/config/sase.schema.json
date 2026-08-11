@@ -2101,12 +2101,18 @@
     },
     "external_mirror": {
       "type": "object",
-      "description": "Configuration for the external tracker mirror (issues, and pull requests once sase-jd.5 lands).",
+      "description": "Configuration for the external tracker mirror (issues into beads, pull requests into Patches).",
       "additionalProperties": false,
       "properties": {
         "exclude_labels": {
           "type": "array",
           "description": "Tracker labels whose issues are never mirrored into beads. Empty (the default) keeps the bead list a strict superset of the issue list.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "pr_authors": {
+          "type": "array",
+          "description": "Remote PR authors whose pull requests are adopted as Patches. Empty (the default) adopts every PR SASE's tracked workflow did not create.",
           "items": { "type": "string", "minLength": 1 },
           "default": []
         }

@@ -22,9 +22,9 @@ from sase.core.external_pr_wire import (
     ACTION_SKIP,
     EXTERNAL_PR_WIRE_SCHEMA_VERSION,
     ExternalPrImportRequestWire,
-    LocalPatchWire,
     RemotePullRequestWire,
 )
+from sase.external_mirror.config import mirrored_pr_authors
 from sase.external_mirror.report import MirrorReport
 from sase.external_mirror.state import (
     MirrorCursor,
@@ -93,6 +93,8 @@ def sync_external_pull_requests(
         return report
 
     report.fetched = len(remotes)
+    remotes = _authored_remotes(remotes, mirrored_pr_authors())
+    report.unmirrored = report.fetched - len(remotes)
     active_file, archive_file = project_patch_files(project_key)
     index = read_project_patch_index(active_file, archive_file)
     clean_pass = True
@@ -187,6 +189,20 @@ def _remote_to_wire(remote: PullRequestWire) -> RemotePullRequestWire:
         closed_at=remote.closed_at,
         merged_at=remote.merged_at,
     )
+
+
+def _authored_remotes(
+    remotes: list[PullRequestWire],
+    authors: frozenset[str],
+) -> list[PullRequestWire]:
+    """Narrow *remotes* to ``external_mirror.pr_authors`` when it is set.
+
+    An empty set is the default and adopts every remote PR. Dropped records
+    never reach the checkpoint, so clearing the knob later re-examines them.
+    """
+    if not authors:
+        return remotes
+    return [remote for remote in remotes if remote.author.casefold() in authors]
 
 
 def _sorted_remotes(remotes: list[PullRequestWire]) -> list[PullRequestWire]:

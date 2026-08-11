@@ -211,8 +211,9 @@ and duration for completed mentors.
 
 ### Review Mentors (`,C`)
 
-Press `,C` on the PRs sub-tab to open the Mentor Review modal for the current Patch. The
-modal shows all mentor comments and lets you accept or reject individual suggestions.
+Press `,C` on the Patches sub-tab to open the Mentor Review modal for the current Patch.
+The modal shows all mentor comments and lets you accept or reject individual
+suggestions.
 
 | Key                 | Action                                                   |
 | ------------------- | -------------------------------------------------------- |
@@ -279,12 +280,12 @@ along with an accepted/total count. The side panel also shows a status indicator
 mentor: `▸` (selected), `●` (running), `✗` (failed/killed), or `✓` (all comments
 accepted). Read state persists across modal opens and is stored per Patch and stitch.
 
-Unread comment counts also appear inline in the PRs sub-tab list (see
+Unread comment counts also appear inline in the Patches sub-tab list (see
 [ACE docs](ace.md#mentor-comment-stats-in-pr-list)).
 
 ### Kill Mentors (`,M`)
 
-Press `,M` on the PRs sub-tab to kill all running mentors for the current Patch.
+Press `,M` on the Patches sub-tab to kill all running mentors for the current Patch.
 
 ### Fold Mentors (`z` `m`)
 

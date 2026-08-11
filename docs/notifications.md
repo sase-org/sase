@@ -431,7 +431,7 @@ A mentors-complete notification uses sender `mentors` and fires once per
 - **No matching profile** — every hook is ready and no mentor profile matched the Patch,
   so no mentors will run.
 
-Selecting the notification jumps to the PRs sub-tab, focuses the target Patch, and
+Selecting the notification jumps to the Patches sub-tab, focuses the target Patch, and
 pushes the Mentor Review modal when at least one mentor produced reviewable output.
 
 Idempotency is enforced via `~/.sase/notifications/mentors_complete.json`, keyed on

@@ -118,8 +118,8 @@ ACE has three top-level tabs:
 
 - **Agents** — live and recent agent records. Find the run you just launched: prompt,
   reply transcript, workspace path, status, retry chain.
-- **Artifacts** — five top-level views for commits, beads, bugs, PRs, and files. Files
-  nests the Plans, Chats, and Other views. The PRs view contains every Patch on the
+- **Artifacts** — four top-level views for stitches, Patches, beads, and files. Files
+  nests the Plans, Chats, and Other views. The Patches view contains every Patch on the
   project. A **Patch** is SASE's durable record of one PR-sized unit of work; think of
   it as the long-lived sibling of a pull request that holds the description, parent,
   status (WIP → Draft → Ready → Mailed → Submitted), commits, hooks, comments, and
@@ -146,8 +146,8 @@ sase agent list
 Now the agent has permission to make a visible diff in its isolated numbered workspace.
 Your own repositories and the `home` primary checkout stay untouched unless you
 explicitly bring changes back. When the agent commits its work, SASE's commit workflow
-records a Patch that you can review in ACE's Artifacts tab, under PRs, before landing or
-submitting anything.
+records a Patch that you can review in ACE's Artifacts tab, under Patches, before
+landing or submitting anything.
 
 For your own repositories, use `#git:<name>` to target a managed project or
 `#git:<bare-repo-path>` to register an existing bare repository. Provider plugins add

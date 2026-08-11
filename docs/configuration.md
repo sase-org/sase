@@ -2838,17 +2838,20 @@ Source: `src/sase/default_config.yml`
 
 Configuration for the external tracker mirror. See
 [External Issue Mirroring](beads.md#external-issue-mirroring) and the
-[`checks` lane](axe.md#checks-5-minute-interval)'s `external_issue_mirror` chop, the
-first production use of `for_each: {source: projects}` fan-out.
+[`checks` lane](axe.md#checks-5-minute-interval)'s `external_issue_mirror` and
+`external_pr_mirror` chops, the first production use of `for_each: {source: projects}`
+fan-out.
 
 ```yaml
 external_mirror:
   exclude_labels: [] # tracker labels whose issues are never mirrored into beads
+  pr_authors: [] # remote PR authors whose pull requests are adopted as Patches
 ```
 
-| Field                            | Type        | Default | Description                                                                                                                                                                 |
-| -------------------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_mirror.exclude_labels` | list of str | `[]`    | Tracker labels whose issues are never mirrored into beads. Empty keeps the mirrored bead list a strict superset of the tracker's issue list; a non-empty value breaks that. |
+| Field                            | Type        | Default | Description                                                                                                                                                                     |
+| -------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `external_mirror.exclude_labels` | list of str | `[]`    | Tracker labels whose issues are never mirrored into beads. Empty keeps the mirrored bead list a strict superset of the tracker's issue list; a non-empty value breaks that.     |
+| `external_mirror.pr_authors`     | list of str | `[]`    | Remote PR authors whose pull requests are adopted as Patches. Empty adopts every PR SASE's tracked workflow did not create; listing authors narrows adoption to those accounts. |
 
 Source: `src/sase/default_config.yml`
 

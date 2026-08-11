@@ -44,7 +44,13 @@ class _FailingProvider:
         raise RuntimeError("auth failed")
 
 
-def _pr(number: int, updated_at: str, *, merged: bool = False) -> PullRequestWire:
+def _pr(
+    number: int,
+    updated_at: str,
+    *,
+    merged: bool = False,
+    author: str = "",
+) -> PullRequestWire:
     return PullRequestWire(
         number=number,
         title=f"Feature {number}",
@@ -52,6 +58,7 @@ def _pr(number: int, updated_at: str, *, merged: bool = False) -> PullRequestWir
         provider_id=f"PR_{number}",
         url=f"https://github.com/acme/widget/pull/{number}",
         body="Body",
+        author=author,
         updated_at=updated_at,
         merged_at="2026-08-03T00:00:00Z" if merged else "",
     )
@@ -226,3 +233,61 @@ def test_incremental_window_skips_strictly_old_records(monkeypatch, tmp_path):
 
     assert report.seen == 1
     assert PR_ORIGIN_EXTERNAL not in Path(active_file).read_text(encoding="utf-8")
+
+
+def test_pr_authors_narrows_adoption_case_insensitively(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.mirrored_pr_authors", lambda: frozenset({"bob"})
+    )
+    active_file, _ = project_patch_files("proj")
+    Path(active_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(active_file).write_text("", encoding="utf-8")
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider(
+            [
+                _pr(1, "2026-08-02T00:00:00Z", author="alice"),
+                _pr(2, "2026-08-02T00:00:01Z", author="BOB"),
+            ]
+        ),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.fetched == 2
+    assert report.unmirrored == 1
+    assert report.created == 1
+    body = Path(active_file).read_text(encoding="utf-8")
+    assert "https://github.com/acme/widget/pull/2" in body
+    assert "https://github.com/acme/widget/pull/1" not in body
+
+
+def test_pr_authors_empty_by_default_adopts_every_author(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.mirrored_pr_authors", lambda: frozenset()
+    )
+    _workspace_project("proj")
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider(
+            [
+                _pr(1, "2026-08-02T00:00:00Z", author="alice"),
+                _pr(2, "2026-08-02T00:00:01Z", author="bob"),
+            ]
+        ),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.unmirrored == 0
+    assert report.created == 2

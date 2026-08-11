@@ -842,11 +842,16 @@ ProjectSpec directory key for local Patch files and the target workspace directo
 provider calls. A structural capability probe skips providers that cannot list PRs.
 
 Incremental runs fetch a bounded PR inventory because the provider seam exposes a record
-limit, not pagination. The chop records `seen`, `fetched`, `created`, `repaired`,
-`skipped`, `conflicts`, `errors`, `budget_exhausted`, and `checkpoint_advanced` in its
-summary. Cursor state lives in the checks lumberjack directory with a ten-minute overlap
-window; the cursor advances only after a clean pass. A daily full scan ignores the
-incremental cursor so missed repairs are eventually found.
+limit, not pagination. The chop records `seen`, `fetched`, `unmirrored`, `created`,
+`repaired`, `skipped`, `conflicts`, `errors`, `budget_exhausted`, and
+`checkpoint_advanced` in its summary. Cursor state lives in the checks lumberjack
+directory with a ten-minute overlap window; the cursor advances only after a clean pass.
+A daily full scan ignores the incremental cursor so missed repairs are eventually found.
+
+`unmirrored` counts fetched PRs dropped by
+[`external_mirror.pr_authors`](configuration.md#external_mirror), which is empty by
+default so every PR SASE did not create is adopted. Dropped records never reach the
+checkpoint, so clearing the knob later re-examines them.
 
 Open draft PRs become `Draft` Patches, open non-draft PRs become `Mailed`, and merged or
 closed PRs are appended directly to the archive ProjectSpec as `Submitted` or

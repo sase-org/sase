@@ -1025,6 +1025,11 @@ external_mirror:
   # what lets the Artifacts tab drop a separate issue inventory. Every entry
   # here removes issues from that superset.
   exclude_labels: []
+  # Remote PR authors whose pull requests are adopted as Patches. Empty (the
+  # default) adopts every PR SASE's tracked workflow did not create, which is
+  # what "every PR not created by SASE has a Patch" means; listing authors
+  # narrows adoption to those accounts.
+  pr_authors: []
 
 xprompt_aliases:
   c: commit

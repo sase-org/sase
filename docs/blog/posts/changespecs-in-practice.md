@@ -159,8 +159,8 @@ They combine: `!$just presubmit` skips fix-hook hints _and_ skips proposals.
 
 ## Advanced ACE Operations
 
-The PRs sub-tab in [ACE](../../ace.md)'s Artifacts tab is built around Patch navigation.
-The high-leverage moves:
+The Patches sub-tab in [ACE](../../ace.md)'s Artifacts tab is built around Patch
+navigation. The high-leverage moves:
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and
   `BY_STATUS`. Sibling workspaces (`foobar_1` / `foobar_2`) share an L1 banner inside
