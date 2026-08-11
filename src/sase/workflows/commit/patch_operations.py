@@ -3,6 +3,7 @@
 import os
 
 from sase.ace.patch import patch_lock, write_patch_atomic
+from sase.ace.patch.models import normalize_pr_origin
 from sase.ace.patch.review_field import format_review_url_line
 from sase.ace.patch.storage import DEFAULT_STITCH_SECTION_HEADER
 from sase.output import print_status
@@ -248,6 +249,7 @@ def add_patch_to_project_file(
     initial_hooks: list[str] | None = None,
     initial_commits: list[tuple] | None = None,
     bug: str | None = None,
+    pr_origin: str | None = None,
     status: str = "Draft",
     reserved_name: str | None = None,
     **legacy_kwargs: object,
@@ -275,6 +277,8 @@ def add_patch_to_project_file(
             If None or empty, no COMMITS field is added.
         bug: BUG field value (e.g., "http://b/12345"). If None, no BUG field
             is added.
+        pr_origin: PR origin marker (``sase``, ``external``, or ``unknown``).
+            If None, no PR_ORIGIN field is added.
         status: STATUS field value (e.g., "Draft", "WIP"). Defaults to "Draft".
         reserved_name: Pre-computed suffixed name from a prior reservation.
             When provided, the existing ``Reserved`` entry for this name is
@@ -426,6 +430,11 @@ def add_patch_to_project_file(
             # inherited from parent above).
             parent_line = f"PARENT: {parent}\n" if parent else ""
             bug_line = f"BUG: {bug}\n" if bug else ""
+            pr_origin_line = (
+                f"PR_ORIGIN: {normalize_pr_origin(pr_origin)}\n"
+                if pr_origin is not None
+                else ""
+            )
 
             # Build HOOKS field with initial hooks + inherited parent hooks
             all_hooks = list(initial_hooks or []) + parent_hooks_to_add
@@ -443,7 +452,7 @@ def add_patch_to_project_file(
 NAME: {cl_name}
 DESCRIPTION:
 {formatted_description}
-{parent_line}{bug_line}{pr_line}STATUS: {status}
+{parent_line}{pr_line}{pr_origin_line}{bug_line}STATUS: {status}
 {commits_block}{hooks_block}{timestamps_block}"""
 
             # Insert the new Patch

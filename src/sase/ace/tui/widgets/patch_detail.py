@@ -11,13 +11,17 @@ from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import humanize_cl_name
 from textual.widgets import Static
 
-from ...patch import Patch
+from ...patch import PR_ORIGIN_UNKNOWN, Patch, normalize_pr_origin
 from ....core.patch import get_workspace_directory_for_patch
 from ...display_helpers import (
     format_running_claims_aligned,
     get_status_color,
 )
-from ...query.highlighting import QUERY_TOKEN_STYLES, tokenize_query_for_display
+from ...query.highlighting import (
+    PR_ORIGIN_VALUE_STYLES,
+    QUERY_TOKEN_STYLES,
+    tokenize_query_for_display,
+)
 from ..models.fold_state import FoldLevel
 from ..util.trace import tui_trace
 from .section_builders import (
@@ -448,6 +452,14 @@ class PatchDetail(Static):
         if patch.pr_url:
             text.append("PR: ", style="bold #87D7FF")
             text.append(f"{patch.pr_url}\n", style="bold underline #569CD6")
+
+        if patch.pr_url or patch.pr_origin != PR_ORIGIN_UNKNOWN:
+            pr_origin = normalize_pr_origin(patch.pr_origin)
+            text.append("PR_ORIGIN: ", style="bold #87D7FF")
+            text.append(
+                f"{pr_origin}\n",
+                style=PR_ORIGIN_VALUE_STYLES.get(pr_origin, "dim #FF5F5F"),
+            )
 
         # BUG field (only display if present)
         if patch.bug:

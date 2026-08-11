@@ -71,9 +71,10 @@ class TestCommitWorkflowPatch:
             workflow_name="sase_commit",
             pr_url="https://github.com/org/repo/pull/1",
             cl_name="feat-x",
-            commit_description="feat: add feature",
+            commit_description="feat: add feature\n\nSASE_PATCH=feat-x_1",
             parent=None,
             bug=None,
+            pr_origin="sase",
             reserved_name="feat-x_1",
             status="Draft",
         )
@@ -368,6 +369,7 @@ class TestCreatePatchReturn:
             payload, None, None, None, pr_url="https://github.com/org/repo/pull/1"
         )
         assert result == "proj_feat_1"
+        assert mock_cs.call_args.kwargs["pr_origin"] == "sase"
 
     @patch(_PATCH_TARGET, return_value=None)
     @patch(_PROJECT_FILE_TARGET, return_value="/fake/proj.sase")

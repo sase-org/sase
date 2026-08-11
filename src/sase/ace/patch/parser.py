@@ -32,6 +32,7 @@ class _ParserState:
         self.description_lines: list[str] = []
         self.parent: str | None = None
         self.pr_url: str | None = None
+        self.pr_origin: str | None = None
         self.bug: str | None = None
         self.status: str | None = None
         self.refs: list[str] = []
@@ -96,6 +97,7 @@ class _ParserState:
                 description=description,
                 parent=self.parent,
                 pr_url=self.pr_url,
+                pr_origin=self.pr_origin,
                 status=self.status,
                 file_path=self.file_path,
                 line_number=self.line_number,
@@ -145,6 +147,12 @@ def _parse_field_header(state: _ParserState, line: str) -> bool:
     if pr_url is not None:
         state.save_pending_entries()
         state.pr_url = pr_url
+        state.reset_section_flags()
+        return True
+
+    if line.startswith("PR_ORIGIN: "):
+        state.save_pending_entries()
+        state.pr_origin = line[11:].strip()
         state.reset_section_flags()
         return True
 

@@ -44,6 +44,7 @@ def _full_patch() -> Patch:
         description="A short description.",
         parent="parent_feature",
         cl="PR/42",
+        pr_origin="external",
         status="WIP",
         file_path="/proj/myproj.sase",
         line_number=10,
@@ -149,6 +150,7 @@ def test_changespec_to_wire_full_round_trip() -> None:  # legacy Python compat s
         file_path="/proj/myproj.sase", start_line=10, end_line=42
     )
     assert wire.pr_url == "PR/42"
+    assert wire.pr_origin == "external"
     assert wire.bug == "BUG-1"
     assert wire.refs == []
     assert len(wire.commits) == 2
@@ -219,6 +221,7 @@ def test_to_json_dict_is_json_serializable() -> None:
     )  # legacy wire schema
     assert reloaded["source_span"]["start_line"] == 10
     assert reloaded["source_span"]["end_line"] == 20
+    assert reloaded["pr_origin"] == "external"
     assert reloaded["deltas"][0]["change_type"] == "A"
 
 
@@ -307,6 +310,7 @@ def test_patch_wire_from_dict_treats_missing_lists_as_empty() -> None:
     assert wire.refs == []
     assert wire.commits == []
     assert wire.deltas == []
+    assert wire.pr_origin == "unknown"
 
 
 def test_patch_wire_from_schema_four_defaults_refs() -> None:
@@ -327,7 +331,9 @@ def test_patch_wire_from_schema_four_defaults_refs() -> None:
         "bug": None,
         "description": "",
     }
-    assert changespec_wire_from_dict(payload).refs == []  # legacy wire parser
+    wire = changespec_wire_from_dict(payload)  # legacy wire parser
+    assert wire.refs == []
+    assert wire.pr_origin == "unknown"
 
 
 def test_patch_wire_from_older_dict_defaults_project_name_metadata() -> None:
@@ -350,6 +356,7 @@ def test_patch_wire_from_older_dict_defaults_project_name_metadata() -> None:
     }
     wire = changespec_wire_from_dict(payload)  # legacy wire parser
     assert wire.project_display_name is None
+    assert wire.pr_origin == "unknown"
 
 
 def test_known_field_kwargs_drops_unknown_keys_and_keeps_known() -> None:

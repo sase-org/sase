@@ -290,7 +290,19 @@ class TestAppendPrTags:
             wf.run()
 
         sent_payload = provider.create_pull_request.call_args[0][0]
-        assert sent_payload["message"] == "feat: add feature"
+        assert sent_payload["message"] == "feat: add feature\n\nSASE_PATCH=feat-x"
+
+    @patch(_FETCH_PARENT_TARGET, return_value={})
+    def test_sase_patch_tag_appended_without_config_tags(
+        self,
+        _mock_fetch: MagicMock,
+    ) -> None:
+        payload = {"name": "feat-x_1", "message": "feat: add feature"}
+
+        with patch("sase.vcs_provider.config.get_pr_tags", return_value={}):
+            append_pr_tags(payload, None)
+
+        assert payload["message"] == "feat: add feature\n\nSASE_PATCH=feat-x_1"
 
     @patch(_FETCH_PARENT_TARGET, return_value={})
     def test_existing_tag_block_is_updated_without_duplicate(
@@ -624,4 +636,4 @@ class TestInheritParentPrTags:
             wf.run()
 
         sent = provider.create_pull_request.call_args[0][0]
-        assert sent["message"] == "feat: add feature"
+        assert sent["message"] == "feat: add feature\n\nSASE_PATCH=feat-x"

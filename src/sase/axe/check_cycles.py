@@ -29,6 +29,7 @@ from sase.core.time import get_timezone
 from sase.running_field import get_workspace_directory
 
 from .state import CycleResult, write_cycle_result
+from .patch_filtering import filter_axe_candidate_patches
 
 # Type alias for log callback
 LogCallback = Callable[[str, str | None], None]
@@ -82,6 +83,8 @@ class CheckCycleRunner:
         """
         if all_patches is None:
             all_patches = find_all_patches()
+
+        all_patches = filter_axe_candidate_patches(all_patches)
 
         # Remove patches from edit-locked project files
         unlocked = [cs for cs in all_patches if not is_edit_locked(cs.file_path)]

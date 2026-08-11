@@ -184,6 +184,7 @@ class PatchWire:
     status: str
     parent: str | None
     pr_url: str | None
+    pr_origin: str
     bug: str | None
     description: str
     refs: list[str] = field(default_factory=list)
@@ -213,6 +214,7 @@ class ChangeSpecWire:
     status: str
     parent: str | None
     pr_url: str | None
+    pr_origin: str
     bug: str | None
     description: str
     refs: list[str] = field(default_factory=list)

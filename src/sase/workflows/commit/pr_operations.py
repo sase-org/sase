@@ -90,6 +90,13 @@ def append_pr_tags(payload: dict, parent_cl_name: str | None) -> None:
     # Merge: parent (lowest) → config → BUG (highest)
     tags = {**parent_tags, **config_tags}
 
+    patch_name = str(payload.get("name") or "").strip()
+    if patch_name:
+        tags = {
+            "PATCH": patch_name,
+            **{k: v for k, v in tags.items() if k not in {"PATCH", "SASE_PATCH"}},
+        }
+
     bug_id = payload.get("bug_id", "") or os.environ.get("SASE_BUG_ID", "")
     if bug_id and bug_id != "0":
         tags = {"BUG": bug_id, **{k: v for k, v in tags.items() if k != "BUG"}}

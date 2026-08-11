@@ -628,6 +628,7 @@ def create_patch(
             commit_description=payload.get("message", ""),
             parent=parent_cl_name,
             bug=bug,
+            pr_origin="sase",
             reserved_name=reserved_name,
             status=status,
         )

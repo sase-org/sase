@@ -157,6 +157,7 @@ class TestPatchSerialization:
             description="Full patch",
             parent="parent_cs",
             cl="12345",
+            pr_origin="external",
             status="Ready",
             file_path="/tmp/full.sase",
             line_number=10,

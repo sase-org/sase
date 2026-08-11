@@ -139,6 +139,7 @@ def create_patch_for_workflow(
     commit_description: str | None = None,
     parent: str | None = None,
     bug: str | None = None,
+    pr_origin: str | None = None,
     reserved_name: str | None = None,
     **legacy_kwargs: object,
 ) -> str | None:
@@ -155,6 +156,7 @@ def create_patch_for_workflow(
         reserved_name: Pre-computed suffixed name from a prior reservation.
             Passed through to ``add_patch_to_project_file`` to replace
             the reservation in-place.
+        pr_origin: PR origin marker written to the Patch when provided.
     """
     from sase.vcs_provider.config import strip_pr_tags
 
@@ -211,18 +213,33 @@ def create_patch_for_workflow(
     if plan_display:
         initial_commit = (*initial_commit, None, plan_display)
 
-    result = add_patch_to_project_file(
-        project_name,
-        cl_name,
-        description,
-        parent=parent,
-        pr_url=pr_url,
-        initial_hooks=hooks,
-        initial_commits=[initial_commit],
-        bug=bug,
-        status=status,
-        reserved_name=reserved_name,
-    )
+    if pr_origin is None:
+        result = add_patch_to_project_file(
+            project_name,
+            cl_name,
+            description,
+            parent=parent,
+            pr_url=pr_url,
+            initial_hooks=hooks,
+            initial_commits=[initial_commit],
+            bug=bug,
+            status=status,
+            reserved_name=reserved_name,
+        )
+    else:
+        result = add_patch_to_project_file(
+            project_name,
+            cl_name,
+            description,
+            parent=parent,
+            pr_url=pr_url,
+            initial_hooks=hooks,
+            initial_commits=[initial_commit],
+            bug=bug,
+            pr_origin=pr_origin,
+            status=status,
+            reserved_name=reserved_name,
+        )
 
     if result is not None:
         refresh_deltas_after_commits_change(

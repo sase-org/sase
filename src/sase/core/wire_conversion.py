@@ -20,6 +20,7 @@ from sase.ace.patch.models import (
     Patch,
     Stitch,
     TimestampEntry,
+    normalize_pr_origin,
 )
 from sase.core.wire import (
     CHANGESPEC_WIRE_SCHEMA_VERSION,  # legacy wire schema
@@ -214,6 +215,7 @@ def changespec_wire_from_dict(record: dict[str, Any]) -> ChangeSpecWire:
         status=record["status"],
         parent=record.get("parent"),
         pr_url=record.get("pr_url", record.get("cl_or_pr")),
+        pr_origin=normalize_pr_origin(record.get("pr_origin")),
         bug=record.get("bug"),
         description=record["description"],
         refs=list(record.get("refs") or []),
@@ -257,6 +259,7 @@ def patch_wire_from_dict(record: dict[str, Any]) -> PatchWire:
         status=record["status"],
         parent=record.get("parent"),
         pr_url=record.get("pr_url", record.get("cl_or_pr")),
+        pr_origin=normalize_pr_origin(record.get("pr_origin")),
         bug=record.get("bug"),
         description=record["description"],
         refs=list(record.get("refs") or []),
@@ -460,6 +463,7 @@ def changespec_to_wire(  # legacy Python compat symbol
         status=cs.status,
         parent=cs.parent,
         pr_url=cs.pr_url,
+        pr_origin=normalize_pr_origin(cs.pr_origin),
         bug=cs.bug,
         description=cs.description,
         refs=list(getattr(cs, "refs", ()) or ()),
@@ -493,6 +497,7 @@ def patch_to_wire(
         status=patch.status,
         parent=patch.parent,
         pr_url=patch.pr_url,
+        pr_origin=normalize_pr_origin(patch.pr_origin),
         bug=patch.bug,
         description=patch.description,
         refs=list(getattr(patch, "refs", ()) or ()),

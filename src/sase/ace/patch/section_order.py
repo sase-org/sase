@@ -9,6 +9,7 @@ PATCH_SECTION_ORDER: tuple[str, ...] = (
     "DESCRIPTION:",
     "PARENT:",
     *REVIEW_URL_PREFIXES,
+    "PR_ORIGIN:",
     "BUG:",
     "STATUS:",
     "REFS:",

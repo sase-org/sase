@@ -38,6 +38,7 @@ from .chop_script_context import (
 )
 from .config import AxeConfig, ChopConfig, LumberjackConfig
 from .maintenance import clear_stale_maintenance, read_maintenance
+from .patch_filtering import filter_axe_candidate_patches
 from .state import (
     AxeMetrics,
     LumberjackMetrics,
@@ -165,7 +166,7 @@ class Lumberjack:
             AXE_CYCLE_DURATION.labels(cycle_type=self.name).observe(tick_duration)
             return
 
-        all_patches = self._check_runner.get_all_patches()
+        all_patches = filter_axe_candidate_patches(self._check_runner.get_all_patches())
         filtered_patches = self._check_runner.get_filtered_patches(all_patches)
 
         # Serialize patches and context to disk for chop scripts

@@ -206,7 +206,9 @@ class TestCommitWorkflowDispatch:
 
         assert wf.run() == RunResult.OK
         mock_provider.create_pull_request.assert_called_once_with(payload, ANY)
-        assert payload["message"] == "feat: add feature\n\nSASE_BEAD=sase-1.2"
+        assert payload["message"] == (
+            "feat: add feature\n\nSASE_BEAD=sase-1.2\nSASE_PATCH=feat-branch"
+        )
 
     def test_invalid_method_returns_false(self) -> None:
         wf = CommitWorkflow({"message": "test"}, "invalid_method")

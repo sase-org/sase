@@ -13,6 +13,25 @@ from .hooks import HookEntry
 from .mentors import MentorEntry
 from .stitches import Stitch
 
+PR_ORIGIN_SASE = "sase"
+PR_ORIGIN_EXTERNAL = "external"
+PR_ORIGIN_UNKNOWN = "unknown"
+PR_ORIGIN_VALUES = frozenset(
+    {
+        PR_ORIGIN_SASE,
+        PR_ORIGIN_EXTERNAL,
+        PR_ORIGIN_UNKNOWN,
+    }
+)
+
+
+def normalize_pr_origin(value: object | None) -> str:
+    """Return the canonical tri-state PR origin value."""
+    if value is None:
+        return PR_ORIGIN_UNKNOWN
+    text = str(value).strip().lower()
+    return text if text in PR_ORIGIN_VALUES else PR_ORIGIN_UNKNOWN
+
 
 def _coerce_stitch_list(
     stitches: Sequence[Stitch | Mapping[str, object]] | None,
@@ -39,6 +58,7 @@ class Patch:
     description: str
     parent: str | None
     pr_url: str | None
+    pr_origin: str
     status: str
     file_path: str
     line_number: int
@@ -59,6 +79,7 @@ class Patch:
         description: str,
         parent: str | None,
         pr_url: str | None = None,
+        pr_origin: str | None = None,
         status: str | None = None,
         file_path: str = "",
         line_number: int = 0,
@@ -93,6 +114,7 @@ class Patch:
         self.description = description
         self.parent = parent
         self.pr_url = pr_url if pr_url is not None else cl
+        self.pr_origin = normalize_pr_origin(pr_origin)
         self.status = status
         self.file_path = file_path
         self.line_number = line_number

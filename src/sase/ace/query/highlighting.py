@@ -283,3 +283,9 @@ QUERY_TOKEN_STYLES: dict[str, str] = {
     "property_value": "#D7AF5F",
     "whitespace": "",
 }
+
+PR_ORIGIN_VALUE_STYLES: dict[str, str] = {
+    "sase": "bold #87D7AF",
+    "external": "bold #FF5F5F",
+    "unknown": "dim #FF5F5F",
+}

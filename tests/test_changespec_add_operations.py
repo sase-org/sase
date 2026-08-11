@@ -337,6 +337,46 @@ def test_add_patch_no_parent_bug_inherited_when_no_parent(tmp_path: Path) -> Non
         os.unlink(project_file)
 
 
+def test_add_patch_writes_pr_origin_between_pr_and_bug(tmp_path: Path) -> None:
+    """Explicit PR_ORIGIN is written in canonical scalar-field order."""
+    with tempfile.NamedTemporaryFile(
+        dir=tmp_path, mode="w", suffix=".sase", delete=False
+    ) as f:
+        f.write("")
+        project_file = f.name
+
+    try:
+        with patch(
+            "sase.workflows.commit.patch_operations.get_project_file_path",
+            return_value=project_file,
+        ):
+            result = add_patch_to_project_file(
+                project="test_project",
+                cl_name="external_feature",
+                description="External PR",
+                parent=None,
+                pr_url="https://example.test/pull/42",
+                pr_origin="external",
+                bug="http://b/123",
+            )
+
+        assert result == "external_feature_1"
+
+        content = Path(project_file).read_text(encoding="utf-8")
+        assert (
+            "PR: https://example.test/pull/42\n"
+            "PR_ORIGIN: external\n"
+            "BUG: http://b/123\n"
+            "STATUS: Draft"
+        ) in content
+
+        patches = parse_project_file(project_file)
+        patch_record = next(c for c in patches if c.name == "external_feature_1")
+        assert patch_record.pr_origin == "external"
+    finally:
+        os.unlink(project_file)
+
+
 def test_add_patch_drops_parent_when_not_found_anywhere(tmp_path: Path) -> None:
     """Bogus parent (not in active file, not in archive) is dropped with a warning.
 

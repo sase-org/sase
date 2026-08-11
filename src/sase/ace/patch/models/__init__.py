@@ -8,7 +8,15 @@ focused module.
 from .entries import CommentEntry, DeltaEntry, DeltaLineStats, TimestampEntry
 from .hooks import HookEntry, HookStatusLine
 from .mentors import MentorEntry, MentorStatusLine
-from .patch import ChangeSpec, Patch  # legacy compatibility alias
+from .patch import (  # legacy compatibility alias
+    PR_ORIGIN_EXTERNAL,
+    PR_ORIGIN_SASE,
+    PR_ORIGIN_UNKNOWN,
+    PR_ORIGIN_VALUES,
+    ChangeSpec,  # legacy compatibility alias
+    Patch,
+    normalize_pr_origin,
+)
 from .stitches import (
     CommitEntry,
     Stitch,
@@ -37,6 +45,10 @@ __all__ = [
     "HookStatusLine",
     "MentorEntry",
     "MentorStatusLine",
+    "PR_ORIGIN_EXTERNAL",
+    "PR_ORIGIN_SASE",
+    "PR_ORIGIN_UNKNOWN",
+    "PR_ORIGIN_VALUES",
     "Patch",
     "Stitch",
     "StitchDict",
@@ -47,6 +59,7 @@ __all__ = [
     "is_plain_suffix",
     "is_running_agent_suffix",
     "is_running_process_suffix",
+    "normalize_pr_origin",
     "parse_commit_entry_id",
     "parse_stitch_id",
 ]

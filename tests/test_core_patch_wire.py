@@ -37,6 +37,7 @@ def _base_record(**overrides: object) -> dict[str, object]:
         "status": "WIP",
         "parent": None,
         "pr_url": None,
+        "pr_origin": "unknown",
         "bug": None,
         "description": "Demo",
         "refs": [],
@@ -67,6 +68,7 @@ def test_patch_to_wire_uses_canonical_stitches_shape() -> None:
         name="demo",
         description="Demo",
         parent=None,
+        pr_origin="sase",
         status="WIP",
         file_path="project.sase",
         line_number=1,
@@ -90,6 +92,7 @@ def test_patch_to_wire_uses_canonical_stitches_shape() -> None:
     payload = to_json_dict(wire)
 
     assert isinstance(wire, PatchWire)
+    assert payload["pr_origin"] == "sase"
     assert list(payload).index("stitches") < list(payload).index("hooks")
     assert "commits" not in payload
     assert payload["stitches"] == [
@@ -169,9 +172,19 @@ def test_patch_wire_from_dict_accepts_canonical_spellings() -> None:
     wire = patch_wire_from_dict(_base_record())
 
     assert isinstance(wire, PatchWire)
+    assert wire.pr_origin == "unknown"
     assert wire.stitches[0].number == 1
     assert wire.hooks[0].status_lines[0].stitch_id == "1"
     assert wire.mentors[0].stitch_id == "1"
+
+
+def test_patch_wire_from_dict_defaults_missing_pr_origin() -> None:
+    record = _base_record()
+    record.pop("pr_origin")
+
+    wire = patch_wire_from_dict(record)
+
+    assert wire.pr_origin == "unknown"
 
 
 def test_parse_patch_project_bytes_uses_canonical_rust_binding(

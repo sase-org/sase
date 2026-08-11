@@ -14,6 +14,7 @@ from .chop_script_context import (
     write_chop_context,
 )
 from .config import AxeConfig
+from .patch_filtering import filter_axe_candidate_patches
 from .state import ensure_lumberjack_dirs
 
 
@@ -45,7 +46,7 @@ def build_oneshot_context(
     filtered_cs_file = str(tick_dir / "filtered_changespecs.json")
     context_file = str(tick_dir / "context.json")
 
-    all_patches = find_all_patches_fn()
+    all_patches = filter_axe_candidate_patches(find_all_patches_fn())
     filtered_patches = all_patches
     if axe_config.query:
         mask = evaluate_query_many_fn(axe_config.query, all_patches)
