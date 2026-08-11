@@ -33,6 +33,7 @@ from sase.main.parser_bead_store import (
     register_bead_pages_parser,
     register_bead_ref_parser,
     register_bead_resolve_conflicts_parser,
+    register_bead_sync_external_parser,
     register_bead_sync_parser,
 )
 
@@ -70,6 +71,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     register_bead_snooze_parser(bead_subparsers)
     register_bead_stats_parser(bead_subparsers)
     register_bead_sync_parser(bead_subparsers)
+    register_bead_sync_external_parser(bead_subparsers)
     register_bead_work_parser(bead_subparsers)
     register_bead_update_parser(bead_subparsers)
 

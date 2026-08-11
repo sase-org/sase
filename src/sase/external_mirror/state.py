@@ -3,17 +3,25 @@
 ``ChopScriptContext.state_dir`` is the lumberjack directory shared by every
 chop in a lane, not a per-instance directory. Files here are therefore keyed
 as ``<kind>__<project_key>.json`` under the caller-supplied state directory.
+
+The issue mirror below instead persists its per-project cursor at a stable,
+lane-independent path (``sase_subdir("external_mirror")``), because its
+manual CLI entry point must read and write the same cursor as the AXE chop
+without knowing which lane the chop is configured in.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 import json
 import os
 from pathlib import Path
 import tempfile
 from typing import Any
+
+from sase.core.paths import sase_subdir
+from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 
 @dataclass(frozen=True)
@@ -186,13 +194,179 @@ def _atomic_json_write(path: Path, payload: dict[str, Any]) -> None:
         raise
 
 
+ISSUE_SCHEMA_VERSION = 1
+
+#: Capped exponential backoff ceiling, matching the ``bead_store_refresh`` chop.
+ISSUE_MAX_BACKOFF_SECONDS = 60 * 60
+
+
+def mirror_state_dir(kind: str) -> Path:
+    """Return the stable, lane-independent state directory for one mirror kind."""
+    return sase_subdir("external_mirror") / kind
+
+
+def mirror_state_document_path(kind: str, project_key: str) -> Path:
+    """Return the per-project state document path for one mirror kind."""
+    return mirror_state_dir(kind) / f"{project_key}.json"
+
+
+@dataclass
+class MirrorState:
+    """One project's durable mirror cursor, drift, and backoff record."""
+
+    project: str = ""
+    #: Newest ``updated_at`` observed across every issue in the last full listing.
+    watermark_updated_at: str = ""
+    #: Every provider id observed in that same listing, used to detect additions,
+    #: removals, and transfers even when they do not move ``watermark_updated_at``.
+    watermark_provider_ids: tuple[str, ...] = ()
+    backfill_complete: bool = False
+    last_full_scan_at: str = ""
+    last_success_at: str = ""
+    #: ``external_ref -> last observed remote state`` for every ref covered by a
+    #: local bead. Pruned to refs still covered so it stays bounded by the
+    #: mirrored-bead count.
+    upstream_states: dict[str, str] = field(default_factory=dict)
+    failures: int = 0
+    next_attempt_at: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": ISSUE_SCHEMA_VERSION,
+            "project": self.project,
+            "watermark_updated_at": self.watermark_updated_at,
+            "watermark_provider_ids": list(self.watermark_provider_ids),
+            "backfill_complete": self.backfill_complete,
+            "last_full_scan_at": self.last_full_scan_at,
+            "last_success_at": self.last_success_at,
+            "upstream_states": dict(self.upstream_states),
+            "failures": self.failures,
+            "next_attempt_at": self.next_attempt_at,
+        }
+
+
+def read_mirror_state(path: Path, *, project: str) -> MirrorState:
+    """Tolerantly read one project's mirror state.
+
+    A missing, truncated, corrupt, or wrong-schema-version file returns a
+    fresh empty state rather than raising, following ``_read_backoff_state``
+    in ``sase.scripts.sase_chop_bead_store_refresh``.
+    """
+    try:
+        with path.open(encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (OSError, json.JSONDecodeError):
+        return MirrorState(project=project)
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != ISSUE_SCHEMA_VERSION
+    ):
+        return MirrorState(project=project)
+
+    upstream_states_raw = payload.get("upstream_states")
+    upstream_states = (
+        {str(key): str(value) for key, value in upstream_states_raw.items()}
+        if isinstance(upstream_states_raw, dict)
+        else {}
+    )
+    provider_ids_raw = payload.get("watermark_provider_ids")
+    provider_ids = (
+        tuple(str(item) for item in provider_ids_raw)
+        if isinstance(provider_ids_raw, list)
+        else ()
+    )
+    failures = payload.get("failures")
+    if not isinstance(failures, int) or isinstance(failures, bool) or failures < 0:
+        failures = 0
+
+    return MirrorState(
+        project=str(payload.get("project") or project),
+        watermark_updated_at=str(payload.get("watermark_updated_at") or ""),
+        watermark_provider_ids=provider_ids,
+        backfill_complete=bool(payload.get("backfill_complete")),
+        last_full_scan_at=str(payload.get("last_full_scan_at") or ""),
+        last_success_at=str(payload.get("last_success_at") or ""),
+        upstream_states=upstream_states,
+        failures=failures,
+        next_attempt_at=str(payload.get("next_attempt_at") or ""),
+    )
+
+
+def write_mirror_state(path: Path, state: MirrorState) -> None:
+    """Atomically write one project's mirror state document."""
+    if not best_effort_test_state_write_allowed(path, category="external-mirror-state"):
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path_str = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temp_path = Path(temp_path_str)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(state.to_dict(), stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        os.replace(temp_path, path)
+    except BaseException:
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def next_backoff(previous_failures: int, *, now: datetime) -> tuple[int, str]:
+    """Return the next failure count and ISO ``next_attempt_at``, capped at 1h."""
+    failures = max(previous_failures, 0) + 1
+    exponent = min(failures, 6)
+    delay_seconds = min(30 * (2**exponent), ISSUE_MAX_BACKOFF_SECONDS)
+    next_attempt_at = now + timedelta(seconds=delay_seconds)
+    return failures, iso_utc(next_attempt_at)
+
+
+def is_backed_off(state: MirrorState, *, now: datetime) -> bool:
+    """Return whether *state* is still inside its backoff window."""
+    if not state.next_attempt_at:
+        return False
+    parsed = _parse_iso(state.next_attempt_at)
+    if parsed is None:
+        return False
+    return now < parsed
+
+
+def iso_utc(value: datetime) -> str:
+    """Render *value* as a ``Z``-suffixed UTC ISO-8601 string."""
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 __all__ = [
+    "ISSUE_MAX_BACKOFF_SECONDS",
+    "ISSUE_SCHEMA_VERSION",
     "BackoffEntry",
     "MirrorCursor",
+    "MirrorState",
+    "is_backed_off",
+    "iso_utc",
+    "mirror_state_dir",
+    "mirror_state_document_path",
     "mirror_state_path",
+    "next_backoff",
     "next_backoff_entry",
     "read_backoff_state",
     "read_mirror_cursor",
+    "read_mirror_state",
     "write_backoff_state",
     "write_mirror_cursor",
+    "write_mirror_state",
 ]

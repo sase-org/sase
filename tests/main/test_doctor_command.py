@@ -207,6 +207,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "plugins.github",
         "axe.chops",
         "axe.health",
+        "axe.external_mirror",
         "project.current",
         "workspace.registry",
         "state.agent_index",

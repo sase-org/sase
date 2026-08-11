@@ -45,6 +45,7 @@ sections, environment variables, and CLI flags.
   - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
   - [bead](#bead)
+  - [external_mirror](#external_mirror)
   - [workspace](#workspace)
   - [telemetry](#telemetry)
   - [update](#update)
@@ -2830,6 +2831,24 @@ direct alias override remains authoritative.
 
 See [`docs/beads.md`](beads.md#sase-bead-work-target) for the current pre-spawn
 checkpoint and publication flow.
+
+Source: `src/sase/default_config.yml`
+
+### external_mirror
+
+Configuration for the external tracker mirror. See
+[External Issue Mirroring](beads.md#external-issue-mirroring) and the
+[`checks` lane](axe.md#checks-5-minute-interval)'s `external_issue_mirror` chop, the
+first production use of `for_each: {source: projects}` fan-out.
+
+```yaml
+external_mirror:
+  exclude_labels: [] # tracker labels whose issues are never mirrored into beads
+```
+
+| Field                            | Type        | Default | Description                                                                                                                                                                 |
+| -------------------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `external_mirror.exclude_labels` | list of str | `[]`    | Tracker labels whose issues are never mirrored into beads. Empty keeps the mirrored bead list a strict superset of the tracker's issue list; a non-empty value breaks that. |
 
 Source: `src/sase/default_config.yml`
 

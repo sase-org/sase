@@ -23,6 +23,7 @@ DAG.
   - [Close History](#close-history)
   - [Dependencies](#dependencies)
   - [Discovered Follow-Up Capture and Triage](#discovered-follow-up-capture-and-triage)
+  - [External Issue Mirroring](#external-issue-mirroring)
   - [Artifact References](#artifact-references)
   - [Creation Time Presentation](#creation-time-presentation)
 - [Storage](#storage)
@@ -559,6 +560,25 @@ Epic phase workers follow a stricter capture rule: they do not create beads. Ins
 phase worker appends `PROPOSED FOLLOW-UP: <one-line summary — detail>` to its own bead
 with `sase bead note`. The epic land agent collects those notes, files the worthwhile
 proposals as `task` beads, marks them `ready`, and records why it declined any others.
+
+### External Issue Mirroring
+
+The `external_issue_mirror` AXE chop (see
+[checks lane](axe.md#checks-5-minute-interval)) keeps every enabled project's issue
+tracker mirrored into task beads: each pass diffs the tracker against local beads on
+`external_ref` and creates an unsized, `open` task bead — never `ready` — for every
+uncovered issue, so a first-pass backlog never floods the `TaskTriage` gate queue. Run
+`sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview the
+same pass manually.
+
+A mirrored bead carries `external_ref` (the mirror's idempotency key, project-key
+qualified) and a matching `bug:<display-name>#<n>` entry in `refs` (the human-facing,
+searchable spelling); both normalize to the same identity. Upstream closes, reopens, and
+disappearances never change the bead's status or close it — that stays a deliberate
+human action — but each transition appends one attributed note the first time it is
+observed, so drift is visible without being auto-resolved. An
+`external_mirror.exclude_labels` config knob (empty by default) excludes tracker labels
+from mirroring.
 
 ### Artifact References
 
@@ -1416,6 +1436,18 @@ included in the next normal project or SDD commit.
 | Flag           | Description                                   |
 | -------------- | --------------------------------------------- |
 | `-s, --status` | Check whether bead state has unstaged changes |
+
+### `sase bead sync-external`
+
+Run one external tracker mirror pass — the same reconciliation path the
+`external_issue_mirror` AXE chop runs every ten minutes. See
+[External Issue Mirroring](#external-issue-mirroring).
+
+| Flag            | Description                                                        |
+| --------------- | ------------------------------------------------------------------ |
+| `-f, --full`    | Force a full repair scan instead of the steady-state short-circuit |
+| `-n, --dry-run` | Show exact planned creations without mutating anything             |
+| `-p, --project` | Only mirror one project by display name, alias, or canonical key   |
 
 ### `sase bead update <id> [<id2> ...]`
 

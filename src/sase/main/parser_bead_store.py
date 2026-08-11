@@ -310,3 +310,44 @@ def register_bead_sync_parser(
     parser.add_argument(
         "-s", "--status", action="store_true", help="Just check sync status"
     )
+
+
+def register_bead_sync_external_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead sync-external``."""
+    parser = subparsers.add_parser(
+        "sync-external",
+        help="Mirror external tracker issues into task beads",
+        description=(
+            "Diff an enabled project's external tracker against its beads on "
+            "external_ref and create unsized open task beads for uncovered "
+            "issues. Upstream state changes append an attributed note and "
+            "never close a bead. Runs the same reconciliation pass as the "
+            "external_issue_mirror AXE chop."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead sync-external\n"
+            "  sase bead sync-external --project sase --dry-run\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-f",
+        "--full",
+        action="store_true",
+        help="Force a full repair scan instead of the steady-state short-circuit",
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show exact planned creations without mutating anything",
+    )
+    parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Only mirror one project by display name, alias, or canonical key",
+    )

@@ -20,6 +20,7 @@ from sase.bead._sync_git import (
     commit_bead_claim_release as commit_bead_claim_release,
     commit_epic_creation_rollback as commit_epic_creation_rollback,
     commit_epic_graph_checkpoint as commit_epic_graph_checkpoint,
+    commit_external_issue_mirror as commit_external_issue_mirror,
     commit_failed_work_launch_recovery as commit_failed_work_launch_recovery,
     commit_task_work_launch as commit_task_work_launch,
     find_git_root as _find_git_root,

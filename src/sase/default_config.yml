@@ -767,6 +767,20 @@ axe:
             bead's status changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts.
             Gates are canceled when their beads leave those states, while answered or missing gates can be regenerated
             safely if work remains. A ready bead with a detached launch still in flight is deferred instead of re-gated.
+        - name: external_issue_mirror
+          script: sase_chop_external_issue_mirror
+          run_every: "10m"
+          timeout: "2m"
+          for_each:
+            source: projects
+            vcs: [git, gh]
+          description: |-
+            Mirror every external tracker issue into an open task bead
+
+            Expands to one instance per enabled project and diffs that project's tracker against local beads on
+            external_ref, creating unsized open task beads for uncovered issues. Upstream state changes append an
+            attributed note and never close a bead. A per-pass creation cap, bounded store-lock waits, and persistent
+            exponential backoff keep one large backlog or one unreachable tracker from stalling the pass.
         - name: external_pr_mirror
           script: sase_chop_external_pr_mirror
           run_every: "10m"
@@ -1027,6 +1041,13 @@ bead:
   #           path is printed. `sase bead work --no-push` overrides this to skip
   #           the push for a single invocation.
   push_after_commit: true
+
+external_mirror:
+  # Tracker labels whose issues are never mirrored into beads. Empty (the
+  # default) keeps the bead list a strict superset of the issue list, which is
+  # what lets the Artifacts tab drop a separate issue inventory. Every entry
+  # here removes issues from that superset.
+  exclude_labels: []
 
 xprompt_aliases:
   c: commit

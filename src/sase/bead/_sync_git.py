@@ -154,6 +154,22 @@ def commit_bead_claim_reconciliation(
     )
 
 
+def commit_external_issue_mirror(
+    beads_dir: Path,
+    project: str,
+    *,
+    already_locked: bool = False,
+) -> bool:
+    """Commit every bead created or noted by one external issue mirror pass."""
+    return _commit_bead_state(
+        beads_dir,
+        message=f"chore(beads): mirror external issues for {project}",
+        auto_commit_type="beads",
+        op_prefix="bead.external_issue_mirror",
+        already_locked=already_locked,
+    )
+
+
 def commit_epic_graph_checkpoint(
     beads_dir: Path,
     epic_id: str,
