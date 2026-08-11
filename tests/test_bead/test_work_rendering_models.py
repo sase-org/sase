@@ -348,6 +348,10 @@ class TestModelDirective:
             "sase.llm_provider.registry.get_llm_provider_config",
             lambda: {"provider": "claude"},
         )
+        monkeypatch.setattr(
+            "sase.llm_provider.config._resolved_target_is_available",
+            lambda _target: True,
+        )
 
         rendered = render_multi_prompt(
             plan,
