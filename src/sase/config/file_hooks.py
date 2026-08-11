@@ -5,9 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 import logging
+import os
 import re
 from typing import Any, cast, Literal
 
+from sase.artifact_providers.registry import ArtifactProviderRegistry
 from sase.config.core import (
     current_config_token,
     load_config_layers,
@@ -32,6 +34,7 @@ _DURATION_MULTIPLIERS = {
 _KNOWN_FILE_HOOK_KEYS = frozenset(
     {
         "name",
+        "use",
         "description",
         "command",
         "filters",
@@ -253,6 +256,68 @@ def _parse_file_hook(
     )
 
 
+def _resolve_file_hook_provider(
+    item: object,
+    *,
+    registry: ArtifactProviderRegistry,
+) -> object:
+    if not isinstance(item, Mapping) or "use" not in item:
+        return item
+    raw_use = item.get("use")
+    if not isinstance(raw_use, str) or not raw_use.strip():
+        raise ValueError("'use' must be a nonempty file-hook provider id")
+    provider_id = raw_use.strip()
+    providers = registry.file_hook_providers_by_id
+    provider = providers.get(provider_id)
+    if provider is None:
+        raise ValueError(
+            f"unknown file-hook provider '{provider_id}'; install a plugin "
+            "exposing the sase_file_hooks entry point group or remove 'use'"
+        )
+    for field_name in provider.required_fields:
+        if _missing_local_override(item, field_name):
+            raise ValueError(
+                f"file-hook provider '{provider_id}' requires local field "
+                f"'{field_name}'"
+            )
+    overrides = {str(key): value for key, value in item.items() if str(key) != "use"}
+    merged = _deep_merge(provider.template, overrides)
+    merged.setdefault("name", provider_id)
+    return merged
+
+
+def _missing_local_override(item: Mapping[Any, Any], field_name: str) -> bool:
+    if field_name not in item:
+        return True
+    value = item.get(field_name)
+    if isinstance(value, str):
+        return not value.strip()
+    return value is None
+
+
+def _deep_merge(base: Mapping[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
+    result = _plain_mapping(base)
+    for key, value in override.items():
+        current = result.get(key)
+        if isinstance(current, Mapping) and isinstance(value, Mapping):
+            result[key] = _deep_merge(current, value)
+        else:
+            result[key] = _plain_value(value)
+    return result
+
+
+def _plain_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:
+    return {str(key): _plain_value(item) for key, item in value.items()}
+
+
+def _plain_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return _plain_mapping(value)
+    if isinstance(value, list):
+        return [_plain_value(item) for item in value]
+    return value
+
+
 def _effective_raw_file_hooks() -> list[tuple[object, str]]:
     """Replay config-list merge semantics while retaining source provenance."""
     effective: list[tuple[object, str]] = []
@@ -277,6 +342,8 @@ def _effective_raw_file_hooks() -> list[tuple[object, str]]:
 def _needs_detected_project(item: object, source_layer: str) -> bool:
     if source_layer != "local" or not isinstance(item, Mapping):
         return False
+    if "use" in item:
+        return True
     if "filters" not in item:
         return True
     raw_filters = item.get("filters")
@@ -289,10 +356,17 @@ def _load_file_hooks() -> list[FileHookConfig]:
     """Load validated file hooks, memoized on the merged config token."""
     global _file_hooks_cache_token, _file_hooks_cache_value
 
-    token = current_config_token()
+    token = (
+        current_config_token(),
+        os.environ.get("SASE_DISABLE_PLUGINS"),
+        os.environ.get("SASE_DISABLE_PLUGIN_FILE_HOOKS"),
+    )
     if _file_hooks_cache_value is not None and _file_hooks_cache_token == token:
         return _file_hooks_cache_value
 
+    from sase.artifact_providers import get_artifact_provider_registry
+
+    registry = get_artifact_provider_registry()
     raw_hooks = _effective_raw_file_hooks()
     detected_project: str | None = None
     if any(_needs_detected_project(item, source) for item, source in raw_hooks):
@@ -304,8 +378,9 @@ def _load_file_hooks() -> list[FileHookConfig]:
     seen_names: set[str] = set()
     for item, source_layer in raw_hooks:
         try:
+            resolved_item = _resolve_file_hook_provider(item, registry=registry)
             hook = _parse_file_hook(
-                item,
+                resolved_item,
                 source_layer=source_layer,
                 detected_project=detected_project,
             )
@@ -313,7 +388,7 @@ def _load_file_hooks() -> list[FileHookConfig]:
                 raise ValueError(f"duplicate hook name '{hook.name}'")
         except ValueError as exc:
             hook_name = (
-                item.get("name", "<unknown>")
+                item.get("name") or item.get("use") or "<unknown>"
                 if isinstance(item, Mapping)
                 else "<unknown>"
             )

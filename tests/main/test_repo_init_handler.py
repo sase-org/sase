@@ -47,6 +47,8 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "    builtin:\n"
         "      plans:\n"
         "        auto_clone: true\n"
+        "        ref:\n"
+        "          use: plan\n"
         "      beads:\n"
         "        auto_clone: true\n"
         "      agents:\n"
@@ -153,6 +155,24 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
         "      research: # opted out\n"
         "        disabled: true\n"
     )
+    expected = (
+        "# keep\n"
+        "is_sase_managed: true\n"
+        "repos:\n"
+        "  sidecar:\n"
+        "    builtin:\n"
+        "      plans: # custom\n"
+        "        disabled: true\n"
+        "        ref:\n"
+        "          use: plan\n"
+        "      beads: # migration opt-out\n"
+        "        disabled: true\n"
+        "      agents: # privacy opt-out\n"
+        "        disabled: true\n"
+        "    custom:\n"
+        "      research: # opted out\n"
+        "        disabled: true\n"
+    )
     _mark_managed_project(tmp_path, config)
     root = tmp_path / ".sase" / "sdd"
     monkeypatch.setattr(
@@ -166,7 +186,7 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
 
     assert run_repo_init(_args(tmp_path)) == 0
 
-    assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == config
+    assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == expected
 
 
 def test_repo_init_sidecar_config_update_is_idempotent(
@@ -195,6 +215,29 @@ def test_repo_init_sidecar_config_update_is_idempotent(
     assert "updated" not in second_output
     assert first.count("beads:") == 1
     assert first.count("agents:") == 1
+    assert first.count("use: plan") == 1
+
+
+def test_repo_init_does_not_overwrite_existing_plans_ref(tmp_path: Path) -> None:
+    config_path = tmp_path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        "is_sase_managed: true\n"
+        "repos:\n"
+        "  sidecar:\n"
+        "    builtin:\n"
+        "      plans:\n"
+        "        auto_clone: true\n"
+        "        ref:\n"
+        "          kind: custom_plan\n",
+        encoding="utf-8",
+    )
+
+    update = explicit_sidecar_config_update(config_path)
+
+    assert update.changed is True
+    assert "kind: custom_plan" in update.updated_text
+    assert "use: plan" not in update.updated_text
 
 
 def test_legacy_list_sidecar_config_is_refused_with_a_migration_error(

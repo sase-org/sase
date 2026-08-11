@@ -17,6 +17,11 @@ from sase.config.file_hooks import (
     match_events,
 )
 from sase.config.layers import ConfigLayer
+from sase.artifact_providers.registry import (
+    ArtifactProviderProvenance,
+    ArtifactProviderRegistry,
+    FileHookProviderRecord,
+)
 
 
 def _layer(
@@ -72,6 +77,35 @@ def _event(
         rel_path=path,
         op=op,  # type: ignore[arg-type]
         agent_name=agent,
+    )
+
+
+def _registry_with_file_hook_provider() -> ArtifactProviderRegistry:
+    provenance = ArtifactProviderProvenance(
+        group="sase_file_hooks",
+        name="research",
+        package="sase-research",
+        version="1.0.0",
+    )
+    return ArtifactProviderRegistry(
+        ref_providers=(),
+        file_hook_providers=(
+            FileHookProviderRecord(
+                provider_id="research-highlights",
+                template={
+                    "description": "Render research highlights.",
+                    "filters": {
+                        "sidecars": ["research"],
+                        "path_globs": ["reports/**/*.md", "!reports/drafts/**"],
+                    },
+                    "timeout": "30s",
+                },
+                required_fields=("command",),
+                provenance=provenance,
+            ),
+        ),
+        entry_kinds=(),
+        diagnostics=(),
     )
 
 
@@ -152,6 +186,62 @@ def test_loader_parses_nested_filters(monkeypatch: Any) -> None:
     assert filters.path_globs == ("20*/**/*.md", "!20*/*/*__*.md")
     assert filters.agent_name_globs == ("!research.*.cld", "!research.*.cdx")
     assert filters.ops == ("ADD",)
+
+
+def test_loader_resolves_file_hook_provider_templates(monkeypatch: Any) -> None:
+    layers = [
+        _layer(
+            "local",
+            [
+                {
+                    "use": "research-highlights",
+                    "command": "bob highlights create",
+                    "filters": {"path_globs": ["final/**/*.md"]},
+                }
+            ],
+        )
+    ]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+    monkeypatch.setattr("sase.xprompt.loader.detect_project", lambda: "sase")
+    monkeypatch.setattr(
+        "sase.artifact_providers.get_artifact_provider_registry",
+        _registry_with_file_hook_provider,
+    )
+
+    hooks = _load_file_hooks()
+
+    assert len(hooks) == 1
+    hook = hooks[0]
+    assert hook.name == "research-highlights"
+    assert hook.command == "bob highlights create"
+    assert hook.timeout_seconds == 30
+    assert hook.filters.projects == ("sase",)
+    assert hook.filters.sidecars == ("research",)
+    assert hook.filters.path_globs == ("final/**/*.md",)
+
+
+def test_loader_skips_provider_hook_missing_required_local_field(
+    monkeypatch: Any,
+    caplog: Any,
+) -> None:
+    layers = [_layer("user", [{"use": "research-highlights"}], strategy="replace")]
+    monkeypatch.setattr(
+        "sase.config.file_hooks.current_config_token", lambda: ("token",)
+    )
+    monkeypatch.setattr("sase.config.file_hooks.load_config_layers", lambda: layers)
+    monkeypatch.setattr(
+        "sase.artifact_providers.get_artifact_provider_registry",
+        _registry_with_file_hook_provider,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        hooks = _load_file_hooks()
+
+    assert hooks == []
+    assert "requires local field 'command'" in caplog.text
 
 
 def test_file_hook_filters_validate_direct_operation_names() -> None:

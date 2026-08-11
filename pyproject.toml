@@ -171,6 +171,9 @@ bare_git = "sase.vcs_provider.plugins.bare_git:BareGitPlugin"
 [project.entry-points."sase_workspace"]
 bare_git = "sase.workspace_provider.plugins.bare_git_workspace:BareGitWorkspacePlugin"
 
+[project.entry-points."sase_artifact_refs"]
+builtin = "sase.artifact_providers._builtin:BuiltinArtifactProviders"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/sase"]
 

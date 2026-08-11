@@ -332,6 +332,11 @@ def test_config_schema_accepts_file_hooks() -> None:
                     "command": "check-file",
                     "filters": {},
                 },
+                {
+                    "use": "research-highlights",
+                    "command": "bob highlights create",
+                    "filters": {"path_globs": ["reports/**/*.md"]},
+                },
             ]
         }
     )

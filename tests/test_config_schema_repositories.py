@@ -75,8 +75,12 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
                         "visibility": "private",
                         "disabled": False,
                         "ref": {
-                            "xprompt": "Research {{ file_path }}",
-                            "filters": {"path_globs": ["**/*.md"]},
+                            "kind": "research",
+                            "inventory": {"globs": ["**/*.md"]},
+                            "publication": {
+                                "link": "vcs_permalink",
+                                "referenced_by": "markdown_table",
+                            },
                         },
                     }
                 }
@@ -139,8 +143,8 @@ def test_config_schema_rejects_invalid_sidecar_controls(
     [
         ({"ref": "no"}, ["repos", "sidecar", "custom", "research", "ref"]),
         (
-            {"ref": {"xprompt": ""}},
-            ["repos", "sidecar", "custom", "research", "ref", "xprompt"],
+            {"ref": {"use": ""}},
+            ["repos", "sidecar", "custom", "research", "ref", "use"],
         ),
         (
             {"ref": {"filters": "no"}},
@@ -169,6 +173,26 @@ def test_config_schema_rejects_invalid_sidecar_ref_controls(
     errors = list(Draft7Validator(schema()).iter_errors(config))
 
     assert [list(error.absolute_path) for error in errors] == [expected_path]
+
+
+def test_config_schema_rejects_retired_sidecar_ref_xprompt() -> None:
+    config = {
+        "repos": {
+            "sidecar": {
+                "custom": {
+                    "research": {
+                        "ref": {"xprompt": "Research {{ file_path }}"},
+                    }
+                }
+            }
+        }
+    }
+
+    errors = list(Draft7Validator(schema()).iter_errors(config))
+
+    assert [list(error.absolute_path) for error in errors] == [
+        ["repos", "sidecar", "custom", "research", "ref"]
+    ]
 
 
 @pytest.mark.parametrize(

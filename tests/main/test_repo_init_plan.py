@@ -166,7 +166,9 @@ is_sase_managed: true
 repos:
   sidecar:
     builtin:
-      plans: {}
+      plans:
+        ref:
+          use: plan
       beads: {}
       agents: {}
     custom:
@@ -208,9 +210,13 @@ repos:
 
     plan = plan_repo_init(_args(tmp_path))
 
+    agent_actions = [
+        action for action in plan.actions if action.path.is_relative_to(agents_root)
+    ]
     assert [
-        action.path.relative_to(agents_root).as_posix() for action in plan.actions
+        action.path.relative_to(agents_root).as_posix() for action in agent_actions
     ] == ["assets/agents-directory-map.png"]
+    assert all(action.path != config for action in plan.actions)
     assert plan.summary == "refresh sidecar guide files"
     assert (agents_root / "README.md").read_text(encoding="utf-8") == "# Derived\n"
 

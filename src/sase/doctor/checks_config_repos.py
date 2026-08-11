@@ -13,9 +13,18 @@ from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
 from sase.sdd._store_types import RESERVED_SIDECAR_ROLES
 from sase.sidecar_ref_config import (
+    REF_DETAIL_CONFIG_KEY,
+    REF_EXPANSION_FORMAT_CONFIG_KEY,
     REF_CONFIG_KEY,
     REF_FILTERS_CONFIG_KEY,
+    REF_IDENTITY_CONFIG_KEY,
+    REF_INVENTORY_CONFIG_KEY,
+    REF_INVENTORY_GLOBS_CONFIG_KEY,
+    REF_KIND_CONFIG_KEY,
     REF_PATH_GLOBS_CONFIG_KEY,
+    REF_PROPERTIES_CONFIG_KEY,
+    REF_PUBLICATION_CONFIG_KEY,
+    REF_USE_CONFIG_KEY,
     REF_XPROMPT_CONFIG_KEY,
 )
 
@@ -61,6 +70,7 @@ def check_config_repos() -> DiagnosticCheck:
                 ),
             }
         )
+    problems.extend(_artifact_provider_registry_problems())
 
     status: CheckStatus = "WARN" if problems else "OK"
     summary = (
@@ -261,14 +271,80 @@ def _ref_policy_problems(
             }
         ]
 
+    unknown = sorted(str(key) for key in raw_ref if str(key) not in _KNOWN_REF_FIELDS)
+    if unknown:
+        problems.append(
+            {
+                "key": ref_key,
+                "message": f"{ref_key} has unknown field(s): {', '.join(unknown)}",
+            }
+        )
+
+    use = raw_ref.get(REF_USE_CONFIG_KEY)
+    if use is not None:
+        if not isinstance(use, str) or not use.strip():
+            problems.append(
+                {
+                    "key": f"{ref_key}.{REF_USE_CONFIG_KEY}",
+                    "message": f"{ref_key}.{REF_USE_CONFIG_KEY} must be a nonempty string",
+                }
+            )
+        else:
+            from sase.artifact_providers import get_artifact_provider_registry
+
+            registry = get_artifact_provider_registry()
+            provider_id = use.strip()
+            if provider_id not in registry.ref_providers_by_id:
+                problems.append(
+                    {
+                        "key": f"{ref_key}.{REF_USE_CONFIG_KEY}",
+                        "message": (
+                            f"{ref_key}.{REF_USE_CONFIG_KEY} references missing "
+                            f"artifact ref provider {provider_id!r}. A cloned "
+                            "sidecar repo is not an installed plugin; install a "
+                            "plugin exposing the sase_artifact_refs entry point "
+                            "group, or replace this with an inline ref spec."
+                        ),
+                    }
+                )
+
     xprompt = raw_ref.get(REF_XPROMPT_CONFIG_KEY)
-    if xprompt is not None and (not isinstance(xprompt, str) or not xprompt.strip()):
+    if xprompt is not None:
         problems.append(
             {
                 "key": f"{ref_key}.{REF_XPROMPT_CONFIG_KEY}",
-                "message": f"{ref_key}.{REF_XPROMPT_CONFIG_KEY} must be a nonempty string",
+                "message": (
+                    f"{ref_key}.{REF_XPROMPT_CONFIG_KEY} was retired; use "
+                    "provider-backed or inline ref specs"
+                ),
             }
         )
+
+    inventory = raw_ref.get(REF_INVENTORY_CONFIG_KEY)
+    if inventory is not None:
+        inventory_key = f"{ref_key}.{REF_INVENTORY_CONFIG_KEY}"
+        if not isinstance(inventory, Mapping):
+            problems.append(
+                {
+                    "key": inventory_key,
+                    "message": f"{inventory_key} must be a mapping",
+                }
+            )
+        else:
+            globs = inventory.get(REF_INVENTORY_GLOBS_CONFIG_KEY)
+            if globs is not None and (
+                not isinstance(globs, list)
+                or any(not isinstance(item, str) or not item for item in globs)
+            ):
+                problems.append(
+                    {
+                        "key": f"{inventory_key}.{REF_INVENTORY_GLOBS_CONFIG_KEY}",
+                        "message": (
+                            f"{inventory_key}.{REF_INVENTORY_GLOBS_CONFIG_KEY} "
+                            "must be a list of nonempty strings"
+                        ),
+                    }
+                )
 
     filters = raw_ref.get(REF_FILTERS_CONFIG_KEY)
     if filters is None:
@@ -292,9 +368,20 @@ def _ref_policy_problems(
                 ),
             }
         )
+        return problems
     if REF_PATH_GLOBS_CONFIG_KEY in filters:
         globs = filters.get(REF_PATH_GLOBS_CONFIG_KEY)
         globs_key = f"{filters_key}.{REF_PATH_GLOBS_CONFIG_KEY}"
+        problems.append(
+            {
+                "key": globs_key,
+                "message": (
+                    f"{globs_key} is deprecated; use "
+                    f"{ref_key}.{REF_INVENTORY_CONFIG_KEY}."
+                    f"{REF_INVENTORY_GLOBS_CONFIG_KEY}"
+                ),
+            }
+        )
         if not isinstance(globs, list) or any(
             not isinstance(item, str) or not item for item in globs
         ):
@@ -307,6 +394,61 @@ def _ref_policy_problems(
                     ),
                 }
             )
+    return problems
+
+
+_KNOWN_REF_FIELDS = frozenset(
+    {
+        REF_USE_CONFIG_KEY,
+        REF_KIND_CONFIG_KEY,
+        REF_EXPANSION_FORMAT_CONFIG_KEY,
+        REF_PROPERTIES_CONFIG_KEY,
+        REF_DETAIL_CONFIG_KEY,
+        REF_IDENTITY_CONFIG_KEY,
+        REF_INVENTORY_CONFIG_KEY,
+        REF_PUBLICATION_CONFIG_KEY,
+        REF_FILTERS_CONFIG_KEY,
+        REF_XPROMPT_CONFIG_KEY,
+    }
+)
+
+
+def _artifact_provider_registry_problems() -> list[dict[str, str]]:
+    try:
+        from sase.artifact_providers import get_artifact_provider_registry
+
+        registry = get_artifact_provider_registry()
+    except Exception as exc:
+        return [
+            {
+                "key": "artifact_providers",
+                "message": (
+                    "artifact provider registry could not be assembled: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            }
+        ]
+    problems: list[dict[str, str]] = []
+    for diagnostic in registry.diagnostics:
+        if diagnostic.severity not in {"warning", "error"}:
+            continue
+        suffix = diagnostic.provider or diagnostic.kind or diagnostic.code
+        problems.append(
+            {
+                "key": f"artifact_providers.{suffix}",
+                "message": diagnostic.message,
+            }
+        )
+    if registry.disabled_env:
+        problems.append(
+            {
+                "key": "artifact_providers.disabled",
+                "message": (
+                    "artifact provider plugin discovery is disabled by "
+                    f"{', '.join(registry.disabled_env)}"
+                ),
+            }
+        )
     return problems
 
 

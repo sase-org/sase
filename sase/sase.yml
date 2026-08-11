@@ -137,31 +137,27 @@ repos:
   linked:
     - name: sase-core
       path: ../sase-core
-      description:
-        Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
+      description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
       auto_clone: true
     - name: sase-github
       path: ../sase-github
-      description:
-        GitHub VCS and workspace provider plugin for repository, issue, and PR
-        workflows.
+      description: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
     - name: sase-telegram
       path: ../sase-telegram
-      description:
-        Telegram integration plugin for chat-driven SASE workflows and notifications.
+      description: Telegram integration plugin for chat-driven SASE workflows and notifications.
     - name: sase-nvim
       path: ../sase-nvim
-      description:
-        Neovim integration plugin for SASE syntax, completion, and editor support.
+      description: Neovim integration plugin for SASE syntax, completion, and editor support.
   sidecar:
     builtin:
       plans:
         auto_clone: true
+        ref:
+          use: plan
       beads:
         auto_clone: true
       agents:
-        description:
-          Hidden sidecar that stores commit-associated sase agent data for this project.
+        description: Hidden sidecar that stores commit-associated sase agent data for this project.
     custom:
       research:
         description: Durable SASE research reports and generated media.

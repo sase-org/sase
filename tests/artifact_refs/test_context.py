@@ -131,8 +131,8 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
     context = artifact_refs.artifact_ref_context(tmp_path / "workspace", 7)
 
     assert [(entry.kind, entry.root) for entry in context.document_roots] == [
-        ("plans", (tmp_path / "repo-plans").resolve()),
-        ("plans", (tmp_path / "state" / "plans").resolve()),
+        ("plan", (tmp_path / "repo-plans").resolve()),
+        ("plan", (tmp_path / "state" / "plans").resolve()),
         ("designs", (tmp_path / "missing-designs-clone").resolve()),
     ]
     assert [entry.path_globs for entry in context.document_roots] == [
@@ -147,7 +147,7 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "file",
         "bead",
         "agent",
-        "plans",
+        "plan",
         "designs",
     )
     assert context.repositories[0].name == "sase"

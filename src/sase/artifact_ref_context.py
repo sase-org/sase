@@ -55,7 +55,7 @@ def artifact_ref_context(
         _append_document_root(
             document_roots,
             seen_roots,
-            role,
+            policy.ref_kind,
             root,
             path_globs=policy.path_globs,
         )
@@ -63,7 +63,7 @@ def artifact_ref_context(
             _append_document_root(
                 document_roots,
                 seen_roots,
-                role,
+                policy.ref_kind,
                 sase_subdir("plans"),
                 path_globs=policy.path_globs,
             )

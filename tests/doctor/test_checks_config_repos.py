@@ -236,6 +236,33 @@ def test_repos_reports_invalid_sidecar_ref_policy(
     }
 
 
+def test_repos_reports_missing_sidecar_ref_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_config(
+        monkeypatch,
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Durable research.",
+                            "ref": {"use": "research"},
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_repos()
+
+    problems = {row["key"]: row["message"] for row in check.data["problems"]}
+    message = problems["repos.sidecar.custom.research.ref.use"]
+    assert "missing artifact ref provider 'research'" in message
+    assert "cloned sidecar repo is not an installed plugin" in message
+
+
 def test_repos_reports_ok_when_sidecar_is_unset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

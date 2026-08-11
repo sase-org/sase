@@ -174,7 +174,12 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
         entries = {
             "plans": (
                 SIDECAR_BUILTIN_CONFIG_KEY,
-                CommentedMap((("auto_clone", True),)),
+                CommentedMap(
+                    (
+                        ("auto_clone", True),
+                        ("ref", CommentedMap((("use", "plan"),))),
+                    )
+                ),
             ),
             "beads": (
                 SIDECAR_BUILTIN_CONFIG_KEY,
@@ -190,7 +195,14 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
             ),
         }
         added_roles = tuple(role for role in entries if role not in existing_roles)
-        if not added_roles:
+        updated_roles: list[str] = list(added_roles)
+        builtin_bucket = buckets[SIDECAR_BUILTIN_CONFIG_KEY]
+        if "plans" in existing_roles and isinstance(builtin_bucket, MutableMapping):
+            plans_entry = builtin_bucket.get("plans")
+            if isinstance(plans_entry, MutableMapping) and "ref" not in plans_entry:
+                plans_entry["ref"] = CommentedMap((("use", "plan"),))
+                updated_roles.append("plans")
+        if not updated_roles:
             return ConfigUpdate(config_path, current_text, current_text)
 
         if sidecars is None:
@@ -242,7 +254,7 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
         config_path,
         current_text,
         updated_text,
-        added_roles=added_roles,
+        added_roles=tuple(dict.fromkeys(updated_roles)),
     )
 
 

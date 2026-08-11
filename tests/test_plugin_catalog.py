@@ -19,8 +19,14 @@ from sase.plugins.catalog import (
 from sase.plugins.github_source import GH_SEARCH_QUERY, _GhCommandError, GhNotFoundError
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
+from sase.plugins.inventory import ENTRY_POINT_GROUPS
 
 OLD_GH_SEARCH_QUERY = "topic:sase-plugin"
+
+
+def test_artifact_provider_entry_point_groups_are_in_inventory() -> None:
+    assert "sase_artifact_refs" in ENTRY_POINT_GROUPS
+    assert "sase_file_hooks" in ENTRY_POINT_GROUPS
 
 
 def _payload(

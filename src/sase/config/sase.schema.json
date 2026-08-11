@@ -71,17 +71,110 @@
     },
     "sidecarRef": {
       "type": "object",
-      "description": "Contextual ref renderer and document filter policy for one sidecar role.",
+      "description": "Provider-backed or inline document artifact-reference spec for one sidecar role.",
       "additionalProperties": false,
       "properties": {
-        "xprompt": {
+        "use": {
           "type": "string",
-          "description": "Markdown renderer body inserted at sidecar-config precedence for ref/<kind>.",
+          "description": "Installed artifact-reference provider id to use as the base spec.",
           "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Artifact reference kind, for inline specs or provider overrides."
+        },
+        "expansion_format": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shared artifact-reference expansion format."
+        },
+        "properties": {
+          "type": "object",
+          "description": "Declared artifact-entry properties for this document ref kind.",
+          "additionalProperties": { "$ref": "#/definitions/sidecarRefProperty" }
+        },
+        "detail": {
+          "$ref": "#/definitions/sidecarRefDetail",
+          "description": "Detail fields used by downstream artifact views."
+        },
+        "identity": {
+          "$ref": "#/definitions/sidecarRefIdentity",
+          "description": "Optional identity property for this document kind."
+        },
+        "inventory": {
+          "$ref": "#/definitions/sidecarRefInventory",
+          "description": "Document inventory policy for completion and resolution."
+        },
+        "publication": {
+          "$ref": "#/definitions/sidecarRefPublication",
+          "description": "Publication and back-link behavior for this document kind."
         },
         "filters": {
           "$ref": "#/definitions/sidecarRefFilters",
-          "description": "Document-root filters transported to the artifact-reference resolver."
+          "description": "Deprecated alias for inventory.globs."
+        }
+      }
+    },
+    "sidecarRefProperty": {
+      "type": "object",
+      "required": ["type", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["string", "enum", "boolean", "integer", "number", "date", "datetime", "string_list"]
+        },
+        "values": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Allowed values for enum properties."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["markdown_frontmatter", "provider"]
+        }
+      }
+    },
+    "sidecarRefDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sidecarRefIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "property": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sidecarRefInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "globs": {
+          "type": "array",
+          "description": "Repo-relative document path globs, including !-prefixed exclusions. Omit for the provider default; an empty list allows no document paths.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sidecarRefPublication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "link": {
+          "type": "string",
+          "enum": ["vcs_permalink", "agents_object", "none"]
+        },
+        "referenced_by": {
+          "type": "string",
+          "enum": ["markdown_table", "none"]
         }
       }
     },
@@ -291,9 +384,17 @@
     },
     "fileHook": {
       "type": "object",
-      "required": ["name", "command"],
+      "anyOf": [
+        { "required": ["use"] },
+        { "required": ["name", "command"] }
+      ],
       "additionalProperties": false,
       "properties": {
+        "use": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Installed file-hook provider id to use as the base template."
+        },
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9_-]*$",
