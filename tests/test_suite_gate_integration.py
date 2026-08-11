@@ -97,6 +97,7 @@ def _build_scoped_repo(root: Path) -> None:
         "_test_selection_gear.py",
         "_test_selection_graph.py",
         "_test_selection_health.py",
+        "_test_selection_health_correlation.py",
         "_test_selection_health_records.py",
         "_test_selection_health_report.py",
         "_test_selection_health_store.py",
