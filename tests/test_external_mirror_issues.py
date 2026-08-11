@@ -291,7 +291,9 @@ def test_disappeared_issue_appends_one_stale_note(
     report2 = _run(full=True)
 
     assert report2.notes_appended == 1
-    state = read_mirror_state(mirror_state_document_path("issues", "sase"), project="sase")
+    state = read_mirror_state(
+        mirror_state_document_path("issues", "sase"), project="sase"
+    )
     assert state.upstream_states == {"bug:sase#42": "absent"}
 
 
@@ -377,7 +379,9 @@ def test_provider_auth_error_records_probe_and_sets_backoff(
     assert report.degraded == "auth_error"
     probes = read_tracker_probes()
     assert probes["sase"].outcome == "auth_error"
-    state = read_mirror_state(mirror_state_document_path("issues", "sase"), project="sase")
+    state = read_mirror_state(
+        mirror_state_document_path("issues", "sase"), project="sase"
+    )
     assert state.failures == 1
     assert state.next_attempt_at
     assert state.watermark_updated_at == ""
