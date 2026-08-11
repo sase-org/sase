@@ -366,6 +366,25 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         """Repeat the host's last search (``n`` / ``N``). Default: inert."""
         return True
 
+    def _search_word_under_cursor(
+        self,
+        *,
+        reverse: bool = False,
+        whole_word: bool = True,
+        count: int = 1,
+    ) -> bool:
+        """Search for the word under the cursor (``*``/``#``/``g*``/``g#``).
+
+        Default: inert.
+        """
+        return True
+
+    def _search_visual_selection(
+        self, *, reverse: bool = False, count: int = 1
+    ) -> bool:
+        """Search for the VISUAL selection (``*``/``#``). Default: inert."""
+        return True
+
     def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None:
         """Tear down the host's active search command line. Default: no-op."""
 

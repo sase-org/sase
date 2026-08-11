@@ -36,6 +36,14 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
             count: int = 1,
         ) -> bool: ...
 
+        def _search_word_under_cursor(
+            self,
+            *,
+            reverse: bool = False,
+            whole_word: bool = True,
+            count: int = 1,
+        ) -> bool: ...
+
     def _handle_normal_motion_key(
         self,
         key: str,
@@ -278,6 +286,15 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
                 self._pending_operator_count = 1
                 self._update_count_display()
             return self._repeat_prompt_search(reverse=key == "N", count=count)
+
+        if key in ("*", "#"):
+            if self._pending_operator:
+                self._pending_operator = ""
+                self._pending_operator_count = 1
+                self._update_count_display()
+            return self._search_word_under_cursor(
+                reverse=key == "#", whole_word=True, count=count
+            )
 
         if key in ";," and self._last_char_search:
             motion, target_char = self._last_char_search

@@ -30,6 +30,14 @@ class VimNormalPendingMixin(VimVisualModeMixin):
 
         def _dispatch_host_g_prefix_key(self, key: str) -> bool: ...
 
+        def _search_word_under_cursor(
+            self,
+            *,
+            reverse: bool = False,
+            whole_word: bool = True,
+            count: int = 1,
+        ) -> bool: ...
+
     def _handle_normal_pending_key(self, key: str, event: Key) -> bool:
         """Handle a key after a pending normal-mode prefix."""
         pending = self._pending_keys
@@ -160,6 +168,14 @@ class VimNormalPendingMixin(VimVisualModeMixin):
                     )
             elif moved:
                 self.cursor_location = (r, c)
+        elif pending == "g" and key in "*#":
+            motion_count = pending_count if pending_count is not None else 1
+            if self._pending_operator:
+                self._pending_operator = ""
+                self._pending_operator_count = 1
+            self._search_word_under_cursor(
+                reverse=key == "#", whole_word=False, count=motion_count
+            )
         elif pending in "fFtT":
             target_char = key
             motion_count = pending_count if pending_count is not None else 1

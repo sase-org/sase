@@ -38,6 +38,8 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("K / Ctrl+] on glossary term", "Preview / jump to definition"),
         ("/ / ?", "Search prompt fwd/rev (NORMAL)"),
         ("n / N", "Repeat prompt search fwd/rev"),
+        ("* / #", "Search word under cursor"),
+        ("g* / g#", "... as substring"),
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("gf / Ctrl+G f", "Format current prompt"),
         ("g=", "Frontmatter panel"),

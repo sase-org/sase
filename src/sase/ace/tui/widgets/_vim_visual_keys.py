@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from textual.events import Key
 
 from sase.ace.tui.widgets._vim_motions import (
@@ -20,6 +22,12 @@ from sase.ace.tui.widgets._vim_visual_pending import VimVisualPendingMixin
 
 class VimVisualKeyHandlingMixin(VimVisualPendingMixin):
     """Mixin providing the top-level visual-mode key dispatcher."""
+
+    if TYPE_CHECKING:
+
+        def _search_visual_selection(
+            self, *, reverse: bool = False, count: int = 1
+        ) -> bool: ...
 
     def _visual_count(self) -> tuple[bool, int]:
         """Consume and return the current count prefix."""
@@ -223,6 +231,8 @@ class VimVisualKeyHandlingMixin(VimVisualPendingMixin):
         if key == "~":
             self._apply_visual_case_operator("g~")
             return True
+        if key in ("*", "#"):
+            return bool(self._search_visual_selection(reverse=key == "#", count=count))
 
         return True
 

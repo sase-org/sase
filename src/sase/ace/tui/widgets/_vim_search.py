@@ -18,9 +18,30 @@ class SearchSelection:
     wrapped: bool
 
 
+@dataclass(frozen=True)
+class PromptSearchQuery:
+    """A shared prompt-stack search register entry: query plus match semantics.
+
+    Carrying ``whole_word`` / ``smartcase`` alongside the query and direction
+    keeps ``n`` / ``N`` reusing the exact match rules a ``*`` / ``#`` / ``/`` /
+    ``?`` search recorded, instead of re-deriving a plain smartcase substring
+    search from the bare string.
+    """
+
+    query: str
+    direction: SearchDirection
+    whole_word: bool = False
+    smartcase: bool = True
+
+
 def _is_smartcase_case_sensitive(query: str) -> bool:
     """Return whether Vim smartcase should treat *query* as case-sensitive."""
     return any(char.isupper() for char in query)
+
+
+def _is_keyword_char(ch: str) -> bool:
+    """Return whether *ch* is a vim keyword character (mirrors ``_char_class``)."""
+    return ch.isalnum() or ch == "_"
 
 
 def find_search_matches(
@@ -28,11 +49,15 @@ def find_search_matches(
     query: str,
     *,
     smartcase: bool = True,
+    whole_word: bool = False,
 ) -> tuple[SearchSpan, ...]:
     """Return ordered literal search spans for *query* in *text*.
 
     Matching is case-insensitive unless smartcase is disabled or *query*
-    contains an uppercase character. Overlapping matches are included.
+    contains an uppercase character. Overlapping matches are included. When
+    *whole_word* is set, a ``\\b`` boundary is required on each edge of *query*
+    that starts/ends on a keyword character (vim ``\\<`` / ``\\>``); an edge
+    bordered by punctuation is left unconstrained so the query still matches.
     """
     if not query:
         return ()
@@ -41,7 +66,13 @@ def find_search_matches(
     if smartcase and not _is_smartcase_case_sensitive(query):
         flags = re.IGNORECASE
 
-    pattern = re.compile(f"(?=({re.escape(query)}))", flags)
+    escaped = re.escape(query)
+    if whole_word:
+        prefix = r"\b" if _is_keyword_char(query[0]) else ""
+        suffix = r"\b" if _is_keyword_char(query[-1]) else ""
+        escaped = f"{prefix}{escaped}{suffix}"
+
+    pattern = re.compile(f"(?=({escaped}))", flags)
     return tuple((match.start(1), match.end(1)) for match in pattern.finditer(text))
 
 

@@ -4661,34 +4661,36 @@ Text objects compose with `d`, `c`, and `y`.
 
 #### Other Commands
 
-| Key        | Action                                                                                                |
-| ---------- | ----------------------------------------------------------------------------------------------------- |
-| `i`        | Enter INSERT mode; inserted text is repeatable with `.`                                               |
-| `v`        | Enter charwise VISUAL mode                                                                            |
-| `V`        | Enter linewise V-LINE mode                                                                            |
-| `a`        | Append after cursor; inserted text is repeatable with `.`                                             |
-| `A`        | Append at end of line; inserted text is repeatable with `.`                                           |
-| `I`        | Insert at line start; inserted text is repeatable with `.`                                            |
-| `o`        | Open below; prompt bullets and ordered items auto-continue, and inserted text repeats with `.`        |
-| `O`        | Open above; prompt bullets and ordered items auto-continue, and inserted text repeats with `.`        |
-| `[<Space>` | Insert blank line(s) above current line without leaving NORMAL mode                                   |
-| `]<Space>` | Insert blank line(s) below current line without leaving NORMAL mode                                   |
-| `u`        | Undo                                                                                                  |
-| `Ctrl+R`   | Redo                                                                                                  |
-| `Ctrl+A`   | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`)             |
-| `Ctrl+X`   | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`)             |
-| `x`        | Delete character                                                                                      |
-| `X`        | Delete character before cursor                                                                        |
-| `r{c}`     | Replace character(s) at cursor (supports count: `3rx`)                                                |
-| `p`        | Paste after cursor / below line from the internal register                                            |
-| `P`        | Paste before cursor / above line from the internal register                                           |
-| `~`        | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
-| `.`        | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
-| `J`        | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
-| `K`        | Preview the xprompt, workflow, skill, file, glossary term, or plain word under the cursor             |
-| `Ctrl+]`   | Jump to the xprompt/workflow/skill/glossary definition or file under the cursor                       |
-| `/` / `?`  | Search forward / backward in the current prompt pane                                                  |
-| `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                                 |
+| Key         | Action                                                                                                |
+| ----------- | ----------------------------------------------------------------------------------------------------- |
+| `i`         | Enter INSERT mode; inserted text is repeatable with `.`                                               |
+| `v`         | Enter charwise VISUAL mode                                                                            |
+| `V`         | Enter linewise V-LINE mode                                                                            |
+| `a`         | Append after cursor; inserted text is repeatable with `.`                                             |
+| `A`         | Append at end of line; inserted text is repeatable with `.`                                           |
+| `I`         | Insert at line start; inserted text is repeatable with `.`                                            |
+| `o`         | Open below; prompt bullets and ordered items auto-continue, and inserted text repeats with `.`        |
+| `O`         | Open above; prompt bullets and ordered items auto-continue, and inserted text repeats with `.`        |
+| `[<Space>`  | Insert blank line(s) above current line without leaving NORMAL mode                                   |
+| `]<Space>`  | Insert blank line(s) below current line without leaving NORMAL mode                                   |
+| `u`         | Undo                                                                                                  |
+| `Ctrl+R`    | Redo                                                                                                  |
+| `Ctrl+A`    | Increment the number at/after cursor, wrapping to the prompt top (supports count and `.`)             |
+| `Ctrl+X`    | Decrement the number at/after cursor, wrapping to the prompt top (supports count and `.`)             |
+| `x`         | Delete character                                                                                      |
+| `X`         | Delete character before cursor                                                                        |
+| `r{c}`      | Replace character(s) at cursor (supports count: `3rx`)                                                |
+| `p`         | Paste after cursor / below line from the internal register                                            |
+| `P`         | Paste before cursor / above line from the internal register                                           |
+| `~`         | Toggle case of character(s) at cursor (supports count: `5~`)                                          |
+| `.`         | Repeat last mutation, including inserted text; a count replaces the recorded count                    |
+| `J`         | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
+| `K`         | Preview the xprompt, workflow, skill, file, glossary term, or plain word under the cursor             |
+| `Ctrl+]`    | Jump to the xprompt/workflow/skill/glossary definition or file under the cursor                       |
+| `/` / `?`   | Search forward / backward in the current prompt pane                                                  |
+| `n` / `N`   | Repeat the last confirmed search in its original / opposite direction                                 |
+| `*` / `#`   | Search forward / backward for the whole word under the cursor                                         |
+| `g*` / `g#` | Like `*` / `#`, but also matches the word as a substring                                              |
 
 In prompt panes, `o` and `O` continue the containing hyphen bullet or ordered item below
 or above at the same indentation, including when the cursor is on a physical
@@ -4713,6 +4715,15 @@ Search previews matching text as you type. `Enter` confirms the query, while `Es
 by every pane in the current `---`-separated prompt stack and survives a stack rebuild,
 so switching panes and pressing `n` or `N` reuses the same query against the newly
 active pane.
+
+`*` and `#` resolve the keyword run under (or, failing that, forward of) the cursor on
+the current line and search for it as a whole word (`g*` / `g#` match it as a substring
+instead), landing on the start of the destination match. Unlike `/` and `?`, these are
+always case-sensitive, matching vim's exemption of `*` / `#` from smartcase. `n` and `N`
+afterward repeat with the same whole-word and case-sensitivity rules, not a plain
+smartcase substring search. When no keyword character follows the cursor on the line,
+ACE reports "no string under cursor" and leaves the cursor and any existing search state
+untouched.
 
 ### Visual Mode
 
@@ -4739,6 +4750,11 @@ range from the current cursor; visual `c` repeats the replacement text typed bef
 | `>` / `<` | Indent / dedent selected lines by two spaces                 |
 | `u` / `U` | Lowercase / uppercase the selection                          |
 | `~`       | Toggle case in the selection                                 |
+| `*` / `#` | Search forward / backward for the selected text, literally   |
+
+Visual `*` / `#` search for the exact selected text (including embedded newlines in a
+multi-line or V-LINE selection) rather than a resolved keyword, are always
+case-sensitive, and return to NORMAL mode at the search destination.
 
 Visual `S` uses the same delimiter pairs as NORMAL-mode surround, preserves an exact
 charwise selection, and leaves the unnamed register unchanged. In V-LINE mode the

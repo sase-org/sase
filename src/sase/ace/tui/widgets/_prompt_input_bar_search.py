@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._vim_search import (
+    PromptSearchQuery,
     SearchDirection,
     SearchSelection,
     SearchSpan,
@@ -62,18 +63,26 @@ class PromptInputBarSearchMixin(_MixinBase):
         def hide_g_prefix_hints(self) -> None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._prompt_search_register: tuple[str, SearchDirection] | None = None
+        self._prompt_search_register: PromptSearchQuery | None = None
         super().__init__(*args, **kwargs)
 
     def record_prompt_search(
         self,
         query: str,
         direction: SearchDirection,
+        *,
+        whole_word: bool = False,
+        smartcase: bool = True,
     ) -> None:
         """Record the last successful search shared by this bar's panes."""
-        self._prompt_search_register = (query, direction)
+        self._prompt_search_register = PromptSearchQuery(
+            query=query,
+            direction=direction,
+            whole_word=whole_word,
+            smartcase=smartcase,
+        )
 
-    def prompt_search_register(self) -> tuple[str, SearchDirection] | None:
+    def prompt_search_register(self) -> PromptSearchQuery | None:
         """Return the last successful search shared by this bar's panes."""
         return self._prompt_search_register
 
@@ -90,13 +99,16 @@ class PromptInputBarSearchMixin(_MixinBase):
             origin._show_prompt_search_feedback("no previous search")
             return True
 
-        query, recorded_direction = search_register
         direction = (
-            self._invert_search_direction(recorded_direction)
+            self._invert_search_direction(search_register.direction)
             if reverse
-            else recorded_direction
+            else search_register.direction
         )
-        panes = self._prompt_search_pane_snapshot(query)
+        panes = self._prompt_search_pane_snapshot(
+            search_register.query,
+            whole_word=search_register.whole_word,
+            smartcase=search_register.smartcase,
+        )
         destination = self._resolve_prompt_search_destination(
             panes,
             origin,
@@ -130,8 +142,11 @@ class PromptInputBarSearchMixin(_MixinBase):
     def _prompt_search_pane_snapshot(
         self,
         query: str,
+        *,
+        whole_word: bool = False,
+        smartcase: bool = True,
     ) -> tuple[_PromptSearchPaneSnapshot, ...]:
-        """Capture mounted panes and literal smartcase matches in stack order."""
+        """Capture mounted panes and their matches, in stack order."""
         panes: list[_PromptSearchPaneSnapshot] = []
         for stack_index, item in enumerate(self._stack.items):
             try:
@@ -145,7 +160,12 @@ class PromptInputBarSearchMixin(_MixinBase):
                 _PromptSearchPaneSnapshot(
                     stack_index=stack_index,
                     text_area=text_area,
-                    spans=find_search_matches(text_area.text, query),
+                    spans=find_search_matches(
+                        text_area.text,
+                        query,
+                        whole_word=whole_word,
+                        smartcase=smartcase,
+                    ),
                 )
             )
         return tuple(panes)

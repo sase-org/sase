@@ -45,6 +45,34 @@ def find_next_word_start(doc: Any, row: int, col: int) -> tuple[int, int]:
             return (row, 0)
 
 
+def find_search_word(doc: Any, row: int, col: int) -> tuple[int, int, str] | None:
+    """Return ``(row, start_col, word)`` for vim ``*`` / ``#``, or ``None``.
+
+    If the character at *col* is a keyword character, the word is the keyword
+    run containing it. Otherwise this scans forward on the current line only
+    for the first keyword character and uses the run starting there. Never
+    crosses a line boundary; returns ``None`` when the rest of the line has no
+    keyword character.
+    """
+    line = doc.get_line(row)
+    length = len(line)
+
+    scan = col
+    if not (scan < length and _char_class(line[scan]) == "word"):
+        while scan < length and _char_class(line[scan]) != "word":
+            scan += 1
+        if scan >= length:
+            return None
+
+    start = scan
+    while start > 0 and _char_class(line[start - 1]) == "word":
+        start -= 1
+    end = scan
+    while end + 1 < length and _char_class(line[end + 1]) == "word":
+        end += 1
+    return (row, start, line[start : end + 1])
+
+
 def find_next_WORD_start(doc: Any, row: int, col: int) -> tuple[int, int]:
     """Find start of next WORD (vim 'W')."""
     line_count = doc.line_count

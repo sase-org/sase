@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 
+from sase.ace.tui.widgets._vim_motions import find_search_word
 from sase.ace.tui.widgets._vim_search import (
     SearchDirection,
     SearchSelection,
@@ -65,6 +66,15 @@ class PromptSearchMixin(_MixinBase):
             refresh: bool = True,
         ) -> None: ...
         def _update_count_display(self) -> None: ...
+        def _enter_normal_mode(self) -> None: ...
+        def _visual_kind(self) -> Any: ...
+        def _visual_selected_text(self) -> tuple[str, Any]: ...
+        def _charwise_visual_range(
+            self,
+        ) -> tuple[tuple[int, int], tuple[int, int]]: ...
+        def _linewise_visual_range(
+            self,
+        ) -> tuple[tuple[int, int], tuple[int, int]]: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._search_active = False
@@ -168,10 +178,82 @@ class PromptSearchMixin(_MixinBase):
                 getattr(bar, "record_prompt_search", None) if bar is not None else None
             )
             if callable(record):
-                record(self._search_query, self._search_direction)
+                record(
+                    self._search_query,
+                    self._search_direction,
+                    whole_word=False,
+                    smartcase=True,
+                )
         self._search_active = False
         self._hide_prompt_search_command_line()
         self._update_count_display()
+
+    def _record_prompt_search_query(
+        self,
+        query: str,
+        direction: SearchDirection,
+        *,
+        whole_word: bool,
+        smartcase: bool,
+    ) -> None:
+        """Record *query* in the shared prompt-stack search register."""
+        bar = self._find_prompt_bar()
+        record = getattr(bar, "record_prompt_search", None) if bar is not None else None
+        if callable(record):
+            record(query, direction, whole_word=whole_word, smartcase=smartcase)
+
+    def _search_word_under_cursor(
+        self,
+        *,
+        reverse: bool = False,
+        whole_word: bool = True,
+        count: int = 1,
+    ) -> bool:
+        """Vim ``*`` / ``#`` / ``g*`` / ``g#``: search for the word under the cursor.
+
+        Exempt from smartcase, per vim: this is "find instances of *this*
+        word", not a fresh typed query.
+        """
+        row, col = self.cursor_location
+        resolved = find_search_word(self.document, row, col)
+        if resolved is None:
+            self._show_prompt_search_feedback("no string under cursor")
+            return True
+
+        word_row, word_col, word = resolved
+        self.cursor_location = (word_row, word_col)
+        self._record_prompt_search_query(
+            word,
+            "reverse" if reverse else "forward",
+            whole_word=whole_word,
+            smartcase=False,
+        )
+        return self._repeat_prompt_search(reverse=False, count=count)
+
+    def _search_visual_selection(
+        self, *, reverse: bool = False, count: int = 1
+    ) -> bool:
+        """Vim VISUAL ``*`` / ``#``: search literally for the selected text."""
+        text, _kind = self._visual_selected_text()
+        if not text:
+            self._enter_normal_mode()
+            self._show_prompt_search_feedback("no string under cursor")
+            return True
+
+        if self._visual_kind() == "linewise":
+            start, _end = self._linewise_visual_range()
+        else:
+            start, _end = self._charwise_visual_range()
+
+        self._enter_normal_mode()
+        self.cursor_location = start
+        self._record_prompt_search_query(
+            text,
+            "reverse" if reverse else "forward",
+            whole_word=False,
+            smartcase=False,
+        )
+        return self._repeat_prompt_search(reverse=False, count=count)
 
     def _cancel_prompt_search(self) -> None:
         """Close search, restoring the cursor and clearing highlights."""

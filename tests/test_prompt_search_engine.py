@@ -52,6 +52,49 @@ def test_find_search_matches_includes_overlapping_and_adjacent_spans() -> None:
     assert find_search_matches("abab", "ab") == ((0, 2), (2, 4))
 
 
+def test_whole_word_excludes_substring_occurrences() -> None:
+    text = "log login catalog log"
+
+    assert find_search_matches(text, "log", whole_word=True) == ((0, 3), (18, 21))
+
+
+def test_whole_word_disabled_matches_every_substring() -> None:
+    text = "log login catalog log"
+
+    assert find_search_matches(text, "log", whole_word=False) == (
+        (0, 3),
+        (4, 7),
+        (14, 17),
+        (18, 21),
+    )
+
+
+def test_whole_word_query_edged_by_punctuation_is_not_boundary_wrapped() -> None:
+    text = "a (foo) b >foo< c foo-bar d"
+
+    # "(" / ")" / ">" / "<" / "-" are not keyword characters, so a query
+    # edged by them is not \b-wrapped on that side and still matches.
+    assert find_search_matches(text, "(foo)", whole_word=True) == ((2, 7),)
+    assert find_search_matches(text, ">foo<", whole_word=True) == ((10, 15),)
+    assert find_search_matches(text, "foo-bar", whole_word=True) == ((18, 25),)
+
+
+def test_whole_word_combines_with_smartcase() -> None:
+    text = "Foo foo FOO"
+
+    assert find_search_matches(text, "foo", whole_word=True) == (
+        (0, 3),
+        (4, 7),
+        (8, 11),
+    )
+    assert find_search_matches(
+        text,
+        "foo",
+        whole_word=True,
+        smartcase=False,
+    ) == ((4, 7),)
+
+
 def test_select_search_match_forward_without_wrap() -> None:
     matches = ((0, 3), (5, 8), (10, 13))
 
