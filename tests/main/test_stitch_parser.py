@@ -115,6 +115,17 @@ class TestStitchParser:
 
         assert ns.repos == ["sase", "sase-core"]
 
+    def test_list_origin_is_repeatable(self) -> None:
+        ns = parse_sase_args(
+            ["stitch", "list", "--origin", "manual", "--origin", "sase"]
+        )
+
+        assert ns.origins == ["manual", "sase"]
+
+    def test_list_rejects_unknown_origin(self) -> None:
+        with pytest.raises(SystemExit):
+            parse_sase_args(["stitch", "list", "--origin", "bogus"])
+
     def test_list_current_only_flag(self) -> None:
         ns = parse_sase_args(["stitch", "list", "-o"])
 
@@ -243,6 +254,7 @@ class TestStitchParser:
             "--merges",
             "--no-fetch",
             "--no-tags",
+            "--origin",
             "--repo",
             "--reverse",
             "--sdd",
@@ -277,6 +289,7 @@ class TestStitchParser:
         assert ns.until is None
         assert ns.remote_ref is None
         assert ns.authors == []
+        assert ns.origins == []
 
 
 class TestStitchCreateParser:
@@ -448,6 +461,7 @@ class TestStitchHandlerDispatch:
             show_tags=True,
             until=None,
             authors=[],
+            origins=[],
         )
 
         assert _handle_list(ns) == 2
@@ -477,6 +491,7 @@ class TestStitchHandlerDispatch:
             sdd=False,
             until="2026-07-08",
             authors=[],
+            origins=[],
         )
 
         assert _handle_list(ns) == 2
@@ -528,13 +543,16 @@ class TestStitchHandlerDispatch:
             show_tags=True,
             since="2026-07-18",
             until="2026-07-18",
+            origins=["sase"],
         )
 
         assert _handle_list(ns) == 0
         filter_spec = captured["filter_spec"]
         assert filter_spec.since is not None
         assert filter_spec.until is not None
+        assert filter_spec.origins == ("sase",)
         filters = filter_spec.resolve(now=reference)
         assert filters.since == int(datetime(2026, 7, 18, tzinfo=tz).timestamp())
         assert filters.until == int(datetime(2026, 7, 19, tzinfo=tz).timestamp()) - 1
         assert filters.merges == "show"
+        assert filters.origins == ("sase",)

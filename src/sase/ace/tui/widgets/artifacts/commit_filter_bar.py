@@ -40,6 +40,7 @@ class CommitFilterBar(FilterBar):
         ("project", "single project name; omitted means all projects"),
         ("repo", "repository name or alias"),
         ("author", "name or email substring"),
+        ("origin", "commit origin: manual or sase"),
         ("since", "from an instant or the start of a named day"),
         ("until", "through an instant or the full named day"),
         ("sidecar", "include sidecar repositories"),
@@ -52,19 +53,21 @@ class CommitFilterBar(FilterBar):
         "sidecar": ("true", "false"),
         "merges": ("hide", "show", "only"),
         "limit": ("40", "100", "200", "all"),
+        "origin": ("manual", "sase"),
     }
     VALUE_HINTS = {
         "project": "project name",
         "repo": "repository",
         "author": "author",
+        "origin": "manual or sase",
         "since": "date bound",
         "until": "named days include the full day",
         "sidecar": "true or false",
         "merges": "hide, show, or only",
         "limit": "row cap or all",
     }
-    REPEATABLE_VALUE_KINDS = frozenset(("repo", "author"))
-    NEGATABLE_KEYS = frozenset(("repo", "author"))
+    REPEATABLE_VALUE_KINDS = frozenset(("repo", "author", "origin"))
+    NEGATABLE_KEYS = frozenset(("repo", "author", "origin"))
     FREE_TEXT_HINT = "subject terms (AND)"
     PERSISTENT = True
 

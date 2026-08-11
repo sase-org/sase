@@ -561,7 +561,7 @@
               "properties": {
                 "default_query": {
                   "type": "string",
-                  "description": "Canonical query loaded into the persistent Stitches filter when ACE starts. One singular, non-negatable project: token may use a configured project name, ProjectSpec directory key, or alias; known committed refs are rewritten to the configured name. Otherwise startup adds an explicit ACE-query project or the current registered project when available. After startup, no project: token means all projects. Merge visibility accepts merges:hide, merges:show, or merges:only. Queries without an explicit positive limit:N are uncapped. Relative date windows re-anchor on refresh; configuration changes take effect in the next ACE process.",
+                  "description": "Canonical query loaded into the persistent Stitches filter when ACE starts. One singular, non-negatable project: token may use a configured project name, ProjectSpec directory key, or alias; known committed refs are rewritten to the configured name. Otherwise startup adds an explicit ACE-query project or the current registered project when available. After startup, no project: token means all projects. Merge visibility accepts merges:hide, merges:show, or merges:only. Origin accepts origin:manual or origin:sase, repeatable and negatable like repo: and author:. Queries without an explicit positive limit:N are uncapped. Relative date windows re-anchor on refresh; configuration changes take effect in the next ACE process.",
                   "default": "sidecar:false merges:hide since:24h"
                 }
               }

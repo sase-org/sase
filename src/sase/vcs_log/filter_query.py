@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from sase.core.vcs_log_wire import AggregatedCommitWire
+from sase.core.vcs_log_wire import AggregatedCommitWire, CommitOrigin
 from sase.filter_tokens import (
     FilterQueryError,
     FilterToken,
@@ -39,6 +39,7 @@ CompletionKind = Literal[
     "project",
     "repo",
     "author",
+    "origin",
     "since",
     "until",
     "sidecar",
@@ -52,15 +53,19 @@ _FILTER_KEYS = (
     "project",
     "repo",
     "author",
+    "origin",
     "since",
     "until",
     "sidecar",
     "merges",
     "limit",
 )
-_REPEATABLE_KEYS = frozenset(("repo", "author"))
-_NEGATABLE_KEYS = frozenset(("repo", "author"))
+_REPEATABLE_KEYS = frozenset(("repo", "author", "origin"))
+_NEGATABLE_KEYS = frozenset(("repo", "author", "origin"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
+#: Canonical commit-origin values accepted by the ``origin:`` filter key.
+#: Mirrors ``sase.core.vcs_log_wire.CommitOrigin``.
+_ORIGIN_VALUES: frozenset[str] = frozenset(("manual", "sase"))
 
 
 class CommitFilterQueryError(FilterQueryError):
@@ -74,6 +79,8 @@ class CommitLogFilterValues:
     project: str | None = None
     authors: tuple[str, ...] = ()
     excluded_authors: tuple[str, ...] = ()
+    origins: tuple[CommitOrigin, ...] = ()
+    excluded_origins: tuple[CommitOrigin, ...] = ()
     since_text: str = ""
     until_text: str = ""
     since: TimeBound | None = None
@@ -116,6 +123,8 @@ def parse_commit_filter_query(
     excluded_repos: list[str] = []
     authors: list[str] = []
     excluded_authors: list[str] = []
+    origins: list[CommitOrigin] = []
+    excluded_origins: list[CommitOrigin] = []
     text_terms: list[str] = []
     excluded_text_terms: list[str] = []
     singles: dict[str, tuple[str, FilterToken]] = {}
@@ -152,8 +161,11 @@ def parse_commit_filter_query(
                 raise _error(f"{key}: contains an empty value", token)
             if key == "repo":
                 (excluded_repos if token.negated else repos).extend(parts)
-            else:
+            elif key == "author":
                 (excluded_authors if token.negated else authors).extend(parts)
+            else:
+                origin_parts = [_parse_origin_value(part, token) for part in parts]
+                (excluded_origins if token.negated else origins).extend(origin_parts)
             continue
 
         if key in singles:
@@ -205,6 +217,8 @@ def parse_commit_filter_query(
         project=project,
         authors=tuple(authors),
         excluded_authors=tuple(excluded_authors),
+        origins=tuple(origins),
+        excluded_origins=tuple(excluded_origins),
         since_text=since_text,
         until_text=until_text,
         since=since,
@@ -235,6 +249,12 @@ def to_query_tokens(
     )
     tokens.extend(
         f"-author:{quote_value(value, keyed=True)}" for value in values.excluded_authors
+    )
+    tokens.extend(
+        f"origin:{quote_value(value, keyed=True)}" for value in values.origins
+    )
+    tokens.extend(
+        f"-origin:{quote_value(value, keyed=True)}" for value in values.excluded_origins
     )
     tokens.append(f"sidecar:{str(values.sidecar).lower()}")
     tokens.append(f"merges:{values.merges}")
@@ -268,6 +288,8 @@ def compile_commit_matcher(
     excluded_authors = tuple(value.casefold() for value in values.excluded_authors)
     wanted_text = tuple(value.casefold() for value in values.text)
     excluded_text = tuple(value.casefold() for value in values.excluded_text)
+    wanted_origins = frozenset(values.origins)
+    excluded_origins = frozenset(values.excluded_origins)
     aliases_by_repo = {
         name.casefold(): frozenset(alias.casefold() for alias in aliases)
         for name, aliases in (repo_aliases or {}).items()
@@ -301,6 +323,10 @@ def compile_commit_matcher(
                 for needle in excluded_authors
             ):
                 return False
+        if wanted_origins and commit.origin not in wanted_origins:
+            return False
+        if excluded_origins and commit.origin in excluded_origins:
+            return False
         if since is not None and commit.timestamp < since:
             return False
         if until is not None and commit.timestamp > until:
@@ -391,6 +417,13 @@ def _parse_merges_value(
     if folded == "only":
         return "only"
     raise _error("merges: must be 'hide', 'show', or 'only'", token)
+
+
+def _parse_origin_value(value: str, token: FilterToken) -> CommitOrigin:
+    folded = value.casefold()
+    if folded in _ORIGIN_VALUES:
+        return folded  # type: ignore[return-value]
+    raise _error("origin: must be 'manual' or 'sase'", token)
 
 
 def _error(message: str, token: FilterToken) -> CommitFilterQueryError:

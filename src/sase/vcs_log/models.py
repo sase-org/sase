@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from sase.core.vcs_log_wire import AggregatedCommitWire, CommitPresence
+from sase.core.vcs_log_wire import AggregatedCommitWire, CommitOrigin, CommitPresence
 from sase.plan_documents import PlanWorkspace
 from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_log.dates import TimeBound, VcsLogDateError
@@ -31,6 +31,7 @@ class CommitFilters:
     until: int | None = None
     authors: tuple[str, ...] = ()
     merges: MergeVisibility = "hide"
+    origins: tuple[CommitOrigin, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class CommitFilterSpec:
     until: TimeBound | None = None
     authors: tuple[str, ...] = ()
     merges: MergeVisibility = "hide"
+    origins: tuple[CommitOrigin, ...] = ()
 
     def resolve(self, *, now: datetime) -> CommitFilters:
         """Resolve both date bounds against the same operation reference."""
@@ -63,6 +65,7 @@ class CommitFilterSpec:
             until=until,
             authors=self.authors,
             merges=self.merges,
+            origins=self.origins,
         )
 
 

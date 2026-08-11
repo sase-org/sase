@@ -9,7 +9,7 @@ from hypothesis import given, strategies as st
 
 from sase.ace.tui.widgets.artifacts.commits_rendering import commit_filter_chips
 from sase.core.time import get_timezone
-from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
+from sase.core.vcs_log_wire import AggregatedCommitWire, CommitOrigin, VcsCommitWire
 from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
@@ -32,6 +32,7 @@ def _entry(
     timestamp: int = 200,
     subject: str = "Fix live commit timeline preview",
     parent_ids: tuple[str, ...] = (),
+    origin: CommitOrigin = "manual",
 ) -> AggregatedCommitWire:
     return AggregatedCommitWire(
         repo=repo,
@@ -44,6 +45,7 @@ def _entry(
             parent_ids=parent_ids,
             subject=subject,
             body="",
+            origin=origin,
         ),
     )
 
@@ -135,6 +137,28 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
     assert values.excluded_text == ("generated", "rollout bot")
 
 
+def test_parse_origin_comma_list_and_negation() -> None:
+    values = parse_commit_filter_query("origin:manual,sase -origin:sase")
+
+    assert values.origins == ("manual", "sase")
+    assert values.excluded_origins == ("sase",)
+
+
+def test_parse_origin_is_case_insensitive() -> None:
+    values = parse_commit_filter_query("ORIGIN:SaSe")
+
+    assert values.origins == ("sase",)
+
+
+def test_canonical_query_round_trips_origin_selection() -> None:
+    values = parse_commit_filter_query("origin:manual,sase -origin:sase")
+
+    assert to_query_string(values) == (
+        "origin:manual origin:sase -origin:sase sidecar:true merges:hide"
+    )
+    assert parse_commit_filter_query(to_query_string(values)) == values
+
+
 @pytest.mark.parametrize(
     ("query", "message", "token", "span"),
     (
@@ -159,6 +183,14 @@ def test_parse_mixed_positive_and_negative_terms() -> None:
             (0, 13),
         ),
         ("repo:a,,b", "empty value", "repo:a,,b", (0, 9)),
+        ("origin:", "requires a value", "origin:", (0, 7)),
+        ("origin:manual,,sase", "empty value", "origin:manual,,sase", (0, 19)),
+        (
+            "origin:bogus",
+            "must be 'manual' or 'sase'",
+            "origin:bogus",
+            (0, 12),
+        ),
         ("limit:-1", "non-negative integer", "limit:-1", (0, 8)),
         ("since:not-a-date", "Invalid DATE", "since:not-a-date", (0, 16)),
         ("since:2026-07-18 since:7d", "only appear once", "since:7d", (17, 25)),
@@ -318,6 +350,10 @@ _VALUE_TEXT = st.text(
     authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    origins=st.lists(st.sampled_from(("manual", "sase")), max_size=2).map(tuple),
+    excluded_origins=st.lists(st.sampled_from(("manual", "sase")), max_size=2).map(
+        tuple
+    ),
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     sidecar=st.booleans(),
@@ -338,6 +374,8 @@ def test_canonical_query_round_trip_property(
     authors: tuple[str, ...],
     excluded_repos: tuple[str, ...],
     excluded_authors: tuple[str, ...],
+    origins: tuple[CommitOrigin, ...],
+    excluded_origins: tuple[CommitOrigin, ...],
     text_terms: tuple[str, ...],
     excluded_text: tuple[str, ...],
     sidecar: bool,
@@ -350,6 +388,8 @@ def test_canonical_query_round_trip_property(
         project=project,
         authors=authors,
         excluded_authors=excluded_authors,
+        origins=origins,
+        excluded_origins=excluded_origins,
         since_text=since_text,
         until_text=until_text,
         since=parse_time_bound(since_text) if since_text else None,
@@ -523,6 +563,20 @@ def test_commit_matcher_applies_merge_visibility(
     assert matcher(_entry(parent_ids=("p0", "p1"))) is merge_expected
 
 
+def test_commit_matcher_applies_origin_selection() -> None:
+    matcher = compile_commit_matcher(CommitLogFilterValues(origins=("sase",)))
+
+    assert matcher(_entry(origin="sase")) is True
+    assert matcher(_entry(origin="manual")) is False
+
+
+def test_commit_matcher_applies_origin_negation() -> None:
+    matcher = compile_commit_matcher(CommitLogFilterValues(excluded_origins=("sase",)))
+
+    assert matcher(_entry(origin="sase")) is False
+    assert matcher(_entry(origin="manual")) is True
+
+
 @pytest.mark.parametrize(
     ("text", "cursor", "expected"),
     (
@@ -541,8 +595,12 @@ def test_commit_matcher_applies_merge_visibility(
         ("limit:al", 7, ("limit", "a")),
         ("sidecar:t", 9, ("sidecar", "t")),
         ("merges:o", 8, ("merges", "o")),
+        ("origin:", 7, ("origin", "")),
+        ("origin:sa", 9, ("origin", "sa")),
+        ("origin:manual,sa", 16, ("origin", "sa")),
         ("-repo:plans", 11, ("repo", "plans")),
         ("-author:bo", 10, ("author", "bo")),
+        ("-origin:sa", 10, ("origin", "sa")),
         ("-since:7", 8, ("key", "since:7")),
         ("-merges:o", 9, ("key", "merges:o")),
         ('-"generated ro', 14, ("text", "generated ro")),

@@ -118,6 +118,15 @@ def _add_list_options(parser: argparse.ArgumentParser) -> None:
         help="Hide trailing SASE_* commit tags",
     )
     parser.add_argument(
+        "--origin",
+        action="append",
+        default=[],
+        dest="origins",
+        choices=["manual", "sase"],
+        metavar="ORIGIN",
+        help="Filter by commit origin: manual or sase (repeatable; ORed)",
+    )
+    parser.add_argument(
         "-r",
         "--repo",
         action="append",

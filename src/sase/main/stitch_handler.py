@@ -33,6 +33,7 @@ def _handle_list(args: argparse.Namespace) -> int:
         until=until_bound,
         authors=tuple(args.authors or ()),
         merges=args.merges,
+        origins=tuple(args.origins or ()),
     )
 
     try:

@@ -418,6 +418,42 @@ def test_pretty_filter_summary_mentions_non_default_merge_modes() -> None:
     assert "No merge commits found (merges only)" in text
 
 
+def test_pretty_filter_summary_mentions_origin_selection() -> None:
+    text = _render(_result(), "pretty", filters=CommitFilters(origins=("sase",)))
+    assert "origin sase" in text
+
+    empty = VcsLogResult(repos=(), commits=(), warnings=())
+    text = _render(empty, "pretty", filters=CommitFilters(origins=("sase", "manual")))
+    assert "No commits found (origin sase or manual)" in text
+
+
+def test_origin_filter_applies_before_limit_cap() -> None:
+    result = VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry("sase", "c5000000", 500, "c5", origin="manual"),
+            _entry("sase", "c4000000", 400, "c4", origin="manual"),
+            _entry("sase", "c3000000", 300, "c3", origin="sase"),
+            _entry("sase", "c2000000", 200, "c2", origin="manual"),
+            _entry("sase", "c1000000", 100, "c1", origin="sase"),
+        ),
+        warnings=(),
+    )
+
+    text = _render(
+        result,
+        "oneline",
+        limit=2,
+        filters=CommitFilters(origins=("sase",)),
+    )
+
+    assert "c3" in text
+    assert "c1" in text
+    assert "c5" not in text
+    assert "c4" not in text
+    assert "c2" not in text
+
+
 def test_pretty_empty_still_shows_warnings() -> None:
     empty = VcsLogResult(repos=(), commits=(), warnings=("boom",))
     text = _render(empty, "pretty")

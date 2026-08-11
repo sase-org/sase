@@ -83,12 +83,14 @@ def ordered_commits(
 ) -> tuple[AggregatedCommitWire, ...]:
     # Providers use coarse date filtering. Apply SASE's exact inclusive
     # author-time bounds before the user-visible cap so boundary-margin
-    # candidates cannot consume output rows.
+    # candidates cannot consume output rows. Origin can't be pushed down to
+    # the provider at all, so it gets the same before-the-cap treatment.
     commits = tuple(
         entry
         for entry in result.commits
         if (filters.since is None or entry.commit.timestamp >= filters.since)
         and (filters.until is None or entry.commit.timestamp <= filters.until)
+        and (not filters.origins or entry.commit.origin in filters.origins)
     )
     if limit > 0:
         commits = commits[:limit]
@@ -103,6 +105,8 @@ def filter_summary(filters: CommitFilters) -> str:
         parts.append(f"until {_format_bound(filters.until)}")
     if filters.authors:
         parts.append(f"author {' or '.join(filters.authors)}")
+    if filters.origins:
+        parts.append(f"origin {' or '.join(filters.origins)}")
     if filters.merges == "only":
         parts.append("merges only")
     elif filters.merges == "show":
