@@ -265,7 +265,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
         bindings, _mode_label = footer._last_layout_inputs
-        assert ("H", "collapse group") in bindings
+        assert ("H", "collapse fold") in bindings
         assert ("=", "restore panels") in bindings
         ace_png_visual.assert_page_png(
             page,
@@ -356,7 +356,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert_page_svg_contains(page, "▲ @epic")
         assert footer._last_layout_inputs is not None
         bindings, _mode_label = footer._last_layout_inputs
-        assert ("H", "collapse group") in bindings
+        assert ("H", "collapse fold") in bindings
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_selected_expanded_120x40",

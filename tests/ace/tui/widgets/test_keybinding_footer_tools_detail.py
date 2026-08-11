@@ -79,34 +79,27 @@ def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
     )
 
 
-def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
+def test_footer_selected_panel_advertises_hinted_collapse_fold() -> None:
     footer = KeybindingFooter()
 
-    lanes = _labels(
+    collapsible = _labels(
+        footer._compute_agent_bindings(
+            None,
+            panel_focused=True,
+            panel_collapsed=False,
+            panel_fold_sweep_available=True,
+            panel_isolation_available=True,
+        )
+    )
+    # Row-focus availability flags are ignored while whole-panel focus holds,
+    # since the panel-wide ladder they used to drive is retired.
+    row_flags_ignored = _labels(
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
             panel_collapsed=False,
             lane_collapse_available=True,
             clan_collapse_available=True,
-            group_collapse_available=True,
-            panel_isolation_available=True,
-        )
-    )
-    clans = _labels(
-        footer._compute_agent_bindings(
-            None,
-            panel_focused=True,
-            panel_collapsed=False,
-            clan_collapse_available=True,
-            group_collapse_available=True,
-        )
-    )
-    group = _labels(
-        footer._compute_agent_bindings(
-            None,
-            panel_focused=True,
-            panel_collapsed=False,
             group_collapse_available=True,
         )
     )
@@ -134,13 +127,11 @@ def test_footer_selected_panel_advertises_next_collapse_ladder_step() -> None:
         )
     )
 
-    assert ("H", "collapse lanes") in lanes
-    assert ("H", "collapse clans") in clans
-    assert ("H", "collapse group") not in clans
-    assert ("H", "collapse group") in group
+    assert ("H", "collapse fold") in collapsible
+    assert not any(key == "H" for key, _label in row_flags_ignored)
     assert ("h", "collapse panel") in terminal
     assert not any(key == "H" for key, _label in terminal)
-    assert ("=", "only panel") in lanes
+    assert ("=", "only panel") in collapsible
     assert ("=", "only panel") in collapsed
     assert not any(key == "H" for key, _label in collapsed)
     assert ("h", "last expanded panel") not in collapsed
@@ -254,16 +245,18 @@ def test_footer_panel_isolation_uses_custom_isolate_action_key() -> None:
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
-            lane_collapse_available=True,
+            panel_fold_sweep_available=True,
             panel_isolation_available=True,
         )
     )
 
     assert ("<f2>", "only panel") in bindings
-    assert ("<f3>", "collapse lanes") in bindings
+    assert ("<f3>", "collapse fold") in bindings
 
 
-def test_footer_selected_panel_clan_rung_uses_custom_collapse_action_key() -> None:
+def test_footer_selected_panel_hinted_collapse_uses_custom_collapse_action_key() -> (
+    None
+):
     footer = KeybindingFooter()
     footer.set_keymap_registry(
         load_keymap_registry({"keymaps": {"app": {"hooks_or_collapse_all": "f3"}}})
@@ -273,11 +266,11 @@ def test_footer_selected_panel_clan_rung_uses_custom_collapse_action_key() -> No
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
-            clan_collapse_available=True,
+            panel_fold_sweep_available=True,
         )
     )
 
-    assert ("<f3>", "collapse clans") in bindings
+    assert ("<f3>", "collapse fold") in bindings
 
 
 def test_footer_selected_clan_rung_uses_singular_custom_collapse_action_key() -> None:
@@ -366,10 +359,11 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             group_collapse_available=True,
         )
     )
-    panel_clan_collapse = _labels(
+    panel_hinted_collapse = _labels(
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
+            panel_fold_sweep_available=True,
             clan_collapse_available=True,
             structural_collapse_kind="family",
             group_collapse_available=True,
@@ -398,9 +392,12 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse lanes") in lane_collapse
     assert ("H", "collapse clan") not in lane_collapse
     assert ("H", "collapse group") not in lane_collapse
-    assert ("H", "collapse clans") in panel_clan_collapse
-    assert ("H", "collapse family") not in panel_clan_collapse
-    assert ("H", "collapse group") not in panel_clan_collapse
+    # Whole-panel focus ignores row-scoped availability flags and shows the
+    # single hinted-collapse chip instead of the retired panel-wide ladder.
+    assert ("H", "collapse fold") in panel_hinted_collapse
+    assert ("H", "collapse clans") not in panel_hinted_collapse
+    assert ("H", "collapse family") not in panel_hinted_collapse
+    assert ("H", "collapse group") not in panel_hinted_collapse
     assert ("H", "collapse group") in group_collapse
 
 

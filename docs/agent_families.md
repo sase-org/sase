@@ -527,15 +527,14 @@ hand and never resurrects a fold that no longer exists. Each panel remembers at 
 sweep; a fresh sweep replaces that panel's record. The footer shows `- collapse folds`
 or `- restore folds` depending on which direction the next press would take.
 
-Uppercase `H` on a selected expanded panel walks a panel-wide collapse ladder without
-changing the remembered row: it first fully collapses every open canonical lane in that
-panel, including lanes hidden by grouping banners; then it collapses every open
-canonical clan in that panel in one batch, including clans hidden by grouping banners;
-next it collapses the last expanded top-level grouping banner in rendered order, one per
-press; finally it collapses the panel through the same path as lowercase `h`. Nested
-grouping folds and structural folds in sibling panels are left alone. Ambiguous or
-malformed clan owners are skipped. An already collapsed panel is the saturated terminal
-state. Whole-panel `H` is unavailable in merged layout, where the existing
+Uppercase `H` on a selected expanded panel hints every currently expanded lane, clan,
+and top-level grouping banner in that panel — including owners hidden behind a collapsed
+banner — using the same adaptive hint keys as `L`, restricted to folds that are not
+already collapsed. Typing a hint fully collapses that one fold and leaves the remembered
+row and every other fold untouched; `H` never expands and never collapses the panel
+itself, which stays lowercase `h`'s job. A panel with nothing expanded warns without
+arming hint mode; an already collapsed panel keeps the existing already-collapsed
+warning. Whole-panel `H` is unavailable in merged layout, where the existing
 row/group-scoped ladder remains in effect. That row ladder closes group-wide lanes
 first, then the selected open clan, then every remaining open canonical clan in the next
 group; the grouping banner closes only after those structural rungs are saturated.

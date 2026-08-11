@@ -29,6 +29,7 @@ class AgentPanelHintFoldingMixin:
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
     _panel_fold_hint_mode_active: bool
+    _panel_fold_hint_intent: Literal["toggle", "collapse"]
     _panel_fold_hint_snapshot: tuple[FoldHintTarget, ...]
     _panel_fold_hint_to_target: dict[str, FoldHintTarget]
     _panel_fold_target_to_hint: dict[FoldHintTarget, str]
@@ -36,6 +37,12 @@ class AgentPanelHintFoldingMixin:
 
     def action_toggle_selected_agent_panels(self) -> None:
         """Hint one fold in the selected tribe for immediate toggling."""
+        self._arm_panel_fold_hint_mode(intent="toggle")
+
+    def _arm_panel_fold_hint_mode(
+        self, *, intent: Literal["toggle", "collapse"]
+    ) -> None:
+        """Hint fold owners in the selected tribe for toggling or collapsing."""
         if self.current_tab != "agents":
             return
 
@@ -45,14 +52,22 @@ class AgentPanelHintFoldingMixin:
         if getattr(self, "_panel_fold_hint_mode_active", False):
             self._teardown_panel_fold_hint_mode()
 
-        targets = self._enumerate_panel_fold_hint_targets()
+        collapsible_only = intent == "collapse"
+        targets = self._enumerate_panel_fold_hint_targets(
+            collapsible_only=collapsible_only
+        )
         if not targets:
             focused_key = getattr(self._panel_group, "focused_key", None)
-            message = (
-                "Selected tribe panel is collapsed"
-                if panel_is_collapsed(self, focused_key)
-                else "No folds in the selected tribe"
-            )
+            if panel_is_collapsed(self, focused_key):
+                message = (
+                    "Panel is already collapsed"
+                    if collapsible_only
+                    else "Selected tribe panel is collapsed"
+                )
+            elif collapsible_only:
+                message = "No expanded folds in the selected tribe"
+            else:
+                message = "No folds in the selected tribe"
             self.notify(message, severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -68,6 +83,7 @@ class AgentPanelHintFoldingMixin:
         self._panel_fold_hint_to_target = hint_to_target
         self._panel_fold_target_to_hint = target_to_hint
         self._panel_fold_hint_pending_prefix = ""
+        self._panel_fold_hint_intent = intent
         self._panel_fold_hint_mode_active = True
 
         self._refresh_panel_fold_hint_display()
@@ -78,15 +94,22 @@ class AgentPanelHintFoldingMixin:
             footer = self.query_one(  # type: ignore[attr-defined]
                 "#keybinding-footer", KeybindingFooter
             )
-            footer.update_fold_hint_bindings()
+            footer.update_fold_hint_bindings(collapse_only=collapsible_only)
         except Exception:
             pass
 
-    def _enumerate_panel_fold_hint_targets(self) -> tuple[FoldHintTarget, ...]:
-        """Return visible fold owners in the selected tribe's render order."""
+    def _enumerate_panel_fold_hint_targets(
+        self, *, collapsible_only: bool = False
+    ) -> tuple[FoldHintTarget, ...]:
+        """Return visible fold owners in the selected tribe's render order.
+
+        With ``collapsible_only``, folds that are already collapsed are
+        left out, restricting the hint alphabet to folds ``H`` can collapse.
+        """
         from ...models._agent_tree import agent_fold_key
         from ...models.agent_groups import GroupingMode, build_agent_tree
         from ...models.agent_panels import AgentPanelGroup
+        from ...models.fold_state import FoldLevel
         from ._fold_scope import panel_fold_registry
         from ._navigation_order import rendered_panel_slice
 
@@ -113,11 +136,14 @@ class AgentPanelHintFoldingMixin:
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
         for entry in tree:
             if entry.kind == "group" and entry.group is not None:
-                action = ("group", focused_key, entry.group.group_key)
+                group_key = entry.group.group_key
+                if collapsible_only and registry.is_collapsed(group_key):
+                    continue
+                action = ("group", focused_key, group_key)
                 if action in seen_actions:
                     continue
                 seen_actions.add(action)
-                targets.append(("group", focused_key, entry.group.group_key))
+                targets.append(("group", focused_key, group_key))
                 continue
             if entry.kind != "agent" or entry.agent_idx is None:
                 continue
@@ -132,6 +158,11 @@ class AgentPanelHintFoldingMixin:
             fold_key = agent_fold_key(owner)
             if fold_key is None or (
                 not owner.is_clan_container and fold_key not in fold_counts
+            ):
+                continue
+            if (
+                collapsible_only
+                and self._fold_manager.get(fold_key) == FoldLevel.COLLAPSED
             ):
                 continue
             agent_action = ("agent-fold", fold_key)
@@ -190,6 +221,7 @@ class AgentPanelHintFoldingMixin:
         self._panel_fold_hint_to_target = {}
         self._panel_fold_target_to_hint = {}
         self._panel_fold_hint_pending_prefix = ""
+        self._panel_fold_hint_intent = "toggle"
 
         if refresh_titles and self.current_tab == "agents":
             self._refresh_panel_fold_hint_display()
@@ -227,9 +259,13 @@ class AgentPanelHintFoldingMixin:
         return True
 
     def _apply_panel_fold_hint_target(self, target: FoldHintTarget) -> None:
-        """Toggle one fold target after verifying the rendered snapshot."""
+        """Toggle or collapse one fold target after verifying the snapshot."""
+        intent = getattr(self, "_panel_fold_hint_intent", "toggle")
+        collapsible_only = intent == "collapse"
         snapshot = tuple(getattr(self, "_panel_fold_hint_snapshot", ()))
-        live_targets = self._enumerate_panel_fold_hint_targets()
+        live_targets = self._enumerate_panel_fold_hint_targets(
+            collapsible_only=collapsible_only
+        )
         if snapshot != live_targets or target not in live_targets:
             self._teardown_panel_fold_hint_mode()
             self.notify(  # type: ignore[attr-defined]
@@ -246,7 +282,7 @@ class AgentPanelHintFoldingMixin:
         if target[0] == "group":
             panel_key, group_key = target[1], target[2]
             registry = panel_fold_registry(self, panel_key)
-            if registry.is_collapsed(group_key):
+            if not collapsible_only and registry.is_collapsed(group_key):
                 changed = registry.expand(group_key)
                 new_collapsed = False
                 expanded = changed
@@ -267,7 +303,10 @@ class AgentPanelHintFoldingMixin:
                         snap_group_focus()
         else:
             fold_key = target[3]
-            if self._fold_manager.get(fold_key) == FoldLevel.COLLAPSED:
+            if (
+                not collapsible_only
+                and self._fold_manager.get(fold_key) == FoldLevel.COLLAPSED
+            ):
                 changed = self._fold_manager.expand(fold_key)
                 expanded = changed
             else:

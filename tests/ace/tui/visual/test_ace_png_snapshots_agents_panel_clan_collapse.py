@@ -104,7 +104,7 @@ async def test_selected_panel_clan_collapse_precedes_status_group_png_snapshot(
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
-        assert ("H", "collapse clans") in footer._last_layout_inputs[0]
+        assert ("H", "collapse fold") in footer._last_layout_inputs[0]
         registry = page.app._group_fold_registry.for_panel("chop")
         assert not registry.is_collapsed(("Running",))
         assert not registry.is_collapsed(("Done",))
@@ -116,10 +116,19 @@ async def test_selected_panel_clan_collapse_precedes_status_group_png_snapshot(
         )
 
         await page.press("H")
+        await page.wait_for(lambda _screen: page.app._panel_fold_hint_mode_active)
+        fold_hints = page.app._panel_fold_target_to_hint
+        clan_target = next(
+            target
+            for target in fold_hints
+            if target[0] == "agent" and target[3] == clan_key
+        )
+        await page.press(fold_hints[clan_target])
+        await page.wait_for(lambda _screen: not page.app._panel_fold_hint_mode_active)
         await wait_for_visual_idle(page)
 
         assert page.app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
         assert not registry.is_collapsed(("Running",))
         assert not registry.is_collapsed(("Done",))
         assert footer._last_layout_inputs is not None
-        assert ("H", "collapse group") in footer._last_layout_inputs[0]
+        assert ("H", "collapse fold") in footer._last_layout_inputs[0]

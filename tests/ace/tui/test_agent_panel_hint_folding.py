@@ -52,9 +52,11 @@ def _agents() -> list[Agent]:
 class _FooterStub:
     def __init__(self) -> None:
         self.fold_hint_updates = 0
+        self.fold_hint_collapse_only: bool | None = None
 
-    def update_fold_hint_bindings(self) -> None:
+    def update_fold_hint_bindings(self, *, collapse_only: bool = False) -> None:
         self.fold_hint_updates += 1
+        self.fold_hint_collapse_only = collapse_only
 
 
 class _StubApp(
@@ -277,7 +279,11 @@ def test_expanded_focused_panel_without_fold_owners_warns(
     monkeypatch: Any,
 ) -> None:
     app = _EntryApp(collapsed_panels=set())
-    monkeypatch.setattr(app, "_enumerate_panel_fold_hint_targets", lambda: ())
+    monkeypatch.setattr(
+        app,
+        "_enumerate_panel_fold_hint_targets",
+        lambda *, collapsible_only=False: (),
+    )
 
     app.action_toggle_selected_agent_panels()
 

@@ -22,7 +22,7 @@ class AgentLaneCollapseTarget:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentPanelLaneCollapseTarget:
+class _AgentPanelLaneCollapseTarget:
     """One validated, panel-wide, saturating lane-collapse action."""
 
     panel_key: PanelKey
@@ -191,7 +191,7 @@ def resolve_group_lane_collapse_target(
 def resolve_panel_lane_collapse_target(
     owner: Any,
     panel_key: PanelKey,
-) -> AgentPanelLaneCollapseTarget | None:
+) -> _AgentPanelLaneCollapseTarget | None:
     """Resolve every open canonical lane in one selected tribe panel."""
     from ._navigation_order import rendered_panel_slice
 
@@ -204,7 +204,7 @@ def resolve_panel_lane_collapse_target(
     )
     if not open_keys:
         return None
-    return AgentPanelLaneCollapseTarget(
+    return _AgentPanelLaneCollapseTarget(
         panel_key=panel_key,
         fold_keys=open_keys,
     )
@@ -212,7 +212,6 @@ def resolve_panel_lane_collapse_target(
 
 __all__ = [
     "AgentLaneCollapseTarget",
-    "AgentPanelLaneCollapseTarget",
     "resolve_group_lane_collapse_target",
     "resolve_panel_lane_collapse_target",
 ]

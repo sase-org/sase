@@ -156,32 +156,34 @@ class AgentFooterDisplayMixin:
                 if left_navigation is not None:
                     left_navigation_kind = left_navigation.kind
 
+            # Under whole-panel focus, ``H`` arms a hinted collapse instead of
+            # the row-scoped ladder below, so these resolvers stay row-only;
+            # each already returns ``None`` while a panel holds focus.
             lane_collapse_available = False
-            lane_resolver_name = (
-                "_resolve_focused_panel_lane_collapse_target"
-                if panel_focused
-                else "_resolve_agent_lane_collapse_target"
+            resolve_lane_collapse = getattr(
+                self, "_resolve_agent_lane_collapse_target", None
             )
-            resolve_lane_collapse = getattr(self, lane_resolver_name, None)
-            if not tools_visible and callable(resolve_lane_collapse):
+            if (
+                not tools_visible
+                and not panel_focused
+                and callable(resolve_lane_collapse)
+            ):
                 lane_collapse_available = resolve_lane_collapse() is not None
 
             clan_target = None
-            clan_resolver_name = (
-                "_resolve_focused_panel_clan_collapse_target"
-                if panel_focused
-                else "_resolve_agent_clan_collapse_target"
+            resolve_clan_collapse = getattr(
+                self, "_resolve_agent_clan_collapse_target", None
             )
-            resolve_clan_collapse = getattr(self, clan_resolver_name, None)
             if (
                 not tools_visible
+                and not panel_focused
                 and not lane_collapse_available
                 and callable(resolve_clan_collapse)
             ):
                 clan_target = resolve_clan_collapse()
             clan_collapse_available = clan_target is not None
             selected_clan_collapse_available = False
-            if clan_target is not None and not panel_focused:
+            if clan_target is not None:
                 narrow_clan_collapse = getattr(
                     self,
                     "_narrow_agent_clan_collapse_target_to_selection",
@@ -208,14 +210,12 @@ class AgentFooterDisplayMixin:
                     structural_collapse_kind = structural_collapse.kind
 
             group_collapse_available = False
-            group_resolver_name = (
-                "_resolve_focused_panel_group_collapse_target"
-                if panel_focused
-                else "_resolve_group_collapse_target"
+            resolve_group_collapse = getattr(
+                self, "_resolve_group_collapse_target", None
             )
-            resolve_group_collapse = getattr(self, group_resolver_name, None)
             if (
                 not tools_visible
+                and not panel_focused
                 and not lane_collapse_available
                 and not clan_collapse_available
                 and structural_collapse_kind is None

@@ -171,7 +171,7 @@ async def test_agents_sole_selected_panel_png_snapshot(
         assert ("h", "collapse panel") in selected_bindings
         assert ("l", "enter panel") in selected_bindings
         assert ("Esc", "enter panel") in selected_bindings
-        assert ("H", "collapse group") in selected_bindings
+        assert ("H", "collapse fold") in selected_bindings
         assert not any(key == "=" for key, _label in selected_bindings)
         assert not any(label.startswith("parent ") for _key, label in selected_bindings)
 

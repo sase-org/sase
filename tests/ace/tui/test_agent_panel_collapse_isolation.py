@@ -99,7 +99,7 @@ def test_equals_can_leave_no_tribe_panel_as_selected_survivor() -> None:
     ]
 
 
-def test_capital_h_walks_selected_panel_clans_groups_then_collapses_panel() -> None:
+def test_capital_h_hints_and_collapses_one_selected_panel_fold_at_a_time() -> None:
     agents = make_multi_panel_agents()
     clan_member = agents[1]
     clan_member.agent_clan = "toobig-g"
@@ -117,60 +117,66 @@ def test_capital_h_walks_selected_panel_clans_groups_then_collapses_panel() -> N
     app._expanded_panel_focus = True
     registry = app._group_fold_registry.for_panel("alpha")
 
-    clan_target = app._resolve_focused_panel_clan_collapse_target()
-    assert clan_target is not None
-    assert clan_target.fold_keys == (clan_key,)
-
     app.action_hooks_or_collapse_all()
 
+    assert app._panel_fold_hint_mode_active is True
+    assert app._panel_fold_hint_intent == "collapse"
+    clan_target = next(
+        target
+        for target in app._panel_fold_hint_snapshot
+        if target[0] == "agent" and target[3] == clan_key
+    )
+
+    assert (
+        app._handle_panel_fold_hint_key(app._panel_fold_target_to_hint[clan_target])
+        is True
+    )
+
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
-    assert registry.snapshot() == frozenset()
+    assert app._panel_fold_hint_mode_active is False
     assert app._resolve_focused_panel() is not None
     assert app.current_idx == agents.index(render_first)
     assert app._panel_selection_memory["alpha"] == remembered
     assert app.refilter_kwargs == [{"refresh_content_index": False}]
-
-    target = app._resolve_focused_panel_group_collapse_target()
-    assert target is not None
-    assert target.group_key == ("zeta",)
+    assert app.notifications[-1] == "Fold collapsed"
 
     app.action_hooks_or_collapse_all()
+    zeta_target = next(
+        target
+        for target in app._panel_fold_hint_snapshot
+        if target[0] == "group" and target[2] == ("zeta",)
+    )
 
-    assert app._collapsed_panel_keys == set()
+    assert (
+        app._handle_panel_fold_hint_key(app._panel_fold_target_to_hint[zeta_target])
+        is True
+    )
+
     assert registry.is_collapsed(("zeta",))
-    assert not registry.is_collapsed(("alpha",))
-    assert app._resolve_focused_panel() is not None
-    assert app.current_idx == agents.index(render_first)
-    assert app._panel_selection_memory["alpha"] == remembered
+    assert app._collapsed_panel_keys == set()
     assert app._panel_isolation_revert is None
     assert app.panel_fold_changes == []
-    assert app.refilter_kwargs == [
-        {"refresh_content_index": False},
-        {"refresh_content_index": False},
-    ]
     assert app.group_fold_changes == [("alpha", ("zeta",), True)]
 
-    app.action_hooks_or_collapse_all()
+    while app._enumerate_panel_fold_hint_targets(collapsible_only=True):
+        app.action_hooks_or_collapse_all()
+        target = app._panel_fold_hint_snapshot[0]
+        app._handle_panel_fold_hint_key(app._panel_fold_target_to_hint[target])
 
-    assert registry.is_collapsed(("alpha",))
-    assert app._collapsed_panel_keys == set()
-    assert app.group_fold_changes == [
-        ("alpha", ("zeta",), True),
-        ("alpha", ("alpha",), True),
-    ]
+    assert app._enumerate_panel_fold_hint_targets(collapsible_only=True) == ()
 
     app.action_hooks_or_collapse_all()
 
-    assert app._collapsed_panel_keys == {"alpha"}
-    assert app._panel_isolation_revert is None
-    assert app.panel_fold_changes == [("alpha", True)]
-    assert app.refresh_calls == [True]
+    assert app._panel_fold_hint_mode_active is False
+    assert app.notifications[-1] == "No expanded folds in the selected tribe"
 
+    app._collapse_focused_panel()
     group_state = app._group_fold_registry.snapshot()
+
     app.action_hooks_or_collapse_all()
 
     assert app._group_fold_registry.snapshot() == group_state
-    assert app.notifications == ["Panel is already collapsed"]
+    assert app.notifications[-1] == "Panel is already collapsed"
 
 
 def test_selected_panel_j_and_k_cycle_without_descending() -> None:

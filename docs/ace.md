@@ -1381,14 +1381,13 @@ the selected row. With that now-collapsed clan container still selected, another
 collapses every remaining open canonical clan in the group; only a later press collapses
 the grouping banner. A banner, standalone lane, or already-collapsed clan selection
 proceeds directly to that group-wide clan sweep. Tools detail still takes priority. On a
-selected expanded whole panel, `H` uses a separate panel-wide ladder: the first press
-fully collapses every open canonical lane in that panel, including lanes hidden by
-grouping banners; the next press collapses every open canonical clan in the panel, also
-including clans hidden by grouping banners; later presses collapse the last expanded
-top-level grouping banner in rendered order, one banner per press; and the final press
-collapses the panel through the same path as lowercase `h`. An already collapsed panel
-is a terminal no-op with the usual already-collapsed notification. The merged layout has
-no whole-panel focus and keeps the row-focused group scope across the merged roster.
+selected expanded whole panel, `H` hints every currently expanded lane, clan, and
+top-level grouping banner in that panel — the same `L` hint affordance restricted to
+collapsible targets — and fully collapses whichever one you pick; it never expands and
+never touches the panel itself, which stays lowercase `h`'s job. A panel with nothing
+expanded warns without arming hint mode; an already collapsed panel keeps the usual
+already-collapsed notification. The merged layout has no whole-panel focus and keeps the
+row-focused group scope across the merged roster.
 
 Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
@@ -1493,7 +1492,7 @@ therefore be visible at once:
 | `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                          |
 | `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                    |
 | `L` | Expand a collapsed focused panel and enter its first selectable row                                                                                       |
-| `H` | Collapse group lanes/clans/group, or selected-panel lanes/clans/top-level groups/panel; compact expanded Tools detail                                     |
+| `H` | Collapse group lanes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail                                         |
 | `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                     |
 | `-` | Sweep every open lane, clan, and expanded top-level banner in the focused panel closed in one press, or restore the last sweep; never collapses the panel |
 
@@ -1553,17 +1552,17 @@ then `H collapse group`. Equal group names in other tribe panels are never affec
 merged layout intentionally treats the merged panel as one scope. Ambiguous or malformed
 clan owners are skipped without blocking valid siblings.
 
-Whole-panel focus has its own `H` ordering because it has no selected row or grouping
-scope. It first fully collapses all open canonical lanes anywhere in the selected panel
-in one press. It next collapses every open canonical clan in that panel in one batch.
-Both structural steps include owners hidden by grouping banners and skip ambiguous or
-malformed owners without blocking valid siblings. It then walks backward through that
-panel's expanded level-0 banners in actual rendered order, collapsing only one per press
-and leaving nested banner folds unchanged. Once no lane, clan, or top-level banner
-remains open, the next press collapses the panel itself. The footer shows the configured
-`hooks_or_collapse_all` key as `collapse lanes`, `collapse clans`, or `collapse group`
-for the next distinct inner step; at the terminal step, the existing lowercase
-`h collapse panel` chip is the sole panel-collapse hint.
+Whole-panel focus gives `H` a hinted collapse instead of the group-scoped ladder,
+because it has no selected row or grouping scope to walk. It enumerates every currently
+expanded lane, clan, and top-level grouping banner in the selected panel — including
+owners hidden behind a collapsed banner — assigns each one an adaptive hint key, and
+shows the chips in place of jump hints. Typing a hint fully collapses that one fold; an
+already collapsed fold is never offered, so every hint does something. `H` never expands
+and never collapses the panel itself, which stays lowercase `h`'s job. A panel with no
+expanded folds warns without arming hint mode; an already collapsed panel keeps the
+existing `Panel is already collapsed` warning. The footer shows the configured
+`hooks_or_collapse_all` key as `collapse fold` whenever the selected panel has an
+expanded lane, clan, or top-level banner to hint.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  `
 segment per ancestor L0/L1 banner (in the parent tier's dim accent — project blue or

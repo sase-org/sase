@@ -580,6 +580,7 @@ class StateInitMixin:
         # group banners and structural/workflow row owners in the focused
         # panel, separately from file hints and apostrophe jump hints.
         self._panel_fold_hint_mode_active = False
+        self._panel_fold_hint_intent: Literal["toggle", "collapse"] = "toggle"
         self._panel_fold_hint_snapshot: tuple[FoldHintTarget, ...] = ()
         self._panel_fold_hint_to_target: dict[str, FoldHintTarget] = {}
         self._panel_fold_target_to_hint: dict[FoldHintTarget, str] = {}

@@ -155,15 +155,15 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
+                    "Panel: collapse fold by hint key",
+                ),
+                (
+                    d(a.hooks_or_collapse_all),
                     "Fully collapse lanes in scope",
                 ),
                 (
                     d(a.hooks_or_collapse_all),
                     "Then selected clan / group clans",
-                ),
-                (
-                    d(a.hooks_or_collapse_all),
-                    "Panel: clans / groups / panel",
                 ),
                 (
                     d(a.hooks_or_collapse_all),

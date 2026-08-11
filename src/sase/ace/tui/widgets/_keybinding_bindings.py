@@ -236,6 +236,9 @@ class KeybindingBindingsMixin:
         collapse_all_label: str | None = None
         if tools_can_compact:
             collapse_all_label = "compact tools"
+        elif panel_focused:
+            if not tools_visible and panel_fold_sweep_available:
+                collapse_all_label = "collapse fold"
         elif lane_collapse_available:
             collapse_all_label = "collapse lanes"
         elif clan_collapse_available:

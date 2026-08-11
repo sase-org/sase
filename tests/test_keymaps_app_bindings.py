@@ -225,9 +225,7 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
     lower = "Parent / Collapse or Jump Panel/Fold"
-    upper = (
-        "Collapse Scoped Lanes/Selected Clan/Clans/Groups/Panel / Compact Tools / All"
-    )
+    upper = "Collapse Scoped Lanes/Clans/Groups / Hint Panel Fold / Compact Tools / All"
     zoom = "Zoom Detail"
     isolate = "Only/Restore Panels"
     sweep = "Collapse/Restore Panel Folds"

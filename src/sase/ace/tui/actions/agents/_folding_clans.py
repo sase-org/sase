@@ -212,20 +212,6 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
 
     _fold_manager: FoldStateManager
 
-    def _resolve_focused_panel_clan_collapse_target(
-        self,
-    ) -> _AgentPanelClanCollapseTarget | None:
-        """Resolve the panel-wide clan rung for selected-panel ``H``."""
-        if self.current_tab != "agents" or getattr(
-            self, "_agent_panels_grouped", False
-        ):
-            return None
-        resolve_panel = getattr(self, "_resolve_focused_panel", None)
-        panel_focus = resolve_panel() if callable(resolve_panel) else None
-        if panel_focus is None or panel_focus.collapsed:
-            return None
-        return resolve_panel_clan_collapse_target(self, panel_focus.panel_key)
-
     def _resolve_agent_clan_collapse_target(
         self,
     ) -> _AgentGroupClanCollapseTarget | None:
@@ -295,20 +281,6 @@ class AgentPanelClanFoldingMixin(AgentStructuralFoldingMixin):
             remember = getattr(self, "_remember_focused_panel_selection", None)
             if callable(remember):
                 remember()
-        return True
-
-    def _collapse_focused_panel_clan_folds(
-        self,
-        target: _AgentPanelClanCollapseTarget | None = None,
-    ) -> bool:
-        """Drive every validated open clan in the selected panel closed."""
-        if target is None:
-            target = self._resolve_focused_panel_clan_collapse_target()
-        if target is None:
-            return False
-        if not self._fold_manager.collapse_fully_all(list(target.fold_keys)):
-            return False
-        self._refilter_focused_panel_inner_fold(target.panel_key)  # type: ignore[attr-defined]
         return True
 
 

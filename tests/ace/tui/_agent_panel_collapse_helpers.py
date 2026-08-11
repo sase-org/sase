@@ -9,6 +9,7 @@ from sase.ace.tui.actions.agents._display_panel_refresh import PanelRefreshMixin
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
 from sase.ace.tui.actions.agents._panel_detail import AgentPanelDetailMixin
+from sase.ace.tui.actions.agents._panel_hint_folding import AgentPanelHintFoldingMixin
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
@@ -27,6 +28,7 @@ class AgentPanelCollapseApp(
     EntryJumpAgentHistoryMixin,
     AgentPanelDetailMixin,
     AgentFoldingMixin,
+    AgentPanelHintFoldingMixin,
     AgentSelectionMixin,
     AgentPanelNavigationMixin,
     AgentNavigationOrderMixin,
@@ -66,6 +68,12 @@ class AgentPanelCollapseApp(
         self._current_group_key: tuple[str, ...] | None = None
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_index_cache: tuple[Any, bool, Any] | None = None
+        self._panel_fold_hint_mode_active = False
+        self._panel_fold_hint_intent = "toggle"
+        self._panel_fold_hint_snapshot: tuple[Any, ...] = ()
+        self._panel_fold_hint_to_target: dict[str, Any] = {}
+        self._panel_fold_target_to_hint: dict[Any, str] = {}
+        self._panel_fold_hint_pending_prefix = ""
         self.refresh_calls: list[bool] = []
         self.refilter_kwargs: list[dict[str, object]] = []
         self.panel_fold_changes: list[tuple[str | None, bool]] = []

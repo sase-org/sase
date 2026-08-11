@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 from ._folding_clans import AgentPanelClanFoldingMixin
-from ._folding_lanes import (
-    AgentLaneCollapseTarget,
-    AgentPanelLaneCollapseTarget,
-    resolve_group_lane_collapse_target,
-    resolve_panel_lane_collapse_target,
-)
+from ._folding_lanes import AgentLaneCollapseTarget, resolve_group_lane_collapse_target
 from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
@@ -23,14 +17,6 @@ if TYPE_CHECKING:
     from ...models.group_fold import GroupFoldRegistry
 
 _FOCUSED_PANEL = object()
-
-
-@dataclass(frozen=True, slots=True)
-class _AgentPanelGroupCollapseTarget:
-    """The last expanded level-0 group in one selected tribe panel."""
-
-    panel_key: PanelKey
-    group_key: GroupKey
 
 
 def expanded_panel_level_zero_group_keys(
@@ -369,18 +355,6 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
             return None
         return resolve_group_lane_collapse_target(self, group_key)
 
-    def _resolve_focused_panel_lane_collapse_target(
-        self,
-    ) -> AgentPanelLaneCollapseTarget | None:
-        """Resolve the panel-wide lane step for selected-panel ``H``."""
-        if self.current_tab != "agents":
-            return None
-        resolve_panel = getattr(self, "_resolve_focused_panel", None)
-        panel_focus = resolve_panel() if callable(resolve_panel) else None
-        if panel_focus is None or panel_focus.collapsed:
-            return None
-        return resolve_panel_lane_collapse_target(self, panel_focus.panel_key)
-
     def _restore_focused_panel_inner_fold_state(
         self,
         panel_key: PanelKey,
@@ -425,7 +399,7 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
 
     def _collapse_agent_lane_folds(
         self,
-        target: AgentLaneCollapseTarget | AgentPanelLaneCollapseTarget | None = None,
+        target: AgentLaneCollapseTarget | None = None,
     ) -> bool:
         """Fully collapse all open canonical lanes in one resolved scope."""
         if target is None:
@@ -442,57 +416,13 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         # A fold-only mutation neither changes the cached content corpus nor
         # needs one background content-index rebuild. Apply every fold state
         # first, then take the normal in-memory display path exactly once.
-        if isinstance(target, AgentPanelLaneCollapseTarget):
-            self._refilter_focused_panel_inner_fold(target.panel_key)
-        else:
-            self._refilter_agents(  # type: ignore[attr-defined]
-                refresh_content_index=False
-            )
+        self._refilter_agents(  # type: ignore[attr-defined]
+            refresh_content_index=False
+        )
         if target.reanchor_index is not None:
             remember = getattr(self, "_remember_focused_panel_selection", None)
             if callable(remember):
                 remember()
-        return True
-
-    def _resolve_focused_panel_group_collapse_target(
-        self,
-    ) -> _AgentPanelGroupCollapseTarget | None:
-        """Resolve the last expanded L0 banner in selected-panel order."""
-        if self.current_tab != "agents":
-            return None
-        resolve_panel = getattr(self, "_resolve_focused_panel", None)
-        panel_focus = resolve_panel() if callable(resolve_panel) else None
-        if panel_focus is None or panel_focus.collapsed:
-            return None
-
-        expanded_keys = expanded_panel_level_zero_group_keys(
-            self, panel_focus.panel_key
-        )
-        if not expanded_keys:
-            return None
-        return _AgentPanelGroupCollapseTarget(
-            panel_key=panel_focus.panel_key,
-            group_key=expanded_keys[-1],
-        )
-
-    def _collapse_focused_panel_group_fold(
-        self,
-        target: _AgentPanelGroupCollapseTarget | None = None,
-    ) -> bool:
-        """Collapse one selected panel's last expanded level-0 banner."""
-        if target is None:
-            target = self._resolve_focused_panel_group_collapse_target()
-        if target is None:
-            return False
-        registry = panel_fold_registry(self, target.panel_key)
-        if not registry.collapse(target.group_key):
-            return False
-        self._refilter_focused_panel_inner_fold(target.panel_key)
-        self._persist_group_fold_change(
-            target.group_key,
-            collapsed=True,
-            panel_key=target.panel_key,
-        )
         return True
 
     def _resolve_group_collapse_target(self) -> GroupKey | None:

@@ -102,26 +102,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                         "Panel is already collapsed", timeout=1.5
                     )
                     return
-                panel_lane_target = self._resolve_focused_panel_lane_collapse_target()
-                if panel_lane_target is not None and self._collapse_agent_lane_folds(
-                    panel_lane_target
-                ):
-                    return
-                panel_clan_target = self._resolve_focused_panel_clan_collapse_target()
-                if (
-                    panel_clan_target is not None
-                    and self._collapse_focused_panel_clan_folds(panel_clan_target)
-                ):
-                    return
-                panel_group_target = self._resolve_focused_panel_group_collapse_target()
-                if (
-                    panel_group_target is not None
-                    and self._collapse_focused_panel_group_fold(panel_group_target)
-                ):
-                    return
-                # The terminal step is exactly lowercase h's selected-panel
-                # transition, including persistence and isolation handling.
-                self._collapse_fold()
+                self._arm_panel_fold_hint_mode(intent="collapse")  # type: ignore[attr-defined]
                 return
 
             lane_target = self._resolve_agent_lane_collapse_target()
