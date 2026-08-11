@@ -99,6 +99,9 @@ FULL_SUITE_RULES = frozenset(
 ROOT_CONFTEST_PATHS = frozenset(
     {
         "tests/conftest.py",
+        "tests/_conftest_environment.py",
+        "tests/_conftest_runtime.py",
+        "tests/_conftest_shared.py",
         "tests/_suite_gate.py",
         "tests/_tmp_leak_guard.py",
         "tests/_project_display_case.py",

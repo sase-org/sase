@@ -48,6 +48,9 @@ def _commit_contract_manifest(root: Path, *entries: str) -> None:
     ("path", "rule"),
     [
         ("tests/conftest.py", RULE_ROOT_CONFTEST),
+        ("tests/_conftest_environment.py", RULE_ROOT_CONFTEST),
+        ("tests/_conftest_runtime.py", RULE_ROOT_CONFTEST),
+        ("tests/_conftest_shared.py", RULE_ROOT_CONFTEST),
         ("tests/_suite_gate.py", RULE_ROOT_CONFTEST),
         ("pyproject.toml", RULE_PACKAGING_CONFIG),
         ("uv.lock", RULE_PACKAGING_CONFIG),
