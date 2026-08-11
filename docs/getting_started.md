@@ -195,16 +195,22 @@ Use `@plan:<path>` for the built-in plans sidecar. `@commit:` remains an alias f
 
 ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the
 grouped reference menu, or press `%` on an Artifacts entry to open **Copy as…**. The
-prompt bar and editor LSP both complete `@stitch:` from local git checkouts, excluding
-SDD sidecar repositories, inserting the repository name plus a short SHA that resolves
-at launch. Choose **Reference in new agent prompt** to open a prompt pre-filled with the
-entry's project and prompt-ready `@` reference; choose **Copy artifact reference** when
-you only want the reference on the clipboard.
+editor LSP completes canonical `@stitch:` payloads from local git checkouts, excluding
+SDD sidecar repositories. ACE's prompt bar currently lists both canonical and
+compatibility kinds, but its repository-history picker is still attached to `@commit:`;
+that alias and `@stitch:` resolve identically at launch. ACE also lists `@patch:`
+without enumerating Patch names, so use `%` on the Patch or type its name. Choose
+**Reference in new agent prompt** to open a prompt pre-filled with the entry's project
+and prompt-ready `@` reference; choose **Copy artifact reference** when you only want
+the reference on the clipboard.
 
-At launch, file-backed references become local `@path` tokens, while entity and revision
-references become stable locators with the selected project context. A malformed or
-missing known reference stops the launch with a diagnostic instead of silently giving
-the agent bad context. Inline-code and fenced-code examples stay literal.
+At launch, document, file, bead, and agent references become local `@absolute-path`
+tokens. A stitch becomes `stitch <full-sha> in <repo> (checkout: <path>)`; a Patch
+becomes `the <name> Patch in project <project>` plus a `sase patch show` inspection
+hint. A historical `@bug:` reference becomes its issue number and provider URL. A
+malformed or missing known reference stops the launch with a diagnostic instead of
+silently giving the agent bad context. Inline-code and fenced-code examples stay
+literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The

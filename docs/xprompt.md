@@ -540,9 +540,11 @@ its contents or relying on a recycled workspace path.
 
 `@commit:` is a permanent compatibility alias for `@stitch:`. The historical `@plans:`,
 `@chat:`, and `@bug:` spellings are still recognized when their targets are available,
-but emit migration guidance to `@plan:`, `@agent:`, and `@bead:` respectively.
-Completion offers canonical live kinds only. The former `#ref/<kind>:<argument>` syntax
-and its custom Jinja renderer files are retired and do not resolve.
+but emit migration guidance to `@plan:`, `@agent:`, and `@bead:` respectively. The
+editor LSP offers canonical live kinds only. ACE's prompt bar currently also lists the
+recognized compatibility and historical kinds; its repository-history payload picker is
+still attached to `@commit:` rather than `@stitch:`. The former `#ref/<kind>:<argument>`
+syntax and its custom Jinja renderer files are retired and do not resolve.
 
 #### Project context and ambiguity
 
@@ -556,12 +558,22 @@ This matters most for short forms:
 - `@stitch:<sha>` uses the selected project's primary repository. Use
   `@stitch:<repo>@<sha>` or add an explicit VCS tag when no project context is
   available.
-- `@patch:<name>` searches the selected project first. Without project context, SASE
-  searches enabled projects and rejects an ambiguous name.
-- A short `@bead:<suffix>` checks the selected project's bead store first, then other
-  enabled projects, and rejects ambiguity instead of choosing silently.
+- With project context, `@patch:<name>` searches only that project's active ProjectSpec,
+  then its archive; the active record wins if both contain the name. Without project
+  context, SASE searches enabled projects and rejects an ambiguous name.
+- A short `@bead:<suffix>` searches the selected project's bead store first, then the
+  other stores in the reference context. The ordering does not break ties: if more than
+  one store resolves the shorthand, SASE rejects it as ambiguous. A full bead id uses
+  the normal project-qualified resolver.
 - `@agent:<local-name>` is normalized to the global agent identity. When both the prompt
-  page and chat page exist, the expanded context links the sibling page too.
+  and chat files exist beside the published agent page, the expansion tells the agent
+  where to find those two sibling files.
+
+The replacement text is intentionally readable. Documents, files, beads, and agents
+become local `@absolute-path` tokens. Stitches become
+`stitch <full-sha> in <repo> (checkout: <path>)`. Patches become
+`the <name> Patch in project <project>` plus a `sase patch show` hint. The historical
+`@bug:` reader becomes `#<number> <provider-url>`.
 
 A malformed or missing reference for a known kind stops the launch with a diagnostic. An
 unknown `@kind:` token remains ordinary prose so domain-specific notation is not
@@ -583,11 +595,11 @@ artifact_refs:
         path_globs: ["**/*.md", "!private/**"]
 ```
 
-The root name is a stable lowercase slug used in published metadata. `path` must be
-absolute or `~/` rooted. Optional `path_globs` are root-relative POSIX globs; `!`
-entries exclude matches. A reference must identify an existing regular file under one of
-the effective roots, pass its glob policy, and fit
-`artifacts.capture.max_file_size_bytes`.
+The root name is a stable lowercase slug made of letters, digits, `_`, and `-`, and is
+used in published metadata. `path` must be absolute or `~/` rooted. Optional
+`path_globs` are root-relative POSIX globs; `!` entries exclude matches. A reference
+must identify an existing regular file under one of the effective roots, pass its glob
+policy, and fit `artifacts.capture.max_file_size_bytes`.
 
 At launch SASE snapshots the selected bytes into the workspace-local content-addressed
 artifact pool and expands the prompt to that captured copy. The manifest retains the

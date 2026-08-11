@@ -32,20 +32,22 @@ silently defeats the gate:
 - Every other summary entry (`total_file_wall_seconds`, `idle_seconds`,
   `peak_worker_rss_kib`, `median_worker_rss_kib`, and `post_collection_worker_rss_kib`)
   and every `causes.*` entry is a **suite-wide** metric, not normalized by worker count.
-- `peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run
-  (`worker_rss_curve_kib.peak`), not the curve's `post_collection` reading — workers
-  stabilize around ~520 MiB right after collection, then grow substantially over the
-  run.
-- `median_worker_rss_kib` and `post_collection_worker_rss_kib` are flat aliases for
-  `worker_rss_curve_kib.median` and `.post_collection`. The report and budget suggestion
-  tooling expose all three RSS checkpoints, so memory growth after collection can be
-  distinguished from a high initial footprint.
+- Each worker records `start`, `post_collection`, `median`, and `peak` RSS summaries.
+  The suite-level `worker_rss_curve_kib` takes the maximum worker value for `start`,
+  `post_collection`, and `peak`; its `median` is the median of every positive worker
+  summary value across those four fields, and its `sample_count` is the sum of worker
+  sample counts. It is an aggregate summary, not one process's time series.
+- `peak_worker_rss_kib`, `median_worker_rss_kib`, and `post_collection_worker_rss_kib`
+  are flat aliases for the corresponding suite-level curve fields. The report and budget
+  suggestion tools do not divide these RSS values by worker count.
 
 Read failures by bucket:
 
 - `total_file_wall_seconds` and `idle_seconds` point to broad suite cost or waiting.
 - `collection_seconds`, `collection_cpu_seconds`, and post-collection RSS point to
-  import-time state; median and peak RSS make retained or run-time growth visible.
+  import-time state. Median and peak RSS summarize later retained or run-time growth,
+  but the suite median is over worker summary fields rather than raw time-series
+  samples.
 - Cause entries such as `textual_app_run_test_enter`, `ace_page_enter`, `parser_create`,
   `yaml_load`, and `subprocess_run` point to the hot pattern to audit.
 

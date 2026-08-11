@@ -3133,13 +3133,13 @@ the lock, recovery snapshot, and failed-integration cooldown behavior.
 These switches affect plugin-provided resources and declarative artifact providers. The
 VCS, workspace, and LLM registries load provider entry points directly.
 
-| Variable                            | Description                                                             |
-| ----------------------------------- | ----------------------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`              | Disable plugin resources and declarative artifact providers.            |
-| `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable plugin-provided xprompt and workflow files.                     |
-| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin-provided `default_config.yml` files and config xprompts. |
-| `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable plugin-provided artifact-reference specifications.              |
-| `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable plugin-provided file-hook templates.                            |
+| Variable                            | Description                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `SASE_DISABLE_PLUGINS`              | Disable plugin resources and third-party artifact-provider entry points. |
+| `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable plugin-provided xprompt and workflow files.                      |
+| `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin-provided `default_config.yml` files and config xprompts.  |
+| `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable plugin-provided artifact-reference specifications.               |
+| `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable plugin-provided file-hook templates.                             |
 
 ### State Root
 

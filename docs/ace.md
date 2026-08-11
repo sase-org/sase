@@ -315,15 +315,16 @@ The pane supports the full bead workflow:
 | `L`       | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
 | `R`       | Refresh beads                                                                         |
 
-When a bead has several issue links, `o`, `y`, and issue mutations first open a
-selector. In `b` prefix mode, press `v` to view the cached body, `e` to edit supported
-title/body/label fields, `s` to close or reopen after confirmation, `u` to copy the
-provider URL, `a` to attach an existing numeric issue, or `c` to create and attach a new
-issue. Availability follows the active VCS provider's capabilities. The detail reader
-shows each link's relation, state, labels, assignees, author, update/comment metadata,
-and cached body. The info line reports linked, remote-only, stale, and drifted counts,
-plus provider unavailability and per-project errors, so tracker health remains visible
-without a separate Bugs pane.
+When a bead has several issue links, `o`, `y`, and the `b`-mode `v`, `e`, `s`, and `u`
+actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
+`e` to edit supported title/body/label fields, `s` to close or reopen after
+confirmation, `u` to copy the provider URL, `a` to attach an existing numeric issue, or
+`c` to create and attach a new issue. Attach and create operate on the bead itself and
+therefore do not select an existing link. Availability follows the active VCS provider's
+capabilities. The detail reader shows each link's relation, state, labels, assignees,
+author, update/comment metadata, and cached body. The info line reports linked,
+remote-only, stale, and drifted counts, plus provider unavailability and per-project
+errors, so tracker health remains visible without a separate Bugs pane.
 
 Closing offers `done`, `canceled`, and `superseded` resolutions. A bead with unfinished
 descendants is rejected unless the close modal's force option is enabled with a

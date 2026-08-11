@@ -98,6 +98,11 @@ completion offers. Historical aliases such as `@commit:`, `@plans:`, `@chat:`, a
 `@bug:` are not offered by completion. The LSP never contacts git hosts, issue trackers,
 or other network providers. Unknown `@kind:` text remains ordinary prose.
 
+This canonical-only rule is specific to the editor LSP. ACE's prompt bar currently also
+lists recognized aliases and historical kinds, and its repository-history payload picker
+remains attached to `@commit:`; both `@commit:` and `@stitch:` resolve through the same
+launch resolver.
+
 Matching is **fuzzy and ranked on the server** for every enumerated kind — document
 roles, indexed artifact files, Patches, beads, agents, and stitches — against the
 inserted payload, the row's title, and, for scoped rows, the qualified `scope@title`
@@ -117,16 +122,16 @@ rank where a provider declares one, shorter text, and case-insensitive text:
 | 3    | query is an ordered subsequence           | `site`, `shubp`                                           |
 
 An empty query is not ranked at all: each group keeps its provider order (builtin order
-for kinds, directories-before-files for paths, recency for chats and commits). Kind rows
-and the trailing partial of a local path are matched the same way, but a `@` path
+for kinds, directories-before-files for paths, and provider order for payloads). Kind
+rows and the trailing partial of a local path are matched the same way, but a `@` path
 token's directory portion stays exact, so `@src/` still lists `src/` and `@src/fcb` can
-still find `src/…/_file_completion_base.py`. Commit SHA text is still part of the lowest
+still find `src/…/_file_completion_base.py`. Stitch SHA text is still part of the lowest
 fuzzy tier, so hex-like queries such as `add` can subsequence-match a SHA; subject and
 repository matches outrank those tier-3 rows.
 
 Bounds are disclosed rather than silent. Filesystem-backed enumeration walks up to 5000
 payloads per root, so a root larger than that is matched only over the rows the walk
-reached. Commit completion reads at most 200 revisions per repository, gives each
+reached. Stitch completion reads at most 200 revisions per repository, gives each
 repository two seconds to answer, and merges at most 1000 commit rows across
 repositories. Matching then returns at most 200 rows per group to the editor. Whichever
 bound bites, the count of payloads left out is appended to every item's `detail` as
@@ -149,13 +154,13 @@ item carries the full reference in `textEdit.newText`.
 
 Editors cannot highlight individual characters inside a completion label, so the "why is
 this row here" affordance moves into the preview. `labelDetails.description` keeps the
-group word (`artifact kind`, `file`, `directory`, or a payload kind such as `commit`,
-`chat`, `research`, `bead`, or `agent`). `labelDetails.detail` adds the row's title when
-it differs from the label — a document's frontmatter title, a chat or indexed file's
-basename, a bead or bug title, an agent's short name, or a commit subject — and markdown
-`documentation` shows the matched payload with the matched runs wrapped in `**`,
-followed by that title on a second line. Commit rows also include the bounded commit
-body when one is available.
+group word (`artifact kind`, `file`, `directory`, or a payload kind such as `stitch`,
+`patch`, `research`, `bead`, or `agent`). `labelDetails.detail` adds the row's title
+when it differs from the label — a document's frontmatter title, an indexed file's
+basename, a Patch or bead title, an agent's short name, or a commit subject — and
+markdown `documentation` shows the matched payload with the matched runs wrapped in
+`**`, followed by that title on a second line. Stitch rows also include the bounded
+commit body when one is available.
 
 Artifact-reference semantic tokens use the standard LSP legend: `namespace` for the
 kind, `string` for the payload, and `number` for the fragment. Dynamic document-role

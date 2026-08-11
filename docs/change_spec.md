@@ -3,10 +3,11 @@
 A **Patch** is SASE's durable local record for one unit of reviewable work. Every PR
 created or managed by SASE is associated with exactly one Patch, but a Patch may exist
 without a PR; in that case the `PR:` field is absent. The `external_pr_mirror` AXE chop
-and `sase patch sync-external` command discover eligible remote PRs that did not come
-from SASE's tracked workflow and adopt them as local Patches. Open PRs remain active;
-merged or closed PRs are archived directly. Configure `external_mirror.pr_authors` when
-only selected authors should be adopted.
+and `sase patch sync-external` command run the same reconciliation path. They list
+remote PRs in every state, discard PRs carrying SASE's tracked-workflow marker, apply
+the optional case-insensitive `external_mirror.pr_authors` allow-list, and adopt the
+remaining PRs as local Patches. Open PRs remain active; merged or closed PRs are
+archived directly. An empty author list adopts every otherwise-eligible PR.
 
 Each Patch lives inside a project `.sase` file and records the change's description,
 dependency metadata, PR URL, lifecycle status, stitches, hooks, comments, mentor runs,

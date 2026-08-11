@@ -611,7 +611,8 @@ provider host. A provider class can implement either or both hooks:
 SASE validates all returned specifications before adding them to the registry. Duplicate
 provider IDs, duplicate reference kinds, reserved kinds, invalid schemas, load errors,
 and hook failures are diagnosed rather than silently taking precedence. The core package
-provides the built-in `plan` reference provider through the same path. Run
+always registers the built-in `plan` reference provider through the same schema and
+registry path, even when third-party provider entry points are disabled. Run
 `sase doctor -C config.repos` for sidecar provider problems and `sase file-hook list`
 for configured file hooks.
 
@@ -653,19 +654,20 @@ allocation rule.
 
 ## Disabling Plugins
 
-Plugin resources and declarative artifact providers can be disabled via environment
-variables:
+Third-party plugin resources and declarative artifact-provider entry points can be
+disabled via environment variables:
 
 | Variable                            | Effect                                                      |
 | ----------------------------------- | ----------------------------------------------------------- |
-| `SASE_DISABLE_PLUGINS`              | Disable resource plugins and declarative artifact providers |
+| `SASE_DISABLE_PLUGINS`              | Disable resource plugins and third-party artifact providers |
 | `SASE_DISABLE_PLUGIN_XPROMPTS`      | Disable xprompt/workflow resource plugins only              |
 | `SASE_DISABLE_PLUGIN_CONFIG`        | Disable plugin `default_config.yml` resource loading only   |
 | `SASE_DISABLE_PLUGIN_ARTIFACT_REFS` | Disable artifact-reference provider entry points only       |
 | `SASE_DISABLE_PLUGIN_FILE_HOOKS`    | Disable file-hook provider entry points only                |
 
 Any non-empty value enables the disable. The VCS, workspace, and LLM provider registries
-load their provider entry points directly and do not consult these switches.
+load their provider entry points directly and do not consult these switches. These
+switches also do not remove the core built-in `plan` reference provider.
 
 ## Writing a Plugin
 
@@ -788,7 +790,10 @@ my_hooks = "my_sase_plugin.artifacts:FileHookProviders"
 ```
 
 ```python
-from sase.artifact_providers import hookimpl
+import pluggy
+
+
+hookimpl = pluggy.HookimplMarker("sase_artifact")
 
 
 class DocumentProviders:
@@ -826,6 +831,11 @@ class FileHookProviders:
             },
         },)
 ```
+
+The direct pluggy marker above is equivalent to SASE's public `hookimpl`. In the current
+release, importing `hookimpl` from `sase.artifact_providers` before another SASE module
+has initialized configuration can hit a circular import, so a plugin module loaded as an
+entry point should construct the marker directly.
 
 The project can then select the document provider with
 `repos.sidecar.custom.design.ref.use: design` and instantiate the hook with a

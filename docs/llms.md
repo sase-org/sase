@@ -1905,10 +1905,11 @@ expansion, so directives embedded in xprompts are honored. Late-phase command
 substitution and reference processing run with fenced blocks protected, so examples
 inside code fences are not executed or rewritten. Canonical artifact references are
 expanded before ordinary file references: document and artifact-file references become
-`@path` tokens, while stitch, Patch, bead, and agent references become context-aware
-locators. Unknown `@kind:` references remain unchanged as prose. The retired
-`#ref/<kind>` renderer syntax is not accepted. Inline-code references also remain
-literal.
+`@path` tokens, as do published bead and agent pages. A stitch becomes
+`stitch <full-sha> in <repo> (checkout: <path>)`; a Patch becomes a project-qualified
+label with a `sase patch show` hint. Unknown `@kind:` references remain unchanged as
+prose. The retired `#ref/<kind>` renderer syntax is not accepted. Inline-code references
+also remain literal.
 
 During the same pass, SASE stages prompt references for later archive publication. File
 references are recorded in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl`
