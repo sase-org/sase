@@ -12,11 +12,11 @@ from textual.widgets._text_area import TextAreaTheme
 from textual.worker import Worker, WorkerState
 
 from sase.artifact_refs import (
-    BUILTIN_ARTIFACT_REF_KINDS,
     ArtifactRefContext,
     ArtifactRefPromptCandidate,
     ArtifactRefSpan,
     artifact_ref_context,
+    parsable_artifact_ref_kinds,
     scan_artifact_refs,
 )
 from sase.xprompt._literal_zones import literal_zone_ranges
@@ -84,11 +84,11 @@ def _load_known_artifact_ref_kinds(
             project=project,
         )
     except Exception:
-        kinds = frozenset(BUILTIN_ARTIFACT_REF_KINDS)
+        kinds = frozenset(parsable_artifact_ref_kinds())
         return _KnownKindsResult(
             project,
             kinds,
-            ArtifactRefCompletionCatalog(project, tuple(BUILTIN_ARTIFACT_REF_KINDS)),
+            ArtifactRefCompletionCatalog(project, tuple(parsable_artifact_ref_kinds())),
             generation=generation,
         )
     return _KnownKindsResult(

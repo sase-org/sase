@@ -7,6 +7,9 @@ from pathlib import Path
 import re
 from typing import Any
 
+from sase.artifact_providers.builtin_entries import resolve_builtin_entry
+from sase.artifact_ref_models import ArtifactEntry
+from sase.artifact_ref_prompt_context import explicit_prompt_ref_context
 from sase.artifact_refs import (
     ArtifactRef,
     ArtifactRefContext,
@@ -39,6 +42,7 @@ class ResolvedArtifactReference:
     file: ArtifactFile | None
     context: ArtifactRefContext | None = None
     consumption: ArtifactConsumptionSummary | None = None
+    entry: ArtifactEntry | None = None
 
     @property
     def is_filesystem_backed(self) -> bool:
@@ -56,6 +60,7 @@ class ResolvedArtifactReference:
             "consumption": (
                 None if self.consumption is None else self.consumption.to_json_dict()
             ),
+            "entry": None if self.entry is None else self.entry.to_wire(),
         }
 
 
@@ -73,12 +78,34 @@ def resolve_cli_reference(
     *,
     context: ArtifactRefContext | None = None,
 ) -> ResolvedArtifactReference:
-    """Parse, canonically render, resolve once, and attach file metadata."""
+    """Parse, canonically render, resolve once, and attach file metadata.
+
+    Builtin kinds (``stitch``, ``patch``, short-id ``bead``, ``agent``)
+    resolve through the same Python dispatcher the prompt path uses, so
+    ``sase artifact show stitch:<sha>`` behaves like a prompt's ``@stitch``.
+    The CLI's own working directory is the intentional source of the
+    resolution context here, unlike the prompt path.
+    """
 
     normalized = _normalize_artifact_reference(value)
     parsed = parse_artifact_ref(normalized)
     resolved_context = context or launch_artifact_ref_context(is_home_mode=False)
-    resolution = resolve_artifact_ref(parsed, context=resolved_context)
+    ref_context = explicit_prompt_ref_context(resolved_context)
+    outcome = resolve_builtin_entry(
+        parsed, context=resolved_context, ref_context=ref_context
+    )
+    if outcome is not None:
+        resolution = ArtifactRefResolution(
+            schema_version=parsed.schema_version,
+            status=outcome.status,
+            rendered=outcome.canonical_reference or parsed.rendered,
+            locator=outcome.locator,
+            resolved_path=outcome.resolved_path,
+            candidates=outcome.candidates,
+            diagnostic=outcome.diagnostic,
+        )
+    else:
+        resolution = resolve_artifact_ref(parsed, context=resolved_context)
     canonical = resolution.rendered
     file_record = (
         _find_file_record(parsed, context=resolved_context)
@@ -92,6 +119,7 @@ def resolve_cli_reference(
         resolution=resolution,
         file=file_record,
         context=resolved_context,
+        entry=None if outcome is None else outcome.entry,
     )
 
 

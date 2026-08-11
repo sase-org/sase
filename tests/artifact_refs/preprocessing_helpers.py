@@ -30,7 +30,7 @@ def disable_consumption_ledger_writes(
 def context(tmp_path: Path) -> ArtifactRefContext:
     return ArtifactRefContext(
         document_roots=(
-            ArtifactRefDocumentRoot("plans", tmp_path / "plans"),
+            ArtifactRefDocumentRoot("plan", tmp_path / "plans"),
             ArtifactRefDocumentRoot("designs", tmp_path / "designs"),
         ),
         chats_root=tmp_path / "chats",
@@ -40,6 +40,8 @@ def context(tmp_path: Path) -> ArtifactRefContext:
                 "sase",
                 aliases=("sase-org/sase",),
                 checkout_path=tmp_path / "workspace",
+                checkout_paths=(tmp_path / "workspace",),
+                kind="primary",
             ),
         ),
         projects=(

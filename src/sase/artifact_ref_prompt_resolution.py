@@ -68,13 +68,15 @@ def artifact_resolved_path(
         if resolution.resolved_path is None:
             raise RuntimeError("resolver returned no artifact path")
         return resolution.resolved_path
-    if reference.kind_type == "commit":
+    if reference.kind_type in {"commit", "stitch"}:
         if resolution.locator is None:
-            raise RuntimeError("resolver returned no commit locator")
+            raise RuntimeError(f"resolver returned no {reference.kind_type} locator")
         repository = repository_for_ref(reference.payload.repo or "", context)
         if repository is None or repository.checkout_path is None:
             raise RuntimeError("repository checkout is unavailable")
         return repository.checkout_path
+    if reference.kind_type == "patch":
+        return None
     if reference.kind_type == "bug":
         if resolution.locator is None or reference.payload.number is None:
             raise RuntimeError("resolver returned no bug locator")

@@ -252,19 +252,29 @@ def test_commit_expands_to_full_locator_and_checkout(
     tmp_path: Path,
 ) -> None:
     context = make_context(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
     full_sha = "a" * 40
     monkeypatch.setattr(
-        artifact_ref_prompt,
-        "_resolve_checkout_commit",
+        "sase.artifact_providers.builtin_entry_stitch.resolve_checkout_commit",
         lambda _path, _sha: full_sha,
     )
 
+    # @commit: is the permanent alias of @stitch: and canonicalizes to it,
+    # so both spellings expand byte-identically through the same resolver.
     assert (
         process_artifact_references(
             "@commit:sase@aaaaaaa",
             context=context,
         )
-        == f"sase@{full_sha} (checkout: {tmp_path / 'workspace'})"
+        == f"stitch {full_sha} in sase (checkout: {workspace})"
+    )
+    assert (
+        process_artifact_references(
+            "@stitch:sase@aaaaaaa",
+            context=context,
+        )
+        == f"stitch {full_sha} in sase (checkout: {workspace})"
     )
 
 

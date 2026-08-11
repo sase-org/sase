@@ -13,7 +13,14 @@ def build_launch_artifact_ref_context[ContextT](
     is_home_mode: bool,
     workspace_project_ref_fn: Callable[[Path], str | None],
 ) -> ContextT:
-    """Build artifact context from the current managed-workspace environment."""
+    """Build artifact context from the current managed-workspace environment.
+
+    Uses ``cwd`` to locate the workspace, which is correct for the CLI and
+    ACE callers that keep using this function. The prompt path must not call
+    this: it resolves an explicit ``PromptRefContext`` per segment instead,
+    via ``sase.artifact_ref_prompt_context``, derived from the prompt's own
+    ``#git``/``#gh`` workflow tag or the launcher's recorded identity.
+    """
 
     workspace = Path.cwd()
     workspace_num = _workspace_num_from_environment()

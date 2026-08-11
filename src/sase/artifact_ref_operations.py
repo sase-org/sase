@@ -211,6 +211,95 @@ def scan_artifact_refs(text: str) -> tuple[ArtifactRefPromptCandidate, ...]:
 scan_artifact_ref_prompt = scan_artifact_refs
 
 
+def artifact_ref_kind_catalog() -> tuple[Mapping[str, Any], ...]:
+    """Return every compiled-in artifact-reference kind descriptor, raw."""
+    binding = require_rust_binding("artifact_ref_kind_catalog")
+    raw = cast(list[Mapping[str, Any]], binding())
+    for item in raw:
+        _check_kind_catalog_record_schema(
+            item, record="artifact-reference kind catalog"
+        )
+    return tuple(raw)
+
+
+def artifact_ref_kind_canonicalize(label: str) -> Mapping[str, Any]:
+    """Resolve one requested kind label against the permanent alias registry."""
+    binding = require_rust_binding("artifact_ref_kind_canonicalize")
+    raw = cast(Mapping[str, Any], binding(label))
+    _check_kind_catalog_record_schema(raw, record="artifact-reference kind alias")
+    return raw
+
+
+def artifact_ref_parse_canonical(value: str) -> Mapping[str, Any]:
+    """Parse one reference after rewriting only its kind label to canonical."""
+    _require_artifact_ref_schema()
+    binding = require_rust_binding("artifact_ref_parse_canonical")
+    raw = cast(Mapping[str, Any], binding(value))
+    _check_kind_catalog_record_schema(raw, record="canonical artifact-reference parse")
+    return raw
+
+
+def artifact_ref_expansion_validate(expansion_format: str) -> tuple[str, ...]:
+    """Validate an expansion format and return the placeholders it uses."""
+    binding = require_rust_binding("artifact_ref_expansion_validate")
+    return tuple(str(name) for name in binding(expansion_format))
+
+
+def artifact_ref_expansion_render(
+    expansion_format: str,
+    values: Mapping[str, str],
+) -> str:
+    """Render an expansion format, substituting each placeholder verbatim."""
+    binding = require_rust_binding("artifact_ref_expansion_render")
+    return str(binding(expansion_format, dict(values)))
+
+
+def artifact_ref_entry_wire_schema_version() -> int:
+    """Return the artifact-entry wire schema version."""
+    binding = require_rust_binding("artifact_ref_entry_wire_schema_version")
+    return int(binding())
+
+
+def artifact_ref_entry_validate(entry: Mapping[str, Any]) -> None:
+    """Validate one normalized artifact entry, raising on a bad shape."""
+    binding = require_rust_binding("artifact_ref_entry_validate")
+    binding(dict(entry))
+
+
+def artifact_ref_use_wire_schema_version() -> int:
+    """Return the artifact-reference use manifest wire schema version."""
+    binding = require_rust_binding("artifact_ref_use_wire_schema_version")
+    return int(binding())
+
+
+def artifact_ref_use_record_render(record: Mapping[str, Any]) -> str:
+    """Render one compact JSON artifact-reference use manifest row."""
+    binding = require_rust_binding("artifact_ref_use_record_render")
+    return str(binding(dict(record)))
+
+
+def artifact_ref_use_manifest_parse(data: bytes) -> tuple[Mapping[str, Any], ...]:
+    """Parse a JSONL artifact-reference use manifest, skipping bad rows."""
+    binding = require_rust_binding("artifact_ref_use_manifest_parse")
+    raw = cast(list[Mapping[str, Any]], binding(data))
+    return tuple(raw)
+
+
+_ARTIFACT_REF_KIND_CATALOG_WIRE_SCHEMA_VERSION = 1
+
+
+def _check_kind_catalog_record_schema(
+    raw: Mapping[str, Any],
+    *,
+    record: str,
+) -> None:
+    version = int(raw["schema_version"])
+    if version != _ARTIFACT_REF_KIND_CATALOG_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            f"sase_core_rs returned an unsupported {record} wire: {version}"
+        )
+
+
 def _require_artifact_ref_schema() -> None:
     binding = require_rust_binding("artifact_ref_wire_schema_version")
     version = int(binding())
@@ -235,6 +324,16 @@ __all__ = [
     "at_reference_context",
     "at_reference_inventory",
     "at_reference_menu",
+    "artifact_ref_entry_validate",
+    "artifact_ref_entry_wire_schema_version",
+    "artifact_ref_expansion_render",
+    "artifact_ref_expansion_validate",
+    "artifact_ref_kind_canonicalize",
+    "artifact_ref_kind_catalog",
+    "artifact_ref_parse_canonical",
+    "artifact_ref_use_manifest_parse",
+    "artifact_ref_use_record_render",
+    "artifact_ref_use_wire_schema_version",
     "canonicalize_artifact_ref",
     "filter_artifact_ref_paths",
     "parse_artifact_ref",

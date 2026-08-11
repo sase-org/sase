@@ -2,27 +2,33 @@
 
 This module retains the stable prompt-processing surface. Focused parsing,
 rendering, and resolution helpers live in the neighboring ``artifact_ref_prompt_*``
-modules.
+modules. Builtin kinds (``stitch``, ``patch``, short-id ``bead``, ``agent``)
+resolve through ``sase.artifact_providers.builtin_entries`` against an
+explicit :class:`~sase.artifact_ref_prompt_context.PromptRefContext` derived
+from the prompt itself; every other kind keeps resolving through the Rust
+resolver exactly as before.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 import logging
 from pathlib import Path
 import sys
 from typing import cast
 
-from sase.artifact_ref_context import launch_artifact_ref_context
+from sase.artifact_ref_kinds import parse_artifact_ref_canonical
 from sase.artifact_ref_models import (
     ArtifactRef,
     ArtifactRefContext,
     ArtifactRefResolution,
 )
-from sase.artifact_ref_operations import (
-    parse_artifact_ref,
-    render_artifact_ref,
-    scan_artifact_refs,
+from sase.artifact_ref_operations import render_artifact_ref, scan_artifact_refs
+from sase.artifact_ref_prompt_context import (
+    PromptRefContext,
+    explicit_prompt_ref_context,
+    prompt_ref_contexts_for_prompt,
 )
 from sase.artifact_ref_prompt_parsing import (
     ArtifactRefFailure as _ArtifactRefFailure,
@@ -43,6 +49,10 @@ from sase.artifact_ref_prompt_resolution import (
     resolve_for_launch as _resolve_for_launch_impl,
 )
 from sase.artifact_ref_renderers import ArtifactRendererJinjaProtection
+from sase.artifact_providers.builtin_entries import (
+    BuiltinEntryOutcome,
+    resolve_builtin_entry,
+)
 from sase.core.artifact_consumption import (
     ArtifactConsumptionEvent,
     ArtifactConsumptionResolutionStatus,
@@ -54,6 +64,14 @@ from sase.core.artifact_consumption import (
 
 log = logging.getLogger(__name__)
 
+# Rust's kind registry carries no diagnostic text for these two historical
+# readers (only the "plans" deprecation alias is baked into the catalog);
+# the replacement pointer is Python-owned so it can name the current kind.
+_HISTORICAL_KIND_DIAGNOSTICS = {
+    "chat": "@chat: is a historical reader; cite the agent with @agent:<name>",
+    "bug": "@bug: is a historical reader; cite the bead with @bead:<id>",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class _ExpandedArtifactRef:
@@ -62,6 +80,8 @@ class _ExpandedArtifactRef:
     resolved_path: Path | None
     replacement_text: str
     raw_ref: str
+    canonical_ref: str
+    stable_id: str | None
     captured_record: object | None = None
 
 
@@ -70,6 +90,7 @@ def process_artifact_references(
     *,
     is_home_mode: bool = False,
     context: ArtifactRefContext | None = None,
+    ref_contexts: Sequence[PromptRefContext] | None = None,
     staged_file_paths: set[str] | None = None,
     jinja_protection: ArtifactRendererJinjaProtection | None = None,
 ) -> str:
@@ -84,6 +105,7 @@ def process_artifact_references(
         prompt,
         is_home_mode=is_home_mode,
         context=context,
+        ref_contexts=ref_contexts,
         rewrite=True,
         staged_file_paths=staged_file_paths,
         jinja_protection=jinja_protection,
@@ -95,6 +117,7 @@ def validate_artifact_references(
     *,
     is_home_mode: bool = False,
     context: ArtifactRefContext | None = None,
+    ref_contexts: Sequence[PromptRefContext] | None = None,
 ) -> None:
     """Validate live artifact references without rewriting the prompt."""
 
@@ -102,6 +125,7 @@ def validate_artifact_references(
         prompt,
         is_home_mode=is_home_mode,
         context=context,
+        ref_contexts=ref_contexts,
         rewrite=False,
         staged_file_paths=None,
         jinja_protection=None,
@@ -113,6 +137,7 @@ def _expand_artifact_references(
     *,
     is_home_mode: bool,
     context: ArtifactRefContext | None,
+    ref_contexts: Sequence[PromptRefContext] | None,
     rewrite: bool,
     staged_file_paths: set[str] | None,
     jinja_protection: ArtifactRendererJinjaProtection | None,
@@ -120,12 +145,17 @@ def _expand_artifact_references(
     if "@" not in prompt:
         return prompt
 
-    if context is None:
-        context = launch_artifact_ref_context(is_home_mode=is_home_mode)
-
     candidates = scan_artifact_refs(prompt)
     if not candidates:
         return prompt
+
+    segment_contexts = (
+        (((0, len(prompt)), explicit_prompt_ref_context(context)),)
+        if context is not None
+        else prompt_ref_contexts_for_prompt(
+            prompt, is_home_mode=is_home_mode, ref_contexts=ref_contexts
+        )
+    )
 
     from sase.xprompt._literal_zones import literal_zone_ranges
 
@@ -134,7 +164,7 @@ def _expand_artifact_references(
     replacements: list[tuple[int, int, str]] = []
     consumptions: list[_ExpandedArtifactRef] = []
     failures: list[_ArtifactRefFailure] = []
-    known_kinds = set(context.known_kinds)
+    seen_diagnostics: set[str] = set()
     for candidate in candidates:
         start, end = _character_span(
             candidate.candidate_span,
@@ -143,17 +173,31 @@ def _expand_artifact_references(
         raw_candidate = candidate.text
         if _overlaps_any(start, end, literal_ranges):
             continue
+        ref_context = _context_for_offset(start, segment_contexts)
+        known_kinds = set(ref_context.artifact_context.known_kinds)
         if candidate.kind not in known_kinds:
             continue
         if not candidate.well_formed:
             failures.append(_ArtifactRefFailure(raw_candidate, "malformed"))
             continue
         try:
-            parsed = parse_artifact_ref(candidate.reference)
-            resolution = _resolve_for_launch(parsed, context=context)
+            canonical = parse_artifact_ref_canonical(candidate.reference)
         except (RuntimeError, ValueError) as exc:
             failures.append(_ArtifactRefFailure(raw_candidate, "malformed", str(exc)))
             continue
+        parsed = canonical.reference
+        _warn_once(_kind_diagnostic(parsed, canonical.diagnostic), seen_diagnostics)
+
+        outcome = resolve_builtin_entry(
+            parsed,
+            context=ref_context.artifact_context,
+            ref_context=ref_context,
+        )
+        resolution = (
+            _resolution_from_outcome(parsed, outcome)
+            if outcome is not None
+            else _resolve_for_launch(parsed, context=ref_context.artifact_context)
+        )
         if resolution.status not in {"exact", "drifted", "vcs_backed"}:
             failures.append(
                 _ArtifactRefFailure(
@@ -162,34 +206,21 @@ def _expand_artifact_references(
                     artifact_ref_resolution_hint(
                         parsed,
                         resolution,
-                        context=context,
+                        context=ref_context.artifact_context,
                     ),
                 )
             )
             continue
         try:
-            materialized_path = _materialized_artifact_path(
-                parsed,
-                resolution,
-                context=context,
-            )
-            captured_record, captured_path = _capture_file_path_ref(
-                parsed,
-                resolution,
-                raw_candidate,
-            )
-            if captured_record is not None and captured_record.get("skipped_reason"):
-                raise RuntimeError(
-                    f"file capture skipped: {captured_record.get('skipped_reason')}"
+            replacement_text, resolved_path, captured_record = (
+                _replacement_for_candidate(
+                    parsed,
+                    resolution,
+                    outcome,
+                    raw_candidate,
+                    context=ref_context.artifact_context,
+                    jinja_protection=jinja_protection,
                 )
-            if captured_path is not None:
-                resolution = replace(resolution, resolved_path=captured_path)
-            replacement_text, resolved_path = _artifact_ref_replacement(
-                parsed,
-                resolution,
-                context=context,
-                materialized_path=materialized_path,
-                jinja_protection=jinja_protection,
             )
         except (RuntimeError, ValueError) as exc:
             failures.append(_ArtifactRefFailure(raw_candidate, "missing", str(exc)))
@@ -202,6 +233,12 @@ def _expand_artifact_references(
                 resolved_path=resolved_path,
                 replacement_text=replacement_text,
                 raw_ref=raw_candidate,
+                canonical_ref=_canonical_ref_text(parsed, outcome),
+                stable_id=(
+                    None
+                    if outcome is None or outcome.entry is None
+                    else outcome.entry.stable_id
+                ),
                 captured_record=captured_record,
             )
         )
@@ -221,7 +258,94 @@ def _expand_artifact_references(
             staged_file_paths.update(staged)
     _print_captured_file_ref_notice(consumptions)
     _record_artifact_ref_consumption(consumptions)
+    _record_artifact_ref_uses(consumptions)
     return expanded
+
+
+def _context_for_offset(
+    offset: int,
+    segment_contexts: tuple[tuple[tuple[int, int], PromptRefContext], ...],
+) -> PromptRefContext:
+    for (start, end), ref_context in segment_contexts:
+        if start <= offset < end:
+            return ref_context
+    return segment_contexts[-1][1]
+
+
+def _kind_diagnostic(
+    reference: ArtifactRef, canonical_diagnostic: str | None
+) -> str | None:
+    if canonical_diagnostic is not None:
+        return canonical_diagnostic
+    return _HISTORICAL_KIND_DIAGNOSTICS.get(reference.kind)
+
+
+def _warn_once(diagnostic: str | None, seen: set[str]) -> None:
+    if diagnostic is None or diagnostic in seen:
+        return
+    seen.add(diagnostic)
+    print(f"warning: {diagnostic}", file=sys.stderr)
+
+
+def _resolution_from_outcome(
+    reference: ArtifactRef,
+    outcome: BuiltinEntryOutcome,
+) -> ArtifactRefResolution:
+    return ArtifactRefResolution(
+        schema_version=reference.schema_version,
+        status=outcome.status,
+        rendered=outcome.canonical_reference or reference.rendered,
+        locator=outcome.locator,
+        resolved_path=outcome.resolved_path,
+        candidates=outcome.candidates,
+        diagnostic=outcome.diagnostic,
+    )
+
+
+def _replacement_for_candidate(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    outcome: BuiltinEntryOutcome | None,
+    raw_ref: str,
+    *,
+    context: ArtifactRefContext,
+    jinja_protection: ArtifactRendererJinjaProtection | None,
+) -> tuple[str, Path | None, dict[str, object] | None]:
+    if outcome is not None and outcome.prompt_text is not None:
+        text = outcome.prompt_text
+        if jinja_protection is not None:
+            text = jinja_protection.protect(text)
+        return text, outcome.resolved_path, None
+    materialized_path = _materialized_artifact_path(
+        reference, resolution, context=context
+    )
+    captured_record, captured_path = _capture_file_path_ref(
+        reference,
+        resolution,
+        raw_ref,
+    )
+    if captured_record is not None and captured_record.get("skipped_reason"):
+        raise RuntimeError(
+            f"file capture skipped: {captured_record.get('skipped_reason')}"
+        )
+    if captured_path is not None:
+        resolution = replace(resolution, resolved_path=captured_path)
+    replacement_text, resolved_path = _artifact_ref_replacement(
+        reference,
+        resolution,
+        context=context,
+        materialized_path=materialized_path,
+        jinja_protection=jinja_protection,
+    )
+    return replacement_text, resolved_path, captured_record
+
+
+def _canonical_ref_text(
+    reference: ArtifactRef, outcome: BuiltinEntryOutcome | None
+) -> str:
+    if outcome is not None and outcome.canonical_reference is not None:
+        return outcome.canonical_reference
+    return reference.rendered
 
 
 def _resolve_for_launch(
@@ -300,6 +424,32 @@ def _record_artifact_ref_consumption(
         append_artifact_consumption_events(events)
     except Exception as exc:
         log.debug("Could not record artifact-reference consumption: %s", exc)
+
+
+def _record_artifact_ref_uses(consumptions: list[_ExpandedArtifactRef]) -> None:
+    """Write one immutable ref-uses row per occurrence, builtins included."""
+
+    try:
+        from sase.agent.identity import resolve_local_agent_name
+        from sase.core.artifact_ref_uses import record_artifact_ref_use
+
+        agent_name = resolve_local_agent_name()
+        if agent_name is None:
+            log.debug(
+                "No local agent identity; skipping artifact-reference use records"
+            )
+            return
+        for item in consumptions:
+            record_artifact_ref_use(
+                agent_name=agent_name,
+                raw_ref=item.raw_ref,
+                canonical_ref=item.canonical_ref,
+                ref_kind=item.reference.kind,
+                prompt_text=item.replacement_text,
+                stable_id=item.stable_id,
+            )
+    except Exception as exc:
+        log.debug("Could not record artifact-reference use: %s", exc)
 
 
 def _stage_artifact_references(

@@ -54,7 +54,17 @@ def _handle_expand(args: argparse.Namespace) -> None:
         prompt_body, extra_xprompts=local_xprompts, trace=trace
     )
     expanded, _post_workflows = expand_embedded_workflows_in_query(early.prompt)
-    processed = preprocess_prompt_late(expanded, file_ref_mode="validate")
+
+    from sase.artifact_ref_prompt_context import (
+        prompt_ref_contexts_for_segment_vcs_refs,
+    )
+
+    ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
+        early.segment_vcs_refs, is_home_mode=False
+    )
+    processed = preprocess_prompt_late(
+        expanded, file_ref_mode="validate", ref_contexts=ref_contexts
+    )
     print(processed, end="")
     from sase.xprompt.unresolved import (
         find_unresolved_reference_names,

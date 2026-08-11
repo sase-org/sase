@@ -20,10 +20,17 @@ def context(
         document_roots=(
             ArtifactRefDocumentRoot(document_kind, tmp_path / document_kind),
             ArtifactRefDocumentRoot("plans", tmp_path / "plans"),
+            ArtifactRefDocumentRoot("plan", tmp_path / "plans"),
         ),
         chats_root=tmp_path / "chats",
         artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
-        repositories=(ArtifactRefRepository("sase"),),
+        repositories=(
+            ArtifactRefRepository(
+                "sase",
+                checkout_paths=(tmp_path / "workspace",),
+                kind="primary",
+            ),
+        ),
         projects=(
             ArtifactRefProject(
                 name="sase",

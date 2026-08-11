@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 PROMPT_ARTIFACT_MANIFEST_NAME = "prompt-artifacts.jsonl"
 PROMPT_ARTIFACT_MANIFEST_LOCK_NAME = "prompt-artifacts.lock"
 PROMPT_ARTIFACT_POOL_DIR = "pool"
-_NON_FILE_REF_KINDS = frozenset({"agent", "bug", "commit"})
+_NON_FILE_REF_KINDS = frozenset({"agent", "bug", "commit", "patch", "stitch"})
 _VCS_PROBE = GitVcsProbe()
 
 

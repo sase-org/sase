@@ -46,10 +46,10 @@ def test_rewrite_records_one_edge_per_expanded_reference(
     )
 
     assert [event.ref for event in recorded] == [
-        "plans:report.md",
+        "plan:report.md",
         "chat:agent.md",
     ]
-    assert [event.ref_kind for event in recorded] == ["plans", "chat"]
+    assert [event.ref_kind for event in recorded] == ["plan", "chat"]
     assert [event.role for event in recorded] == ["report", "report"]
     assert [event.resolved_path for event in recorded] == [
         str(plan),
@@ -78,7 +78,7 @@ def test_rewrite_stages_the_same_resolved_reference_list(
             "raw_ref": "@plans:report.md",
             "expanded_ref": f"@{plan}",
             "resolved_path": plan,
-            "ref_kind": "plans",
+            "ref_kind": "plan",
             "label": "report.md",
             "locator": None,
         }
@@ -189,7 +189,7 @@ def test_fragment_is_recorded_separately_from_fragment_free_ref(
     )
 
     assert len(recorded) == 1
-    assert recorded[0].ref == "plans:report.md"
+    assert recorded[0].ref == "plan:report.md"
     assert recorded[0].fragment == "L2-L4"
 
 
@@ -241,7 +241,7 @@ def test_duplicate_refs_in_one_prompt_record_one_event(
     )
 
     assert len(recorded) == 1
-    assert recorded[0].ref == "plans:report.md"
+    assert recorded[0].ref == "plan:report.md"
 
 
 def test_validation_records_nothing(
@@ -318,6 +318,7 @@ def test_late_preprocessing_expands_artifacts_before_file_refs() -> None:
         prompt: str,
         *,
         is_home_mode: bool,
+        ref_contexts: object = None,
         staged_file_paths: set[str],
         jinja_protection: object,
     ) -> str:

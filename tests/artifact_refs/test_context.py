@@ -141,12 +141,15 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         ("docs/**/*.md",),
     ]
     assert context.known_kinds == (
-        "commit",
-        "chat",
-        "bug",
-        "file",
+        "stitch",
+        "patch",
         "bead",
         "agent",
+        "file",
+        "commit",
+        "plans",
+        "chat",
+        "bug",
         "plan",
         "designs",
     )

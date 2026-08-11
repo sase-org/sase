@@ -303,6 +303,12 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-js(ArtifactRefKindAlias)" \
+        --epic-symbol "sase-js(CanonicalArtifactRef)" \
+        --epic-symbol "sase-js(canonical_artifact_ref_kind)" \
+        --epic-symbol "sase-js(artifact_ref_expansion_validate)" \
+        --epic-symbol "sase-js(ArtifactRefUseRecord)" \
+        --epic-symbol "sase-js(read_artifact_ref_uses)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

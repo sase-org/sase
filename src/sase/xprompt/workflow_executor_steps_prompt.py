@@ -239,7 +239,16 @@ class PromptStepMixin:
             )
 
         # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
-        expanded_prompt = preprocess_prompt_late(expanded_prompt)
+        from sase.artifact_ref_prompt_context import (
+            prompt_ref_contexts_for_segment_vcs_refs,
+        )
+
+        ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
+            early.segment_vcs_refs, is_home_mode=False
+        )
+        expanded_prompt = preprocess_prompt_late(
+            expanded_prompt, ref_contexts=ref_contexts
+        )
 
         # Append output format instructions if step has output spec
         if step.output:

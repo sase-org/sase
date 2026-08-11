@@ -16,6 +16,10 @@ from sase.artifact_ref_entries import (
     reference_for_agent_name,
     reference_for_entry_target,
 )
+from sase.artifact_ref_kinds import (
+    completion_artifact_ref_kinds,
+    parsable_artifact_ref_kinds,
+)
 from sase.artifact_ref_lists import (
     ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION,
     ArtifactRefListEntry,
@@ -27,7 +31,7 @@ from sase.artifact_ref_models import (
     ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
-    BUILTIN_ARTIFACT_REF_KINDS,
+    ArtifactEntry,
     ArtifactRef,
     ArtifactRefAgentOwner,
     ArtifactRefAgentRoot,
@@ -63,6 +67,15 @@ from sase.artifact_ref_prompt import (
     process_artifact_references,
     validate_artifact_references,
 )
+from sase.artifact_ref_prompt_context import (
+    PromptRefContext,
+    PromptRefProject,
+    empty_prompt_ref_context,
+    explicit_prompt_ref_context,
+    prompt_ref_context_for_vcs_ref,
+    prompt_ref_context_from_launch_identity,
+    prompt_ref_contexts_for_prompt,
+)
 from sase.artifact_ref_renderers import (
     ArtifactRendererJinjaProtection,
 )
@@ -79,7 +92,7 @@ __all__ = [
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
     "ArtifactRendererJinjaProtection",
-    "BUILTIN_ARTIFACT_REF_KINDS",
+    "ArtifactEntry",
     "ArtifactRef",
     "ArtifactRefAgentOwner",
     "ArtifactRefAgentRoot",
@@ -98,6 +111,8 @@ __all__ = [
     "ArtifactRefResolutionStatus",
     "ArtifactRefSpan",
     "ParsedArtifactRef",
+    "PromptRefContext",
+    "PromptRefProject",
     "artifact_ref_context",
     "artifact_ref_list_display_lines",
     "artifact_ref_lsp_catalog_payload",
@@ -106,13 +121,20 @@ __all__ = [
     "at_reference_inventory",
     "at_reference_menu",
     "canonicalize_artifact_ref",
+    "completion_artifact_ref_kinds",
     "default_ref_files_index_path",
     "design_reference_for_plan_row",
+    "empty_prompt_ref_context",
+    "explicit_prompt_ref_context",
     "filter_artifact_ref_paths",
     "launch_artifact_ref_context",
     "normalize_artifact_ref_list",
+    "parsable_artifact_ref_kinds",
     "parse_artifact_ref",
     "process_artifact_references",
+    "prompt_ref_context_for_vcs_ref",
+    "prompt_ref_context_from_launch_identity",
+    "prompt_ref_contexts_for_prompt",
     "query_ref_file_versions",
     "reference_for_agent_name",
     "reference_for_entry_target",

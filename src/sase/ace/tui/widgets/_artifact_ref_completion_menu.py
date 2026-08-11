@@ -10,9 +10,9 @@ from types import MappingProxyType
 from typing import Any, Protocol, cast
 
 from sase.artifact_refs import (
-    BUILTIN_ARTIFACT_REF_KINDS,
     at_reference_inventory,
     at_reference_menu,
+    completion_artifact_ref_kinds,
 )
 from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
 from sase.ace.tui.widgets._artifact_ref_completion_models import (
@@ -252,7 +252,7 @@ def kind_inventory(
     catalog: ArtifactRefCompletionCatalog,
 ) -> list[dict[str, object]]:
     """Project the warm kind catalog into shared-core inventory rows."""
-    builtin = {kind.casefold() for kind in BUILTIN_ARTIFACT_REF_KINDS}
+    builtin = {kind.casefold() for kind in completion_artifact_ref_kinds()}
     detail_by_kind = {kind.casefold(): detail for kind, detail in catalog.kind_details}
     return [
         {
@@ -263,7 +263,7 @@ def kind_inventory(
                 "builtin" if kind.casefold() in builtin else "document",
             ),
         }
-        for kind in dict.fromkeys((*BUILTIN_ARTIFACT_REF_KINDS, *catalog.kinds))
+        for kind in dict.fromkeys((*completion_artifact_ref_kinds(), *catalog.kinds))
     ]
 
 

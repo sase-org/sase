@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Literal, cast
 
 
 ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 2
 ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
-BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
 
 ArtifactRefKindType = Literal[
     "commit",
@@ -301,6 +301,58 @@ class ArtifactRefAgentOwner:
         }
 
 
+ArtifactEntryOrigin = Literal["prompt_ref", "agent_artifact", "both"]
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactEntry:
+    """A normalized artifact-entry, mirroring ``ArtifactEntryWire``.
+
+    Constructed by the Python builtin-entry resolvers (stitch/patch/bead/agent);
+    always pass a freshly built entry through :func:`artifact_ref_entry_validate`
+    before use.
+    """
+
+    stable_id: str
+    ref_kind: str
+    canonical_argument: str
+    display_label: str
+    origin: ArtifactEntryOrigin
+    project_display_name: str | None = None
+    repository: str | None = None
+    repo_relative_path: str | None = None
+    captured_revision: str | None = None
+    captured_digest: str | None = None
+    logical_path: str | None = None
+    properties: Mapping[str, str] = field(default_factory=lambda: MappingProxyType({}))
+
+    def to_wire(self) -> dict[str, object]:
+        # Lazy import: artifact_ref_operations imports ArtifactRef from this module.
+        from sase.artifact_ref_operations import artifact_ref_entry_wire_schema_version
+
+        raw: dict[str, object] = {
+            "schema_version": artifact_ref_entry_wire_schema_version(),
+            "stable_id": self.stable_id,
+            "ref_kind": self.ref_kind,
+            "canonical_argument": self.canonical_argument,
+            "display_label": self.display_label,
+            "properties": dict(self.properties),
+            "origin": self.origin,
+        }
+        for name in (
+            "project_display_name",
+            "repository",
+            "repo_relative_path",
+            "captured_revision",
+            "captured_digest",
+            "logical_path",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                raw[name] = value
+        return raw
+
+
 @dataclass(frozen=True, slots=True)
 class ArtifactRefContext:
     """Caller-supplied local namespaces used by the Rust resolver."""
@@ -320,10 +372,13 @@ class ArtifactRefContext:
 
     @property
     def known_kinds(self) -> tuple[str, ...]:
+        # Lazy import: artifact_ref_kinds imports ArtifactRef from this module.
+        from sase.artifact_ref_kinds import parsable_artifact_ref_kinds
+
         return tuple(
             dict.fromkeys(
                 (
-                    *BUILTIN_ARTIFACT_REF_KINDS,
+                    *parsable_artifact_ref_kinds(),
                     *(entry.kind for entry in self.document_roots),
                 )
             )
@@ -419,6 +474,7 @@ class ArtifactRefPromptCandidate:
     separator_span: ArtifactRefSpan
     payload_span: ArtifactRefSpan
     fragment_span: ArtifactRefSpan | None
+    quoted: bool = False
 
     @classmethod
     def from_wire(
@@ -453,6 +509,7 @@ class ArtifactRefPromptCandidate:
                 if raw_fragment is None
                 else ArtifactRefSpan.from_wire(cast(Mapping[str, Any], raw_fragment))
             ),
+            quoted=bool(raw.get("quoted", False)),
         )
 
 

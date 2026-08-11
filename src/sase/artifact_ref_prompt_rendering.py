@@ -56,7 +56,10 @@ def _legacy_replacement_text(
     if reference.kind_type in {"document", "chat", "file", "bead", "agent"}:
         if resolved_path is None:
             raise RuntimeError("resolver returned no artifact path")
-        return f"@{resolved_path}{_fragment_annotation(reference.fragment)}"
+        text = f"@{resolved_path}{_fragment_annotation(reference.fragment)}"
+        if reference.kind_type == "agent":
+            text += _agent_transcript_pointer(reference, resolution, resolved_path)
+        return text
     if reference.kind_type == "commit":
         if resolution.locator is None or resolved_path is None:
             raise RuntimeError("resolver returned no commit locator")
@@ -82,6 +85,28 @@ def _bug_url(
         return None
     project = resolution.locator.rsplit("#", 1)[0]
     return issue_url_resolver(project, reference.payload.number)
+
+
+def _agent_transcript_pointer(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    resolved_path: Path,
+) -> str:
+    """Point at chat.md/prompt.md beside an agent's page, when both exist.
+
+    Only names the siblings when they actually exist next to the page,
+    which is what makes dropping ``@chat`` from authoring lossless.
+    """
+
+    page_dir = resolved_path.parent
+    if not (page_dir / "chat.md").exists() or not (page_dir / "prompt.md").exists():
+        return ""
+    name = reference.payload.name or ""
+    project = (resolution.locator or "/").split("/", 1)[0]
+    return (
+        f" (agent {name} in project {project}; its prompt and chat "
+        "transcript are prompt.md and chat.md beside that page)"
+    )
 
 
 def _fragment_annotation(fragment: ArtifactRefFragment | None) -> str:

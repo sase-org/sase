@@ -39,6 +39,7 @@ def test_show_json_uses_common_envelope(
         "file",
         "resolution",
         "consumption",
+        "entry",
     ]
     assert payload["reference"] == "plans:doc.md#L3"
     assert payload["kind"] == "plans"

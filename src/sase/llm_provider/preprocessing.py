@@ -11,10 +11,12 @@ invoke_agent, workflow executor) can insert logic between the two phases
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from sase.artifact_ref_prompt_context import PromptRefContext
     from sase.xprompt._trace import ExpansionTrace
 
 from sase.xprompt._disabled_regions import (
@@ -39,10 +41,14 @@ class PreprocessResult:
     Attributes:
         prompt: The preprocessed prompt text (after early phase).
         directives: Parsed prompt directives extracted during early phase.
+        segment_vcs_refs: Each top-level segment's own ``#git``/``#gh`` VCS
+            tag (or ``None``), captured before embedded-workflow expansion
+            can consume it.
     """
 
     prompt: str
     directives: PromptDirectives = field(default_factory=PromptDirectives)
+    segment_vcs_refs: tuple[str | None, ...] = ()
 
 
 # Keep the old name as an alias so existing internal references still work.
@@ -107,7 +113,13 @@ def preprocess_prompt_early(
     #    from command substitution and file-reference validation.
     prompt, directives = extract_prompt_directives(prompt, strip_disabled_markers=False)
 
-    return PreprocessResult(prompt=prompt, directives=directives)
+    from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
+
+    return PreprocessResult(
+        prompt=prompt,
+        directives=directives,
+        segment_vcs_refs=prompt_segment_vcs_refs(prompt),
+    )
 
 
 def preprocess_prompt_late(
@@ -115,6 +127,7 @@ def preprocess_prompt_late(
     *,
     file_ref_mode: FileRefMode = "process",
     is_home_mode: bool = False,
+    ref_contexts: Sequence[PromptRefContext] | None = None,
 ) -> str:
     """Late preprocessing phase: command sub, artifact/file refs, Jinja2, formatting.
 
@@ -133,6 +146,10 @@ def preprocess_prompt_late(
             expansion).
         file_ref_mode: How to handle ``@path`` references.
         is_home_mode: If True, skip file copying for ``@`` file references.
+        ref_contexts: Per-segment builtin artifact-ref resolution contexts,
+            usually built from :attr:`PreprocessResult.segment_vcs_refs`.
+            Each candidate still prefers its own segment's live VCS tag over
+            this sequence; see ``artifact_ref_prompt``'s resolution order.
 
     Returns:
         The fully preprocessed prompt text.
@@ -169,11 +186,14 @@ def preprocess_prompt_late(
         prompt = process_artifact_references(
             prompt,
             is_home_mode=is_home_mode,
+            ref_contexts=ref_contexts,
             staged_file_paths=staged_artifact_paths,
             jinja_protection=artifact_jinja_protection,
         )
     elif file_ref_mode == "validate":
-        validate_artifact_references(prompt, is_home_mode=is_home_mode)
+        validate_artifact_references(
+            prompt, is_home_mode=is_home_mode, ref_contexts=ref_contexts
+        )
 
     # 4. File references
     if file_ref_mode == "process":
@@ -220,5 +240,15 @@ def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> PreprocessR
         A PreprocessResult with the cleaned prompt and extracted directives.
     """
     early = preprocess_prompt_early(prompt)
-    final_prompt = preprocess_prompt_late(early.prompt, is_home_mode=is_home_mode)
+
+    from sase.artifact_ref_prompt_context import (
+        prompt_ref_contexts_for_segment_vcs_refs,
+    )
+
+    ref_contexts = prompt_ref_contexts_for_segment_vcs_refs(
+        early.segment_vcs_refs, is_home_mode=is_home_mode
+    )
+    final_prompt = preprocess_prompt_late(
+        early.prompt, is_home_mode=is_home_mode, ref_contexts=ref_contexts
+    )
     return PreprocessResult(prompt=final_prompt, directives=early.directives)
