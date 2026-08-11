@@ -30,6 +30,7 @@ class MirrorCursor:
     last_provider_id: str = ""
     backfill_complete: bool = False
     last_full_scan_at: datetime | None = None
+    mirrored_pr_authors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,7 @@ def read_mirror_cursor(state_dir: Path, kind: str, project_key: str) -> MirrorCu
         last_provider_id=str(payload.get("last_provider_id") or ""),
         backfill_complete=bool(payload.get("backfill_complete", False)),
         last_full_scan_at=_parse_datetime(payload.get("last_full_scan_at")),
+        mirrored_pr_authors=_string_tuple(payload.get("mirrored_pr_authors")),
     )
 
 
@@ -82,8 +84,15 @@ def write_mirror_cursor(
             "last_provider_id": cursor.last_provider_id,
             "backfill_complete": cursor.backfill_complete,
             "last_full_scan_at": _format_datetime(cursor.last_full_scan_at),
+            "mirrored_pr_authors": list(cursor.mirrored_pr_authors),
         },
     )
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, str))
 
 
 def read_backoff_state(state_dir: Path, kind: str) -> dict[str, BackoffEntry]:

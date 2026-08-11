@@ -291,3 +291,46 @@ def test_pr_authors_empty_by_default_adopts_every_author(monkeypatch, tmp_path):
 
     assert report.unmirrored == 0
     assert report.created == 2
+
+
+def test_clearing_pr_authors_reexamines_older_filtered_prs(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    authors = frozenset({"bob"})
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.mirrored_pr_authors", lambda: authors
+    )
+    _workspace_project("proj")
+    provider = _Provider(
+        [
+            _pr(1, "2026-08-01T00:00:00Z", author="alice"),
+            _pr(2, "2026-08-03T00:00:00Z", author="bob"),
+        ]
+    )
+
+    first = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=provider,
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+    assert first.created == 1
+    assert read_mirror_cursor(tmp_path, KIND, "proj").mirrored_pr_authors == ("bob",)
+
+    authors = frozenset()
+    second = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=provider,
+        now=datetime(2026, 8, 3, 1, tzinfo=UTC),
+    )
+
+    assert provider.limits == [0, 0]
+    assert second.created == 1
+    body = Path(project_patch_files("proj")[0]).read_text(encoding="utf-8")
+    assert "https://github.com/acme/widget/pull/1" in body
+    assert "https://github.com/acme/widget/pull/2" in body
+    assert read_mirror_cursor(tmp_path, KIND, "proj").mirrored_pr_authors == ()

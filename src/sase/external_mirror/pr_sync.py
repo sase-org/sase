@@ -75,7 +75,12 @@ def sync_external_pull_requests(
 
     now = _utc(now)
     cursor = read_mirror_cursor(state_dir, KIND, project_key)
-    full = full or _needs_daily_repair_scan(cursor, now)
+    authors = mirrored_pr_authors()
+    full = (
+        full
+        or _needs_daily_repair_scan(cursor, now)
+        or cursor.mirrored_pr_authors != tuple(sorted(authors))
+    )
     limit = 0 if full else fetch_limit
 
     try:
@@ -93,7 +98,7 @@ def sync_external_pull_requests(
         return report
 
     report.fetched = len(remotes)
-    remotes = _authored_remotes(remotes, mirrored_pr_authors())
+    remotes = _authored_remotes(remotes, authors)
     report.unmirrored = report.fetched - len(remotes)
     active_file, archive_file = project_patch_files(project_key)
     index = read_project_patch_index(active_file, archive_file)
@@ -161,7 +166,7 @@ def sync_external_pull_requests(
         return report
 
     if clean_pass and not report.budget_exhausted and not report.errors:
-        cursor = _advanced_cursor(cursor, latest_seen, full, now)
+        cursor = _advanced_cursor(cursor, latest_seen, full, now, authors)
         write_mirror_cursor(state_dir, KIND, project_key, cursor)
         report.checkpoint_advanced = 1
         backoff = read_backoff_state(state_dir, KIND)
@@ -233,6 +238,7 @@ def _advanced_cursor(
     latest_seen: tuple[datetime, str] | None,
     full: bool,
     now: datetime,
+    authors: frozenset[str],
 ) -> MirrorCursor:
     last_updated_at = cursor.last_updated_at
     last_provider_id = cursor.last_provider_id
@@ -243,6 +249,7 @@ def _advanced_cursor(
         last_provider_id=last_provider_id,
         backfill_complete=cursor.backfill_complete or full,
         last_full_scan_at=now if full else cursor.last_full_scan_at,
+        mirrored_pr_authors=tuple(sorted(authors)),
     )
 
 
