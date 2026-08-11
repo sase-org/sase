@@ -111,13 +111,46 @@ class GitCoreOpsMixin(CommandRunner):
     def vcs_amend(
         self, note: str, cwd: str, no_upload: bool
     ) -> tuple[bool, str | None]:
-        out = self._run(["git", "commit", "--amend", "-m", note], cwd)
+        message = self._inherit_footer_on_amend(note, cwd)
+        out = self._run(["git", "commit", "--amend", "-m", message], cwd)
         result = self._to_result(out, "git commit --amend")
         status = "ok" if result[0] else "error"
         VCS_OPERATIONS.labels(
             provider=self._provider_name, operation="amend", status=status
         ).inc()
         return result
+
+    def _inherit_footer_on_amend(self, note: str, cwd: str) -> str:
+        """Carry HEAD's SASE footer tags (``SASE_TYPE=`` etc.) into *note*.
+
+        An amend replaces the whole commit message, so a caller-supplied
+        message with no footer of its own would otherwise silently drop
+        HEAD's ``SASE_TYPE=`` tag and reclassify a tracked stitch as a
+        manual commit. Falls back to *note* unchanged if HEAD carries no
+        footer or its message can't be read, rather than failing the amend.
+        A tag *note* already sets wins over the inherited one.
+        """
+        # Deferred import: sase.workflows.commit (re)imports sase.vcs_provider
+        # at module scope, so importing this at module level here would
+        # cycle back into the package this file belongs to.
+        from sase.workflows.commit.runtime_tags import (
+            parse_trailing_commit_tag_values,
+            update_trailing_commit_tags,
+        )
+
+        head_out = self._run(["git", "log", "--format=%B", "-n1", "HEAD"], cwd)
+        if not head_out.success:
+            return note
+        head_tags = parse_trailing_commit_tag_values(head_out.stdout.rstrip("\n"))
+        if not head_tags:
+            return note
+        note_tags = parse_trailing_commit_tag_values(note)
+        inherited = {
+            key: value for key, value in head_tags.items() if key not in note_tags
+        }
+        if not inherited:
+            return note
+        return update_trailing_commit_tags(note, inherited)
 
     # --- Branch / rebase / archive ---
 

@@ -44,10 +44,12 @@ _ALLOWED_UNTAGGED_COMMIT_SITES = {
     # Generic hookspec wrapper with no current callers; any future caller is
     # responsible for tagging the message it supplies.
     "vcs_provider/plugins/_git_core_ops.py:vcs_commit",
-    # Generic amend: replaces HEAD's message with whatever the caller
-    # supplies. Reword/rewind/accept callers are responsible for preserving
-    # an existing footer. See sase-jo.2 PROPOSED FOLLOW-UP for callers that
-    # currently build a fresh message instead of preserving one.
+    # vcs_amend inherits HEAD's footer itself: it reads HEAD's message,
+    # extracts any SASE_* tags via parse_trailing_commit_tag_values, and
+    # re-applies them to the caller-supplied message via
+    # update_trailing_commit_tags before amending (caller-set tags win).
+    # Neither helper is in _TAG_HELPER_CALL_NAMES, so this site still needs
+    # an explicit allowlist entry even though the footer is preserved.
     "vcs_provider/plugins/_git_core_ops.py:vcs_amend",
     # Reword replaces the full commit message with caller-supplied text; the
     # ACE reword flow round-trips the existing (tagged) description through

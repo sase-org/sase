@@ -116,6 +116,108 @@ def test_integration_commit_on_current_branch(git_repo: str) -> None:
 # === Tests for amend ===
 
 
+def _head_message(repo: str) -> str:
+    out = subprocess.run(
+        ["git", "log", "--format=%B", "-n1", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return out.stdout
+
+
+def _amend_head_message(repo: str, message: str) -> None:
+    subprocess.run(
+        ["git", "commit", "--amend", "-m", message],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+
+
+def test_integration_amend_preserves_type_tag_with_untagged_message(
+    git_repo: str,
+) -> None:
+    """A fresh, untagged amend message inherits HEAD's SASE_TYPE= tag."""
+    _amend_head_message(
+        git_repo, "feat: tracked work\n\nSASE_TYPE=stitch\nSASE_AGENT=someagent"
+    )
+    provider = _make_git_provider()
+
+    success, error = provider.amend("chore: fresh untagged message", git_repo)
+
+    assert success is True, error
+    message = _head_message(git_repo)
+    assert message.startswith("chore: fresh untagged message")
+    assert "SASE_TYPE=stitch" in message
+    assert "SASE_AGENT=someagent" in message
+
+
+def test_integration_amend_rewind_message_classifies_as_stitch(git_repo: str) -> None:
+    """The rewind workflow's literal ``[rewind] (N)`` message stays classified
+    as ``stitch`` after amending, not just carrying the substring."""
+    _amend_head_message(git_repo, "feat: tracked work\n\nSASE_TYPE=stitch")
+    provider = _make_git_provider()
+
+    success, error = provider.amend("[rewind] (3)", git_repo)
+
+    assert success is True, error
+    message = _head_message(git_repo)
+
+    from sase.core.rust import require_rust_binding
+
+    classify = require_rust_binding("classify_commit_origin")
+    assert classify(message.strip("\n")) == "stitch"
+
+
+def test_integration_amend_with_no_head_footer_leaves_message_untouched(
+    git_repo: str,
+) -> None:
+    """Amending HEAD's untagged initial commit leaves the caller's message as-is."""
+    provider = _make_git_provider()
+
+    success, error = provider.amend("chore: plain amend", git_repo)
+
+    assert success is True, error
+    assert _head_message(git_repo).strip("\n") == "chore: plain amend"
+
+
+def test_integration_amend_is_idempotent(git_repo: str) -> None:
+    """Amending twice with the same note does not duplicate or reorder tags."""
+    _amend_head_message(git_repo, "feat: tracked work\n\nSASE_TYPE=stitch")
+    provider = _make_git_provider()
+
+    ok1, err1 = provider.amend("[rewind] (3)", git_repo)
+    assert ok1 is True, err1
+    first_message = _head_message(git_repo)
+
+    ok2, err2 = provider.amend("[rewind] (3)", git_repo)
+    assert ok2 is True, err2
+    second_message = _head_message(git_repo)
+
+    assert first_message == second_message
+    assert first_message.count("SASE_TYPE=") == 1
+
+
+def test_integration_amend_caller_supplied_type_wins_over_inherited(
+    git_repo: str,
+) -> None:
+    """A TYPE tag already present in the caller's message beats HEAD's."""
+    _amend_head_message(git_repo, "feat: tracked work\n\nSASE_TYPE=stitch")
+    provider = _make_git_provider()
+
+    success, error = provider.amend(
+        "chore: manual override\n\nSASE_TYPE=manual", git_repo
+    )
+
+    assert success is True, error
+    message = _head_message(git_repo)
+    assert message.count("SASE_TYPE=") == 1
+    assert "SASE_TYPE=manual" in message
+    assert "SASE_TYPE=stitch" not in message
+
+
 # === Tests for clean_workspace ===
 
 

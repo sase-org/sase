@@ -1,7 +1,16 @@
 """Tests for the workflows_runner module."""
 
 import os
+import shutil
+import subprocess
 import tempfile
+from pathlib import Path
+
+import pluggy
+import pytest
+from sase.vcs_provider._hookspec import VCSHookSpec
+from sase.vcs_provider._plugin_manager import VCSPluginManager
+from sase.vcs_provider.plugins.bare_git import BareGitPlugin
 
 import sase.ace.scheduler.workflows_runner.starter as starter_module
 from sase.ace.patch import (
@@ -11,7 +20,10 @@ from sase.ace.patch import (
     HookEntry,
     HookStatusLine,
 )
-from sase.ace.scheduler.workflows_runner.completer import _find_fix_hook_proposal
+from sase.ace.scheduler.workflows_runner.completer import (
+    _auto_accept_proposal,
+    _find_fix_hook_proposal,
+)
 from sase.ace.scheduler.workflows_runner.monitor import (
     WORKFLOW_COMPLETE_MARKER,
     check_workflow_completion,
@@ -25,6 +37,8 @@ from sase.ace.scheduler.workflows_runner.starter import (
     get_workflow_output_path,
     start_stale_workflows,
 )
+
+_GIT_AVAILABLE = shutil.which("git") is not None
 
 
 def _make_patch(
@@ -295,3 +309,119 @@ def test_find_fix_hook_proposal_returns_none_when_note_wrong_prefix() -> None:
     cs = _make_patch(commits=commits)
     result = _find_fix_hook_proposal(cs, "1")
     assert result is None
+
+
+# === Tests for _auto_accept_proposal footer preservation ===
+
+
+def _init_repo_with_stitch_footer(repo: Path) -> None:
+    subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test User"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+    (repo / "README.md").write_text("# Test Repo\n")
+    subprocess.run(
+        ["git", "add", "README.md"], cwd=repo, capture_output=True, check=True
+    )
+    subprocess.run(
+        ["git", "commit", "-m", "feat: tracked work\n\nSASE_TYPE=stitch"],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+    )
+
+
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_auto_accept_proposal_preserves_footer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """_auto_accept_proposal's entry.note amend keeps HEAD's SASE_TYPE= tag.
+
+    Pins the amend-footer fix at the workflow level (not only via a direct
+    provider.amend unit test): the real completer.py call path builds a
+    fresh, untagged amend message from entry.note, and that message must
+    still classify as ``stitch`` after going through the real git plugin.
+    """
+    _init_repo_with_stitch_footer(tmp_path)
+
+    # Stage a proposal diff, captured the same way create_proposal does:
+    # a raw `git diff HEAD` against the tracked file.
+    (tmp_path / "README.md").write_text("# Test Repo\n\nProposal content\n")
+    diff = subprocess.run(
+        ["git", "diff", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    subprocess.run(
+        ["git", "checkout", "--", "README.md"],
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
+    )
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".diff", delete=False
+    ) as diff_file:
+        diff_file.write(diff)
+        diff_path = diff_file.name
+
+    try:
+        entry = CommitEntry(
+            number=1, note="Fix flaky test", proposal_letter="a", diff=diff_path
+        )
+        patch = _make_patch(commits=[entry])
+
+        pm = pluggy.PluginManager("sase_vcs")
+        pm.add_hookspecs(VCSHookSpec)
+        pm.register(BareGitPlugin())
+        provider = VCSPluginManager(pm)
+
+        monkeypatch.setattr(
+            "sase.ace.scheduler.workflows_runner.completer.get_vcs_provider",
+            lambda _cwd: provider,
+        )
+        monkeypatch.setattr(
+            "sase.workflows.commit_utils.workspace.get_vcs_provider",
+            lambda _cwd: provider,
+        )
+        monkeypatch.setattr(
+            "sase.workflows.accept.renumber_commit_entries",
+            lambda *_args, **_kwargs: True,
+        )
+        monkeypatch.setattr(
+            "sase.workflows.utils.add_test_hooks_if_available",
+            lambda *_args, **_kwargs: None,
+        )
+
+        result = _auto_accept_proposal(
+            patch, "1a", str(tmp_path), lambda _msg, _color=None: None
+        )
+    finally:
+        os.unlink(diff_path)
+
+    assert result is True
+    head_message = subprocess.run(
+        ["git", "log", "--format=%B", "-n1", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "Fix flaky test" in head_message
+    assert "SASE_TYPE=stitch" in head_message
+
+    from sase.core.rust import require_rust_binding
+
+    classify = require_rust_binding("classify_commit_origin")
+    assert classify(head_message.strip("\n")) == "stitch"
