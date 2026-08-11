@@ -48,9 +48,9 @@ def create_issue(
         "resolution, "
         "description, notes, design, refs, plus_one_evidence, close_history, "
         "snooze, model, size, is_ready_to_work, "
-        "changespec_name, changespec_bug_id) "
+        "changespec_name, changespec_bug_id, external_ref) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?)",
+        "?, ?, ?)",
         (
             issue.id,
             issue.title,
@@ -78,6 +78,7 @@ def create_issue(
             int(issue.is_ready_to_work),
             issue.changespec_name,
             issue.changespec_bug_id,
+            issue.external_ref or None,
         ),
     )
     if commit:
@@ -149,9 +150,14 @@ def update_issue(
         "is_ready_to_work",
         "changespec_name",
         "changespec_bug_id",
+        "external_ref",
     }
     to_set: dict[str, str | int | None] = {
-        k: (int(v) if k == "is_ready_to_work" and v is not None else v)
+        k: (
+            int(v)
+            if k == "is_ready_to_work" and v is not None
+            else (None if k == "external_ref" and not v else v)
+        )
         for k, v in fields.items()
         if k in allowed
     }

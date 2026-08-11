@@ -21,3 +21,24 @@ def test_extended_phase_sizes_round_trip_through_wire(size: PhaseSize) -> None:
     )
 
     assert issue.size is size
+
+
+def test_external_ref_defaults_empty_and_decodes_nonempty() -> None:
+    missing = issue_from_dict(
+        {
+            "id": "beads-1",
+            "title": "Legacy",
+            "issue_type": "plan",
+        }
+    )
+    present = issue_from_dict(
+        {
+            "id": "beads-2",
+            "title": "Mirrored task",
+            "issue_type": "task",
+            "external_ref": "bug:sase#42",
+        }
+    )
+
+    assert missing.external_ref == ""
+    assert present.external_ref == "bug:sase#42"

@@ -87,6 +87,12 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
     )
     epic.patch_name = "linked_pr"
     epic.patch_bug_id = "42"
+    task = Issue(
+        id="sase-task",
+        title="Linked task",
+        issue_type=IssueType.TASK,
+        external_ref="bug:alpha#42",
+    )
     calls: list[str] = []
 
     def collect(_project: str, state: str, _patches: object) -> BugSnapshot:
@@ -96,7 +102,7 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
         return _snapshot(
             (_issue(42), _issue(41)),
             state_filter=state,
-            links=((42, BugLinks("42", (epic,), (linked_pr,))),),
+            links=((42, BugLinks("42", (epic,), (linked_pr,), (task,))),),
         )
 
     monkeypatch.setattr(
@@ -115,7 +121,11 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
         assert calls == ["open"]
         assert pane.selected_issue is not None
         assert "Reproduction" in pane.selected_issue.body
-        assert pane._link_targets == [("epic", "sase-42"), ("pr", "linked_pr")]
+        assert pane._link_targets == [
+            ("epic", "sase-42"),
+            ("bead", "sase-task"),
+            ("pr", "linked_pr"),
+        ]
 
         await page.press("j")
         await page.wait_for(
@@ -136,9 +146,19 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
         assert isinstance(page.app.focused, BugLinkList)
         await page.press("j")
         assert page.query_one_widget("#bugs-links", BugLinkList).highlighted == 1
+        await page.press("j")
+        assert page.query_one_widget("#bugs-links", BugLinkList).highlighted == 2
         await page.press("enter")
         await page.expect_state("artifacts_subtab", "prs")
         await page.expect_state("selected.name", "linked_pr")
+
+        page.app.current_artifacts_subtab = "bugs"
+        await page.expect_state("artifacts_subtab", "bugs")
+        await page.press("l")
+        page.query_one_widget("#bugs-links", BugLinkList).highlighted = 1
+        await page.press("enter")
+        await page.expect_state("artifacts_subtab", "beads")
+        assert page.app.artifacts_plan_target_bead_id == "sase-task"
 
         page.app.current_artifacts_subtab = "bugs"
         await page.expect_state("artifacts_subtab", "bugs")

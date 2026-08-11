@@ -166,6 +166,11 @@ def register_bead_create_parser(
     )
     parser.add_argument("-d", "--description", help="Issue description")
     parser.add_argument(
+        "-x",
+        "--external-ref",
+        help="Project-qualified external issue identity, e.g. bug:sase#42",
+    )
+    parser.add_argument(
         "-m",
         "--model",
         help=(
@@ -453,6 +458,18 @@ def register_bead_update_parser(
     parser.add_argument("-a", "--assignee")
     parser.add_argument("-D", "--design")
     parser.add_argument("-d", "--description")
+    external_ref_group = parser.add_mutually_exclusive_group()
+    external_ref_group.add_argument(
+        "-x",
+        "--external-ref",
+        help="Project-qualified external issue identity, e.g. bug:sase#42",
+    )
+    external_ref_group.add_argument(
+        "-X",
+        "--clear-external-ref",
+        action="store_true",
+        help="Clear the external issue identity",
+    )
     parser.add_argument(
         "-m",
         "--model",

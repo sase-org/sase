@@ -155,6 +155,52 @@ def test_remove_many_facade_returns_unique_expanded_removals(
     assert outcome["issue_ids"] == [child.id, epic.id, independent.id]
 
 
+def test_external_ref_facade_create_update_clear_and_conflict(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    first, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="First",
+        issue_type=IssueType.PLAN,
+        external_ref="bug:sase#42",
+        now="2026-01-01T00:00:00Z",
+    )
+    second, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Second",
+        issue_type=IssueType.TASK,
+        size="small",
+        now="2026-01-01T00:01:00Z",
+    )
+
+    assert first.external_ref == "bug:sase#42"
+    with pytest.raises(ValueError, match="external_ref bug:sase#42"):
+        rust_beads.update(
+            root / "sdd/beads",
+            second.id,
+            external_ref="bug:sase#42",
+            now="2026-01-01T00:02:00Z",
+        )
+
+    cleared, _ = rust_beads.update(
+        root / "sdd/beads",
+        first.id,
+        external_ref="",
+        now="2026-01-01T00:03:00Z",
+    )
+    assert cleared.external_ref == ""
+
+    updated, _ = rust_beads.update(
+        root / "sdd/beads",
+        second.id,
+        external_ref="bug:sase#42",
+        now="2026-01-01T00:04:00Z",
+    )
+    assert updated.external_ref == "bug:sase#42"
+
+
 def test_append_note_facade_returns_issue_and_repairs_projection(
     tmp_path: Path,
 ) -> None:

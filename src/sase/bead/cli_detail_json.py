@@ -91,6 +91,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "is_ready_to_work": issue.is_ready_to_work,
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
+        "external_ref": issue.external_ref,
         "dependencies": [_dependency_to_wire_dict(dep) for dep in issue.dependencies],
     }
     return payload

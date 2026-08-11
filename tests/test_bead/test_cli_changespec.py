@@ -30,6 +30,7 @@ def _create_args(
     tier: str | None = None,
     patch: str | None = None,
     bug_id: str | None = None,
+    external_ref: str | None = None,
     model: str | None = None,
     size: str | None = None,
 ) -> argparse.Namespace:
@@ -41,6 +42,7 @@ def _create_args(
         tier=tier,
         patch=patch,
         bug_id=bug_id,
+        external_ref=external_ref,
         model=model,
         size=size,
     )
@@ -93,6 +95,30 @@ def test_create_plan_accepts_patch_alias(
     with BeadProject(project_dir) as proj:
         issue = proj.list_issues()[0]
         assert issue.patch_name == "feature_epic"
+
+
+def test_create_accepts_external_ref_alias(project_dir: Path) -> None:
+    parser = create_parser()
+    args = parser.parse_args(
+        [
+            "bead",
+            "create",
+            "-T",
+            "task",
+            "-t",
+            "Mirrored task",
+            "--size",
+            "small",
+            "-x",
+            "bug:sase#42",
+        ]
+    )
+
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(project_dir) as proj:
+        issue = proj.list_issues()[0]
+        assert issue.external_ref == "bug:sase#42"
 
 
 def test_create_plan_stores_sibling_workspace_plan_path_relative_to_primary(
@@ -164,6 +190,26 @@ def test_show_displays_patch_metadata(
     assert "PATCH" in out
     assert "Name: feature_epic" in out
     assert "Bug ID: 12345" in out
+
+
+def test_show_displays_external_ref(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        task = proj.create(
+            "Mirrored task",
+            issue_type=bead_cli.IssueType.TASK,
+            size=PhaseSize.SMALL,
+            external_ref="bug:sase#42",
+        )
+
+    args = create_parser().parse_args(["bead", "show", task.id])
+    bead_cli.handle_bead_show(args)
+
+    out = capsys.readouterr().out
+    assert "EXTERNAL" in out
+    assert "Ref: bug:sase#42" in out
 
 
 def test_show_phase_omits_parent_plan_when_parent_has_no_design(

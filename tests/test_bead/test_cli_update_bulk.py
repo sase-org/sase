@@ -11,6 +11,7 @@ import pytest
 from sase.bead import cli as bead_cli
 from sase.bead.model import Issue, IssueType, Status
 from sase.bead.project import BeadProject
+from sase.main.parser import create_parser
 
 
 def _create_issue(project_dir: Path, title: str) -> Issue:
@@ -30,6 +31,8 @@ def _update_args(ids: list[str], **fields: object) -> argparse.Namespace:
         "tier": None,
         "model": None,
         "size": None,
+        "external_ref": None,
+        "clear_external_ref": False,
     }
     base.update(fields)
     return argparse.Namespace(**base)
@@ -100,6 +103,56 @@ def test_mixed_batch_commits_only_changed_ids_and_prints_unchanged_rows(
     output = capsys.readouterr().out
     assert f"· Unchanged: {stale.id} — {stale.title}" in output
     assert f"✓ Updated issue: {fresh.id} — {fresh.title}" in output
+
+
+def test_update_sets_and_clears_external_ref(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    issue = _create_issue(project_dir, "Mirrored")
+
+    bead_cli.handle_bead_update(_update_args([issue.id], external_ref="bug:sase#42"))
+    with BeadProject(project_dir) as proj:
+        assert proj.show(issue.id).external_ref == "bug:sase#42"
+
+    bead_cli.handle_bead_update(_update_args([issue.id], clear_external_ref=True))
+    with BeadProject(project_dir) as proj:
+        assert proj.show(issue.id).external_ref == ""
+    assert f"✓ Updated issue: {issue.id} — {issue.title}" in capsys.readouterr().out
+
+
+def test_update_external_ref_conflict_exits_without_writing(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    first = _create_issue(project_dir, "First")
+    second = _create_issue(project_dir, "Second")
+    with BeadProject(project_dir) as proj:
+        proj.update(first.id, external_ref="bug:sase#42")
+    jsonl_path = _issues_jsonl(project_dir)
+    before = jsonl_path.read_bytes()
+
+    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+        with pytest.raises(SystemExit) as excinfo:
+            bead_cli.handle_bead_update(
+                _update_args([second.id], external_ref="bug:sase#42")
+            )
+
+    assert excinfo.value.code == 1
+    auto_commit.assert_not_called()
+    assert "external_ref bug:sase#42" in capsys.readouterr().err
+    assert jsonl_path.read_bytes() == before
+
+
+def test_update_parser_external_ref_set_and_clear_are_mutually_exclusive() -> None:
+    parser = create_parser()
+    set_args = parser.parse_args(["bead", "update", "beads-1", "-x", "bug:sase#42"])
+    clear_args = parser.parse_args(["bead", "update", "beads-1", "-X"])
+
+    assert set_args.external_ref == "bug:sase#42"
+    assert clear_args.clear_external_ref is True
+    with pytest.raises(SystemExit):
+        parser.parse_args(["bead", "update", "beads-1", "-x", "bug:sase#42", "-X"])
 
 
 def test_all_no_op_batch_makes_no_commit(

@@ -133,6 +133,29 @@ def test_handle_bead_search_regex_matches_when_literal_cannot(
     assert "Needle Epic" in out
 
 
+def test_handle_bead_search_json_reports_external_ref_match(
+    project_dir,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        task = proj.create(
+            "Mirrored task",
+            IssueType.TASK,
+            size="small",
+            external_ref="bug:sase#42",
+        )
+
+    args = parse_sase_args(
+        ["bead", "search", "sase#42", "--format", "json", "--color", "never"]
+    )
+    bead_cli.handle_bead_search(args)
+
+    data = json.loads(capsys.readouterr().out)
+    assert data["results"][0]["issue"]["id"] == task.id
+    assert data["results"][0]["issue"]["external_ref"] == "bug:sase#42"
+    assert data["results"][0]["matched_fields"] == ["external_ref"]
+
+
 def test_handle_bead_search_literal_mode_treats_metacharacters_literally(
     project_dir,
     capsys: pytest.CaptureFixture[str],

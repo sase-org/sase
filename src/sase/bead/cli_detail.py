@@ -340,6 +340,10 @@ def render_issue_detail(
         if issue.changespec_bug_id:
             lines.append(f"  {palette.label('Bug ID:')} {issue.changespec_bug_id}")
 
+    if issue.external_ref:
+        lines.extend(["", palette.section("EXTERNAL")])
+        lines.append(f"  {palette.label('Ref:')} {issue.external_ref}")
+
     if detail.plan is not None:
         plan = detail.plan
         lines.extend(["", palette.section(plan.section)])

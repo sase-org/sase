@@ -33,6 +33,7 @@
       "is_ready_to_work": false,
       "changespec_name": "",
       "changespec_bug_id": "",
+      "external_ref": "",
       "dependencies": []
     },
     {
@@ -62,6 +63,7 @@
       "is_ready_to_work": false,
       "changespec_name": "",
       "changespec_bug_id": "",
+      "external_ref": "",
       "dependencies": []
     },
     {
@@ -91,6 +93,7 @@
       "is_ready_to_work": false,
       "changespec_name": "",
       "changespec_bug_id": "",
+      "external_ref": "",
       "dependencies": []
     }
   ]

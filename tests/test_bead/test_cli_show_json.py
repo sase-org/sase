@@ -67,6 +67,23 @@ def test_show_json_includes_creator_url_only_when_resolved(
     assert "created_by_url" not in unresolved
 
 
+def test_show_json_includes_external_ref(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issue = Issue(
+        id="beads-external",
+        title="Mirrored task",
+        issue_type=IssueType.TASK,
+        external_ref="bug:sase#42",
+    )
+    use_single_issue_view(monkeypatch, issue)
+
+    payload = json.loads(show_with_format(issue, "json", capsys))
+
+    assert payload["issue"]["external_ref"] == "bug:sase#42"
+
+
 def test_show_json_root_includes_children_and_self_plan(
     nested_store: dict[str, Issue],
     capsys: pytest.CaptureFixture[str],

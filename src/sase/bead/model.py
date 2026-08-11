@@ -202,6 +202,7 @@ class Issue:
     is_ready_to_work: bool = False
     changespec_name: str = ""
     changespec_bug_id: str = ""
+    external_ref: str = ""
     dependencies: list[Dependency] = field(default_factory=list)
 
     @property

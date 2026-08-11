@@ -26,6 +26,7 @@
     "is_ready_to_work": false,
     "changespec_name": "alpha_patch",
     "changespec_bug_id": "BUG-1",
+    "external_ref": "",
     "dependencies": []
   },
   "ancestors": [],

@@ -128,6 +128,7 @@ def _issue_to_dict(issue: Issue) -> dict[str, object]:
         "is_ready_to_work": issue.is_ready_to_work,
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
+        **({"external_ref": issue.external_ref} if issue.external_ref else {}),
         "dependencies": [
             {
                 "issue_id": d.issue_id,
@@ -183,6 +184,7 @@ def _dict_to_issue(data: dict[str, object]) -> Issue:
         changespec_bug_id=_optional_aliased_str(
             data, "patch_bug_id", "changespec_bug_id"
         ),
+        external_ref=_optional_str(data.get("external_ref", "")),
         dependencies=deps,
     )
     issue.validate()
@@ -268,6 +270,7 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
                     is_ready_to_work=int(issue.is_ready_to_work),
                     changespec_name=issue.changespec_name,
                     changespec_bug_id=issue.changespec_bug_id,
+                    external_ref=issue.external_ref,
                 )
 
             # Sync dependencies. A duplicate or invalid legacy dependency is

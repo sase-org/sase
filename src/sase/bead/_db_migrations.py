@@ -107,6 +107,17 @@ def _migrate_add_plus_one_evidence(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_external_ref(conn: sqlite3.Connection) -> None:
+    """Add project-qualified external issue identity storage and index."""
+    needs_migration = require_rust_binding("bead_needs_external_ref_migration")
+    if not needs_migration(_create_table_sql(conn)):
+        return
+
+    migration_sql = require_rust_binding("bead_external_ref_migration_sql")
+    conn.executescript(migration_sql())
+    conn.commit()
+
+
 def _migrate_add_size(conn: sqlite3.Connection) -> None:
     """Add phase-size metadata to a pre-existing issues table if missing."""
     columns = _columns(conn)
@@ -231,6 +242,9 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_add_size(conn)
     _migrate_add_resolution(conn)
     _migrate_add_plus_one_evidence(conn)
+    # Rebuilding migrations below copy this column explicitly, so the column
+    # must exist before they run on older stores.
+    _migrate_external_ref(conn)
     _migrate_task_ready(conn)
     _migrate_relax_size_check(conn)
     # Runs after the table-rebuilding migrations above: those copy an explicit

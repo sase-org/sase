@@ -48,6 +48,7 @@ def row_to_issue(row: sqlite3.Row) -> Issue:
         is_ready_to_work=bool(row["is_ready_to_work"]),
         changespec_name=row["changespec_name"] or "",
         changespec_bug_id=row["changespec_bug_id"] or "",
+        external_ref=row["external_ref"] or "",
     )
 
 

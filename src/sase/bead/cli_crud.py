@@ -180,6 +180,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 tier=tier,
                 changespec_name=changespec_name,
                 changespec_bug_id=changespec_bug_id,
+                external_ref=getattr(args, "external_ref", None) or "",
                 model=getattr(args, "model", None) or "",
                 size=size,
                 created_by=creator,
@@ -317,6 +318,10 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["design"] = args.design
         if args.assignee is not None:
             fields["assignee"] = args.assignee
+        if getattr(args, "external_ref", None) is not None:
+            fields["external_ref"] = args.external_ref
+        if getattr(args, "clear_external_ref", False):
+            fields["external_ref"] = ""
         if getattr(args, "tier", None) is not None:
             fields["tier"] = args.tier
         if getattr(args, "model", None) is not None:

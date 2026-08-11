@@ -132,6 +132,11 @@ def issue_from_dict(data: dict[str, Any]) -> Issue:
         changespec_bug_id=_optional_aliased_text(
             data, "patch_bug_id", "changespec_bug_id"
         ),
+        external_ref=(
+            ""
+            if data.get("external_ref") is None
+            else str(data.get("external_ref", ""))
+        ),
         dependencies=[
             Dependency(
                 issue_id=str(dep["issue_id"]),

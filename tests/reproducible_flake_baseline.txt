@@ -4,6 +4,12 @@
 # effective-after: 2026-08-10T23:36:35Z
 tests/ace/tui/test_prompt_bar_xprompt_selector_requests.py::test_vcs_tag_directory_key_spelling_also_resolves
 tests/ace/tui/test_prompt_bar_xprompt_selector_requests.py::test_vcs_tag_offers_project_local_xprompts_by_canonical_name
+# sase-jb
+tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
+# sase-jf
+tests/test_keymaps_registry_loading.py::test_stitches_action_override_wins_over_legacy_commits_alias
+# sase-j6
+tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_marker_search_and_json_agree
 tests/test_bead/test_snooze_gate.py::test_bead_snooze_gate_preview_carries_the_real_snooze_note
 tests/test_bead/test_snooze_lifecycle.py::test_cancel_snooze_returns_the_bead_to_ready
 tests/test_bead/test_snooze_lifecycle.py::test_plus_one_target_wakes_the_bead_with_the_preset_note

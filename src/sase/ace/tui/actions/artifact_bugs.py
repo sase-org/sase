@@ -24,7 +24,7 @@ from .task_actions import TrackedTaskCompletion, TrackedTaskResult
 if TYPE_CHECKING:
     from ..modals.issue_edit_modal import IssueEditResult
 
-BugLinkKind = Literal["epic", "pr"]
+BugLinkKind = Literal["bead", "epic", "pr"]
 
 BUG_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
@@ -441,7 +441,7 @@ class ArtifactBugsMixin:
         )
 
     def _open_bug_link(self, kind: BugLinkKind, target: str) -> None:
-        if kind == "epic":
+        if kind in {"bead", "epic"}:
             self.artifacts_plan_target_bead_id = target
             self._switch_artifacts_subtab("beads")  # type: ignore[attr-defined]
             return

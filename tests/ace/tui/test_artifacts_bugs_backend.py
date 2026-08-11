@@ -67,6 +67,12 @@ def test_snapshot_collects_provider_issues_and_local_links(
     )
     epic.patch_name = "cache_fix"
     epic.patch_bug_id = "42"
+    task = Issue(
+        id="alpha-task",
+        title="Cache task",
+        issue_type=IssueType.TASK,
+        external_ref="bug:alpha#42",
+    )
     patch = make_patch(name="cache_fix")
     patch.bug = "#42"
 
@@ -79,7 +85,9 @@ def test_snapshot_collects_provider_issues_and_local_links(
         "sase.bead.workspace.get_project_beads_dirs_for_project",
         lambda project: [Path(f"/{project}/beads")],
     )
-    monkeypatch.setattr("sase.core.bead_read_facade.list_issues", lambda _path: [epic])
+    monkeypatch.setattr(
+        "sase.core.bead_read_facade.list_issues", lambda _path: [epic, task]
+    )
 
     snapshot = collect_bug_snapshot("a", "open", [patch])
 
@@ -87,6 +95,7 @@ def test_snapshot_collects_provider_issues_and_local_links(
     assert snapshot.display_name == "Alpha Project"
     assert snapshot.issues == (issue,)
     assert snapshot.links_for(42).epics == (epic,)
+    assert snapshot.links_for(42).beads == (task,)
     assert snapshot.links_for(42).patches == (patch,)
 
 

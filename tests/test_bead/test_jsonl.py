@@ -108,6 +108,28 @@ class TestExport:
         assert data["changespec_name"] == "feature_epic"
         assert data["changespec_bug_id"] == "12345"
 
+    def test_export_includes_external_ref_only_when_nonempty(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        with_ref = _epic("e-1")
+        with_ref.external_ref = "bug:sase#42"
+        create_issue(conn, with_ref)
+        create_issue(conn, _epic("e-2"))
+        jsonl_path = tmp_path / "issues.jsonl"
+        export_to_jsonl(conn, jsonl_path)
+
+        rows = {
+            row["id"]: row
+            for row in (
+                json.loads(line) for line in jsonl_path.read_text().splitlines()
+            )
+        }
+        assert rows["e-1"]["external_ref"] == "bug:sase#42"
+        assert "external_ref" not in rows["e-2"]
+
     def test_export_includes_model(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:
@@ -320,6 +342,43 @@ class TestImport:
         assert issue is not None
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
+
+    def test_import_external_ref_and_missing_field_defaults_empty(
+        self, conn: sqlite3.Connection, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        jsonl_path = tmp_path / "issues.jsonl"
+        with_ref = {
+            "id": "e-1",
+            "title": "Imported Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "created_at": NOW,
+            "updated_at": NOW,
+            "external_ref": "bug:sase#42",
+        }
+        without_ref = {
+            "id": "e-2",
+            "title": "Other Epic",
+            "status": "open",
+            "issue_type": "plan",
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+        jsonl_path.write_text(
+            "\n".join(json.dumps(row) for row in (with_ref, without_ref)) + "\n"
+        )
+
+        import_from_jsonl(jsonl_path, conn)
+
+        first = get_issue(conn, "e-1")
+        second = get_issue(conn, "e-2")
+        assert first is not None
+        assert first.external_ref == "bug:sase#42"
+        assert second is not None
+        assert second.external_ref == ""
 
     def test_import_patch_metadata_aliases(
         self, conn: sqlite3.Connection, tmp_path: object

@@ -29,6 +29,12 @@ _RESOLUTION_COLUMN_DEFINITION = """\
                   CHECK(resolution IN ('done', 'canceled', 'superseded')),
 """
 _REFS_COLUMN_DEFINITION = "    refs        TEXT NOT NULL DEFAULT '',\n"
+_EXTERNAL_REF_COLUMN_DEFINITION = "    external_ref TEXT,\n"
+_EXTERNAL_REF_INDEX_DEFINITION = """\
+CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
+    ON issues(external_ref)
+    WHERE external_ref IS NOT NULL AND external_ref != '';
+"""
 
 
 def _assert_columns_survive_rebuild(
@@ -174,6 +180,56 @@ class TestMigrationAddsColumn:
             assert issue is not None
             assert issue.changespec_name == ""
             assert issue.changespec_bug_id == ""
+        finally:
+            conn.close()
+
+    def test_pre_external_ref_db_gets_nullable_indexed_column(self, tmp_path) -> None:
+        db_path = tmp_path / "old_external_ref.db"
+        old = sqlite3.connect(str(db_path))
+        schema_without_external_ref = SCHEMA_SQL.replace(
+            _EXTERNAL_REF_COLUMN_DEFINITION, ""
+        ).replace(_EXTERNAL_REF_INDEX_DEFINITION, "")
+        assert schema_without_external_ref != SCHEMA_SQL
+        old.executescript(schema_without_external_ref)
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, status, issue_type, tier, created_at, updated_at) "
+            "VALUES ('e-old', 'Old', 'open', 'plan', 'epic', ?, ?)",
+            (NOW, NOW),
+        )
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-old")
+            assert issue is not None
+            assert issue.external_ref == ""
+            indexes = {
+                row["name"]
+                for row in conn.execute("PRAGMA index_list(issues)").fetchall()
+            }
+            assert "idx_issues_external_ref" in indexes
+            conn.execute(
+                "UPDATE issues SET external_ref='bug:sase#42' WHERE id='e-old'"
+            )
+            conn.commit()
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO issues "
+                    "(id, title, status, issue_type, tier, created_at, updated_at, "
+                    " external_ref) "
+                    "VALUES ('e-dupe', 'Dupe', 'open', 'plan', 'epic', ?, ?, ?)",
+                    (NOW, NOW, "bug:sase#42"),
+                )
+        finally:
+            conn.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-old")
+            assert issue is not None
+            assert issue.external_ref == "bug:sase#42"
         finally:
             conn.close()
 

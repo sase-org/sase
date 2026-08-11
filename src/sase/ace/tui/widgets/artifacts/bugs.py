@@ -28,7 +28,7 @@ from .entry_navigation import ArtifactEntryTarget
 from .lifecycle import ArtifactsPaneLifecycle
 
 _BUG_CACHE_TTL_S = 60.0
-BugLinkKind = Literal["epic", "pr"]
+BugLinkKind = Literal["bead", "epic", "pr"]
 
 
 class BugIssueList(OptionList):
@@ -407,7 +407,7 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
 
     def focus_links(self) -> None:
         if not self._link_targets:
-            self.app.notify("No linked epics or PRs for this bug", severity="warning")
+            self.app.notify("No linked beads or PRs for this bug", severity="warning")
             return
         links = self.query_one("#bugs-links", BugLinkList)
         links.focus()
@@ -521,6 +521,19 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
                         (f"  {epic.title}", "dim"),
                     ),
                     id=f"epic-{epic.id}",
+                )
+            )
+        for bead in bug_links.beads:
+            self._link_targets.append(("bead", bead.id))
+            kind = bead.issue_type.value.title()
+            options.append(
+                Option(
+                    Text.assemble(
+                        (f" {kind:<5} ", "bold #FFD166"),
+                        (bead.id, "bold white"),
+                        (f"  {bead.title}", "dim"),
+                    ),
+                    id=f"bead-{bead.id}",
                 )
             )
         for patch in bug_links.patches:

@@ -7,8 +7,14 @@ from dataclasses import dataclass
 from typing import Protocol, cast
 
 from sase.ace.patch.models import Patch
-from sase.bead.model import Issue
-from sase.bug_links import BugLinks, find_bug_links
+from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bug_links import (
+    BugLinks,
+    ExternalRefLinks,
+    find_bug_links,
+    find_external_ref_links,
+    normalize_external_ref,
+)
 from sase.vcs_provider import IssueListState, IssueState, IssueWire
 
 
@@ -172,7 +178,7 @@ def collect_bug_snapshot(
     links = tuple(
         (
             issue.number,
-            find_bug_links(issue.number, beads, patch_snapshot),
+            _links_for_issue(issue.number, beads, patch_snapshot, scope.project_key),
         )
         for issue in issues
     )
@@ -185,6 +191,44 @@ def collect_bug_snapshot(
         issues=issues,
         links=links,
         warning=warning,
+    )
+
+
+def _links_for_issue(
+    issue_number: int,
+    beads: tuple[Issue, ...],
+    patches: tuple[Patch, ...],
+    project: str,
+) -> BugLinks:
+    legacy_links = find_bug_links(issue_number, beads, patches)
+    external_ref = normalize_external_ref(issue_number, project=project)
+    external_links = find_external_ref_links(
+        external_ref,
+        beads,
+        patches,
+        project=project,
+    )
+    return _merge_bug_links(legacy_links, external_links)
+
+
+def _merge_bug_links(legacy: BugLinks, external: ExternalRefLinks) -> BugLinks:
+    epics_by_id: dict[str, Issue] = {bead.id: bead for bead in legacy.epics}
+    beads_by_id: dict[str, Issue] = {}
+    for bead in external.beads:
+        if bead.issue_type == IssueType.PLAN and bead.tier == BeadTier.EPIC:
+            epics_by_id.setdefault(bead.id, bead)
+        elif bead.id not in epics_by_id:
+            beads_by_id.setdefault(bead.id, bead)
+
+    patches_by_name: dict[str, Patch] = {patch.name: patch for patch in legacy.patches}
+    for patch in external.patches:
+        patches_by_name.setdefault(patch.name, patch)
+
+    return BugLinks(
+        legacy.bug_id or external.external_ref,
+        tuple(epics_by_id.values()),
+        tuple(patches_by_name.values()),
+        tuple(beads_by_id.values()),
     )
 
 

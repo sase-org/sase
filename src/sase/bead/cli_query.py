@@ -626,6 +626,7 @@ def _search_field_value(issue: Issue, field: str) -> str:
         "size": issue.size.value if issue.size else "",
         "changespec_name": issue.changespec_name,
         "changespec_bug_id": issue.changespec_bug_id,
+        "external_ref": issue.external_ref,
         "status": issue.status.value,
         "type": issue.issue_type.value,
         "tier": issue.tier.value if issue.tier else "",

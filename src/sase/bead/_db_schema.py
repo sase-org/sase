@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS issues (
     is_ready_to_work INTEGER NOT NULL DEFAULT 0,
     changespec_name TEXT NOT NULL DEFAULT '',
     changespec_bug_id TEXT NOT NULL DEFAULT '',
+    external_ref TEXT,
     CHECK(
         (issue_type = 'phase' AND parent_id IS NOT NULL) OR
         (issue_type = 'plan') OR
@@ -75,6 +76,9 @@ CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
 CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
 CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
+    ON issues(external_ref)
+    WHERE external_ref IS NOT NULL AND external_ref != '';
 CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 """
 

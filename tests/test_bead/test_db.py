@@ -120,6 +120,30 @@ class TestCreateAndGet:
         assert issue.changespec_name == "feature_epic"
         assert issue.changespec_bug_id == "12345"
 
+    def test_external_ref_round_trips_and_is_unique_when_present(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        epic = _epic()
+        epic.external_ref = "bug:sase#42"
+        create_issue(conn, epic)
+        create_issue(conn, _epic("e-2"))
+
+        loaded = get_issue(conn, "e-1")
+        assert loaded is not None
+        assert loaded.external_ref == "bug:sase#42"
+        blank = get_issue(conn, "e-2")
+        assert blank is not None
+        assert blank.external_ref == ""
+        assert (
+            conn.execute("SELECT external_ref FROM issues WHERE id='e-2'").fetchone()[0]
+            is None
+        )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            duplicate = _epic("e-3")
+            duplicate.external_ref = "bug:sase#42"
+            create_issue(conn, duplicate)
+
     def test_create_phase_with_patch_metadata_fails(
         self, conn: sqlite3.Connection
     ) -> None:
@@ -205,6 +229,23 @@ class TestUpdateIssue:
         assert updated is not None
         assert updated.changespec_name == "feature_epic"
         assert updated.changespec_bug_id == "12345"
+
+    def test_update_external_ref_sets_and_clears_to_null(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        create_issue(conn, _epic())
+
+        updated = update_issue(conn, "e-1", external_ref="bug:sase#42")
+        assert updated is not None
+        assert updated.external_ref == "bug:sase#42"
+
+        cleared = update_issue(conn, "e-1", external_ref="")
+        assert cleared is not None
+        assert cleared.external_ref == ""
+        assert (
+            conn.execute("SELECT external_ref FROM issues WHERE id='e-1'").fetchone()[0]
+            is None
+        )
 
 
 class TestCloseIssue:

@@ -52,6 +52,7 @@ class BeadProjectMutationMixin:
         patch_bug_id: str | int | None = None,
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
+        external_ref: str | int | None = "",
         model: str = "",
         size: PhaseSize | str | None = None,
         created_by: str | None = None,
@@ -84,6 +85,7 @@ class BeadProjectMutationMixin:
             patch_bug_id=patch_bug_id,
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
+            external_ref=external_ref,
             model=model,
             size=size,
             created_by=created_by,
@@ -494,7 +496,7 @@ def _normalize_patch_fields(
         if canonical_text and legacy_value and canonical_text != legacy_value:
             raise ValueError(f"{canonical_name} conflicts with {legacy_name}")
         normalized[legacy_name] = canonical_text or legacy_value
-    for name in ("changespec_name", "changespec_bug_id"):
+    for name in ("changespec_name", "changespec_bug_id", "external_ref"):
         if name in normalized:
             normalized[name] = _optional_text(normalized[name])
     return normalized
