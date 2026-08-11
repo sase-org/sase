@@ -35,7 +35,6 @@ from ._agent_tree import (
 )
 
 if TYPE_CHECKING:
-    from .agent_group_fold import GroupKey
     from .fold_state import FoldLevel
 
 #: Canonical display identity for the reserved fallback tribe.
@@ -82,7 +81,6 @@ class PanelFoldSweepRecord:
 
     panel_key: PanelKey
     agent_levels: tuple[tuple[str, FoldLevel], ...]
-    group_keys: tuple[GroupKey, ...]
 
 
 def _build_parent_lookup(agents: list[Agent]) -> dict[str, Agent]:

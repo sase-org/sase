@@ -146,6 +146,18 @@ class AgentFooterDisplayMixin:
                         panel_fold_restore_armed = bool(
                             restore_available(sweep_panel_key)
                         )
+            # Under whole-panel focus, `H` hints every expanded lane, clan,
+            # *and* grouping banner (unlike the narrower `-` sweep), so its
+            # footer chip needs its own broader availability check.
+            panel_hint_collapse_available = False
+            if panel_focused and not panel_collapsed:
+                enumerate_hint_targets = getattr(
+                    self, "_enumerate_panel_fold_hint_targets", None
+                )
+                if callable(enumerate_hint_targets):
+                    panel_hint_collapse_available = bool(
+                        enumerate_hint_targets(collapsible_only=True)
+                    )
             tools_visible = agent_detail.is_tools_visible()
             left_navigation_kind: str | None = None
             resolve_left_navigation = getattr(
@@ -240,6 +252,7 @@ class AgentFooterDisplayMixin:
                 panel_isolation_available=panel_isolation_available,
                 panel_fold_sweep_available=panel_fold_sweep_available,
                 panel_fold_restore_armed=panel_fold_restore_armed,
+                panel_hint_collapse_available=panel_hint_collapse_available,
                 left_navigation_kind=left_navigation_kind,
                 lane_collapse_available=lane_collapse_available,
                 clan_collapse_available=clan_collapse_available,

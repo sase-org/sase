@@ -114,6 +114,7 @@ class KeybindingBindingsMixin:
         panel_isolation_available: bool = False,
         panel_fold_sweep_available: bool = False,
         panel_fold_restore_armed: bool = False,
+        panel_hint_collapse_available: bool = False,
         left_navigation_kind: str | None = None,
         lane_collapse_available: bool = False,
         clan_collapse_available: bool = False,
@@ -237,7 +238,7 @@ class KeybindingBindingsMixin:
         if tools_can_compact:
             collapse_all_label = "compact tools"
         elif panel_focused:
-            if not tools_visible and panel_fold_sweep_available:
+            if not tools_visible and panel_hint_collapse_available:
                 collapse_all_label = "collapse fold"
         elif lane_collapse_available:
             collapse_all_label = "collapse lanes"

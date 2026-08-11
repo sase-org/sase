@@ -87,7 +87,7 @@ def test_footer_selected_panel_advertises_hinted_collapse_fold() -> None:
             None,
             panel_focused=True,
             panel_collapsed=False,
-            panel_fold_sweep_available=True,
+            panel_hint_collapse_available=True,
             panel_isolation_available=True,
         )
     )
@@ -245,7 +245,7 @@ def test_footer_panel_isolation_uses_custom_isolate_action_key() -> None:
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
-            panel_fold_sweep_available=True,
+            panel_hint_collapse_available=True,
             panel_isolation_available=True,
         )
     )
@@ -266,7 +266,7 @@ def test_footer_selected_panel_hinted_collapse_uses_custom_collapse_action_key()
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
-            panel_fold_sweep_available=True,
+            panel_hint_collapse_available=True,
         )
     )
 
@@ -363,7 +363,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
         footer._compute_agent_bindings(
             None,
             panel_focused=True,
-            panel_fold_sweep_available=True,
+            panel_hint_collapse_available=True,
             clan_collapse_available=True,
             structural_collapse_kind="family",
             group_collapse_available=True,

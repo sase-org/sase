@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 from ._folding_clans import AgentPanelClanFoldingMixin
@@ -17,28 +17,6 @@ if TYPE_CHECKING:
     from ...models.group_fold import GroupFoldRegistry
 
 _FOCUSED_PANEL = object()
-
-
-def expanded_panel_level_zero_group_keys(
-    owner: Any,
-    panel_key: PanelKey,
-) -> tuple[GroupKey, ...]:
-    """Return every expanded level-0 banner key in one panel's render order."""
-    from ...models.agent_groups import build_agent_tree
-    from ...models.group_fold import GroupFoldRegistry
-
-    _global_indices, panel_agents = rendered_panel_slice(owner, panel_key)
-    registry = panel_fold_registry(owner, panel_key)
-    level_zero_keys = [
-        entry.group.group_key
-        for entry in build_agent_tree(
-            panel_agents,
-            fold_registry=GroupFoldRegistry(),
-            mode=owner._active_grouping_mode(),
-        )
-        if entry.kind == "group" and entry.group is not None and entry.group.level == 0
-    ]
-    return tuple(key for key in level_zero_keys if not registry.is_collapsed(key))
 
 
 class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
@@ -464,4 +442,4 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
             self._persist_group_fold_change(target, collapsed=True)
 
 
-__all__ = ["AgentGroupFoldingMixin", "expanded_panel_level_zero_group_keys"]
+__all__ = ["AgentGroupFoldingMixin"]

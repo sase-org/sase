@@ -5,11 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ...models.agent_panels import PanelFoldSweepRecord
-from ._fold_scope import panel_fold_registry
-from ._folding_agent_groups import (
-    AgentGroupFoldingMixin,
-    expanded_panel_level_zero_group_keys,
-)
+from ._folding_agent_groups import AgentGroupFoldingMixin
 from ._folding_clans import (
     resolve_panel_clan_collapse_target,
     selected_enclosing_clan_fold_key,
@@ -18,7 +14,6 @@ from ._folding_lanes import resolve_panel_lane_collapse_target
 from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
-    from ...models.agent_group_fold import GroupKey
     from ...models.agent_panels import PanelKey
     from ...models.fold_state import FoldLevel
 
@@ -49,31 +44,11 @@ def _global_index_for_fold_owner(
     return None
 
 
-def _panel_level_zero_group_keys(
-    owner: Any,
-    panel_key: PanelKey,
-) -> tuple[GroupKey, ...]:
-    """Return every level-0 banner key rendered in one panel, any fold state."""
-    from ...models.agent_groups import build_agent_tree
-    from ...models.group_fold import GroupFoldRegistry
-
-    _global_indices, panel_agents = rendered_panel_slice(owner, panel_key)
-    return tuple(
-        entry.group.group_key
-        for entry in build_agent_tree(
-            panel_agents,
-            fold_registry=GroupFoldRegistry(),
-            mode=owner._active_grouping_mode(),
-        )
-        if entry.kind == "group" and entry.group is not None and entry.group.level == 0
-    )
-
-
 def _live_sweep_record_entries(
     owner: Any,
     panel_key: PanelKey,
     record: PanelFoldSweepRecord,
-) -> tuple[tuple[tuple[str, FoldLevel], ...], tuple[GroupKey, ...]]:
+) -> tuple[tuple[str, FoldLevel], ...]:
     """Filter one sweep record to owners still live in the panel and collapsed."""
     from ...models._agent_tree import agent_fold_key
     from ...models.fold_state import FoldLevel
@@ -83,20 +58,11 @@ def _live_sweep_record_entries(
         for candidate in rendered_panel_slice(owner, panel_key)[1]
         if not candidate.is_child_row and agent_fold_key(candidate) is not None
     }
-    agent_levels = tuple(
+    return tuple(
         (key, level)
         for key, level in record.agent_levels
         if key in live_fold_keys and owner._fold_manager.get(key) == FoldLevel.COLLAPSED
     )
-
-    live_group_keys = set(_panel_level_zero_group_keys(owner, panel_key))
-    registry = panel_fold_registry(owner, panel_key)
-    group_keys = tuple(
-        key
-        for key in record.group_keys
-        if key in live_group_keys and registry.is_collapsed(key)
-    )
-    return agent_levels, group_keys
 
 
 def retire_panel_fold_sweep_records(owner: Any, live_keys: Any) -> None:
@@ -116,7 +82,7 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
     """Sweep every open fold in one tribe panel closed, and reverse it."""
 
     def action_collapse_panel_folds(self) -> None:
-        """Collapse every open fold in the focused tribe panel, or restore it."""
+        """Collapse every open lane/clan fold in the focused tribe panel, or restore it."""
         if self.current_tab != "agents":
             return
         if getattr(self, "_panel_fold_hint_mode_active", False):
@@ -145,15 +111,13 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
         lane_keys = lane_target.fold_keys if lane_target is not None else ()
         clan_target = resolve_panel_clan_collapse_target(self, panel_key)
         clan_keys = clan_target.fold_keys if clan_target is not None else ()
-        banner_keys = expanded_panel_level_zero_group_keys(self, panel_key)
 
-        if lane_keys or clan_keys or banner_keys:
+        if lane_keys or clan_keys:
             self._sweep_panel_folds(
                 panel_key,
                 whole_panel_focus=whole_panel_focus,
                 lane_keys=lane_keys,
                 clan_keys=clan_keys,
-                banner_keys=banner_keys,
             )
         else:
             self._restore_panel_fold_sweep(
@@ -167,16 +131,14 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
         whole_panel_focus: bool,
         lane_keys: tuple[str, ...],
         clan_keys: tuple[str, ...],
-        banner_keys: tuple[GroupKey, ...],
     ) -> None:
-        """Collapse every resolved lane, clan, and banner in one panel."""
+        """Collapse every resolved lane and clan fold in one panel."""
         agent_levels = tuple(
             (key, self._fold_manager.get(key)) for key in (*lane_keys, *clan_keys)
         )
         _panel_fold_sweep_records(self)[panel_key] = PanelFoldSweepRecord(
             panel_key=panel_key,
             agent_levels=agent_levels,
-            group_keys=banner_keys,
         )
 
         if not whole_panel_focus:
@@ -187,16 +149,12 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
                 self.current_idx = reanchor_index
 
         self._fold_manager.collapse_fully_all([*lane_keys, *clan_keys])
-        registry = panel_fold_registry(self, panel_key)
-        for key in banner_keys:
-            registry.collapse(key)
-            self._persist_group_fold_change(key, collapsed=True, panel_key=panel_key)
 
         self._repaint_after_panel_fold_sweep(
             panel_key, whole_panel_focus=whole_panel_focus
         )
 
-        total = len(lane_keys) + len(clan_keys) + len(banner_keys)
+        total = len(lane_keys) + len(clan_keys)
         noun = "fold" if total == 1 else "folds"
         self.notify(f"Collapsed {total} {noun}", timeout=1.5)  # type: ignore[attr-defined]
 
@@ -238,24 +196,20 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
             )
             return
 
-        agent_levels, group_keys = _live_sweep_record_entries(self, panel_key, record)
-        if not agent_levels and not group_keys:
+        agent_levels = _live_sweep_record_entries(self, panel_key, record)
+        if not agent_levels:
             del records[panel_key]
             self.notify("No folds to restore", severity="warning")  # type: ignore[attr-defined]
             return
 
         self._fold_manager.restore_levels(dict(agent_levels))
-        registry = panel_fold_registry(self, panel_key)
-        for key in group_keys:
-            registry.expand(key)
-            self._persist_group_fold_change(key, collapsed=False, panel_key=panel_key)
         del records[panel_key]
 
         self._repaint_after_panel_fold_sweep(
             panel_key, whole_panel_focus=whole_panel_focus
         )
 
-        total = len(agent_levels) + len(group_keys)
+        total = len(agent_levels)
         noun = "fold" if total == 1 else "folds"
         self.notify(f"Restored {total} {noun}", timeout=1.5)  # type: ignore[attr-defined]
 
@@ -283,17 +237,14 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
         """Return whether ``-`` would sweep anything in *panel_key* right now."""
         if resolve_panel_lane_collapse_target(self, panel_key) is not None:
             return True
-        if resolve_panel_clan_collapse_target(self, panel_key) is not None:
-            return True
-        return bool(expanded_panel_level_zero_group_keys(self, panel_key))
+        return resolve_panel_clan_collapse_target(self, panel_key) is not None
 
     def _panel_fold_sweep_restore_available(self, panel_key: PanelKey) -> bool:
         """Return whether ``-`` would restore anything in *panel_key* right now."""
         record = _panel_fold_sweep_records(self).get(panel_key)
         if record is None:
             return False
-        agent_levels, group_keys = _live_sweep_record_entries(self, panel_key, record)
-        return bool(agent_levels or group_keys)
+        return bool(_live_sweep_record_entries(self, panel_key, record))
 
 
 __all__ = [

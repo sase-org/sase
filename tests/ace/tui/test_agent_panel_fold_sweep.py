@@ -72,7 +72,7 @@ def _populate_fold_counts(app: AgentPanelCollapseApp, agents: list[Agent]) -> No
     _, app._fold_counts = filter_agents_by_fold_state(agents, app._fold_manager)
 
 
-def test_whole_panel_sweep_collapses_lanes_clans_and_banners_then_restores() -> None:
+def test_whole_panel_sweep_collapses_lanes_and_clans_banners_stay_open() -> None:
     lane_rows, lane_root, _lane_steps = _named_workflow_lane("lane")
     projected, family, _member = make_sequential_family(clan="workers")
     sibling = make_transition_agent(agent_name="sibling", tribe="research")
@@ -103,8 +103,9 @@ def test_whole_panel_sweep_collapses_lanes_clans_and_banners_then_restores() -> 
     assert app._fold_manager.get(lane_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
-    assert registry.is_collapsed(("Running",)) is True
-    assert app.notifications[-1] == "Collapsed 4 folds"
+    # `-` never collapses grouping banners, only structural lanes and clans.
+    assert registry.is_collapsed(("Running",)) is False
+    assert app.notifications[-1] == "Collapsed 3 folds"
     assert app.refilter_kwargs == [{"refresh_content_index": False}]
     assert app.footer_refresh_calls == 1
     # Never collapses the panel itself.
@@ -116,11 +117,33 @@ def test_whole_panel_sweep_collapses_lanes_clans_and_banners_then_restores() -> 
     assert app._fold_manager.get(family_key) is FoldLevel.FULLY_EXPANDED
     assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
     assert registry.is_collapsed(("Running",)) is False
-    assert app.notifications[-1] == "Restored 4 folds"
+    assert app.notifications[-1] == "Restored 3 folds"
     assert app.refilter_kwargs == [
         {"refresh_content_index": False},
         {"refresh_content_index": False},
     ]
+    assert None not in app._panel_fold_sweep_records
+
+
+def test_group_only_panel_reports_nothing_to_collapse_or_restore() -> None:
+    alpha = make_transition_agent(cl_name="alpha", raw_suffix="alpha", status="RUNNING")
+    beta = make_transition_agent(cl_name="beta", raw_suffix="beta", status="RUNNING")
+    agents = [alpha, beta]
+
+    app = AgentPanelCollapseApp(agents, focused_key=None)
+    app._agents_with_children = list(agents)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    _populate_fold_counts(app, agents)
+    app._expanded_panel_focus = True
+
+    app.action_collapse_panel_folds()
+
+    registry = app._group_fold_registry.for_panel(None)
+    # A panel with only an open grouping banner and no lane/clan has nothing
+    # for `-` to sweep, and must not collapse the banner as a fallback.
+    assert registry.is_collapsed(("Running",)) is False
+    assert app.notifications == ["No folds to collapse or restore"]
+    assert app.refilter_kwargs == []
     assert None not in app._panel_fold_sweep_records
 
 
@@ -164,7 +187,7 @@ def test_whole_panel_sweep_batches_clans_hidden_behind_collapsed_banner() -> Non
     assert app.refilter_kwargs == [{"refresh_content_index": False}]
 
 
-def test_row_focus_sweep_reanchors_past_collapsing_lane_owner() -> None:
+def test_row_focus_sweep_reanchors_to_visible_lane_owner() -> None:
     rows, root, steps = _named_workflow_lane("lane")
     app = AgentPanelCollapseApp(rows)
     app._agents_with_children = list(rows)
@@ -180,15 +203,14 @@ def test_row_focus_sweep_reanchors_past_collapsing_lane_owner() -> None:
 
     owner_idx = rows.index(root)
     assert app._fold_manager.get(lane_key) is FoldLevel.COLLAPSED
-    # The lone project banner starts expanded, so it sweeps alongside the
-    # lane; the reanchor lands on the (now hidden) owner row's index, and the
-    # post-mutation snap then moves selection to its nearest visible ancestor.
+    # The lone project banner is never swept, so the lane's owner row stays
+    # visible; the reanchor lands on it and focus stays on the row itself.
     assert app.current_idx == owner_idx
     registry = app._group_fold_registry.for_panel(None)
-    assert registry.is_collapsed(("proj",)) is True
-    assert app._current_group_key == ("proj",)
-    assert app._panel_selection_memory[None] == ("banner", ("proj",))
-    assert app.notifications[-1] == "Collapsed 2 folds"
+    assert registry.is_collapsed(("proj",)) is False
+    assert app._current_group_key is None
+    assert app._panel_selection_memory[None] == ("agent", owner_idx)
+    assert app.notifications[-1] == "Collapsed 1 fold"
     assert app.refilter_kwargs == [{"refresh_content_index": False}]
 
 
@@ -231,7 +253,8 @@ def test_sibling_panel_lanes_and_equal_banner_names_are_untouched() -> None:
     other_registry = app._group_fold_registry.for_panel("research")
     assert app._fold_manager.get(default_key) is FoldLevel.COLLAPSED
     assert app._fold_manager.get(other_key) is FoldLevel.EXPANDED
-    assert default_registry.is_collapsed(("Running",)) is True
+    # Same-named banners in both panels are never touched by the sweep.
+    assert default_registry.is_collapsed(("Running",)) is False
     assert other_registry.is_collapsed(("Running",)) is False
 
 
@@ -358,7 +381,6 @@ def test_restore_liveness_filter_skips_reexpanded_and_disappeared_owners() -> No
     record = PanelFoldSweepRecord(
         panel_key=None,
         agent_levels=((key_a, FoldLevel.EXPANDED), (key_b, FoldLevel.EXPANDED)),
-        group_keys=(),
     )
     app._fold_manager.collapse_fully_all([key_a, key_b])
 
@@ -368,10 +390,9 @@ def test_restore_liveness_filter_skips_reexpanded_and_disappeared_owners() -> No
     app._agents_with_children = list(app._agents)
     app._panel_group = AgentPanelGroup.from_agents(app._agents)
 
-    agent_levels, group_keys = _live_sweep_record_entries(app, None, record)
+    agent_levels = _live_sweep_record_entries(app, None, record)
 
     assert agent_levels == ()
-    assert group_keys == ()
 
 
 def test_action_restore_with_nothing_left_drops_record_and_warns() -> None:
