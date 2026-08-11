@@ -70,9 +70,9 @@ def test_stitch_parser_supports_canonical_command_and_legacy_alias(
     parser = create_parser(only=command)
 
     assert _root_commands(parser) == {"stitch", "vcs"}  # legacy command alias
-    args = parser.parse_args([command, "log"])
+    args = parser.parse_args([command, "list"])
     assert args.command == command
-    assert args.stitch_subcommand == "log"
+    assert args.stitch_subcommand == "list"
 
 
 @pytest.mark.parametrize(

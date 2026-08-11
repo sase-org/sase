@@ -50,7 +50,7 @@ The hooks are organized into several groups:
 - **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_patch_head_ref`,
   `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
   `vcs_get_default_parent_revision`, `vcs_diff_name_status`, `vcs_diff_line_stats`,
-  `vcs_log`, `vcs_repo_stats`, `vcs_file_at_revision`
+  `vcs_log`, `vcs_file_at_revision`
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`,
   `vcs_get_conflicted_files`, `vcs_continue_sync`, `vcs_abort_sync`
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`,
@@ -157,39 +157,6 @@ contexts that only care about the VCS family.
 
 ### `sase stitch list`
 
-Lists the available repository constellation: the primary repository, configured linked
-repositories, all configured sidecars, and a materialized legacy separate SDD store when
-present. A bare `sase stitch` delegates to `sase stitch list`. The log command excludes
-sidecar history by default; use `sase stitch log --sdd` to include it. The legacy
-`sase vcs` spelling is still accepted as a deprecated alias.
-
-Common forms:
-
-```bash
-sase stitch
-sase stitch list
-sase stitch list --sort recent
-sase stitch list --repo sase-core --format json
-```
-
-Options:
-
-| Option                                     | Purpose                                                                |
-| ------------------------------------------ | ---------------------------------------------------------------------- |
-| `-c`, `--color auto/always/never`          | Control colorized pretty output.                                       |
-| `-f`, `--format pretty/oneline/json`       | Choose rich pretty output, pipe-friendly rows, or JSON.                |
-| `-N`, `--no-fetch`                         | Skip provider-backed description lookups.                              |
-| `-o`, `--current-only`                     | Read only the current/primary repo.                                    |
-| `-r`, `--repo NAME`                        | Restrict to a resolved repo name. Repeatable.                          |
-| `-s`, `--sort default/name/commits/recent` | Keep resolved order or sort by name, commit count, or recent activity. |
-
-The pretty output shows a summary line, then one block per repo with its kind, branch,
-dirty state, configured description when available, commit count, contributor count,
-last activity, and latest commit. A failed stats read for one repo is shown as a warning
-and does not hide the other repos.
-
-### `sase stitch log`
-
 Shows a day-grouped commit timeline across the primary repository and ordinary
 configured linked repositories. Sidecar repositories are hidden by default. Pass the
 compatibility option `--sdd` to include the complete sidecar set: modern
@@ -200,6 +167,19 @@ Global discovery does not materialize missing workspaces. Sibling checkouts stil
 as linked repositories of their owning projects; `--all --sdd` also includes every
 available sidecar from the registered projects. This CLI default is independent of the
 ACE Artifacts Stitches pane's configurable persistent query.
+
+A bare `sase stitch` prints
+`No subcommand provided for 'sase stitch'; delegating to 'sase stitch list'.` and then
+the timeline. The legacy `sase vcs` spelling is still accepted as a deprecated alias and
+uses the same default.
+
+This command replaces the old repository-constellation `sase stitch list` summary. The
+new command is intentionally not a drop-in replacement: sidecar repositories are now
+excluded unless `--sdd` is supplied, `-N` / `--no-fetch` skips remote fetches instead of
+description lookups, `-s` is now `--since` instead of `--sort`, and `--sort` no longer
+exists. It also adds timeline filters and controls such as `--all`, `--author`,
+`--branch`, `--fetch`, `--limit`, `--merges`, `--no-tags`, `--reverse`, `--sdd`, and
+`--until`.
 
 Global discovery canonicalizes checkout paths, so a repository registered independently
 and linked from one or more projects is read and fetched only once. Registered project
@@ -229,19 +209,19 @@ spelling is unchanged.
 Common forms:
 
 ```bash
-sase stitch log
-sase stitch log --all
-sase stitch log --sdd
-sase stitch log --sdd --repo sdd
-sase stitch log --all --sdd
-sase stitch log --all --repo sase-core --repo chezmoi
-sase stitch log --branch main --no-fetch
-sase stitch log --merges show
-sase stitch log --merges only --format full
-sase stitch log --fetch --limit 3
-sase stitch log --since 2w --author bryan
-sase stitch log --limit 0 --since 2026-07-01 --format full
-sase stitch log --reverse --format json --no-tags
+sase stitch list
+sase stitch list --all
+sase stitch list --sdd
+sase stitch list --sdd --repo sdd
+sase stitch list --all --sdd
+sase stitch list --all --repo sase-core --repo chezmoi
+sase stitch list --branch main --no-fetch
+sase stitch list --merges show
+sase stitch list --merges only --format full
+sase stitch list --fetch --limit 3
+sase stitch list --since 2w --author bryan
+sase stitch list --limit 0 --since 2026-07-01 --format full
+sase stitch list --reverse --format json --no-tags
 ```
 
 Options:

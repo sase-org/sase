@@ -1,4 +1,4 @@
-"""Tests for ``sase stitch log`` resolution across project inventories."""
+"""Tests for ``sase stitch list`` resolution across project inventories."""
 
 from __future__ import annotations
 

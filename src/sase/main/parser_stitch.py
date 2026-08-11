@@ -36,52 +36,6 @@ class _NoOpAction(argparse.Action):
 
 
 def _add_list_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "-c",
-        "--color",
-        choices=["auto", "always", "never"],
-        default="auto",
-        help="Color output: auto, always, or never (default: auto)",
-    )
-    parser.add_argument(
-        "-o",
-        "--current-only",
-        action="store_true",
-        help="Only the current/primary repo (skip linked and sidecar repos)",
-    )
-    parser.add_argument(
-        "-f",
-        "--format",
-        choices=["pretty", "oneline", "json"],
-        default="pretty",
-        help="Output format: pretty, oneline, or json (default: pretty)",
-    )
-    parser.add_argument(
-        "-N",
-        "--no-fetch",
-        action="store_true",
-        help="Skip provider-backed description lookups",
-    )
-    parser.add_argument(
-        "-r",
-        "--repo",
-        action="append",
-        default=[],
-        dest="repos",
-        metavar="NAME",
-        help="Restrict to a named repo (repeatable); "
-        "names are the project, each linked repo, and 'sdd'",
-    )
-    parser.add_argument(
-        "-s",
-        "--sort",
-        choices=["default", "name", "commits", "recent"],
-        default="default",
-        help="Sort repos by default order, name, commit count, or recent activity",
-    )
-
-
-def _add_log_options(parser: argparse.ArgumentParser) -> None:
     scope_group = parser.add_mutually_exclusive_group()
     scope_group.add_argument(
         "-a",
@@ -212,20 +166,18 @@ def _add_log_options(parser: argparse.ArgumentParser) -> None:
 def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase stitch`` subcommand parser.
 
-    ``sase stitch`` lists the resolved repository constellation by default.
-    ``sase stitch log`` shows the chronological stitch timeline for the
+    ``sase stitch`` defaults to the chronological stitch timeline for the
     primary and linked repositories, with sidecar history available on request.
     """
     stitch_parser = subparsers.add_parser(
         "stitch",
         aliases=["vcs"],
-        help="Dispatch a stitch, or inspect repositories or their stitch timeline",
+        help="Dispatch a stitch, or show the cross-repository stitch timeline",
         description=(
-            "Dispatch a commit, proposal, or pull request, inspect the "
-            "repository constellation made up of the primary repo, "
-            "configured linked repos, and sidecar repos when present, or show "
-            "their cross-repository stitch timeline. `sase vcs` remains "
-            "accepted as a legacy alias.\n\n"
+            "Dispatch a commit, proposal, or pull request, or show the "
+            "cross-repository stitch timeline for the primary repo and "
+            "configured linked repos. Sidecar history is available on request. "
+            "`sase vcs` remains accepted as a legacy alias.\n\n"
             "With no subcommand, `sase stitch` defaults to `sase stitch list`."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -233,7 +185,7 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
     stitch_sub = stitch_parser.add_subparsers(
         dest="stitch_subcommand",
         help="stitch subcommands",
-        metavar="{create,list,log}",
+        metavar="{create,list}",
     )
     stitch_parser.set_defaults(stitch_subcommand="list")
 
@@ -250,17 +202,6 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
 
     list_parser = stitch_sub.add_parser(
         "list",
-        help="List resolved repositories and aggregate stats",
-        description=(
-            "List the available primary, linked, and sidecar repositories "
-            "with per-repo stats, descriptions, branch state, and last activity. "
-            "Use `sase stitch log --sdd` to include sidecar commit history."
-        ),
-    )
-    _add_list_options(list_parser)
-
-    log_parser = stitch_sub.add_parser(
-        "log",
         help="Show a chronological, cross-repository stitch timeline",
         description=(
             "Show a chronological, cross-repository stitch timeline across "
@@ -271,7 +212,7 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=f"DATE grammar: {DATE_HELP}.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    _add_log_options(log_parser)
+    _add_list_options(list_parser)
 
 
 register_vcs_parser = register_stitch_parser  # legacy parser alias

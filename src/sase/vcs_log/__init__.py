@@ -1,4 +1,4 @@
-"""Repo resolution + collection service for ``sase stitch log``.
+"""Repo resolution + collection service for ``sase stitch list``.
 
 A SASE project is a constellation of primary, linked, and sidecar repos.
 This package resolves that repo set for the current workspace, collects a

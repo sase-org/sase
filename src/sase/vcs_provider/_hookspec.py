@@ -7,7 +7,6 @@ import pluggy
 
 if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
-    from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
     from ._types import (
         IssueListState,
@@ -175,9 +174,6 @@ class VCSHookSpec:
         remote_ref: str,
         merges: "MergeVisibility",
     ) -> tuple[set[str], set[str]]: ...
-
-    @hookspec(firstresult=True)
-    def vcs_repo_stats(self, cwd: str) -> "VcsRepoStatsWire": ...
 
     @hookspec(firstresult=True)
     def vcs_file_at_revision(

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
-    from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
     from ._types import (
         IssueListState,
@@ -286,7 +285,7 @@ class VCSProvider(ABC):
     def resolve_remote_log_ref(
         self, cwd: str, ref_name: str | None = None
     ) -> str | None:
-        """Resolve the remote-tracking ref used by ``sase stitch log``.
+        """Resolve the remote-tracking ref used by ``sase stitch list``.
 
         When *ref_name* is provided, providers should interpret it as an
         explicit remote branch/ref override. Returning ``None`` means no usable
@@ -300,7 +299,7 @@ class VCSProvider(ABC):
     def fetch_remote(
         self, cwd: str, refs: Sequence[str], *, timeout: int = 120
     ) -> tuple[bool, str | None]:
-        """Fetch only the remote refs needed by ``sase stitch log``."""
+        """Fetch only the remote refs needed by ``sase stitch list``."""
         raise NotImplementedError("fetch_remote is not supported by this VCS provider")
 
     def partition_commits(
@@ -320,14 +319,6 @@ class VCSProvider(ABC):
         raise NotImplementedError(
             "partition_commits is not supported by this VCS provider"
         )
-
-    def repo_stats(self, cwd: str) -> "VcsRepoStatsWire":
-        """Return aggregate repository stats for ``sase stitch list``.
-
-        Raises:
-            VCSOperationError: When the underlying VCS query fails.
-        """
-        raise NotImplementedError("repo_stats is not supported by this VCS provider")
 
     def file_at_revision(
         self, revision: str, file_path: str, cwd: str

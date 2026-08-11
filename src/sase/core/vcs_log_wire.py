@@ -3,7 +3,7 @@
 Sidecar to :mod:`sase.core.git_query_wire`. Defines the **stable**
 boundary between Python and the Rust implementation of the
 provider-agnostic commit-history parser/aggregator that backs
-``sase stitch log``.
+``sase stitch list``.
 
 Scope of the contract
 ---------------------

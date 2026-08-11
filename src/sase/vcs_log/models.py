@@ -1,4 +1,4 @@
-"""Result models for the ``sase stitch log`` collection service."""
+"""Result models for the ``sase stitch list`` collection service."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ LogRepoKind = Literal["primary", "linked", "sidecar"]
 
 @dataclass(frozen=True)
 class CommitFilters:
-    """Provider-neutral commit-selection filters for ``sase stitch log``.
+    """Provider-neutral commit-selection filters for ``sase stitch list``.
 
     ``since`` and ``until`` are epoch-second bounds. ``authors`` are
     case-insensitive substrings matched by providers against author identity

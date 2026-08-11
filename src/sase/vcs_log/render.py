@@ -1,4 +1,4 @@
-"""Renderers for ``sase stitch log`` — ``pretty``, ``full``, ``oneline``, and ``json``.
+"""Renderers for ``sase stitch list`` — ``pretty``, ``full``, ``oneline``, and ``json``.
 
 Mirrors the dual-output + ``--color`` contract used by ``sase plan
 search``: the JSON branch returns a plain string (no Rich), and the

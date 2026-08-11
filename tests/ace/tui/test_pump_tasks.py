@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 import logging
 from types import SimpleNamespace
 
@@ -77,7 +78,7 @@ async def test_repeated_failure_logs_one_traceback_then_periodic_count(
     owner = SimpleNamespace()
     clock = iter((0.0, 1.0, 301.0))
     monkeypatch.setattr(pump_tasks, "monotonic", lambda: next(clock))
-    pump_tasks._failure_log_states.clear()
+    monkeypatch.setattr(pump_tasks, "_failure_log_states", OrderedDict())
     caplog.set_level(logging.ERROR, logger=pump_tasks.__name__)
 
     async def _fail() -> None:

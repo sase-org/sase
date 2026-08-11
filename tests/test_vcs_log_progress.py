@@ -1,4 +1,4 @@
-"""Tests for the ``sase stitch log`` remote-fetch indicator."""
+"""Tests for the ``sase stitch list`` remote-fetch indicator."""
 
 from __future__ import annotations
 

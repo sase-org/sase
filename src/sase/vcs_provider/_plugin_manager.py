@@ -9,7 +9,6 @@ from ._base import VCSProvider
 
 if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
-    from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
     from ._types import (
         IssueListState,
@@ -295,14 +294,6 @@ class VCSPluginManager(VCSProvider):
         if result is None:
             raise NotImplementedError(
                 "partition_commits is not supported by this VCS provider"
-            )
-        return result  # type: ignore[return-value]
-
-    def repo_stats(self, cwd: str) -> "VcsRepoStatsWire":
-        result = self._pm.hook.vcs_repo_stats(cwd=cwd)
-        if result is None:
-            raise NotImplementedError(
-                "repo_stats is not supported by this VCS provider"
             )
         return result  # type: ignore[return-value]
 

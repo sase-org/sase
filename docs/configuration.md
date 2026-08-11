@@ -761,7 +761,7 @@ the token visible and shows a lower-bound total such as `[1/40+]` in the reposit
 legend while the filter row says `capped`. The legend's `[P/N]` form means selected
 one-based position over displayed matched entries. `limit:all` is accepted as an
 unlimited synonym but is omitted from canonical query text. Day-granular `until:` values
-include the full named day. This setting is independent of the `sase stitch log` CLI's
+include the full named day. This setting is independent of the `sase stitch list` CLI's
 sidecar opt-in and limit contract.
 
 #### `ace.axe_description_expanded`
@@ -3274,18 +3274,15 @@ resume semantics.
 
 ### `sase stitch`
 
-`sase stitch` defaults to `sase stitch list`, which inspects the available repository
-constellation made up of the primary repo, configured linked repos, and the materialized
-separate SDD store when present. `sase stitch log` includes primary and linked history
-by default; add `-S/--sdd` to include materialized separate SDD repository history. The
-legacy `sase vcs` spelling is still accepted as a deprecated alias.
+`sase stitch` defaults to `sase stitch list`, which shows a merged timeline for the
+primary repo and configured linked repos. Add `-S/--sdd` to include sidecar repository
+history. The legacy `sase vcs` spelling is still accepted as a deprecated alias.
 
-| Subcommand | Flags                                                                                                                                                                                                                                                                                                           | Description                                                                                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `list`     | `-c/--color`, `-f/--format pretty\|oneline\|json`, `-N/--no-fetch`, `-o/--current-only`, `-r/--repo`, `-s/--sort`                                                                                                                                                                                               | List resolved repositories, descriptions, branch state, dirty state, stats, and latest activity. |
-| `log`      | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-m/--merges hide\|show\|only`, `-N/--no-fetch`, `-T/--no-tags`, `-r/--repo`, `-R/--reverse`, `-S/--sdd`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers.                                |
+| Subcommand | Flags                                                                                                                                                                                                                                                                                                           | Description                                                       |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `list`     | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-m/--merges hide\|show\|only`, `-N/--no-fetch`, `-T/--no-tags`, `-r/--repo`, `-R/--reverse`, `-S/--sdd`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers. |
 
-`sase stitch log` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`,
+`sase stitch list` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`,
 `yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Day-granular `--until` / `--before`
 values include the full named day; relative and minute-precise values remain instant
 bounds. See [VCS Providers](vcs.md#per-command-vcs-usage) for output examples and
