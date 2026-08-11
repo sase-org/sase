@@ -197,12 +197,30 @@ class BangModeKeymaps(ModeKeymaps):
     )
 
 
+@dataclass
+class BeadIssueModeKeymaps(ModeKeymaps):
+    """Typed fields for the Beads external-issue mode."""
+
+    prefix: str = "b"
+    keys: dict[str, str | dict[str, str]] = field(
+        default_factory=lambda: {
+            "view": "v",
+            "edit": "e",
+            "toggle_state": "s",
+            "copy_url": "u",
+            "attach": "a",
+            "create": "c",
+        }
+    )
+
+
 # Map of built-in mode names to their typed dataclass constructors.
 _BUILTIN_MODE_CLASSES: dict[str, type[ModeKeymaps]] = {
     "fold_mode": FoldModeKeymaps,
     "copy_mode": CopyModeKeymaps,
     "leader_mode": LeaderModeKeymaps,
     "bang_mode": BangModeKeymaps,
+    "bead_issue_mode": BeadIssueModeKeymaps,
 }
 
 BUILTIN_MODE_NAMES: frozenset[str] = frozenset(_BUILTIN_MODE_CLASSES)

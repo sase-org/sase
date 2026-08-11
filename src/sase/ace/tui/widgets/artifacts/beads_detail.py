@@ -51,8 +51,11 @@ from sase.phase_size_presentation import (
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot, PendingTriage
+from .beads_data_models import ExternalIssueLink
+from .types import EXTERNAL_ACCENT
 
 DetailProperty = tuple[str, str | Text]
+_REMOTE_BODY_PREVIEW_CHARS = 4000
 
 
 def bead_properties_header(
@@ -61,6 +64,7 @@ def bead_properties_header(
     *,
     project: str,
     project_name: str,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> RenderableType:
     """Build a bead title and the complete shared property grid."""
     status = bead_status_presentation(issue.status)
@@ -123,6 +127,7 @@ def bead_properties_header(
                 "Dependencies",
                 _dependencies_text(issue, snapshot, project=project),
             ),
+            ("External issue", _external_issue_property_text(external_links)),
             ("References", _references_text(issue)),
             ("Patch", issue.patch_name),
             (
@@ -140,6 +145,7 @@ def bead_body_markdown(
     triage: PendingTriage | None = None,
     *,
     registry: KeymapRegistry | None = None,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> str:
     """Render the pending-triage callout, description, then notes."""
     lines: list[str] = []
@@ -160,6 +166,7 @@ def bead_body_markdown(
             ]
         )
     lines.extend(_close_history_markdown(issue))
+    lines.extend(_external_issue_markdown(issue, external_links))
     lines.extend(["## Description", "", issue.description or "_No description._"])
     lines.extend(_plus_one_evidence_markdown(issue))
     if issue.notes.strip():
@@ -173,6 +180,7 @@ def bead_preview_markdown(
     *,
     project: str,
     registry: KeymapRegistry | None = None,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> str:
     triage = (
         None if snapshot is None else snapshot.triage_gates.get((project, issue.id))
@@ -202,6 +210,11 @@ def bead_preview_markdown(
         lines.append(f"**Patch:** {issue.patch_name}  ")
     if issue.patch_bug_id:
         lines.append(f"**External bug:** #{issue.patch_bug_id}  ")
+    for index, link in enumerate(external_links):
+        label = (
+            "**External issue:**" if index == 0 else " " * len("**External issue:**")
+        )
+        lines.append(f"{label} {_external_issue_inline(link)}  ")
     if issue.design.strip():
         lines.append(f"**Plan reference:** {issue.design.strip()}  ")
         path = (
@@ -211,7 +224,17 @@ def bead_preview_markdown(
     for index, reference in enumerate(issue.refs):
         label = "**References:**" if index == 0 else " " * len("**References:**")
         lines.append(f"{label} {reference}  ")
-    lines.extend(["", bead_body_markdown(issue, triage, registry=registry)])
+    lines.extend(
+        [
+            "",
+            bead_body_markdown(
+                issue,
+                triage,
+                registry=registry,
+                external_links=external_links,
+            ),
+        ]
+    )
     if issue.dependencies:
         lines.extend(["", "## Dependencies", ""])
         for dependency in issue.dependencies:
@@ -321,6 +344,114 @@ def _references_text(issue: Issue) -> Text:
             text.append("\n")
         text.append(reference, style="white")
     return text
+
+
+def _external_issue_property_text(
+    links: tuple[ExternalIssueLink, ...],
+) -> Text:
+    if not links:
+        return Text("—", style="dim")
+    text = Text()
+    for index, link in enumerate(links):
+        if index:
+            text.append("\n")
+        text.append(_external_issue_chip_label(link), style=_external_issue_style(link))
+        text.append(f" {link.relation}", style="dim")
+        if link.issue is not None and link.issue.title:
+            text.append(f"  {link.issue.title}", style="white")
+        elif link.stale:
+            text.append("  not present in cached issue list", style=EXTERNAL_ACCENT)
+        if link.drift:
+            text.append("  drift", style=f"bold {EXTERNAL_ACCENT}")
+    return text
+
+
+def _external_issue_markdown(
+    issue: Issue,
+    links: tuple[ExternalIssueLink, ...],
+) -> list[str]:
+    if not links:
+        return []
+    lines = ["## External Issues", ""]
+    for index, link in enumerate(links):
+        if index:
+            lines.append("")
+        lines.append(f"### {_external_issue_inline(link)}")
+        details = [
+            f"- Relation: {link.relation}",
+            f"- Project: {link.display_project}",
+            f"- State: {link.state}",
+            f"- Ref: `{link.external_ref}`",
+        ]
+        if link.issue is not None:
+            details.extend(
+                [
+                    f"- Title: {link.issue.title}",
+                    f"- Author: {link.issue.author or '(unknown)'}",
+                    f"- Comments: {link.issue.comment_count}",
+                    f"- Updated: {format_local(link.issue.updated_at, default='')}",
+                ]
+            )
+            if link.issue.labels:
+                details.append(f"- Labels: {', '.join(link.issue.labels)}")
+            if link.issue.assignees:
+                details.append(f"- Assignees: {', '.join(link.issue.assignees)}")
+            if link.issue.url:
+                details.append(f"- URL: {link.issue.url}")
+        if link.stale:
+            details.append("- Cache: stale local link, absent from complete issue list")
+        if link.drift:
+            details.append("- Drift: mirrored local bead differs from cached issue")
+        reverse_beads = tuple(
+            bead.id for bead in link.reverse_beads if bead.id != issue.id
+        )
+        if reverse_beads:
+            details.append(f"- Linked beads: {', '.join(reverse_beads)}")
+        if link.reverse_patches:
+            details.append(
+                f"- Linked Patches: {', '.join(patch.name for patch in link.reverse_patches)}"
+            )
+        lines.extend(details)
+        if link.issue is not None:
+            body = link.issue.body.strip()
+            if body:
+                lines.extend(["", "#### Remote Body Preview", "", _preview_body(body)])
+    lines.append("")
+    return lines
+
+
+def _external_issue_inline(link: ExternalIssueLink) -> str:
+    state = link.state
+    flags = [
+        flag
+        for flag, active in (("stale", link.stale), ("drift", link.drift))
+        if active
+    ]
+    suffix = f" ({', '.join(flags)})" if flags else ""
+    return f"{link.display_project} #{link.issue_id} · {state}{suffix}"
+
+
+def _external_issue_chip_label(link: ExternalIssueLink) -> str:
+    glyph = (
+        "?"
+        if link.stale
+        else "●"
+        if link.issue and link.issue.state == "closed"
+        else "○"
+    )
+    return f"{glyph}#{link.issue_id}"
+
+
+def _external_issue_style(link: ExternalIssueLink) -> str:
+    if link.stale or link.drift:
+        return f"bold #1a1a1a on {EXTERNAL_ACCENT}"
+    return f"bold {EXTERNAL_ACCENT}"
+
+
+def _preview_body(body: str) -> str:
+    if len(body) <= _REMOTE_BODY_PREVIEW_CHARS:
+        return body
+    return f"{body[:_REMOTE_BODY_PREVIEW_CHARS].rstrip()}\n\n_(truncated)_"
 
 
 def _dependencies_text(

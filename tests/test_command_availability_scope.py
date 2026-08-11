@@ -137,3 +137,17 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
             show_help,
             CommandContext(tab="changespecs", artifacts_subtab=subtab),  # type: ignore[arg-type]  # legacy tab id
         )
+
+
+def test_bead_issue_palette_commands_are_scoped_to_beads_subtab() -> None:
+    catalog = _catalog_by_id()
+    command = catalog["bead_issue.view"]
+    direct_mode = catalog["app.start_bead_issue_mode"]
+
+    beads_ctx = CommandContext(tab="artifacts", artifacts_subtab="beads")
+    bugs_ctx = CommandContext(tab="artifacts", artifacts_subtab="bugs")
+
+    assert is_command_available(command, beads_ctx)
+    assert is_command_available(direct_mode, beads_ctx)
+    assert not is_command_available(command, bugs_ctx)
+    assert not is_command_available(direct_mode, bugs_ctx)

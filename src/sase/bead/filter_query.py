@@ -40,6 +40,8 @@ BeadCompletionKind = Literal[
     "owner",
     "model",
     "has",
+    "bug",
+    "label",
     "since",
     "until",
     "text",
@@ -54,7 +56,6 @@ BEAD_HAS_VALUES: tuple[str, ...] = (
     "deps",
     "notes",
     "triage",
-    "reopened",
 )
 DEFAULT_BEAD_FILTER_QUERY = "-status:closed"
 
@@ -68,6 +69,8 @@ _FILTER_KEYS = (
     "owner",
     "model",
     "has",
+    "bug",
+    "label",
     "since",
     "until",
 )
@@ -100,6 +103,10 @@ class BeadFilterValues:
     excluded_models: tuple[str, ...] = ()
     has: tuple[str, ...] = ()
     excluded_has: tuple[str, ...] = ()
+    bugs: tuple[str, ...] = ()
+    excluded_bugs: tuple[str, ...] = ()
+    labels: tuple[str, ...] = ()
+    excluded_labels: tuple[str, ...] = ()
     since_texts: tuple[str, ...] = ()
     excluded_since_texts: tuple[str, ...] = ()
     until_texts: tuple[str, ...] = ()
@@ -135,6 +142,10 @@ class BeadFilterValues:
                 self.excluded_models,
                 self.has,
                 self.excluded_has,
+                self.bugs,
+                self.excluded_bugs,
+                self.labels,
+                self.excluded_labels,
                 self.since_texts,
                 self.excluded_since_texts,
                 self.until_texts,
@@ -260,6 +271,10 @@ def parse_bead_filter_query(
         excluded_models=tuple(excluded_repeated["model"]),
         has=tuple(repeated["has"]),
         excluded_has=tuple(excluded_repeated["has"]),
+        bugs=tuple(repeated["bug"]),
+        excluded_bugs=tuple(excluded_repeated["bug"]),
+        labels=tuple(repeated["label"]),
+        excluded_labels=tuple(excluded_repeated["label"]),
         since_texts=since_texts,
         excluded_since_texts=excluded_since_texts,
         until_texts=until_texts,
@@ -301,6 +316,8 @@ def to_query_tokens(values: BeadFilterValues) -> tuple[str, ...]:
         ("owner", values.owners, values.excluded_owners),
         ("model", values.models, values.excluded_models),
         ("has", values.has, values.excluded_has),
+        ("bug", values.bugs, values.excluded_bugs),
+        ("label", values.labels, values.excluded_labels),
         ("since", values.since_texts, values.excluded_since_texts),
         ("until", values.until_texts, values.excluded_until_texts),
     ):

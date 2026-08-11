@@ -70,6 +70,8 @@ class AppKeymaps:
     beads_snooze: str
     beads_launch_work: str
     beads_open_bug: str
+    beads_copy_bug: str
+    start_bead_issue_mode: str
     beads_open_plan: str
     beads_refresh: str
     # Chats sub-tab

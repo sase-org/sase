@@ -9,6 +9,7 @@ from ...artifact_tabs import (
     ArtifactsPaneKey,
     DEFAULT_ARTIFACTS_SUBTAB,
     DEFAULT_FILES_SUBTAB,
+    EXTERNAL_ACCENT,
     ArtifactsSubTab,
     FilesSubTab,
     artifacts_pane_key,
@@ -24,6 +25,7 @@ __all__ = [
     "ArtifactsSubTab",
     "DEFAULT_ARTIFACTS_SUBTAB",
     "DEFAULT_FILES_SUBTAB",
+    "EXTERNAL_ACCENT",
     "FilesSubTab",
     "artifacts_pane_key",
 ]

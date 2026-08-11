@@ -142,6 +142,10 @@ def build_bead_options(
                                 snapshot.plan_links.get((item.project, issue.id))
                             ),
                             project_badge=project_badge(snapshot, item.project),
+                            external_links=snapshot.external_links.get(
+                                (item.project, issue.id),
+                                (),
+                            ),
                         ),
                         target in active_marks,
                     ),
@@ -193,6 +197,7 @@ def build_bead_options(
                             blocked_ids=snapshot.blocked_ids,
                             plan_link=bool(snapshot.plan_links.get(epic_key)),
                             project_badge=project_badge(snapshot, project),
+                            external_links=snapshot.external_links.get(epic_key, ()),
                         ),
                         target in active_marks,
                     ),
@@ -219,6 +224,10 @@ def build_bead_options(
                                     snapshot.plan_links.get((project, phase.id))
                                 ),
                                 project_badge=project_badge(snapshot, project),
+                                external_links=snapshot.external_links.get(
+                                    (project, phase.id),
+                                    (),
+                                ),
                             ),
                             phase_target in active_marks,
                         ),

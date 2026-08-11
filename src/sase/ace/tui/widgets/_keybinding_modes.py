@@ -283,6 +283,29 @@ class KeybindingModesMixin:
         ]
         self._update_display(bindings, mode_label=f"member {first_digit}▁")
 
+    def update_bead_issue_bindings(self) -> None:
+        """Update bindings to show Beads external-issue mode options."""
+        d = footer_key_display
+        keys = self._kr().bead_issue_mode.keys
+
+        def k(name: str) -> str:
+            value = keys[name]
+            assert isinstance(value, str)
+            return d(value)
+
+        self._update_display(
+            [
+                (k("view"), "view body"),
+                (k("edit"), "edit issue"),
+                (k("toggle_state"), "close/reopen"),
+                (k("copy_url"), "copy URL"),
+                (k("attach"), "attach"),
+                (k("create"), "create issue"),
+                ("<esc>", "cancel"),
+            ],
+            mode_label="ISSUE",
+        )
+
     def update_leader_bindings(
         self,
         *,

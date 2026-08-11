@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.artifacts.beads_detail import (
     bead_preview_markdown,
     bead_properties_header,
 )
+from sase.ace.tui.widgets.artifacts.beads_data_models import ExternalIssueLink
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
 from sase.ace.tui.widgets.artifacts.beads_rendering import (
     build_empty_bead_detail,
@@ -28,6 +29,7 @@ from sase.bead.model import (
     Status,
     TaskPlusOneEvidence,
 )
+from sase.vcs_provider import IssueWire
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 _PINNED_NOW = datetime(2026, 7, 8, 12, 0, 0)
@@ -153,6 +155,66 @@ def test_detail_uses_shared_metadata_and_triage_callout(tmp_path: Path) -> None:
     assert "Status" in properties
     assert body.startswith(f"> [!IMPORTANT] {issue.id} is awaiting task triage.")
     assert body.index("## Description") < len(body)
+
+
+def test_external_issue_links_render_in_rows_detail_and_preview(
+    tmp_path: Path,
+) -> None:
+    value = snapshot(tmp_path)
+    issue = value.tasks[0].issue
+    link = ExternalIssueLink(
+        external_ref="bug:alpha#42",
+        project="alpha",
+        display_project="Alpha",
+        issue_id="42",
+        relation="mirrored",
+        issue=IssueWire(
+            number=42,
+            title="Ready for triage",
+            state="open",
+            body="Remote checklist body.",
+            labels=("priority:high",),
+            assignees=("octocat",),
+            author="reporter",
+            updated_at="2026-07-15T10:00:00Z",
+            url="https://example.test/issues/42",
+            comment_count=3,
+        ),
+        drift=True,
+    )
+
+    row = task_text(
+        issue,
+        triage=False,
+        plan_link=False,
+        external_links=(link,),
+    ).plain
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(
+            bead_properties_header(
+                issue,
+                value,
+                project="alpha",
+                project_name="Alpha",
+                external_links=(link,),
+            )
+        )
+    body = bead_body_markdown(issue, external_links=(link,))
+    preview = bead_preview_markdown(
+        issue,
+        value,
+        project="alpha",
+        external_links=(link,),
+    )
+
+    assert "○#42" in row
+    assert "External issue" in capture.get()
+    assert "drift" in capture.get()
+    assert "## External Issues" in body
+    assert "- Labels: priority:high" in body
+    assert "Remote checklist body." in body
+    assert "**External issue:** Alpha #42 · open (drift)" in preview
 
 
 def test_detail_and_preview_share_the_full_creation_label(

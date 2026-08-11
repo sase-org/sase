@@ -314,6 +314,8 @@ ace:
       beads_snooze: "z"
       beads_launch_work: "w"
       beads_open_bug: "o"
+      beads_copy_bug: "y"
+      start_bead_issue_mode: "b"
       beads_open_plan: "L"
       beads_refresh: "R"
       # Chats sub-tab
@@ -606,6 +608,15 @@ ace:
         keys:
           run_cmd: "exclamation_mark"
           toggle_axe: "x"
+      bead_issue_mode:
+        prefix: "b"
+        keys:
+          view: "v"
+          edit: "e"
+          toggle_state: "s"
+          copy_url: "u"
+          attach: "a"
+          create: "c"
 
 axe:
   max_hook_runners: 3

@@ -66,9 +66,14 @@ class ArtifactsNavigationActionsMixin:
         self._ensure_artifacts_project_choices()  # type: ignore[attr-defined]
         from ..widgets import KeybindingFooter
 
-        self.query_one(  # type: ignore[attr-defined]
-            "#keybinding-footer", KeybindingFooter
-        ).show_artifacts_pane(
+        footer = self.query_one(  # type: ignore[attr-defined]
+            "#keybinding-footer",
+            KeybindingFooter,
+        )
+        if getattr(self, "_bead_issue_mode_active", False):
+            footer.update_bead_issue_bindings()
+            return
+        footer.show_artifacts_pane(
             self.current_artifacts_pane_key,
             mark_count=len(self._active_artifacts_marks()),
             conditional_entries=self._artifacts_footer_entries(),

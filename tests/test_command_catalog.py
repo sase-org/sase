@@ -5,7 +5,7 @@ Verifies that the app, saved-query, and mode generators:
 - Cover every :class:`AppKeymaps` field exactly once.
 - Include all 10 saved-query picker sequences.
 - Cover every built-in mode subkey (fold, copy nested per-tab, leader,
-  bang) and every valid user-defined custom mode command.
+  bang, bead issue) and every valid user-defined custom mode command.
 """
 
 from __future__ import annotations
@@ -374,6 +374,21 @@ def test_bang_mode_commands_cover_every_subkey() -> None:
     bang_specs = [c for c in iter_mode_commands(reg) if c.id.startswith("bang.")]
     expected = {f"bang.{cid}" for cid in reg.bang_mode.keys}
     assert {c.id for c in bang_specs} == expected
+
+
+def test_bead_issue_mode_commands_cover_every_subkey() -> None:
+    reg = _registry()
+    specs = [
+        c
+        for c in iter_mode_commands(reg)
+        if c.id.startswith("bead_issue.") and c.executor.kind == "bead_issue_mode_key"
+    ]
+    expected = {f"bead_issue.{cid}" for cid in reg.bead_issue_mode.keys}
+    assert {c.id for c in specs} == expected
+    for spec in specs:
+        assert spec.key_sequence[0] == reg.bead_issue_mode.prefix
+        assert len(spec.key_sequence) == 2
+        assert spec.tabs == ("artifacts",)
 
 
 def test_custom_mode_commands_included() -> None:

@@ -80,6 +80,12 @@ def execute_command(app: AceApp, spec: CommandSpec) -> None:  # type: ignore[no-
         app._handle_leader_key(executor.subkey)  # type: ignore[attr-defined]
         return
 
+    if kind == "bead_issue_mode_key":
+        assert executor.subkey is not None
+        app._bead_issue_mode_active = True  # type: ignore[attr-defined]
+        app._handle_bead_issue_key(executor.subkey)  # type: ignore[attr-defined]
+        return
+
     if kind == "bang_mode_key":
         assert executor.subkey is not None
         app._bang_mode_active = True  # type: ignore[attr-defined]

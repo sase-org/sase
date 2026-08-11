@@ -27,7 +27,8 @@ from sase.phase_size_presentation import phase_size_chip
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot
-from .types import ARTIFACTS_ACCENTS
+from .beads_data_models import ExternalIssueLink
+from .types import ARTIFACTS_ACCENTS, EXTERNAL_ACCENT
 
 BLOCKED_STATE_GLYPH = "⊜"
 READY_STATE_GLYPH = "►"
@@ -121,6 +122,7 @@ def build_beads_status(
                 f"✦ {triage_count} awaiting triage",
                 style=f"bold {ARTIFACTS_ACCENTS['beads']}",
             )
+        _append_external_status(text, snapshot)
         if snapshot.errors:
             text.append("  ·  ", style="dim")
             labels = ", ".join(
@@ -189,12 +191,14 @@ def task_text(
     triage: bool,
     plan_link: bool,
     project_badge: str | None = None,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> Text:
     return _bead_text(
         task,
         triage=triage,
         plan_link=plan_link,
         project_badge=project_badge,
+        external_links=external_links,
     )
 
 
@@ -208,6 +212,7 @@ def epic_text(
     blocked_ids: frozenset[tuple[str, str]],
     plan_link: bool,
     project_badge: str | None = None,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> Text:
     text = single_line_text()
     text.append(
@@ -220,6 +225,7 @@ def epic_text(
         text.append("▤ ", style="bold #AF87FF")
     text.append(f"{epic.id} ", style="bold #FFD700")
     text.append(epic.title, style="bold white")
+    _append_external_issue_chip(text, external_links)
     text.append("  ")
     _append_status(text, epic.status)
     closed = sum(phase.status is Status.CLOSED for phase in phases)
@@ -240,6 +246,7 @@ def phase_text(
     *,
     plan_link: bool,
     project_badge: str | None = None,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> Text:
     text = single_line_text("  ")
     presentation = bead_type_presentation(phase.issue_type)
@@ -248,6 +255,7 @@ def phase_text(
         text.append("▤ ", style="bold #AF87FF")
     text.append(f"{phase.id} ", style="bold #FFD700")
     text.append(phase.title, style="white")
+    _append_external_issue_chip(text, external_links)
     text.append("  ")
     _append_status(text, phase.status)
     text.append("  ")
@@ -274,6 +282,42 @@ def _matched_count_label(
     return f"{count} {noun}"
 
 
+def _append_external_status(text: Text, snapshot: BeadsSnapshot) -> None:
+    linked_count = sum(len(links) for links in snapshot.external_links.values())
+    unmirrored_count = sum(snapshot.external_unmirrored_counts.values())
+    stale_count = sum(
+        link.stale for links in snapshot.external_links.values() for link in links
+    )
+    drift_count = sum(
+        link.drift for links in snapshot.external_links.values() for link in links
+    )
+    listing_available = any(
+        cache.capabilities.listing for cache in snapshot.external_projects.values()
+    )
+    external_errors = tuple(
+        project for project, cache in snapshot.external_projects.items() if cache.error
+    )
+    if linked_count or unmirrored_count or stale_count or drift_count:
+        text.append("  ·  ", style="dim")
+        text.append(f"{linked_count} issue links", style=EXTERNAL_ACCENT)
+        if unmirrored_count:
+            text.append(f"  ·  {unmirrored_count} remote-only", style="dim")
+        if stale_count:
+            text.append(f"  ·  {stale_count} stale", style=f"bold {EXTERNAL_ACCENT}")
+        if drift_count:
+            text.append(f"  ·  {drift_count} drift", style=f"bold {EXTERNAL_ACCENT}")
+    elif snapshot.external_projects and not listing_available:
+        text.append("  ·  ", style="dim")
+        text.append("external issues unavailable", style="dim")
+    if external_errors:
+        text.append("  ·  ", style="dim")
+        labels = ", ".join(
+            snapshot.display_names.get(project, project)
+            for project in sorted(external_errors)
+        )
+        text.append(f"Issue errors: {labels}", style=f"bold {EXTERNAL_ACCENT}")
+
+
 def single_line_text(text: str = "", *, style: str = "") -> Text:
     return Text(text, style=style, no_wrap=True, overflow="ellipsis")
 
@@ -284,6 +328,7 @@ def _bead_text(
     triage: bool,
     plan_link: bool,
     project_badge: str | None,
+    external_links: tuple[ExternalIssueLink, ...] = (),
 ) -> Text:
     presentation = bead_type_presentation(issue.issue_type)
     text = single_line_text()
@@ -294,6 +339,7 @@ def _bead_text(
         text.append("▤ ", style="bold #AF87FF")
     text.append(f"{issue.id} ", style="bold #FFD700")
     text.append(issue.title, style="white")
+    _append_external_issue_chip(text, external_links)
     if badge := plus_one_badge(issue.plus_one_count):
         text.append(f"  [{badge}]", style=PLUS_ONE_RICH_STYLE)
     if reopen := reopen_badge(len(issue.close_history)):
@@ -307,6 +353,45 @@ def _bead_text(
         text.append_text(phase_size_chip(issue.size))
     _append_metadata(text, issue, project_badge)
     return text
+
+
+def _append_external_issue_chip(
+    text: Text,
+    links: tuple[ExternalIssueLink, ...],
+) -> None:
+    if not links:
+        return
+    link = _primary_external_issue_link(links)
+    glyph = (
+        "?"
+        if link.stale
+        else "●"
+        if link.issue and link.issue.state == "closed"
+        else "○"
+    )
+    label = f"{glyph}#{link.issue_id}"
+    text.append("  ")
+    if link.stale or link.drift:
+        text.append(f" {label} ", style=f"bold #1a1a1a on {EXTERNAL_ACCENT}")
+    else:
+        text.append(label, style=f"bold {EXTERNAL_ACCENT}")
+    if len(links) > 1:
+        text.append(f"+{len(links) - 1}", style="dim")
+
+
+def _primary_external_issue_link(
+    links: tuple[ExternalIssueLink, ...],
+) -> ExternalIssueLink:
+    return sorted(
+        links,
+        key=lambda link: (
+            not link.stale,
+            not link.drift,
+            0 if link.relation == "mirrored" else 1,
+            link.project,
+            link.issue_id,
+        ),
+    )[0]
 
 
 def _append_status(text: Text, status: Status) -> None:

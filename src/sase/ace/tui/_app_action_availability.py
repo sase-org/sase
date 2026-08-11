@@ -111,7 +111,8 @@ def check_app_action(
     if (
         action == "refresh"
         and app.current_tab == ARTIFACTS_TAB
-        and app.current_artifacts_pane_key in {"bugs", "stitches", "other", "chats"}
+        and app.current_artifacts_pane_key
+        in {"bugs", "stitches", "beads", "other", "chats"}
     ):
         # ``y`` copies the selected pane entry; explicit pane refresh is
         # registry-backed and defaults to ``R``.

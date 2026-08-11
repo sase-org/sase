@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.tui.keymaps import (
     BangModeKeymaps,
+    BeadIssueModeKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
@@ -50,6 +51,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
     assert isinstance(reg.bang_mode, BangModeKeymaps)
+    assert isinstance(reg.bead_issue_mode, BeadIssueModeKeymaps)
     assert isinstance(reg.statistics, StatisticsPaneKeymaps)
     assert isinstance(reg.gate, GateModalKeymaps)
     assert reg.gate.toggle_option == "space"

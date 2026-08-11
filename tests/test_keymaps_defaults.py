@@ -8,6 +8,7 @@ import yaml
 
 from sase.ace.tui.keymaps import (
     AppKeymaps,
+    BeadIssueModeKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
     GateModalKeymaps,
@@ -29,12 +30,13 @@ from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_registry_default_modes_always_present() -> None:
-    """KeymapRegistry always has all four built-in modes."""
+    """KeymapRegistry always has all built-in modes."""
     reg = KeymapRegistry(app=default_app_keymaps())
     assert "fold_mode" in reg.modes
     assert "copy_mode" in reg.modes
     assert "leader_mode" in reg.modes
     assert "bang_mode" in reg.modes
+    assert "bead_issue_mode" in reg.modes
 
 
 def test_fold_mode_dataclass_defaults_match_default_config() -> None:
@@ -53,6 +55,16 @@ def test_copy_mode_dataclass_defaults_match_default_config() -> None:
     )
     configured = config["ace"]["keymaps"]["modes"]["copy_mode"]
     defaults = CopyModeKeymaps()
+
+    assert configured == {"prefix": defaults.prefix, "keys": defaults.keys}
+
+
+def test_bead_issue_mode_dataclass_defaults_match_default_config() -> None:
+    config = yaml.safe_load(
+        Path("src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    configured = config["ace"]["keymaps"]["modes"]["bead_issue_mode"]
+    defaults = BeadIssueModeKeymaps()
 
     assert configured == {"prefix": defaults.prefix, "keys": defaults.keys}
 

@@ -40,6 +40,7 @@ class EventHandlersBase:
     _accept_mode_active: bool
     _leader_mode_active: bool
     _bang_mode_active: bool
+    _bead_issue_mode_active: bool
     _custom_mode_active: str | None
     _custom_mode_prefixes: dict[str, str]
     _entry_jump_mode_active: bool

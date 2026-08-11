@@ -10,7 +10,7 @@ from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.keymaps import KeymapRegistry
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import IssueType, Status
 
 from .._prompt_preview_target import PreviewPayload
 from .beads_data import BeadsSnapshot
@@ -25,6 +25,8 @@ from .entry_navigation import ArtifactEntryTarget
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
+
+    from .beads_data_models import ExternalIssueLink
 else:
     _MixinBase = object
 
@@ -91,6 +93,11 @@ class BeadsNavigationMixin(_MixinBase):
             preferred_id: str | None = None,
             update_detail: bool = True,
         ) -> None: ...
+
+        def external_links_for_row(
+            self,
+            row: BeadRow,
+        ) -> tuple[ExternalIssueLink, ...]: ...
 
     def _init_beads_navigation(self) -> None:
         self._rows = {}
@@ -198,8 +205,11 @@ class BeadsNavigationMixin(_MixinBase):
                     "re-snooze" if row.issue.status is Status.SNOOZED else "snooze",
                 )
             )
-        if _bead_row_linked_bug(row, snapshot) is not None:
-            entries.append(("beads_open_bug", "open bug"))
+        external_links_for_row = getattr(self, "external_links_for_row", None)
+        if callable(external_links_for_row) and external_links_for_row(row):
+            entries.append(("beads_open_bug", "open issue"))
+            entries.append(("beads_copy_bug", "copy issue"))
+        entries.append(("start_bead_issue_mode", "issue"))
         return tuple(entries)
 
     def apply_entry_jump_hints(
@@ -273,6 +283,7 @@ class BeadsNavigationMixin(_MixinBase):
                 self._snapshot,
                 project=row.project,
                 registry=self._registry,
+                external_links=self.external_links_for_row(row),
             ),
             lexer="markdown",
             title=f"{issue.id} · {issue.title}",
@@ -310,6 +321,7 @@ class BeadsNavigationMixin(_MixinBase):
                 self._snapshot,
                 project=row.project,
                 project_name=self._project_name(row.project),
+                external_links=self.external_links_for_row(row),
             )
         )
         triage = (
@@ -317,7 +329,14 @@ class BeadsNavigationMixin(_MixinBase):
             if self._snapshot is None
             else self._snapshot.triage_gates.get((row.project, row.issue.id))
         )
-        body.update(bead_body_markdown(row.issue, triage, registry=self._registry))
+        body.update(
+            bead_body_markdown(
+                row.issue,
+                triage,
+                registry=self._registry,
+                external_links=self.external_links_for_row(row),
+            )
+        )
 
     def _project_name(self, project: str) -> str:
         if self._snapshot is None:
@@ -386,26 +405,6 @@ def _bead_row_is_snoozable(row: BeadRow) -> bool:
         Status.READY,
         Status.SNOOZED,
     }
-
-
-def _bead_row_linked_bug(
-    row: BeadRow,
-    snapshot: BeadsSnapshot | None,
-) -> Issue | None:
-    issue = row.issue
-    if row.kind == "epic":
-        return issue if issue.patch_bug_id else None
-    if issue.parent_id is None or snapshot is None:
-        return None
-    epic = next(
-        (
-            item.issue
-            for item in snapshot.epics
-            if item.project == row.project and item.issue.id == issue.parent_id
-        ),
-        None,
-    )
-    return epic if epic is not None and epic.patch_bug_id else None
 
 
 __all__ = ["BeadsNavigationMixin", "BeadsOptionList"]

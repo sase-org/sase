@@ -38,6 +38,7 @@ from sase.ace.tui.keymaps.metadata import _BINDING_META
 from sase.ace.tui.keymaps.mode_keymaps import (
     BUILTIN_MODE_NAMES,
     BangModeKeymaps,
+    BeadIssueModeKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
     LeaderModeKeymaps,
@@ -50,6 +51,7 @@ __all__ = [
     "AppKeymaps",
     "BUILTIN_MODE_NAMES",
     "BangModeKeymaps",
+    "BeadIssueModeKeymaps",
     "CopyModeKeymaps",
     "FoldModeKeymaps",
     "GateModalKeymaps",

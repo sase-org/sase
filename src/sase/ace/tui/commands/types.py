@@ -109,6 +109,7 @@ ExecutorKind = Literal[
     "fold_mode_key",
     "copy_mode_key",
     "leader_mode_key",
+    "bead_issue_mode_key",
     "bang_mode_key",
     "custom_mode_key",
 ]

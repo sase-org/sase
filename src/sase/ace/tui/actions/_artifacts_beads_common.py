@@ -208,24 +208,6 @@ def unclosed_descendant_ids(
     return tuple(result)
 
 
-def epic_for_bead_row(
-    row: BeadRow,
-    snapshot: BeadsSnapshot | None,
-) -> Issue | None:
-    if row.kind == "epic":
-        return row.issue
-    if row.issue.parent_id is None or snapshot is None:
-        return None
-    return next(
-        (
-            epic.issue
-            for epic in snapshot.epics
-            if epic.project == row.project and epic.issue.id == row.issue.parent_id
-        ),
-        None,
-    )
-
-
 def launch_scoped_epic(beads_dir: Path, epic_id: str) -> bool:
     from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
     from sase.bead.cli_work_handler import launch_epic_bead_work

@@ -23,12 +23,20 @@ class _IssueProvider(Protocol):
 
     def supports_issues(self) -> bool: ...
 
+    def supports_issue_listing(self) -> bool: ...
+
+    def supports_issue_reads(self) -> bool: ...
+
+    def supports_issue_mutations(self) -> bool: ...
+
     def list_issues(
         self,
         cwd: str,
         state: IssueListState = "open",
         limit: int = 100,
     ) -> list[IssueWire]: ...
+
+    def get_issue(self, number: int, cwd: str) -> IssueWire: ...
 
     def create_issue(
         self,
@@ -53,6 +61,22 @@ class _IssueProvider(Protocol):
 
 
 @dataclass(frozen=True)
+class _IssueTrackerCapabilities:
+    """Structural issue-tracker capabilities for one provider."""
+
+    listing: bool = False
+    reads: bool = False
+    mutations: bool = False
+    urls: bool = False
+
+    @property
+    def any(self) -> bool:
+        """Return whether at least one issue operation is available."""
+
+        return self.listing or self.reads or self.mutations or self.urls
+
+
+@dataclass(frozen=True)
 class _BugScope:
     """Resolved tracker scope for one SASE project."""
 
@@ -61,6 +85,9 @@ class _BugScope:
     project_file: str
     cwd: str
     provider: _IssueProvider
+
+
+IssueTrackerScope = _BugScope
 
 
 @dataclass(frozen=True)
@@ -194,6 +221,50 @@ def collect_bug_snapshot(
     )
 
 
+def resolve_issue_tracker_scope(project: str) -> IssueTrackerScope:
+    """Resolve a project picker value to its tracker scope."""
+
+    return _resolve_bug_scope(project)
+
+
+def issue_tracker_capabilities(provider: _IssueProvider) -> _IssueTrackerCapabilities:
+    """Return issue capability flags without calling the remote tracker."""
+
+    return _IssueTrackerCapabilities(
+        listing=_provider_bool(provider, "supports_issue_listing", "supports_issues"),
+        reads=_provider_bool(provider, "supports_issue_reads", "supports_issues"),
+        mutations=_provider_bool(
+            provider,
+            "supports_issue_mutations",
+            "supports_issues",
+        ),
+        urls=_provider_bool(provider, "supports_issue_reads", "supports_issues"),
+    )
+
+
+def list_project_issues(
+    scope: IssueTrackerScope,
+    *,
+    state: IssueListState = "all",
+    limit: int = 100,
+) -> tuple[IssueWire, ...]:
+    """List issues for an already resolved tracker scope."""
+
+    capabilities = issue_tracker_capabilities(scope.provider)
+    if not capabilities.listing:
+        raise NotImplementedError("issue listing is not supported by this VCS provider")
+    return tuple(scope.provider.list_issues(scope.cwd, state=state, limit=limit))
+
+
+def _issue_url_for_scope(scope: IssueTrackerScope, number: int) -> str:
+    """Resolve an issue URL for an already resolved tracker scope."""
+
+    capabilities = issue_tracker_capabilities(scope.provider)
+    if not capabilities.urls:
+        raise NotImplementedError("issue URLs are not supported by this VCS provider")
+    return scope.provider.get_issue_url(number, scope.cwd)
+
+
 def _links_for_issue(
     issue_number: int,
     beads: tuple[Issue, ...],
@@ -240,7 +311,7 @@ def create_project_issue(
     labels: Sequence[str],
 ) -> IssueWire:
     """Create an issue in a resolved project tracker."""
-    scope = _supported_scope(project)
+    scope = _mutation_scope(project)
     return scope.provider.create_issue(title, body, labels, scope.cwd)
 
 
@@ -254,7 +325,7 @@ def update_project_issue(
     labels: Sequence[str] | None = None,
 ) -> IssueWire:
     """Update an issue in a resolved project tracker."""
-    scope = _supported_scope(project)
+    scope = _mutation_scope(project)
     return scope.provider.update_issue(
         number,
         scope.cwd,
@@ -274,17 +345,40 @@ def issue_url(project: str, issue: IssueWire) -> str:
 
 def issue_url_for_number(project: str, number: int) -> str:
     """Resolve an issue URL without fetching the issue from its tracker."""
-    scope = _supported_scope(project)
-    return scope.provider.get_issue_url(number, scope.cwd)
+    scope = _url_scope(project)
+    return _issue_url_for_scope(scope, number)
 
 
-def _supported_scope(project: str) -> _BugScope:
+def _mutation_scope(project: str) -> _BugScope:
     scope = _resolve_bug_scope(project)
-    if not scope.provider.supports_issues():
+    if not issue_tracker_capabilities(scope.provider).mutations:
         raise NotImplementedError(
-            "Bugs needs a tracker-capable provider (GitHub) for this project"
+            "issue mutations are not supported by this VCS provider"
         )
     return scope
+
+
+def _url_scope(project: str) -> _BugScope:
+    scope = _resolve_bug_scope(project)
+    if not issue_tracker_capabilities(scope.provider).urls:
+        raise NotImplementedError("issue URLs are not supported by this VCS provider")
+    return scope
+
+
+def _provider_bool(provider: _IssueProvider, name: str, fallback: str) -> bool:
+    probe = getattr(provider, name, None)
+    if callable(probe):
+        try:
+            return bool(probe())
+        except Exception:
+            return False
+    fallback_probe = getattr(provider, fallback, None)
+    if callable(fallback_probe):
+        try:
+            return bool(fallback_probe())
+        except Exception:
+            return False
+    return False
 
 
 def _load_project_beads(project: str) -> tuple[tuple[Issue, ...], str]:
@@ -305,9 +399,13 @@ def _load_project_beads(project: str) -> tuple[tuple[Issue, ...], str]:
 
 __all__ = [
     "BugSnapshot",
+    "IssueTrackerScope",
     "collect_bug_snapshot",
     "create_project_issue",
+    "issue_tracker_capabilities",
     "issue_url",
     "issue_url_for_number",
+    "list_project_issues",
+    "resolve_issue_tracker_scope",
     "update_project_issue",
 ]

@@ -149,7 +149,9 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("c", "beads_close", "Close / Reopen Bead", show=False),
     Binding("z", "beads_snooze", "Snooze Bead", show=False),
     Binding("w", "beads_launch_work", "Launch Bead Work", show=False),
-    Binding("o", "beads_open_bug", "Open Linked Bug", show=False),
+    Binding("o", "beads_open_bug", "Open Linked Issue", show=False),
+    Binding("y", "beads_copy_bug", "Copy Linked Issue", show=False),
+    Binding("b", "start_bead_issue_mode", "Bead Issue Mode", show=False),
     Binding("L", "beads_open_plan", "Go to Linked Plan", show=False),
     Binding("R", "beads_refresh", "Refresh Beads", show=False),
     # Chats sub-tab actions.

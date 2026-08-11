@@ -75,6 +75,10 @@ class EventKeyboardMixin(EventHandlersBase):
             if self._handle_leader_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()
                 event.stop()
+        elif getattr(self, "_bead_issue_mode_active", False):
+            if self._handle_bead_issue_key(event.key):  # type: ignore[attr-defined]
+                event.prevent_default()
+                event.stop()
         elif self._bang_mode_active:
             if self._handle_bang_key(event.key):  # type: ignore[attr-defined]
                 event.prevent_default()

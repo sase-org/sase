@@ -13,6 +13,7 @@ from textual.widgets import OptionList, Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import beads_pane
 from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
+from sase.ace.tui.widgets.artifacts.beads_data_models import ExternalIssueLink
 from sase.ace.tui.widgets.artifacts.beads_filtering import (
     build_bead_filter_index,
     compile_bead_matcher,
@@ -26,6 +27,7 @@ from sase.bead.filter_query import (
     parse_bead_filter_query,
 )
 from sase.bead.model import CloseRecord, ReopenCause, Resolution, TaskPlusOneEvidence
+from sase.vcs_provider import IssueWire
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
@@ -42,6 +44,7 @@ def _matched_ids(tmp_path: Path, query: str) -> list[str]:
     value.epics[0].issue.model = "codex/gpt-5"
     value.epics[0].issue.patch_name = "sase-dd"
     value.epics[0].issue.patch_bug_id = "42"
+    value.epics[0].issue.external_ref = "bug:alpha#42"
     value.tasks[1].issue.assignee = "worker.alpha"
     value.phases_by_epic[("alpha", "alpha-1")][0].issue.notes = "Closed phase notes."
     value = replace(value, blocked_ids=frozenset({("alpha", "alpha-open")}))
@@ -60,6 +63,7 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
     values = parse_bead_filter_query(
         "type:task,phase -status:closed tier:epic size:medium project:Alpha "
         'assignee:"alpha agent" owner:owner@example.com model:gpt-5 has:triage '
+        "bug:open -bug:stale label:priority -label:wontfix "
         'since:2026-07-01 until:2026-07-31 "ready for" -ordinary',
         now=datetime(2026, 7, 29, tzinfo=UTC),
     )
@@ -73,6 +77,10 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
     assert values.owners == ("owner@example.com",)
     assert values.models == ("gpt-5",)
     assert values.has == ("triage",)
+    assert values.bugs == ("open",)
+    assert values.excluded_bugs == ("stale",)
+    assert values.labels == ("priority",)
+    assert values.excluded_labels == ("wontfix",)
     assert values.since_texts == ("2026-07-01",)
     assert values.until_texts == ("2026-07-31",)
     assert values.text == ("ready for",)
@@ -145,6 +153,66 @@ def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) 
     assert [record.bead_id for record in index if text_matcher(record)] == [
         "alpha-open"
     ]
+
+
+def test_external_issue_filters_match_refs_states_and_labels(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.tasks[0].issue.external_ref = "bug:alpha#42"
+    value.tasks[1].issue.refs.append("bug:alpha#99")
+    value = replace(
+        value,
+        external_links={
+            ("alpha", "alpha-ready"): (
+                ExternalIssueLink(
+                    external_ref="bug:alpha#42",
+                    project="alpha",
+                    display_project="Alpha",
+                    issue_id="42",
+                    relation="mirrored",
+                    issue=IssueWire(
+                        number=42,
+                        title="Ready for triage",
+                        state="open",
+                        body="Remote body mentions launch gating.",
+                        labels=("priority:high", "ui"),
+                    ),
+                    drift=True,
+                ),
+            ),
+            ("alpha", "alpha-open"): (
+                ExternalIssueLink(
+                    external_ref="bug:alpha#99",
+                    project="alpha",
+                    display_project="Alpha",
+                    issue_id="99",
+                    relation="referenced",
+                    stale=True,
+                ),
+            ),
+        },
+    )
+    index = build_bead_filter_index(value)
+
+    assert [
+        record.bead_id
+        for record in index
+        if compile_bead_matcher(parse_bead_filter_query("has:bug bug:open"))(record)
+    ] == ["alpha-ready"]
+    assert [
+        record.bead_id
+        for record in index
+        if compile_bead_matcher(parse_bead_filter_query("bug:stale"))(record)
+    ] == ["alpha-open"]
+    assert [
+        record.bead_id
+        for record in index
+        if compile_bead_matcher(parse_bead_filter_query("label:priority:high"))(record)
+    ] == ["alpha-ready"]
+    assert [
+        record.bead_id
+        for record in index
+        if compile_bead_matcher(parse_bead_filter_query('"launch gating"'))(record)
+    ] == ["alpha-ready"]
 
 
 def test_has_reopened_and_close_history_text_use_cached_filter_index(
@@ -222,6 +290,8 @@ async def test_bead_filter_bar_completes_negated_status_and_dynamic_people() -> 
             assignees=("Alpha.Agent",),
             owners=("owner@example.com",),
             models=("codex/gpt-5",),
+            bugs=("#42", "drift"),
+            labels=("priority:high",),
         )
         bar.open("-sta")
         await pilot.pause()
@@ -240,6 +310,13 @@ async def test_bead_filter_bar_completes_negated_status_and_dynamic_people() -> 
         await pilot.press("tab")
         await pilot.pause()
         assert editor.text == "assignee:Alpha.Agent "
+
+        editor.load_text("label:prio")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        assert editor.text == "label:priority:high "
 
 
 async def test_hide_closed_default_is_visible_and_clearable(

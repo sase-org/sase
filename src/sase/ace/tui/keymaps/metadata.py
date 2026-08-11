@@ -90,7 +90,9 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("beads_close", "Close / Reopen Bead", False),
     ("beads_snooze", "Snooze Bead", False),
     ("beads_launch_work", "Launch Bead Work", False),
-    ("beads_open_bug", "Open Linked Bug", False),
+    ("beads_open_bug", "Open Linked Issue", False),
+    ("beads_copy_bug", "Copy Linked Issue Ref", False),
+    ("start_bead_issue_mode", "Bead Issue Mode", False),
     ("beads_open_plan", "Go to Linked Plan", False),
     ("beads_refresh", "Refresh Beads", False),
     ("chats_next", "Next Chat", False),
@@ -212,4 +214,5 @@ _MODE_PREFIX_ACTIONS: dict[str, str] = {
     "copy_mode": "copy_tab_content",
     "leader_mode": "start_leader_mode",
     "bang_mode": "start_bang_mode",
+    "bead_issue_mode": "start_bead_issue_mode",
 }

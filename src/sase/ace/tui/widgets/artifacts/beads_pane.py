@@ -15,6 +15,7 @@ from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot, load_beads_snapshot
+from .beads_data_models import ExternalIssueLink, ExternalIssueProjectCache
 from .beads_filter_session import BeadsFilterSessionMixin
 from .beads_list import BeadRow
 from .beads_navigation import BeadsNavigationMixin, BeadsOptionList
@@ -84,8 +85,7 @@ class ArtifactsBeadsPane(
 
     def on_activate(self) -> None:
         self.focus_list()
-        if self._snapshot is None or self._snapshot.project != self.project_scope:
-            self._request_load(force=False)
+        self._request_load(force=False)
 
     def on_deactivate(self) -> None:
         if self._detail_debouncer is not None:
@@ -123,6 +123,23 @@ class ArtifactsBeadsPane(
     def snapshot(self) -> BeadsSnapshot | None:
         return self._snapshot
 
+    def external_links_for_row(self, row: BeadRow) -> tuple[ExternalIssueLink, ...]:
+        """Return cached external issue links for *row*."""
+
+        if self._snapshot is None:
+            return ()
+        return self._snapshot.external_links.get((row.project, row.issue.id), ())
+
+    def external_project_cache(
+        self,
+        project: str,
+    ) -> ExternalIssueProjectCache | None:
+        """Return cached issue-provider state for *project*."""
+
+        if self._snapshot is None:
+            return None
+        return self._snapshot.external_projects.get(project)
+
     def _request_load(self, *, force: bool) -> None:
         project = self.project_scope
         if self._loading:
@@ -132,14 +149,16 @@ class ArtifactsBeadsPane(
         self._loading = True
         self._load_error = None
         self._update_static("#beads-status", self._status_text())
-        previous = (
-            self._snapshot
-            if self._snapshot is not None and self._snapshot.project == project
-            else None
-        )
+        previous = self._snapshot
+        patches = tuple(getattr(self.app, "patches", ()))
 
         def task() -> BeadsSnapshot:
-            return load_beads_snapshot(project, previous=previous, force=force)
+            return load_beads_snapshot(
+                project,
+                previous=previous,
+                force=force,
+                patches=patches,
+            )
 
         self._worker = self.run_worker(
             task,

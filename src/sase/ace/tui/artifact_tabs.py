@@ -44,10 +44,12 @@ FILES_PANE_IDS: dict[FilesSubTab, str] = {
     "other": "artifacts-files-pane",
 }
 
+EXTERNAL_ACCENT = "#FF5F5F"
+
 ARTIFACTS_ACCENTS: dict[ArtifactsPaneKey | Literal["files"], str] = {
     "prs": "#00D7AF",
     "stitches": "#FFD700",
-    "bugs": "#FF5F5F",
+    "bugs": EXTERNAL_ACCENT,
     "beads": "#D787FF",
     "plans": "#AF87FF",
     "chats": "#5FAFFF",
@@ -100,6 +102,7 @@ __all__ = [
     "ArtifactsSubTab",
     "DEFAULT_ARTIFACTS_SUBTAB",
     "DEFAULT_FILES_SUBTAB",
+    "EXTERNAL_ACCENT",
     "FilesSubTab",
     "artifacts_pane_key",
     "switch_to_artifacts_subtab",

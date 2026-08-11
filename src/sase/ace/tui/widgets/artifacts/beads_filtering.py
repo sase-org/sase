@@ -10,8 +10,10 @@ from types import MappingProxyType
 from sase.bead.filter_query import BeadFilterValues
 from sase.bead.plus_one_presentation import plus_one_evidence_search_text
 from sase.bead.reopen_presentation import close_history_search_text
+from sase.bug_links import normalize_external_ref
 
 from .beads_data import BeadsSnapshot, ProjectBead
+from .beads_data_models import ExternalIssueLink
 from .beads_list import BeadRowKind, row_option_id
 
 
@@ -26,6 +28,8 @@ class _BeadFilterRecord:
     status_labels: frozenset[str]
     size_labels: frozenset[str]
     has_labels: frozenset[str]
+    bug_labels: frozenset[str]
+    issue_labels: frozenset[str]
     assignee: str
     owner: str
     model: str
@@ -93,6 +97,10 @@ def compile_bead_matcher(
     excluded_models = _fold_values(values.excluded_models)
     wanted_has = _fold_values(values.has)
     excluded_has = _fold_values(values.excluded_has)
+    wanted_bugs = _fold_values(values.bugs)
+    excluded_bugs = _fold_values(values.excluded_bugs)
+    wanted_labels = _fold_values(values.labels)
+    excluded_labels = _fold_values(values.excluded_labels)
     wanted_text = _fold_values(values.text)
     excluded_text = _fold_values(values.excluded_text)
 
@@ -122,6 +130,14 @@ def compile_bead_matcher(
         if wanted_has and record.has_labels.isdisjoint(wanted_has):
             return False
         if excluded_has and not record.has_labels.isdisjoint(excluded_has):
+            return False
+        if wanted_bugs and record.bug_labels.isdisjoint(wanted_bugs):
+            return False
+        if excluded_bugs and not record.bug_labels.isdisjoint(excluded_bugs):
+            return False
+        if wanted_labels and record.issue_labels.isdisjoint(wanted_labels):
+            return False
+        if excluded_labels and not record.issue_labels.isdisjoint(excluded_labels):
             return False
         if wanted_assignees and not _contains_any(record.assignee, wanted_assignees):
             return False
@@ -182,7 +198,8 @@ def _record(
     has_labels = set[str]()
     if snapshot.plan_links.get(issue_key):
         has_labels.add("plan")
-    if issue.patch_bug_id:
+    external_links = snapshot.external_links.get(issue_key, ())
+    if _issue_has_external_ref(issue, project):
         has_labels.add("bug")
     if issue.dependencies:
         has_labels.add("deps")
@@ -195,6 +212,8 @@ def _record(
     if issue.close_history:
         has_labels.add("reopened")
     project_labels = _fold_labels((project, display_name))
+    bug_labels = _bug_labels(external_links)
+    issue_labels = _issue_labels(external_links)
     folded_has = frozenset(has_labels)
     folded_statuses = frozenset(status_labels)
     haystack = _fold_haystack(
@@ -213,14 +232,33 @@ def _record(
             issue.model,
             issue.patch_name,
             issue.patch_bug_id,
+            issue.external_ref,
             issue.parent_id or "",
             project,
             display_name,
+            *(
+                value
+                for link in external_links
+                for value in (
+                    link.external_ref,
+                    link.project,
+                    link.display_project,
+                    link.issue_id,
+                    link.state,
+                    link.relation,
+                    "" if link.issue is None else link.issue.title,
+                    "" if link.issue is None else link.issue.body,
+                    "" if link.issue is None else link.issue.url,
+                    "" if link.issue is None else " ".join(link.issue.labels),
+                )
+            ),
             *type_labels,
             *tier_labels,
             *folded_statuses,
             *size_labels,
             *folded_has,
+            *bug_labels,
+            *issue_labels,
         )
     )
     return _BeadFilterRecord(
@@ -233,6 +271,8 @@ def _record(
         status_labels=folded_statuses,
         size_labels=size_labels,
         has_labels=folded_has,
+        bug_labels=bug_labels,
+        issue_labels=issue_labels,
         assignee=issue.assignee,
         owner=issue.owner,
         model=issue.model,
@@ -253,6 +293,52 @@ def _fold_labels(values: tuple[str, ...]) -> frozenset[str]:
 
 def _fold_haystack(values: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(value.casefold() for value in values if value))
+
+
+def _issue_has_external_ref(issue: object, project: str) -> bool:
+    external_ref = normalize_external_ref(
+        getattr(issue, "external_ref", ""),
+        project=project,
+    )
+    if external_ref:
+        return True
+    return any(
+        ref.strip().casefold().startswith("bug:")
+        and bool(normalize_external_ref(ref, project=project))
+        for ref in getattr(issue, "refs", ())
+    )
+
+
+def _bug_labels(links: tuple[ExternalIssueLink, ...]) -> frozenset[str]:
+    labels: set[str] = set()
+    for link in links:
+        labels.update(
+            {
+                link.external_ref,
+                link.issue_id,
+                f"#{link.issue_id}",
+                link.state,
+                link.relation,
+                link.project,
+                link.display_project,
+            }
+        )
+        if link.stale:
+            labels.add("stale")
+        if link.drift:
+            labels.add("drift")
+    if not labels:
+        labels.add("none")
+    return _fold_labels(tuple(labels))
+
+
+def _issue_labels(links: tuple[ExternalIssueLink, ...]) -> frozenset[str]:
+    labels: set[str] = set()
+    for link in links:
+        if link.issue is None:
+            continue
+        labels.update(link.issue.labels)
+    return _fold_labels(tuple(labels))
 
 
 def _contains_any(value: str, needles: frozenset[str]) -> bool:

@@ -8,11 +8,13 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.ace.testing import make_patch
 from sase.ace.tui.widgets.artifacts import beads_data, beads_data_sources
 from sase.ace.tui.widgets.artifacts.beads_data import load_beads_snapshot
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.notifications.models import Notification
+from sase.vcs_provider import IssueWire
 
 
 def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
@@ -177,6 +179,117 @@ def test_snapshot_resolves_display_name_scope_to_project_key(
 
     assert snapshot.errors == {}
     assert [item.issue.id for item in snapshot.tasks] == ["widget-task"]
+
+
+def test_snapshot_builds_external_issue_cache_and_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    beads_dir = tmp_path / "beads"
+    mirrored = Issue(
+        "alpha-ready",
+        "Ready for triage",
+        issue_type=IssueType.TASK,
+        external_ref="42",
+    )
+    drifted = Issue(
+        "alpha-closed",
+        "Local closed title",
+        issue_type=IssueType.TASK,
+        status=Status.CLOSED,
+        external_ref="43",
+    )
+    stale = Issue(
+        "alpha-ref",
+        "Referenced issue",
+        issue_type=IssueType.TASK,
+        refs=["bug:alpha#99"],
+    )
+    linked_patch = make_patch(name="linked_patch")
+    linked_patch.bug = "bug:alpha#42"
+    remote_issues = (
+        IssueWire(
+            number=42,
+            title="Ready for triage",
+            state="open",
+            labels=("priority:high",),
+            url="https://example.test/issues/42",
+        ),
+        IssueWire(number=43, title="Remote open title", state="open"),
+        IssueWire(number=77, title="Remote only", state="closed"),
+    )
+    list_calls: list[tuple[str, int]] = []
+
+    monkeypatch.setattr(
+        beads_data,
+        "_resolve_projects",
+        lambda _project: (
+            SimpleNamespace(
+                project="alpha",
+                display_name="Alpha",
+                workspace_dir=str(tmp_path / "workspace"),
+            ),
+        ),
+    )
+    monkeypatch.setattr(beads_data, "_project_beads_dir", lambda _project: beads_dir)
+    monkeypatch.setattr(beads_data, "_project_document_roots", lambda _project: {})
+    monkeypatch.setattr(beads_data, "_store_mtime_key", lambda _path: ())
+    monkeypatch.setattr(beads_data, "_notifications_mtime_key", lambda: ())
+    monkeypatch.setattr(
+        beads_data,
+        "_load_project_beads",
+        lambda _path: ([mirrored, drifted, stale], frozenset(), frozenset()),
+    )
+    monkeypatch.setattr(beads_data, "_load_pending_triage", lambda: {})
+    monkeypatch.setattr(
+        beads_data,
+        "resolve_issue_tracker_scope",
+        lambda _project: SimpleNamespace(
+            project_key="alpha",
+            display_name="Alpha",
+            project_file="/state/alpha.sase",
+            cwd="/repos/alpha",
+            provider=object(),
+        ),
+    )
+    monkeypatch.setattr(
+        beads_data,
+        "issue_tracker_capabilities",
+        lambda _provider: SimpleNamespace(
+            listing=True,
+            reads=True,
+            mutations=False,
+            urls=True,
+        ),
+    )
+
+    def list_issues(
+        _scope: object,
+        *,
+        state: str,
+        limit: int,
+    ) -> tuple[IssueWire, ...]:
+        list_calls.append((state, limit))
+        return remote_issues
+
+    monkeypatch.setattr(beads_data, "list_project_issues", list_issues)
+
+    result = load_beads_snapshot("alpha", force=True, patches=(linked_patch,))
+
+    assert list_calls == [("all", 101)]
+    assert result.external_projects["alpha"].issues == remote_issues
+    assert result.external_unmirrored_counts == {"alpha": 1}
+    ready_link = result.external_links[("alpha", "alpha-ready")][0]
+    assert ready_link.issue == remote_issues[0]
+    assert ready_link.relation == "mirrored"
+    assert ready_link.reverse_beads == (mirrored,)
+    assert ready_link.reverse_patches == (linked_patch,)
+    drift_link = result.external_links[("alpha", "alpha-closed")][0]
+    assert drift_link.drift is True
+    stale_link = result.external_links[("alpha", "alpha-ref")][0]
+    assert stale_link.relation == "referenced"
+    assert stale_link.stale is True
+    assert stale_link.issue is None
 
 
 def test_triage_gate_matches_request_payload_not_request_id(

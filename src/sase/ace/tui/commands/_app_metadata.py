@@ -199,7 +199,9 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("beads_close", "Beads: close or reopen", "Proposals & Sync", CL_ONLY, ()),
     ("beads_snooze", "Beads: snooze task", "Proposals & Sync", CL_ONLY, ()),
     ("beads_launch_work", "Beads: launch work", "Agents", CL_ONLY, ()),
-    ("beads_open_bug", "Beads: open linked bug", "Display", CL_ONLY, ()),
+    ("beads_open_bug", "Beads: open linked issue", "Display", CL_ONLY, ()),
+    ("beads_copy_bug", "Beads: copy linked issue ref", "Display", CL_ONLY, ()),
+    ("start_bead_issue_mode", "Beads: issue actions", "Bugs", CL_ONLY, ()),
     ("beads_open_plan", "Beads: go to linked plan", "Navigation", CL_ONLY, ()),
     ("beads_refresh", "Beads: refresh", "Proposals & Sync", CL_ONLY, ()),
     # Chats sub-tab

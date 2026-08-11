@@ -158,8 +158,10 @@ class BeadsFilterSessionMixin(_MixinBase):
                 assignees=(),
                 owners=(),
                 models=(),
+                bugs=(),
+                labels=(),
             )
-            return
+        return
         self.query_one(BeadFilterBar).set_completion_sources(
             projects=(
                 value
@@ -169,6 +171,8 @@ class BeadsFilterSessionMixin(_MixinBase):
             assignees=(record.assignee for record in index if record.assignee.strip()),
             owners=(record.owner for record in index if record.owner.strip()),
             models=(record.model for record in index if record.model.strip()),
+            bugs=(value for record in index for value in record.bug_labels),
+            labels=(value for record in index for value in record.issue_labels),
         )
 
     def _cancel_jump_mode_for_filter_change(self) -> None:

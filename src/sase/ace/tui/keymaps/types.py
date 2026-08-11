@@ -32,6 +32,7 @@ from sase.ace.tui.keymaps.mode_keymaps import (
     BUILTIN_MODE_NAMES,
     _BUILTIN_MODE_CLASSES,
     BangModeKeymaps,
+    BeadIssueModeKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
     LeaderModeKeymaps,
@@ -42,6 +43,7 @@ __all__ = [
     "AppKeymaps",
     "BUILTIN_MODE_NAMES",
     "BangModeKeymaps",
+    "BeadIssueModeKeymaps",
     "CopyModeKeymaps",
     "FoldModeKeymaps",
     "GateModalKeymaps",
@@ -118,4 +120,10 @@ class KeymapRegistry:
     def bang_mode(self) -> BangModeKeymaps:
         mode = self.modes["bang_mode"]
         assert isinstance(mode, BangModeKeymaps)
+        return mode
+
+    @property
+    def bead_issue_mode(self) -> BeadIssueModeKeymaps:
+        mode = self.modes["bead_issue_mode"]
+        assert isinstance(mode, BeadIssueModeKeymaps)
         return mode

@@ -51,6 +51,8 @@ class BeadFilterBar(FilterBar):
         ("owner", "owner email or name"),
         ("model", "work model"),
         ("has", "+1, plan, bug, deps, notes, triage"),
+        ("bug", "none, open, #42"),
+        ("label", "provider issue label"),
         ("since", "Nh/Nd/Nw, today, YYYY-MM-DD"),
         ("until", "Nh/Nd/Nw, today, YYYY-MM-DD"),
     )
@@ -60,6 +62,7 @@ class BeadFilterBar(FilterBar):
         "status": (*bead_status_display_order(), *DERIVED_BEAD_STATUS_VALUES),
         "size": PHASE_SIZE_VALUES,
         "has": BEAD_HAS_VALUES,
+        "bug": ("none", "open", "closed", "stale", "drift", "mirrored", "referenced"),
         "since": _DATE_COMPLETIONS,
         "until": _DATE_COMPLETIONS,
     }
@@ -73,6 +76,8 @@ class BeadFilterBar(FilterBar):
         "owner": "owner",
         "model": "model",
         "has": "available metadata",
+        "bug": "issue state, ref, or relation",
+        "label": "issue label",
         "since": "date bound",
         "until": "date bound",
     }
@@ -87,6 +92,8 @@ class BeadFilterBar(FilterBar):
             "owner",
             "model",
             "has",
+            "bug",
+            "label",
             "since",
             "until",
         )
@@ -118,6 +125,8 @@ class BeadFilterBar(FilterBar):
         assignees: Iterable[str],
         owners: Iterable[str],
         models: Iterable[str],
+        bugs: Iterable[str] = (),
+        labels: Iterable[str] = (),
     ) -> None:
         """Replace observed project, people, and model sources."""
 
@@ -127,6 +136,8 @@ class BeadFilterBar(FilterBar):
                 "assignee": assignees,
                 "owner": owners,
                 "model": models,
+                "bug": bugs,
+                "label": labels,
             }
         )
 

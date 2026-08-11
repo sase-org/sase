@@ -137,6 +137,8 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.beads_snooze",
         "app.beads_launch_work",
         "app.beads_open_bug",
+        "app.beads_copy_bug",
+        "app.start_bead_issue_mode",
         "app.beads_open_plan",
         "app.beads_refresh",
     }
@@ -275,6 +277,8 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "plans"
     if spec.id in _BEADS_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "beads"
+    if spec.id.startswith("bead_issue."):
         return ctx.artifacts_subtab == "beads"
     if spec.id in _CHATS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "chats"

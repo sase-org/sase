@@ -91,7 +91,7 @@ def test_adding_unknown_app_keymap_field_fails_metadata_guard() -> None:
 
 
 def test_every_builtin_mode_subkey_has_a_command_spec() -> None:
-    """Each fold/copy/leader/bang subkey in the registry maps to a spec."""
+    """Each built-in mode subkey in the registry maps to a spec."""
     reg = _registry()
     catalog = build_command_catalog(reg)
     ids = {c.id for c in catalog}
@@ -118,6 +118,10 @@ def test_every_builtin_mode_subkey_has_a_command_spec() -> None:
     # Bang
     for cid in reg.bang_mode.keys:
         assert f"bang.{cid}" in ids, f"missing bang.{cid}"
+
+    # Bead issue
+    for cid in reg.bead_issue_mode.keys:
+        assert f"bead_issue.{cid}" in ids, f"missing bead_issue.{cid}"
 
 
 def test_leader_mode_dataclass_default_matches_default_config_yml() -> None:

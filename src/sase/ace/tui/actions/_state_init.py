@@ -300,6 +300,9 @@ class StateInitMixin:
         # Bang mode state (for ! key sub-commands)
         self._bang_mode_active: bool = False
 
+        # Beads external issue mode state (for b key sub-commands)
+        self._bead_issue_mode_active: bool = False
+
         # Axe worker state (for background start/stop)
         self._axe_worker: Worker[Any] | None = None
         self._axe_worker_operation: Literal["start", "stop", "restart"] | None = None

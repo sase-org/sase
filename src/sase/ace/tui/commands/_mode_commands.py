@@ -83,6 +83,15 @@ _BANG_LABELS: dict[str, str] = {
     "toggle_axe": "Toggle AXE (bang)",
 }
 
+_BEAD_ISSUE_LABELS: dict[str, str] = {
+    "view": "Beads: view cached issue body",
+    "edit": "Beads: edit linked issue",
+    "toggle_state": "Beads: close or reopen linked issue",
+    "copy_url": "Beads: copy linked issue URL",
+    "attach": "Beads: attach existing issue",
+    "create": "Beads: create issue for bead",
+}
+
 # Per-mode fallback tab scoping (refined per-command for copy_mode).
 _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "edit_query": AGENTS_ONLY,
@@ -231,6 +240,29 @@ def _iter_bang_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         )
 
 
+def _iter_bead_issue_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
+    mode = registry.bead_issue_mode
+    prefix = mode.prefix
+    for command_id, subkey in mode.keys.items():
+        if not isinstance(subkey, str):
+            continue
+        label = _BEAD_ISSUE_LABELS.get(
+            command_id,
+            command_id.replace("_", " ").title(),
+        )
+        seq = (prefix, subkey)
+        yield CommandSpec(
+            id=f"bead_issue.{command_id}",
+            label=label,
+            key_sequence=seq,
+            key_display=format_key_sequence(seq),
+            category="Bugs",
+            tabs=CL_ONLY,
+            executor=CommandExecutor(kind="bead_issue_mode_key", subkey=subkey),
+            aliases=("beads", "issue", command_id),
+        )
+
+
 def _iter_custom_mode_commands(
     registry: KeymapRegistry,
 ) -> Iterator[CommandSpec]:
@@ -269,5 +301,6 @@ def iter_mode_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     yield from _iter_fold_commands(registry)
     yield from _iter_copy_commands(registry)
     yield from _iter_leader_commands(registry)
+    yield from _iter_bead_issue_commands(registry)
     yield from _iter_bang_commands(registry)
     yield from _iter_custom_mode_commands(registry)

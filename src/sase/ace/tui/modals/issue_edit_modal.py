@@ -29,12 +29,20 @@ class IssueEditModal(ModalScreen[IssueEditResult | None]):
         ("ctrl+s", "save", "Save"),
     ]
 
-    def __init__(self, issue: IssueWire | None = None) -> None:
+    def __init__(
+        self,
+        issue: IssueWire | None = None,
+        *,
+        heading: str | None = None,
+    ) -> None:
         super().__init__()
         self._issue = issue
+        self._heading = heading
 
     def compose(self) -> ComposeResult:
-        title = "Edit Issue" if self._issue is not None else "Create Issue"
+        title = self._heading or (
+            "Edit Issue" if self._issue is not None else "Create Issue"
+        )
         issue = self._issue
         with Container(id="issue-edit-container"):
             yield Label(title, id="issue-edit-title")
