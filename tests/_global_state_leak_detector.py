@@ -1,122 +1,70 @@
-"""Opt-in pytest plugin for process-global state leaked between tests."""
+"""Opt-in pytest plugin for process-global state leaked between tests.
+
+The implementation is split across ``tests._global_state_leaks``.  Imports below
+deliberately preserve the original module surface for the plugin's focused tests.
+"""
 
 from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
-from datetime import UTC, datetime
-import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import shutil
-import sys
-from types import ModuleType
 from typing import Any
 
 import pytest
+
+from tests._global_state_leaks.diffing import (
+    _ambient_changes,
+    _classify_cache_change,
+    _classify_global_change,
+    _diff_snapshots,
+    _entry_digest_by_key,
+    _environment_delta,
+    _is_cache_like_global_name,
+    _is_canonical_cold,
+    _is_collection_warming,
+    _public_cache,
+    _public_environment,
+    _public_fingerprint,
+)
+from tests._global_state_leaks.fingerprints import (
+    _ENV_KEYS_TO_IGNORE,
+    _PATTERN_TYPE,
+    _cache_fingerprint,
+    _digest,
+    _fingerprint_dict,
+    _fingerprint_environment,
+    _fingerprint_list,
+    _fingerprint_set,
+    _global_fingerprint,
+    _is_private_global_name,
+    _loaded_sase_modules,
+    _preview,
+    _safe_getcwd,
+    _safe_repr,
+    _snapshot,
+)
+from tests._global_state_leaks.models import (
+    _CacheFingerprint,
+    _Change,
+    _Diff,
+    _Snapshot,
+    _ValueFingerprint,
+)
+from tests._global_state_leaks.reporting import (
+    _combine_payloads,
+    _read_report_summary,
+    _report_summary,
+    _report_with_errors,
+)
 
 
 WORKER_OUTPUT_KEY = "sase_global_state_leaks"
 WORKER_DIR_ENV = "SASE_GLOBAL_LEAK_WORKER_DIR"
 DEFAULT_REPORT_PATH = ".pytest_cache/sase-global-leaks.json"
-
-_PATTERN_TYPE = type(re.compile(""))
-_ENV_KEYS_TO_IGNORE = frozenset(
-    {
-        "PYTEST_CURRENT_TEST",
-        "SASE_PYTEST_SANDBOX_DIR",
-    }
-)
-
-
-@dataclass(frozen=True)
-class _ValueFingerprint:
-    kind: str
-    length: int | None
-    digest: str
-    preview: str
-    entries: frozenset[str] = frozenset()
-    sequence: tuple[str, ...] = ()
-
-    def public(self) -> dict[str, object]:
-        payload: dict[str, object] = {
-            "kind": self.kind,
-            "digest": self.digest,
-            "preview": self.preview,
-        }
-        if self.length is not None:
-            payload["len"] = self.length
-        return payload
-
-
-@dataclass(frozen=True)
-class _CacheFingerprint:
-    hits: int
-    misses: int
-    maxsize: int | None
-    currsize: int
-
-    def public(self) -> dict[str, int | None]:
-        return {
-            "hits": self.hits,
-            "misses": self.misses,
-            "maxsize": self.maxsize,
-            "currsize": self.currsize,
-        }
-
-
-@dataclass(frozen=True)
-class _Snapshot:
-    globals: Mapping[str, _ValueFingerprint]
-    caches: Mapping[str, _CacheFingerprint]
-    environ: _ValueFingerprint
-    sys_path: _ValueFingerprint
-    cwd: str
-
-
-@dataclass(frozen=True)
-class _Change:
-    kind: str
-    name: str
-    reason: str
-    before: dict[str, object]
-    after: dict[str, object]
-    details: Mapping[str, object] | None = None
-
-    def public(self) -> dict[str, object]:
-        payload: dict[str, object] = {
-            "kind": self.kind,
-            "name": self.name,
-            "reason": self.reason,
-            "before": self.before,
-            "after": self.after,
-        }
-        if self.details:
-            payload["details"] = dict(self.details)
-        return payload
-
-
-@dataclass(frozen=True)
-class _Diff:
-    poisoning: tuple[_Change, ...]
-    warming_counts: Mapping[str, int]
-    cooling_counts: Mapping[str, int]
-    invalidation_counts: Mapping[str, int]
-
-    @property
-    def warming_count(self) -> int:
-        return sum(self.warming_counts.values())
-
-    @property
-    def cooling_count(self) -> int:
-        return sum(self.cooling_counts.values())
-
-    @property
-    def invalidation_count(self) -> int:
-        return sum(self.invalidation_counts.values())
 
 
 class GlobalStateLeakDetector:
@@ -361,522 +309,3 @@ def _resolve_report_path(config: pytest.Config) -> Path:
     if raw_path.is_absolute():
         return raw_path
     return Path(config.rootpath) / raw_path
-
-
-def _snapshot() -> _Snapshot:
-    global_values: dict[str, _ValueFingerprint] = {}
-    caches: dict[str, _CacheFingerprint] = {}
-    for module_name, module in _loaded_sase_modules():
-        for attr_name, value in vars(module).items():
-            if _is_private_global_name(attr_name):
-                fingerprint = _global_fingerprint(value)
-                if fingerprint is not None:
-                    global_values[f"{module_name}.{attr_name}"] = fingerprint
-            cache = _cache_fingerprint(value)
-            if cache is not None:
-                caches.setdefault(f"{module_name}.{attr_name}", cache)
-    return _Snapshot(
-        globals=global_values,
-        caches=caches,
-        environ=_fingerprint_environment(
-            {
-                key: value
-                for key, value in os.environ.items()
-                if key not in _ENV_KEYS_TO_IGNORE
-            }
-        ),
-        sys_path=_fingerprint_list(sys.path),
-        cwd=_safe_getcwd(),
-    )
-
-
-def _safe_getcwd() -> str:
-    try:
-        return os.getcwd()
-    except FileNotFoundError:
-        return "<deleted>"
-
-
-def _loaded_sase_modules() -> list[tuple[str, ModuleType]]:
-    modules: list[tuple[str, ModuleType]] = []
-    for name, module in sys.modules.items():
-        if name != "sase" and not name.startswith("sase."):
-            continue
-        if isinstance(module, ModuleType):
-            modules.append((name, module))
-    return sorted(modules, key=lambda item: item[0])
-
-
-def _is_private_global_name(name: str) -> bool:
-    return name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
-
-
-def _global_fingerprint(value: object) -> _ValueFingerprint | None:
-    if value is None:
-        return _ValueFingerprint(
-            kind="none",
-            length=None,
-            digest=_digest("None"),
-            preview="None",
-        )
-    if isinstance(value, _PATTERN_TYPE):
-        pattern = str(value.pattern)
-        flags = int(value.flags)
-        text = f"pattern={pattern!r};flags={flags}"
-        return _ValueFingerprint(
-            kind="re.Pattern",
-            length=None,
-            digest=_digest(text),
-            preview=text,
-        )
-    if isinstance(value, dict):
-        return _fingerprint_dict(value)
-    if isinstance(value, set):
-        return _fingerprint_set(value, kind="set")
-    if isinstance(value, frozenset):
-        return _fingerprint_set(value, kind="frozenset")
-    if isinstance(value, list):
-        return _fingerprint_list(value)
-    return None
-
-
-def _cache_fingerprint(value: object) -> _CacheFingerprint | None:
-    cache_info = getattr(value, "cache_info", None)
-    cache_clear = getattr(value, "cache_clear", None)
-    if not callable(cache_info) or not callable(cache_clear):
-        return None
-    try:
-        info = cache_info()
-    except Exception:
-        return None
-    required = ("hits", "misses", "maxsize", "currsize")
-    if not all(hasattr(info, name) for name in required):
-        return None
-    return _CacheFingerprint(
-        hits=int(info.hits),
-        misses=int(info.misses),
-        maxsize=None if info.maxsize is None else int(info.maxsize),
-        currsize=int(info.currsize),
-    )
-
-
-def _fingerprint_dict(value: Mapping[object, object]) -> _ValueFingerprint:
-    entries = tuple(
-        sorted(
-            (f"{_safe_repr(key)} => {_safe_repr(entry_value)}")
-            for key, entry_value in value.items()
-        )
-    )
-    text = "\n".join(entries)
-    return _ValueFingerprint(
-        kind="dict",
-        length=len(value),
-        digest=_digest(text),
-        preview=_preview(entries),
-        entries=frozenset(entries),
-    )
-
-
-def _fingerprint_environment(value: Mapping[str, str]) -> _ValueFingerprint:
-    entries = tuple(
-        sorted(
-            f"{key}={_digest(_safe_repr(entry_value))}"
-            for key, entry_value in value.items()
-        )
-    )
-    text = "\n".join(entries)
-    return _ValueFingerprint(
-        kind="environment",
-        length=len(value),
-        digest=_digest(text),
-        preview=_preview(tuple(sorted(value))),
-        entries=frozenset(entries),
-    )
-
-
-def _fingerprint_set(
-    value: set[object] | frozenset[object], *, kind: str
-) -> _ValueFingerprint:
-    entries = tuple(sorted(_safe_repr(item) for item in value))
-    text = "\n".join(entries)
-    return _ValueFingerprint(
-        kind=kind,
-        length=len(value),
-        digest=_digest(text),
-        preview=_preview(entries),
-        entries=frozenset(entries),
-    )
-
-
-def _fingerprint_list(value: list[object]) -> _ValueFingerprint:
-    sequence = tuple(_safe_repr(item) for item in value)
-    text = "\n".join(sequence)
-    return _ValueFingerprint(
-        kind="list",
-        length=len(value),
-        digest=_digest(text),
-        preview=_preview(sequence),
-        sequence=sequence,
-    )
-
-
-def _diff_snapshots(before: _Snapshot, after: _Snapshot) -> _Diff:
-    poisoning: list[_Change] = []
-    warming_counts: Counter[str] = Counter()
-    cooling_counts: Counter[str] = Counter()
-    invalidation_counts: Counter[str] = Counter()
-
-    for name in sorted(set(before.globals) | set(after.globals)):
-        before_value = before.globals.get(name)
-        after_value = after.globals.get(name)
-        classification = _classify_global_change(name, before_value, after_value)
-        if classification == "none":
-            continue
-        if classification == "warming":
-            warming_counts["global"] += 1
-            continue
-        if classification == "cooling":
-            cooling_counts["global"] += 1
-            continue
-        if classification == "invalidation":
-            invalidation_counts["global"] += 1
-            continue
-        poisoning.append(
-            _Change(
-                kind="global",
-                name=name,
-                reason=classification,
-                before=_public_fingerprint(before_value),
-                after=_public_fingerprint(after_value),
-            )
-        )
-
-    for name in sorted(set(before.caches) | set(after.caches)):
-        before_cache = before.caches.get(name)
-        after_cache = after.caches.get(name)
-        classification = _classify_cache_change(before_cache, after_cache)
-        if classification == "none":
-            continue
-        if classification == "warming":
-            warming_counts["cache"] += 1
-            continue
-        if classification == "cooling":
-            cooling_counts["cache"] += 1
-            continue
-        if classification == "invalidation":
-            invalidation_counts["cache"] += 1
-            continue
-        poisoning.append(
-            _Change(
-                kind="cache",
-                name=name,
-                reason=classification,
-                before=_public_cache(before_cache),
-                after=_public_cache(after_cache),
-            )
-        )
-
-    ambient_changes, ambient_warming_counts, ambient_cooling_counts = _ambient_changes(
-        before, after
-    )
-    poisoning.extend(ambient_changes)
-    warming_counts.update(ambient_warming_counts)
-    cooling_counts.update(ambient_cooling_counts)
-
-    return _Diff(
-        poisoning=tuple(poisoning),
-        warming_counts=dict(warming_counts),
-        cooling_counts=dict(cooling_counts),
-        invalidation_counts=dict(invalidation_counts),
-    )
-
-
-def _classify_global_change(
-    name: str,
-    before: _ValueFingerprint | None,
-    after: _ValueFingerprint | None,
-) -> str:
-    if before == after:
-        return "none"
-    if before is None:
-        return "warming"
-    if before.kind == "none" and after is None:
-        return "cooling"
-    if after is None:
-        return "changed-to-untracked-or-deleted"
-    if before.kind == "none" and after.kind != "none":
-        return "warming"
-    if _is_canonical_cold(after):
-        return "cooling"
-    if before.kind != after.kind:
-        if _is_cache_like_global_name(name):
-            return "invalidation"
-        return "changed-kind"
-    if _is_collection_warming(before, after):
-        return "warming"
-    if _is_cache_like_global_name(name):
-        return "invalidation"
-    return "changed-value"
-
-
-def _is_cache_like_global_name(name: str) -> bool:
-    attr_name = name.rsplit(".", maxsplit=1)[-1].lower()
-    return (
-        "cache" in attr_name
-        or "memo" in attr_name
-        or attr_name
-        in {
-            "_cleaned_artifact_dirs",
-            "_context",
-            "_last_saved_dismissed_generation",
-        }
-    )
-
-
-def _is_collection_warming(
-    before: _ValueFingerprint,
-    after: _ValueFingerprint,
-) -> bool:
-    if before.kind == "dict" and after.kind == "dict":
-        return before.entries.issubset(after.entries)
-    if before.kind in {"set", "frozenset"} and after.kind == before.kind:
-        return before.entries.issubset(after.entries)
-    if before.kind == "list" and after.kind == "list":
-        return after.sequence[: len(before.sequence)] == before.sequence
-    return False
-
-
-def _is_canonical_cold(value: _ValueFingerprint) -> bool:
-    if value.kind == "none":
-        return True
-    if value.kind in {"dict", "set", "frozenset", "list"}:
-        return value.length == 0
-    return False
-
-
-def _classify_cache_change(
-    before: _CacheFingerprint | None,
-    after: _CacheFingerprint | None,
-) -> str:
-    if before == after:
-        return "none"
-    if before is None:
-        return "warming"
-    if after is None:
-        return "invalidation"
-    if before.maxsize != after.maxsize:
-        return "invalidation"
-    if after.currsize == 0 and before.currsize > 0:
-        return "cooling"
-    if after.currsize < before.currsize:
-        return "invalidation"
-    if after.hits < before.hits or after.misses < before.misses:
-        return "invalidation"
-    return "warming"
-
-
-def _ambient_changes(
-    before: _Snapshot, after: _Snapshot
-) -> tuple[list[_Change], Counter[str], Counter[str]]:
-    changes: list[_Change] = []
-    warming_counts: Counter[str] = Counter()
-    cooling_counts: Counter[str] = Counter()
-    if before.environ != after.environ:
-        changes.append(
-            _Change(
-                kind="environment",
-                name="os.environ",
-                reason="environment-changed",
-                before=_public_environment(before.environ),
-                after=_public_environment(after.environ),
-                details=_environment_delta(before.environ, after.environ),
-            )
-        )
-    if before.sys_path != after.sys_path:
-        classification = _classify_global_change(
-            "sys.path", before.sys_path, after.sys_path
-        )
-        if classification == "warming":
-            warming_counts["sys_path"] += 1
-        elif classification == "cooling":
-            cooling_counts["sys_path"] += 1
-        else:
-            changes.append(
-                _Change(
-                    kind="sys_path",
-                    name="sys.path",
-                    reason="sys-path-changed",
-                    before=before.sys_path.public(),
-                    after=after.sys_path.public(),
-                )
-            )
-    if before.cwd != after.cwd:
-        changes.append(
-            _Change(
-                kind="cwd",
-                name="os.getcwd()",
-                reason="working-directory-changed",
-                before={"kind": "cwd", "value": before.cwd},
-                after={"kind": "cwd", "value": after.cwd},
-            )
-        )
-    return changes, warming_counts, cooling_counts
-
-
-def _public_fingerprint(value: _ValueFingerprint | None) -> dict[str, object]:
-    if value is None:
-        return {"kind": "missing"}
-    return value.public()
-
-
-def _public_cache(value: _CacheFingerprint | None) -> dict[str, object]:
-    if value is None:
-        return {"kind": "missing"}
-    payload: dict[str, object] = {"kind": "cache"}
-    payload.update(value.public())
-    return payload
-
-
-def _combine_payloads(payloads: list[Mapping[str, object]]) -> dict[str, object]:
-    records: list[dict[str, object]] = []
-    warming_counts: Counter[str] = Counter()
-    cooling_counts: Counter[str] = Counter()
-    invalidation_counts: Counter[str] = Counter()
-    errors: list[str] = []
-    observed_tests = 0
-    for payload in payloads:
-        observed_tests += int(payload.get("observed_tests") or 0)
-        raw_warming = payload.get("warming_counts")
-        if isinstance(raw_warming, Mapping):
-            warming_counts.update(
-                {str(key): int(value) for key, value in raw_warming.items()}
-            )
-        raw_cooling = payload.get("cooling_counts")
-        if isinstance(raw_cooling, Mapping):
-            cooling_counts.update(
-                {str(key): int(value) for key, value in raw_cooling.items()}
-            )
-        raw_invalidations = payload.get("invalidation_counts")
-        if isinstance(raw_invalidations, Mapping):
-            invalidation_counts.update(
-                {str(key): int(value) for key, value in raw_invalidations.items()}
-            )
-        raw_errors = payload.get("errors")
-        if isinstance(raw_errors, list):
-            errors.extend(str(error) for error in raw_errors)
-        raw_records = payload.get("records")
-        if isinstance(raw_records, list):
-            records.extend(record for record in raw_records if isinstance(record, dict))
-
-    records.sort(
-        key=lambda record: (
-            str(record.get("worker_id") or ""),
-            int(record.get("worker_order") or 0),
-            str(record.get("nodeid") or ""),
-        )
-    )
-    poisoning_changes = sum(
-        len(record.get("changes") or [])
-        for record in records
-        if isinstance(record.get("changes"), list)
-    )
-    return {
-        "schema_version": 1,
-        "generated_at": datetime.now(UTC).isoformat(),
-        "summary": {
-            "observed_tests": observed_tests,
-            "tests_with_poisoning": len(records),
-            "poisoning_changes": poisoning_changes,
-            "warming_changes_filtered": sum(warming_counts.values()),
-            "warming_by_kind": dict(sorted(warming_counts.items())),
-            "cooling_changes_filtered": sum(cooling_counts.values()),
-            "cooling_by_kind": dict(sorted(cooling_counts.items())),
-            "invalidation_changes_filtered": sum(invalidation_counts.values()),
-            "invalidation_by_kind": dict(sorted(invalidation_counts.items())),
-        },
-        "poisoning": records,
-        "errors": errors,
-    }
-
-
-def _report_with_errors(
-    report: Mapping[str, object], errors: list[str]
-) -> dict[str, object]:
-    merged_errors: list[str] = []
-    raw_errors = report.get("errors")
-    if isinstance(raw_errors, list):
-        merged_errors.extend(str(error) for error in raw_errors)
-    merged_errors.extend(str(error) for error in errors)
-    return {**dict(report), "errors": list(dict.fromkeys(merged_errors))}
-
-
-def _report_summary(payload: Mapping[str, object] | None) -> Mapping[str, object]:
-    if not isinstance(payload, Mapping):
-        return {}
-    summary = payload.get("summary")
-    return summary if isinstance(summary, Mapping) else {}
-
-
-def _read_report_summary(path: Path) -> Mapping[str, object]:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(raw, Mapping):
-        return {}
-    summary = raw.get("summary")
-    return summary if isinstance(summary, Mapping) else {}
-
-
-def _public_environment(value: _ValueFingerprint) -> dict[str, object]:
-    return {
-        "kind": "environment",
-        "digest": value.digest,
-        "len": value.length or 0,
-    }
-
-
-def _environment_delta(
-    before: _ValueFingerprint, after: _ValueFingerprint
-) -> dict[str, object]:
-    before_entries = _entry_digest_by_key(before)
-    after_entries = _entry_digest_by_key(after)
-    before_keys = set(before_entries)
-    after_keys = set(after_entries)
-    common_keys = before_keys & after_keys
-    return {
-        "added_keys": sorted(after_keys - before_keys),
-        "removed_keys": sorted(before_keys - after_keys),
-        "changed_keys": sorted(
-            key for key in common_keys if before_entries[key] != after_entries[key]
-        ),
-    }
-
-
-def _entry_digest_by_key(value: _ValueFingerprint) -> dict[str, str]:
-    entries: dict[str, str] = {}
-    for entry in value.entries:
-        key, separator, digest = entry.partition("=")
-        if separator:
-            entries[key] = digest
-    return entries
-
-
-def _safe_repr(value: object) -> str:
-    try:
-        return repr(value)
-    except Exception as error:
-        return f"<unrepresentable {type(value).__name__}: {error}>"
-
-
-def _digest(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8", "backslashreplace")).hexdigest()[:16]
-
-
-def _preview(entries: tuple[str, ...]) -> str:
-    if not entries:
-        return ""
-    preview = ", ".join(entries[:3])
-    if len(entries) > 3:
-        preview = f"{preview}, ..."
-    return preview[:240]
