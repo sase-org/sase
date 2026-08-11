@@ -159,7 +159,7 @@ def test_metadata_resolution_skips_unrepresentable_items_and_reuses_cli_json(
 ) -> None:
     context = object()
     selection = _artifacts._ArtifactReferenceSelection(
-        subtab="commits",
+        subtab="stitches",
         items=(
             _artifacts._ArtifactReferenceItem(
                 "good",

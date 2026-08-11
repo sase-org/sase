@@ -87,7 +87,7 @@ async def test_marked_reference_copy_uses_paste_ready_lines_and_count(
 ) -> None:
     app = CopyHarness()
     selection = _artifacts._ArtifactReferenceSelection(
-        subtab="commits",
+        subtab="stitches",
         items=(
             _artifacts._ArtifactReferenceItem(
                 "sase@aaaaaaa",

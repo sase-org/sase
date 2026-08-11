@@ -126,7 +126,7 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     assert patches_app.check_action("start_fold_mode", ()) is not False
     assert axe_app.check_action("start_fold_mode", ()) is False
 
-    patches_app.current_artifacts_subtab = "commits"
+    patches_app.current_artifacts_subtab = "stitches"
     assert patches_app.check_action("start_fold_mode", ()) is False
 
 

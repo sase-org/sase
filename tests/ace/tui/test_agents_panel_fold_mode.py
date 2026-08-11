@@ -332,7 +332,7 @@ def test_patch_invalid_level_and_non_pr_context_preserve_all_state() -> None:
         app.deltas_collapsed,
     ) == before
 
-    app.current_artifacts_subtab = "commits"
+    app.current_artifacts_subtab = "stitches"
     _press(app, "2")
     assert (
         app.commits_collapsed,

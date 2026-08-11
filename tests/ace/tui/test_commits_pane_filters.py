@@ -33,7 +33,7 @@ async def test_custom_default_query_controls_first_collection(
         lambda: {
             "ace": {
                 "artifacts": {
-                    "commits": {
+                    "stitches": {
                         "default_query": (
                             "project:alpha repo:plans sidecar:true limit:5"
                         )
@@ -75,7 +75,7 @@ async def test_ace_query_project_overrides_config_and_cwd_before_first_collectio
         lambda: {
             "ace": {
                 "artifacts": {
-                    "commits": {"default_query": "project:configured sidecar:false"}
+                    "stitches": {"default_query": "project:configured sidecar:false"}
                 }
             }
         },
@@ -115,7 +115,7 @@ async def test_inferred_project_is_visible_before_first_collection(
         "sase.config.load_merged_config",
         lambda: {
             "ace": {
-                "artifacts": {"commits": {"default_query": "sidecar:false since:24h"}}
+                "artifacts": {"stitches": {"default_query": "sidecar:false since:24h"}}
             }
         },
     )
@@ -162,7 +162,9 @@ async def test_absent_project_token_collects_all_projects(
     )
     monkeypatch.setattr(
         "sase.config.load_merged_config",
-        lambda: {"ace": {"artifacts": {"commits": {"default_query": "sidecar:false"}}}},
+        lambda: {
+            "ace": {"artifacts": {"stitches": {"default_query": "sidecar:false"}}}
+        },
     )
     monkeypatch.setattr(
         "sase.main.utils.ensure_project_file_and_get_workspace_num",

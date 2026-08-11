@@ -64,7 +64,7 @@ class FakeNavigationApp:
         self.patches = patches
         self.reloaded_patches = reloaded_patches
         self.current_tab = "agents"
-        self.current_artifacts_subtab = "commits"
+        self.current_artifacts_subtab = "stitches"
         self.current_idx = 0
         self.canonical_query_string = "status:ready"
         self.query_string = "status:READY"

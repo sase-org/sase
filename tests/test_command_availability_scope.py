@@ -94,7 +94,7 @@ def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
         assert not is_command_available(
             spec,
             CommandContext(
-                tab="changespecs", artifacts_subtab="commits"
+                tab="changespecs", artifacts_subtab="stitches"
             ),  # legacy tab id
         )
         assert not is_command_available(spec, CommandContext(tab="axe"))
@@ -132,7 +132,7 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
 
     assert is_command_available(show_help, CommandContext(tab="agents"))
     assert is_command_available(show_help, CommandContext(tab="axe"))
-    for subtab in ("prs", "commits", "bugs", "beads", "plans", "chats", "other"):
+    for subtab in ("prs", "stitches", "bugs", "beads", "plans", "chats", "other"):
         assert is_command_available(
             show_help,
             CommandContext(tab="changespecs", artifacts_subtab=subtab),  # type: ignore[arg-type]  # legacy tab id

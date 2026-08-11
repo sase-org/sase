@@ -178,7 +178,7 @@ async def test_explicit_limit_truncates_and_remains_visible(
         lambda: {
             "ace": {
                 "artifacts": {
-                    "commits": {"default_query": "sidecar:false since:24h limit:40"}
+                    "stitches": {"default_query": "sidecar:false since:24h limit:40"}
                 }
             }
         },

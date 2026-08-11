@@ -17,7 +17,7 @@ class _FakeApp(NavigationModalMixin):
 
     def __init__(self) -> None:
         self.current_tab = "agents"
-        self.current_artifacts_subtab = "commits"
+        self.current_artifacts_subtab = "stitches"
         self.current_idx = 0
         self.patches: list[Any] = []
         self._agents: list[Any] = []
@@ -53,7 +53,7 @@ def test_jump_to_agents_entry_leaves_artifacts_subtab_untouched() -> None:
     app._on_dismiss(JumpAllResult(tab="agents", index=1))
 
     assert app.current_tab == "agents"
-    assert app.current_artifacts_subtab == "commits"
+    assert app.current_artifacts_subtab == "stitches"
     assert app.current_idx == 1
 
 
