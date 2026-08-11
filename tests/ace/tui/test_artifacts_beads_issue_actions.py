@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.actions._artifacts_beads_work import _refs_with_canonical_bug_ref
+from sase.ace.tui.actions._artifacts_beads_issue_mutations import (
+    _refs_with_canonical_bug_ref,
+)
 
 
 def test_refs_with_canonical_bug_ref_appends_once_and_preserves_order() -> None:
