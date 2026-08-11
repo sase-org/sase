@@ -49,8 +49,8 @@ async def test_config_center_plugins_tab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "github")
         await _wait_for_plugins_detail(page, pane)
@@ -77,8 +77,8 @@ async def test_config_center_updates_core_update_available_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("core")
         await wait_for_visual_idle(page)
@@ -107,8 +107,8 @@ async def test_config_center_updates_all_current_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("core")
         await wait_for_visual_idle(page)
@@ -132,8 +132,8 @@ async def test_config_center_agent_clis_marked_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
         await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
@@ -163,8 +163,8 @@ async def test_config_center_agent_clis_history_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
         await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
@@ -193,8 +193,8 @@ async def test_config_center_agent_clis_history_all_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
         await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
@@ -224,8 +224,8 @@ async def test_config_center_agent_clis_history_empty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
         await page.wait_for(lambda _s: pane._agent_cli_detail_name == "claude")
@@ -250,8 +250,8 @@ async def test_config_center_agent_clis_update_preview_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane._switch_to_subtab("agent-clis")
         pane.action_update_agent_clis()
@@ -301,8 +301,8 @@ async def test_config_center_plugins_dev_update_available_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "github")
         await _wait_for_plugins_detail(page, pane)
@@ -326,8 +326,8 @@ async def test_config_center_plugins_community_detail_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         # Walk down to the lone community plugin (acme).
         pane.action_next_option()
@@ -377,8 +377,8 @@ async def test_config_center_plugins_long_description_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         await page.wait_for(lambda _s: pane._detail_name == "megasync")
         await _wait_for_plugins_detail(page, pane)
@@ -402,8 +402,8 @@ async def test_config_center_plugins_offline_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane.action_toggle_offline()
         await page.wait_for(lambda _s: pane._offline and not pane._loading)
@@ -429,8 +429,8 @@ async def test_config_center_plugins_verbose_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_plugins_modal(page)
         pane.action_toggle_verbose()
         await page.wait_for(
@@ -465,8 +465,8 @@ async def test_config_center_plugins_empty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _open_plugins_modal(page)
 
         ace_png_visual.assert_page_png(
@@ -491,8 +491,8 @@ async def test_config_center_plugins_loading_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _open_modal(page, "updates")
 
         ace_png_visual.assert_page_png(

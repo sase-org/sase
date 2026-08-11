@@ -189,23 +189,6 @@ _STITCHES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-_BUG_COMMANDS: frozenset[str] = frozenset(
-    {
-        "app.next_bug",
-        "app.prev_bug",
-        "app.cycle_bug_filter",
-        "app.create_bug",
-        "app.edit_bug",
-        "app.toggle_bug_state",
-        "app.open_bug",
-        "app.copy_bug",
-        "app.start_agent_from_bug",
-        "app.focus_bug_links",
-        "app.activate_bug_link",
-        "app.refresh_bugs",
-    }
-)
-
 # Agent actions that require a focused agent (not a group banner).
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
@@ -267,11 +250,9 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return spec.id.rsplit(".", 1)[-1] in ctx.artifact_available_targets
         return True
     if spec.id == "app.edit_query":
-        return ctx.artifacts_subtab in {"prs", "stitches", "plans"}
+        return ctx.artifacts_subtab in {"patches", "stitches", "plans"}
     if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:
         return ctx.artifacts_subtab in {"plans", "chats", "other"}
-    if spec.id in _BUG_COMMANDS:
-        return ctx.artifacts_subtab == "bugs"
     if spec.id in _STITCHES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "stitches"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
@@ -284,7 +265,7 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "chats"
     if spec.id in _FILES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "other"
-    if ctx.artifacts_subtab != "prs":
+    if ctx.artifacts_subtab != "patches":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":
         return False

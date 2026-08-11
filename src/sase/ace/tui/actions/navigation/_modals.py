@@ -31,12 +31,12 @@ class NavigationModalMixin(NavigationMixinBase):
                 # Artifacts tab, so PRs is unconditionally the right pane.
                 from ...artifact_tabs import switch_to_artifacts_subtab
 
-                switch_to_artifacts_subtab(self, "prs")
+                switch_to_artifacts_subtab(self, "patches")
             elif result.tab in {
                 "patches",
                 "changespecs",  # legacy compatibility alias
             }:
-                self.current_artifacts_subtab = "prs"  # type: ignore[attr-defined]
+                self.current_artifacts_subtab = "patches"  # type: ignore[attr-defined]
                 self.current_tab = result.tab  # type: ignore[assignment]
             else:
                 self.current_tab = result.tab  # type: ignore[assignment]

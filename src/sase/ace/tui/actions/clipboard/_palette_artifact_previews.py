@@ -86,14 +86,6 @@ def artifact_target_state(
         }
         if not agent and not marked:
             available.discard("agent")
-    elif subtab == "bugs":
-        number = getattr(first, "number", None)
-        values = {
-            "number": f"#{number}" if number is not None else "",
-            "url": getattr(first, "url", ""),
-            "title": getattr(first, "title", ""),
-            "prompt": getattr(first, "body", "") or getattr(first, "title", ""),
-        }
     else:
         values = {} if marked else _file_target_values(pane, first)
         counts = _file_target_counts(pane, objects)

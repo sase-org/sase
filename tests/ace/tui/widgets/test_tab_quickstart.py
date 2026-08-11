@@ -83,8 +83,8 @@ def test_artifacts_quickstart_advertises_every_subtab() -> None:
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
-    assert "Jump: Stitches · Beads · Bugs · PRs · Files" in artifacts_card
-    assert "Cycle Artifacts: Stitches · Beads · Bugs · PRs · Files" in artifacts_card
+    assert "Jump: Stitches · Patches · Beads · Files." in artifacts_card
+    assert "Cycle Artifacts: Stitches · Patches · Beads · Files." in artifacts_card
     assert "Inside Files: Plans · Chats · Other" in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
@@ -165,7 +165,7 @@ def test_tab_quickstart_wrapped_descriptions_use_hanging_indent() -> None:
     )
     continuation = lines[admin_line_idx + 1]
     expected_indent = (
-        TabQuickStart._keycap_width(("1", "2", "3", "4", "5")) + _KEY_DESCRIPTION_GAP
+        TabQuickStart._keycap_width(("1", "2", "3", "4")) + _KEY_DESCRIPTION_GAP
     )
 
     assert continuation.startswith(" " * expected_indent)

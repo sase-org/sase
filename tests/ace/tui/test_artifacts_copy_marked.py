@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 from sase.ace.tui.widgets.artifacts.chats_list import ChatRow, chat_row_target
 from sase.ace.tui.widgets.artifacts.plans_list import PlanRow, plan_row_target
@@ -110,31 +109,6 @@ def test_marked_chats_copy_the_marked_set() -> None:
     assert "### chat-1\n```\n/tmp/chat-1.md\n```" in copied
     assert "### chat-2\n```\n/tmp/chat-2.md\n```" in copied
     assert message == "Copied 2 chat paths"
-
-
-def test_marked_bugs_copy_the_marked_set() -> None:
-    app = CopyHarness()
-    app.current_artifacts_subtab = "bugs"
-    issues = tuple(SimpleNamespace(number=number) for number in (41, 42))
-
-    def issue_target(issue: Any) -> tuple[str, ...]:
-        return ("bug", "alpha", str(issue.number))
-
-    targets = tuple(issue_target(issue) for issue in issues)
-    app._artifacts_marked_targets = {"bugs": set(targets)}
-    app.bugs_pane = SimpleNamespace(
-        project_scope="alpha",
-        issues=issues,
-        entry_targets=lambda: targets,
-        _issue_target=issue_target,
-    )
-
-    assert app._handle_copy_key("b") is True
-
-    copied, message = app.copies[0]
-    assert "### #41\n```\n#41\n```" in copied
-    assert "### #42\n```\n#42\n```" in copied
-    assert message == "Copied 2 issue numbers"
 
 
 def test_marked_files_contents_report_pre_filtered_binary_rows(

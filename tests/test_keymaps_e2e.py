@@ -18,7 +18,7 @@ async def test_default_keys_still_work() -> None:
     """With no config override, default 'j' key navigates down."""
     with _patch_config():
         async with AcePage() as page:
-            await page.press("4")
+            await page.press("2")
             await page.press("j")
             await page.expect_state("idx", 1)
 
@@ -30,14 +30,14 @@ async def test_remapped_navigation_key() -> None:
     # 'B' should navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
-            await page.press("4")
+            await page.press("2")
             await page.press("B")
             await page.expect_state("idx", 1)
 
     # 'j' should no longer navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
-            await page.press("4")
+            await page.press("2")
             await page.press("j")
             await page.expect_state("idx", 0)
 
@@ -47,10 +47,10 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
         async with AcePage(initial_tab="changespecs") as page:  # legacy wire key
             edits: list[str] = []
             for subtab, subtab_key, top_level_subtab, expected_edit in (
-                ("prs", None, "prs", True),
-                ("stitches", "1", "stitches", True),
-                ("bugs", "3", "bugs", False),
-                ("plans", "5", "files", True),
+                ("stitches", None, "stitches", True),
+                ("patches", "2", "patches", True),
+                ("beads", "3", "beads", True),
+                ("plans", "4", "files", True),
             ):
                 if subtab_key is not None:
                     await page.press(subtab_key)

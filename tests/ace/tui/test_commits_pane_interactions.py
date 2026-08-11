@@ -212,10 +212,10 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
             lambda _state: any(call["force_fetch"] is True for call in calls)
         )
 
-        # Slash remains inert on Bugs rather than opening the commit bar or
+        # Slash remains inert on Beads rather than opening the commit bar or
         # historical PR query modal. Plans owns its own filter-bar route.
         await page.press("3")
-        await page.expect_state("artifacts_subtab", "bugs")
+        await page.expect_state("artifacts_subtab", "beads")
         await page.press("slash")
         await page.pause()
         assert bar.display is True

@@ -196,7 +196,7 @@ def test_open_bug_uses_tracker_url_and_commit_has_show_hint(
         lambda _value: bug,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.artifacts_bugs.issue_url_for_number",
+        "sase.ace.tui.external_issues.issue_url_for_number",
         lambda project, number: f"https://tracker/{project}/{number}",
     )
     opened: list[str] = []

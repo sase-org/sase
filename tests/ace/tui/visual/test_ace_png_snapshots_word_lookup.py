@@ -46,8 +46,8 @@ async def test_word_definition_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(WordDefinitionModal("serendipity", sections))
         await page.expect_modal("WordDefinitionModal")
         await wait_for_svg_contains(page, "fortunate discoveries")
@@ -75,8 +75,8 @@ async def test_spellcheck_panel_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(SpellcheckPanelModal("accomodate", suggestions))
         await page.expect_modal("SpellcheckPanelModal")
         await wait_for_svg_contains(page, "accommodation")
@@ -109,8 +109,8 @@ async def test_spellcheck_panel_modal_full_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(SpellcheckPanelModal("accomodate", suggestions))
         await page.expect_modal("SpellcheckPanelModal")
         await wait_for_svg_contains(page, "add to aspell")
@@ -132,8 +132,8 @@ async def test_spellcheck_panel_modal_no_suggestions_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(SpellcheckPanelModal("zzzzz", ()))
         await page.expect_modal("SpellcheckPanelModal")
         await wait_for_svg_contains(page, "no suggestions")

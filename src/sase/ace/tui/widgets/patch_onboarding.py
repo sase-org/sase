@@ -35,9 +35,8 @@ _PLUGINS_DOCS_URL = "https://sase.sh/plugins/"
 _LIFECYCLE: tuple[str, ...] = ("WIP", "Draft", "Ready", "Mailed", "Submitted")
 _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "stitches": "Trace committed work across projects.",
+    "patches": "Inspect Patches and move PRs through review.",
     "beads": "Review task, epic, and phase work items.",
-    "bugs": "Track issues and launch fixes.",
-    "prs": "Inspect Patches and move PRs through review.",
     "files": "Browse Plans, Chats, and Other artifact files.",
 }
 _FILES_DESCRIPTIONS: dict[FilesSubTab, str] = {
@@ -91,7 +90,7 @@ class PatchOnboarding(VerticalScroll):
             id="patch-onboarding-queue",
             classes="patch-onboarding-card",
         )
-        queue.border_title = "Work the PRs pane"
+        queue.border_title = "Work the Patches pane"
         yield queue
 
         learn = Static(
@@ -147,14 +146,14 @@ class PatchOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, beads, bugs, PRs, and nested files in Artifacts",
+            "Browse commits, patches, beads, and nested files in Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text
 
     @staticmethod
     def _artifact_label(subtab: ArtifactsSubTab) -> str:
-        return subtab.upper() if subtab == "prs" else subtab.title()
+        return subtab.title()
 
     @staticmethod
     def _files_label(subtab: FilesSubTab) -> str:
@@ -220,7 +219,7 @@ class PatchOnboarding(VerticalScroll):
         text = Text()
         append_section_heading(
             text,
-            "In the PRs view, one Patch = one PR",
+            "In the Patches view, one Patch = one PR",
             accent=_ACCENT,
         )
         text.append(
@@ -249,7 +248,7 @@ class PatchOnboarding(VerticalScroll):
         append_section_heading(text, "Agents create them for you", accent=_ACCENT)
         text.append(
             "Launch an agent against a project or PR and its work is registered "
-            "in the PRs view automatically."
+            "in the Patches view automatically."
         )
         text.append("\n")
         text.append(

@@ -75,7 +75,7 @@ async def _open_plans(
     snapshot: PlansSnapshot,
 ) -> tuple[ArtifactsPlansPane, PlanFilterBar]:
     await wait_for_startup(page)
-    await page.press("5")
+    await page.press("4")
     await page.expect_state("files_subtab", "plans")
     pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
     await page.wait_for(lambda _state: pane.snapshot is snapshot)
@@ -121,7 +121,7 @@ async def test_artifacts_plans_populated_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("files_subtab", "plans")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)

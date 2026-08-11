@@ -20,7 +20,7 @@ class AppWatchersMixin:
         if old_idx != new_idx:
             if (
                 self.current_tab == ARTIFACTS_TAB
-                and self.current_artifacts_subtab == "prs"
+                and self.current_artifacts_subtab == "patches"
             ):
                 self._refresh_patches_display_debounced()
             elif self.current_tab == "agents":
@@ -48,7 +48,7 @@ class AppWatchersMixin:
         set_trace_context(current_tab=new_tab)
 
         if new_tab == "axe" or (
-            new_tab == ARTIFACTS_TAB and self.current_artifacts_subtab != "prs"
+            new_tab == ARTIFACTS_TAB and self.current_artifacts_subtab != "patches"
         ):
             self._fold_mode_active = False
 
@@ -62,7 +62,7 @@ class AppWatchersMixin:
             self._expanded_panel_focus = False
         elif old_tab == "axe":
             self._axe_detail_debouncer.cancel()
-        elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "prs":
+        elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "patches":
             self._patch_detail_debouncer.cancel()
 
         if old_tab == "agents" and getattr(self, "_panel_fold_hint_mode_active", False):
@@ -146,7 +146,7 @@ class AppWatchersMixin:
         """Switch Artifacts panes and preserve PR detail/refresh isolation."""
         if old_subtab == new_subtab:
             return
-        if new_subtab != "prs":
+        if new_subtab != "patches":
             self._fold_mode_active = False
         if self._entry_jump_mode_active:
             self._exit_entry_jump_mode()
@@ -156,7 +156,7 @@ class AppWatchersMixin:
             view = self.query_one("#artifacts-view", ArtifactsView)
         except Exception:
             return
-        if old_subtab == "prs":
+        if old_subtab == "patches":
             self._patch_detail_debouncer.cancel()
         view.switch_to(new_subtab)
         if self.current_tab != ARTIFACTS_TAB:

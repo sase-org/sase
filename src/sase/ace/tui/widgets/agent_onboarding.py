@@ -46,7 +46,7 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
     "artifacts": (
         "Artifacts",
         "#00D7AF",
-        "Browse commits, beads, bugs, PRs, and nested files in one place.",
+        "Browse commits, patches, beads, and nested files in one place.",
     ),
     "axe": (
         "AXE",

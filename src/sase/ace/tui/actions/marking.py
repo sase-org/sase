@@ -42,7 +42,7 @@ class MarkingMixin:
         """Toggle mark on the current Patch or agent."""
         if (
             self._is_patch_tab()
-            and getattr(self, "current_artifacts_pane_key", "prs") != "prs"
+            and getattr(self, "current_artifacts_pane_key", "patches") != "patches"
         ):
             self._toggle_artifacts_entry_mark()  # type: ignore[attr-defined]
             return
@@ -102,7 +102,7 @@ class MarkingMixin:
         """Clear all marks on the active tab."""
         if (
             self._is_patch_tab()
-            and getattr(self, "current_artifacts_pane_key", "prs") != "prs"
+            and getattr(self, "current_artifacts_pane_key", "patches") != "patches"
         ):
             self._clear_artifacts_marks()  # type: ignore[attr-defined]
             return

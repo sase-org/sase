@@ -41,8 +41,8 @@ async def test_help_panel_keymaps_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
 
         page.app.push_screen(
@@ -79,8 +79,8 @@ async def test_help_panel_filter_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
 
         modal = HelpModal(
@@ -118,8 +118,8 @@ async def test_help_guide_axe_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.press("tab")
         await page.expect_state("tab", "axe")
 
@@ -151,8 +151,8 @@ async def test_help_guide_agents_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
 
@@ -186,8 +186,8 @@ async def test_help_guide_patches_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
 
         await _open_help_guide(

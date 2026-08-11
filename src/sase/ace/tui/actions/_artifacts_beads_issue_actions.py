@@ -369,7 +369,7 @@ def _resolved_issue_url(link: ExternalIssueLink) -> str:
         return link.issue.url
     if not link.issue_id.isdigit():
         raise ValueError(f"issue id is not numeric: {link.issue_id}")
-    from sase.ace.tui.artifacts_bugs import issue_url_for_number
+    from sase.ace.tui.external_issues import issue_url_for_number
 
     return issue_url_for_number(link.project, int(link.issue_id))
 

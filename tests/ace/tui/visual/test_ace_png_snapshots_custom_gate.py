@@ -188,8 +188,8 @@ async def _snapshot_modal(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(CustomGateModal(data))
         await page.expect_modal("CustomGateModal")
         await wait_for_visual_idle(page)
@@ -315,8 +315,8 @@ async def test_tale_plan_gate_five_controls_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PlanApprovalModal(str(plan), default_choice="tale"))
         await page.expect_modal("PlanApprovalModal")
         await wait_for_visual_idle(page)
@@ -352,8 +352,8 @@ async def test_tale_plan_gate_frontmatter_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PlanApprovalModal(str(plan), default_choice="tale"))
         await page.expect_modal("PlanApprovalModal")
         await wait_for_visual_idle(page)
@@ -378,8 +378,8 @@ async def test_epic_plan_gate_action_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PlanApprovalModal(str(plan), default_choice="epic"))
         await page.expect_modal("PlanApprovalModal")
         await wait_for_visual_idle(page)
@@ -407,8 +407,8 @@ async def test_narrow_plan_gate_stacked_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PlanApprovalModal(str(plan), default_choice="tale"))
         await page.expect_modal("PlanApprovalModal")
         await wait_for_visual_idle(page)

@@ -95,7 +95,7 @@ def _open_bug(result: ResolvedArtifactReference) -> int:
         return 1
     project = locator.rsplit("#", 1)[0]
     try:
-        from sase.ace.tui.artifacts_bugs import issue_url_for_number
+        from sase.ace.tui.external_issues import issue_url_for_number
 
         url = issue_url_for_number(project, number)
         opened = webbrowser.open(url)

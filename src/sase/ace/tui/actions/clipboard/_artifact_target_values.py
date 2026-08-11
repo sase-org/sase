@@ -33,17 +33,6 @@ def artifact_file_contents(entry: Any) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def bug_prompt(pane: Any, issue: Any, project: str) -> str:
-    """Build the same project-anchored prompt used by the Bugs launch action."""
-    from sase.workspace_provider import detect_workflow_type
-
-    from ..artifact_bugs import bug_agent_prompt
-
-    workflow_type = detect_workflow_type(pane.project_file)
-    display_name = pane.snapshot.display_name or project
-    return bug_agent_prompt(f"#{workflow_type}:{display_name} ", issue)
-
-
 def plan_copy_value(pane: Any, row: Any, target: str) -> str:
     del pane
     if target == "bead_id":

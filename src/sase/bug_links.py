@@ -8,7 +8,7 @@ import re
 from urllib.parse import SplitResult, urlsplit
 
 from sase.ace.patch.models import Patch
-from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead.model import Issue
 
 _PROJECT_REF_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _ISSUE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -16,32 +16,7 @@ _GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 @dataclass(frozen=True)
-class BugLinks:
-    """Local work records associated with one normalized external bug id."""
-
-    bug_id: str
-    epics: tuple[Issue, ...]
-    patches: tuple[Patch, ...]
-    beads: tuple[Issue, ...] = ()
-
-    @property
-    def epic_beads(self) -> tuple[Issue, ...]:
-        """Explicit alias used by consumers that label bead rows directly."""
-        return self.epics
-
-    @property
-    def prs(self) -> tuple[Patch, ...]:
-        """Presentation alias for Patches shown in the Bugs pane."""
-        return self.patches
-
-    @property
-    def changespecs(self) -> tuple[Patch, ...]:
-        """Legacy alias for callers not yet renamed to ``patches``."""
-        return self.patches
-
-
-@dataclass(frozen=True)
-class ExternalRefLinks:
+class _ExternalRefLinks:
     """Local work records associated with one project-qualified external issue."""
 
     external_ref: str
@@ -57,41 +32,6 @@ class ExternalRefLinks:
     def changespecs(self) -> tuple[Patch, ...]:
         """Legacy alias for callers not yet renamed to ``patches``."""
         return self.patches
-
-
-def _normalize_bug_id(value: str | int | None) -> str:
-    """Normalize common BUG-tag spellings to a comparable tracker id.
-
-    Numeric ids, ``#42``, ``owner/repo#42``, GitHub issue URLs, and the
-    historical ``http://b/42`` form all normalize to ``"42"``.  Other
-    tracker ids are compared case-insensitively while retaining their internal
-    punctuation.
-    """
-    if value is None:
-        return ""
-    raw = str(value).strip()
-    if not raw:
-        return ""
-    if raw.casefold().startswith("bug:"):
-        raw = raw[4:].strip()
-    if not raw:
-        return ""
-
-    parsed = urlsplit(raw)
-    if parsed.scheme and (parsed.netloc or parsed.path):
-        path = parsed.path.rstrip("/")
-        if path:
-            raw = path.rsplit("/", 1)[-1]
-        elif parsed.fragment:
-            raw = parsed.fragment
-    else:
-        raw = raw.rstrip("/")
-        if "#" in raw:
-            raw = raw.rsplit("#", 1)[-1]
-        elif raw.startswith("#"):
-            raw = raw[1:]
-
-    return raw.strip().removeprefix("#").casefold()
 
 
 def normalize_external_ref(value: str | int | None, *, project: str) -> str:
@@ -179,11 +119,11 @@ def find_external_ref_links(
     patches: Iterable[Patch],
     *,
     project: str,
-) -> ExternalRefLinks:
+) -> _ExternalRefLinks:
     """Return beads and Patches matching one project-qualified external ref."""
     normalized = normalize_external_ref(external_ref, project=project)
     if not normalized:
-        return ExternalRefLinks(external_ref="", beads=(), patches=())
+        return _ExternalRefLinks(external_ref="", beads=(), patches=())
 
     linked_beads = tuple(
         bead
@@ -199,7 +139,7 @@ def find_external_ref_links(
         )
         == normalized
     )
-    return ExternalRefLinks(
+    return _ExternalRefLinks(
         external_ref=normalized,
         beads=linked_beads,
         patches=linked_patches,
@@ -226,47 +166,10 @@ def _patch_project_name(patch: Patch) -> str:
     return project_name if isinstance(project_name, str) else ""
 
 
-def find_bug_links(
-    bug_id: str | int,
-    beads: Iterable[Issue],
-    patches: Iterable[Patch],
-) -> BugLinks:
-    """Return epic beads and Patches whose existing bug fields match.
-
-    Inputs are intentionally supplied by the caller: project/store resolution
-    and I/O remain outside this pure helper, making it safe to run on cached TUI
-    snapshots and straightforward to unit test.
-    """
-    normalized = _normalize_bug_id(bug_id)
-    if not normalized:
-        return BugLinks(bug_id="", epics=(), patches=())
-
-    epics = tuple(
-        bead
-        for bead in beads
-        if bead.issue_type == IssueType.PLAN
-        and bead.tier == BeadTier.EPIC
-        and _normalize_bug_id(bead.changespec_bug_id) == normalized
-    )
-    linked_patches = tuple(
-        patch for patch in patches if _normalize_bug_id(patch.bug) == normalized
-    )
-    return BugLinks(
-        bug_id=normalized,
-        epics=epics,
-        patches=linked_patches,
-    )
-
-
-BugLinkResult = BugLinks
-ExternalRefLinkResult = ExternalRefLinks
+ExternalRefLinkResult = _ExternalRefLinks
 
 __all__ = [
-    "BugLinkResult",
-    "BugLinks",
     "ExternalRefLinkResult",
-    "ExternalRefLinks",
     "find_external_ref_links",
-    "find_bug_links",
     "normalize_external_ref",
 ]

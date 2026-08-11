@@ -355,9 +355,9 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
     def _snapshot_artifact_ref_bug_candidates(
         self,
     ) -> tuple[ArtifactRefBugCandidate, ...]:
-        """Project the mounted Bugs pane's current immutable tracker snapshot."""
+        """Project the mounted Beads pane's external-issue tracker caches."""
         try:
-            pane = self.app.query_one("#artifacts-bugs-pane")
+            pane = self.app.query_one("#artifacts-beads-pane")
         except Exception:
             return ()
         snapshot = getattr(pane, "snapshot", None)
@@ -367,42 +367,38 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
         cached = getattr(self, "_artifact_ref_bug_projection", None)
         if cached is not None and cached[0] is snapshot and cached[1] == target_project:
             return cached[2]
-        project = str(
-            getattr(snapshot, "display_name", "")
-            or getattr(snapshot, "project_key", "")
-            or ""
-        )
-        if not project:
-            return ()
-        if target_project is not None:
-            accepted = {
-                project.casefold(),
-                str(getattr(snapshot, "project_key", "") or "").casefold(),
-            }
-            if target_project.casefold() not in accepted:
-                self._artifact_ref_bug_projection = (
-                    snapshot,
-                    target_project,
-                    (),
-                )
-                return ()
         rows: list[ArtifactRefBugCandidate] = []
-        for issue in getattr(snapshot, "issues", ()):
-            number = getattr(issue, "number", None)
-            if not isinstance(number, int):
-                continue
-            rows.append(
-                ArtifactRefBugCandidate(
-                    project=project,
-                    number=number,
-                    title=str(getattr(issue, "title", "") or ""),
-                    updated_at=str(
-                        getattr(issue, "updated_at", "")
-                        or getattr(issue, "created_at", "")
-                        or ""
-                    ),
-                )
+        for cache in getattr(snapshot, "external_projects", {}).values():
+            project = str(
+                getattr(cache, "display_name", "")
+                or getattr(cache, "project", "")
+                or ""
             )
+            if not project:
+                continue
+            if target_project is not None:
+                accepted = {
+                    project.casefold(),
+                    str(getattr(cache, "project", "") or "").casefold(),
+                }
+                if target_project.casefold() not in accepted:
+                    continue
+            for issue in getattr(cache, "issues", ()):
+                number = getattr(issue, "number", None)
+                if not isinstance(number, int):
+                    continue
+                rows.append(
+                    ArtifactRefBugCandidate(
+                        project=project,
+                        number=number,
+                        title=str(getattr(issue, "title", "") or ""),
+                        updated_at=str(
+                            getattr(issue, "updated_at", "")
+                            or getattr(issue, "created_at", "")
+                            or ""
+                        ),
+                    )
+                )
         projected = tuple(rows)
         self._artifact_ref_bug_projection = (
             snapshot,

@@ -359,7 +359,6 @@ class StateInitMixin:
             ArtifactsPaneKey, set[ArtifactEntryTarget]
         ] = {
             "stitches": set(),
-            "bugs": set(),
             "beads": set(),
             "plans": set(),
             "chats": set(),

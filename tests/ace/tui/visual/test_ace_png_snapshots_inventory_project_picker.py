@@ -44,8 +44,8 @@ async def test_inventory_project_picker_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_projects_modal(page)
         repo_pane = pane.query_one(RepoInventoryPane)
         await page.wait_for(lambda _s: not repo_pane._loading)

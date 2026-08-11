@@ -26,7 +26,6 @@ class CopyHarness(ClipboardMixin):
         self.commits_pane: Any = None
         self.plans_pane: Any = None
         self.chats_pane: Any = None
-        self.bugs_pane: Any = None
         self.files_pane: Any = None
 
     def notify(
@@ -81,14 +80,5 @@ class CopyHarness(ClipboardMixin):
             (self.chats_pane.selected_entry.absolute_path, "Copied chat path")
         )
 
-    def _bugs_pane(self) -> Any:
-        return self.bugs_pane
-
     def _files_pane(self) -> Any:
         return self.files_pane
-
-    def _selected_bug_copy_context(self) -> Any:
-        pane = self.bugs_pane
-        if pane is None or pane.selected_issue is None or pane.project_scope is None:
-            return None
-        return pane, pane.selected_issue, pane.project_scope

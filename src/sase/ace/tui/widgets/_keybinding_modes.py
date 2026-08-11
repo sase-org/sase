@@ -495,8 +495,7 @@ class KeybindingModesMixin:
         key_group = (
             f"artifacts_{artifacts_pane_key}"
             if tab == "artifacts"
-            and artifacts_pane_key
-            in {"stitches", "beads", "plans", "chats", "bugs", "other"}
+            and artifacts_pane_key in {"stitches", "beads", "plans", "chats", "other"}
             else tab
         )
         tab_keys = self._kr().copy_mode.keys.get(key_group, {})

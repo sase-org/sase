@@ -415,7 +415,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 full_history=False,
             )
         elif self.current_tab == "artifacts":
-            if getattr(self, "current_artifacts_subtab", "prs") == "prs":
+            if getattr(self, "current_artifacts_subtab", "patches") == "patches":
                 self._schedule_patches_async_refresh()  # type: ignore[attr-defined]
             else:
                 self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
@@ -454,7 +454,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "prs") == "stitches"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "stitches"
         ):
             pane = self._commits_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -462,7 +462,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "prs") == "plans"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "plans"
         ):
             pane = self._plans_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -470,7 +470,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "prs") == "beads"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "beads"
         ):
             pane = self._beads_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -478,7 +478,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "prs") == "chats"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "chats"
         ):
             pane = self._chats_pane()  # type: ignore[attr-defined]
             if pane is not None:
@@ -486,7 +486,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "prs") == "other"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "other"
         ):
             pane = self._files_pane()  # type: ignore[attr-defined]
             if pane is not None:

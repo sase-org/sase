@@ -6,14 +6,13 @@ canonical order can safely drive both rendering and fixed app bindings.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
-ArtifactsSubTab = Literal["prs", "stitches", "bugs", "beads", "files"]
+ArtifactsSubTab = Literal["patches", "stitches", "beads", "files"]
 FilesSubTab = Literal["plans", "chats", "other"]
 ArtifactsPaneKey = Literal[
-    "prs",
+    "patches",
     "stitches",
-    "bugs",
     "beads",
     "plans",
     "chats",
@@ -23,18 +22,31 @@ ArtifactsPaneKey = Literal[
 DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "stitches"
 ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "stitches",
+    "patches",
     "beads",
-    "bugs",
-    "prs",
     "files",
 )
 ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
-    "prs": "artifacts-prs-pane",
+    "patches": "artifacts-patches-pane",
     "stitches": "artifacts-stitches-pane",
-    "bugs": "artifacts-bugs-pane",
     "beads": "artifacts-beads-pane",
     "files": "artifacts-files-view",
 }
+
+LEGACY_ARTIFACTS_SUBTABS: dict[str, ArtifactsSubTab] = {
+    "prs": "patches",  # legacy compatibility alias
+    "bugs": "beads",  # retired sub-tab, routed to its replacement
+}
+
+
+def normalize_artifacts_subtab(value: str) -> ArtifactsSubTab:
+    """Map a possibly legacy sub-tab identifier to its canonical form."""
+
+    legacy = LEGACY_ARTIFACTS_SUBTABS.get(value)
+    if legacy is not None:
+        return legacy
+    return cast(ArtifactsSubTab, value)
+
 
 DEFAULT_FILES_SUBTAB: FilesSubTab = "plans"
 FILES_SUBTAB_ORDER: tuple[FilesSubTab, ...] = ("plans", "chats", "other")
@@ -47,9 +59,8 @@ FILES_PANE_IDS: dict[FilesSubTab, str] = {
 EXTERNAL_ACCENT = "#FF5F5F"
 
 ARTIFACTS_ACCENTS: dict[ArtifactsPaneKey | Literal["files"], str] = {
-    "prs": "#00D7AF",
+    "patches": "#00D7AF",
     "stitches": "#FFD700",
-    "bugs": EXTERNAL_ACCENT,
     "beads": "#D787FF",
     "plans": "#AF87FF",
     "chats": "#5FAFFF",
@@ -88,7 +99,7 @@ def switch_to_artifacts_subtab(app: Any, subtab: ArtifactsSubTab) -> None:
     """
     from .tab_order import ARTIFACTS_TAB
 
-    app.current_artifacts_subtab = subtab
+    app.current_artifacts_subtab = normalize_artifacts_subtab(subtab)
     app.current_tab = ARTIFACTS_TAB
 
 
@@ -98,6 +109,7 @@ __all__ = [
     "ARTIFACTS_SUBTAB_ORDER",
     "FILES_PANE_IDS",
     "FILES_SUBTAB_ORDER",
+    "LEGACY_ARTIFACTS_SUBTABS",
     "ArtifactsPaneKey",
     "ArtifactsSubTab",
     "DEFAULT_ARTIFACTS_SUBTAB",
@@ -105,5 +117,6 @@ __all__ = [
     "EXTERNAL_ACCENT",
     "FilesSubTab",
     "artifacts_pane_key",
+    "normalize_artifacts_subtab",
     "switch_to_artifacts_subtab",
 ]

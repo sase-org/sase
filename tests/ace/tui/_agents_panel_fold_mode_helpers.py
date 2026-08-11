@@ -21,7 +21,7 @@ class _FoldApp(FoldNavigationMixin):
         slow_tool_call_count: int = 0,
     ) -> None:
         self.current_tab = tab
-        self.current_artifacts_subtab = "prs"
+        self.current_artifacts_subtab = "patches"
         self._fold_mode_active = False
         self._keymap_registry = load_keymap_registry({})
         self.panel_fold_level = FoldLevel.COLLAPSED

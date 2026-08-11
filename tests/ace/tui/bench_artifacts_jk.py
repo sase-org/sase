@@ -16,14 +16,11 @@ import statistics
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets import ArtifactsBugsPane
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.plan_search.filter_query import parse_plan_filter_query
-from tests.ace.tui.test_artifacts_bugs import _issue as _bug_issue
-from tests.ace.tui.test_artifacts_bugs import _snapshot as _bug_snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices as _plan_choices
 from tests.ace.tui.test_artifacts_list_navigation import (
     _commits_result,
@@ -78,7 +75,6 @@ async def test_artifacts_subtabs_jk_p95(
     patch_startup_loaders(monkeypatch)
 
     commits = _commits_result(_COMMIT_COUNT)
-    bugs = _bug_snapshot(tuple(_bug_issue(index) for index in range(1, 201)))
     plans = _expanded_plans_snapshot(tmp_path, 200)
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: commits)
     monkeypatch.setattr(
@@ -91,10 +87,6 @@ async def test_artifacts_subtabs_jk_p95(
         _plan_choices,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
-        lambda *_args, **_kwargs: bugs,
-    )
-    monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
         lambda _project, **_kwargs: plans,
     )
@@ -105,8 +97,8 @@ async def test_artifacts_subtabs_jk_p95(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
 
         await _press_burst(page, "j")
         await _press_burst(page, "k")
@@ -121,14 +113,6 @@ async def test_artifacts_subtabs_jk_p95(
                 and len(commits_pane.result.commits) == _COMMIT_COUNT
             )
         )
-        await _press_burst(page, "j")
-        await _press_burst(page, "k")
-        await _press_fast_navigation_bursts(page)
-
-        page.app.current_artifacts_subtab = "bugs"
-        await page.expect_state("artifacts_subtab", "bugs")
-        bugs_pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
-        await page.wait_for(lambda _state: len(bugs_pane.issues) == 200)
         await _press_burst(page, "j")
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
@@ -151,20 +135,14 @@ async def test_artifacts_subtabs_jk_p95(
     expected_actions = (
         "next",
         "prev",
-        "commits.next",
-        "commits.prev",
-        "bugs.next",
-        "bugs.prev",
+        "stitches.next",
+        "stitches.prev",
         "plans.next",
         "plans.prev",
-        "commits.first",
-        "commits.last",
-        "commits.down10",
-        "commits.up10",
-        "bugs.first",
-        "bugs.last",
-        "bugs.down10",
-        "bugs.up10",
+        "stitches.first",
+        "stitches.last",
+        "stitches.down10",
+        "stitches.up10",
         "plans.first",
         "plans.last",
         "plans.down10",

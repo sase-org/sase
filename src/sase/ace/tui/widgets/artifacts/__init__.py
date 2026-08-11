@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from .bugs import BugIssueList as BugIssueList
+from typing import Any
 
 _LAZY_EXPORTS = {
     "ARTIFACTS_ACCENTS": (".types", "ARTIFACTS_ACCENTS"),
@@ -16,19 +13,16 @@ _LAZY_EXPORTS = {
     "ArtifactEntryTarget": (".entry_navigation", "ArtifactEntryTarget"),
     "ArtifactPlaceholderPane": (".panes", "ArtifactPlaceholderPane"),
     "ArtifactsBeadsPane": (".beads_pane", "ArtifactsBeadsPane"),
-    "ArtifactsBugsPane": (".bugs", "ArtifactsBugsPane"),
     "ArtifactsChatsPane": (".chats_pane", "ArtifactsChatsPane"),
     "ArtifactsFilesPane": (".files_pane", "ArtifactsFilesPane"),
     "ArtifactsFilesView": (".files_view", "ArtifactsFilesView"),
     "ArtifactsPaneKey": (".types", "ArtifactsPaneKey"),
     "ArtifactsPaneLifecycle": (".lifecycle", "ArtifactsPaneLifecycle"),
     "ArtifactsPlansPane": (".plans_pane", "ArtifactsPlansPane"),
-    "ArtifactsPrsPane": (".panes", "ArtifactsPrsPane"),
+    "ArtifactsPatchesPane": (".panes", "ArtifactsPatchesPane"),
     "ArtifactsSubTab": (".types", "ArtifactsSubTab"),
     "ArtifactsView": (".view", "ArtifactsView"),
     "BeadRow": (".beads_pane", "BeadRow"),
-    "BugIssueList": (".bugs", "BugIssueList"),
-    "BugLinkList": (".bugs", "BugLinkList"),
     "CommitsPane": (".commits", "CommitsPane"),
     "CommitsTimeline": (".commits", "CommitsTimeline"),
     "DEFAULT_ARTIFACTS_SUBTAB": (".types", "DEFAULT_ARTIFACTS_SUBTAB"),
@@ -49,7 +43,6 @@ __all__ = [
     "ArtifactPlaceholderPane",
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
-    "ArtifactsBugsPane",
     "ArtifactsBeadsPane",
     "ArtifactsChatsPane",
     "ArtifactsFilesPane",
@@ -57,13 +50,11 @@ __all__ = [
     "ArtifactsPaneKey",
     "ArtifactsPaneLifecycle",
     "ArtifactsPlansPane",
-    "ArtifactsPrsPane",
+    "ArtifactsPatchesPane",
     "ArtifactsSubTab",
     "ArtifactsView",
     "CommitsPane",
     "CommitsTimeline",
-    "BugIssueList",
-    "BugLinkList",
     "BeadRow",
     "DEFAULT_ARTIFACTS_SUBTAB",
     "DEFAULT_FILES_SUBTAB",

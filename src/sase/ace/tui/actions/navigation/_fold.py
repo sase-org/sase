@@ -52,7 +52,7 @@ class FoldNavigationMixin(NavigationMixinBase):
             "artifacts",
             "patches",
             "changespecs",  # legacy compatibility alias
-        } and (getattr(self, "current_artifacts_subtab", "prs") == "prs")
+        } and (getattr(self, "current_artifacts_subtab", "patches") == "patches")
 
     def _get_stitches_fold_state(self) -> FoldLevel:
         return getattr(

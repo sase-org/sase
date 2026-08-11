@@ -13,7 +13,6 @@ from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .beads_pane import ArtifactsBeadsPane
-from .bugs import ArtifactsBugsPane
 from .commits import CommitsPane
 from .files_view import ArtifactsFilesView
 from sase.vcs_log.filter_query import CommitLogFilterValues
@@ -21,7 +20,7 @@ from .entry_navigation import ArtifactEntryNavigator
 from .lifecycle import ArtifactsPaneLifecycle
 from .panes import (
     ArtifactPlaceholderPane,
-    ArtifactsPrsPane,
+    ArtifactsPatchesPane,
 )
 from .types import (
     ARTIFACTS_ACCENTS,
@@ -39,9 +38,8 @@ if TYPE_CHECKING:
     from ...app import AceApp
 
 _ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
-    "prs": "PRs",
+    "patches": "Patches",
     "stitches": "Stitches",
-    "bugs": "Bugs",
     "beads": "Beads",
     "files": "Files",
 }
@@ -51,7 +49,6 @@ _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
 )
 _DETAIL_SCROLL_IDS: dict[ArtifactsPaneKey, str] = {
     "stitches": "stitches-detail-scroll",
-    "bugs": "bugs-body-scroll",
     "beads": "beads-detail-scroll",
 }
 
@@ -86,12 +83,11 @@ class ArtifactsView(Vertical):
             initial=ARTIFACTS_PANE_IDS[self._current_subtab],
             id="artifacts-content-switcher",
         ):
-            yield ArtifactsPrsPane(id=ARTIFACTS_PANE_IDS["prs"])
+            yield ArtifactsPatchesPane(id=ARTIFACTS_PANE_IDS["patches"])
             yield CommitsPane(
                 initial_filters=self._commits_default_filter,
                 id=ARTIFACTS_PANE_IDS["stitches"],
             )
-            yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
             yield ArtifactsBeadsPane(id=ARTIFACTS_PANE_IDS["beads"])
             yield ArtifactsFilesView(id=ARTIFACTS_PANE_IDS["files"])
 
@@ -111,8 +107,8 @@ class ArtifactsView(Vertical):
 
     def entry_navigator(self, pane_key: ArtifactsPaneKey) -> ArtifactEntryNavigator:
         """Return the stable-target navigator for a non-PR pane."""
-        if pane_key == "prs":
-            raise ValueError("PRs use the existing Patch navigation model")
+        if pane_key == "patches":
+            raise ValueError("Patches use the existing Patch navigation model")
         if pane_key in FILES_SUBTAB_ORDER:
             return self.query_one(ArtifactsFilesView).entry_navigator(pane_key)
         return cast(
@@ -165,7 +161,6 @@ class ArtifactsView(Vertical):
         self.query_one(ArtifactsBeadsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsFilesView).set_keymap_registry(registry)
         self.query_one(CommitsPane).set_keymap_registry(registry)
-        self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
 
     def set_project_scope(
         self,
@@ -189,10 +184,6 @@ class ArtifactsView(Vertical):
             display_name=display_name,
         )
         self.query_one(ArtifactsFilesView).set_project_scope(
-            project,
-            display_name=display_name,
-        )
-        self.query_one(ArtifactsBugsPane).set_project_scope(
             project,
             display_name=display_name,
         )

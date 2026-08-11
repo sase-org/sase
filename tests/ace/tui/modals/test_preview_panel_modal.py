@@ -346,8 +346,8 @@ async def test_preview_modal_oversized_markdown_falls_back_to_source_and_warns_o
 
 async def test_preview_modal_forwards_percent_to_app_copy_mode() -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "prs"
-        await page.expect_state("artifacts_subtab", "prs")
+        page.app.current_artifacts_subtab = "patches"
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PreviewPanelModal(_payload()))
         await page.expect_modal("PreviewPanelModal")
 

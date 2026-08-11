@@ -24,7 +24,6 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Artifact Views" in left
     assert "Stitches Pane" in left
     assert "Beads Pane" in left
-    assert "Bugs Pane" in combined
     assert "Plans Pane" in combined
     assert "Chats Pane" in combined
     assert "Other Pane" in combined
@@ -39,8 +38,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "[01]" in left
     assert "01-9 / 00" in right
     assert "Choose saved Patch query" in right
-    assert "1 / 2 / 3 / 4 / 5" in left
-    assert "Jump five top-level views" in left
+    assert "1 / 2 / 3 / 4" in left
+    assert "Jump four top-level views" in left
     assert "Cycle top-level views" in left
     assert "Cycle Plans / Chats / Other" in left
     assert "Select first / last entry" in combined

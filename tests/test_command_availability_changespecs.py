@@ -10,16 +10,16 @@ from tests._command_availability_helpers import (
 )
 
 
-def test_bug_commands_only_available_on_bugs_subtab() -> None:
+def test_beads_issue_commands_only_available_on_beads_subtab() -> None:
     catalog = _catalog_by_id()
-    spec = catalog["app.create_bug"]
+    spec = catalog["app.beads_open_bug"]
     assert is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="bugs"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="beads"),  # legacy tab id
     )
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="patches"),  # legacy tab id
     )
     assert not is_command_available(
         spec,
@@ -27,11 +27,11 @@ def test_bug_commands_only_available_on_bugs_subtab() -> None:
     )
 
 
-def test_app_edit_query_is_available_on_prs_commits_plans_and_axe() -> None:
+def test_app_edit_query_is_available_on_patches_stitches_plans_and_axe() -> None:
     spec = _catalog_by_id()["app.edit_query"]
     assert is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="patches"),  # legacy tab id
     )
     assert is_command_available(
         spec,
@@ -43,7 +43,7 @@ def test_app_edit_query_is_available_on_prs_commits_plans_and_axe() -> None:
     )
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="bugs"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="beads"),  # legacy tab id
     )
     assert is_command_available(spec, CommandContext(tab="axe"))
     assert not is_command_available(spec, CommandContext(tab="agents"))
@@ -55,7 +55,7 @@ def test_leader_edit_query_is_agents_only() -> None:
     assert is_command_available(spec, CommandContext(tab="agents"))
     assert not is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="patches"),  # legacy tab id
     )
     assert not is_command_available(spec, CommandContext(tab="axe"))
 
@@ -66,7 +66,7 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="plans"),  # legacy tab id
     )
-    for subtab in ("prs", "stitches", "bugs"):
+    for subtab in ("patches", "stitches", "beads"):
         assert not is_command_available(
             spec,
             CommandContext(tab="changespecs", artifacts_subtab=subtab),  # legacy tab id
@@ -75,7 +75,7 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
 
 def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     catalog = _catalog_by_id()
-    groups = ("stitches", "beads", "plans", "chats", "bugs", "other")
+    groups = ("stitches", "beads", "plans", "chats", "other")
 
     for active in groups:
         ctx = CommandContext(
@@ -85,9 +85,13 @@ def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
             spec = catalog[f"copy.artifacts_{group}.snapshot"]
             assert is_command_available(spec, ctx) is (group == active)
 
-    prs = CommandContext(tab="changespecs", artifacts_subtab="prs")  # legacy tab id
+    patches_ctx = CommandContext(
+        tab="changespecs", artifacts_subtab="patches"
+    )  # legacy tab id
     assert all(
-        not is_command_available(catalog[f"copy.artifacts_{group}.snapshot"], prs)
+        not is_command_available(
+            catalog[f"copy.artifacts_{group}.snapshot"], patches_ctx
+        )
         for group in groups
     )
 
@@ -100,7 +104,9 @@ def test_saved_query_picker_and_slots_are_pr_only() -> None:
     for spec in (picker, slot):
         assert is_command_available(
             spec,
-            CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
+            CommandContext(
+                tab="changespecs", artifacts_subtab="patches"
+            ),  # legacy tab id
         )
         assert not is_command_available(
             spec,
@@ -124,7 +130,7 @@ def test_saved_query_slot_mode_command_is_pr_only() -> None:
 
     assert is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="patches"),  # legacy tab id
     )
     assert not is_command_available(
         spec,

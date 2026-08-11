@@ -11,8 +11,7 @@ from textual.geometry import Region
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets import ArtifactsBugsPane
-from sase.ace.tui.widgets.artifacts import BugIssueList, BugLinkList, CommitsPane
+from sase.ace.tui.widgets.artifacts import CommitsPane
 from sase.ace.tui.widgets.artifacts import files_pane as files_pane_module
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
@@ -20,7 +19,6 @@ from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
 from sase.vcs_log.models import LogRepo, VcsLogResult
-from tests.ace.tui.test_artifacts_bugs import _issue, _snapshot as _bugs_snapshot
 from tests.ace.tui._artifacts_plans_helpers import (
     _choices,
     _snapshot as _plans_snapshot,
@@ -86,12 +84,10 @@ class _DetailScheduleRecorder:
 
 
 def _entry_list(
-    pane: CommitsPane | ArtifactsBugsPane | ArtifactsPlansPane,
+    pane: CommitsPane | ArtifactsPlansPane,
 ) -> OptionList:
     if isinstance(pane, CommitsPane):
         return pane.query_one("#stitches-timeline", OptionList)
-    if isinstance(pane, ArtifactsBugsPane):
-        return pane.query_one("#bugs-list", OptionList)
     return pane.query_one("#plans-list", OptionList)
 
 
@@ -116,7 +112,7 @@ def _assert_highlight_visible(option_list: OptionList) -> None:
 
 async def _assert_distance_navigation(
     page: AcePage,
-    pane: CommitsPane | ArtifactsBugsPane | ArtifactsPlansPane,
+    pane: CommitsPane | ArtifactsPlansPane,
     *,
     expected_count: int = 50,
 ) -> None:
@@ -243,79 +239,6 @@ async def test_commits_fast_navigation_skips_day_banners_and_jumps_without_openi
         pane.clear_entry_jump_hints()
 
 
-async def test_bugs_fast_navigation_restores_issue_focus_and_ignores_links(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    snapshot = _bugs_snapshot(tuple(_issue(number) for number in range(1, 51)))
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
-        lambda *_args, **_kwargs: snapshot,
-    )
-
-    async with AcePage(initial_tab="patches") as page:
-        page.app._set_artifacts_project_scope("alpha", picked=True)
-        page.app.current_artifacts_subtab = "bugs"
-        pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
-        await page.wait_for(lambda _state: pane.issues == snapshot.issues)
-        links = pane.query_one("#bugs-links", BugLinkList)
-        links.focus()
-        await _assert_distance_navigation(page, pane)
-        assert isinstance(page.app.focused, BugIssueList)
-
-        await page.press("g", "apostrophe")
-        issues = pane.query_one("#bugs-list", BugIssueList)
-        assert issues.get_option_at_index(0).prompt.plain.startswith("[0] ")
-        assert issues.get_option_at_index(1).prompt.plain.startswith("[1] ")
-        assert links.option_count == 0
-        await page.press("1")
-        assert pane.selected_issue is not None
-        assert pane.selected_issue.number == 2
-        assert page.state["modal"] is None
-
-        first_target = pane.entry_targets()[0]
-        pane.apply_entry_jump_hints({first_target: "A"})
-        assert issues.get_option_at_index(0).prompt.plain.startswith("[A] ")
-        assert links.option_count == 0
-        assert pane.selected_issue is not None
-        assert pane.selected_issue.number == 2
-        pane.clear_entry_jump_hints()
-        pane.accept_snapshot(replace(snapshot, issues=tuple(reversed(snapshot.issues))))
-        assert pane.selected_issue is not None
-        assert pane.selected_issue.number == 2
-
-
-async def test_bugs_two_character_jump_waits_for_complete_hint(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    snapshot = _bugs_snapshot(tuple(_issue(number) for number in range(1, 64)))
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
-        lambda *_args, **_kwargs: snapshot,
-    )
-
-    async with AcePage(initial_tab="patches") as page:
-        page.app._set_artifacts_project_scope("alpha", picked=True)
-        page.app.current_artifacts_subtab = "bugs"
-        pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
-        await page.wait_for(lambda _state: pane.issues == snapshot.issues)
-        origin = pane.selected_entry_target()
-
-        await page.press("apostrophe")
-        assert page.app._artifacts_jump_target_to_hint[pane.entry_targets()[0]] == "00"
-        assert page.app._artifacts_jump_target_to_hint[pane.entry_targets()[62]] == "10"
-
-        await page.press("1")
-        assert page.app._entry_jump_mode_active is True
-        assert page.app._artifacts_jump_pending_prefix == "1"
-        assert pane.selected_entry_target() == origin
-
-        await page.press("0")
-        assert pane.selected_issue is not None
-        assert pane.selected_issue.number == 63
-        assert page.app._entry_jump_mode_active is False
-        assert page.app._artifacts_jump_pending_prefix == ""
-
-
 async def test_plans_fast_navigation_skips_document_section_headings(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -331,7 +254,7 @@ async def test_plans_fast_navigation_skips_document_section_headings(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("5")
+        await page.press("4")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await _assert_distance_navigation(page, pane, expected_count=52)
@@ -392,7 +315,7 @@ async def test_files_implements_shared_stable_target_navigation(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("5", "(")
+        await page.press("4", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         targets = pane.entry_targets()
@@ -417,52 +340,6 @@ async def test_files_implements_shared_stable_target_navigation(
         assert pane.selected_entry_target() == targets[0]
         pane.clear_entry_jump_hints()
         assert pane.selected_entry_target() == targets[0]
-
-
-async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    commits = _commits_result(3)
-    bugs = _bugs_snapshot(tuple(_issue(number) for number in range(1, 4)))
-    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: commits)
-    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
-        lambda *_args, **_kwargs: bugs,
-    )
-
-    async with AcePage(initial_tab="patches") as page:
-        page.app._set_artifacts_project_scope("alpha", picked=True)
-        await page.press("1")
-        commits_pane = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
-        await page.wait_for(lambda _state: commits_pane.result is commits)
-        await page.press("apostrophe", "1")
-        assert page.app._artifacts_jump_history["stitches"] == (
-            "commit",
-            "alpha",
-            commits.commits[0].commit.full_id,
-        )
-
-        page.app.current_artifacts_subtab = "bugs"
-        bugs_pane = page.query_one_widget("#artifacts-bugs-pane", ArtifactsBugsPane)
-        await page.wait_for(lambda _state: bugs_pane.issues == bugs.issues)
-        await page.press("apostrophe", "1")
-        await page.press("apostrophe")
-        footer = page.query_one_widget("#keybinding-content", Static)
-        assert "' back" in footer.content.plain
-        bugs_pane.accept_snapshot(_bugs_snapshot((_issue(9),)))
-        assert "JUMP" not in footer.content.plain
-        assert page.app._entry_jump_mode_active is False
-        await page.press("apostrophe")
-        assert "' first" in footer.content.plain
-        assert "bugs" not in page.app._artifacts_jump_history
-        await page.press("escape")
-
-        page.app.current_artifacts_subtab = "stitches"
-        await page.press("apostrophe")
-        assert "' back" in footer.content.plain
-        await page.press("apostrophe")
-        assert commits_pane.selected_entry_target() == commits_pane.entry_targets()[0]
 
 
 async def test_configured_navigation_actions_route_to_non_pr_list(

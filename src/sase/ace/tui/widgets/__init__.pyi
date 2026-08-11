@@ -14,12 +14,11 @@ from .alias_overrides_indicator import (
 from .ancestors_children_panel import AncestorsChildrenPanel as AncestorsChildrenPanel
 from .artifacts.panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
 from .artifacts.beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
-from .artifacts.bugs import ArtifactsBugsPane as ArtifactsBugsPane
 from .artifacts.chats_pane import ArtifactsChatsPane as ArtifactsChatsPane
 from .artifacts.files_pane import ArtifactsFilesPane as ArtifactsFilesPane
 from .artifacts.files_view import ArtifactsFilesView as ArtifactsFilesView
 from .artifacts.plans_pane import ArtifactsPlansPane as ArtifactsPlansPane
-from .artifacts.panes import ArtifactsPrsPane as ArtifactsPrsPane
+from .artifacts.panes import ArtifactsPatchesPane as ArtifactsPatchesPane
 from .artifacts.types import ArtifactsSubTab as ArtifactsSubTab
 from .artifacts.view import ArtifactsView as ArtifactsView
 from .axe_dashboard import AxeDashboard as AxeDashboard

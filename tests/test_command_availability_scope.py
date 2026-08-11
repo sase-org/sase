@@ -89,7 +89,9 @@ def test_direct_fold_palette_commands_follow_active_context_scale() -> None:
         spec = catalog[f"fold.set_level_{position}"]
         assert is_command_available(
             spec,
-            CommandContext(tab="changespecs", artifacts_subtab="prs"),  # legacy tab id
+            CommandContext(
+                tab="changespecs", artifacts_subtab="patches"
+            ),  # legacy tab id
         )
         assert not is_command_available(
             spec,
@@ -132,7 +134,7 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
 
     assert is_command_available(show_help, CommandContext(tab="agents"))
     assert is_command_available(show_help, CommandContext(tab="axe"))
-    for subtab in ("prs", "stitches", "bugs", "beads", "plans", "chats", "other"):
+    for subtab in ("patches", "stitches", "beads", "plans", "chats", "other"):
         assert is_command_available(
             show_help,
             CommandContext(tab="changespecs", artifacts_subtab=subtab),  # type: ignore[arg-type]  # legacy tab id
@@ -145,9 +147,9 @@ def test_bead_issue_palette_commands_are_scoped_to_beads_subtab() -> None:
     direct_mode = catalog["app.start_bead_issue_mode"]
 
     beads_ctx = CommandContext(tab="artifacts", artifacts_subtab="beads")
-    bugs_ctx = CommandContext(tab="artifacts", artifacts_subtab="bugs")
+    stitches_ctx = CommandContext(tab="artifacts", artifacts_subtab="stitches")
 
     assert is_command_available(command, beads_ctx)
     assert is_command_available(direct_mode, beads_ctx)
-    assert not is_command_available(command, bugs_ctx)
-    assert not is_command_available(direct_mode, bugs_ctx)
+    assert not is_command_available(command, stitches_ctx)
+    assert not is_command_available(direct_mode, stitches_ctx)

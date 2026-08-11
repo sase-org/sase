@@ -63,8 +63,8 @@ async def test_history_word_completion_panel_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await _mount_prompt_bar(page)
         bar.show_file_completions(

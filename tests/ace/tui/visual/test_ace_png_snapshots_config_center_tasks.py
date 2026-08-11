@@ -81,8 +81,8 @@ async def test_config_center_tasks_tab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _seed_tasks_tab_queue(page.app)
         _, pane = await _open_tasks_modal(page)
         option_list = pane.query_one("#tasks-list", OptionList)

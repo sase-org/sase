@@ -41,7 +41,7 @@ class ClipboardArtifactsMixin(
                 "patches",
                 "changespecs",  # legacy compatibility alias
             }
-            and self.current_artifacts_pane_key != "prs"
+            and self.current_artifacts_pane_key != "patches"
         )
 
     def _handle_artifacts_copy_key(self, key: str) -> bool:
@@ -101,7 +101,7 @@ class ClipboardArtifactsMixin(
                 str(subtab_keys["body"]): lambda: self._copy_bead_target("body"),
                 str(subtab_keys["design"]): lambda: self._copy_bead_target("design"),
             }
-        elif subtab == "other":
+        else:
             handlers = {
                 str(subtab_keys["contents"]): lambda: self._copy_file_target(
                     "contents"
@@ -109,13 +109,6 @@ class ClipboardArtifactsMixin(
                 str(subtab_keys["path"]): lambda: self._copy_file_target("path"),
                 str(subtab_keys["source"]): lambda: self._copy_file_target("source"),
                 str(subtab_keys["label"]): lambda: self._copy_file_target("label"),
-            }
-        else:
-            handlers = {
-                str(subtab_keys["number"]): lambda: self._copy_bug_target("number"),
-                str(subtab_keys["url"]): lambda: self._copy_bug_target("url"),
-                str(subtab_keys["title"]): lambda: self._copy_bug_target("title"),
-                str(subtab_keys["prompt"]): lambda: self._copy_bug_target("prompt"),
             }
 
         handler = handlers.get(key)

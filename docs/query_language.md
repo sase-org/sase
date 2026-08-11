@@ -1,8 +1,9 @@
 # Query Language Reference
 
 The Patch query language filters Patches using boolean expressions that combine string
-matching, property filters, and operational shorthands. It is used by the PRs sub-tab in
-`sase ace [query]` and by other Patch filters such as `sase axe start --query`.
+matching, property filters, and operational shorthands. It is used by the Patches
+sub-tab in `sase ace [query]` and by other Patch filters such as
+`sase axe start --query`.
 
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
 from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent

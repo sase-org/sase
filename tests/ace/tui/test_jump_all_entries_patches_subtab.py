@@ -1,7 +1,7 @@
-"""Regression: jump-all modal Patch jumps land on the Artifacts PRs sub-tab.
+"""Regression: jump-all modal Patch jumps land on the Artifacts Patches sub-tab.
 
 ``action_jump_to_all_entries`` only lists Patch entries under the
-Artifacts tab, so PRs is unconditionally the right pane to land on there.
+Artifacts tab, so Patches is unconditionally the right pane to land on there.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class _FakeApp(NavigationModalMixin):
         self._save_current_tab_position_calls += 1
 
 
-def test_jump_to_patch_entry_selects_prs_subtab() -> None:
+def test_jump_to_patch_entry_selects_patches_subtab() -> None:
     app = _FakeApp()
     app.action_jump_to_all_entries()
     assert app._on_dismiss is not None
@@ -41,7 +41,7 @@ def test_jump_to_patch_entry_selects_prs_subtab() -> None:
     app._on_dismiss(JumpAllResult(tab="patches", index=2))
 
     assert app.current_tab == "patches"
-    assert app.current_artifacts_subtab == "prs"
+    assert app.current_artifacts_subtab == "patches"
     assert app.current_idx == 2
 
 

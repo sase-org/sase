@@ -17,7 +17,6 @@ from ._artifact_target_marked import ClipboardArtifactMarkedTargetsMixin
 from ._artifact_target_values import (
     artifact_file_contents,
     bead_copy_value,
-    bug_prompt,
     commit_plan_reference,
 )
 
@@ -246,44 +245,6 @@ class ClipboardArtifactSelectedTargetsMixin(ClipboardArtifactMarkedTargetsMixin)
             copied_message=copied_message,
             task_name=f"sase-file-copy-{target}",
         )
-
-    def _copy_bug_target(self, target: str) -> None:
-        pane = self._bugs_pane()  # type: ignore[attr-defined]
-        marked = self._visible_marked_targets(pane)
-        if marked is not None:
-            self._copy_marked_bug_targets(pane, marked, target)
-            return
-        context = self._selected_bug_copy_context()  # type: ignore[attr-defined]
-        if context is None:
-            self.notify("No bug selected", severity="warning")  # type: ignore[attr-defined]
-            return
-        pane, issue, project = context
-
-        if target == "number":
-            self._schedule_artifacts_copy(
-                f"#{issue.number}",
-                copied_message=f"Copied issue #{issue.number}",
-            )
-        elif target == "title":
-            self._schedule_artifacts_copy(
-                issue.title,
-                copied_message="Copied issue title",
-            )
-        elif target == "url":
-            from ..artifact_bugs import resolved_bug_url
-
-            self._schedule_artifacts_copy(
-                lambda: resolved_bug_url(project, issue),
-                copied_message=f"Copied issue #{issue.number} URL",
-                task_name="sase-bug-copy-url",
-            )
-        else:
-            self._schedule_artifacts_copy(
-                lambda: bug_prompt(pane, issue, project),
-                copied_message=f"Copied issue #{issue.number} agent prompt",
-                task_name="sase-bug-copy-prompt",
-                content_shaped=True,
-            )
 
 
 __all__ = ["ClipboardArtifactSelectedTargetsMixin"]

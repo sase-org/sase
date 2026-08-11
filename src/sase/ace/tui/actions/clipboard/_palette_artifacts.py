@@ -245,6 +245,4 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
         return f"{getattr(issue, 'id', '')} · {getattr(issue, 'title', '')}"
     if subtab == "chats":
         return str(getattr(value, "basename", ""))
-    if subtab == "bugs":
-        return f"#{getattr(value, 'number', '')} · {getattr(value, 'title', '')}"
     return str(getattr(value, "label", "") or getattr(value, "path", ""))

@@ -52,14 +52,14 @@ class ArtifactsNavigationActionsMixin:
     def _non_pr_artifacts_active(self) -> bool:
         return (
             self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_pane_key != "prs"
+            and self.current_artifacts_pane_key != "patches"
         )
 
     def _sync_active_artifacts_entry_state(self) -> None:
         """Align footer and lazy scope setup with the visible Artifacts pane."""
         if self.current_tab != ARTIFACTS_TAB:
             return
-        if self.current_artifacts_pane_key == "prs":
+        if self.current_artifacts_pane_key == "patches":
             self._refresh_display()  # type: ignore[attr-defined]
             return
 
@@ -84,7 +84,7 @@ class ArtifactsNavigationActionsMixin:
         pane_key: ArtifactsPaneKey | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_pane = pane_key or self.current_artifacts_pane_key
-        if target_pane == "prs":
+        if target_pane == "patches":
             return None
         view = self._artifacts_view()
         if view is None:
@@ -171,7 +171,7 @@ class ArtifactsNavigationActionsMixin:
 
     def _clear_all_artifacts_marks(self) -> None:
         """Drop every pane's marks after the shared project scope changes."""
-        for pane_key in ("stitches", "bugs", "beads", "plans", "chats", "other"):
+        for pane_key in ("stitches", "beads", "plans", "chats", "other"):
             self._clear_artifacts_marks_for_pane(pane_key)
 
     def _clear_artifacts_marks_for_pane(self, pane_key: ArtifactsPaneKey) -> None:
@@ -348,9 +348,12 @@ class ArtifactsNavigationActionsMixin:
             self._cancel_non_pr_artifacts_jump_mode()
 
     def _switch_artifacts_subtab(self, subtab: ArtifactsSubTab) -> None:
-        from ..artifact_tabs import switch_to_artifacts_subtab
+        from ..artifact_tabs import (
+            normalize_artifacts_subtab,
+            switch_to_artifacts_subtab,
+        )
 
-        switch_to_artifacts_subtab(self, subtab)
+        switch_to_artifacts_subtab(self, normalize_artifacts_subtab(subtab))
 
     def _cycle_artifacts_subtab(self, step: int) -> None:
         if self.current_tab != ARTIFACTS_TAB:
@@ -408,14 +411,19 @@ class ArtifactsNavigationActionsMixin:
 
         self._cycle_files_subtab(-1)
 
+    def action_show_artifacts_patches(self) -> None:
+        self._switch_artifacts_subtab("patches")
+
     def action_show_artifacts_prs(self) -> None:
-        self._switch_artifacts_subtab("prs")
+        """Deprecated alias for :meth:`action_show_artifacts_patches`."""
+        self._switch_artifacts_subtab("patches")
 
     def action_show_artifacts_stitches(self) -> None:
         self._switch_artifacts_subtab("stitches")
 
     def action_show_artifacts_bugs(self) -> None:
-        self._switch_artifacts_subtab("bugs")
+        """Deprecated alias routing the retired Bugs sub-tab to Beads."""
+        self._switch_artifacts_subtab("beads")
 
     def action_show_artifacts_beads(self) -> None:
         self._switch_artifacts_subtab("beads")

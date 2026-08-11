@@ -68,7 +68,7 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 | Tab           | Description                                                                    |
 | ------------- | ------------------------------------------------------------------------------ |
 | **Agents**    | View running and completed agents, their files and prompts                     |
-| **Artifacts** | Browse five top-level views, with Plans, Chats, and Other nested beneath Files |
+| **Artifacts** | Browse four top-level views, with Plans, Chats, and Other nested beneath Files |
 | **Axe**       | Monitor the Axe daemon and background commands                                 |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press
@@ -85,29 +85,29 @@ counter shows how many keymaps and sections matched. The filter follows you acro
 tab switches while Help stays open, but resets whenever the panel is closed and
 reopened. `Esc` clears an active filter before it closes the Help modal.
 
-On first use, empty tabs render onboarding states instead of blank panels: the PRs view
-shows a getting-started card when no Patches or saved queries exist yet, and the Agents
-tab walks through launching a first agent — the project/Patch launch hint appears only
-when a launchable target exists — and can recommend installing plugins from the Admin
-Center when no third-party plugins are installed. Onboarding cards carry "learn more"
-links into the published docs. An empty Beads pane points agents to `/sase_new_task`,
-calls out sized draft tasks, and explains how ready tasks enter TaskTriage.
+On first use, empty tabs render onboarding states instead of blank panels: the Patches
+view shows a getting-started card when no Patches or saved queries exist yet, and the
+Agents tab walks through launching a first agent — the project/Patch launch hint appears
+only when a launchable target exists — and can recommend installing plugins from the
+Admin Center when no third-party plugins are installed. Onboarding cards carry "learn
+more" links into the published docs. An empty Beads pane points agents to
+`/sase_new_task`, calls out sized draft tasks, and explains how ready tasks enter
+TaskTriage.
 
-Within Artifacts, the top-level strip is numbered **1 Stitches · 2 Beads · 3 Bugs · 4
-PRs · 5 Files**. Press `1`–`5` to jump directly to a view, or use `[` / `]` to cycle.
-Files contains a second strip — **Plans · Chats · Other** — cycled with `(` / `)`. The
-nested selection is remembered when you leave Files. These keys act only while Artifacts
-is visible. Press `p` in Stitches, Beads, Bugs, Plans, Chats, or Other to change the
-shared project scope, or use the command palette to jump directly to a top-level view.
-PRs remains query-scoped and retains the existing Patch workflow.
+Within Artifacts, the top-level strip is numbered **1 Stitches · 2 Patches · 3 Beads · 4
+Files**. Press `1`–`4` to jump directly to a view, or use `[` / `]` to cycle. Files
+contains a second strip — **Plans · Chats · Other** — cycled with `(` / `)`. The nested
+selection is remembered when you leave Files. These keys act only while Artifacts is
+visible. Press `p` in Stitches, Beads, Plans, Chats, or Other to change the shared
+project scope, or use the command palette to jump directly to a top-level view. Patches
+remains query-scoped and retains the existing Patch workflow.
 
-### Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs
+### Navigation in Stitches, Beads, Plans, Chats, and Other
 
-The six non-PR panes share fast navigation over their selectable left-panel entries.
-Stitches, Chats, and Other skip day headings; Beads and Plans skip section and
-empty-state rows; Bugs always targets the issue list rather than its separately
-focusable Linked work list. Movement clamps at the first or last entry and silently does
-nothing when a list is empty.
+The five non-Patches panes share fast navigation over their selectable left-panel
+entries. Stitches, Chats, and Other skip day headings; Beads and Plans skip section and
+empty-state rows. Movement clamps at the first or last entry and silently does nothing
+when a list is empty.
 
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |
@@ -119,7 +119,7 @@ nothing when a list is empty.
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the pane's jump stack; back falls through to first hint |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately
-for each non-PR pane, and stale origins disappear automatically after filtering,
+for each non-Patches pane, and stale origins disappear automatically after filtering,
 changing project scope, refreshing data, or collapsing an expanded bead tree. Escape or
 an invalid hint exits jump mode. These actions use the configured keymap values; the
 keys above are the defaults.
@@ -143,10 +143,10 @@ not. Changes that shift which row is where — refiltering the model picker, pag
 deleting in the revival modal — discard the stored origins instead of leaving them
 pointing at whatever row inherited the index.
 
-### Copy Mode in Stitches, Beads, Plans, Chats, Other, and Bugs
+### Copy Mode in Stitches, Beads, Plans, Chats, and Other
 
-Press `%` on any non-PR Artifacts pane to open the context-aware **Copy as…** palette
-for the visible entry. Rows are grouped by representation, show their configured
+Press `%` on any non-Patches Artifacts pane to open the context-aware **Copy as…**
+palette for the visible entry. Rows are grouped by representation, show their configured
 accelerator and a warm preview, and can be selected with the mouse, arrow keys or
 `j`/`k` plus `Enter`, or the accelerator directly. `q`/`Esc` cancels. If an accelerator
 is configured as `j`, `k`, or `q`, the configured copy target wins over navigation or
@@ -159,7 +159,6 @@ cancellation.
 | Plans    | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
 | Chats    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                                 |
 | Other    | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
-| Bugs     | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%b` `#N` · `%u` URL · `%t` title · `%p` agent prompt                    |
 
 `%s` captures the current `sase ace` tmux pane on every view.
 
@@ -179,12 +178,12 @@ including the preview panel. Dismissing the palette returns to the underlying mo
 Snapshot choices dismiss the palette before capture, so the palette itself is not
 included in the copied pane.
 
-### Marks in Stitches, Beads, Plans, Chats, Other, and Bugs
+### Marks in Stitches, Beads, Plans, Chats, and Other
 
 Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks.
-Each non-PR pane keeps an independent stable-target mark set, so marks survive refreshes
-and switching panes without affecting marked PRs. Changing the shared Artifacts project
-scope clears the non-PR marks.
+Each non-Patches pane keeps an independent stable-target mark set, so marks survive
+refreshes and switching panes without affecting marked PRs. Changing the shared
+Artifacts project scope clears the non-Patches marks.
 
 When marks exist, the pane's `%` copy targets operate on marked entries in visible order
 instead of only the selected entry. Identity, location, and data representations use
@@ -281,7 +280,7 @@ repository/project aliases work for both inclusion and exclusion.
 
 ### Beads Pane
 
-The top-level Beads view (`2`) is the work-item home for standalone tasks, epic plan
+The top-level Beads view (`3`) is the work-item home for standalone tasks, epic plan
 beads, and their phase beads. Every bead appears once: tasks occupy their own section,
 while epics expand with `l` and collapse with `h` to reveal phases. Rows show stored
 status and ownership metadata, `✦` when a task has a pending TaskTriage decision, and
@@ -455,7 +454,7 @@ These are the default keymap values; the nine Chats actions are remappable under
 `chats_view_selected`, `chats_filters`, `chats_cycle_provenance`, `chats_open_agent`,
 `chats_open_external`, `chats_copy_path`, and `chats_refresh`. The pane also shares the
 navigation and jump keys described in
-[Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs](#navigation-in-stitches-beads-plans-chats-other-and-bugs).
+[Navigation in Stitches, Beads, Plans, Chats, and Other](#navigation-in-stitches-beads-plans-chats-and-other).
 
 `a` matches a transcript to an agent by artifact directory, then by raw name suffix,
 then by recorded local agent name, always within the transcript's own project. When
@@ -543,7 +542,7 @@ These are the default keymap values; the eleven Other-pane actions retain their
 `files_view_selected`, `files_open_viewer`, `files_open_external`, `files_open_agent`,
 `files_filters`, `files_cycle_kind`, `files_copy_reference`, `files_copy_path`, and
 `files_refresh`. The pane also shares the navigation and jump keys described in
-[Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs](#navigation-in-stitches-beads-plans-chats-other-and-bugs).
+[Navigation in Stitches, Beads, Plans, Chats, and Other](#navigation-in-stitches-beads-plans-chats-and-other).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
 Markdown source they were rendered from when the index recorded one. Relative index
@@ -599,7 +598,7 @@ launch routing uses the same `@small_worker` fallback.
 | Epic clan summary, `sase bead show`, and epic work preview               | Continues using persisted bead sizes, which these execution surfaces already exposed.                                                                                                                                                                                                                  |
 | Raw approval, validation/schema, source/PDF, and mobile attachment paths | Remains a lossless generic/source view; authored phase metadata is preserved without a second summary.                                                                                                                                                                                                 |
 
-## Keybindings: Artifacts / PRs
+## Keybindings: Artifacts / Patches
 
 ### Navigation
 
@@ -615,39 +614,40 @@ launch routing uses the same `@small_worker` fallback.
 | `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the
-> Agents tab and the PRs sub-tab (each surface keeps its own in-session mode). On the
-> AXE tab it is a silent no-op. See [PR Grouping and Folding](#pr-grouping-and-folding)
-> and the Agents-tab [Grouping Modes](#grouping-modes) below.
+> Agents tab and the Patches sub-tab (each surface keeps its own in-session mode). On
+> the AXE tab it is a silent no-op. See
+> [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab
+> [Grouping Modes](#grouping-modes) below.
 
 ### PR Actions
 
-| Key             | Action                                                                    |
-| --------------- | ------------------------------------------------------------------------- |
-| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)               |
-| `b`             | Rebase PR onto parent                                                     |
-| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                     |
-| `d`             | Show diff (PRs sub-tab only; `d` is the Axe description toggle elsewhere) |
-| `e`             | Edit spec file                                                            |
-| `f`             | Edit hooks (re-run / delete via hint input)                               |
-| `M`             | Mail PR                                                                   |
-| `m`             | Mark / unmark current PR (auto-advances to next)                          |
-| `n`             | Rename PR (non-Sub/Rev PRs only)                                          |
-| `o`             | Mark PR origin (`sase`/`external`/`unknown`)                              |
-| `R`             | Rewind to previous commit (`!` suffix skips VCS operations)               |
-| `s`             | Change status (opens status modal)                                        |
-| `S`             | Bulk status change for all marked PRs                                     |
-| `T`             | Checkout + tmux (opens workspace input modal for number)                  |
-| `u`             | Clear all marks                                                           |
-| `v`             | View files (hint mode)                                                    |
-| `w`             | Reword PR description                                                     |
-| `W`             | Add tag to PR description                                                 |
-| `Y`             | Sync workspace                                                            |
+| Key             | Action                                                                        |
+| --------------- | ----------------------------------------------------------------------------- |
+| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                   |
+| `b`             | Rebase PR onto parent                                                         |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                         |
+| `d`             | Show diff (Patches sub-tab only; `d` is the Axe description toggle elsewhere) |
+| `e`             | Edit spec file                                                                |
+| `f`             | Edit hooks (re-run / delete via hint input)                                   |
+| `M`             | Mail PR                                                                       |
+| `m`             | Mark / unmark current PR (auto-advances to next)                              |
+| `n`             | Rename PR (non-Sub/Rev PRs only)                                              |
+| `o`             | Mark PR origin (`sase`/`external`/`unknown`)                                  |
+| `R`             | Rewind to previous commit (`!` suffix skips VCS operations)                   |
+| `s`             | Change status (opens status modal)                                            |
+| `S`             | Bulk status change for all marked PRs                                         |
+| `T`             | Checkout + tmux (opens workspace input modal for number)                      |
+| `u`             | Clear all marks                                                               |
+| `v`             | View files (hint mode)                                                        |
+| `w`             | Reword PR description                                                         |
+| `W`             | Add tag to PR description                                                     |
+| `Y`             | Sync workspace                                                                |
 
 ### PR Grouping and Folding
 
-The PRs sub-tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`,
-or `BY_STATUS` and emits a banner row above each bucket. `BY_PROJECT` is the startup
-default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current session.
+The Patches sub-tab is always grouped — the renderer walks one of `BY_PROJECT`,
+`BY_DATE`, or `BY_STATUS` and emits a banner row above each bucket. `BY_PROJECT` is the
+startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current session.
 
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -661,7 +661,7 @@ In `BY_DATE` mode, PRs sort newest-first within each date bucket. `Today` and
 uses calendar-day subgroups; `Earlier` uses Monday-start week ranges. PRs without a
 parseable TIMESTAMPS entry fall into `(no timestamp)` under `Earlier`.
 
-The active grouping mode is shown in the PRs sub-tab's info-panel header as a
+The active grouping mode is shown in the Patches sub-tab's info-panel header as a
 `[group: <label>]` badge.
 
 | Key | Action                                                                                                                                 |
@@ -859,7 +859,7 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 | `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
 
 > **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the
-> Agents tab and the PRs sub-tab (each surface keeps its own in-session selection
+> Agents tab and the Patches sub-tab (each surface keeps its own in-session selection
 > independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
 > vim-style scroll-to-top/bottom meaning on every tab. See
 > [Grouping Modes](#grouping-modes) below.
@@ -2049,8 +2049,8 @@ budgets `max(3, min(16, floor(pane_height * 0.45)))` rows for the panel, falling
 row becomes a dim `… +N more · e` marker: nothing is silently dropped, and `e` opens the
 AXE entry editor, whose first field is the full description in a multi-line text area.
 
-Because `d` belongs to the Axe tab, `show_diff` is scoped to the PRs sub-tab. Pressing
-`d` outside PRs no longer opens a diff for an unrelated Patch.
+Because `d` belongs to the Axe tab, `show_diff` is scoped to the Patches sub-tab.
+Pressing `d` outside Patches no longer opens a diff for an unrelated Patch.
 
 ### Dynamic Sidebar Width and No-Wrap Rows
 
@@ -2219,20 +2219,19 @@ cancels, with configured target keys taking precedence.
 
 ### Editing Queries
 
-Press `/` on PRs or Axe to open the current query editor; the canonical query is
+Press `/` on Patches or Axe to open the current query editor; the canonical query is
 pre-filled. The same app-level key opens the inline filter bar on Stitches, Plans,
-Chats, and Files and remains inert on Bugs. Agents reserves bare `/` for forward inline
-metadata search, so its structured query editor uses the independent `,/` leader chord.
-Help remains `,?` on every tab.
+Chats, and Files. Agents reserves bare `/` for forward inline metadata search, so its
+structured query editor uses the independent `,/` leader chord. Help remains `,?` on
+every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
-| PRs                     | `/`                |
+| Patches                 | `/`                |
 | Stitches                | `/` (or local `f`) |
 | Plans                   | `/` (or local `f`) |
 | Chats                   | `/` (or local `f`) |
 | Files                   | `/` (or local `f`) |
-| Bugs                    | none               |
 | Agents structured query | `,/`               |
 | Axe                     | `/`                |
 
@@ -2245,17 +2244,18 @@ To save a query, prefix with `#`:
 ### Saved Queries
 
 On the Artifacts tab, press `0` followed by a slot digit (`1`-`9`, then `0` again for
-slot 0) to load that saved PR query directly -- e.g. `02` loads slot 2. This works from
-any Artifacts sub-tab, not just PRs, and always lands on the PRs sub-tab. `Esc` or any
-other non-digit key after `0` cancels without changing the query. Bare digits `1`-`5`
-still select the Artifacts sub-tabs; the saved-query slot keys live behind the `0`
-prefix so the two never collide.
+slot 0) to load that saved Patches query directly -- e.g. `02` loads slot 2. This works
+from any Artifacts sub-tab, not just Patches, and always lands on the Patches sub-tab.
+`Esc` or any other non-digit key after `0` cancels without changing the query. Bare
+digits `1`-`4` still select the Artifacts sub-tabs; the saved-query slot keys live
+behind the `0` prefix so the two never collide.
 
-Press `*` on the PRs sub-tab to open the saved-query chooser instead. Press a populated
-slot (`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press `Enter`, or
-click a row. `q`/`Esc` closes the chooser without changing the query. The chooser shows
-the saved query text and marks the active query; an empty chooser also repeats the save
-syntax. The chooser itself is unavailable from Agents, Axe, Stitches, Plans, and Bugs.
+Press `*` on the Patches sub-tab to open the saved-query chooser instead. Press a
+populated slot (`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press
+`Enter`, or click a row. `q`/`Esc` closes the chooser without changing the query. The
+chooser shows the saved query text and marks the active query; an empty chooser also
+repeats the save syntax. The chooser itself is unavailable from Agents, Axe, Stitches,
+Beads, and Plans.
 
 ### Query History
 
@@ -2264,8 +2264,8 @@ syntax. The chooser itself is unavailable from Agents, Axe, Stitches, Plans, and
 | `^` | Navigate to previous query in history |
 | `_` | Navigate to next query in history     |
 
-Query history is available on the PRs sub-tab and tracks queries as you switch between
-them.
+Query history is available on the Patches sub-tab and tracks queries as you switch
+between them.
 
 See [`docs/query_language.md`](query_language.md) for the full query syntax reference,
 including boolean expressions, status shorthands, property filters, and searchable
@@ -2317,7 +2317,7 @@ effective binding and destination.
 Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
 adaptive hints over that section's selectable rows using the same hint alphabet
 described under
-[Navigation in Stitches, Beads, Plans, Chats, Other, and Bugs](#navigation-in-stitches-beads-plans-chats-other-and-bugs),
+[Navigation in Stitches, Beads, Plans, Chats, and Other](#navigation-in-stitches-beads-plans-chats-and-other),
 a hint character moves the selection there, `'` again returns to the previous position
 (or the first hint with an empty back stack), and `Esc` cancels. Each working section's
 own keybindings table names its jump targets; two are deliberate exceptions. The
@@ -2827,7 +2827,7 @@ is selected. The following notification action types are supported:
 | `CustomGate`         | Agent/tool      | Opens the generic choices, add-ons, and feedback modal                          |
 | `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                             |
 | `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
-| `JumpToPatch`        | Sync/workflow   | Jumps to the referenced Patch on the PRs sub-tab                                |
+| `JumpToPatch`        | Sync/workflow   | Jumps to the referenced Patch on the Patches sub-tab                            |
 | `JumpToMentorReview` | Mentors         | Jumps to the Patch and opens mentor review output when available                |
 | `LaunchApproval`     | Agent           | Opens the launch approval modal for an agent-requested launch                   |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
@@ -2983,7 +2983,7 @@ Both jump modals support a jump-back feature for toggling between two entries:
 - **Fast jump**: `Ctrl+O` runs the same current-tab jump-back path without painting
   hints first; when no jump-back target exists, it selects the first current-tab hint.
 - **Forward jump**: After walking backward, `Ctrl+Shift+O` walks forward through that
-  current tab's jump stack. Agents, Artifacts/PRs, and Axe keep independent back and
+  current tab's jump stack. Agents, Artifacts/Patches, and Axe keep independent back and
   forward positions.
 
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the
@@ -2991,7 +2991,7 @@ same hint-character navigation.
 
 ## Mentor Comment Stats in PR List
 
-When a Patch has completed mentor reviews with comments, its PRs sub-tab list entry
+When a Patch has completed mentor reviews with comments, its Patches sub-tab list entry
 shows inline stats:
 
 - **checkmark + count** (e.g., `✓3`) — number of accepted comments
@@ -3002,12 +3002,12 @@ accept or read comments in the Mentor Review modal.
 
 ## PR Origin Chip
 
-A Patch with a `pr_url` shows a `PR_ORIGIN` chip next to its PR badge in the PRs sub-tab
-list and in the detail panel: nothing for the default `sase` origin (a PR SASE created
-through the tracked PR workflow), `external` for a PR SASE adopted but did not create,
-and `origin?` for `unknown` (no evidence either way). The detail panel adds a one-line
-note for `external` Patches, since AXE excludes external-origin Patches from its
-candidate selection entirely (see [AXE](axe.md)). Press `o` on a PR row (see
+A Patch with a `pr_url` shows a `PR_ORIGIN` chip next to its PR badge in the Patches
+sub-tab list and in the detail panel: nothing for the default `sase` origin (a PR SASE
+created through the tracked PR workflow), `external` for a PR SASE adopted but did not
+create, and `origin?` for `unknown` (no evidence either way). The detail panel adds a
+one-line note for `external` Patches, since AXE excludes external-origin Patches from
+its candidate selection entirely (see [AXE](axe.md)). Press `o` on a PR row (see
 [PR Actions](#pr-actions) above) to open the Mark PR Origin modal and set it explicitly,
 or run `sase patch set-origin <name> <sase|external|unknown>` (see
 [CLI Reference](cli.md#work-tracking-and-planning)). See
@@ -3755,7 +3755,7 @@ ace:
     app:
       next_patch: "n" # Remap j -> n
       prev_patch: "p" # Remap k -> p
-      edit_query: "f5" # PRs, Stitches, Plans, and Axe
+      edit_query: "f5" # Patches, Stitches, Plans, and Axe
       show_notifications: "N" # Remap i → N
 ```
 

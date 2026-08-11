@@ -57,14 +57,14 @@ class PatchQueryMixin:
         # from the Artifacts tab on a non-PR sub-tab (e.g. Stitches).
         on_prs_pane = (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
+            and getattr(self, "current_artifacts_subtab", "patches") == "patches"
         )
         if not on_prs_pane:
             if self.current_tab != "artifacts":
                 self._save_current_tab_position()  # type: ignore[attr-defined]
             from ...artifact_tabs import switch_to_artifacts_subtab
 
-            switch_to_artifacts_subtab(self, "prs")
+            switch_to_artifacts_subtab(self, "patches")
 
         from ....query import parse_query, to_canonical_string
         from ....query_history import push_to_prev_stack, save_query_history
@@ -135,7 +135,7 @@ class PatchQueryMixin:
         """Open the cached saved-query chooser on the Artifacts PRs pane."""
         if (
             self.current_tab != "artifacts"
-            or getattr(self, "current_artifacts_subtab", "prs") != "prs"
+            or getattr(self, "current_artifacts_subtab", "patches") != "patches"
         ):
             return
 

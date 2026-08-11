@@ -252,7 +252,7 @@ async def test_rapid_navigation_loads_only_the_final_detail(
     monkeypatch.setattr(files_pane, "load_file_detail", load_detail)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("5", "(")
+        await page.press("4", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: calls == [rows[0].id])
         calls.clear()

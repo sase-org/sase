@@ -134,8 +134,8 @@ async def test_stashed_prompts_indicator_badge_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
 
         # Drive the badge as if three prompts are stashed on disk so the
@@ -167,8 +167,8 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
 
         modal = StashedPromptsModal(_stash_entries())
         page.app.push_screen(modal)
@@ -216,8 +216,8 @@ async def test_stashed_prompts_bundle_preview_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
             StashedPromptsModal(
                 [
@@ -256,8 +256,8 @@ async def test_stashed_prompts_narrow_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=(100, 40)) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(StashedPromptsModal(_stash_entries()))
         await page.expect_modal("StashedPromptsModal")
         await _wait_for_stash_modal(
@@ -292,8 +292,8 @@ async def test_update_pinned_stash_preview_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(UpdatePinnedStashModal(pinned_entries))
         await page.expect_modal("UpdatePinnedStashModal")
         await _wait_for_stash_modal(

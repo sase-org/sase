@@ -273,8 +273,8 @@ async def test_custom_gate_task_triage_png_snapshot(
         patches=patches(),
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(CustomGateModal(_task_triage_modal_data()))
         await page.expect_modal("CustomGateModal")
         await wait_for_visual_idle(page)

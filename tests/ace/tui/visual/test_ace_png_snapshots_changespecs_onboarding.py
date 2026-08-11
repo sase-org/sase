@@ -37,8 +37,8 @@ async def test_patches_onboarding_png_snapshot(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.expect_state("total", 0)
         await wait_for_visual_idle(page)
@@ -66,8 +66,8 @@ async def test_patches_onboarding_no_match_png_snapshot(
         initial_tab="patches",
     ) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.expect_state("total", 0)
         await wait_for_visual_idle(page)

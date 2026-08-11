@@ -107,8 +107,8 @@ async def test_pr_palette_dispatch_and_lifecycle_parity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "prs"
-        await page.expect_state("artifacts_subtab", "prs")
+        page.app.current_artifacts_subtab = "patches"
+        await page.expect_state("artifacts_subtab", "patches")
         copy_name = MagicMock()
         monkeypatch.setattr(page.app, "_copy_cl_name", copy_name)
 
@@ -132,8 +132,8 @@ async def test_pr_palette_dispatch_and_lifecycle_parity(
 
 async def test_real_escape_and_q_restore_normal_footer() -> None:
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "prs"
-        await page.expect_state("artifacts_subtab", "prs")
+        page.app.current_artifacts_subtab = "patches"
+        await page.expect_state("artifacts_subtab", "patches")
         footer = page.query_one_widget("#keybinding-footer", KeybindingFooter)
 
         for key in ("escape", "q"):
@@ -155,8 +155,8 @@ async def test_snapshot_dispatch_waits_until_palette_is_unmounted(
 ) -> None:
     captured_frames: list[tuple[str, bool]] = []
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "prs"
-        await page.expect_state("artifacts_subtab", "prs")
+        page.app.current_artifacts_subtab = "patches"
+        await page.expect_state("artifacts_subtab", "patches")
         monkeypatch.setattr(
             page.app,
             "_copy_snapshot",
@@ -182,8 +182,8 @@ async def test_unknown_key_retains_real_palette_and_copy_mode(
 ) -> None:
     messages: list[tuple[str, str]] = []
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "prs"
-        await page.expect_state("artifacts_subtab", "prs")
+        page.app.current_artifacts_subtab = "patches"
+        await page.expect_state("artifacts_subtab", "patches")
         monkeypatch.setattr(
             page.app,
             "notify",
@@ -211,8 +211,8 @@ async def test_copy_palette_stacks_over_forwarding_modal() -> None:
         content="# Copy as palette",
     )
     async with AcePage() as page:
-        page.app.current_artifacts_subtab = "prs"
-        await page.expect_state("artifacts_subtab", "prs")
+        page.app.current_artifacts_subtab = "patches"
+        await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
 

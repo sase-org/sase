@@ -15,8 +15,8 @@ async def _open_picker(
     page: AcePage,
     queries: dict[str, str],
 ) -> SavedQueryPickerModal:
-    await page.press("4")
-    await page.expect_state("artifacts_subtab", "prs")
+    await page.press("2")
+    await page.expect_state("artifacts_subtab", "patches")
     page.app._saved_queries = dict(queries)
     await page.press("asterisk")
     await page.expect_modal("SavedQueryPickerModal")
@@ -156,12 +156,12 @@ async def test_picker_is_pr_only_and_bare_digits_only_switch_artifacts() -> None
         await page.expect_state("artifacts_subtab", "stitches")
         assert page.app.canonical_query_string == '"feature"'
 
-        for subtab_key in ("1", "2", "3", "5"):
+        for subtab_key in ("1", "3", "4"):
             await page.press(subtab_key, "asterisk")
             await page.pause()
             assert page.state["modal"] is None
 
-        await page.press("4", "asterisk")
+        await page.press("2", "asterisk")
         await page.expect_modal("SavedQueryPickerModal")
 
 
@@ -189,8 +189,8 @@ async def test_malformed_cached_query_reports_error_without_crashing(
 
 async def test_focused_query_input_can_type_artifact_file_digits_and_star() -> None:
     async with AcePage(query='"feature"') as page:
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
         query_input = page.app.screen.query_one(
@@ -201,4 +201,4 @@ async def test_focused_query_input_can_type_artifact_file_digits_and_star() -> N
         await page.press("1", "asterisk")
         await page.pause()
         assert query_input.text.endswith("1*")
-        assert page.app.current_artifacts_subtab == "prs"
+        assert page.app.current_artifacts_subtab == "patches"

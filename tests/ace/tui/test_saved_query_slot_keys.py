@@ -12,8 +12,8 @@ from sase.ace.testing import AcePage
 async def test_zero_then_digit_loads_slot_from_prs_subtab() -> None:
     """``0`` then a populated slot digit loads that slot from the PRs pane."""
     async with AcePage() as page:
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {"2": '"slot2"'}
 
         await page.press("0")
@@ -34,15 +34,15 @@ async def test_zero_then_digit_from_commits_lands_on_prs() -> None:
         await page.press("3")
         await page.pause()
 
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("query", '"slot3"')
 
 
 async def test_zero_then_zero_loads_slot_zero() -> None:
     """``00`` loads slot 0."""
     async with AcePage() as page:
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {"0": '"slot0"'}
 
         await page.press("0")
@@ -55,8 +55,8 @@ async def test_zero_then_zero_loads_slot_zero() -> None:
 async def test_zero_then_empty_slot_leaves_query_unchanged() -> None:
     """A digit for an empty slot leaves the current query unchanged."""
     async with AcePage() as page:
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {}
         original_query = page.state["query"]
 
@@ -73,7 +73,7 @@ async def test_bare_digit_still_switches_subtab_without_prefix() -> None:
     async with AcePage() as page:
         await page.expect_state("artifacts_subtab", "stitches")
 
-        await page.press("2")
+        await page.press("3")
         await page.pause()
 
         await page.expect_state("artifacts_subtab", "beads")
@@ -83,8 +83,8 @@ async def test_bare_digit_still_switches_subtab_without_prefix() -> None:
 async def test_zero_then_escape_cancels() -> None:
     """``Esc`` after ``0`` cancels: mode flag cleared, query unchanged."""
     async with AcePage() as page:
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {"2": '"slot2"'}
         original_query = page.state["query"]
 

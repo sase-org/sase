@@ -14,7 +14,6 @@ from sase.project_display_names import (
 
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import ARTIFACTS_SUBTAB_ORDER, FILES_SUBTAB_ORDER
-from .artifact_bugs import BUG_ARTIFACT_ACTIONS
 from .artifacts_beads import ArtifactsBeadsActionsMixin, BEADS_ARTIFACT_ACTIONS
 from .artifacts_chats import ArtifactsChatsActionsMixin, CHATS_ARTIFACT_ACTIONS
 from .artifacts_commits import (
@@ -30,12 +29,12 @@ if TYPE_CHECKING:
 
 
 # When a non-PR pane is active, the top-level internal id is still
-# ``patches``. This allowlist prevents historical PR bindings from acting
+# ``artifacts`` (``ARTIFACTS_TAB``); ``patches`` and ``changespecs`` are its
+# legacy tab ids. This allowlist prevents historical PR bindings from acting
 # on a hidden selection while retaining truly global actions and the scaffold's
 # navigation/scope controls.
 NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
-        *BUG_ARTIFACT_ACTIONS,
         *COMMITS_ARTIFACT_ACTIONS,
         *BEADS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
@@ -49,6 +48,8 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "cycle_files_subtab",
         "cycle_files_subtab_reverse",
         *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
+        "show_artifacts_bugs",
+        "show_artifacts_prs",
         "pick_artifacts_project",
         "start_saved_query_mode",
         "scroll_to_top",
@@ -323,7 +324,7 @@ class ArtifactsMixin(
         """Open the shared project-scope picker for project-backed panes."""
         if (
             self.current_tab != ARTIFACTS_TAB
-            or self.current_artifacts_pane_key == "prs"
+            or self.current_artifacts_pane_key == "patches"
         ):
             return
         if self._artifacts_project_choices is None:

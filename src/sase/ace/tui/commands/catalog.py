@@ -123,11 +123,13 @@ def _iter_projects_command() -> Iterator[CommandSpec]:
 def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
     """Yield numbered direct jumps for every Artifacts sub-tab."""
     for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
-        label = "PRs" if subtab == "prs" else subtab.title()
         key = str(index)
+        aliases: tuple[str, ...] = ("artifacts", subtab, f"artifact {subtab}")
+        if subtab == "patches":
+            aliases = (*aliases, "prs")
         yield CommandSpec(
             id=f"artifacts.{subtab}",
-            label=f"Show Artifacts: {label}",
+            label=f"Show Artifacts: {subtab.title()}",
             key_sequence=(key,),
             key_display=key,
             category="Tabs",
@@ -136,7 +138,7 @@ def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
                 kind="app_action",
                 action=f"show_artifacts_{subtab}",
             ),
-            aliases=("artifacts", subtab, f"artifact {subtab}"),
+            aliases=aliases,
         )
 
 

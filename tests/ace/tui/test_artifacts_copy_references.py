@@ -23,18 +23,18 @@ async def test_marked_reference_handoff_seeds_one_project_prompt(
     app = CopyHarness()
     app._show_prompt_input_bar_for_home = MagicMock()  # type: ignore[attr-defined]
     selection = _artifacts._ArtifactReferenceSelection(
-        subtab="bugs",
+        subtab="beads",
         items=(
             _artifacts._ArtifactReferenceItem(
-                "#41",
-                ("bug", "alpha", "41"),
+                "sase-b41",
+                ("bead", "alpha", "task", "alpha-41"),
                 None,
                 "alpha",
                 "/tmp",
             ),
             _artifacts._ArtifactReferenceItem(
-                "#42",
-                ("bug", "alpha", "42"),
+                "sase-b42",
+                ("bead", "alpha", "task", "alpha-42"),
                 None,
                 "alpha",
                 "/tmp",
@@ -54,7 +54,7 @@ async def test_marked_reference_handoff_seeds_one_project_prompt(
                 _artifacts._ResolvedArtifactItem(item, reference, None)
                 for item, reference in zip(
                     selection.items,
-                    ("bug:Alpha#41", "bug:Alpha#42"),
+                    ("bead:sase-b41", "bead:sase-b42"),
                     strict=True,
                 )
             ),
@@ -76,7 +76,7 @@ async def test_marked_reference_handoff_seeds_one_project_prompt(
     await pending.pop()
 
     app._show_prompt_input_bar_for_home.assert_called_once_with(
-        initial_text="#gh:Alpha @bug:Alpha#41 @bug:Alpha#42 ",
+        initial_text="#gh:Alpha @bead:sase-b41 @bead:sase-b42 ",
         display_name="Alpha artifact reference",
         history_sort_key="alpha",
     )
@@ -363,17 +363,6 @@ def test_reference_resolver_renders_every_artifacts_identity(
                 str(tmp_path),
             ),
             "@chat:202607/agent.md",
-        ),
-        (
-            "bugs",
-            _artifacts._ArtifactReferenceItem(
-                "bug",
-                ("bug", "alpha", "42"),
-                None,
-                "alpha",
-                str(tmp_path),
-            ),
-            "@bug:Alpha#42",
         ),
     )
     for subtab, item, expected in cases:

@@ -79,13 +79,13 @@ def test_numbered_tab_strip_plain_text_and_click_ranges_without_selection() -> N
 
 async def test_tab_strip_can_uppercase_only_the_active_canonical_label() -> None:
     tabs = (
-        PanelTab("prs", "PRs", "green"),
+        PanelTab("patches", "PRs", "green"),
         PanelTab("commits", "Commits", "yellow"),
     )
 
     class _TabStripApp(App[None]):
         def compose(self):  # type: ignore[no-untyped-def]
-            yield PanelTabStrip(tabs, "prs", uppercase_active=True)
+            yield PanelTabStrip(tabs, "patches", uppercase_active=True)
 
     async with _TabStripApp().run_test() as pilot:
         strip = pilot.app.query_one(PanelTabStrip)

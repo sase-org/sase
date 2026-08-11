@@ -96,19 +96,6 @@ class AppKeymaps:
     files_copy_reference: str
     files_copy_path: str
     files_refresh: str
-    # Bugs sub-tab
-    next_bug: str
-    prev_bug: str
-    cycle_bug_filter: str
-    create_bug: str
-    edit_bug: str
-    toggle_bug_state: str
-    open_bug: str
-    copy_bug: str
-    start_agent_from_bug: str
-    focus_bug_links: str
-    activate_bug_link: str
-    refresh_bugs: str
     # Patch actions
     quit: str
     change_status: str

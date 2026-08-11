@@ -31,7 +31,6 @@ class PaletteHarness:
         self.plans_pane: Any = None
         self.chats_pane: Any = None
         self.files_pane: Any = None
-        self.bugs_pane: Any = None
         self.agent: Any = None
 
     @property
@@ -63,9 +62,6 @@ class PaletteHarness:
 
     def _files_pane(self) -> Any:
         return self.files_pane
-
-    def _bugs_pane(self) -> Any:
-        return self.bugs_pane
 
     def _get_selected_agent(self) -> Any:
         return self.agent
@@ -306,19 +302,4 @@ def controlled_artifact_pane(subtab: str) -> Any:
             selected_entry=entry,
         )
 
-    issue = SimpleNamespace(
-        number=42,
-        title="Copy palette bug",
-        body="Add a discoverable picker",
-        url="https://example.test/issues/42",
-    )
-    bug_target = ("bug", "sase", "42")
-    return SimpleNamespace(
-        issues=(issue,),
-        project_scope="sase",
-        snapshot=SimpleNamespace(display_name="SASE"),
-        entry_targets=lambda: (bug_target,),
-        selected_entry_target=lambda: bug_target,
-        selected_issue=issue,
-        _issue_target=lambda _issue: bug_target,
-    )
+    raise ValueError(f"unsupported subtab: {subtab!r}")

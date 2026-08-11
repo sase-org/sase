@@ -20,7 +20,7 @@ async def test_parenthesis_keys_cycle_only_inside_files_with_wraparound() -> Non
         assert page.app.current_artifacts_subtab == "stitches"
         assert page.app.current_files_subtab == "plans"
 
-        await page.press("5", ")")
+        await page.press("4", ")")
         await page.expect_state("files_subtab", "chats")
         await page.press(")")
         await page.expect_state("files_subtab", "other")
@@ -37,7 +37,7 @@ async def test_files_child_is_remembered_and_only_visible_child_is_active() -> N
         chats = page.query_one_widget("#artifacts-chats-pane", ArtifactsChatsPane)
         other = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
 
-        await page.press("5")
+        await page.press("4")
         assert files_view.artifacts_active is True
         assert plans.artifacts_active is True
         assert chats.artifacts_active is False
@@ -54,7 +54,7 @@ async def test_files_child_is_remembered_and_only_visible_child_is_active() -> N
         assert chats.artifacts_active is False
         assert other.artifacts_active is False
 
-        await page.press("5")
+        await page.press("4")
         await page.expect_state("files_subtab", "chats")
         assert chats.artifacts_active is True
         assert chats.activation_count == 2
@@ -63,7 +63,7 @@ async def test_files_child_is_remembered_and_only_visible_child_is_active() -> N
 
 async def test_marks_and_jump_history_are_isolated_by_leaf_pane_key() -> None:
     async with AcePage(initial_tab="patches") as page:
-        await page.press("5")
+        await page.press("4")
         plan_target = ("plan", "sase", "archive", "one")
         chat_target = ("chat", "/tmp/chat.md")
         page.app._artifacts_marked_targets["plans"] = {plan_target}

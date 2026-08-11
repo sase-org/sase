@@ -31,8 +31,8 @@ async def test_prompt_cursor_readout_solo_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_READOUT_SOLO_PROMPT)
         text_area = bar.active_text_area()
@@ -64,8 +64,8 @@ async def test_prompt_cursor_readout_stack_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_READOUT_STACK_PROMPT)
 

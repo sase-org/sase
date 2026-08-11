@@ -394,8 +394,8 @@ three top-level tabs:
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps,
   prompt panels, transcript panels, artifact viewers, tool metadata, file panels,
   retry/fork/wait/kill actions, and model/provider badges.
-- **Artifacts**: Stitches, Beads, Bugs, PRs, and Files top-level views, with Plans,
-  Chats, and Other nested under Files. The PRs view owns Patch status, hooks, comments,
+- **Artifacts**: Stitches, Patches, Beads, and Files top-level views, with Plans, Chats,
+  and Other nested under Files. The Patches view owns Patch status, hooks, comments,
   mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and
   archive operations; Chats browses transcripts with local/shared/remote sync
   provenance.
@@ -437,10 +437,10 @@ In practice, this means you can:
 <!--
 SCREENSHOT BRIEF 2 - place after the VCS paragraph above.
 Asset suggestion: docs/images/blog/00-ace-prs-diff.png
-View: ACE Artifacts tab with the PRs sub-tab focused on one Patch with file deltas and diff preview visible.
+View: ACE Artifacts tab with the Patches sub-tab focused on one Patch with file deltas and diff preview visible.
 Show status, commits, and at least one action hint for diff/revert/rewind. The key visual should be "this is not just
 chat; this is reviewable code state."
-Alt text: "ACE Artifacts PRs view showing a Patch with file deltas, commits, diff preview, and VCS actions."
+Alt text: "ACE Artifacts Patches view showing a Patch with file deltas, commits, diff preview, and VCS actions."
 -->
 
 ## AXE, Lumberjacks, And Chops

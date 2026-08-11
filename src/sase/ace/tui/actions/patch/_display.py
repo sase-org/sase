@@ -78,7 +78,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             return True
         return (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
+            and getattr(self, "current_artifacts_subtab", "patches") == "patches"
         )
 
     def _get_patch_graph_index(self) -> PatchGraphIndex:

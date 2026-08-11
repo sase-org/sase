@@ -148,7 +148,7 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
         from .task_actions import TrackedTaskResult
 
         def task() -> TrackedTaskResult[IssueWire]:
-            from sase.ace.tui.artifacts_bugs import create_project_issue
+            from sase.ace.tui.external_issues import create_project_issue
             from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
             from sase.bead.mutation_commit import require_mutation_commit_message
 
@@ -210,7 +210,7 @@ def _update_issue_task(
     labels: tuple[str, ...] | None = None,
 ) -> Any:
     from sase.ace.tui.actions.task_actions import TrackedTaskResult
-    from sase.ace.tui.artifacts_bugs import update_project_issue
+    from sase.ace.tui.external_issues import update_project_issue
 
     if not link.issue_id.isdigit():
         raise ValueError(f"issue id is not numeric: {link.issue_id}")

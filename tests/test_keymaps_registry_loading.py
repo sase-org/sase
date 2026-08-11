@@ -101,6 +101,19 @@ def test_retired_plans_bead_action_overrides_are_dropped() -> None:
     assert not hasattr(reg.app, "plans_open_bug")
 
 
+def test_retired_bugs_subtab_action_overrides_are_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG, logger="sase.ace.tui.keymaps.registry"):
+        reg = load_keymap_registry(
+            {"keymaps": {"app": {"next_bug": "j", "activate_bug_link": "f8"}}}
+        )
+
+    assert not hasattr(reg.app, "next_bug")
+    assert not hasattr(reg.app, "activate_bug_link")
+    assert "Unknown keymap action" not in caplog.text
+
+
 def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     reg = load_keymap_registry(
         {

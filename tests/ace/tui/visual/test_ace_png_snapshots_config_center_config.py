@@ -45,8 +45,8 @@ async def test_config_center_config_tab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _open_config_modal(page)
 
         ace_png_visual.assert_page_png(
@@ -68,8 +68,8 @@ async def test_config_center_config_empty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
@@ -97,8 +97,8 @@ async def test_config_center_config_loading_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _open_modal(page, "config")
 
         ace_png_visual.assert_page_png(
@@ -120,8 +120,8 @@ async def test_config_center_config_long_value_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_config_modal(page)
         # Select the field whose effective value is a long query string.
         pane._do_jump("axe.query")
@@ -150,8 +150,8 @@ async def test_config_center_config_object_value_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         _, pane = await _open_config_modal(page)
         pane._do_jump("ace.lumberjack")
         await page.wait_for(lambda _s: pane._selected_path == "ace.lumberjack")
@@ -175,8 +175,8 @@ async def test_config_center_xprompts_tab_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _open_modal(page, "xprompts")
 
         ace_png_visual.assert_page_png(

@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from sase.ace.patch.models import Patch
-from sase.ace.tui.artifacts_bugs import (
+from sase.ace.tui.external_issues import (
     issue_tracker_capabilities,
     list_project_issues,
     resolve_issue_tracker_scope,

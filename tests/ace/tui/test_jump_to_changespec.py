@@ -303,7 +303,7 @@ class TestNavigateToPatchExactFirst:
 
         assert navigate_to_patch_tab(app, "feature", "/tmp/projects/proj/proj.sase")
         assert app.current_tab == "patches"
-        assert app.current_artifacts_subtab == "prs"
+        assert app.current_artifacts_subtab == "patches"
         assert app.current_idx == 1
         assert app.load_count == 0
 
@@ -312,7 +312,7 @@ class TestNavigateToPatchExactFirst:
 
         assert navigate_to_patch_tab(app, "feature", "/tmp/projects/proj/proj.sase")
         assert app.current_tab == "patches"
-        assert app.current_artifacts_subtab == "prs"
+        assert app.current_artifacts_subtab == "patches"
         assert app.current_idx == 0
         assert app.load_count == 0
 
@@ -331,7 +331,7 @@ class TestNavigateToPatchExactFirst:
             )
 
         assert app.current_tab == "patches"
-        assert app.current_artifacts_subtab == "prs"
+        assert app.current_artifacts_subtab == "patches"
         assert app.current_idx == 1
         assert app.load_count == 1
         assert app.save_count == 1

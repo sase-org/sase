@@ -59,8 +59,8 @@ async def test_help_guide_tab_uses_configured_tab_switch_keys(
     monkeypatch.setattr(AceApp, "_schedule_axe_async_refresh", lambda self: None)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         await page.press("]")

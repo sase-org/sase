@@ -30,7 +30,7 @@ from sase.ace.tui.widgets import (
     ArtifactsBeadsPane,
     ArtifactsChatsPane,
     ArtifactsFilesPane,
-    ArtifactsPrsPane,
+    ArtifactsPatchesPane,
     CommitsPane,
 )
 from sase.ace.tui.widgets.artifacts import (
@@ -59,12 +59,14 @@ def _stub_commits_collector(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
     async with AcePage(initial_tab="patches") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
-        prs = page.query_one_widget("#artifacts-prs-pane", ArtifactsPrsPane)
+        patches_pane = page.query_one_widget(
+            "#artifacts-patches-pane", ArtifactsPatchesPane
+        )
         commits = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
 
         assert view.current_subtab == "stitches"
-        assert prs.first_activation_count == 0
-        assert prs.artifacts_active is False
+        assert patches_pane.first_activation_count == 0
+        assert patches_pane.artifacts_active is False
         assert commits.first_activation_count == 1
         assert commits.artifacts_active is True
 
@@ -74,7 +76,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert page.app.check_action("next_patch", ()) is False
         assert page.app.check_action("stitches_refresh", ()) is True
         assert page.app.check_action("start_leader_mode", ()) is not False
-        assert page.app.check_action("refresh_bugs", ()) is False
+        assert page.app.check_action("beads_refresh", ()) is False
         assert page.app.check_action("plans_refresh", ()) is False
         assert page.app.check_action("chats_refresh", ()) is False
         assert page.app.check_action("files_refresh", ()) is False
@@ -86,12 +88,24 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert page.app.current_idx == old_idx
 
         await page.press("]")
-        await page.expect_state("artifacts_subtab", "beads")
+        await page.expect_state("artifacts_subtab", "patches")
         assert commits.deactivation_count == 1
+        assert page.app.check_action("stitches_refresh", ()) is False
+        assert patches_pane.activation_count == 1
+        assert page.app.focused is not None
+        assert page.app.focused.id == "list-panel"
+
+        await page.press("]")
+        await page.expect_state("artifacts_subtab", "beads")
+        assert patches_pane.deactivation_count == 1
         assert all(
             page.app.check_action(action, ()) is True
             for action in BEADS_ARTIFACT_ACTIONS
         )
+
+        await page.press("[")
+        await page.expect_state("artifacts_subtab", "patches")
+        assert patches_pane.activation_count == 2
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "stitches")
@@ -118,21 +132,8 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert files.refresh_request_count == 1
 
         await page.press("[")
-        await page.expect_state("artifacts_subtab", "prs")
-        assert page.app.check_action("stitches_refresh", ()) is False
-        assert prs.activation_count == 1
-        assert commits.deactivation_count == 2
-        assert page.app.focused is not None
-        assert page.app.focused.id == "list-panel"
-
-        await page.press("[")
-        await page.expect_state("artifacts_subtab", "bugs")
-        assert page.app.check_action("start_leader_mode", ()) is not False
-        assert page.app.check_action("refresh_bugs", ()) is True
-
-        await page.press("[")
         await page.expect_state("artifacts_subtab", "beads")
-        await page.press("5", "(")
+        await page.press("4", "(")
         await page.expect_state("artifacts_subtab", "files")
         await page.expect_state("files_subtab", "chats")
         assert page.app.check_action("chats_refresh", ()) is True
@@ -159,9 +160,9 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 
         page.app.action_start_agent_from_patch = record_repeat_agent  # type: ignore[method-assign]
 
-        expected = ("stitches", "beads", "bugs", "prs", "files")
+        expected = ("stitches", "patches", "beads", "files")
         for index, (key, subtab) in enumerate(
-            zip(("1", "2", "3", "4", "5"), expected, strict=True),
+            zip(("1", "2", "3", "4"), expected, strict=True),
             start=1,
         ):
             await page.press(key)
@@ -175,15 +176,21 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
 async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> None:
     async with AcePage(initial_tab="patches") as page:
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
-        expected = ("stitches", "beads", "bugs", "prs", "files")
+        expected = ("stitches", "patches", "beads", "files")
 
-        for start_key in ("1", "2", "3", "4", "5"):
+        for start_key in ("1", "2", "3", "4"):
             await page.press(start_key)
             await page.expect_state("artifacts_subtab", expected[int(start_key) - 1])
-            for key, subtab in zip(("1", "2", "3", "4", "5"), expected, strict=True):
+            for key, subtab in zip(("1", "2", "3", "4"), expected, strict=True):
                 await page.press(key)
                 await page.expect_state("artifacts_subtab", subtab)
                 assert switcher.current == ARTIFACTS_PANE_IDS[subtab]
+
+        await page.press("1")
+        await page.expect_state("artifacts_subtab", "stitches")
+        await page.press("5")
+        await page.pause()
+        assert page.app.current_artifacts_subtab == "stitches"
 
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
@@ -211,22 +218,22 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         commits = page.query_one_widget("#artifacts-stitches-pane", CommitsPane)
         assert (
             strip._build_content().plain
-            == " 1 STITCHES  │  2 Beads  │  3 Bugs  │  4 PRs  │  5 Files "
+            == " 1 STITCHES  │  2 Patches  │  3 Beads  │  4 Files "
         )
 
         commits.set_class(True, "test-selection-state")
 
-        strip.post_message(PanelTabStrip.TabClicked("bugs"))
-        await page.expect_state("artifacts_subtab", "bugs")
+        strip.post_message(PanelTabStrip.TabClicked("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
         assert (
             strip._build_content().plain
-            == " 1 Stitches  │  2 Beads  │  3 BUGS  │  4 PRs  │  5 Files "
+            == " 1 Stitches  │  2 PATCHES  │  3 Beads  │  4 Files "
         )
         strip.post_message(PanelTabStrip.TabClicked("stitches"))
         await page.expect_state("artifacts_subtab", "stitches")
         assert (
             strip._build_content().plain
-            == " 1 STITCHES  │  2 Beads  │  3 Bugs  │  4 PRs  │  5 Files "
+            == " 1 STITCHES  │  2 Patches  │  3 Beads  │  4 Files "
         )
 
         assert commits.first_activation_count == 1
@@ -242,10 +249,6 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         commits_module,
         "run_vcs_log",
         lambda **_kwargs: calls.append("stitches") or VcsLogResult((), (), ()),
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
-        lambda *_args, **_kwargs: calls.append("bugs"),
     )
     monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
@@ -442,9 +445,8 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         catalog = build_command_catalog(page.app._keymap_registry)
         by_id = {spec.id: spec for spec in catalog}
         expected = {
-            "artifacts.prs",
             "artifacts.stitches",
-            "artifacts.bugs",
+            "artifacts.patches",
             "artifacts.beads",
             "artifacts.files",
         }
@@ -455,20 +457,19 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
             by_id[f"artifacts.{subtab}"].key_display
             for subtab in (
                 "stitches",
+                "patches",
                 "beads",
-                "bugs",
-                "prs",
                 "files",
             )
-        ] == ["1", "2", "3", "4", "5"]
+        ] == ["1", "2", "3", "4"]
 
-        execute_command(page.app, by_id["artifacts.bugs"])
+        execute_command(page.app, by_id["artifacts.beads"])
         await page.expect_state("tab", "patches")
-        await page.expect_state("artifacts_subtab", "bugs")
+        await page.expect_state("artifacts_subtab", "beads")
 
         context = extract_command_context(page.app)
-        assert context.artifacts_subtab == "bugs"
-        assert is_command_available(by_id["artifacts.prs"], context)
+        assert context.artifacts_subtab == "beads"
+        assert is_command_available(by_id["artifacts.patches"], context)
         assert not is_command_available(by_id["app.change_status"], context)
         assert not is_command_available(by_id["app.stitches_refresh"], context)
 
@@ -476,7 +477,7 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         await page.expect_state("artifacts_subtab", "stitches")
         context = extract_command_context(page.app)
         assert is_command_available(by_id["app.stitches_refresh"], context)
-        assert not is_command_available(by_id["app.refresh_bugs"], context)
+        assert not is_command_available(by_id["app.beads_refresh"], context)
 
         execute_command(page.app, by_id["artifacts.files"])
         await page.expect_state("artifacts_subtab", "files")
@@ -499,31 +500,23 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     # the public pane-id map exhaustive for later feature phases.
     assert DEFAULT_ARTIFACTS_SUBTAB == "stitches"
     assert ARTIFACTS_SUBTAB_ORDER[0] == DEFAULT_ARTIFACTS_SUBTAB
-    assert ARTIFACTS_SUBTAB_ORDER[:5] == (
-        "stitches",
-        "beads",
-        "bugs",
-        "prs",
-        "files",
-    )
     assert ARTIFACTS_SUBTAB_ORDER == (
         "stitches",
+        "patches",
         "beads",
-        "bugs",
-        "prs",
         "files",
     )
     assert tuple(ARTIFACTS_PANE_IDS) == (
-        "prs",
+        "patches",
         "stitches",
-        "bugs",
         "beads",
         "files",
     )
+    assert ARTIFACTS_PANE_IDS["patches"] == "artifacts-patches-pane"
+    assert "bugs" not in ARTIFACTS_PANE_IDS
     assert ARTIFACTS_ACCENTS == {
-        "prs": "#00D7AF",
+        "patches": "#00D7AF",
         "stitches": "#FFD700",
-        "bugs": "#FF5F5F",
         "beads": "#D787FF",
         "plans": "#AF87FF",
         "chats": "#5FAFFF",
@@ -533,3 +526,26 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     assert FILES_SUBTAB_ORDER == ("plans", "chats", "other")
     assert tuple(FILES_PANE_IDS) == ("plans", "chats", "other")
     assert view.current_subtab == "stitches"
+
+
+async def test_action_show_artifacts_bugs_lands_on_beads() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        page.app.action_show_artifacts_bugs()
+        await page.expect_state("artifacts_subtab", "beads")
+
+
+async def test_action_show_artifacts_prs_and_switch_helper_land_on_patches() -> None:
+    from sase.ace.tui.artifact_tabs import switch_to_artifacts_subtab
+
+    async with AcePage(initial_tab="patches") as page:
+        page.app.current_artifacts_subtab = "beads"
+        await page.expect_state("artifacts_subtab", "beads")
+
+        page.app.action_show_artifacts_prs()
+        await page.expect_state("artifacts_subtab", "patches")
+
+        page.app.current_artifacts_subtab = "beads"
+        await page.expect_state("artifacts_subtab", "beads")
+
+        switch_to_artifacts_subtab(page.app, "prs")  # type: ignore[arg-type]  # legacy alias
+        await page.expect_state("artifacts_subtab", "patches")

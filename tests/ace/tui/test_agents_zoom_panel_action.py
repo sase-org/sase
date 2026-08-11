@@ -122,7 +122,7 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     assert agents_app.check_action("start_fold_mode", ()) is not False
     assert agents_app.check_action("zoom_panel", ()) is not False
     assert patches_app.check_action("zoom_panel", ()) is False
-    patches_app.current_artifacts_subtab = "prs"
+    patches_app.current_artifacts_subtab = "patches"
     assert patches_app.check_action("start_fold_mode", ()) is not False
     assert axe_app.check_action("start_fold_mode", ()) is False
 
@@ -134,7 +134,7 @@ def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None
     agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
     patches_app = AceApp(auto_start_axe=False, initial_tab="patches")
     axe_app = AceApp(auto_start_axe=False, initial_tab="axe")
-    patches_app.current_artifacts_subtab = "prs"
+    patches_app.current_artifacts_subtab = "patches"
 
     for action in (
         "next_agent_metadata_section",
@@ -186,6 +186,6 @@ def test_fold_and_bead_snooze_never_contend_for_lowercase_z() -> None:
     assert app.check_action("start_fold_mode", ()) is False
     assert app.check_action("beads_snooze", ()) is not False
 
-    app.current_artifacts_subtab = "prs"
+    app.current_artifacts_subtab = "patches"
     assert app.check_action("start_fold_mode", ()) is not False
     assert app.check_action("beads_snooze", ()) is False

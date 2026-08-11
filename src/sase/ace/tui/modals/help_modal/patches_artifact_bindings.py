@@ -33,8 +33,8 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             "Artifact Views",
             [
                 (
-                    "1 / 2 / 3 / 4 / 5",
-                    "Jump five top-level views",
+                    "1 / 2 / 3 / 4",
+                    "Jump four top-level views",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
@@ -133,23 +133,6 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("b v/e/s/u/a/c", "View, edit, state, URL, attach, create"),
                 (d(a.beads_open_plan), "Go to linked plan"),
                 (d(a.beads_refresh), "Refresh beads"),
-                *artifact_list_navigation,
-            ],
-        ),
-        (
-            "Bugs Pane",
-            [
-                (f"{d(a.next_bug)} / {d(a.prev_bug)}", "Next / previous issue"),
-                (d(a.cycle_bug_filter), "Cycle open / closed / all issues"),
-                (d(a.create_bug), "Create issue"),
-                (d(a.edit_bug), "Edit selected issue"),
-                (d(a.toggle_bug_state), "Close / reopen selected issue"),
-                (d(a.open_bug), "Open issue in browser"),
-                (d(a.copy_bug), "Copy issue number and URL"),
-                (d(a.start_agent_from_bug), "Run an agent from issue context"),
-                (d(a.focus_bug_links), "Focus linked epics and patches"),
-                (d(a.activate_bug_link), "Open focused epic or Patch link"),
-                (d(a.refresh_bugs), "Refresh tracker issues"),
                 *artifact_list_navigation,
             ],
         ),

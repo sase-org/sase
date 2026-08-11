@@ -1,8 +1,8 @@
-"""Pilot coverage: cross-tab Patch jumps land on the Artifacts PRs sub-tab.
+"""Pilot coverage: cross-tab Patch jumps land on the Artifacts Patches sub-tab.
 
 Regression coverage for the migration miss where switching to the Artifacts
 tab left whichever sub-tab was last visible (``commits`` by default) instead
-of the PRs pane the jump actually targets.
+of the Patches pane the jump actually targets.
 """
 
 from __future__ import annotations
@@ -18,10 +18,10 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 )
 
 
-async def test_enter_from_agents_lands_on_prs_subtab_for_matching_patch(
+async def test_enter_from_agents_lands_on_patches_subtab_for_matching_patch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """<enter> on an agent whose Patch is already in view selects PRs."""
+    """<enter> on an agent whose Patch is already in view selects Patches."""
     agent = _make_agent(
         cl_name="feature_a",
         project_file="/tmp/projects/demoproj/demoproj.sase",
@@ -36,17 +36,17 @@ async def test_enter_from_agents_lands_on_prs_subtab_for_matching_patch(
         await page.pause()
 
         await page.expect_state("tab", "patches")
-        assert page.state["artifacts_subtab"] == "prs"
+        assert page.state["artifacts_subtab"] == "patches"
         assert page.state["selected"]["name"] == "feature_a"
 
         artifacts_view = page.query_one_widget("#artifacts-view", ArtifactsView)
-        assert artifacts_view.current_subtab == "prs"
+        assert artifacts_view.current_subtab == "patches"
 
 
-async def test_enter_from_agents_rewrites_query_and_lands_on_prs_subtab(
+async def test_enter_from_agents_rewrites_query_and_lands_on_patches_subtab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the target Patch is outside the query, the swap lands on PRs."""
+    """When the target Patch is outside the query, the swap lands on Patches."""
     target = make_patch(
         name="chore_cleanup", file_path="/tmp/projects/otherproj/otherproj.sase"
     )
@@ -67,18 +67,18 @@ async def test_enter_from_agents_rewrites_query_and_lands_on_prs_subtab(
         await page.pause()
 
         await page.expect_state("tab", "patches")
-        assert page.state["artifacts_subtab"] == "prs"
+        assert page.state["artifacts_subtab"] == "patches"
         assert page.state["query"] == "project:otherproj"
         assert page.state["selected"]["name"] == "chore_cleanup"
 
         artifacts_view = page.query_one_widget("#artifacts-view", ArtifactsView)
-        assert artifacts_view.current_subtab == "prs"
+        assert artifacts_view.current_subtab == "patches"
 
 
-async def test_load_saved_query_from_agents_lands_on_prs_subtab(
+async def test_load_saved_query_from_agents_lands_on_patches_subtab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A numbered saved-query slot loaded from Agents shows the PRs pane."""
+    """A numbered saved-query slot loaded from Agents shows the Patches pane."""
     patch_startup_loaders(monkeypatch, agents=[])
 
     async with AcePage(initial_tab="agents") as page:
@@ -91,8 +91,8 @@ async def test_load_saved_query_from_agents_lands_on_prs_subtab(
         await page.pause()
 
         await page.expect_state("tab", "patches")
-        assert page.state["artifacts_subtab"] == "prs"
+        assert page.state["artifacts_subtab"] == "patches"
         assert page.state["query"] == "project:tmp"
 
         artifacts_view = page.query_one_widget("#artifacts-view", ArtifactsView)
-        assert artifacts_view.current_subtab == "prs"
+        assert artifacts_view.current_subtab == "patches"

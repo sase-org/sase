@@ -235,7 +235,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
 
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
+            and getattr(self, "current_artifacts_subtab", "patches") == "patches"
             and _should_refresh("_dirty_patches")
         ):
             run_patches_refresh = getattr(
@@ -258,7 +258,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 self._dirty_patches = False
         elif (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "prs") != "prs"
+            and getattr(self, "current_artifacts_subtab", "patches") != "patches"
         ):
             self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
 

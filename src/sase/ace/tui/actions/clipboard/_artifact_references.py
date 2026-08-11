@@ -21,7 +21,6 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
             "beads": "_beads_pane",
             "plans": "_plans_pane",
             "chats": "_chats_pane",
-            "bugs": "_bugs_pane",
             "other": "_files_pane",
         }[subtab]
         resolver = getattr(self, resolver_name, None)

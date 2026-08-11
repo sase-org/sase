@@ -17,7 +17,7 @@ def test_patch_onboarding_content_includes_docs_lifecycle_and_storage() -> None:
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Everything your agents produce, in one place" in rendered
-    assert "Browse commits, beads, bugs, PRs, and nested files" in rendered
+    assert "Browse commits, patches, beads, and nested files" in rendered
     assert "Agent chat transcripts and their sync state." in rendered
     assert "Every other artifact file agents have produced." in rendered
     assert "https://sase.sh/patch/" in rendered
@@ -54,9 +54,8 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
         label: tabs_text.index(label)
         for label in (
             "Stitches",
+            "Patches",
             "Beads",
-            "Bugs",
-            "PRs",
             "Files",
             "Plans",
             "Chats",
@@ -65,9 +64,8 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
     }
     assert (
         positions["Stitches"]
+        < positions["Patches"]
         < positions["Beads"]
-        < positions["Bugs"]
-        < positions["PRs"]
         < positions["Files"]
         < positions["Plans"]
         < positions["Chats"]

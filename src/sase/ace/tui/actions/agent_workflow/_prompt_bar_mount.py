@@ -282,8 +282,6 @@ class PromptBarMountMixin:
             candidates = ("#agent-list-panel",)
         elif tab == "axe":
             candidates = ("#bgcmd-list-panel",)
-        elif getattr(self, "current_artifacts_subtab", "prs") == "bugs":
-            candidates = ("#bugs-list",)
         else:
             candidates = ("#list-panel",)
 

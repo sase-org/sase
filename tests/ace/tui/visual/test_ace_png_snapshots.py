@@ -32,8 +32,8 @@ async def test_patch_initial_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.expect_state("selected.name", "visual_auth")
         await wait_for_visual_idle(page)
@@ -54,8 +54,8 @@ async def test_patch_selected_row_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.press("j")
         await page.expect_state("selected.name", "visual_billing")
@@ -78,8 +78,8 @@ async def test_query_edit_modal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.press("slash")
         await page.expect_modal("QueryEditModal")
@@ -114,8 +114,8 @@ async def test_footer_leader_overflow_wide_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _render_leader_footer(page)
 
         ace_png_visual.assert_page_png(
@@ -134,8 +134,8 @@ async def test_footer_leader_overflow_narrow_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=(80, 30)) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await _render_leader_footer(page)
 
         ace_png_visual.assert_page_png(

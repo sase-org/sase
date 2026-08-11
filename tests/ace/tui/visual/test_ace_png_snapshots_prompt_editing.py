@@ -33,8 +33,8 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
         text_area = bar.active_text_area()
@@ -65,8 +65,8 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
         text_area = bar.active_text_area()
@@ -98,8 +98,8 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, CURSOR_PROMPT)
         text_area = bar.active_text_area()
@@ -132,8 +132,8 @@ async def test_prompt_jinja_valid_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_VALID_PROMPT)
         compute_jinja_now(bar.active_text_area())
@@ -155,8 +155,8 @@ async def test_prompt_jinja_invalid_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4")
-        await page.expect_state("artifacts_subtab", "prs")
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         bar = await mount_prompt_bar(page, JINJA_INVALID_PROMPT)
         compute_jinja_now(bar.active_text_area())

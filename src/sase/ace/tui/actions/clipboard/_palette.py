@@ -25,14 +25,14 @@ if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
 
 
-_ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "plans", "chats", "bugs", "other"})
+_ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "plans", "chats", "other"})
 
 
 def build_copy_as_context(app: Any) -> CopyAsContext | None:
     """Capture a palette context without filesystem or subprocess work."""
 
     tab = app.current_tab
-    subtab = getattr(app, "current_artifacts_pane_key", "prs")
+    subtab = getattr(app, "current_artifacts_pane_key", "patches")
     if (
         tab
         in {
@@ -68,7 +68,7 @@ def _build_patch_context(app: Any) -> CopyAsContext | None:
 
     ctx = CommandContext(
         tab="artifacts",
-        artifacts_subtab="prs",
+        artifacts_subtab="patches",
         patch=patch,
     )
     previews = {

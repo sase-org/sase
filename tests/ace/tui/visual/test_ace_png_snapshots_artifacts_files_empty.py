@@ -38,7 +38,7 @@ async def test_artifacts_files_empty_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("5", "(")
+        await page.press("4", "(")
         await page.expect_state("artifacts_subtab", "files")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(

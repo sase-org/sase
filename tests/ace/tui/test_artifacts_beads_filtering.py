@@ -331,7 +331,7 @@ async def test_hide_closed_default_is_visible_and_clearable(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("2")
+        await page.press("3")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is value)
         assert pane.filters.excluded_statuses == ("closed",)

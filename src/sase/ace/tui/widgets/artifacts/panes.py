@@ -21,7 +21,7 @@ from .entry_navigation import ArtifactEntryTarget
 from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
-class ArtifactsPrsPane(ArtifactsPaneLifecycle, Horizontal):
+class ArtifactsPatchesPane(ArtifactsPaneLifecycle, Horizontal):
     """The existing Patch surface, hosted unchanged inside Artifacts."""
 
     def __init__(self, **kwargs: Any) -> None:
@@ -55,11 +55,6 @@ _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
         "A cross-repository timeline with messages, tags, and diffs will live here.",
         "The Stitches pane is scaffolded and will load only when you open it.",
     ),
-    "bugs": (
-        "Bugs",
-        "Tracker-backed issue triage and links to epics and PRs will live here.",
-        "Pick a project to establish the tracker scope for this pane.",
-    ),
     "beads": (
         "Beads",
         "Task, epic, and phase bead work items will live here.",
@@ -77,8 +72,8 @@ class ArtifactPlaceholderPane(ArtifactsPaneLifecycle, Vertical):
     """Quickstart-style empty state used until a pane's feature phase lands."""
 
     def __init__(self, subtab: ArtifactsSubTab, **kwargs: Any) -> None:
-        if subtab == "prs":
-            raise ValueError("the PRs pane is not a placeholder")
+        if subtab == "patches":
+            raise ValueError("the Patches pane is not a placeholder")
         super().__init__(**kwargs)
         self.subtab = subtab
         self.project_scope: str | None = None
@@ -200,5 +195,5 @@ class ArtifactPlaceholderPane(ArtifactsPaneLifecycle, Vertical):
 __all__ = [
     "ArtifactPlaceholderPane",
     "ArtifactsPaneLifecycle",
-    "ArtifactsPrsPane",
+    "ArtifactsPatchesPane",
 ]

@@ -19,7 +19,6 @@ from ._artifact_target_support import ClipboardArtifactTargetSupportMixin
 from ._artifact_target_values import (
     artifact_file_contents,
     bead_copy_value,
-    bug_prompt,
     commit_plan_reference,
     plan_copy_value,
     plural,
@@ -246,47 +245,6 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
             plural_label="artifact-file contents",
             task_name="sase-file-copy-marked-contents",
             unavailable_count=len(binary_modes),
-        )
-
-    def _copy_marked_bug_targets(
-        self,
-        pane: Any,
-        targets: tuple[tuple[str, ...], ...],
-        target: str,
-    ) -> None:
-        if not targets:
-            return
-        project = getattr(pane, "project_scope", None)
-        if project is None:
-            self.notify(  # type: ignore[attr-defined]
-                "Pick a project before copying marked bugs",
-                severity="warning",
-            )
-            return
-        by_target = {pane._issue_target(issue): issue for issue in pane.issues}
-        issues = [by_target[item] for item in targets if item in by_target]
-
-        def value(issue: Any) -> str:
-            if target == "number":
-                return f"#{issue.number}"
-            if target == "title":
-                return issue.title
-            if target == "url":
-                from ..artifact_bugs import resolved_bug_url
-
-                return resolved_bug_url(project, issue)
-            return bug_prompt(pane, issue, project)
-
-        labels = {
-            "number": "issue numbers",
-            "url": "issue URLs",
-            "title": "issue titles",
-            "prompt": "issue agent prompts",
-        }
-        self._schedule_marked_copy(
-            [(f"#{issue.number}", partial(value, issue)) for issue in issues],
-            plural_label=labels[target],
-            task_name="sase-bug-copy-marked",
         )
 
 

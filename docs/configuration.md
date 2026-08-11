@@ -775,7 +775,7 @@ so this key is the only durable setting. Descriptions themselves follow the
 budget, and overflow row are described in
 [ACE — Description Panel](ace.md#description-panel).
 
-Because the Axe tab claims `d`, the `show_diff` action is active only on the PRs
+Because the Axe tab claims `d`, the `show_diff` action is active only on the Patches
 sub-tab.
 
 #### `ace.agents_sync`
@@ -973,7 +973,7 @@ family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected wh
 tribe panel. The configured prefix and subkeys are used by dispatch, the command
 palette, footers, and help.
 
-Query editing has two contextual scopes. `ace.keymaps.app.edit_query` controls PRs,
+Query editing has two contextual scopes. `ace.keymaps.app.edit_query` controls Patches,
 Stitches, Plans, and Axe and defaults to bare `/`.
 `ace.keymaps.modes.leader_mode.keys.edit_query` independently controls the Agents
 structured-query chord and defaults to `,/`; bare `/` on Agents starts inline metadata

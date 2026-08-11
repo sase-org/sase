@@ -29,6 +29,18 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
         "plans_edit_bead",
         "plans_launch_epic",
         "plans_open_bug",
+        "next_bug",
+        "prev_bug",
+        "cycle_bug_filter",
+        "create_bug",
+        "edit_bug",
+        "toggle_bug_state",
+        "open_bug",
+        "copy_bug",
+        "start_agent_from_bug",
+        "focus_bug_links",
+        "activate_bug_link",
+        "refresh_bugs",
     }
 )
 

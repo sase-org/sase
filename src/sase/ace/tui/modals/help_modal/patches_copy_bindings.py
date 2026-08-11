@@ -15,14 +15,12 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
     plans_copy = cm.keys["artifacts_plans"]
     chats_copy = cm.keys["artifacts_chats"]
     files_copy = cm.keys["artifacts_other"]
-    bugs_copy = cm.keys["artifacts_bugs"]
     assert isinstance(cs_copy, dict)
     assert isinstance(commits_copy, dict)
     assert isinstance(beads_copy, dict)
     assert isinstance(plans_copy, dict)
     assert isinstance(chats_copy, dict)
     assert isinstance(files_copy, dict)
-    assert isinstance(bugs_copy, dict)
     pr_copy_key = cs_copy.get("pr_number", cs_copy.get("cl_number"))
     assert isinstance(pr_copy_key, str)
 
@@ -233,48 +231,6 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, files_copy["snapshot"]),
-                    "Copy sase ace snapshot",
-                ),
-            ],
-        ),
-        (
-            f"Copy Mode · Bugs ({d(cm.prefix)})",
-            [
-                (d(cm.prefix), "Open Copy as… palette"),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["reference"]),
-                    "Copy @bug reference",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["link"]),
-                    "Copy Markdown link",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["handoff"]),
-                    "Reference in new agent prompt",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["number"]),
-                    "Copy issue number",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["url"]),
-                    "Copy issue URL",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["title"]),
-                    "Copy issue title",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["prompt"]),
-                    "Copy agent-ready prompt",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["json"]),
-                    "Copy metadata JSON",
-                ),
-                (
-                    key_sequence_display(cm.prefix, bugs_copy["snapshot"]),
                     "Copy sase ace snapshot",
                 ),
             ],

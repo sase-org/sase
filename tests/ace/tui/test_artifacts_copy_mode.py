@@ -51,7 +51,7 @@ async def test_percent_rejects_empty_real_artifacts_panes(
         assert footer._last_layout_inputs[1] is None
 
 
-@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats", "bugs", "other"])
+@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats", "other"])
 def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     subtab: str,
 ) -> None:
@@ -379,41 +379,6 @@ def test_chats_copy_targets_use_path_agent_and_full_transcript(
     ]
 
 
-def test_bugs_copy_targets_include_an_agent_ready_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = CopyHarness()
-    app.current_artifacts_subtab = "bugs"
-    issue = SimpleNamespace(
-        number=42,
-        title="Copy this issue",
-        body="Reproduction steps.",
-        url="https://example.test/issues/42",
-    )
-    app.bugs_pane = SimpleNamespace(
-        selected_issue=issue,
-        project_scope="alpha",
-        project_file="/tmp/alpha.sase",
-        snapshot=SimpleNamespace(display_name="Alpha"),
-    )
-    monkeypatch.setattr(
-        "sase.workspace_provider.detect_workflow_type",
-        lambda _path: "gh",
-    )
-
-    for key in ("b", "u", "t", "p"):
-        assert app._handle_copy_key(key) is True
-
-    assert [value for value, _message in app.copies[:3]] == [
-        "#42",
-        issue.url,
-        issue.title,
-    ]
-    prompt = app.copies[3][0]
-    assert prompt.startswith("#gh:Alpha Work on external bug #42")
-    assert "bug_id: 42" in prompt
-
-
 @pytest.mark.parametrize(
     ("subtab", "expected"),
     [
@@ -460,20 +425,6 @@ def test_bugs_copy_targets_include_an_agent_ready_prompt(
             ],
         ),
         (
-            "bugs",
-            [
-                ("@", "@ref"),
-                ("l", "link"),
-                ("b", "issue #"),
-                ("u", "url"),
-                ("t", "title"),
-                ("p", "agent prompt"),
-                ("J", "JSON"),
-                ("!", "agent + @ref"),
-                ("s", "snap"),
-            ],
-        ),
-        (
             "other",
             [
                 ("%", "contents"),
@@ -502,7 +453,7 @@ def test_copy_footer_uses_the_active_artifacts_subtab(
     footer._update_display.assert_called_once_with(expected, mode_label="COPY")
 
 
-@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats", "bugs"])
+@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats"])
 def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     subtab: str,
 ) -> None:
@@ -525,7 +476,6 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
         ("stitches", "l", "J"),
         ("plans", "l", "J"),
         ("chats", "l", "J"),
-        ("bugs", "l", "J"),
         ("other", "L", "j"),
     ],
 )

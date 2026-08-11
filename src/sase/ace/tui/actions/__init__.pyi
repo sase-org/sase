@@ -4,7 +4,6 @@ from .agents import AgentMarkingMixin as AgentMarkingMixin
 from .agent_workflow import AgentWorkflowMixin as AgentWorkflowMixin
 from .agents import AgentsMixin as AgentsMixin
 from .agents_sync import AgentsSyncActionsMixin as AgentsSyncActionsMixin
-from .artifact_bugs import ArtifactBugsMixin as ArtifactBugsMixin
 from .artifacts import ArtifactsMixin as ArtifactsMixin
 from .axe import AxeMixin as AxeMixin
 from .base import BaseActionsMixin as BaseActionsMixin

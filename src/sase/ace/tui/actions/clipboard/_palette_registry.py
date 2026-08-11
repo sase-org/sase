@@ -83,17 +83,6 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "source",
         "label",
     ),
-    "artifacts_bugs": (
-        "snapshot",
-        "reference",
-        "handoff",
-        "link",
-        "json",
-        "number",
-        "url",
-        "title",
-        "prompt",
-    ),
     "agents": ("chat", "file_path", "name", "prompt", "reference", "snapshot"),
     "axe": ("visible", "full", "snapshot"),
 }

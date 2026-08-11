@@ -28,8 +28,8 @@ def _search_query_plain(page: AcePage) -> str:
 
 
 async def _open_prs(page: AcePage) -> None:
-    await page.press("4")
-    await page.expect_state("artifacts_subtab", "prs")
+    await page.press("2")
+    await page.expect_state("artifacts_subtab", "patches")
 
 
 def _assert_patches_onboarding_layout(page: AcePage, *, active: bool) -> None:

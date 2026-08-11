@@ -31,11 +31,17 @@ from sase.ace.tui.widgets.prompt_path_inventory import (
     PromptPathRow,
     PromptPathSnapshot,
 )
+from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
+from sase.ace.tui.widgets.artifacts.beads_data_models import (
+    BeadsSnapshot,
+    ExternalIssueProjectCache,
+)
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptInputHint,
 )
+from sase.vcs_provider import IssueWire
 
 from ._artifact_ref_completion_helpers import (
     CATALOG,
@@ -572,3 +578,88 @@ async def test_warm_keystroke_paths_do_not_touch_discovery_providers() -> None:
             assert text_area._accept_file_completion() is True
 
         assert text_area.text == "@plans:202607/beta.md"
+
+
+def _make_beads_snapshot(
+    external_projects: dict[str, ExternalIssueProjectCache],
+) -> BeadsSnapshot:
+    return BeadsSnapshot(
+        project=None,
+        projects=(),
+        display_names={},
+        beads_dirs={},
+        workspace_dirs={},
+        tasks=(),
+        epics=(),
+        phases_by_epic={},
+        ready_ids=frozenset(),
+        blocked_ids=frozenset(),
+        plan_links={},
+        triage_gates={},
+        source_key=(),
+        errors={},
+        external_projects=external_projects,
+    )
+
+
+class _FakeApp:
+    def __init__(self, pane: object | None) -> None:
+        self._pane = pane
+
+    def query_one(self, selector: str) -> object:
+        if selector == "#artifacts-beads-pane" and self._pane is not None:
+            return self._pane
+        raise LookupError(selector)
+
+
+class _BugCandidateHost(FileCompletionBaseMixin):
+    """Minimal duck-typed host exercising the mixin method directly."""
+
+    def __init__(
+        self, pane: object | None, *, target_project: str | None = None
+    ) -> None:
+        self.app = _FakeApp(pane)  # type: ignore[assignment]
+        self._target_project = target_project
+        self._artifact_ref_bug_projection = None
+
+    def _xprompt_arg_assist_project_from_text(self) -> str | None:
+        return self._target_project
+
+
+def test_snapshot_artifact_ref_bug_candidates_reads_beads_external_projects() -> None:
+    """@bug: completion offers a project's issues from the Beads pane cache."""
+    issue = IssueWire(number=7, title="Fix thing", state="open")
+    cache = ExternalIssueProjectCache(
+        project="alpha",
+        display_name="Alpha",
+        issues=(issue,),
+    )
+    snapshot = _make_beads_snapshot({"alpha": cache})
+
+    class _Pane:
+        pass
+
+    pane = _Pane()
+    pane.snapshot = snapshot  # type: ignore[attr-defined]
+
+    host = _BugCandidateHost(pane)
+    candidates = host._snapshot_artifact_ref_bug_candidates()
+    assert candidates == (
+        ArtifactRefBugCandidate(
+            project="Alpha", number=7, title="Fix thing", updated_at=""
+        ),
+    )
+
+    # Memoized on (snapshot identity, target project) so repeated keystrokes
+    # do not re-walk every external project cache.
+    assert host._snapshot_artifact_ref_bug_candidates() is candidates
+
+
+def test_snapshot_artifact_ref_bug_candidates_empty_without_a_cache() -> None:
+    """No Beads pane, or a pane without a snapshot, returns no rows and never raises."""
+    assert _BugCandidateHost(None)._snapshot_artifact_ref_bug_candidates() == ()
+
+    class _Pane:
+        snapshot = None
+
+    assert _BugCandidateHost(_Pane())._snapshot_artifact_ref_bug_candidates() == ()

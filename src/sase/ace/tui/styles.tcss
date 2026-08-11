@@ -75,9 +75,8 @@
 }
 
 #artifacts-content-switcher,
-#artifacts-prs-pane,
+#artifacts-patches-pane,
 #artifacts-stitches-pane,
-#artifacts-bugs-pane,
 #artifacts-beads-pane,
 #artifacts-files-view,
 #artifacts-files-content-switcher {
@@ -354,10 +353,6 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
 
 #artifacts-stitches-pane .artifacts-placeholder-card {
     border-title-color: #FFD700;
-}
-
-#artifacts-bugs-pane .artifacts-placeholder-card {
-    border-title-color: #FF5F5F;
 }
 
 #artifacts-beads-pane .artifacts-placeholder-card {

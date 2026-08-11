@@ -221,7 +221,7 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     from ....query_history import push_to_prev_stack, save_query_history
     from ...artifact_tabs import switch_to_artifacts_subtab
 
-    switch_to_artifacts_subtab(app, "prs")
+    switch_to_artifacts_subtab(app, "patches")
     app.current_tab = "patches"  # type: ignore[attr-defined]
 
     # Search in current filtered list

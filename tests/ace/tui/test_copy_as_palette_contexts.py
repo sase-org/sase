@@ -365,7 +365,7 @@ def test_marked_commit_context_uses_visible_order_and_plural_labels() -> None:
 
 def test_patch_context_filters_missing_pr_fields_and_uses_display_name() -> None:
     app = PaletteHarness()
-    app.current_artifacts_subtab = "prs"
+    app.current_artifacts_subtab = "patches"
     patch = make_patch(name="copy_as_palette", cl=None)
     patch.project_display_name = "SASE"  # type: ignore[attr-defined]
     app.patches = [patch]
@@ -383,7 +383,7 @@ def test_patch_context_filters_missing_pr_fields_and_uses_display_name() -> None
 
 def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None:
     app = PaletteHarness()
-    app.current_artifacts_subtab = "prs"
+    app.current_artifacts_subtab = "patches"
     app.patches = [make_patch(name="copy_as_palette")]
     app._keymap_registry = load_keymap_registry(
         {
@@ -421,7 +421,6 @@ def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None
         ("beads", "No beads entry to copy"),
         ("plans", "No plans entry to copy"),
         ("chats", "No chats entry to copy"),
-        ("bugs", "No bugs entry to copy"),
         ("other", "No other entry to copy"),
     ],
 )

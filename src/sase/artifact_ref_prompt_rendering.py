@@ -357,6 +357,6 @@ def _fragment_annotation(fragment: ArtifactRefFragment | None) -> str:
 def resolved_bug_url(project: str, number: int) -> str:
     """Return the provider URL for a resolved bug reference."""
 
-    from sase.ace.tui.artifacts_bugs import issue_url_for_number
+    from sase.ace.tui.external_issues import issue_url_for_number
 
     return issue_url_for_number(project, number)
