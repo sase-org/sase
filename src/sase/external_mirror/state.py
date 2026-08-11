@@ -200,18 +200,18 @@ ISSUE_SCHEMA_VERSION = 1
 ISSUE_MAX_BACKOFF_SECONDS = 60 * 60
 
 
-def mirror_state_dir(kind: str) -> Path:
+def _mirror_state_dir(kind: str) -> Path:
     """Return the stable, lane-independent state directory for one mirror kind."""
     return sase_subdir("external_mirror") / kind
 
 
 def mirror_state_document_path(kind: str, project_key: str) -> Path:
     """Return the per-project state document path for one mirror kind."""
-    return mirror_state_dir(kind) / f"{project_key}.json"
+    return _mirror_state_dir(kind) / f"{project_key}.json"
 
 
 @dataclass
-class MirrorState:
+class _MirrorState:
     """One project's durable mirror cursor, drift, and backoff record."""
 
     project: str = ""
@@ -245,7 +245,7 @@ class MirrorState:
         }
 
 
-def read_mirror_state(path: Path, *, project: str) -> MirrorState:
+def read_mirror_state(path: Path, *, project: str) -> _MirrorState:
     """Tolerantly read one project's mirror state.
 
     A missing, truncated, corrupt, or wrong-schema-version file returns a
@@ -256,12 +256,12 @@ def read_mirror_state(path: Path, *, project: str) -> MirrorState:
         with path.open(encoding="utf-8") as stream:
             payload = json.load(stream)
     except (OSError, json.JSONDecodeError):
-        return MirrorState(project=project)
+        return _MirrorState(project=project)
     if (
         not isinstance(payload, dict)
         or payload.get("schema_version") != ISSUE_SCHEMA_VERSION
     ):
-        return MirrorState(project=project)
+        return _MirrorState(project=project)
 
     upstream_states_raw = payload.get("upstream_states")
     upstream_states = (
@@ -279,7 +279,7 @@ def read_mirror_state(path: Path, *, project: str) -> MirrorState:
     if not isinstance(failures, int) or isinstance(failures, bool) or failures < 0:
         failures = 0
 
-    return MirrorState(
+    return _MirrorState(
         project=str(payload.get("project") or project),
         watermark_updated_at=str(payload.get("watermark_updated_at") or ""),
         watermark_provider_ids=provider_ids,
@@ -292,7 +292,7 @@ def read_mirror_state(path: Path, *, project: str) -> MirrorState:
     )
 
 
-def write_mirror_state(path: Path, state: MirrorState) -> None:
+def write_mirror_state(path: Path, state: _MirrorState) -> None:
     """Atomically write one project's mirror state document."""
     if not best_effort_test_state_write_allowed(path, category="external-mirror-state"):
         return
@@ -325,7 +325,7 @@ def next_backoff(previous_failures: int, *, now: datetime) -> tuple[int, str]:
     return failures, iso_utc(next_attempt_at)
 
 
-def is_backed_off(state: MirrorState, *, now: datetime) -> bool:
+def is_backed_off(state: _MirrorState, *, now: datetime) -> bool:
     """Return whether *state* is still inside its backoff window."""
     if not state.next_attempt_at:
         return False
@@ -355,10 +355,8 @@ __all__ = [
     "ISSUE_SCHEMA_VERSION",
     "BackoffEntry",
     "MirrorCursor",
-    "MirrorState",
     "is_backed_off",
     "iso_utc",
-    "mirror_state_dir",
     "mirror_state_document_path",
     "mirror_state_path",
     "next_backoff",
