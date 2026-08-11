@@ -17,11 +17,12 @@ from sase.ace.patch import (
 )
 from sase.directory_map_assets import DIRECTORY_MAP_ASSET_OVERRIDE_ENV
 from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
-from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
-from tests._global_state_leak_detector import (
-    pytest_addoption as _add_global_state_leak_detector_options,
-    register_global_state_leak_detector,
+from tests._project_display_case import ProjectDisplayCase
+from tests._sase_global_state_isolation import (
+    restore_sase_environment,
+    snapshot_sase_environment,
 )
+from tests._suite_gate import configure_suite_gate, unconfigure_suite_gate
 from tests._tmp_leak_guard import (
     check_tmp_env_leak_guard,
     finish_tmp_leak_guard,
@@ -29,7 +30,6 @@ from tests._tmp_leak_guard import (
     start_tmp_env_leak_guard,
     start_tmp_leak_guard,
 )
-from tests._project_display_case import ProjectDisplayCase
 
 # Enables the ``pytester`` fixture, used by tests that pin ordering-dependent
 # regressions (see e.g. test_scratch_tmpdir_leak_regression.py) by running a
@@ -104,10 +104,19 @@ def project_display_case() -> ProjectDisplayCase:
     return ProjectDisplayCase()
 
 
+@pytest.hookimpl(hookwrapper=True, trylast=True)
+def pytest_runtest_protocol(
+    item: pytest.Item, nextitem: pytest.Item | None
+) -> Iterator[None]:
+    """Restore ambient env state before detector after-snapshots run."""
+    environment = snapshot_sase_environment()
+    yield
+    restore_sase_environment(environment)
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Acquire host-global worker tokens for an xdist controller."""
     configure_suite_gate(config)
-    register_global_state_leak_detector(config)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
@@ -211,7 +220,6 @@ def _restore_hypothesis_local_constant_prescan() -> None:
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    _add_global_state_leak_detector_options(parser)
     parser.addoption(
         "--sase-update-agents-goldens",
         action="store_true",

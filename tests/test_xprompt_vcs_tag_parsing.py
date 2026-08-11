@@ -3,6 +3,8 @@
 import re
 from unittest.mock import patch
 
+import pytest
+
 from sase.xprompt._parsing import (
     extract_vcs_workflow_tag,
     find_vcs_workflow_tag,
@@ -13,6 +15,32 @@ from sase.xprompt._parsing import (
     normalize_vcs_underscore_refs,
     replace_ref_in_vcs_tag,
 )
+
+
+@pytest.fixture(autouse=True)
+def _restore_vcs_regex_caches():
+    import sase.xprompt._parsing as compat
+    import sase.xprompt._parsing_vcs_refs as refs
+    import sase.xprompt._parsing_vcs_tags as tags
+
+    cache_attrs = (
+        (compat, "_VCS_UNDERSCORE_NORMALIZER"),
+        (refs, "_VCS_UNDERSCORE_NORMALIZER"),
+        (compat, "_LAUNCH_XPROMPT_AT_REF_RE"),
+        (refs, "_LAUNCH_XPROMPT_AT_REF_RE"),
+        (compat, "_VCS_TAG_PATTERN"),
+        (tags, "_VCS_TAG_PATTERN"),
+        (compat, "_VCS_TAG_EMBEDDED_PATTERN"),
+        (tags, "_VCS_TAG_EMBEDDED_PATTERN"),
+        (compat, "_VCS_REPLACE_PATTERN"),
+        (tags, "_VCS_REPLACE_PATTERN"),
+    )
+    baseline = tuple(
+        (module, attr, getattr(module, attr)) for module, attr in cache_attrs
+    )
+    yield
+    for module, attr, value in baseline:
+        setattr(module, attr, value)
 
 
 _TEST_VCS_PATTERN = re.compile(

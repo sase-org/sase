@@ -249,6 +249,9 @@ def test_main_cost_mode_arms_cost_and_health_recorders(
     assert runner.TIMINGS_PLUGIN_MODULE not in command
     assert runner.TEST_COST_PLUGIN_MODULE in command
     assert runner.HEALTH_PLUGIN_MODULE in command
+    assert runner.GLOBAL_STATE_LEAK_PLUGIN_MODULE in command
+    assert "--sase-detect-global-leaks" in command
+    assert "--sase-fail-on-global-leaks" in command
 
     health_request = json.loads(str(observed["health_request"]))
     assert health_request["mode"] == "cost"
@@ -258,6 +261,39 @@ def test_main_cost_mode_arms_cost_and_health_recorders(
     assert cost_request["mode"] == "cost"
     assert cost_request["worker_count"] == 2
     assert Path(cost_request["directory"]).name == "cost"
+
+
+def test_main_cost_mode_loads_global_state_detector_without_selector(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(tmp_path / "scratch"))
+    monkeypatch.setenv("SASE_TEST_GATE_DIR", str(tmp_path / "gate"))
+    monkeypatch.setattr(runner, "_parallel_worker_grant", lambda: (2, None))
+    observed: dict[str, object] = {}
+
+    class ExecCalled(Exception):
+        pass
+
+    def _execv(_executable: str, command: list[str]) -> None:
+        observed["command"] = command
+        raise ExecCalled
+
+    monkeypatch.setattr(runner.os, "execv", _execv)
+
+    with pytest.raises(ExecCalled):
+        runner.main(["cost"])
+
+    command = observed["command"]
+    assert isinstance(command, list)
+    leak_plugin_index = command.index(runner.GLOBAL_STATE_LEAK_PLUGIN_MODULE)
+    assert command[leak_plugin_index - 1] == "-p"
+    assert "--sase-detect-global-leaks" in command
+    assert "--sase-fail-on-global-leaks" in command
+    assert [
+        "-m",
+        runner.FAST_MARKER_EXPRESSION,
+    ] in [command[index : index + 2] for index in range(len(command) - 1)]
 
 
 def test_main_ace_page_group_isolation_uses_manifest_without_recorders(

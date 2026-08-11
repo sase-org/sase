@@ -155,6 +155,7 @@ TIMINGS_PLUGIN_MODULE = "tests._test_selection_timings_plugin"
 #: a scoped run refreshes the handful of files the lane touches most.
 TIMINGS_RECORDING_MODES = frozenset({*FULL_LANE_MODES, SCOPED_MODE})
 TEST_COST_PLUGIN_MODULE = "tests._test_cost_plugin"
+GLOBAL_STATE_LEAK_PLUGIN_MODULE = "tests._global_state_leak_detector"
 PYTEST_DIST_ENV = "SASE_PYTEST_DIST"
 DEFAULT_PYTEST_DIST = "worksteal"
 SUPPORTED_PYTEST_DIST_MODES = ("loadfile", "worksteal")
@@ -787,6 +788,17 @@ def _test_cost_pytest_args(mode: str) -> list[str]:
     return ["-p", TEST_COST_PLUGIN_MODULE]
 
 
+def _global_state_leak_detector_pytest_args(mode: str) -> list[str]:
+    if mode != TEST_COST_MODE:
+        return []
+    return [
+        "-p",
+        GLOBAL_STATE_LEAK_PLUGIN_MODULE,
+        "--sase-detect-global-leaks",
+        "--sase-fail-on-global-leaks",
+    ]
+
+
 def _arm_test_cost_recorder(mode: str, *, worker_count: int | None) -> None:
     os.environ[TEST_COST_RECORD_ENV] = json.dumps(
         {
@@ -1111,6 +1123,8 @@ def main(argv: list[str] | None = None) -> int:
         pytest_args = [*timings_args, *pytest_args]
         cost_args = _test_cost_pytest_args(mode)
         pytest_args = [*cost_args, *pytest_args]
+        leak_detector_args = _global_state_leak_detector_pytest_args(mode)
+        pytest_args = [*leak_detector_args, *pytest_args]
 
         if scoped_worker_count is not None:
             # The gear already holds `lease`; the width is the gate's answer.

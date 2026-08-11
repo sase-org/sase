@@ -108,6 +108,19 @@ def test_cost_mode_selects_the_fast_suite_marker(
     assert result[-2:] == ["-m", runner.FAST_MARKER_EXPRESSION]
 
 
+def test_global_state_leak_detector_args_are_cost_lane_only() -> None:
+    runner = load_run_pytest()
+
+    assert runner._global_state_leak_detector_pytest_args("cost") == [
+        "-p",
+        runner.GLOBAL_STATE_LEAK_PLUGIN_MODULE,
+        "--sase-detect-global-leaks",
+        "--sase-fail-on-global-leaks",
+    ]
+    assert runner._global_state_leak_detector_pytest_args("fast") == []
+    assert runner._global_state_leak_detector_pytest_args("cov") == []
+
+
 def test_ace_page_group_isolation_mode_selects_the_fast_suite_marker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
