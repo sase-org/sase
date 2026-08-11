@@ -141,7 +141,7 @@ def _validate_bindings(module: ModuleType) -> bool:
 
 def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
     expected = {
-        "artifact_ref_wire_schema_version": 4,
+        "artifact_ref_wire_schema_version": 5,
         "artifact_ref_context_wire_schema_version": 1,
         "artifact_ref_list_resolution_wire_schema_version": 2,
         "artifact_ref_path_filter_wire_schema_version": 1,

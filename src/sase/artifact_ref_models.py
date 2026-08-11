@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 
-ARTIFACT_REF_WIRE_SCHEMA_VERSION = 4
+ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 1
 ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
 BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
@@ -20,6 +20,8 @@ ArtifactRefKindType = Literal[
     "file",
     "bead",
     "agent",
+    "stitch",
+    "patch",
     "document",
 ]
 ArtifactRefPayloadType = ArtifactRefKindType
@@ -60,8 +62,11 @@ class ArtifactRefPayload:
             "chat",
             "bug",
             "file",
+            "file_path",
             "bead",
             "agent",
+            "stitch",
+            "patch",
             "document",
         }:
             raise RuntimeError(
@@ -158,6 +163,8 @@ class ArtifactRef:
             "file",
             "bead",
             "agent",
+            "stitch",
+            "patch",
             "document",
         }:
             raise RuntimeError(

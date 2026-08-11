@@ -141,7 +141,7 @@ def test_validate_sase_core_rs_requires_cleanup_wire_version_binding() -> None:
 def test_validate_sase_core_rs_requires_current_artifact_ref_contract() -> None:
     validator = _load_validate_sase_core_rs()
     bindings = {
-        "artifact_ref_wire_schema_version": 4,
+        "artifact_ref_wire_schema_version": 5,
         "artifact_ref_context_wire_schema_version": 1,
         "artifact_ref_list_resolution_wire_schema_version": 2,
         "artifact_ref_path_filter_wire_schema_version": 1,

@@ -52,7 +52,7 @@ def test_resolve_and_display_reference_list(tmp_path: Path) -> None:
         "→ (unresolved: no plan file found)",
     )
     assert entries[0].to_wire()["resolution"] == {
-        "schema_version": 4,
+        "schema_version": 5,
         "status": "exact",
         "rendered": "plans:resolved.md",
         "locator": None,
