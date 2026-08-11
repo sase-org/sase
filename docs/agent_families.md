@@ -524,10 +524,12 @@ itself and re-expands exactly the folds its own last sweep in that panel closed,
 restoring each structural fold to the level it held before. The restore is filtered at
 press time to folds still live in that panel and still collapsed, so it tolerates folds
 re-expanded by hand and never resurrects a fold that no longer exists. Each panel
-remembers at most one sweep; a fresh sweep replaces that panel's record. The footer
-shows `- collapse folds` or `- restore folds` depending on which direction the next
-press would take. A panel with only open grouping banners reports nothing to collapse or
-restore.
+remembers at most one sweep; a fresh sweep replaces that panel's record. Armed panels
+mark each fold `-` would re-expand with a gold `▿` on the owner row and `▿N` in the
+panel title, clearing the markers as soon as the next press would sweep instead. The
+footer shows `- collapse folds` or `- restore folds` depending on which direction the
+next press would take. A panel with only open grouping banners reports nothing to
+collapse or restore.
 
 Uppercase `H` on a selected expanded panel hints every currently expanded lane, clan,
 and top-level grouping banner in that panel — including owners hidden behind a collapsed

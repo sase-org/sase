@@ -1,6 +1,7 @@
 """Agent list widget for the ace TUI."""
 
 from datetime import datetime
+from collections.abc import Collection
 from typing import Any
 
 from rich.text import Text
@@ -143,6 +144,7 @@ class AgentList(OptionList, inherit_bindings=False):
         fold_counts: dict[str, tuple[int, int]] | None = None,
         marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
         unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        fold_restore_marked_keys: Collection[str] | None = None,
         jump_hints: dict[int, str] | None = None,
         banner_jump_hints: dict[tuple[str, ...], str] | None = None,
         current_attempt_number: int | None = None,
@@ -165,6 +167,8 @@ class AgentList(OptionList, inherit_bindings=False):
             marked_agents: Optional set of marked agent identities
             unread_agents: Optional set of completed agent identities with unseen
                 results in this TUI session.
+            fold_restore_marked_keys: Optional fold keys whose owner rows should
+                show the armed ``-`` restore preview marker.
             jump_hints: Optional row index -> adaptive hint mapping
             current_attempt_number: Accepted for compatibility with pinned
                 attempt detail state. The list still highlights the selected
@@ -232,6 +236,7 @@ class AgentList(OptionList, inherit_bindings=False):
                 fold_counts=fold_counts,
                 marked_agents=marked_agents,
                 unread_agents=unread_agents,
+                fold_restore_marked_keys=fold_restore_marked_keys,
                 jump_hints=jump_hints,
                 banner_jump_hints=banner_jump_hints,
                 fold_registry=fold_registry,

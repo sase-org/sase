@@ -110,6 +110,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         merge_tribe_panels: bool,
         panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
         isolation_restore_marked: bool = False,
+        fold_restore_marked_count: int = 0,
     ) -> Text:
         """Build one title with the active transient hint namespace."""
         unread: set[tuple[AgentType, str, str | None]] = getattr(
@@ -137,6 +138,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             collapsed=panel_collapsed,
             selected=panel_selected,
             isolation_restore_marked=isolation_restore_marked,
+            fold_restore_marked_count=fold_restore_marked_count,
             jump_hint=(
                 panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
             ),
@@ -167,6 +169,8 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
         isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
+        restore_marked_fn = getattr(self, "_panel_fold_restore_marked_keys", None)
+        fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
         for idx, key in enumerate(self._panel_group.panel_keys):
             try:
                 widget = self.query_one(  # type: ignore[attr-defined]
@@ -179,6 +183,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 panel_index.slice_for(key).agents,
                 merge_tribe_panels=merge_tribe_panels,
                 isolation_restore_marked=key in isolation_marked_keys,
+                fold_restore_marked_count=len(fold_restore_marked.get(key, ())),
             )
             self._set_agent_panel_title(widget, title)
         self._focus_focused_panel_widget()

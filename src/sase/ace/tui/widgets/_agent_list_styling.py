@@ -2,6 +2,7 @@
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
 
+from .._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ..models.agent import AgentType
 
 # Sentinel agent_idx in ``_row_entries`` for banner (group) rows.
@@ -120,6 +121,11 @@ _UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE = "bold #FF5F5F"
 # Reverted badge for agents whose commits were intentionally undone via `,r`.
 _REVERTED_GLYPH = "↺"
 _REVERTED_GLYPH_STYLE = "bold #D7875F"
+
+# Restore preview for folds swept by `-`. Uses the same gold as the `▿N`
+# panel-title chip so every armed fold-restore marker reads as one affordance.
+_FOLD_RESTORE_GLYPH = FOLD_RESTORE_GLYPH
+_FOLD_RESTORE_GLYPH_STYLE = ARMED_RESTORE_STYLE
 
 # Indentation prefix for workflow child agents
 _CHILD_INDENT = "  └─ "

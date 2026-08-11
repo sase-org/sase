@@ -8,6 +8,7 @@ concerns (bindings, messages, event wiring).
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any, Literal
 
@@ -214,6 +215,7 @@ def build_list(
     fold_counts: dict[str, tuple[int, int]] | None = None,
     marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
     unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
+    fold_restore_marked_keys: Collection[str] | None = None,
     jump_hints: dict[int, str] | None = None,
     banner_jump_hints: dict[tuple[str, ...], str] | None = None,
     fold_registry: GroupFoldView | None = None,
@@ -245,6 +247,7 @@ def build_list(
 
     marked = marked_agents or set()
     unread = unread_agents or set()
+    restore_marked_keys = fold_restore_marked_keys or ()
     widget._unread_agents = set(unread)
     semantic_tribes = {tribe for agent in agents for tribe in agent.clan_tribes}
     if tribe_labels is not None:
@@ -284,6 +287,7 @@ def build_list(
         )
         is_marked = agent.identity in marked
         is_unread = agent.identity in unread
+        restore_marked = bool(fold_key and fold_key in restore_marked_keys)
         annotation = compute_fold_annotation(
             agent,
             fold_counts,
@@ -318,6 +322,7 @@ def build_list(
             fold_annotation=annotation,
             is_expanded=is_expanded,
             is_marked=is_marked,
+            fold_restore_marked=restore_marked,
             is_unread=is_unread,
             hint_char=hint,
             tribe_label=tribe_label,
@@ -335,6 +340,7 @@ def build_list(
             "fold_annotation": annotation,
             "is_expanded": is_expanded,
             "is_marked": is_marked,
+            "fold_restore_marked": restore_marked,
             "is_unread": is_unread,
             "hint_char": hint,
             "tribe_label": tribe_label,
@@ -623,6 +629,7 @@ def patch_row(
         fold_annotation=ctx["fold_annotation"],
         is_expanded=ctx["is_expanded"],
         is_marked=is_marked,
+        fold_restore_marked=ctx.get("fold_restore_marked", False),
         is_unread=is_unread,
         hint_char=ctx["hint_char"],
         tribe_label=ctx.get("tribe_label"),

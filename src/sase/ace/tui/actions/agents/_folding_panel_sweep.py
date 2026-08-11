@@ -12,6 +12,7 @@ from ._folding_clans import (
 )
 from ._folding_lanes import resolve_panel_lane_collapse_target
 from ._navigation_order import rendered_panel_slice
+from ._panel_fold_intent import panel_is_collapsed
 
 if TYPE_CHECKING:
     from ...models.agent_panels import PanelKey
@@ -238,6 +239,30 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
         if resolve_panel_lane_collapse_target(self, panel_key) is not None:
             return True
         return resolve_panel_clan_collapse_target(self, panel_key) is not None
+
+    def _panel_fold_restore_marked_keys(self) -> dict[PanelKey, frozenset[str]]:
+        """Return the fold keys ``-`` would re-expand, per panel."""
+        records = getattr(self, "_panel_fold_sweep_records", None)
+        if not records:
+            return {}
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return {}
+
+        live_panel_keys = frozenset(panel_group.panel_keys)
+        marked: dict[PanelKey, frozenset[str]] = {}
+        for panel_key, record in records.items():
+            if panel_key not in live_panel_keys:
+                continue
+            if panel_is_collapsed(self, panel_key):
+                continue
+            if self._panel_has_collapsible_folds(panel_key):
+                continue
+            live_entries = _live_sweep_record_entries(self, panel_key, record)
+            if live_entries:
+                marked[panel_key] = frozenset(key for key, _level in live_entries)
+        return marked
 
     def _panel_fold_sweep_restore_available(self, panel_key: PanelKey) -> bool:
         """Return whether ``-`` would restore anything in *panel_key* right now."""

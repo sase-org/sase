@@ -1454,10 +1454,13 @@ restore is filtered at press time to folds that are still live in that panel and
 collapsed, so it is forgiving of folds the user re-expanded by hand or owners that
 disappeared, and it never resurrects a fold that no longer exists. Each panel remembers
 at most one sweep; a fresh sweep replaces that panel's record, and a panel that stops
-being live drops it. The footer shows `- collapse folds` when the focused panel has an
-open lane or clan fold to sweep, or `- restore folds` when nothing is left to collapse
-but a prior sweep's reverse is still armed. A panel with only open grouping banners and
-no open lane or clan reports nothing to collapse or restore.
+being live drops it. While a restore is armed, the panel marks every fold `-` would
+re-expand with a gold `▿` on the owner row and `▿N` in the panel title; those markers
+clear as soon as the next `-` press would sweep instead of restore. The footer shows
+`- collapse folds` when the focused panel has an open lane or clan fold to sweep, or
+`- restore folds` when nothing is left to collapse but a prior sweep's reverse is still
+armed. A panel with only open grouping banners and no open lane or clan reports nothing
+to collapse or restore.
 
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently
 holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the

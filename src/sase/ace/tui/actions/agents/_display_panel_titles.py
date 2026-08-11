@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
+from ..._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ...agent_count_chip import (
     AGENT_COUNT_CHIP_METRIC_STYLES,
     AGENT_COUNT_CHIP_METRICS,
@@ -26,7 +27,9 @@ if TYPE_CHECKING:
 _PANEL_SELECTED_CHROME_STYLE = "#FFD75F"
 _PANEL_TRIBE_STYLE = compose_tribe_identity_style("", bold=True)
 _PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
-_PANEL_ISOLATION_RESTORE_STYLE = "bold #D7AF5F"
+_PANEL_ISOLATION_RESTORE_STYLE = ARMED_RESTORE_STYLE
+_PANEL_FOLD_RESTORE_GLYPH = FOLD_RESTORE_GLYPH
+_PANEL_FOLD_RESTORE_STYLE = ARMED_RESTORE_STYLE
 _PANEL_METRIC_STYLES: dict[str, str] = {
     "asking" if name == "stopped" else "read" if name == "done" else name: style
     for name, style in AGENT_COUNT_CHIP_METRIC_STYLES.items()
@@ -91,6 +94,7 @@ def agent_panel_border_title(
     collapsed: bool = False,
     selected: bool = False,
     isolation_restore_marked: bool = False,
+    fold_restore_marked_count: int = 0,
     jump_hint: str | None = None,
     icon: str = "",
     color: str = "",
@@ -116,6 +120,12 @@ def agent_panel_border_title(
     if isolation_restore_marked:
         title.append(" ", style=_PANEL_COUNT_STYLE)
         title.append("↺", style=_PANEL_ISOLATION_RESTORE_STYLE)
+    if fold_restore_marked_count > 0:
+        title.append(" ", style=_PANEL_COUNT_STYLE)
+        title.append(
+            f"{_PANEL_FOLD_RESTORE_GLYPH}{fold_restore_marked_count}",
+            style=_PANEL_FOLD_RESTORE_STYLE,
+        )
     title.append(" · ", style=_PANEL_COUNT_STYLE)
     title.append(
         str(lane_count),

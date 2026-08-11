@@ -71,6 +71,8 @@ from ._agent_list_styling import (
     _FAMILY_NAME_STYLE,
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
+    _FOLD_RESTORE_GLYPH,
+    _FOLD_RESTORE_GLYPH_STYLE,
     _HIDDEN_ICON,
     _MISSING_WAIT_TARGET_GLYPH,
     _MISSING_WAIT_TARGET_GLYPH_STYLE,
@@ -128,6 +130,7 @@ def format_agent_option(
     fold_annotation: str = "",
     is_expanded: bool = False,
     is_marked: bool = False,
+    fold_restore_marked: bool = False,
     is_unread: bool = False,
     hint_char: str | None = None,
     tribe_label: str | None = None,
@@ -395,6 +398,9 @@ def format_agent_option(
             text.append(fold_annotation, style="dim")
         else:
             text.append(fold_annotation, style="dim #00D7D7")
+    if fold_restore_marked:
+        text.append(" ")
+        text.append(_FOLD_RESTORE_GLYPH, style=_FOLD_RESTORE_GLYPH_STYLE)
 
     family_counts = (
         (
@@ -498,6 +504,7 @@ def cached_format_agent_option(
     fold_annotation: str = "",
     is_expanded: bool = False,
     is_marked: bool = False,
+    fold_restore_marked: bool = False,
     is_unread: bool = False,
     hint_char: str | None = None,
     tribe_label: str | None = None,
@@ -529,6 +536,7 @@ def cached_format_agent_option(
         fold_annotation=fold_annotation,
         is_expanded=is_expanded,
         is_marked=is_marked,
+        fold_restore_marked=fold_restore_marked,
         is_unread=is_unread,
         hint_char=hint_char,
         tribe_label=tribe_label,
@@ -552,6 +560,7 @@ def cached_format_agent_option(
         fold_annotation=fold_annotation,
         is_expanded=is_expanded,
         is_marked=is_marked,
+        fold_restore_marked=fold_restore_marked,
         is_unread=is_unread,
         hint_char=hint_char,
         tribe_label=tribe_label,

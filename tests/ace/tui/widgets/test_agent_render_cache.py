@@ -5,14 +5,17 @@ from __future__ import annotations
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.models._agent_tree import agent_fold_key
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
 from sase.ace.tui.models._agent_parallel_family import ParallelFamilyStatusCounts
-from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
     cached_format_agent_option,
     format_agent_option,
 )
+from sase.ace.tui.widgets._agent_list_styling import _FOLD_RESTORE_GLYPH_STYLE
 
 from ._agent_render_cache_helpers import agent as _agent
 
@@ -55,6 +58,52 @@ def test_running_status_uses_shared_running_color() -> None:
     assert _style_at(rendered, rendered.plain.index("RUNNING")) == (
         f"bold {RUNNING_COLOR}"
     )
+
+
+def test_format_agent_option_appends_fold_restore_marker_with_shared_gold() -> None:
+    rendered, _, _ = format_agent_option(
+        _agent(status="RUNNING"),
+        0,
+        is_selected=False,
+        fold_annotation=" ×3",
+        fold_restore_marked=True,
+    )
+    unmarked, _, _ = format_agent_option(
+        _agent(status="RUNNING"),
+        0,
+        is_selected=False,
+        fold_annotation=" ×3",
+        fold_restore_marked=False,
+    )
+
+    assert "×3 ▿" in rendered.plain
+    marker_start = rendered.plain.index("▿")
+    assert _style_at(rendered, marker_start) == _FOLD_RESTORE_GLYPH_STYLE
+    assert "▿" not in unmarked.plain
+
+
+def test_format_agent_option_marks_anonymous_single_child_lane_without_annotation() -> (
+    None
+):
+    agent = _agent(status="RUNNING")
+    agent.agent_type = AgentType.WORKFLOW
+    agent.is_anonymous = True
+    agent.appears_as_agent = True
+    fold_key = agent_fold_key(agent)
+    assert fold_key is not None
+    annotation = _compute_fold_annotation(agent, {fold_key: (1, 0)}, set(), set())
+    assert annotation == ""
+
+    rendered, _, _ = format_agent_option(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation=annotation,
+        fold_restore_marked=True,
+    )
+
+    assert "×" not in rendered.plain
+    assert " ▿" in rendered.plain
 
 
 def test_cached_format_agent_option_invalidates_on_unread_change() -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.actions.agents._display_panel_titles import (
+    _PANEL_FOLD_RESTORE_STYLE,
     _PANEL_ISOLATION_RESTORE_STYLE,
     _PANEL_SELECTED_CHROME_STYLE,
     AgentPanelCounts,
@@ -321,6 +322,53 @@ def test_panel_title_places_isolation_restore_marker_after_tribe_name() -> None:
         end=marker_start + 1,
         style=_PANEL_ISOLATION_RESTORE_STYLE,
         text="↺",
+    )
+
+
+def test_panel_title_places_fold_restore_marker_count_after_tribe_name() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2),
+        fold_restore_marked_count=3,
+    )
+
+    assert title.plain == "@chop ▿3 · 3 [R1 W2]"
+    marker_start = title.plain.index("▿3")
+    _assert_title_span(
+        title,
+        start=marker_start,
+        end=marker_start + 2,
+        style=_PANEL_FOLD_RESTORE_STYLE,
+        text="▿3",
+    )
+    assert _PANEL_FOLD_RESTORE_STYLE == _PANEL_ISOLATION_RESTORE_STYLE
+
+
+def test_panel_title_composes_isolation_and_fold_restore_markers() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        isolation_restore_marked=True,
+        fold_restore_marked_count=3,
+    )
+
+    assert title.plain == "@chop ↺ ▿3 · 3"
+    isolation_start = title.plain.index("↺")
+    fold_start = title.plain.index("▿3")
+    _assert_title_span(
+        title,
+        start=isolation_start,
+        end=isolation_start + 1,
+        style=_PANEL_ISOLATION_RESTORE_STYLE,
+        text="↺",
+    )
+    _assert_title_span(
+        title,
+        start=fold_start,
+        end=fold_start + 2,
+        style=_PANEL_FOLD_RESTORE_STYLE,
+        text="▿3",
     )
 
 

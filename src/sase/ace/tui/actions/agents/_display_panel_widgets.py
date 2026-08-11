@@ -99,6 +99,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
         isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
+        restore_marked_fn = getattr(self, "_panel_fold_restore_marked_keys", None)
+        fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -116,6 +118,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             global_indices = slot.global_indices
             global_to_local = slot.global_to_local
             panel_collapsed = key in collapsed_keys
+            marked_fold_keys = fold_restore_marked.get(key, ())
             selected_expanded = bool(
                 panel_focus is not None
                 and not panel_focus.collapsed
@@ -129,6 +132,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     merge_tribe_panels=merge_tribe_panels,
                     panel_jump_hints=panel_jump_hints,
                     isolation_restore_marked=key in isolation_marked_keys,
+                    fold_restore_marked_count=len(marked_fold_keys),
                 ),
             )
             if idx == 0:
@@ -186,6 +190,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     fold_counts=fold_counts,
                     marked_agents=marked,
                     unread_agents=unread,
+                    fold_restore_marked_keys=marked_fold_keys,
                     jump_hints=local_jump_hints,
                     banner_jump_hints=local_banner_hints,
                     current_attempt_number=(
@@ -289,6 +294,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
         isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
+        restore_marked_fn = getattr(self, "_panel_fold_restore_marked_keys", None)
+        fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
@@ -334,6 +341,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             panel_agents = slot.agents
             global_indices = slot.global_indices
             global_to_local = slot.global_to_local
+            marked_fold_keys = fold_restore_marked.get(key, ())
 
             self._set_agent_panel_title(
                 widget,
@@ -343,6 +351,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     merge_tribe_panels=merge_tribe_panels,
                     panel_jump_hints=panel_jump_hints,
                     isolation_restore_marked=key in isolation_marked_keys,
+                    fold_restore_marked_count=len(marked_fold_keys),
                 ),
             )
 
@@ -394,6 +403,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     fold_counts=fold_counts,
                     marked_agents=marked,
                     unread_agents=unread,
+                    fold_restore_marked_keys=marked_fold_keys,
                     jump_hints=local_jump_hints,
                     banner_jump_hints=local_banner_hints,
                     current_attempt_number=(

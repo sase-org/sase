@@ -80,7 +80,7 @@ def test_agents_help_lists_panel_fold_sweep_binding() -> None:
         for key, label in bindings
     }
 
-    assert ("-", "Collapse panel folds ⇄ restore") in pairs
+    assert ("-", "Collapse panel folds ⇄ restore ▿") in pairs
 
 
 def test_agents_help_uses_configured_panel_fold_sweep_key() -> None:
@@ -91,7 +91,7 @@ def test_agents_help_uses_configured_panel_fold_sweep_key() -> None:
         for key, label in bindings
     }
 
-    assert ("f4", "Collapse panel folds ⇄ restore") in pairs
+    assert ("f4", "Collapse panel folds ⇄ restore ▿") in pairs
 
 
 def test_help_panel_tab_switch_display_is_present() -> None:

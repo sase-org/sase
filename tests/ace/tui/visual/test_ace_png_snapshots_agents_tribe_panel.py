@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.models._agent_tree import agent_fold_key
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
 from sase.ace.tui.widgets import KeybindingFooter
@@ -105,6 +106,72 @@ def _tribe_agents() -> list[Agent]:
         agent_name="visual-home",
     )
     return [home, family_root, family_child, failed]
+
+
+def _fold_restore_preview_agents() -> list[Agent]:
+    started = datetime(2026, 7, 18, 14, 0, 0)
+    home = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-home",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=started,
+        run_start_time=started,
+        stop_time=datetime(2026, 7, 18, 14, 10, 0),
+        raw_suffix="visual-home",
+        agent_name="visual-home",
+    )
+    family_root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-fold-build--plan",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=started,
+        run_start_time=started,
+        raw_suffix="visual-fold-plan",
+        agent_name="visual-fold-build--plan",
+        agent_family="visual-fold-build",
+        agent_family_role="root",
+        role_suffix="--plan",
+        plan_chain_root=True,
+        tribe="epic",
+    )
+    family_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-fold-build--code",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WAITING",
+        start_time=datetime(2026, 7, 18, 14, 3, 0),
+        run_start_time=datetime(2026, 7, 18, 14, 3, 0),
+        raw_suffix="visual-fold-code",
+        parent_timestamp=family_root.raw_suffix,
+        agent_name="visual-fold-build--code",
+        agent_family="visual-fold-build",
+        agent_family_role="code",
+        role_suffix="--code",
+        tribe="epic",
+    )
+    family_root.followup_agents = [family_child]
+    clan_members = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-fold-clan-{suffix}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=status,
+            start_time=datetime(2026, 7, 18, 14, minute, 0),
+            run_start_time=datetime(2026, 7, 18, 14, minute, 0),
+            raw_suffix=f"visual-fold-clan-{suffix}",
+            agent_name=f"visual-fold-clan.{suffix}",
+            agent_clan="visual-fold-clan",
+            agent_clan_generation="gen-1",
+            tribe="epic",
+        )
+        for suffix, status, minute in (
+            ("alpha", "RUNNING", 4),
+            ("beta", "QUEUED", 5),
+        )
+    ]
+    return [home, family_root, family_child, *clan_members]
 
 
 def _tribe_display_agents() -> list[Agent]:
@@ -223,6 +290,65 @@ async def test_tribe_panel_display_config_png_snapshot(
             page,
             "agents_tribe_panel_display_config_120x40",
             title="ACE per-tribe panel display config",
+        )
+
+
+async def test_tribe_panel_fold_sweep_armed_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 15, 0, 0))
+    patch_startup_loaders(monkeypatch, agents=_fold_restore_preview_agents())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        family = next(
+            agent
+            for agent in page.app._agents_with_children
+            if agent.agent_family == "visual-fold-build"
+            and agent.agent_family_role == "root"
+        )
+        clan = next(
+            agent
+            for agent in page.app._agents_with_children
+            if agent.is_clan_container and agent.agent_clan == "visual-fold-clan"
+        )
+        family_key = agent_fold_key(family)
+        clan_key = agent_fold_key(clan)
+        assert family_key is not None and clan_key is not None
+        page.app._fold_manager.expand(family_key)
+        page.app._fold_manager.expand(clan_key)
+        page.app._refilter_agents(refresh_content_index=False)
+        page.app._refresh_agents_display(list_changed=True)
+        await wait_for_visual_idle(page)
+
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "epic"
+        await page.press("h")
+        await page.wait_for(
+            lambda _screen: page.app._resolve_focused_panel() is not None
+        )
+        assert page.app._panel_has_collapsible_folds("epic")
+
+        await page.press("minus")
+        await page.wait_for(
+            lambda _screen: bool(page.app._panel_fold_restore_marked_keys().get("epic"))
+        )
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "▿")
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        bindings, _mode_label = footer._last_layout_inputs
+        assert ("-", "restore folds") in bindings
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_panel_fold_sweep_armed_120x40",
+            title="ACE panel fold sweep restore preview",
         )
 
 

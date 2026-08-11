@@ -72,6 +72,123 @@ def _populate_fold_counts(app: AgentPanelCollapseApp, agents: list[Agent]) -> No
     _, app._fold_counts = filter_agents_by_fold_state(agents, app._fold_manager)
 
 
+def test_restore_marked_keys_short_circuits_without_records() -> None:
+    app = AgentPanelCollapseApp([])
+    app._panel_group = None  # type: ignore[assignment]
+
+    assert app._panel_fold_restore_marked_keys() == {}
+
+
+def test_restore_marked_keys_after_sweep_names_live_collapsed_folds() -> None:
+    lane_rows, lane_root, _lane_steps = _named_workflow_lane("lane")
+    clan_rows = project_clan_tree([_clan_member("workers")])
+    clan = _clan_container(clan_rows, "workers")
+    agents = [*lane_rows, *clan_rows]
+    app = AgentPanelCollapseApp(agents, focused_key=None)
+    app._agents_with_children = list(agents)
+    _populate_fold_counts(app, agents)
+    lane_key = agent_fold_key(lane_root)
+    clan_key = agent_fold_key(clan)
+    assert lane_key is not None
+    assert clan_key is not None
+    app._fold_manager.expand(lane_key)
+    app._fold_manager.expand(clan_key)
+    app._expanded_panel_focus = True
+
+    app.action_collapse_panel_folds()
+
+    assert app._panel_fold_restore_marked_keys() == {
+        None: frozenset({lane_key, clan_key})
+    }
+
+
+def test_restore_marked_keys_clear_after_reversing_press() -> None:
+    rows, root, _steps = _named_workflow_lane("lane")
+    app = AgentPanelCollapseApp(rows, focused_key=None)
+    app._agents_with_children = list(rows)
+    _populate_fold_counts(app, rows)
+    lane_key = agent_fold_key(root)
+    assert lane_key is not None
+    app._fold_manager.expand(lane_key)
+    app._expanded_panel_focus = True
+
+    app.action_collapse_panel_folds()
+    assert app._panel_fold_restore_marked_keys() == {None: frozenset({lane_key})}
+
+    app.action_collapse_panel_folds()
+
+    assert app._panel_fold_restore_marked_keys() == {}
+
+
+def test_restore_marked_keys_clear_when_next_press_would_sweep() -> None:
+    rows, root, _steps = _named_workflow_lane("lane")
+    app = AgentPanelCollapseApp(rows, focused_key=None)
+    app._agents_with_children = list(rows)
+    _populate_fold_counts(app, rows)
+    lane_key = agent_fold_key(root)
+    assert lane_key is not None
+    app._fold_manager.expand(lane_key)
+    app._expanded_panel_focus = True
+
+    app.action_collapse_panel_folds()
+    app._fold_manager.expand(lane_key)
+
+    assert app._panel_fold_restore_marked_keys() == {}
+
+
+def test_restore_marked_keys_skip_records_whose_owners_disappeared() -> None:
+    agent = make_transition_agent(cl_name="plain", raw_suffix="plain")
+    app = AgentPanelCollapseApp([agent], focused_key=None)
+    app._panel_fold_sweep_records = {
+        None: PanelFoldSweepRecord(
+            panel_key=None,
+            agent_levels=(("missing-fold", FoldLevel.EXPANDED),),
+        )
+    }
+    app._fold_manager.collapse_fully_all(["missing-fold"])
+
+    assert app._panel_fold_restore_marked_keys() == {}
+
+
+def test_restore_marked_keys_skip_collapsed_panels() -> None:
+    default_rows, default_root, _default_steps = _named_workflow_lane("default")
+    other_rows, _other_root, _other_steps = _named_workflow_lane(
+        "other", tribe="research"
+    )
+    agents = [*default_rows, *other_rows]
+    app = AgentPanelCollapseApp(agents, focused_key=None)
+    app._agents_with_children = list(agents)
+    _populate_fold_counts(app, agents)
+    default_key = agent_fold_key(default_root)
+    assert default_key is not None
+    app._fold_manager.expand(default_key)
+    app._expanded_panel_focus = True
+
+    app.action_collapse_panel_folds()
+    app._collapsed_panel_keys.add(None)
+
+    assert app._panel_fold_restore_marked_keys() == {}
+
+
+def test_restore_marked_keys_are_per_panel() -> None:
+    default_rows, default_root, _default_steps = _named_workflow_lane("default")
+    other_rows, _other_root, _other_steps = _named_workflow_lane(
+        "other", tribe="research"
+    )
+    agents = [*default_rows, *other_rows]
+    app = AgentPanelCollapseApp(agents, focused_key=None)
+    app._agents_with_children = list(agents)
+    _populate_fold_counts(app, agents)
+    default_key = agent_fold_key(default_root)
+    assert default_key is not None
+    app._fold_manager.expand(default_key)
+    app._expanded_panel_focus = True
+
+    app.action_collapse_panel_folds()
+
+    assert app._panel_fold_restore_marked_keys() == {None: frozenset({default_key})}
+
+
 def test_whole_panel_sweep_collapses_lanes_and_clans_banners_stay_open() -> None:
     lane_rows, lane_root, _lane_steps = _named_workflow_lane("lane")
     projected, family, _member = make_sequential_family(clan="workers")
