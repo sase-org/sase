@@ -161,7 +161,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         delete_subtitle = completion_delete_subtitle(completion_kind, visible)
         if delete_subtitle:
             panel.border_subtitle = delete_subtitle
-        elif kinds.artifact_ref or kinds.xprompt_arg_ref:
+        elif kinds.artifact_ref:
             panel.border_subtitle = artifact_ref_completion_subtitle(
                 visible,
                 artifact_ref_payload_count,

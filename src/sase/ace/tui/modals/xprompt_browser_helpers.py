@@ -17,12 +17,10 @@ from sase.content_layout import (
 )
 from sase.main.plugin_discovery import discover_plugin_resources
 from sase.project_display_names import project_display_name_for
-from sase.sidecar_ref_config import SIDECAR_REF_CONFIG_SOURCE_PREFIX
 from sase.xprompt.loader import (
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
 )
-from sase.xprompt.loader_refs import GENERATED_REF_SOURCE_PREFIX
 from sase.xprompt.project_identity import (
     canonical_xprompt_project,
     known_project_namespaces,
@@ -76,16 +74,6 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     # Built-in default config xprompts
     if source_path == "default_config":
         return "Built-in", "sase default_config.yml", False
-
-    # Contextual ref renderers synthesized from sidecar config have no
-    # standalone definition file, so they are never editable as markdown.
-    if source_path.startswith(SIDECAR_REF_CONFIG_SOURCE_PREFIX):
-        role = source_path.removeprefix(SIDECAR_REF_CONFIG_SOURCE_PREFIX)
-        return "Project sase.yml", f"sase/sase.yml ref renderer for {role}", False
-
-    if source_path.startswith(GENERATED_REF_SOURCE_PREFIX):
-        role = source_path.removeprefix(GENERATED_REF_SOURCE_PREFIX)
-        return "Built-in", f"generated ref renderer for {role}", False
 
     # Config sources: user sase.yml
     if source_path == "config":
@@ -272,16 +260,6 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
             return str(importlib.resources.files("sase").joinpath("default_config.yml"))
         except Exception:
             return None
-
-    # sidecar_ref_config:{role} → the sase.yml that owns the ref renderer;
-    # generated_sidecar_ref:{role} has no source file at all.
-    if source_path.startswith(SIDECAR_REF_CONFIG_SOURCE_PREFIX):
-        project_root = discover_project_root() or Path.cwd()
-        path = resolve_project_config_read_path(project_root)
-        return str(path) if path is not None else None
-
-    if source_path.startswith(GENERATED_REF_SOURCE_PREFIX):
-        return None
 
     # local_config → project sase/sase.yml (legacy root fallback is display-only)
     if source_path == "local_config":

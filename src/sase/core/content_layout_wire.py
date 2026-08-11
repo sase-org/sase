@@ -187,22 +187,6 @@ class SkillSource:
 
 
 @dataclass(frozen=True)
-class RefSource:
-    """One ordered, first-wins source of contextual ref renderers."""
-
-    id: str
-    priority: int
-    scope: str
-    locator: str
-    path: Path | None
-    formats: tuple[str, ...]
-    tracking: PathTracking
-    project_namespaced: bool
-    writable: bool
-    ordering: str | None
-
-
-@dataclass(frozen=True)
 class MemorySource:
     """One ordered source of flat SASE memory notes exposed as xprompts."""
 
@@ -234,7 +218,6 @@ class SaseContentLayout:
     chezmoi: ChezmoiContentLayout | None
     xprompt_sources: tuple[XpromptSource, ...]
     skill_sources: tuple[SkillSource, ...]
-    ref_sources: tuple[RefSource, ...]
     memory_sources: tuple[MemorySource, ...]
 
 
@@ -263,10 +246,6 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
         skill_sources=tuple(
             _skill_source(_mapping(item))
             for item in cast(list[Any], raw.get("skill_sources", []))
-        ),
-        ref_sources=tuple(
-            _ref_source(_mapping(item))
-            for item in cast(list[Any], raw.get("ref_sources", []))
         ),
         memory_sources=tuple(
             _memory_source(_mapping(item))
@@ -367,22 +346,6 @@ def _xprompt_source(raw: Mapping[str, Any]) -> XpromptSource:
 def _skill_source(raw: Mapping[str, Any]) -> SkillSource:
     path = raw.get("path")
     return SkillSource(
-        id=str(raw["id"]),
-        priority=int(raw["priority"]),
-        scope=str(raw["scope"]),
-        locator=str(raw["locator"]),
-        path=Path(str(path)) if path is not None else None,
-        formats=tuple(str(item) for item in raw.get("formats", [])),
-        tracking=cast(PathTracking, raw["tracking"]),
-        project_namespaced=bool(raw.get("project_namespaced", False)),
-        writable=bool(raw.get("writable", False)),
-        ordering=(str(raw["ordering"]) if raw.get("ordering") is not None else None),
-    )
-
-
-def _ref_source(raw: Mapping[str, Any]) -> RefSource:
-    path = raw.get("path")
-    return RefSource(
         id=str(raw["id"]),
         priority=int(raw["priority"]),
         scope=str(raw["scope"]),

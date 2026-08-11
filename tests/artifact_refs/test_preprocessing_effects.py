@@ -17,28 +17,7 @@ from sase.llm_provider.preprocessing import preprocess_prompt_late
 from .preprocessing_helpers import (
     context as make_context,
     disable_consumption_ledger_writes,  # noqa: F401 (registers autouse fixture)
-    sidecar_sentence,
 )
-
-
-def test_ref_xprompt_raw_spelling_is_preserved_in_staging(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    context = make_context(tmp_path)
-    plan = tmp_path / "plans" / "report.md"
-    plan.parent.mkdir(parents=True)
-    plan.write_text("# Report\n", encoding="utf-8")
-    staged: list[dict[str, object]] = []
-    monkeypatch.setattr(
-        "sase.core.prompt_artifact_staging.stage_prompt_artifact",
-        lambda **kwargs: staged.append(kwargs),
-    )
-
-    process_artifact_references("#ref/plans:report.md", context=context)
-
-    assert staged[0]["raw_ref"] == "#ref/plans:report.md"
-    assert staged[0]["expanded_ref"] == sidecar_sentence("plans", "report.md")
 
 
 def test_rewrite_records_one_edge_per_expanded_reference(
@@ -95,7 +74,7 @@ def test_rewrite_stages_the_same_resolved_reference_list(
     assert staged == [
         {
             "raw_ref": "@plans:report.md",
-            "expanded_ref": sidecar_sentence("plans", "report.md"),
+            "expanded_ref": f"@{plan}",
             "resolved_path": plan,
             "ref_kind": "plans",
             "label": "report.md",
@@ -291,7 +270,7 @@ def test_recorder_failure_does_not_change_expansion(
             "Read @plans:report.md.",
             context=context,
         )
-        == f"Read {sidecar_sentence('plans', 'report.md')}."
+        == f"Read @{plan}."
     )
 
 

@@ -14,7 +14,6 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCompletionResult,
     ArtifactRefKindCompletionMetadata,
     build_artifact_ref_completion_result,
-    build_ref_xprompt_arg_completion_result,
 )
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -43,7 +42,6 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.xprompt_arg_assist import (
         ActiveXPromptArgHint,
         XPromptAssistEntry,
-        XPromptArgCompletionContext,
     )
     from sase.ace.tui.widgets.placeholder_completion import (
         PlaceholderCompletionResult,
@@ -312,44 +310,6 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             bugs=self._snapshot_artifact_ref_bug_candidates(),
             paths=() if path_snapshot is None else path_snapshot.rows,
             paths_loading=context.stage == "kind" and path_snapshot is None,
-        )
-
-    def _ref_xprompt_arg_completion_result(
-        self,
-        ctx: XPromptArgCompletionContext,
-    ) -> ArtifactRefCompletionResult | None:
-        """Build ``#ref/<kind>`` argument candidates from warm artifact payloads."""
-        ref_kind = ctx.entry.ref_kind
-        if ref_kind is None:
-            return None
-        catalog = self._get_warm_artifact_ref_completion_catalog()
-        if catalog is None:
-            return None
-        commit_rows: tuple[ArtifactRefCommitCandidate, ...] = ()
-        commits_loading = False
-        commits_truncated_payloads = 0
-        if ref_kind.casefold() == "commit":
-            project = self._xprompt_arg_assist_project_from_text()
-            commit_snapshot = self._prompt_commit_snapshots.get(project)
-            artifact_context = self._get_warm_artifact_ref_context()
-            if artifact_context is not None:
-                self._schedule_prompt_commit_inventory_load(
-                    project,
-                    artifact_context,
-                    commit_snapshot,
-                )
-            commits_loading = project in self._prompt_commit_inflight
-            if commit_snapshot is not None:
-                commit_rows = commit_snapshot.rows
-                commits_truncated_payloads = commit_snapshot.truncated_payloads
-        return build_ref_xprompt_arg_completion_result(
-            ref_kind,
-            ctx.token,
-            catalog,
-            commits=commit_rows,
-            commits_loading=commits_loading,
-            commits_truncated_payloads=commits_truncated_payloads,
-            bugs=self._snapshot_artifact_ref_bug_candidates(),
         )
 
     def _snapshot_artifact_ref_bug_candidates(

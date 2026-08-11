@@ -407,11 +407,9 @@ class StartupPromptCatalogMixin:
                 )
                 if callable(invalidate_artifact_refs):
                     invalidate_artifact_refs()
-                if (
-                    getattr(text_area, "_file_completion_active", False)
-                    and completion_kind.startswith("xprompt")
-                    and completion_kind != "xprompt_arg_ref"
-                ):
+                if getattr(
+                    text_area, "_file_completion_active", False
+                ) and completion_kind.startswith("xprompt"):
                     text_area._refresh_file_completion_from_cursor()
                 if getattr(text_area, "_active_xprompt_arg_hint", None) is not None:
                     text_area._refresh_xprompt_arg_hint_from_cursor()

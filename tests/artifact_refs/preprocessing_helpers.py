@@ -66,7 +66,3 @@ def context(tmp_path: Path) -> ArtifactRefContext:
             machine_name="athena",
         ),
     )
-
-
-def sidecar_sentence(kind: str, path: str) -> str:
-    return f"the {path} file in the {kind} sidecar repo"

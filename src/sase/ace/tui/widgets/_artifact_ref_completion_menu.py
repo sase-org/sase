@@ -14,9 +14,6 @@ from sase.artifact_refs import (
     at_reference_inventory,
     at_reference_menu,
 )
-from sase.ace.tui.widgets._artifact_ref_completion_context import (
-    detect_artifact_ref_completion_context,
-)
 from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
 from sase.ace.tui.widgets._artifact_ref_completion_models import (
     ArtifactRefBugCandidate,
@@ -233,53 +230,6 @@ def build_artifact_ref_completion_result(
         int(menu.get("truncated_payloads", 0)),
         bool(menu.get("files_suppressed", False)),
     )
-
-
-def build_ref_xprompt_arg_completion_result(
-    ref_kind: str,
-    token: str,
-    catalog: ArtifactRefCompletionCatalog,
-    *,
-    commits: Sequence[ArtifactRefCommitCandidate] = (),
-    commits_loading: bool = False,
-    commits_truncated_payloads: int = 0,
-    bugs: Sequence[ArtifactRefBugCandidate] = (),
-    _result_builder: Callable[..., ArtifactRefCompletionResult] = (
-        build_artifact_ref_completion_result
-    ),
-) -> ArtifactRefCompletionResult | None:
-    """Build payload-only candidates for a ``#ref/<kind>`` argument value."""
-    if not ref_kind:
-        return None
-    prefix = f"@{ref_kind}:"
-    text = f"{prefix}{token}"
-    context = detect_artifact_ref_completion_context(text, len(text), catalog.kinds)
-    if context is None or context.stage != "payload":
-        return None
-    result = _result_builder(
-        context,
-        catalog,
-        include_files=False,
-        commits=commits,
-        commits_loading=commits_loading,
-        commits_truncated_payloads=commits_truncated_payloads,
-        bugs=bugs,
-    )
-    candidates: list[CompletionCandidate] = []
-    for candidate in result.candidates:
-        if isinstance(candidate.metadata, AtReferenceLoadingCompletionMetadata):
-            candidates.append(candidate)
-        elif candidate.insertion.startswith(prefix):
-            candidates.append(
-                CompletionCandidate(
-                    display=candidate.display,
-                    insertion=candidate.insertion[len(prefix) :],
-                    is_dir=candidate.is_dir,
-                    name=candidate.name,
-                    metadata=candidate.metadata,
-                )
-            )
-    return replace(result, candidates=candidates)
 
 
 def wire_match_runs(value: object) -> tuple[tuple[int, int], ...]:

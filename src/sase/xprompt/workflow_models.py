@@ -163,11 +163,6 @@ class Workflow:
     description: str | None = None
     skill_name: str | None = None
     memory_type: MemoryType | None = None
-    ref: bool | None = None
-    ref_kind: str | None = None
-    ref_sidecar_role: str | None = None
-    ref_path_globs: tuple[str, ...] | None = None
-    ref_shadowed_sources: tuple[str, ...] = ()
     discovery_rank: int | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:

@@ -82,7 +82,6 @@ def compute_stats(entries: list[CatalogEntry]) -> CatalogStats:
     with_inputs = 0
     skills = 0
     memory = 0
-    refs = 0
 
     for entry in entries:
         by_source[entry.bucket] = by_source.get(entry.bucket, 0) + 1
@@ -98,8 +97,6 @@ def compute_stats(entries: list[CatalogEntry]) -> CatalogStats:
             skills += 1
         if entry.xprompt.memory_type is not None:
             memory += 1
-        if entry.xprompt.ref_kind is not None:
-            refs += 1
 
     sorted_tags = dict(sorted(by_tag.items(), key=lambda kv: (-kv[1], kv[0])))
     sorted_projects = dict(sorted(by_project.items(), key=lambda kv: kv[0]))
@@ -113,7 +110,6 @@ def compute_stats(entries: list[CatalogEntry]) -> CatalogStats:
         with_inputs=with_inputs,
         skills=skills,
         memory=memory,
-        refs=refs,
         generated_at=datetime.now(UTC),
     )
 

@@ -94,30 +94,6 @@ def test_prompt_source_token_changes_for_memory_file_create(
     assert before != after
 
 
-def test_prompt_source_token_changes_for_ref_file_create(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    ref_dir = tmp_path / "sase" / "refs"
-    ref_dir.mkdir(parents=True)
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
-    monkeypatch.setattr(prompt_catalog, "current_config_token", lambda: ("config",))
-    monkeypatch.setattr(
-        prompt_catalog,
-        "resolve_ref_file_sources",
-        lambda **_kwargs: (SimpleNamespace(path=ref_dir),),
-    )
-
-    before = prompt_catalog._prompt_source_token([None])
-    (ref_dir / "research.md").write_text("---\nref: true\n---\nbody\n")
-    after = prompt_catalog._prompt_source_token([None])
-
-    assert before != after
-
-
 def test_prompt_source_watch_paths_include_memory_roots(
     tmp_path: Path,
     monkeypatch,
@@ -141,27 +117,6 @@ def test_prompt_source_watch_paths_include_memory_roots(
     paths = prompt_catalog.prompt_source_watch_paths([None])
 
     assert memory_dir in paths
-
-
-def test_prompt_source_watch_paths_include_ref_roots(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    ref_dir = tmp_path / "sase" / "refs"
-    ref_dir.mkdir(parents=True)
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(prompt_catalog, "get_xprompt_search_paths", lambda: [])
-    monkeypatch.setattr(
-        prompt_catalog,
-        "resolve_ref_file_sources",
-        lambda **_kwargs: (SimpleNamespace(path=ref_dir),),
-    )
-
-    paths = prompt_catalog.prompt_source_watch_paths([None])
-
-    assert ref_dir in paths
 
 
 def test_build_prompt_catalog_snapshot_short_circuits_unchanged_token(

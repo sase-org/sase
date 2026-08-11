@@ -406,9 +406,6 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         ctx: XPromptArgCompletionContext,
     ) -> bool:
         """Handle Ctrl+T-driven completion inside xprompt argument syntax."""
-        if ctx.completion_kind == "xprompt_arg_ref":
-            return self._try_ref_xprompt_arg_completion_tab(ctx)
-
         base_dir = self._prompt_completion_base_dir()
         candidates, shared_extension = build_xprompt_arg_completion_candidates(
             ctx,
@@ -465,72 +462,4 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(token)
-        return True
-
-    def _try_ref_xprompt_arg_completion_tab(
-        self,
-        ctx: XPromptArgCompletionContext,
-    ) -> bool:
-        """Handle Ctrl+T-driven payload completion for ``#ref/<kind>`` args."""
-        self._completion_kind = "xprompt_arg_ref"
-        result = self._ref_xprompt_arg_completion_result(ctx)
-        if result is None:
-            self._warm_current_artifact_ref_completion_catalog()
-            self._clear_file_completion(clear_xprompt_arg_hint=False)
-            self._refresh_xprompt_arg_hint_from_cursor()
-            return True
-        candidates = result.candidates
-        self._artifact_ref_completion_stats = (
-            result.payload_count,
-            result.payload_total,
-            result.truncated_payloads,
-        )
-        self._artifact_ref_files_suppressed = result.files_suppressed
-
-        if not candidates:
-            self._clear_file_completion(clear_xprompt_arg_hint=False)
-            self._refresh_xprompt_arg_hint_from_cursor()
-            return True
-
-        if len(candidates) == 1 and candidates[0].insertion:
-            self._replace_absolute_range(
-                ctx.value_start,
-                ctx.value_end,
-                candidates[0].insertion,
-            )
-            self._clear_file_completion(clear_xprompt_arg_hint=False)
-            self._refresh_xprompt_arg_hint_from_cursor()
-            return True
-
-        if result.shared_extension:
-            next_token = f"{ctx.token}{result.shared_extension}"
-            self._replace_absolute_range(ctx.value_start, ctx.value_end, next_token)
-            next_ctx = self._get_xprompt_arg_completion_context()
-            if next_ctx is None or next_ctx.completion_kind != "xprompt_arg_ref":
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
-                return True
-            result = self._ref_xprompt_arg_completion_result(next_ctx)
-            if result is None:
-                self._warm_current_artifact_ref_completion_catalog()
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
-                return True
-            candidates = result.candidates
-            ctx = next_ctx
-            self._artifact_ref_completion_stats = (
-                result.payload_count,
-                result.payload_total,
-                result.truncated_payloads,
-            )
-            self._artifact_ref_files_suppressed = result.files_suppressed
-            if not candidates:
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
-                return True
-
-        self._file_completion_active = True
-        self._file_completion_candidates = candidates
-        self._file_completion_index = 0
-        self._update_file_completion_panel(ctx.token)
         return True

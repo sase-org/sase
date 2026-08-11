@@ -8,7 +8,6 @@ from sase.ace.tui.modals.xprompt_browser_helpers import (
     append_input_args,
     classify_source,
     is_yaml_backed_source,
-    resolve_source_to_file_path,
 )
 from sase.ace.tui.modals.xprompt_browser_options import create_item_label
 from sase.ace.tui.modals.xprompt_browser_preview import (
@@ -56,42 +55,6 @@ def test_classify_source_project_memory_note(tmp_path: Path, monkeypatch) -> Non
     assert category == "Project sase/memory/"
     assert display_path == "sase/memory/glossary.md"
     assert is_editable is True
-
-
-def test_classify_source_marks_synthesized_ref_renderers_read_only(
-    tmp_path: Path, monkeypatch
-) -> None:
-    # ``sidecar_ref_config:`` and ``generated_sidecar_ref:`` name a ref renderer
-    # that has no standalone markdown definition, so neither may fall through to
-    # the editable "Other" bucket and be written back as a file.
-    project_root = tmp_path / "workspace"
-    config = project_root / "sase" / "sase.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text("repos: {}\n")
-    monkeypatch.chdir(project_root)
-
-    category, display, is_editable = classify_source("sidecar_ref_config:research")
-    assert category == "Project sase.yml"
-    assert display == "sase/sase.yml ref renderer for research"
-    assert is_editable is False
-
-    category, display, is_editable = classify_source("generated_sidecar_ref:research")
-    assert category == "Built-in"
-    assert display == "generated ref renderer for research"
-    assert is_editable is False
-
-
-def test_resolve_source_to_file_path_for_synthesized_ref_renderers(
-    tmp_path: Path, monkeypatch
-) -> None:
-    project_root = tmp_path / "workspace"
-    config = project_root / "sase" / "sase.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text("repos: {}\n")
-    monkeypatch.chdir(project_root)
-
-    assert resolve_source_to_file_path("sidecar_ref_config:research") == str(config)
-    assert resolve_source_to_file_path("generated_sidecar_ref:research") is None
 
 
 def test_append_input_args_keeps_required_and_optional_modal_styles() -> None:

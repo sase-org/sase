@@ -325,7 +325,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
                     result.catalog is not None
                     and getattr(self, "_file_completion_active", False)
                     and getattr(self, "_completion_kind", "")
-                    in {ARTIFACT_REF_COMPLETION_KIND, "xprompt_arg_ref"}
+                    == ARTIFACT_REF_COMPLETION_KIND
                     and self._xprompt_arg_assist_project_from_text() == result.project
                 ):
                     refresh_completion = getattr(
@@ -355,10 +355,7 @@ class ArtifactRefHighlightMixin(_MixinBase):
         self._artifact_ref_contexts_by_project.clear()
         self._artifact_ref_kinds_warming.clear()
         self._artifact_ref_kind_worker_projects.clear()
-        if getattr(self, "_completion_kind", "") in {
-            ARTIFACT_REF_COMPLETION_KIND,
-            "xprompt_arg_ref",
-        }:
+        if getattr(self, "_completion_kind", "") == ARTIFACT_REF_COMPLETION_KIND:
             self._warm_current_artifact_ref_completion_catalog()
         self._build_highlight_map()
         self.refresh()

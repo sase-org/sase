@@ -7,7 +7,6 @@ modules.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, replace
 import logging
 from pathlib import Path
@@ -27,14 +26,10 @@ from sase.artifact_ref_operations import (
 )
 from sase.artifact_ref_prompt_parsing import (
     ArtifactRefFailure as _ArtifactRefFailure,
-    ArtifactRefRendererError as _ArtifactRefRendererError,
-    RefRewrite as _RefRewrite,
     byte_to_character_offsets as _byte_to_character_offsets,
     character_span as _character_span,
     overlaps_any as _overlaps_any,
     print_artifact_ref_failures as _print_artifact_ref_failures,
-    raw_candidate_text as _raw_candidate_text,
-    rewrite_ref_xprompt_references as _rewrite_ref_xprompt_references,
 )
 from sase.artifact_ref_prompt_rendering import (
     artifact_ref_replacement as _artifact_ref_replacement_impl,
@@ -47,10 +42,7 @@ from sase.artifact_ref_prompt_resolution import (
     resolve_checkout_commit as _resolve_checkout_commit,
     resolve_for_launch as _resolve_for_launch_impl,
 )
-from sase.artifact_ref_renderers import (
-    ArtifactRendererJinjaProtection,
-    ref_renderer_registry,
-)
+from sase.artifact_ref_renderers import ArtifactRendererJinjaProtection
 from sase.core.artifact_consumption import (
     ArtifactConsumptionEvent,
     ArtifactConsumptionResolutionStatus,
@@ -58,7 +50,6 @@ from sase.core.artifact_consumption import (
     artifact_consumption_role,
     build_artifact_consumption_event,
 )
-from sase.xprompt.models import XPrompt
 
 
 log = logging.getLogger(__name__)
@@ -125,29 +116,15 @@ def _expand_artifact_references(
     staged_file_paths: set[str] | None,
     jinja_protection: ArtifactRendererJinjaProtection | None,
 ) -> str:
-    if "@" not in prompt and "#ref/" not in prompt:
+    if "@" not in prompt:
         return prompt
 
     if context is None:
         context = launch_artifact_ref_context(is_home_mode=is_home_mode)
-    ref_renderers: dict[str, XPrompt] | None = None
-    rewrites: dict[int, _RefRewrite] = {}
-    if "#ref/" in prompt:
-        ref_renderers = ref_renderer_registry(context)
-        prompt, rewrites = _rewrite_ref_xprompt_references(
-            prompt,
-            context=context,
-            ref_renderers=ref_renderers,
-        )
-
-    if "@" not in prompt:
-        return prompt
 
     candidates = scan_artifact_refs(prompt)
     if not candidates:
         return prompt
-    if ref_renderers is None:
-        ref_renderers = ref_renderer_registry(context)
 
     from sase.xprompt._literal_zones import literal_zone_ranges
 
@@ -157,12 +134,12 @@ def _expand_artifact_references(
     consumptions: list[_ExpandedArtifactRef] = []
     failures: list[_ArtifactRefFailure] = []
     known_kinds = set(context.known_kinds)
-    for occurrence_index, candidate in enumerate(candidates):
+    for candidate in candidates:
         start, end = _character_span(
             candidate.candidate_span,
             byte_to_char=byte_to_char,
         )
-        raw_candidate = _raw_candidate_text(candidate.text, start, rewrites)
+        raw_candidate = candidate.text
         if _overlaps_any(start, end, literal_ranges):
             continue
         if candidate.kind not in known_kinds:
@@ -200,14 +177,8 @@ def _expand_artifact_references(
                 resolution,
                 context=context,
                 materialized_path=materialized_path,
-                occurrence_index=occurrence_index,
-                raw_ref=raw_candidate,
-                ref_renderers=ref_renderers,
                 jinja_protection=jinja_protection,
             )
-        except _ArtifactRefRendererError as exc:
-            failures.append(_ArtifactRefFailure(raw_candidate, "renderer", str(exc)))
-            continue
         except (RuntimeError, ValueError) as exc:
             failures.append(_ArtifactRefFailure(raw_candidate, "missing", str(exc)))
             continue
@@ -257,9 +228,6 @@ def _artifact_ref_replacement(
     *,
     context: ArtifactRefContext,
     materialized_path: Path | None,
-    occurrence_index: int,
-    raw_ref: str,
-    ref_renderers: Mapping[str, XPrompt],
     jinja_protection: ArtifactRendererJinjaProtection | None,
 ) -> tuple[str, Path | None]:
     return _artifact_ref_replacement_impl(
@@ -267,9 +235,6 @@ def _artifact_ref_replacement(
         resolution,
         context=context,
         materialized_path=materialized_path,
-        occurrence_index=occurrence_index,
-        raw_ref=raw_ref,
-        ref_renderers=ref_renderers,
         jinja_protection=jinja_protection,
         issue_url_resolver=_resolved_bug_url,
     )

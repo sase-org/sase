@@ -23,19 +23,7 @@ REF_FILTERS_CONFIG_KEY = "filters"
 REF_PATH_GLOBS_CONFIG_KEY = "path_globs"
 
 DEFAULT_DOCUMENT_REF_PATH_GLOBS: tuple[str, ...] = ("**/*.md",)
-DEFAULT_DOCUMENT_REF_RENDERER = (
-    "the {{ file_path }} file in the {{ sidecar }} sidecar repo"
-)
 SIDECAR_REF_CONFIG_SOURCE_PREFIX = "sidecar_ref_config:"
-
-BUILTIN_REF_INPUTS: dict[str, str] = {
-    "commit": "commit",
-    "chat": "file_path",
-    "bug": "bug",
-    "file": "artifact_id",
-    "bead": "bead_id",
-    "agent": "agent_name",
-}
 
 _BUILTIN_SIDECAR_REF_KIND = {
     BEADS_SIDECAR_ROLE: "bead",
@@ -63,11 +51,6 @@ class SidecarRefPolicy:
 def _sidecar_role_ref_kind(role: str) -> str:
     """Return the contextual ref kind for one sidecar role."""
     return _BUILTIN_SIDECAR_REF_KIND.get(role, role)
-
-
-def canonical_ref_input(ref_kind: str) -> str:
-    """Return the registry-owned single input name for a ref kind."""
-    return BUILTIN_REF_INPUTS.get(ref_kind, "file_path")
 
 
 def effective_sidecar_ref_policies(
@@ -170,15 +153,12 @@ def _path_globs(value: object) -> tuple[str, ...]:
 
 
 __all__ = [
-    "BUILTIN_REF_INPUTS",
     "DEFAULT_DOCUMENT_REF_PATH_GLOBS",
-    "DEFAULT_DOCUMENT_REF_RENDERER",
     "REF_CONFIG_KEY",
     "REF_FILTERS_CONFIG_KEY",
     "REF_PATH_GLOBS_CONFIG_KEY",
     "REF_XPROMPT_CONFIG_KEY",
     "SIDECAR_REF_CONFIG_SOURCE_PREFIX",
     "SidecarRefPolicy",
-    "canonical_ref_input",
     "effective_sidecar_ref_policies",
 ]

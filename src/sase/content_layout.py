@@ -23,7 +23,6 @@ from sase.core.content_layout_wire import (
     LayoutReadResolution,
     MemorySource,
     ProjectContentLayout,
-    RefSource,
     SaseContentLayout,
     SkillPlacementIssue,
     SkillSource,
@@ -236,42 +235,6 @@ def resolve_skill_file_sources(
     return tuple(source for source in layout.skill_sources if source.path is not None)
 
 
-def resolve_ref_file_sources(
-    *,
-    project_root: Path | str | None = None,
-    home_root: Path | str | None = None,
-    project: str | None = None,
-    include_resource_sources: bool = False,
-) -> tuple[RefSource, ...]:
-    """Return ordered contextual ref renderer sources.
-
-    Filesystem sources carry concrete paths for project, home, and
-    project-specific home refs.  Package and plugin sources use resource
-    locators and are included only when requested so filesystem callers do not
-    accidentally treat them as directories.
-    """
-    if project_root is None:
-        root = discover_project_root()
-        if root is None:
-            try:
-                root = Path.cwd()
-            except OSError:
-                root = None
-    else:
-        root = Path(project_root)
-    layout = _resolve_content_layout(
-        project_root=root,
-        home_root=home_root,
-        project=project,
-    )
-    return tuple(
-        source
-        for source in layout.ref_sources
-        if "md" in source.formats
-        and (include_resource_sources or source.path is not None)
-    )
-
-
 def resolve_memory_file_sources(
     *,
     project_root: Path | str | None = None,
@@ -466,7 +429,6 @@ __all__ = [
     "MemoryFileSource",
     "MemorySource",
     "ProjectContentLayout",
-    "RefSource",
     "SaseContentLayout",
     "SkillPlacementIssue",
     "SkillSource",
@@ -480,7 +442,6 @@ __all__ = [
     "resolve_home_layout",
     "resolve_memory_file_sources",
     "resolve_project_layout",
-    "resolve_ref_file_sources",
     "resolve_skill_file_sources",
     "resolve_xprompt_file_sources",
     "memory_note_issue",

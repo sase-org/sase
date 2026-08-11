@@ -22,7 +22,6 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefPayloadCompletionMetadata,
     _ArtifactRefDocumentCandidate,
     build_artifact_ref_completion_result,
-    build_ref_xprompt_arg_completion_result,
     detect_artifact_ref_completion_context,
     load_artifact_ref_completion_catalog,
 )
@@ -182,28 +181,6 @@ def test_document_catalog_filters_role_payloads_with_shared_matcher(
         ("plans", "docs/guide.md"),
     ]
     assert catalog.payload_truncation["plans"] == 0
-
-
-def test_ref_xprompt_arg_payload_rows_match_at_reference_payload_rows() -> None:
-    at_context = detect_artifact_ref_completion_context(
-        "@plans:",
-        len("@plans:"),
-        _CATALOG.kinds,
-    )
-    assert at_context is not None
-    at_result = build_artifact_ref_completion_result(at_context, _CATALOG)
-    ref_result = build_ref_xprompt_arg_completion_result("plans", "", _CATALOG)
-    assert ref_result is not None
-
-    assert [candidate.insertion for candidate in ref_result.candidates] == [
-        candidate.insertion.removeprefix("@plans:")
-        for candidate in at_result.candidates
-    ]
-    assert [candidate.metadata for candidate in ref_result.candidates] == [
-        candidate.metadata for candidate in at_result.candidates
-    ]
-    assert ref_result.payload_count == at_result.payload_count
-    assert ref_result.payload_total == at_result.payload_total
 
 
 def test_warm_payload_index_and_metadata_are_reused_across_keystrokes() -> None:

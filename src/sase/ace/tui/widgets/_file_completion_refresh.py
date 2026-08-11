@@ -92,32 +92,6 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                     self._try_artifact_ref_completion(force=True)
             return
 
-        if self._completion_kind == "xprompt_arg_ref":
-            arg_ctx = self._get_xprompt_arg_completion_context()
-            if arg_ctx is None or arg_ctx.completion_kind != "xprompt_arg_ref":
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
-                return
-            result = self._ref_xprompt_arg_completion_result(arg_ctx)
-            if result is None:
-                self._warm_current_artifact_ref_completion_catalog()
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
-                return
-            if not result.candidates:
-                self._clear_file_completion(clear_xprompt_arg_hint=False)
-                self._refresh_xprompt_arg_hint_from_cursor()
-                return
-            self._replace_completion_candidates_preserving_selection(result.candidates)
-            self._artifact_ref_completion_stats = (
-                result.payload_count,
-                result.payload_total,
-                result.truncated_payloads,
-            )
-            self._artifact_ref_files_suppressed = result.files_suppressed
-            self._update_file_completion_panel(arg_ctx.token)
-            return
-
         if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
             self._refresh_prompt_word_completion()
             return

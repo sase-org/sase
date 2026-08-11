@@ -227,11 +227,6 @@ class XPrompt:
     log_skill_use: bool = True
     local_xprompts: dict[str, XPrompt] = field(default_factory=dict)
     memory_type: MemoryType | None = None
-    ref: bool | None = None
-    ref_kind: str | None = None
-    ref_sidecar_role: str | None = None
-    ref_path_globs: tuple[str, ...] | None = None
-    ref_shadowed_sources: tuple[str, ...] = ()
     discovery_rank: int | None = None
 
     def has_tag(self, tag: XPromptTag) -> bool:
@@ -295,11 +290,6 @@ def xprompt_to_workflow(xprompt: XPrompt) -> Workflow:
         xprompts=xprompt.local_xprompts,
         skill_name=xprompt.skill_name,
         memory_type=xprompt.memory_type,
-        ref=xprompt.ref,
-        ref_kind=xprompt.ref_kind,
-        ref_sidecar_role=xprompt.ref_sidecar_role,
-        ref_path_globs=xprompt.ref_path_globs,
-        ref_shadowed_sources=xprompt.ref_shadowed_sources,
         discovery_rank=xprompt.discovery_rank,
     )
 

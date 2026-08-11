@@ -110,14 +110,6 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                 "reference_prefix": entry.reference_prefix,
                 "kind": entry.kind,
                 "memory_type": entry.memory_type,
-                "ref_kind": entry.ref_kind,
-                "ref_sidecar_role": entry.ref_sidecar_role,
-                "ref_path_globs": (
-                    list(entry.ref_path_globs)
-                    if entry.ref_path_globs is not None
-                    else None
-                ),
-                "ref_shadowed_sources": list(entry.ref_shadowed_sources),
                 "description": entry.description,
                 "source_bucket": entry.source_bucket,
                 "project": entry.project,
@@ -148,7 +140,6 @@ def xprompt_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
             "project_count": projection.stats.project_count,
             "skill_count": projection.stats.skill_count,
             "memory_count": projection.stats.memory_count,
-            "ref_count": projection.stats.ref_count,
             "pdf_requested": projection.stats.pdf_requested,
         },
         "catalog_attachment": None

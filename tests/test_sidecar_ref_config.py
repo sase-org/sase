@@ -4,7 +4,6 @@ from pathlib import Path
 
 from sase.sidecar_ref_config import (
     DEFAULT_DOCUMENT_REF_PATH_GLOBS,
-    canonical_ref_input,
     effective_sidecar_ref_policies,
 )
 
@@ -50,4 +49,3 @@ def test_effective_sidecar_ref_policies_apply_document_defaults_and_overrides(
     assert policies["beads"].ref_kind == "bead"
     assert policies["beads"].path_globs is None
     assert policies["agents"].ref_kind == "agent"
-    assert canonical_ref_input("research") == "file_path"

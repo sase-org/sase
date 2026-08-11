@@ -15,19 +15,16 @@ from typing import NoReturn
 
 from sase.core.paths import sase_subdir
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
-from sase.xprompt.loader_refs import get_sase_package_refs_dir
 from sase.xprompt.loader_skills import get_sase_package_skills_dir
 
 SASE_XPROMPT_LSP_CMD_ENV = "SASE_XPROMPT_LSP_CMD"
 SASE_XPROMPT_PACKAGE_DIR_ENV = "SASE_XPROMPT_PACKAGE_DIR"
 SASE_XPROMPT_BUILTIN_DIR_ENV = "SASE_XPROMPT_BUILTIN_DIR"
 SASE_SKILL_BUILTIN_DIR_ENV = "SASE_SKILL_BUILTIN_DIR"
-SASE_REF_BUILTIN_DIR_ENV = "SASE_REF_BUILTIN_DIR"
 SASE_XPROMPT_DEFAULT_DIR_ENV = "SASE_XPROMPT_DEFAULT_DIR"
 SASE_DEFAULT_CONFIG_PATH_ENV = "SASE_DEFAULT_CONFIG_PATH"
 SASE_XPROMPT_PLUGIN_DIRS_JSON_ENV = "SASE_XPROMPT_PLUGIN_DIRS_JSON"
 SASE_SKILL_PLUGIN_DIRS_JSON_ENV = "SASE_SKILL_PLUGIN_DIRS_JSON"
-SASE_REF_PLUGIN_DIRS_JSON_ENV = "SASE_REF_PLUGIN_DIRS_JSON"
 SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV = "SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON"
 SASE_XPROMPT_VCS_PROJECT_CATALOG_ENV = "SASE_XPROMPT_VCS_PROJECT_CATALOG"
 SASE_XPROMPT_MODEL_CATALOG_ENV = "SASE_XPROMPT_MODEL_CATALOG"
@@ -232,7 +229,6 @@ def _prepare_xprompt_lsp_environment(
         SASE_XPROMPT_PACKAGE_DIR_ENV: str(root),
         SASE_XPROMPT_BUILTIN_DIR_ENV: str(root / "xprompts"),
         SASE_SKILL_BUILTIN_DIR_ENV: str(get_sase_package_skills_dir(root)),
-        SASE_REF_BUILTIN_DIR_ENV: str(get_sase_package_refs_dir(root)),
         SASE_XPROMPT_DEFAULT_DIR_ENV: str(root / "default_xprompts"),
         SASE_DEFAULT_CONFIG_PATH_ENV: str(root / "default_config.yml"),
     }
@@ -245,10 +241,6 @@ def _prepare_xprompt_lsp_environment(
     if SASE_SKILL_PLUGIN_DIRS_JSON_ENV not in environ:
         environ[SASE_SKILL_PLUGIN_DIRS_JSON_ENV] = json.dumps(
             _discover_plugin_resource_dirs("skills")
-        )
-    if SASE_REF_PLUGIN_DIRS_JSON_ENV not in environ:
-        environ[SASE_REF_PLUGIN_DIRS_JSON_ENV] = json.dumps(
-            _discover_plugin_resource_dirs("refs")
         )
     if SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV not in environ:
         environ[SASE_XPROMPT_PLUGIN_CONFIG_PATHS_JSON_ENV] = json.dumps(

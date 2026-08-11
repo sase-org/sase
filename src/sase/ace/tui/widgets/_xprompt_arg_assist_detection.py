@@ -232,17 +232,13 @@ def _active_input_index_for_suffix(
 
 
 def _completion_kind_for_input(
-    entry: XPromptAssistEntry,
     input_hint: XPromptInputHint,
 ) -> Literal[
     "xprompt_arg_path",
     "xprompt_arg_value",
     "xprompt_arg_agent",
-    "xprompt_arg_ref",
     "xprompt_arg_type_hint",
 ]:
-    if entry.ref_kind is not None:
-        return "xprompt_arg_ref"
     if input_hint.type == "path":
         return "xprompt_arg_path"
     if input_hint.type == "bool":
@@ -280,7 +276,7 @@ def _colon_completion_context(
     active_input = entry.inputs[active_index]
     return XPromptArgCompletionContext(
         entry=entry,
-        completion_kind=_completion_kind_for_input(entry, active_input),
+        completion_kind=_completion_kind_for_input(active_input),
         value_start=value_start,
         value_end=value_end,
         token=token,
@@ -322,7 +318,7 @@ def _paren_completion_context(
         active_index = _paren_active_input_index(suffix, entry)
         if active_index is not None:
             active_input = entry.inputs[active_index]
-            completion_kind = _completion_kind_for_input(entry, active_input)
+            completion_kind = _completion_kind_for_input(active_input)
             if active_input.repeatable or len(entry.inputs) == 1:
                 return XPromptArgCompletionContext(
                     entry=entry,
@@ -336,7 +332,7 @@ def _paren_completion_context(
                 )
         if len(entry.inputs) == 1:
             single_input = entry.inputs[0]
-            completion_kind = _completion_kind_for_input(entry, single_input)
+            completion_kind = _completion_kind_for_input(single_input)
             if completion_kind == "xprompt_arg_agent":
                 return XPromptArgCompletionContext(
                     entry=entry,
@@ -368,7 +364,7 @@ def _paren_completion_context(
     token = text[token_start:cursor_offset]
     return XPromptArgCompletionContext(
         entry=entry,
-        completion_kind=_completion_kind_for_input(entry, named_input),
+        completion_kind=_completion_kind_for_input(named_input),
         value_start=token_start,
         value_end=value_end,
         token=token,

@@ -10,7 +10,6 @@ from sase.content_layout import (
     display_path,
     resolve_memory_file_sources,
     resolve_project_layout,
-    resolve_ref_file_sources,
     resolve_xprompt_file_sources,
 )
 from sase.core.paths import shorten_path
@@ -171,63 +170,6 @@ def test_xprompt_priority_contract_covers_every_source_and_shared_steps() -> Non
     assert layout.xprompt_sources[8].collision_policy == "error"
     assert layout.xprompt_sources[10].ordering == "reverse_lexical_first_wins"
     assert layout.xprompt_sources[-1].steps_locator == "package:xprompts/steps"
-
-
-def test_ref_source_contract_orders_contextual_renderer_sources(
-    tmp_path: Path,
-) -> None:
-    project_root = tmp_path / "workspace"
-    home_root = tmp_path / "home"
-    project_root.mkdir()
-    home_root.mkdir()
-
-    layout = _resolve_content_layout(
-        project_root=project_root,
-        home_root=home_root,
-        project="demo",
-    )
-
-    assert [source.id for source in layout.ref_sources] == [
-        "project_refs",
-        "home_refs",
-        "home_project_refs",
-        "plugin_refs",
-        "package_refs",
-    ]
-    assert [source.priority for source in layout.ref_sources] == list(range(1, 6))
-    assert [source.formats for source in layout.ref_sources] == [("md",)] * 5
-    assert [source.path for source in layout.ref_sources[:3]] == [
-        project_root / "sase" / "refs",
-        home_root / "sase" / "refs",
-        home_root / "sase" / "refs" / "demo",
-    ]
-    assert layout.ref_sources[-2].locator == "entrypoint:sase_xprompts/refs"
-    assert layout.ref_sources[-1].locator == "package:xprompts/refs"
-
-    filesystem_sources = resolve_ref_file_sources(
-        project_root=project_root,
-        home_root=home_root,
-        project="demo",
-    )
-    all_sources = resolve_ref_file_sources(
-        project_root=project_root,
-        home_root=home_root,
-        project="demo",
-        include_resource_sources=True,
-    )
-
-    assert [source.id for source in filesystem_sources] == [
-        "project_refs",
-        "home_refs",
-        "home_project_refs",
-    ]
-    assert [source.id for source in all_sources] == [
-        "project_refs",
-        "home_refs",
-        "home_project_refs",
-        "plugin_refs",
-        "package_refs",
-    ]
 
 
 def test_memory_source_contract_orders_project_before_home(

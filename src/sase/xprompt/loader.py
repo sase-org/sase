@@ -29,10 +29,6 @@ from .loader_memory import (
     load_memory_xprompts,
     load_project_memory_xprompts,
 )
-from .loader_refs import (
-    get_sase_package_refs_dir,
-    load_ref_xprompts,
-)
 from .loader_sources import (
     load_xprompt_from_file,
     load_xprompts_from_config,
@@ -73,7 +69,6 @@ __all__ = [
     "get_project_lifecycle_record",
     "inactive_project_message_for_ref",
     "get_sase_package_default_xprompts_dir",
-    "get_sase_package_refs_dir",
     "get_sase_package_skills_dir",
     "get_sase_package_xprompts_dir",
     "get_xprompt_or_workflow",
@@ -83,7 +78,6 @@ __all__ = [
     "load_project_memory_xprompts",
     "load_project_skills",
     "load_memory_xprompts",
-    "load_ref_xprompts",
     "load_skills_from_files",
     "load_skills_from_package",
     "load_skills_from_plugins",
@@ -181,8 +175,6 @@ def _load_contextual_memory_xprompts(
 
 def get_all_xprompts(
     project: str | None = None,
-    *,
-    include_refs: bool = False,
 ) -> dict[str, XPrompt]:
     """Get all xprompts from all sources, respecting priority order.
 
@@ -279,12 +271,6 @@ def get_all_xprompts(
         load_skills_from_files(project=effective_project),
     )
 
-    if include_refs:
-        merge_by_discovery_order(
-            all_xprompts,
-            load_ref_xprompts(project=effective_project),
-        )
-
     return all_xprompts
 
 
@@ -307,8 +293,6 @@ def get_all_workflows(project: str | None = None) -> dict[str, "Workflow"]:
 
 def get_all_prompts(
     project: str | None = None,
-    *,
-    include_refs: bool = False,
 ) -> dict[str, "Workflow"]:
     """Get all xprompts and workflows as unified Workflow objects.
 
@@ -331,7 +315,7 @@ def get_all_prompts(
     from sase.xprompt.models import xprompt_to_workflow
 
     workflows = get_all_workflows(project=project)
-    xprompts = get_all_xprompts(project=project, include_refs=include_refs)
+    xprompts = get_all_xprompts(project=project)
 
     # Convert xprompts to workflows. Discovery rank decides cross-source
     # collisions; YAML workflows win only when the source rank ties.

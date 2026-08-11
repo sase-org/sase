@@ -16,7 +16,6 @@ from sase.artifact_refs import (
 from .preprocessing_helpers import (
     context as make_context,
     disable_consumption_ledger_writes,  # noqa: F401 (registers autouse fixture)
-    sidecar_sentence,
 )
 
 
@@ -50,10 +49,7 @@ def test_expands_document_chat_file_and_fragments(tmp_path: Path) -> None:
     )
 
     assert process_artifact_references(prompt, context=context) == (
-        "Read "
-        f"{sidecar_sentence('plans', '202607/plan.md')}, "
-        f"@{chat} (time 30s), and "
-        f"@{artifact} (page 2)."
+        f"Read @{plan} (lines 2-4), @{chat} (time 30s), and @{artifact} (page 2)."
     )
 
 
@@ -191,7 +187,7 @@ def test_unicode_before_reference_preserves_replacement_boundaries(
             "é @plans:plan.md done",
             context=context,
         )
-        == f"é {sidecar_sentence('plans', 'plan.md')} done"
+        == f"é @{plan} done"
     )
 
 
@@ -199,11 +195,8 @@ def test_unicode_before_reference_preserves_replacement_boundaries(
     ("reference", "status"),
     (
         ("@plans:missing.md", "missing"),
-        ("#ref/plans:missing.md", "missing"),
         ("@commit:unknown@abcdef0", "unknown_repo"),
         ("@plans:../escape.md", "malformed"),
-        ("#ref/plans:../escape.md", "malformed"),
-        ("#ref/unknown:thing.md", "unknown_kind"),
     ),
 )
 def test_known_reference_failure_exits_clearly(

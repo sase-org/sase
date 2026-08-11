@@ -135,9 +135,7 @@ def _row_layout(
         vcs_repo=_max_label_width(visible, vcs_repo_label_width, kinds.vcs_repo),
         model=model_completion_column_widths(visible) if kinds.model else (0, 0),
         artifact_kind=(
-            artifact_ref_kind_label_width(visible)
-            if kinds.artifact_ref or kinds.xprompt_arg_ref
-            else 0
+            artifact_ref_kind_label_width(visible) if kinds.artifact_ref else 0
         ),
         tribe_colors=_tribe_colors(kinds, visible),
     )
@@ -220,7 +218,7 @@ def _append_candidate_row(
         append_vcs_ref_completion_row(content, candidate, is_selected, layout.vcs_ref)
     elif kinds.vcs_repo:
         append_vcs_repo_completion_row(content, candidate, is_selected, layout.vcs_repo)
-    elif kinds.artifact_ref or kinds.xprompt_arg_ref:
+    elif kinds.artifact_ref:
         append_artifact_ref_completion_row(
             content,
             candidate,

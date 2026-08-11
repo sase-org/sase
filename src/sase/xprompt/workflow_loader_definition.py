@@ -43,11 +43,6 @@ def namespace_workflow(project: str, workflow: Workflow) -> Workflow:
         description=workflow.description,
         skill_name=workflow.skill_name,
         memory_type=workflow.memory_type,
-        ref=workflow.ref,
-        ref_kind=workflow.ref_kind,
-        ref_sidecar_role=workflow.ref_sidecar_role,
-        ref_path_globs=workflow.ref_path_globs,
-        ref_shadowed_sources=workflow.ref_shadowed_sources,
         discovery_rank=workflow.discovery_rank,
     )
 
