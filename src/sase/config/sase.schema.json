@@ -537,9 +537,55 @@
           }
         }
       ]
+    },
+    "artifactRefs": {
+      "type": "object",
+      "description": "Artifact-reference policies.",
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "$ref": "#/definitions/artifactRefsFile"
+        }
+      }
+    },
+    "artifactRefsFile": {
+      "type": "object",
+      "description": "Allow-listed roots for @file:<path> references.",
+      "additionalProperties": false,
+      "properties": {
+        "roots": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/artifactRefsFileRoot" }
+        }
+      }
+    },
+    "artifactRefsFileRoot": {
+      "type": "object",
+      "required": ["name", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "description": "Stable logical root name used in published @file metadata."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Absolute or ~/ rooted local path that bounds @file references."
+        },
+        "path_globs": {
+          "type": "array",
+          "description": "Optional positive/negative root-relative POSIX globs.",
+          "items": { "type": "string" }
+        }
+      }
     }
   },
   "properties": {
+    "artifact_refs": {
+      "$ref": "#/definitions/artifactRefs"
+    },
     "memory": {
       "type": "object",
       "description": "Configuration for agent memory and generated agent-instruction files (AGENTS.md and its provider shims).",

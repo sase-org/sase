@@ -12,6 +12,7 @@ import sase_core_rs
 
 from sase.core.prompt_artifact_staging import (
     _prune_prompt_artifact_pool,
+    capture_prompt_file_ref,
     stage_prompt_artifact,
 )
 
@@ -213,3 +214,112 @@ def test_non_file_reference_records_locator_without_pooling(tmp_path: Path) -> N
     assert record["locator"] == "sase#42"
     assert record["pool_relpath"] is None
     assert len(_rows(tmp_path)) == 1
+
+
+def test_file_ref_capture_writes_captured_copy_and_metadata(tmp_path: Path) -> None:
+    source = tmp_path / "bob" / "gtd.md"
+    source.parent.mkdir()
+    source.write_text("original", encoding="utf-8")
+
+    record = capture_prompt_file_ref(
+        source=source,
+        logical_path="bob:gtd.md",
+        root_name="bob",
+        authored_path="~/bob/gtd.md",
+        raw_ref="@file:~/bob/gtd.md",
+        expanded_ref="@file:~/bob/gtd.md",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+
+    assert record is not None
+    pool_path = tmp_path / ".sase/artifacts" / str(record["pool_relpath"])
+    assert pool_path.read_text(encoding="utf-8") == "original"
+    assert record["logical_path"] == "bob:gtd.md"
+    assert record["root_name"] == "bob"
+    assert record["authored_path"] == "~/bob/gtd.md"
+    assert record["origin"] == "ref"
+    assert str(record["object_relpath"]).startswith("files/objects/sha256/")
+    assert _rows(tmp_path)[0]["sha256"] == record["sha256"]
+
+
+def test_file_ref_capture_is_stable_after_source_mutation(tmp_path: Path) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("first", encoding="utf-8")
+
+    record = capture_prompt_file_ref(
+        source=source,
+        logical_path="bob:source.txt",
+        root_name="bob",
+        authored_path=str(source),
+        raw_ref=f"@file:{source}",
+        expanded_ref=f"@file:{source}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+    assert record is not None
+    pool_path = tmp_path / ".sase/artifacts" / str(record["pool_relpath"])
+    source.write_text("second", encoding="utf-8")
+
+    assert pool_path.read_text(encoding="utf-8") == "first"
+    assert (
+        sase_core_rs.prompt_artifact_manifest_parse(
+            (tmp_path / ".sase/artifacts/prompt-artifacts.jsonl").read_bytes()
+        )[0]["sha256"]
+        == record["sha256"]
+    )
+
+
+def test_file_ref_capture_reuses_pool_for_duplicate_bytes(tmp_path: Path) -> None:
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("same", encoding="utf-8")
+    second.write_text("same", encoding="utf-8")
+
+    first_record = capture_prompt_file_ref(
+        source=first,
+        logical_path="bob:first.md",
+        root_name="bob",
+        authored_path=str(first),
+        raw_ref=f"@file:{first}",
+        expanded_ref=f"@file:{first}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+    second_record = capture_prompt_file_ref(
+        source=second,
+        logical_path="bob:second.md",
+        root_name="bob",
+        authored_path=str(second),
+        raw_ref=f"@file:{second}",
+        expanded_ref=f"@file:{second}",
+        workspace_root=tmp_path,
+        agent_artifacts_dir=tmp_path / "run",
+    )
+
+    assert first_record is not None
+    assert second_record is not None
+    assert first_record["sha256"] == second_record["sha256"]
+    assert len(list((tmp_path / ".sase/artifacts/pool").iterdir())) == 1
+
+
+def test_file_ref_capture_returns_none_without_artifacts_dir(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("content", encoding="utf-8")
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+
+    record = capture_prompt_file_ref(
+        source=source,
+        logical_path="bob:source.txt",
+        root_name="bob",
+        authored_path=str(source),
+        raw_ref=f"@file:{source}",
+        expanded_ref=f"@file:{source}",
+        workspace_root=tmp_path,
+    )
+
+    assert record is None
+    assert not (tmp_path / ".sase/artifacts").exists()

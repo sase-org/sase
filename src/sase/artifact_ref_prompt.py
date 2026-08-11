@@ -62,6 +62,7 @@ class _ExpandedArtifactRef:
     resolved_path: Path | None
     replacement_text: str
     raw_ref: str
+    captured_record: object | None = None
 
 
 def process_artifact_references(
@@ -172,6 +173,17 @@ def _expand_artifact_references(
                 resolution,
                 context=context,
             )
+            captured_record, captured_path = _capture_file_path_ref(
+                parsed,
+                resolution,
+                raw_candidate,
+            )
+            if captured_record is not None and captured_record.get("skipped_reason"):
+                raise RuntimeError(
+                    f"file capture skipped: {captured_record.get('skipped_reason')}"
+                )
+            if captured_path is not None:
+                resolution = replace(resolution, resolved_path=captured_path)
             replacement_text, resolved_path = _artifact_ref_replacement(
                 parsed,
                 resolution,
@@ -190,6 +202,7 @@ def _expand_artifact_references(
                 resolved_path=resolved_path,
                 replacement_text=replacement_text,
                 raw_ref=raw_candidate,
+                captured_record=captured_record,
             )
         )
 
@@ -206,6 +219,7 @@ def _expand_artifact_references(
         staged = _stage_artifact_references(consumptions)
         if staged_file_paths is not None:
             staged_file_paths.update(staged)
+    _print_captured_file_ref_notice(consumptions)
     _record_artifact_ref_consumption(consumptions)
     return expanded
 
@@ -297,6 +311,10 @@ def _stage_artifact_references(
 
     staged_file_paths: set[str] = set()
     for item in consumptions:
+        if item.captured_record is not None:
+            if item.resolved_path is not None and item.resolved_path.is_file():
+                staged_file_paths.add(str(item.resolved_path.resolve(strict=False)))
+            continue
         parsed = item.reference
         record = stage_prompt_artifact(
             raw_ref=item.raw_ref,
@@ -313,6 +331,63 @@ def _stage_artifact_references(
         ):
             staged_file_paths.add(str(item.resolved_path.resolve(strict=False)))
     return staged_file_paths
+
+
+def _capture_file_path_ref(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    raw_ref: str,
+) -> tuple[dict[str, object] | None, Path | None]:
+    if (
+        reference.kind_type != "file"
+        or reference.payload.type != "file_path"
+        or resolution.status != "exact"
+        or resolution.resolved_path is None
+        or resolution.locator is None
+    ):
+        return None, None
+    root_name, separator, _relative = resolution.locator.partition(":")
+    if not separator:
+        return None, None
+    from sase.core.prompt_artifact_staging import capture_prompt_file_ref
+
+    record = capture_prompt_file_ref(
+        source=resolution.resolved_path,
+        logical_path=resolution.locator,
+        root_name=root_name,
+        authored_path=reference.payload.path or "",
+        raw_ref=raw_ref,
+        expanded_ref=raw_ref,
+    )
+    if record is None:
+        return None, None
+    pool_relpath = record.get("pool_relpath")
+    if not isinstance(pool_relpath, str) or not pool_relpath:
+        return dict(record), None
+    captured_path = Path.cwd().expanduser().resolve(strict=False)
+    captured_path = captured_path / ".sase" / "artifacts" / pool_relpath
+    return dict(record), captured_path
+
+
+def _print_captured_file_ref_notice(
+    consumptions: list[_ExpandedArtifactRef],
+) -> None:
+    rows: list[str] = []
+    for item in consumptions:
+        record = item.captured_record
+        if not isinstance(record, dict):
+            continue
+        sha256 = str(record.get("sha256") or "")
+        size = record.get("size_bytes")
+        rows.append(
+            "  "
+            f"{item.raw_ref} -> {record.get('logical_path') or item.resolution.locator} "
+            f"sha256={sha256[:12]} size={size} "
+            f"sidecar=agents visibility={record.get('sidecar_visibility') or 'public'}"
+        )
+    if rows:
+        print("Captured @file references:", file=sys.stderr)
+        print("\n".join(rows), file=sys.stderr)
 
 
 def _artifact_ref_label(

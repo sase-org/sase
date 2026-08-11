@@ -9,6 +9,7 @@ from sase.artifact_ref_entity_context import collect_entity_context
 from sase.artifact_ref_models import (
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
+    ArtifactRefFileRoot,
     ArtifactRefProject,
     ArtifactRefRepository,
 )
@@ -116,6 +117,7 @@ def artifact_ref_context(
         project_filter,
         projects,
     )
+    file_roots, file_capture_max_bytes = _file_ref_context()
     return ArtifactRefContext(
         document_roots=tuple(document_roots),
         chats_root=sase_subdir("chats").expanduser().resolve(strict=False),
@@ -124,9 +126,12 @@ def artifact_ref_context(
         .resolve(strict=False),
         repositories=repositories,
         projects=projects,
+        file_roots=file_roots,
         bead_stores=bead_stores,
         agent_roots=agent_roots,
         agent_owner=agent_owner,
+        home_dir=Path.home().expanduser().resolve(strict=False),
+        file_capture_max_bytes=file_capture_max_bytes,
         selected_project=_selected_project_name(project_filter, projects),
     )
 
@@ -241,6 +246,30 @@ def _sidecar_ref_policies(
         roles=roles,
         source_path=source_path,
     )
+
+
+def _file_ref_context() -> tuple[tuple[ArtifactRefFileRoot, ...], int | None]:
+    try:
+        from sase.config import (
+            get_artifact_capture_max_file_size_bytes,
+            get_artifact_file_roots,
+        )
+
+        roots = tuple(
+            ArtifactRefFileRoot(
+                name=root.name,
+                root=root.path,
+                path_globs=root.path_globs,
+            )
+            for root in get_artifact_file_roots()
+        )
+        return roots, get_artifact_capture_max_file_size_bytes()
+    except Exception:
+        log.debug(
+            "Unable to collect artifact-reference file roots from config",
+            exc_info=True,
+        )
+        return (), None
 
 
 def _workspace_project_ref(workspace: Path) -> str | None:

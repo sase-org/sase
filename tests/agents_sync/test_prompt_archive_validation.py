@@ -51,6 +51,34 @@ def _codes(validation: object) -> list[str]:
     return [issue.code for issue in validation.issues]  # type: ignore[attr-defined]
 
 
+def _manifest_record(run: Path) -> dict[str, object]:
+    sha256 = "c" * 64
+    return {
+        "schema_version": sase_core_rs.prompt_artifact_wire_schema_version(),
+        "recorded_at": "2026-08-01T12:00:00Z",
+        "agent_artifacts_dir": str(run),
+        "raw_ref": "@file.txt",
+        "expanded_ref": "@file.txt",
+        "ref_kind": "file",
+        "label": "file.txt",
+        "source_path": None,
+        "sha256": sha256,
+        "size_bytes": 1,
+        "mime_type": "text/plain",
+        "pool_relpath": None,
+        "vcs_repo": "primary",
+        "vcs_relpath": "file.txt",
+        "locator": None,
+        "skipped_reason": None,
+        "logical_path": None,
+        "root_name": None,
+        "authored_path": None,
+        "origin": None,
+        "object_relpath": sase_core_rs.artifact_object_relpath(sha256),
+        "sidecar_visibility": None,
+    }
+
+
 def test_clean_archive_validates_without_diagnostics(tmp_path: Path) -> None:
     repo = tmp_path / "agents"
     plans = tmp_path / "plans"
@@ -130,26 +158,9 @@ def test_each_archive_diagnostic_has_a_single_purpose_built_source(
     )
     manifest = workspace / ".sase/artifacts/prompt-artifacts.jsonl"
     manifest.parent.mkdir(parents=True)
-    record = {
-        "schema_version": 1,
-        "recorded_at": "2026-08-01T12:00:00Z",
-        "agent_artifacts_dir": str(run),
-        "raw_ref": "@file.txt",
-        "expanded_ref": "@file.txt",
-        "ref_kind": "file",
-        "label": "file.txt",
-        "source_path": None,
-        "sha256": "c" * 64,
-        "size_bytes": 1,
-        "mime_type": "text/plain",
-        "pool_relpath": None,
-        "vcs_repo": "primary",
-        "vcs_relpath": "file.txt",
-        "locator": None,
-        "skipped_reason": None,
-    }
     manifest.write_text(
-        sase_core_rs.prompt_artifact_manifest_render_record(record) + "\n",
+        sase_core_rs.prompt_artifact_manifest_render_record(_manifest_record(run))
+        + "\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -206,26 +217,9 @@ def _write_pending_manifest_run(
     )
     manifest = workspace / ".sase/artifacts/prompt-artifacts.jsonl"
     manifest.parent.mkdir(parents=True)
-    record = {
-        "schema_version": 1,
-        "recorded_at": "2026-08-01T12:00:00Z",
-        "agent_artifacts_dir": str(run),
-        "raw_ref": "@file.txt",
-        "expanded_ref": "@file.txt",
-        "ref_kind": "file",
-        "label": "file.txt",
-        "source_path": None,
-        "sha256": "c" * 64,
-        "size_bytes": 1,
-        "mime_type": "text/plain",
-        "pool_relpath": None,
-        "vcs_repo": "primary",
-        "vcs_relpath": "file.txt",
-        "locator": None,
-        "skipped_reason": None,
-    }
     manifest.write_text(
-        sase_core_rs.prompt_artifact_manifest_render_record(record) + "\n",
+        sase_core_rs.prompt_artifact_manifest_render_record(_manifest_record(run))
+        + "\n",
         encoding="utf-8",
     )
     return workspace

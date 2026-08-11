@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,6 +9,7 @@ import sase_core_rs
 
 from sase import artifact_ref_prompt
 from sase.artifact_refs import (
+    ArtifactRefFileRoot,
     process_artifact_references,
     validate_artifact_references,
 )
@@ -129,6 +131,41 @@ def test_artifact_expansion_is_not_restaged_as_plain_file(
     rows = sase_core_rs.prompt_artifact_manifest_parse(manifest.read_bytes())
     assert len(rows) == 1
     assert rows[0]["raw_ref"] == "@plans:report.md"
+
+
+def test_file_ref_expands_to_captured_copy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "bob"
+    root.mkdir()
+    source = root / "gtd.md"
+    source.write_text("tasks", encoding="utf-8")
+    context = replace(
+        make_context(tmp_path),
+        file_roots=(ArtifactRefFileRoot("bob", root),),
+        home_dir=tmp_path,
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path / "run"))
+    staged_paths: set[str] = set()
+
+    expanded = process_artifact_references(
+        f"Read @file:{source}.",
+        context=context,
+        staged_file_paths=staged_paths,
+    )
+
+    assert str(source) not in expanded
+    assert ".sase/artifacts/pool" in expanded
+    captured_path = next(iter(staged_paths))
+    assert Path(captured_path).read_text(encoding="utf-8") == "tasks"
+    rows = sase_core_rs.prompt_artifact_manifest_parse(
+        (tmp_path / ".sase/artifacts/prompt-artifacts.jsonl").read_bytes()
+    )
+    assert len(rows) == 1
+    assert rows[0]["origin"] == "ref"
+    assert rows[0]["logical_path"] == "bob:gtd.md"
 
 
 def test_fragment_is_recorded_separately_from_fragment_free_ref(

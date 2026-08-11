@@ -15,13 +15,6 @@ def prompts_month_dir(repo: Path | str, yyyymm: str) -> Path:
     return Path(repo) / "prompts" / yyyymm
 
 
-def artifacts_month_dir(repo: Path | str, yyyymm: str) -> Path:
-    """Return the canonical artifact directory for *yyyymm*."""
-
-    _validate_month(yyyymm)
-    return Path(repo) / "artifacts" / yyyymm
-
-
 def prompt_document_path(
     repo: Path | str,
     yyyymm: str,
@@ -31,16 +24,6 @@ def prompt_document_path(
 
     normalized = _safe_prompt_name(name)
     return prompts_month_dir(repo, yyyymm) / f"{normalized}.md"
-
-
-def relative_artifact_link(yyyymm: str, filename: str) -> str:
-    """Return a prompt-relative link to one published artifact."""
-
-    _validate_month(yyyymm)
-    safe_name = PurePosixPath(filename).name
-    if safe_name != filename or safe_name in {"", ".", ".."}:
-        raise ValueError(f"invalid prompt artifact filename: {filename!r}")
-    return f"../../artifacts/{yyyymm}/{safe_name}"
 
 
 def _safe_prompt_name(name: str) -> str:
@@ -56,8 +39,6 @@ def _validate_month(yyyymm: str) -> None:
 
 
 __all__ = [
-    "artifacts_month_dir",
     "prompt_document_path",
     "prompts_month_dir",
-    "relative_artifact_link",
 ]

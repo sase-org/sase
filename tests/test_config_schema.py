@@ -302,6 +302,48 @@ def test_config_schema_validates_runner_slot_deference() -> None:
             Draft7Validator(schema()).validate({"runner_slots": invalid})
 
 
+def test_config_schema_validates_artifact_refs_file_roots() -> None:
+    validator = Draft7Validator(schema())
+    validator.validate(
+        {
+            "artifact_refs": {
+                "file": {
+                    "roots": [
+                        {
+                            "name": "project-notes",
+                            "path": "~/notes",
+                            "path_globs": ["**/*.md", "!private/**"],
+                        },
+                        {"name": "tmp", "path": "/tmp"},
+                    ]
+                }
+            }
+        }
+    )
+
+    for invalid in (
+        {"artifactRefs": {"file": {"roots": []}}},
+        {"artifact_refs": {"files": {"roots": []}}},
+        {"artifact_refs": {"file": {"root": []}}},
+        {"artifact_refs": {"file": {"roots": [{"name": "Bad", "path": "/tmp"}]}}},
+        {"artifact_refs": {"file": {"roots": [{"name": "ok", "path": ""}]}}},
+        {
+            "artifact_refs": {
+                "file": {
+                    "roots": [{"name": "ok", "path": "/tmp", "path_globs": "*.md"}]
+                }
+            }
+        },
+        {
+            "artifact_refs": {
+                "file": {"roots": [{"name": "ok", "path": "/tmp", "extra": True}]}
+            }
+        },
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate(invalid)
+
+
 def test_config_schema_accepts_file_hooks() -> None:
     Draft7Validator(schema()).validate(
         {

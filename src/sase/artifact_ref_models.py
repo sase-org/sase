@@ -9,7 +9,7 @@ from typing import Any, Literal, cast
 
 
 ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
-ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 2
 ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
 BUILTIN_ARTIFACT_REF_KINDS = ("commit", "chat", "bug", "file", "bead", "agent")
 
@@ -36,6 +36,7 @@ ArtifactRefResolutionStatus = Literal[
     "unknown_repo",
     "unknown_project",
     "filtered",
+    "denied",
 ]
 
 
@@ -220,6 +221,19 @@ class ArtifactRefDocumentRoot:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactRefFileRoot:
+    name: str
+    root: Path
+    path_globs: tuple[str, ...] | None = None
+
+    def to_wire(self) -> dict[str, object]:
+        raw: dict[str, object] = {"name": self.name, "path": str(self.root)}
+        if self.path_globs is not None:
+            raw["path_globs"] = list(self.path_globs)
+        return raw
+
+
+@dataclass(frozen=True, slots=True)
 class ArtifactRefRepository:
     name: str
     aliases: tuple[str, ...] = ()
@@ -296,9 +310,12 @@ class ArtifactRefContext:
     artifact_index_path: Path
     repositories: tuple[ArtifactRefRepository, ...]
     projects: tuple[ArtifactRefProject, ...]
+    file_roots: tuple[ArtifactRefFileRoot, ...] = ()
     bead_stores: tuple[ArtifactRefBeadStore, ...] = ()
     agent_roots: tuple[ArtifactRefAgentRoot, ...] = ()
     agent_owner: ArtifactRefAgentOwner | None = None
+    home_dir: Path | None = None
+    file_capture_max_bytes: int | None = None
     selected_project: str | None = None
 
     @property
@@ -316,6 +333,7 @@ class ArtifactRefContext:
         return {
             "schema_version": ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
             "document_roots": [document.to_wire() for document in self.document_roots],
+            "file_roots": [root.to_wire() for root in self.file_roots],
             "chats_root": str(self.chats_root),
             "artifact_index_path": str(self.artifact_index_path),
             "repositories": [repository.to_wire() for repository in self.repositories],
@@ -325,6 +343,8 @@ class ArtifactRefContext:
             "agent_owner": (
                 None if self.agent_owner is None else self.agent_owner.to_wire()
             ),
+            "home_dir": None if self.home_dir is None else str(self.home_dir),
+            "file_capture_max_bytes": self.file_capture_max_bytes,
         }
 
 

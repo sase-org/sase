@@ -17,10 +17,8 @@ from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.index import render_prompt_month_index
 from sase.agents_sync.prompt_archive.naming import resolve_prompt_name
 from sase.agents_sync.prompt_archive.paths import (
-    artifacts_month_dir,
     prompt_document_path,
     prompts_month_dir,
-    relative_artifact_link,
 )
 from sase.agents_sync.prompt_archive.render import (
     RenderedPromptArchive,
@@ -28,6 +26,7 @@ from sase.agents_sync.prompt_archive.render import (
     render_prompt_document,
 )
 from sase.core.artifact_file_helpers import hash_file
+from sase.core.rust import require_rust_binding
 from sase.core.prompt_artifact_staging import (
     PROMPT_ARTIFACT_MANIFEST_NAME,
     PromptArtifactRecord,
@@ -166,7 +165,11 @@ class _ArtifactTargetResolver:
             source = self.staging_root / pool_relpath
             if not source.is_file():
                 return None
-            return relative_artifact_link(self.yyyymm, source.name)
+            return str(
+                require_rust_binding("artifact_object_prompt_link")(
+                    require_rust_binding("artifact_object_relpath")(digest)
+                )
+            )
         vcs_repo = record.get("vcs_repo")
         vcs_relpath = record.get("vcs_relpath")
         if vcs_repo and vcs_relpath and self.hosted is not None:
@@ -230,7 +233,6 @@ def _publish_linked_artifacts(
     resolver: _ArtifactTargetResolver,
 ) -> tuple[Path, ...]:
     copied: list[Path] = []
-    destination_dir = artifacts_month_dir(resolver.repo, resolver.yyyymm)
     for record in records:
         source = resolver.source_for(record)
         if source is None:
@@ -238,7 +240,9 @@ def _publish_linked_artifacts(
         expected = record.get("sha256")
         if not expected or hash_file(source) != expected:
             raise RuntimeError(f"prompt artifact digest mismatch: {source}")
-        destination = destination_dir / source.name
+        destination = resolver.repo / str(
+            require_rust_binding("artifact_object_relpath")(expected)
+        )
         _copy_content_addressed(source, destination, expected)
         copied.append(destination)
     return tuple(copied)

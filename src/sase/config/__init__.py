@@ -71,6 +71,10 @@ from sase.config.file_hooks import (
     hook_matches_event,
     match_events,
 )
+from sase.config.artifact_ref_files import (
+    ArtifactFileRoot,
+    get_artifact_file_roots,
+)
 from sase.config.edit import (
     AppliedResult,
     ConfigEditConflict,
@@ -114,6 +118,7 @@ from sase.config.targets import (
 
 __all__ = [
     "AgentOwnerConfigSnapshot",
+    "ArtifactFileRoot",
     "CHEZMOI_HOME",
     "CONFIG_DIR",
     "AppliedResult",
@@ -178,6 +183,7 @@ __all__ = [
     "get_agent_owner_identity",
     "get_active_runner_limit_override",
     "get_all_file_hooks",
+    "get_artifact_file_roots",
     "get_configured_max_running_agents",
     "get_machine_name",
     "get_markdown_print_width",

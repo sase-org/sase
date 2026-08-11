@@ -32,6 +32,7 @@ _RESOLUTION_STATUSES = {
     "unknown_repo",
     "unknown_project",
     "filtered",
+    "denied",
 }
 
 

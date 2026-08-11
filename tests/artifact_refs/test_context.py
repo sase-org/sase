@@ -41,7 +41,7 @@ def test_context_wire_carries_required_schema_and_preserves_filter_intent(
 
     wire = context.to_wire()
 
-    assert wire["schema_version"] == ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION == 1
+    assert wire["schema_version"] == ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION == 2
     assert wire["document_roots"] == [
         {
             "kind": "plans",

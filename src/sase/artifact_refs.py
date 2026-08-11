@@ -34,6 +34,7 @@ from sase.artifact_ref_models import (
     ArtifactRefBeadStore,
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
+    ArtifactRefFileRoot,
     ArtifactRefFragment,
     ArtifactRefPayload,
     ArtifactRefPathFilterResult,
@@ -65,6 +66,10 @@ from sase.artifact_ref_prompt import (
 from sase.artifact_ref_renderers import (
     ArtifactRendererJinjaProtection,
 )
+from sase.core.artifact_ref_files_index import (
+    default_ref_files_index_path,
+    query_ref_file_versions,
+)
 
 
 __all__ = [
@@ -81,6 +86,7 @@ __all__ = [
     "ArtifactRefBeadStore",
     "ArtifactRefContext",
     "ArtifactRefDocumentRoot",
+    "ArtifactRefFileRoot",
     "ArtifactRefFragment",
     "ArtifactRefListEntry",
     "ArtifactRefPayload",
@@ -100,12 +106,14 @@ __all__ = [
     "at_reference_inventory",
     "at_reference_menu",
     "canonicalize_artifact_ref",
-    "filter_artifact_ref_paths",
+    "default_ref_files_index_path",
     "design_reference_for_plan_row",
+    "filter_artifact_ref_paths",
     "launch_artifact_ref_context",
     "normalize_artifact_ref_list",
     "parse_artifact_ref",
     "process_artifact_references",
+    "query_ref_file_versions",
     "reference_for_agent_name",
     "reference_for_entry_target",
     "render_artifact_ref",

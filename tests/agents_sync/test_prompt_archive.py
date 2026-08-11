@@ -10,7 +10,6 @@ import sase_core_rs
 from sase.agents_sync.models import ProjectTarget, SyncOutcome, TargetSelection
 from sase.agents_sync.prompt_archive import publish as archive_publish
 from sase.agents_sync.prompt_archive.naming import resolve_prompt_name
-from sase.agents_sync.prompt_archive.paths import relative_artifact_link
 from sase.agents_sync.prompt_archive.publish import (
     prepare_prompt_archive,
     publish_prompt_archive,
@@ -51,8 +50,11 @@ def _record(
     ref_kind: str = "file",
     locator: str | None = None,
 ) -> dict[str, object]:
+    object_relpath = (
+        None if sha256 is None else sase_core_rs.artifact_object_relpath(sha256)
+    )
     return {
-        "schema_version": 1,
+        "schema_version": sase_core_rs.prompt_artifact_wire_schema_version(),
         "recorded_at": "2026-08-01T14:22:03Z",
         "agent_artifacts_dir": str(artifacts_dir),
         "raw_ref": raw_ref,
@@ -68,6 +70,12 @@ def _record(
         "vcs_relpath": vcs_relpath,
         "locator": locator,
         "skipped_reason": None,
+        "logical_path": None,
+        "root_name": None,
+        "authored_path": None,
+        "origin": None,
+        "object_relpath": object_relpath,
+        "sidecar_visibility": None,
     }
 
 
@@ -191,7 +199,8 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     assert second.prompt_path.read_bytes() == first_bytes
     document = first.prompt_path.read_text()
     assert (
-        f"[@~/diagram.png]({relative_artifact_link('202608', pool_name)})" in document
+        f"[@~/diagram.png]({sase_core_rs.artifact_object_prompt_link(sase_core_rs.artifact_object_relpath(digest))})"
+        in document
     )
     assert (
         f"[@src/demo.py](https://example.test/blob/{'a' * 40}/src/demo.py)" in document
@@ -206,7 +215,8 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     assert "<!-- sase:section:" not in document
     assert "<details>" not in document
     assert "sent to model" not in document
-    assert (repo / "artifacts/202608" / pool_name).read_bytes() == content
+    object_path = repo / sase_core_rs.artifact_object_relpath(digest)
+    assert object_path.read_bytes() == content
     index = (repo / "prompts/202608/README.md").read_text()
     assert "[example_plan.md](example_plan.md)" in index
     assert "| 4 |" in index

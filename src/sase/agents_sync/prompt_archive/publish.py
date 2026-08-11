@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import os
 from pathlib import Path
 
@@ -32,6 +33,9 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +225,17 @@ def _publish_prompt_archive(
                             "prompt archive git push failed", pushed
                         ),
                     )
+            try:
+                from sase.core.artifact_ref_files_index import upsert_ref_file_versions
+
+                upsert_ref_file_versions(
+                    prepared.rendered.linked_records,
+                    agent_name=global_agent,
+                    project=target.project,
+                    sidecar_repo=target.sidecar_path.name,
+                )
+            except Exception:
+                log.debug("Could not update artifact ref-files index", exc_info=True)
             return PromptArchivePublicationOutcome(
                 published=bool(commit_result),
                 queued=True,

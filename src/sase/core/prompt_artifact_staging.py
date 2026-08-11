@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import UTC, datetime
 import fcntl
+import hashlib
 import json
 import logging
 import os
@@ -53,6 +54,12 @@ class PromptArtifactRecord(TypedDict):
     vcs_relpath: str | None
     locator: str | None
     skipped_reason: str | None
+    logical_path: str | None
+    root_name: str | None
+    authored_path: str | None
+    origin: str | None
+    object_relpath: str | None
+    sidecar_visibility: str | None
 
 
 def stage_prompt_artifact(
@@ -106,6 +113,10 @@ def stage_prompt_artifact(
         record["sha256"] = sha256
         record["size_bytes"] = size_bytes
         record["mime_type"] = artifact_file_mime_type(source)
+        record["object_relpath"] = str(
+            require_rust_binding("artifact_object_relpath")(sha256)
+        )
+        record["sidecar_visibility"] = _agents_sidecar_metadata(workspace)[1]
 
         vcs = _clean_vcs_provenance(source)
         if vcs is not None:
@@ -119,6 +130,7 @@ def stage_prompt_artifact(
             _append_manifest_record(manifest_path, lock_path, record)
             return record
 
+        record["origin"] = _origin_for_prompt_artifact(record)
         pool_filename = str(
             require_rust_binding("prompt_artifact_pool_filename")(
                 sha256,
@@ -141,6 +153,104 @@ def stage_prompt_artifact(
         return record
     except Exception as exc:  # noqa: BLE001 - staging is launch auxiliary work.
         log.debug("Could not stage prompt artifact %s: %s", raw_ref, exc, exc_info=True)
+        return None
+
+
+def capture_prompt_file_ref(
+    *,
+    source: Path,
+    logical_path: str,
+    root_name: str,
+    authored_path: str,
+    raw_ref: str,
+    expanded_ref: str,
+    workspace_root: Path | str | None = None,
+    agent_artifacts_dir: Path | str | None = None,
+) -> PromptArtifactRecord | None:
+    """Capture one resolved ``@file:<path>`` reference into the local pool."""
+
+    try:
+        artifacts_dir = _resolve_agent_artifacts_dir(agent_artifacts_dir)
+        if artifacts_dir is None:
+            return None
+        workspace = (
+            Path(workspace_root or Path.cwd()).expanduser().resolve(strict=False)
+        )
+        staging_root = workspace / ".sase" / "artifacts"
+        manifest_path = staging_root / PROMPT_ARTIFACT_MANIFEST_NAME
+        lock_path = staging_root / PROMPT_ARTIFACT_MANIFEST_LOCK_NAME
+        source = Path(source).expanduser().resolve(strict=True)
+        record = _base_record(
+            raw_ref=raw_ref,
+            expanded_ref=expanded_ref,
+            ref_kind="file",
+            label=source.name,
+            locator=logical_path,
+            agent_artifacts_dir=artifacts_dir,
+        )
+        record["source_path"] = str(source)
+        record["logical_path"] = logical_path
+        record["root_name"] = root_name
+        record["authored_path"] = authored_path
+        record["origin"] = "ref"
+        _repo, visibility = _agents_sidecar_metadata(workspace)
+        record["sidecar_visibility"] = visibility
+
+        pool_dir = staging_root / PROMPT_ARTIFACT_POOL_DIR
+        pool_dir.mkdir(parents=True, exist_ok=True)
+        descriptor, tmp_name = tempfile.mkstemp(
+            prefix=".capture.",
+            suffix=".tmp",
+            dir=pool_dir,
+        )
+        os.close(descriptor)
+        tmp_path = Path(tmp_name)
+        try:
+            digest = hashlib.sha256()
+            size_bytes = 0
+            with source.open("rb") as input_stream, tmp_path.open("wb") as output:
+                while chunk := input_stream.read(1024 * 1024):
+                    size_bytes += len(chunk)
+                    digest.update(chunk)
+                    output.write(chunk)
+            sha256 = digest.hexdigest()
+            record["sha256"] = sha256
+            record["size_bytes"] = size_bytes
+            record["mime_type"] = artifact_file_mime_type(source)
+            record["object_relpath"] = str(
+                require_rust_binding("artifact_object_relpath")(sha256)
+            )
+            if capture_file_exceeds_size_limit(size_bytes):
+                record["skipped_reason"] = "too-large"
+                _append_manifest_record(manifest_path, lock_path, record)
+                return record
+
+            pool_filename = str(
+                require_rust_binding("prompt_artifact_pool_filename")(
+                    sha256,
+                    "file-ref",
+                )
+            )
+            pool_relpath = f"{PROMPT_ARTIFACT_POOL_DIR}/{pool_filename}"
+            record["pool_relpath"] = pool_relpath
+            pool_path = staging_root / pool_relpath
+            created = _store_captured_tmp_and_append_record(
+                tmp_path=tmp_path,
+                expected_sha256=sha256,
+                pool_path=pool_path,
+                manifest_path=manifest_path,
+                lock_path=lock_path,
+                record=record,
+            )
+            if created and _pool_exceeds_budget(staging_root):
+                _prune_prompt_artifact_pool(workspace)
+            return record
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    except Exception as exc:  # noqa: BLE001 - capture is launch auxiliary work.
+        log.debug(
+            "Could not capture prompt file ref %s: %s", raw_ref, exc, exc_info=True
+        )
         return None
 
 
@@ -214,6 +324,12 @@ def _base_record(
         vcs_relpath=None,
         locator=locator,
         skipped_reason=None,
+        logical_path=None,
+        root_name=None,
+        authored_path=None,
+        origin=None,
+        object_relpath=None,
+        sidecar_visibility=None,
     )
 
 
@@ -367,6 +483,37 @@ def _store_and_append_record(
     return created
 
 
+def _store_captured_tmp_and_append_record(
+    *,
+    tmp_path: Path,
+    expected_sha256: str,
+    pool_path: Path,
+    manifest_path: Path,
+    lock_path: Path,
+    record: PromptArtifactRecord,
+) -> bool:
+    with locked_file(lock_path, fcntl.LOCK_EX):
+        created = _store_captured_tmp(tmp_path, pool_path, expected_sha256)
+        _append_manifest_record_unlocked(manifest_path, record)
+    return created
+
+
+def _store_captured_tmp(
+    tmp_path: Path,
+    target: Path,
+    expected_sha256: str,
+) -> bool:
+    if target.exists():
+        if hash_file(target) != expected_sha256:
+            raise RuntimeError(f"prompt artifact digest collision at {target}")
+        return False
+    if hash_file(tmp_path) != expected_sha256:
+        raise RuntimeError("captured prompt artifact digest mismatch")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(tmp_path, target)
+    return True
+
+
 def _store_pool_file(source: Path, target: Path, expected_sha256: str) -> bool:
     if target.exists():
         if hash_file(target) != expected_sha256:
@@ -398,6 +545,40 @@ def _pool_exceeds_budget(staging_root: Path) -> bool:
         if total > budget:
             return True
     return False
+
+
+def _origin_for_prompt_artifact(record: PromptArtifactRecord) -> str:
+    raw_ref = record.get("raw_ref") or ""
+    if record.get("ref_kind") == "file" and (
+        raw_ref.startswith("@file:explicit:") or raw_ref.startswith("@file:default:")
+    ):
+        return "created"
+    return "capture"
+
+
+def _agents_sidecar_metadata(workspace: Path) -> tuple[str, str]:
+    try:
+        from sase._linked_repo_config import (
+            _SIDECAR_ROLE_KEY,
+            _SIDECAR_SLUG_KEY,
+            merged_sidecar_entries_from_config,
+            resolution_config,
+        )
+
+        config = resolution_config(str(workspace), None)
+        for entry in merged_sidecar_entries_from_config(
+            config,
+            primary_workspace_dir=str(workspace),
+        ):
+            if entry.get(_SIDECAR_ROLE_KEY) == "agents":
+                repo = str(
+                    entry.get(_SIDECAR_SLUG_KEY) or entry.get("name") or "agents"
+                )
+                visibility = str(entry.get("visibility") or "public")
+                return repo, visibility
+    except Exception:
+        log.debug("Could not resolve agents sidecar visibility", exc_info=True)
+    return "agents", "public"
 
 
 def _pool_files(staging_root: Path) -> list[tuple[Path, int]]:
@@ -438,5 +619,6 @@ __all__ = [
     "PROMPT_ARTIFACT_MANIFEST_NAME",
     "PROMPT_ARTIFACT_POOL_DIR",
     "PromptArtifactRecord",
+    "capture_prompt_file_ref",
     "stage_prompt_artifact",
 ]
