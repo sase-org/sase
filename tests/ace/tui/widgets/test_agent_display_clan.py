@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from types import SimpleNamespace
 
+from rich.console import Console
 from rich.text import Text
+from textual.content import Content
 import pytest
 
 import sase.ace.tui.models.tribe_display as tribe_display
@@ -172,6 +174,53 @@ def test_clan_summary_invalid_markup_falls_back_to_raw_text() -> None:
         < detail.index("[bold]Research[/italic]")
     )
     assert "[bold]Research[/italic]\n\n" in detail
+
+
+def test_clan_summary_unclosed_meta_tag_falls_back_without_crashing() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.clan_summary = (
+        "[bold]RESEARCH PROMPT:[/bold] replace `[@file:<file>][<N>]` with a link"
+    )
+    container = project_clan_tree([member])[0]
+
+    detail = build_clan_detail_text(container)
+
+    Content.from_rich_text(detail, console=Console())
+    assert style_at(detail, detail.plain.index("RESEARCH PROMPT:")) == "bold"
+    assert "@file:<file>" in detail.plain
+
+
+def test_clan_summary_link_markup_is_not_over_escaped() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.clan_summary = "[link=https://example.org]here[/link]"
+    container = project_clan_tree([member])[0]
+
+    detail = build_clan_detail_text(container)
+
+    Content.from_rich_text(detail, console=Console())
+    assert style_at(detail, detail.plain.index("here")) == "link https://example.org"
+
+
+def test_clan_summary_empty_yields_no_summary_section() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.clan_summary = None
+    container = project_clan_tree([member])[0]
+
+    detail = build_clan_detail_text(container)
+
+    Content.from_rich_text(detail, console=Console())
 
 
 def test_family_header_recolors_only_real_container_name() -> None:
