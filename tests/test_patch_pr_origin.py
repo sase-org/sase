@@ -79,3 +79,67 @@ def test_patch_detail_renders_pr_origin() -> None:
 def test_pr_origin_shared_styles_cover_tri_state() -> None:
     assert set(PR_ORIGIN_VALUE_STYLES) == {"sase", "external", "unknown"}
     assert "#FF5F5F" in PR_ORIGIN_VALUE_STYLES["external"]
+
+
+def test_display_patch_renders_adopted_note_for_external() -> None:
+    patch = Patch(
+        name="from_external",
+        description="External PR",
+        parent=None,
+        pr_url="https://example.test/pull/2",
+        pr_origin="external",
+        status="WIP",
+    )
+    console = Console(record=True, force_terminal=True)
+
+    display_patch(patch, console)
+
+    text = console.export_text()
+    assert "Adopted from an external PR" in text
+
+
+def test_display_patch_omits_adopted_note_for_sase_origin() -> None:
+    patch = Patch(
+        name="from_sase",
+        description="Tracked PR",
+        parent=None,
+        pr_url="https://example.test/pull/1",
+        pr_origin="sase",
+        status="WIP",
+    )
+    console = Console(record=True, force_terminal=True)
+
+    display_patch(patch, console)
+
+    text = console.export_text()
+    assert "Adopted from an external PR" not in text
+
+
+def test_patch_detail_renders_adopted_note_for_external() -> None:
+    patch = Patch(
+        name="from_external",
+        description="External PR",
+        parent=None,
+        pr_url="https://example.test/pull/2",
+        pr_origin="external",
+        status="WIP",
+    )
+    widget = PatchDetail()
+    content, _, _, _, _ = widget._build_display_content(patch, "")
+
+    assert "Adopted from an external PR" in content.renderable.plain
+
+
+def test_patch_detail_omits_adopted_note_for_unknown_origin() -> None:
+    patch = Patch(
+        name="unknown_origin",
+        description="Undetermined PR",
+        parent=None,
+        pr_url="https://example.test/pull/3",
+        pr_origin="unknown",
+        status="WIP",
+    )
+    widget = PatchDetail()
+    content, _, _, _, _ = widget._build_display_content(patch, "")
+
+    assert "Adopted from an external PR" not in content.renderable.plain

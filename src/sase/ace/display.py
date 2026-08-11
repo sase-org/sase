@@ -12,6 +12,7 @@ from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import ProjectDisplaySnapshot, humanize_cl_name
 
 from .patch import (
+    PR_ORIGIN_EXTERNAL,
     PR_ORIGIN_UNKNOWN,
     Patch,
     DeltaEntry,
@@ -126,6 +127,12 @@ def display_patch(
             f"{pr_origin}\n",
             style=PR_ORIGIN_VALUE_STYLES.get(pr_origin, "dim #FF5F5F"),
         )
+        if pr_origin == PR_ORIGIN_EXTERNAL:
+            text.append(
+                "  Adopted from an external PR — SASE automation does not "
+                "act on this Patch.\n",
+                style="dim #FF5F5F",
+            )
 
     # BUG field (only display if present)
     if patch.bug:

@@ -131,6 +131,22 @@ def test_token_streams_properties_snapshot() -> None:
                     "property_key": None,
                 },
             ],
+            "origin:unknown": [
+                {
+                    "kind": "property",
+                    "value": "unknown",
+                    "position": 0,
+                    "case_sensitive": False,
+                    "property_key": "origin",
+                },
+                {
+                    "kind": "eof",
+                    "value": "",
+                    "position": 14,
+                    "case_sensitive": False,
+                    "property_key": None,
+                },
+            ],
             'ancestor:alpha AND NOT "beta"': [
                 {
                     "kind": "property",

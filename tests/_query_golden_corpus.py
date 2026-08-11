@@ -76,6 +76,7 @@ GOLDEN_QUERIES_PROPERTIES: list[str] = [
     "ancestor:alpha",
     "name:beta",
     "sibling:beta",
+    "origin:unknown",
     'ancestor:alpha AND NOT "beta"',
 ]
 

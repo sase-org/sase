@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from sase.project_display_names import humanize_cl_name
 
-from ..modals import StatusModal
+from ..modals import PrOriginModal, StatusModal
 
 if TYPE_CHECKING:
     from ...patch import Patch
@@ -164,6 +164,34 @@ class StatusActionsMixin:
                 self._apply_status_change(patch, new_status)
 
         self.push_screen(StatusModal(patch.status), on_dismiss)  # type: ignore[attr-defined]
+
+    def action_mark_pr_origin(self) -> None:
+        """Open the PR_ORIGIN marking modal for the selected Patch."""
+        if self.current_tab != "artifacts":
+            return
+        if not self.patches:
+            return
+
+        patch = self.patches[self.current_idx]
+        if not patch.pr_url:
+            return
+
+        def on_dismiss(new_pr_origin: str | None) -> None:
+            if new_pr_origin:
+                self._apply_pr_origin_change(patch, new_pr_origin)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            PrOriginModal(patch.pr_origin), on_dismiss
+        )
+
+    def _apply_pr_origin_change(self, patch: Patch, new_pr_origin: str) -> None:
+        """Apply a PR_ORIGIN change to a Patch."""
+        from sase.status_state_machine import update_patch_pr_origin_atomic
+
+        display_cl_name = humanize_cl_name(patch.name)
+        update_patch_pr_origin_atomic(patch.file_path, patch.name, new_pr_origin)
+        self.notify(f"PR_ORIGIN set to {new_pr_origin} for {display_cl_name}")  # type: ignore[attr-defined]
+        self._reload_and_reposition()  # type: ignore[attr-defined]
 
     def _apply_status_change(self, patch: Patch, new_status: str) -> None:
         """Apply a status change to a Patch."""

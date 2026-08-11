@@ -17,6 +17,7 @@ from .field_updates import (
     update_patch_bug_atomic,
     update_patch_description_atomic,
     update_patch_parent_atomic,
+    update_patch_pr_origin_atomic,
     update_patch_pr_url_atomic,
     update_parent_references_atomic,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "update_patch_bug_atomic",
     "update_patch_description_atomic",
     "update_patch_parent_atomic",
+    "update_patch_pr_origin_atomic",
     "update_patch_pr_url_atomic",
     "update_parent_references_atomic",
     # Transitions

@@ -11,7 +11,12 @@ from sase.running_field import get_claimed_workspaces
 from sase.project_display_names import humanize_cl_name
 from textual.widgets import Static
 
-from ...patch import PR_ORIGIN_UNKNOWN, Patch, normalize_pr_origin
+from ...patch import (
+    PR_ORIGIN_EXTERNAL,
+    PR_ORIGIN_UNKNOWN,
+    Patch,
+    normalize_pr_origin,
+)
 from ....core.patch import get_workspace_directory_for_patch
 from ...display_helpers import (
     format_running_claims_aligned,
@@ -460,6 +465,12 @@ class PatchDetail(Static):
                 f"{pr_origin}\n",
                 style=PR_ORIGIN_VALUE_STYLES.get(pr_origin, "dim #FF5F5F"),
             )
+            if pr_origin == PR_ORIGIN_EXTERNAL:
+                text.append(
+                    "  Adopted from an external PR — SASE automation does not "
+                    "act on this Patch.\n",
+                    style="dim #FF5F5F",
+                )
 
         # BUG field (only display if present)
         if patch.bug:

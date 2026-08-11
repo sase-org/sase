@@ -152,6 +152,7 @@ from .plugin_action_confirm_modal import (
 )
 from .plugin_action_confirm_modal import PluginActionVariant as PluginActionVariant
 from .post_write_actions_modal import PostWriteActionsModal as PostWriteActionsModal
+from .pr_origin_modal import PrOriginModal as PrOriginModal
 from .process_select_modal import ProcessSelectModal as ProcessSelectModal
 from .process_select_modal import ProcessSelection as ProcessSelection
 from .project_alias_editor_modal import (

@@ -201,6 +201,7 @@ _LAZY_EXPORTS = {
     ),
     "PluginActionVariant": (".plugin_action_confirm_modal", "PluginActionVariant"),
     "PostWriteActionsModal": (".post_write_actions_modal", "PostWriteActionsModal"),
+    "PrOriginModal": (".pr_origin_modal", "PrOriginModal"),
     "ProcessSelectModal": (".process_select_modal", "ProcessSelectModal"),
     "ProcessSelection": (".process_select_modal", "ProcessSelection"),
     "ProjectAliasEditorModal": (
@@ -469,6 +470,7 @@ __all__ = [
     "ParentSelectModal",
     "PlanApprovalModal",
     "PlanApprovalResult",
+    "PrOriginModal",
     "ProcessSelectModal",
     "ProcessSelection",
     "InventoryProjectChoice",

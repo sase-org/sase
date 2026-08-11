@@ -2,7 +2,7 @@
 
 import re
 
-from ..patch import Patch, has_any_status_suffix
+from ..patch import Patch, has_any_status_suffix, normalize_pr_origin
 from .searchable import RUNNING_AGENT_MARKER, RUNNING_PROCESS_MARKER
 from .types import AndExpr, NotExpr, OrExpr, PropertyMatch, QueryExpr, StringMatch
 
@@ -165,6 +165,20 @@ def _match_ancestor(
     return _has_ancestor(patch)
 
 
+def _match_origin(prop: PropertyMatch, patch: Patch) -> bool:
+    """Match against the Patch PR_ORIGIN field.
+
+    Args:
+        prop: The PropertyMatch with key="origin".
+        patch: The Patch to check.
+
+    Returns:
+        True if the normalized PR origin (``sase``, ``external``, or
+        ``unknown``) matches (case-insensitive).
+    """
+    return normalize_pr_origin(patch.pr_origin) == prop.value.lower()
+
+
 def match_property(
     prop: PropertyMatch,
     patch: Patch,
@@ -190,6 +204,8 @@ def match_property(
         return _match_name(prop, patch)
     elif prop.key == "sibling":
         return _match_sibling(prop, patch)
+    elif prop.key == "origin":
+        return _match_origin(prop, patch)
     else:
         # Unknown property key - should not happen with proper tokenization
         return False

@@ -71,7 +71,7 @@ def test_malformed_query_messages_snapshot() -> None:
             },
             "unknown:value": {
                 "position": 0,
-                "message": "Unknown property key: unknown (valid keys: status, project, ancestor, name, sibling) at position 0 (at position 0)",
+                "message": "Unknown property key: unknown (valid keys: status, project, ancestor, name, sibling, origin) at position 0 (at position 0)",
             },
             "@bad": {
                 "position": 0,

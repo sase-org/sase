@@ -17,17 +17,21 @@ from sase.project_display_names import humanize_cl_name
 
 from ..patch_status import patch_status_glyph
 from ...patch import (
+    PR_ORIGIN_EXTERNAL,
+    PR_ORIGIN_SASE,
     Patch,
     get_base_status,
     has_any_error_suffix,
     has_any_running_agent,
     has_any_running_process,
+    normalize_pr_origin,
 )
 from ...mentor_output import (
     load_acceptance_state,
     load_mentor_outputs_for_commit,
     load_read_state,
 )
+from ...query.highlighting import PR_ORIGIN_VALUE_STYLES
 
 log = logging.getLogger(__name__)
 
@@ -152,6 +156,30 @@ def _append_mentor_stats(text: Text, stats: _MentorCommentStats) -> None:
     text.append(f"/{stats.total}", style="#808080")
 
 
+def _pr_origin_chip(patch: Patch) -> tuple[str, str] | None:
+    """Return the (text, style) origin chip for a row, or None to omit it.
+
+    The chip is the row's second, independent PR signal ("who created
+    that PR?") — distinct from the PR badge itself, which already shows
+    that a remote review exists. ``sase`` origin is the expected case and
+    renders nothing; a chip on every row would be noise.
+    """
+    if not patch.pr_url:
+        return None
+    origin = normalize_pr_origin(patch.pr_origin)
+    if origin == PR_ORIGIN_SASE:
+        return None
+    if origin == PR_ORIGIN_EXTERNAL:
+        return "external", PR_ORIGIN_VALUE_STYLES["external"]
+    return "origin?", PR_ORIGIN_VALUE_STYLES["unknown"]
+
+
+def _pr_origin_chip_plain_text(patch: Patch) -> str:
+    """Build plain text for the origin chip (for width calculation)."""
+    chip = _pr_origin_chip(patch)
+    return f"  {chip[0]}" if chip is not None else ""
+
+
 def calculate_entry_display_width(
     patch: Patch,
     is_marked: bool,
@@ -188,6 +216,7 @@ def calculate_entry_display_width(
     parts.append(humanize_cl_name(patch.name))
     if patch.pr_url:
         parts.append(f" ({patch.pr_url})")
+        parts.append(_pr_origin_chip_plain_text(patch))
     if mentor_stats:
         parts.append(_mentor_stats_plain_text(mentor_stats))
     text = Text("".join(parts))
@@ -235,6 +264,7 @@ def row_signature(
     return (
         humanize_cl_name(patch.name),
         patch.pr_url,
+        normalize_pr_origin(patch.pr_origin),
         patch.status,
         indicator,
         is_selected,
@@ -299,6 +329,10 @@ def format_patch_option(
     # PR number if present
     if patch.pr_url:
         text.append(f" ({patch.pr_url})", style="#569CD6 dim")
+        chip = _pr_origin_chip(patch)
+        if chip is not None:
+            chip_text, chip_style = chip
+            text.append(f"  {chip_text}", style=chip_style)
 
     # Mentor comment stats (latest commit)
     if mentor_stats:

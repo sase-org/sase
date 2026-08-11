@@ -20,6 +20,7 @@ def make_patch(
     hooks: list[HookEntry] | None = None,
     comments: list[CommentEntry] | None = None,
     deltas: list[DeltaEntry] | None = None,
+    pr_origin: str | None = None,
 ) -> Patch:
     """Create a Patch for testing."""
     return Patch(
@@ -34,6 +35,7 @@ def make_patch(
         hooks=hooks,
         comments=comments,
         deltas=deltas,
+        pr_origin=pr_origin,
     )
 
 

@@ -175,7 +175,7 @@ def check_app_action(
     }:
         if app.current_tab != "agents":
             return False
-    if action in {"change_status", "bulk_change_status"}:
+    if action in {"change_status", "bulk_change_status", "mark_pr_origin"}:
         if app.current_tab != ARTIFACTS_TAB:
             return False
     if action == "save_marked_agents":

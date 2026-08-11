@@ -28,7 +28,9 @@ class TokenType(Enum):
 
 
 # Valid property keys for property filters
-VALID_PROPERTY_KEYS = frozenset({"status", "project", "ancestor", "name", "sibling"})
+VALID_PROPERTY_KEYS = frozenset(
+    {"status", "project", "ancestor", "name", "sibling", "origin"}
+)
 
 # Status shorthand mappings: %d -> DRAFT, %m -> MAILED, etc.
 STATUS_SHORTHANDS = {
@@ -402,7 +404,8 @@ def tokenize(query: str) -> Iterator[Token]:
                     )
                 else:
                     raise TokenizerError(
-                        f"Unknown property key: {word} (valid keys: status, project, ancestor, name, sibling)",
+                        f"Unknown property key: {word} (valid keys: status, project, "
+                        "ancestor, name, sibling, origin)",
                         start,
                     )
             else:

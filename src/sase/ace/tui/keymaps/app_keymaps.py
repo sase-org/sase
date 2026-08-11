@@ -126,6 +126,7 @@ class AppKeymaps:
     rename_cl: str
     # Patch edits
     edit_hooks: str
+    mark_pr_origin: str
     # Proposals & sync
     accept_proposal: str
     rebase: str

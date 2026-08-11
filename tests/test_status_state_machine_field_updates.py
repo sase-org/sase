@@ -4,9 +4,13 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sase.status_state_machine import transition_patch_status
+from sase.status_state_machine import (
+    transition_patch_status,
+    update_patch_pr_origin_atomic,
+)
 from sase.status_state_machine.field_updates import (
     _apply_bug_update,
+    _apply_pr_origin_update,
     _apply_pr_url_update,
     _apply_description_update,
 )
@@ -430,3 +434,65 @@ def test__apply_bug_update_noop_when_patch_not_found() -> None:
     ]
     result = _apply_bug_update(lines, "Test Feature", "b/12345")
     assert result == "".join(lines)
+
+
+def test__apply_pr_origin_update_replaces_existing() -> None:
+    """_apply_pr_origin_update replaces an existing PR_ORIGIN field."""
+    lines = [
+        "NAME: Test Feature\n",
+        "PR: https://example.test/pull/1\n",
+        "PR_ORIGIN: unknown\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_pr_origin_update(lines, "Test Feature", "external")
+    assert "PR_ORIGIN: external\n" in result
+    assert "PR_ORIGIN: unknown\n" not in result
+
+
+def test__apply_pr_origin_update_inserts_before_bug() -> None:
+    """PR_ORIGIN is inserted before BUG when both are absent and BUG exists."""
+    lines = [
+        "NAME: Test Feature\n",
+        "PR: https://example.test/pull/1\n",
+        "BUG: http://b/123\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_pr_origin_update(lines, "Test Feature", "sase")
+    result_lines = result.split("\n")
+    origin_idx = next(i for i, ln in enumerate(result_lines) if "PR_ORIGIN:" in ln)
+    bug_idx = next(i for i, ln in enumerate(result_lines) if "BUG:" in ln)
+    assert origin_idx < bug_idx
+
+
+def test__apply_pr_origin_update_inserts_before_status_when_no_bug() -> None:
+    """PR_ORIGIN is inserted before STATUS when there is no BUG field."""
+    lines = [
+        "NAME: Test Feature\n",
+        "PR: https://example.test/pull/1\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_pr_origin_update(lines, "Test Feature", "external")
+    result_lines = result.split("\n")
+    origin_idx = next(i for i, ln in enumerate(result_lines) if "PR_ORIGIN:" in ln)
+    status_idx = next(i for i, ln in enumerate(result_lines) if "STATUS:" in ln)
+    assert origin_idx < status_idx
+
+
+def test__apply_pr_origin_update_noop_when_patch_not_found() -> None:
+    """_apply_pr_origin_update is a no-op when target Patch is not found."""
+    lines = [
+        "NAME: Other Feature\n",
+        "STATUS: Draft\n",
+    ]
+    result = _apply_pr_origin_update(lines, "Test Feature", "external")
+    assert result == "".join(lines)
+
+
+def test_update_patch_pr_origin_atomic_round_trip(tmp_path: Path) -> None:
+    """update_patch_pr_origin_atomic normalizes and persists PR_ORIGIN."""
+    project_file = _create_test_project_file_with_suffix(tmp_path)
+
+    update_patch_pr_origin_atomic(project_file, "Test Feature", "EXTERNAL")
+
+    content = Path(project_file).read_text(encoding="utf-8")
+    assert "PR_ORIGIN: external\n" in content

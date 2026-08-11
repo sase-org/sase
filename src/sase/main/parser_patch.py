@@ -158,6 +158,35 @@ def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
         "'markdown' for agent-friendly markdown (default: rich)",
     )
 
+    # sase patch set-origin <name> <sase|external|unknown>
+    set_origin_parser = cs_subparsers.add_parser(
+        "set-origin",
+        help="Mark a Patch's PR_ORIGIN (sase, external, or unknown)",
+        description=(
+            "Deliberately set a Patch's PR_ORIGIN field. This is the manual "
+            "half of the tri-state PR_ORIGIN decision: it resolves an "
+            "'unknown' record (or corrects a wrong mark) without waiting "
+            "for the external_pr_mirror chop."
+        ),
+    )
+    set_origin_parser.set_defaults(changespec_subcommand="set-origin")
+    set_origin_parser.add_argument(
+        "name",
+        help="NAME of the Patch to update",
+    )
+    set_origin_parser.add_argument(
+        "origin",
+        choices=["sase", "external", "unknown"],
+        help="New PR_ORIGIN value",
+    )
+    set_origin_parser.add_argument(
+        "-p",
+        "--project-file",
+        dest="project_file",
+        default=None,
+        help="Path to the project .sase file (default: inferred from current workspace)",
+    )
+
     # sase patch sync-deltas -P <patch_name> [-p <project_file>]
     sync_deltas_parser = cs_subparsers.add_parser(
         "sync-deltas",

@@ -59,6 +59,7 @@ _REQUIRES_CL_NUMBER: frozenset[str] = frozenset(
         "app.reword",
         "app.add_tag",
         "app.view_files",
+        "app.mark_pr_origin",
     }
 )
 

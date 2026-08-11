@@ -1,13 +1,13 @@
 """
 Field update functions for Patch files.
 
-This module provides atomic update operations for STATUS, PR, PARENT, and
-DESCRIPTION fields.
+This module provides atomic update operations for STATUS, PR, PR_ORIGIN,
+PARENT, and DESCRIPTION fields.
 """
 
 import logging
 
-from sase.ace.patch import patch_lock, write_patch_atomic
+from sase.ace.patch import normalize_pr_origin, patch_lock, write_patch_atomic
 from sase.ace.patch.section_order import PROJECT_SPEC_SECTION_HEADERS
 from sase.ace.patch.review_field import (
     REVIEW_URL_PREFIXES,
@@ -474,6 +474,77 @@ def update_patch_bug_atomic(
 
 
 update_changespec_bug_atomic = update_patch_bug_atomic  # legacy compatibility alias
+
+
+def _apply_pr_origin_update(
+    lines: list[str], patch_name: str, new_pr_origin: str
+) -> str:
+    """Apply PR_ORIGIN field update to file lines.
+
+    Args:
+        lines: Current file lines.
+        patch_name: NAME of the Patch to update.
+        new_pr_origin: New normalized PR_ORIGIN value.
+
+    Returns:
+        Updated file content as a string.
+    """
+    updated_lines = []
+    in_target_patch = False
+    found_pr_origin_line = False
+
+    for line in lines:
+        if line.startswith("NAME:"):
+            current_name = line.split(":", 1)[1].strip()
+            in_target_patch = current_name == patch_name
+            found_pr_origin_line = False
+
+        if in_target_patch and line.startswith("PR_ORIGIN:"):
+            found_pr_origin_line = True
+            updated_lines.append(f"PR_ORIGIN: {new_pr_origin}\n")
+        elif (
+            in_target_patch
+            and not found_pr_origin_line
+            and (line.startswith("BUG:") or line.startswith("STATUS:"))
+        ):
+            # PR_ORIGIN field doesn't exist — insert before BUG (or STATUS,
+            # when there is no BUG field) to match PATCH_SECTION_ORDER.
+            updated_lines.append(f"PR_ORIGIN: {new_pr_origin}\n")
+            found_pr_origin_line = True
+            updated_lines.append(line)
+        else:
+            updated_lines.append(line)
+
+    return "".join(updated_lines)
+
+
+def update_patch_pr_origin_atomic(
+    project_file: str, patch_name: str, new_pr_origin: str
+) -> None:
+    """Update the PR_ORIGIN field of a specific Patch in the project file.
+
+    Acquires a lock for the entire read-modify-write cycle. This is the
+    user-facing half of the tri-state PR_ORIGIN decision: it lets a user
+    or agent deliberately resolve an ``unknown`` record to ``sase`` or
+    ``external`` (or correct a wrong mark), draining the worklist that
+    ``unknown`` records represent.
+
+    Args:
+        project_file: Path to the ProjectSpec file
+        patch_name: NAME of the Patch to update
+        new_pr_origin: New PR_ORIGIN value (``sase``, ``external``, or
+            ``unknown``; normalized before writing)
+    """
+    normalized = normalize_pr_origin(new_pr_origin)
+    commit_msg = f"Update PR_ORIGIN to {normalized} for {patch_name}"
+
+    with patch_lock(project_file):
+        with open(project_file, encoding="utf-8") as f:
+            lines = f.readlines()
+
+        updated_content = _apply_pr_origin_update(lines, patch_name, normalized)
+
+        write_patch_atomic(project_file, updated_content, commit_msg)
 
 
 def update_patch_description_atomic(

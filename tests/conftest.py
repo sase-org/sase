@@ -673,6 +673,7 @@ class _PatchFactory:
         commits: list[CommitEntry] | None = None,
         hooks: list[HookEntry] | None = None,
         comments: list[CommentEntry] | None = None,
+        pr_origin: str | None = None,
     ) -> Patch:
         """Create a Patch for testing."""
         return Patch(
@@ -686,6 +687,7 @@ class _PatchFactory:
             commits=commits,
             hooks=hooks,
             comments=comments,
+            pr_origin=pr_origin,
         )
 
     def create_with_file(

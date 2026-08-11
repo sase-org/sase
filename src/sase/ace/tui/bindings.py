@@ -36,6 +36,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
         show=False,
     ),
     Binding("f", "edit_hooks", "Edit Hooks", show=False),
+    Binding("o", "mark_pr_origin", "Mark PR Origin", show=False),
     Binding("z", "start_fold_mode", "Fold", show=False),
     Binding("Z", "zoom_panel", "Zoom Detail", show=False),
     Binding("=", "isolate_panels", "Only/Restore Panels", show=False),

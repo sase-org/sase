@@ -371,6 +371,7 @@ ace:
       rename_cl: "n"
       # Patch edits
       edit_hooks: "f"
+      mark_pr_origin: "o"
       # Proposals & sync
       accept_proposal: "A"
       rebase: "b"

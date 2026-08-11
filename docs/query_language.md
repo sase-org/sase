@@ -42,6 +42,7 @@ String matches search across these Patch fields as one combined text corpus:
 - **project** -- project directory basename (derived from file path)
 - **parent** -- parent Patch name (if set)
 - **cl** -- PR identifier (if set)
+- **pr_origin** -- normalized PR_ORIGIN value (`sase`, `external`, or `unknown`)
 - **commits** -- history entry notes and suffixes
 - **hooks** -- hook display commands and status line suffixes
 - **comments** -- reviewer names, file paths, and suffixes
@@ -62,10 +63,12 @@ project:myproject     match Patches whose effective project name is "myproject"
 ancestor:parent_cl    match if name or parent chain includes "parent_cl"
 name:foo              match Patches whose name is exactly "foo"
 sibling:bar           match Patches in the same sibling family as "bar"
+origin:external       match Patches whose PR_ORIGIN is "external"
 ```
 
-Valid property keys: `status`, `project`, `ancestor`, `name`, and `sibling`. Values can
-be bare words (alphanumeric, `_`, `-`) or quoted strings (e.g. `status:"in progress"`).
+Valid property keys: `status`, `project`, `ancestor`, `name`, `sibling`, and `origin`.
+Values can be bare words (alphanumeric, `_`, `-`) or quoted strings (e.g.
+`status:"in progress"`).
 
 The `project:` filter uses the ProjectSpec's configured `PROJECT_NAME` when present and
 valid; otherwise it falls back to the canonical project directory key. A configured name
@@ -112,6 +115,15 @@ chain equals the value. Cycle detection prevents infinite loops.
 The `sibling:` filter (and `~` shorthand) strips any `__<N>` revert suffix from both the
 search value and the Patch name, then compares base names. This matches all members of a
 "family" -- the original plus its `__1`, `__2`, etc. variants.
+
+### Origin Matching
+
+The `origin:` filter compares the normalized `PR_ORIGIN` value: `sase` (created by
+SASE's tracked PR workflow), `external` (adopted from a PR SASE did not create), or
+`unknown` (no evidence either way -- absent `PR_ORIGIN` normalizes to `unknown`). It has
+no shorthand prefix. It is a UI/manual-filtering convenience only, not a safety
+mechanism -- external Patches are structurally excluded from AXE work regardless of any
+query.
 
 ## Boolean Operators
 

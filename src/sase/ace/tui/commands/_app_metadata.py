@@ -336,6 +336,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_AGENTS,
         ("fork",),
     ),
+    (
+        "mark_pr_origin",
+        "Mark PR origin (sase / external / unknown)",
+        "Patch Edits",
+        CL_ONLY,
+        ("origin", "adopt"),
+    ),
     # Proposals & Sync
     ("accept_proposal", "Accept proposal", "Proposals & Sync", CL_AGENTS, ()),
     ("rebase", "Rebase Patch", "Proposals & Sync", CL_ONLY, ()),

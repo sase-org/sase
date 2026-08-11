@@ -529,6 +529,57 @@ def _handle_sync_deltas(args: argparse.Namespace) -> int:
     return 1
 
 
+def _resolve_set_origin_patch(
+    name: str, project_file: str | None, args: argparse.Namespace
+) -> Patch | None:
+    """Resolve the named Patch, scoped to a project file when given."""
+
+    if project_file:
+        from sase.ace.patch import parse_project_file
+
+        resolved_project_file = os.path.expanduser(project_file)
+        if not os.path.isfile(resolved_project_file):
+            print(
+                f"[{_command_prefix(args, 'set-origin')}] project file not found: "
+                f"{resolved_project_file}",
+                file=sys.stderr,
+            )
+            return None
+        patches = parse_project_file(resolved_project_file)
+    else:
+        patches = find_all_patches()
+
+    matches = [patch for patch in patches if patch.name == name]
+    if not matches:
+        print(
+            f"[{_command_prefix(args, 'set-origin')}] Patch not found: {name}",
+            file=sys.stderr,
+        )
+        return None
+    if len(matches) > 1:
+        print(
+            f"[{_command_prefix(args, 'set-origin')}] multiple Patches are named "
+            f"{name}:",
+            file=sys.stderr,
+        )
+        for patch in matches:
+            print(f"  {_file_location(patch)}", file=sys.stderr)
+        return None
+    return matches[0]
+
+
+def _handle_set_origin(args: argparse.Namespace) -> int:
+    from sase.status_state_machine import update_patch_pr_origin_atomic
+
+    patch = _resolve_set_origin_patch(args.name, args.project_file, args)
+    if patch is None:
+        return 1
+
+    update_patch_pr_origin_atomic(patch.file_path, patch.name, args.origin)
+    print(f"PR_ORIGIN set to {args.origin} for {humanize_cl_name(patch.name)}")
+    return 0
+
+
 def _handle_migrate_extension(args: argparse.Namespace) -> int:
     """Run the ``.gp`` → ``.sase`` migration helper."""
     from pathlib import Path
@@ -569,11 +620,13 @@ def handle_patch_command(args: argparse.Namespace) -> None:
         sys.exit(_handle_ref(args))
     if sub == "sync-deltas":
         sys.exit(_handle_sync_deltas(args))
+    if sub == "set-origin":
+        sys.exit(_handle_set_origin(args))
     if sub == "migrate-extension":
         sys.exit(_handle_migrate_extension(args))
     print(
         f"Usage: sase {_command_name(args)} "
-        "{current,migrate-extension,ref,search,sync-deltas} [-h]",
+        "{current,migrate-extension,ref,search,set-origin,sync-deltas} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)

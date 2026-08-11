@@ -24,6 +24,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
         False,
     ),
     ("edit_hooks", "Edit Hooks", False),
+    ("mark_pr_origin", "Mark PR Origin", False),
     ("start_fold_mode", "Fold", False),
     ("zoom_panel", "Zoom Detail", False),
     ("isolate_panels", "Only/Restore Panels", False),

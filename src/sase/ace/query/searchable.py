@@ -1,6 +1,6 @@
 """Searchable text extraction for Patch query matching."""
 
-from ..patch import Patch
+from ..patch import Patch, normalize_pr_origin
 
 # Pattern that indicates a running agent in searchable text
 # Matches "- (@)" (no message) or "- (@: msg)" (with message)
@@ -21,6 +21,7 @@ def get_searchable_text(patch: Patch) -> str:
     - project basename (from file_path)
     - parent (if present)
     - cl (if present)
+    - pr_origin (normalized: sase, external, or unknown)
     - history notes (if present)
     - hook commands (if present)
 
@@ -34,6 +35,7 @@ def get_searchable_text(patch: Patch) -> str:
         patch.name,
         patch.description,
         patch.status,
+        normalize_pr_origin(patch.pr_origin),
     ]
 
     # Add project basename (e.g., "myproject" from "~/.sase/projects/myproject/myproject.sase")
