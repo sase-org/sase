@@ -50,6 +50,7 @@ def _launched_entry(
     *,
     pid: int,
     launches: list[dict[str, object]] | None = None,
+    script_duration_ms: int | None = None,
 ) -> ChopRunEntry:
     entry = ChopRunEntry(
         run_id=run_id,
@@ -71,6 +72,7 @@ def _launched_entry(
         exit_code=0,
         agent_pid=pid,
         launches=launches or [{"pid": pid}],
+        script_duration_ms=script_duration_ms,
     )
     return entry
 
@@ -231,6 +233,33 @@ def test_lifecycle_finalizes_completed_agents_and_clears_registry(
     assert entry is not None
     assert entry.status == "action_succeeded"
     assert get_chop_agent_records("docs", chop_name="docs", run_id=run_id) == []
+
+
+def test_lifecycle_preserves_script_duration_ms_through_finalization(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120000_000000"
+    _launched_entry(run_id, pid=321, script_duration_ms=250)
+    _record_agent(run_id, pid=321)
+    artifacts = resolve_agent_artifact_timestamp_path(
+        "sase", "ace-run", "20260718120000"
+    )
+    artifacts.mkdir(parents=True)
+    (artifacts / "done.json").write_text(
+        json.dumps({"outcome": "completed"}), encoding="utf-8"
+    )
+
+    assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_succeeded"
+    # duration_ms is overwritten with the agent-lifetime span, but
+    # script_duration_ms keeps the script's own wall-clock value.
+    assert entry.duration_ms != 250
+    assert entry.script_duration_ms == 250
 
 
 def test_lifecycle_releases_only_failed_agents_once_per_key(

@@ -8,7 +8,7 @@ time so home-directory redirection applies to every reader.
 """
 
 import sase.axe.state as _state  # noqa: I001
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -72,6 +72,10 @@ class ChopRunEntry:
     launches: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False
     reason: str | None = None
+    #: Wall-clock the lumberjack tick was blocked by this chop's script,
+    #: which ``duration_ms`` stops representing once a launched run is
+    #: finalized against its agents' lifetime.
+    script_duration_ms: int | None = None
 
 
 def _chop_dir(lumberjack_name: str, chop_name: str) -> Path:
@@ -305,6 +309,7 @@ def finish_chop_run(
     launches: list[dict[str, Any]] | None = None,
     dry_run: bool | None = None,
     reason: str | None = None,
+    script_duration_ms: int | None = None,
 ) -> None:
     """Transition a running chop entry and prune terminal history.
 
@@ -337,6 +342,8 @@ def finish_chop_run(
         data["dry_run"] = dry_run
     if reason is not None:
         data["reason"] = reason
+    if script_duration_ms is not None:
+        data["script_duration_ms"] = script_duration_ms
 
     if output_bytes is None:
         log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
@@ -367,12 +374,19 @@ def read_chop_run_index(lumberjack_name: str, chop_name: str) -> list[str]:
 def read_chop_run(
     lumberjack_name: str, chop_name: str, run_id: str
 ) -> ChopRunEntry | None:
-    """Read a single chop run metadata entry, or None if unavailable."""
+    """Read a single chop run metadata entry, or None if unavailable.
+
+    Filters to known ``ChopRunEntry`` fields before construction so a
+    metadata file written by a newer sase (one extra key) does not make an
+    older reader drop the run from history entirely.
+    """
     data = _state.read_json(chop_run_meta_path(lumberjack_name, chop_name, run_id))
     if not isinstance(data, dict):
         return None
+    known_fields = {f.name for f in fields(ChopRunEntry)}
+    filtered = {k: v for k, v in data.items() if k in known_fields}
     try:
-        return ChopRunEntry(**data)
+        return ChopRunEntry(**filtered)
     except TypeError:
         return None
 

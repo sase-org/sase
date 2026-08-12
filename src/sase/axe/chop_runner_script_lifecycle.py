@@ -70,6 +70,7 @@ def finalize_script_chop_run(
             status=status,
             finished_at=None if active else finished_at.isoformat(),
             duration_ms=duration_ms,
+            script_duration_ms=duration_ms,
             exit_code=exit_code,
             agent_pid=agent_pid,
             error=str(error) if error is not None else None,

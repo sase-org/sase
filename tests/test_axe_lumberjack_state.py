@@ -1,5 +1,6 @@
 """Tests for per-lumberjack state management in the axe state module."""
 
+import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -388,6 +389,21 @@ def test_read_chop_run_returns_none_on_invalid_json(
     meta = chop_run_meta_path("hooks", "hook_checks", "bad")
     meta.write_text("{not json")
     assert read_chop_run("hooks", "hook_checks", "bad") is None
+
+
+def test_read_chop_run_tolerates_unknown_keys(temp_state_dir: Path) -> None:
+    """An unknown key from a newer sase does not drop the run from history."""
+    entry = _make_entry(run_id="20260511T200000_000001")
+    write_chop_run(entry, output="hello\n")
+
+    meta = chop_run_meta_path("hooks", "hook_checks", "20260511T200000_000001")
+    data = json.loads(meta.read_text())
+    data["a_future_field_this_reader_does_not_know_about"] = "surprise"
+    meta.write_text(json.dumps(data))
+
+    loaded = read_chop_run("hooks", "hook_checks", "20260511T200000_000001")
+    assert loaded is not None
+    assert loaded.status == "success"
 
 
 def test_read_chop_run_index_returns_empty_on_invalid_json(

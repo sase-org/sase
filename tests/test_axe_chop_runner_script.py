@@ -63,6 +63,34 @@ def test_run_configured_chop_once_records_manual_source(
     assert "hello" in tail
 
 
+def test_run_configured_chop_once_records_script_duration_ms(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "live_chop", "echo hello\n")
+    cfg = AxeConfig(
+        max_hook_runners=3,
+        max_agent_runners=3,
+        zombie_timeout_seconds=3600,
+        query="",
+        chop_script_dirs=[str(tmp_path / "scripts")],
+    )
+    chop = ChopConfig(name="live_chop", description="")
+
+    with patch("sase.axe.chop_runner.find_all_patches", return_value=[]):
+        outcome = run_configured_chop_once(
+            lumberjack_name="hooks",
+            chop=chop,
+            axe_config=cfg,
+            source="manual",
+            started_by="ace",
+        )
+
+    entry = read_chop_run("hooks", "live_chop", outcome.run_id)
+    assert entry is not None
+    assert entry.script_duration_ms == entry.duration_ms
+
+
 def test_run_configured_chop_once_resolves_explicit_full_script_name(
     temp_state_dir: Path,
     tmp_path: Path,
