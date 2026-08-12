@@ -371,6 +371,10 @@ def test_docs_build_once_per_event_and_deploys_are_serialized() -> None:
         for step in deploy["jobs"]["deploy"]["steps"]
     )
 
+    pdf_config_path = repo_root / "mkdocs-pdf.yml"
+    pdf_base_config = pdf_config_path.read_text().split("\nextra:", maxsplit=1)[0]
+    assert yaml.safe_load(pdf_base_config)["theme"]["font"] is False
+
 
 def test_setup_sase_action_installs_downloaded_wheel() -> None:
     steps = _load_setup_sase_action()["runs"]["steps"]
@@ -429,7 +433,7 @@ def test_publish_depends_on_floor_exact_install_smoke() -> None:
     assert 'grep -Fq "sase chat list"' in floor_exact
 
 
-def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> None:
+def test_publish_sync_release_metadata_refreshes_lock_before_guarded_ratchet() -> None:
     workflow = _load_publish_workflow()
     jobs = workflow["jobs"]
 
@@ -456,7 +460,7 @@ def test_publish_sync_release_metadata_applies_ratchet_before_lock_refresh() -> 
     assert 'if [ "$ratchet_status" -eq 2 ]; then' in run_text
     assert "ratchet applied dependency metadata changes" in run_text
     assert "uv lock" in run_text
-    assert "python tools/ratchet_core_window" in run_text.split("uv lock")[0]
+    assert "uv lock" in run_text.split("python tools/ratchet_core_window")[0]
     assert "git diff --quiet -- pyproject.toml uv.lock" in run_text
     assert "git add pyproject.toml uv.lock" in run_text
     assert 'git commit -m "chore: sync release metadata"' in run_text

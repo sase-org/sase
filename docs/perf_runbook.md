@@ -73,6 +73,10 @@ a round number, and prints a budget JSON along with the `notes` provenance line 
 size, host, UTC date range, worker-count range, node-count range, and per-metric
 min/median/max) to paste alongside the new limits.
 
+When repeated hosted runs establish a distinct GitHub-runner profile, an entry may add
+`ci_limit`. CI uses that value before applying its tolerance, while local runs continue
+to use `limit`; derive and document both values with the same recorded-history policy.
+
 ## Trace recorder
 
 `SASE_TUI_TRACE=1` enables `tui_trace(...)` context managers spread across the Patch,

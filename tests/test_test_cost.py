@@ -369,11 +369,42 @@ def test_cost_budget_check_uses_wider_ci_tolerance() -> None:
     assert check_cost_budgets(record, budgets, ci=True) == []
 
 
+def test_cost_budget_check_uses_ci_specific_limits() -> None:
+    record = {
+        "summary": {
+            "collection_cpu_seconds": 45.0,
+            "causes": {"ace_page_enter": {"count": 1, "seconds": 45.0}},
+        },
+        "worker_count": 1,
+    }
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.0, "ci": 0.0},
+        "summary": {
+            "collection_cpu_seconds": {
+                "limit": 20.0,
+                "ci_limit": 50.0,
+                "per_worker": True,
+            }
+        },
+        "causes": {
+            "ace_page_enter": {"limit": 20.0, "ci_limit": 50.0},
+        },
+    }
+
+    assert [failure.metric for failure in check_cost_budgets(record, budgets)] == [
+        "collection_cpu_seconds (per worker)",
+        "causes.ace_page_enter",
+    ]
+    assert check_cost_budgets(record, budgets, ci=True) == []
+
+
 def test_committed_cost_budgets_are_valid() -> None:
     budgets = load_cost_budgets(Path("tests/perf/baselines/test_cost_budgets.json"))
 
     assert budgets["summary"]["collection_seconds"]["limit"] == 60.0
     assert budgets["summary"]["collection_seconds"]["per_worker"] is True
+    assert budgets["summary"]["collection_cpu_seconds"]["ci_limit"] == 52.0
 
 
 def test_cost_recorder_attributes_causes_to_current_file(tmp_path: Path) -> None:

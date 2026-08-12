@@ -17,6 +17,7 @@ from pypdf import PdfReader, PdfWriter
 
 DEFAULT_SITE_DIR = Path("site")
 MKDOCS_CONFIG = Path("mkdocs.yml")
+IMAGE_JPEG_QUALITY = 95
 
 METADATA = {
     "/Title": "SASE Handbook",
@@ -251,6 +252,30 @@ def _add_metadata(reader: PdfReader, writer: PdfWriter) -> None:
     writer.add_metadata(current)
 
 
+def _optimize_images(writer: PdfWriter) -> int:
+    """Re-encode large browser-emitted PNGs without touching shared objects twice."""
+
+    optimized = 0
+    seen_references: set[int] = set()
+    for page in writer.pages:
+        for image_file in page.images:
+            reference = image_file.indirect_reference
+            if reference is None or reference.idnum in seen_references:
+                continue
+            seen_references.add(reference.idnum)
+
+            image = image_file.image
+            if image.format != "PNG" or image.mode != "RGB":
+                continue
+            image_file.replace(
+                image,
+                quality=IMAGE_JPEG_QUALITY,
+                optimize=True,
+            )
+            optimized += 1
+    return optimized
+
+
 def _add_outlines(
     writer: PdfWriter,
     chapters: list[Chapter],
@@ -315,6 +340,8 @@ def main() -> int:
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
+            writer.pages[-1].compress_content_streams(level=9)
+        optimized_images = _optimize_images(writer)
 
         _add_metadata(reader, writer)
         _add_outlines(writer, chapters, chapter_pages, page_text)
@@ -332,7 +359,7 @@ def main() -> int:
 
     print(
         f"[postprocess_docs_pdf] ok: {pdf_path} "
-        f"({len(chapters)} chapter outlines)"
+        f"({len(chapters)} chapter outlines, {optimized_images} optimized images)"
     )
     return 0
 

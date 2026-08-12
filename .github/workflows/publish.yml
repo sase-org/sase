@@ -102,6 +102,10 @@ jobs:
         if: ${{ steps.check_branch.outputs.exists == 'true' }}
         run: |
           set -euo pipefail
+          # release-please updates the project version before this job runs.
+          # Synchronize that ordinary metadata first so the guarded core ratchet
+          # starts from a clean lockfile and can reject unrelated changes.
+          uv lock
           ratchet_status=0
           python tools/ratchet_core_window || ratchet_status=$?
           if [ "$ratchet_status" -eq 2 ]; then
@@ -109,7 +113,6 @@ jobs:
           elif [ "$ratchet_status" -ne 0 ]; then
             exit "$ratchet_status"
           fi
-          uv lock
           if git diff --quiet -- pyproject.toml uv.lock; then
             echo "release metadata already matches the pending release branch."
             exit 0
