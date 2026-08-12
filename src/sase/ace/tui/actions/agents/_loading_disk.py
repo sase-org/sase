@@ -11,7 +11,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from ...util.trace import tui_trace
 from . import _loading_helpers
@@ -54,7 +54,11 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
     """Methods that read agent state from disk and prepare apply snapshots."""
 
     def _load_agents(
-        self, *, full_history: bool = False, source: str = "sync_load"
+        self,
+        *,
+        full_history: bool = False,
+        source: str = "sync_load",
+        index_freshness: Literal["revalidate", "cached"] = "cached",
     ) -> None:
         """Load agents from all sources.
 
@@ -90,6 +94,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             use_artifact_index=not getattr(
                 self, "_artifact_index_schema_bypass", False
             ),
+            index_freshness=index_freshness,
             source=source,
         )
         dismissed_bundle_snapshot = set(
@@ -143,7 +148,11 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
                 self._agents_refresh_active_source = previous_active_source
 
     async def _load_agents_async(
-        self, *, full_history: bool = False, source: str = "unknown"
+        self,
+        *,
+        full_history: bool = False,
+        source: str = "unknown",
+        index_freshness: Literal["revalidate", "cached"] = "cached",
     ) -> None:
         """Load agents with disk IO and pure-data filtering off the UI thread.
 
@@ -178,6 +187,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             use_artifact_index=not getattr(
                 self, "_artifact_index_schema_bypass", False
             ),
+            index_freshness=index_freshness,
             source=source,
         )
         dismissed_bundle_snapshot = set(

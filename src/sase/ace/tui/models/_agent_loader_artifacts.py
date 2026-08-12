@@ -90,12 +90,14 @@ class _Tier1IndexLoader(Protocol):
         self,
         *,
         full_history: bool,
+        freshness: Literal["revalidate", "cached"] = "cached",
     ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None: ...
 
 
 def query_artifact_index_for_loader(
     *,
     full_history: bool,
+    freshness: Literal["revalidate", "cached"] = "cached",
     default_index_path: Callable[[], Path],
     projects_root: Callable[[], Path],
     query_index: _ArtifactIndexQuery,
@@ -117,6 +119,7 @@ def query_artifact_index_for_loader(
         active_limit=_TIER1_ACTIVE_LIMIT,
         recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
         include_hidden=False,
+        freshness=freshness,
     )
     try:
         snapshot = query_index(
@@ -159,6 +162,7 @@ def artifact_snapshot_for_tui_load(
     *,
     full_history: bool,
     use_artifact_index: bool,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
     scan_artifacts: _ArtifactScanner,
     load_tier1_index: _Tier1IndexLoader,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
@@ -192,7 +196,10 @@ def artifact_snapshot_for_tui_load(
             ),
         )
 
-    indexed = load_tier1_index(full_history=full_history)
+    indexed = load_tier1_index(
+        full_history=full_history,
+        freshness=index_freshness,
+    )
     if indexed is not None:
         return indexed
 

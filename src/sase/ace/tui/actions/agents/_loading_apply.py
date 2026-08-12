@@ -444,6 +444,17 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # candidate.
         self._schedule_bead_confirmation_warmup(source="apply")  # type: ignore[attr-defined]
 
+        arm_index_revalidate = getattr(
+            self,
+            "_arm_tier1_index_revalidate_reconcile",
+            None,
+        )
+        if callable(arm_index_revalidate):
+            arm_index_revalidate(
+                load_state,
+                source=getattr(self, "_agents_refresh_active_source", "unknown"),
+            )
+
     def _maybe_notify_agent_index_repair(
         self, load_state: AgentLoadState | None
     ) -> None:

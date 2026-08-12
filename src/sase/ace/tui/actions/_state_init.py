@@ -408,11 +408,13 @@ class StateInitMixin:
         self._agents_refresh_pending_source: str = "unknown"
         self._agents_refresh_pending_full_history: bool = False
         self._agents_refresh_pending_full_history_reason: str | None = None
+        self._agents_refresh_pending_revalidate_index: bool = False
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled: bool = False
         self._agents_refresh_scheduled_source: str = "unknown"
         self._agents_refresh_scheduled_full_history: bool = False
         self._agents_refresh_scheduled_full_history_reason: str | None = None
+        self._agents_refresh_scheduled_revalidate_index: bool = False
         self._agents_refresh_active_source: str = "unknown"
         self._agents_refresh_async_tasks: set[asyncio.Task[None]] = set()
         self._agents_artifact_delta_scheduled: Any | None = None
@@ -424,6 +426,9 @@ class StateInitMixin:
         self._startup_telemetry_async_tasks: set[asyncio.Task[None]] = set()
         self._agents_refresh_debounce_armed: bool = False
         self._agents_refresh_debounce_source: str = "unknown"
+        self._agents_index_revalidate_pending: bool = False
+        self._agents_index_revalidate_armed_mono: float = 0.0
+        self._agents_index_revalidate_last_mono: float = 0.0
         self._artifact_index_maintenance_running: bool = False
         self._artifact_index_maintenance_pending: bool = False
         self._artifact_index_maintenance_pending_request: Any | None = None

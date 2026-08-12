@@ -208,16 +208,21 @@ class AgentArtifactDeltaRefreshMixin(AgentLoadingStateMixin):
             pending_full_history_reason = getattr(
                 self, "_agents_refresh_pending_full_history_reason", None
             )
+            pending_revalidate_index = getattr(
+                self, "_agents_refresh_pending_revalidate_index", False
+            )
             pending_source = _normalize_refresh_source(
                 getattr(self, "_agents_refresh_pending_source", "unknown")
             )
             self._agents_refresh_pending_source = "unknown"
             self._agents_refresh_pending_full_history = False
             self._agents_refresh_pending_full_history_reason = None
+            self._agents_refresh_pending_revalidate_index = False
             self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
                 source=pending_source,
                 full_history=pending_full_history,
                 full_history_reason=pending_full_history_reason,
+                revalidate_index=pending_revalidate_index,
             )
             return
 

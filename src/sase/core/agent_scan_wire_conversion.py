@@ -91,6 +91,7 @@ def agent_artifact_index_query_to_dict(
         "active_limit": query.active_limit,
         "recent_completed_limit": query.recent_completed_limit,
         "include_hidden": query.include_hidden,
+        "freshness": query.freshness,
     }
 
 

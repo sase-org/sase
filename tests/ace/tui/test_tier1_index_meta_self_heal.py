@@ -1,17 +1,17 @@
-"""Tier 1 fast-reload picks up mid-run ``agent_meta.json`` mutations.
+"""Revalidating Tier 1 index queries pick up mid-run metadata mutations.
 
 The persistent agent artifact index caches a serialized
 ``AgentArtifactRecordWire`` per artifact directory. When state-transition
 code paths append a new timestamp to ``agent_meta.json`` (for example a
 ``plan_submitted_at`` entry on plan submission) they do not call the
-explicit upsert lifecycle hook. Without the on-query revalidation in the
-Rust index, the Tier 1 fast reload returns stale wire data and the
-Agents tab detail panel cannot show the new PLAN/FEEDBACK/etc. row
-until a full ``,y`` rebuild.
+explicit upsert lifecycle hook. Without the revalidating query path in
+the Rust index, the deferred post-paint reconcile returns stale wire data
+and the Agents tab detail panel cannot show the new PLAN/FEEDBACK/etc.
+row until a full ``,y`` rebuild.
 
 These tests exercise the real ``sase_core_rs`` binding end-to-end across
 the FFI boundary so the self-healing query path stays wired up for the
-TUI loader.
+TUI's deferred revalidating reconcile.
 """
 
 from __future__ import annotations
@@ -57,6 +57,7 @@ def _tier1_query() -> AgentArtifactIndexQueryWire:
         active_limit=None,
         recent_completed_limit=200,
         include_hidden=False,
+        freshness="revalidate",
     )
 
 

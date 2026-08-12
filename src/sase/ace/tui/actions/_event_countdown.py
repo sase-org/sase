@@ -22,6 +22,12 @@ class EventCountdownMixin(EventHandlersBase):
             )
         except AttributeError:
             pass
+        try:
+            self._maybe_trigger_tier1_index_revalidate_reconcile(  # type: ignore[attr-defined]
+                now_mono=now_mono
+            )
+        except AttributeError:
+            pass
         self._countdown_remaining -= 1
         if self._countdown_remaining < 0:
             self._countdown_remaining = self.refresh_interval

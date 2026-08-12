@@ -11,6 +11,7 @@ per-file marker projections live in
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
@@ -120,6 +121,7 @@ class AgentArtifactIndexQueryWire:
     active_limit: int | None = None
     recent_completed_limit: int | None = 200
     include_hidden: bool = False
+    freshness: Literal["revalidate", "cached"] = "revalidate"
 
 
 @dataclass(frozen=True)

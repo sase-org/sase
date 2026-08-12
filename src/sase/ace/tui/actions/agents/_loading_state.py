@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from ....patch import Patch
 from ._loading_compute import (
@@ -115,11 +115,13 @@ class AgentLoadingStateMixin:
     _agents_refresh_pending_source: str
     _agents_refresh_pending_full_history: bool
     _agents_refresh_pending_full_history_reason: str | None
+    _agents_refresh_pending_revalidate_index: bool
     _agents_refresh_pending_callbacks: list[Callable[[], None]]
     _agents_refresh_scheduled: bool
     _agents_refresh_scheduled_source: str
     _agents_refresh_scheduled_full_history: bool
     _agents_refresh_scheduled_full_history_reason: str | None
+    _agents_refresh_scheduled_revalidate_index: bool
     _agents_refresh_active_source: str
     _agents_refresh_async_tasks: set[asyncio.Task[None]]
     _agents_artifact_delta_scheduled: Any | None
@@ -144,6 +146,11 @@ class AgentLoadingStateMixin:
     # at which the flag was first set, used by the idle-tick trigger.
     _agents_history_reconcile_pending: bool
     _agents_history_reconcile_armed_mono: float
+    # Cached Tier 1 index reads are backed by an off-critical-path
+    # revalidating query at a longer cadence than ordinary auto-refresh.
+    _agents_index_revalidate_pending: bool
+    _agents_index_revalidate_armed_mono: float
+    _agents_index_revalidate_last_mono: float
     # Source-aware debounce gate for ``request_agents_refresh``: True while
     # a debounce timer is armed so a burst of fan-out spawn callbacks
     # collapses into a single deferred ``_schedule_agents_async_refresh``.
@@ -203,12 +210,20 @@ class AgentLoadingStateMixin:
         raise NotImplementedError
 
     async def _load_agents_async(
-        self, *, full_history: bool = False, source: str = "unknown"
+        self,
+        *,
+        full_history: bool = False,
+        source: str = "unknown",
+        index_freshness: Literal["revalidate", "cached"] = "cached",
     ) -> None:
         raise NotImplementedError
 
     def _load_agents(
-        self, *, full_history: bool = False, source: str = "sync_load"
+        self,
+        *,
+        full_history: bool = False,
+        source: str = "sync_load",
+        index_freshness: Literal["revalidate", "cached"] = "cached",
     ) -> None:
         raise NotImplementedError
 

@@ -16,6 +16,9 @@ from typing import Any
 from ._loading_refresh_delta import AgentArtifactDeltaRefreshMixin
 from ._loading_refresh_polling import (
     AgentRefreshPollingMixin,
+    TIER1_INDEX_REVALIDATE_INPUT_QUIET_THRESHOLD_S as TIER1_INDEX_REVALIDATE_INPUT_QUIET_THRESHOLD_S,
+    TIER1_INDEX_REVALIDATE_MIN_INTERVAL_S as TIER1_INDEX_REVALIDATE_MIN_INTERVAL_S,
+    TIER1_INDEX_REVALIDATE_SOURCE as TIER1_INDEX_REVALIDATE_SOURCE,
     TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S as TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
 )
 from ._refresh_trace import (
@@ -95,6 +98,7 @@ class AgentLoadingRefreshMixin(
         source: str = "unknown",
         full_history: bool = False,
         full_history_reason: str | None = None,
+        revalidate_index: bool = False,
         on_complete: Callable[[], None] | None = None,
     ) -> None:
         """Schedule an async agent reload without blocking.
@@ -125,6 +129,8 @@ class AgentLoadingRefreshMixin(
                 self._agents_refresh_pending_full_history_reason = (
                     full_history_reason or "coalesced_full_history_refresh"
                 )
+            if revalidate_index:
+                self._agents_refresh_pending_revalidate_index = True
             return
         self._agents_refresh_scheduled = True
         self._agents_refresh_scheduled_source = source
@@ -132,6 +138,7 @@ class AgentLoadingRefreshMixin(
         self._agents_refresh_scheduled_full_history_reason = (
             full_history_reason if full_history else None
         )
+        self._agents_refresh_scheduled_revalidate_index = revalidate_index
         data_cost = classify_agents_data_cost(full_history=full_history)
         fallback_reason = infer_broad_load_fallback_reason(
             source=source,
@@ -142,6 +149,7 @@ class AgentLoadingRefreshMixin(
             source=source,
             full_history=full_history,
             full_history_reason=full_history_reason,
+            index_freshness="revalidate" if revalidate_index else "cached",
             data_cost=data_cost,
             fallback_reason=fallback_reason,
         )
@@ -152,6 +160,7 @@ class AgentLoadingRefreshMixin(
             data_cost=data_cost,
             fallback_reason=fallback_reason,
             full_history=full_history,
+            index_freshness="revalidate" if revalidate_index else "cached",
         )
         self._spawn_agents_refresh_task()
 
@@ -189,6 +198,9 @@ class AgentLoadingRefreshMixin(
         full_history_reason = getattr(
             self, "_agents_refresh_scheduled_full_history_reason", None
         )
+        revalidate_index = getattr(
+            self, "_agents_refresh_scheduled_revalidate_index", False
+        )
         source = _normalize_refresh_source(
             getattr(self, "_agents_refresh_scheduled_source", "unknown")
         )
@@ -196,6 +208,7 @@ class AgentLoadingRefreshMixin(
         self._agents_refresh_scheduled_source = "unknown"
         self._agents_refresh_scheduled_full_history = False
         self._agents_refresh_scheduled_full_history_reason = None
+        self._agents_refresh_scheduled_revalidate_index = False
         if self._agents_loading:
             self._agents_refresh_pending = True
             self._agents_refresh_pending_source = source
@@ -204,6 +217,8 @@ class AgentLoadingRefreshMixin(
                 self._agents_refresh_pending_full_history_reason = (
                     full_history_reason or "coalesced_full_history_refresh"
                 )
+            if revalidate_index:
+                self._agents_refresh_pending_revalidate_index = True
             return
         self._agents_loading = True
         self._agents_refresh_active_source = source
@@ -216,6 +231,10 @@ class AgentLoadingRefreshMixin(
                 kwargs["full_history"] = full_history
             if _callable_accepts_kwarg(load_agents_async, "source"):
                 kwargs["source"] = source
+            if _callable_accepts_kwarg(load_agents_async, "index_freshness"):
+                kwargs["index_freshness"] = (
+                    "revalidate" if revalidate_index else "cached"
+                )
             if full_history and "full_history" in kwargs:
                 reason = full_history_reason or "unspecified_full_history_refresh"
                 log.info("agents full-history refresh requested: %s", reason)

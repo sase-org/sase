@@ -108,6 +108,7 @@ def test_legacy_metadata_tag_hydrates_canonical_tribe_only() -> None:
 
 def test_artifact_index_wire_helpers() -> None:
     assert AgentArtifactIndexQueryWire().active_limit is None
+    assert AgentArtifactIndexQueryWire().freshness == "revalidate"
 
     query = AgentArtifactIndexQueryWire(
         include_active=True,
@@ -116,6 +117,7 @@ def test_artifact_index_wire_helpers() -> None:
         active_limit=50,
         recent_completed_limit=None,
         include_hidden=True,
+        freshness="cached",
     )
     assert agent_artifact_index_query_to_dict(query) == {
         "include_active": True,
@@ -124,6 +126,7 @@ def test_artifact_index_wire_helpers() -> None:
         "active_limit": 50,
         "recent_completed_limit": None,
         "include_hidden": True,
+        "freshness": "cached",
     }
 
     update = agent_artifact_index_update_from_dict(

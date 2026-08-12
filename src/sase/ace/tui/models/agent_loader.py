@@ -3,6 +3,7 @@
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
@@ -112,10 +113,12 @@ def _projects_root_for_loader() -> Path:
 def _query_artifact_index_for_loader(
     *,
     full_history: bool,
+    freshness: Literal["revalidate", "cached"] = "cached",
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
     return _query_artifact_index(
         full_history=full_history,
+        freshness=freshness,
         default_index_path=default_agent_artifact_index_path,
         projects_root=_projects_root_for_loader,
         query_index=query_agent_artifact_index,
@@ -127,6 +130,7 @@ def _artifact_snapshot_for_tui_load(
     *,
     full_history: bool,
     use_artifact_index: bool = True,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
@@ -139,6 +143,7 @@ def _artifact_snapshot_for_tui_load(
     return _tui_artifact_snapshot(
         full_history=full_history,
         use_artifact_index=use_artifact_index,
+        index_freshness=index_freshness,
         scan_artifacts=_scan_artifacts_for_loader,
         load_tier1_index=_query_artifact_index_for_loader,
     )
@@ -346,12 +351,14 @@ def _load_agents_with_load_state(
     patch_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
     artifact_snapshot, state = _artifact_snapshot_for_tui_load(
         full_history=full_history,
         use_artifact_index=use_artifact_index,
+        index_freshness=index_freshness,
     )
     agents, workflow_agent_steps = _load_agents_from_all_sources(
         patch_snapshot=patch_snapshot,
@@ -467,6 +474,7 @@ def load_tiered_agents(
     patch_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
@@ -474,6 +482,7 @@ def load_tiered_agents(
         patch_snapshot=patch_snapshot,
         full_history=full_history,
         use_artifact_index=use_artifact_index,
+        index_freshness=index_freshness,
     )
     return (
         _normalize_loaded_agents(result.agents, result.workflow_agent_steps),

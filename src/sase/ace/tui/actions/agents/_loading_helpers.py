@@ -233,6 +233,7 @@ def load_agents_from_disk_with_state(
     changespec_snapshot: list[Patch] | None = None,  # legacy compatibility alias
     full_history: bool = False,
     use_artifact_index: bool = True,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
     source: str = "unknown",
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
@@ -246,6 +247,7 @@ def load_agents_from_disk_with_state(
         "agents.load_from_disk",
         source=source or "unknown",
         full_history=full_history,
+        index_freshness=index_freshness,
     ) as counters:
         dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
         result = _load_agents_from_disk_impl(
@@ -254,6 +256,7 @@ def load_agents_from_disk_with_state(
             patch_snapshot=patch_snapshot,
             full_history=full_history,
             use_artifact_index=use_artifact_index,
+            index_freshness=index_freshness,
         )
         state = result.load_state
         counters["data_cost"] = classify_agents_data_cost(
@@ -419,6 +422,7 @@ def _load_agents_from_disk_impl(
     patch_snapshot: list[Patch] | None = None,
     full_history: bool = False,
     use_artifact_index: bool = True,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
@@ -426,6 +430,7 @@ def _load_agents_from_disk_impl(
         patch_snapshot=patch_snapshot,
         full_history=full_history,
         use_artifact_index=use_artifact_index,
+        index_freshness=index_freshness,
     )
     return _apply_loaded_agent_disk_projections(
         all_agents,
