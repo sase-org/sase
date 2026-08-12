@@ -1,4 +1,4 @@
-"""Prompt-preview token detection and resolution helpers."""
+"""Prompt-preview token detection, resolution, and properties helpers."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from sase.xprompt._parsing_references import iter_xprompt_references
 from sase.content_layout import skill_reference_name
 from sase.xprompt.loader import get_xprompt_or_workflow
 from sase.xprompt.models import UNSET, InputArg, XPrompt
+from sase.xprompt.properties import XPromptProperties, xprompt_properties
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 PreviewKind = Literal["xprompt", "file"]
@@ -62,6 +63,7 @@ class PreviewPayload:
     lexer: str
     reference: str | None = None
     default_view: PreviewDefaultView = "source"
+    properties: XPromptProperties | None = None
 
 
 class PreviewError(Exception):
@@ -217,7 +219,45 @@ def _resolve_xprompt_preview(
         source_path=source_path,
         content=content,
         lexer=lexer,
+        properties=_resolve_xprompt_properties(
+            obj,
+            reference=reference,
+            kind=kind_label,
+            project=project,
+            source_id=source_id,
+            definition_path=source_path,
+        ),
     )
+
+
+def _resolve_xprompt_properties(
+    obj: XPrompt | Workflow,
+    *,
+    reference: str,
+    kind: str,
+    project: str | None,
+    source_id: str | None,
+    definition_path: str | None,
+) -> XPromptProperties | None:
+    source_bucket: str | None = None
+    if source_id is not None:
+        try:
+            from sase.ace.tui.modals.xprompt_browser_helpers import classify_source
+
+            source_bucket = classify_source(source_id)[0]
+        except Exception:
+            source_bucket = None
+    try:
+        return xprompt_properties(
+            obj,
+            reference=reference,
+            kind=kind,
+            project=project,
+            source_bucket=source_bucket,
+            definition_path=definition_path,
+        )
+    except Exception:
+        return None
 
 
 def _xprompt_reference(token: PreviewToken) -> str:

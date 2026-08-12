@@ -28,11 +28,12 @@ from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 
 from ._source_file_actions import SourceFileActionsMixin
 from .base import CopyModeForwardingMixin, FilterInput
+from .preview_properties_render import build_properties_band, build_properties_view
 from .preview_search import PreviewSearchResult, build_search_result
 
 
 _COLOR_MUTED = "dim #87D7FF"
-_ViewMode = Literal["source", "rendered"]
+_ViewMode = Literal["source", "rendered", "properties"]
 
 
 class _PreviewSearchInput(FilterInput):
@@ -68,7 +69,7 @@ class PreviewPanelModal(
     SourceFileActionsMixin,
     ModalScreen[None],
 ):
-    """Presentational modal for resolved xprompt/file previews."""
+    """Presentational modal for resolved xprompt/file previews and their properties."""
 
     BINDINGS = [
         ("escape", "escape", "Clear search / close"),
@@ -82,6 +83,7 @@ class PreviewPanelModal(
         ("shift+y", "copy_path", "Copy path"),
         ("R", "toggle_rendered", "Rendered / source"),
         ("shift+r", "toggle_rendered", "Rendered / source"),
+        ("p", "toggle_properties", "Properties view"),
         ("o", "open_in_editor", "Open in editor"),
         ("Z", "open_in_viewer", "Open in viewer"),
         ("shift+z", "open_in_viewer", "Open in viewer"),
@@ -99,6 +101,17 @@ class PreviewPanelModal(
         self._payload = payload
         self._syntax_render_cache = LazySyntaxRenderCache()
         self._view_mode: _ViewMode = "source"
+        self._previous_view_mode: _ViewMode = "source"
+        self._properties_band: RenderableType | None = (
+            build_properties_band(payload.properties)
+            if payload.properties is not None
+            else None
+        )
+        self._properties_view: RenderableType | None = (
+            build_properties_view(payload.properties)
+            if payload.properties is not None
+            else None
+        )
         self._rendered_ready = False
         self._rendered_content: str | None = None
         self._requested_rendered = (
@@ -119,11 +132,20 @@ class PreviewPanelModal(
     def compose(self) -> ComposeResult:
         with Container(id="preview-modal-container"):
             yield Static(self._build_title(), id="preview-title")
+            band = Static(self._properties_band or "", id="preview-properties")
+            band.display = self._properties_band is not None
+            yield band
             with VerticalScroll(id="preview-scroll"):
                 yield Static(self._build_content(), id="preview-content")
                 rendered = Markdown("", id="preview-rendered")
                 rendered.display = False
                 yield rendered
+                properties_view = Static(
+                    self._properties_view or "",
+                    id="preview-properties-view",
+                )
+                properties_view.display = False
+                yield properties_view
             search_input = _PreviewSearchInput(
                 placeholder="Search source (smartcase)",
                 id="preview-search-input",
@@ -203,7 +225,9 @@ class PreviewPanelModal(
         text.append(self._payload.icon, style="bold #FFD700")
         text.append(" ")
         text.append(self._payload.kind_label.upper(), style="bold #87D7FF")
-        if self._is_markdown_payload():
+        if self._view_mode == "properties":
+            text.append(" PROPERTIES", style="bold #AFD7FF")
+        elif self._is_markdown_payload():
             text.append(f" {self._view_mode.upper()}", style="bold #AFD7FF")
         text.append("  ")
         text.append(self._payload.title, style="bold white")
@@ -239,6 +263,9 @@ class PreviewPanelModal(
         if self._is_markdown_payload():
             target = "source" if self._view_mode == "rendered" else "rendered"
             parts.append(f"R {target}")
+        if self._properties_available():
+            target = "source" if self._view_mode == "properties" else "properties"
+            parts.append(f"p {target}")
         if self._payload.source_path:
             parts.extend(("Y path", "% copy", "o editor", "Z viewer"))
         else:
@@ -259,6 +286,10 @@ class PreviewPanelModal(
     def _is_markdown_payload(self) -> bool:
         return self._payload.lexer == "markdown"
 
+    def _properties_available(self) -> bool:
+        properties = self._payload.properties
+        return properties is not None and not properties.is_empty
+
     def _rendered_markdown_content(self) -> str:
         if self._rendered_content is None:
             self._rendered_content = _fence_leading_yaml_frontmatter(
@@ -278,8 +309,14 @@ class PreviewPanelModal(
         self.query_one("#preview-footer", Static).update(self._build_footer())
         source = self.query_one("#preview-content", Static)
         rendered = self.query_one("#preview-rendered", Markdown)
+        properties_view = self.query_one("#preview-properties-view", Static)
         source.display = self._view_mode == "source"
         rendered.display = self._view_mode == "rendered"
+        properties_view.display = self._view_mode == "properties"
+        band = self.query_one("#preview-properties", Static)
+        band.display = (
+            self._properties_band is not None and self._view_mode != "properties"
+        )
         if reset_scroll:
             self.query_one("#preview-scroll", VerticalScroll).scroll_home(animate=False)
 
@@ -327,7 +364,7 @@ class PreviewPanelModal(
         self.action_close()
 
     def action_open_search(self) -> None:
-        if self._view_mode == "rendered" or self._requested_rendered:
+        if self._view_mode in ("rendered", "properties") or self._requested_rendered:
             self._set_view_mode("source")
         search_input = self.query_one("#preview-search-input", _PreviewSearchInput)
         search_input.value = self._search_query
@@ -414,7 +451,7 @@ class PreviewPanelModal(
     def _move_match(self, delta: int) -> None:
         if not self._match_lines:
             return
-        if self._view_mode == "rendered":
+        if self._view_mode in ("rendered", "properties"):
             self._set_view_mode("source")
         width = self._source_width()
         if width not in self._row_offsets_by_width:
@@ -468,6 +505,19 @@ class PreviewPanelModal(
             self._set_view_mode("rendered")
         else:
             self._schedule_rendered_update()
+
+    def action_toggle_properties(self) -> None:
+        if not self._properties_available():
+            self.notify(
+                "This preview has no xprompt properties",
+                severity="warning",
+            )
+            return
+        if self._view_mode == "properties":
+            self._set_view_mode(self._previous_view_mode)
+            return
+        self._previous_view_mode = self._view_mode
+        self._set_view_mode("properties")
 
     def action_copy_contents(self) -> None:
         self._schedule_copy(

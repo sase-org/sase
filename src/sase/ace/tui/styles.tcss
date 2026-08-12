@@ -4824,6 +4824,20 @@ PreviewPanelModal #preview-title {
     margin-bottom: 1;
 }
 
+PreviewPanelModal #preview-properties {
+    height: auto;
+    max-height: 12;
+    margin-bottom: 1;
+    padding: 0 1;
+    border-top: solid $secondary;
+    border-bottom: solid $secondary;
+}
+
+PreviewPanelModal #preview-properties-view {
+    width: 100%;
+    height: auto;
+}
+
 PreviewPanelModal #preview-scroll {
     height: 1fr;
     scrollbar-gutter: stable;

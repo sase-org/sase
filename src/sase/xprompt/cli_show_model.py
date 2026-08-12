@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.xprompt.models import MemoryType
 
-SHOW_SCHEMA_VERSION = 2
+SHOW_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,6 +19,7 @@ class ShowInput:
     description: str | None
     repeatable: bool
     position: int
+    choices: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

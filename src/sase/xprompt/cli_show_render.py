@@ -21,6 +21,7 @@ from sase.xprompt.cli_show_model import (
 )
 from sase.xprompt.highlight import XPromptHighlightRole
 from sase.xprompt.highlight_theme import HighlightStyle, highlight_theme
+from sase.xprompt.properties import single_line_default
 
 _LABEL_WIDTH = 12
 _STEP_BODY_LIMIT = 20
@@ -239,7 +240,7 @@ def _inputs(
         )
         detail = Text(item.description or "", overflow="fold", no_wrap=False)
         if item.default_display is not None:
-            default = _single_line_default(item.default_display)
+            default = single_line_default(item.default_display)
             if detail:
                 detail.append("\n")
             detail.append(
@@ -468,13 +469,6 @@ def _path_or_unknown(value: str | None, *, styles_enabled: bool) -> Text:
         overflow="fold",
         no_wrap=False,
     )
-
-
-def _single_line_default(value: str) -> str:
-    lines = value.splitlines()
-    if not lines:
-        return ""
-    return lines[0] + (" …" if len(lines) > 1 else "")
 
 
 def _elide_lines(text: str, *, limit: int) -> tuple[str, int]:

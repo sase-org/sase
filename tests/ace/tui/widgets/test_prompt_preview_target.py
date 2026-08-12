@@ -12,7 +12,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     detect_preview_target_at_cursor,
     resolve_preview_target,
 )
-from sase.xprompt.models import XPrompt
+from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
 
@@ -326,6 +326,73 @@ def test_missing_file_raises_distinct_preview_error(tmp_path: Path) -> None:
             project=None,
             base_dir=str(tmp_path),
         )
+
+
+def test_resolved_xprompt_payload_carries_declared_input_properties(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        lambda name, project=None: XPrompt(
+            name=name,
+            content="Body {{ project }}",
+            source_path="config",
+            inputs=[InputArg("project", InputType.LINE, default="sase")],
+        ),
+    )
+
+    payload = resolve_preview_target(
+        PreviewToken("xprompt", "#review", "review", 0, 7),
+        project=None,
+        base_dir=".",
+    )
+
+    assert payload.properties is not None
+    assert [row.name for row in payload.properties.inputs] == ["project"]
+
+
+def test_resolved_file_payload_has_no_properties(tmp_path: Path) -> None:
+    source = tmp_path / "src" / "main.py"
+    source.parent.mkdir()
+    source.write_text("print('hello')\n", encoding="utf-8")
+
+    payload = resolve_preview_target(
+        PreviewToken("file", "src/main.py", "src/main.py", 0, 11),
+        project=None,
+        base_dir=str(tmp_path),
+    )
+
+    assert payload.properties is None
+
+
+def test_properties_projection_failure_degrades_to_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        lambda name, project=None: XPrompt(
+            name=name,
+            content="Body",
+            source_path="config",
+        ),
+    )
+
+    def _raise(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview_target.xprompt_properties",
+        _raise,
+    )
+
+    payload = resolve_preview_target(
+        PreviewToken("xprompt", "#review", "review", 0, 7),
+        project=None,
+        base_dir=".",
+    )
+
+    assert payload.properties is None
+    assert payload.content == "Body"
 
 
 def test_directory_and_binary_files_raise_preview_errors(tmp_path: Path) -> None:

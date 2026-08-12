@@ -14,6 +14,8 @@ from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.plan_documents import PlanDocument
 from sase.vcs_log.render import build_commit_time_chip
+from sase.xprompt.cli_show_model import ShowInput
+from sase.xprompt.properties import XPromptProperties
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -115,6 +117,116 @@ async def test_preview_panel_file_png_snapshot(
             page,
             "preview_panel_file_120x40",
             title="ACE prompt preview panel - file",
+        )
+
+
+def _review_tasks_properties() -> XPromptProperties:
+    return XPromptProperties(
+        reference="#bd/review_tasks",
+        kind="xprompt",
+        description="Review open task beads for a project and triage them down.",
+        input_signature="(project: line, dry_run?: bool)",
+        inputs=[
+            ShowInput(
+                "project",
+                "line",
+                True,
+                None,
+                "the project whose beads to review",
+                False,
+                0,
+            ),
+            ShowInput(
+                "dry_run",
+                "bool",
+                False,
+                "false",
+                "report only; make no changes",
+                False,
+                1,
+            ),
+        ],
+        local_xprompts=[],
+        steps=[],
+        tags=["bd"],
+        skill=None,
+        skill_name=None,
+        snippet=None,
+        log_skill_use=None,
+        memory_type=None,
+        segment_count=1,
+        project=None,
+        source_bucket="config",
+        definition_path="/workspace/sase/sase.yml",
+    )
+
+
+def _review_tasks_payload() -> PreviewPayload:
+    return PreviewPayload(
+        kind_label="xprompt",
+        icon="#",
+        title="#bd/review_tasks",
+        source_path="/workspace/sase/sase.yml",
+        lexer="markdown",
+        reference="#bd/review_tasks",
+        content=(
+            "Can you review all of the current task sase beads that are opened "
+            'for the "{{ project }}" project? Report a punch list broken down by '
+            "size and owner.\n"
+        ),
+        properties=_review_tasks_properties(),
+    )
+
+
+async def test_preview_panel_properties_band_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(PreviewPanelModal(_review_tasks_payload()))
+        await page.expect_modal("PreviewPanelModal")
+        await wait_for_svg_contains(page, "dry_run")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "preview_panel_properties_band_120x40",
+            title="ACE prompt preview panel - properties band",
+        )
+
+
+async def test_preview_panel_properties_view_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        modal = PreviewPanelModal(_review_tasks_payload())
+        page.app.push_screen(modal)
+        await page.expect_modal("PreviewPanelModal")
+
+        await page.press("p")
+        await wait_for_state(
+            page,
+            lambda: modal._view_mode == "properties",  # noqa: SLF001
+            description="preview properties view to activate",
+        )
+        await wait_for_svg_contains(page, "INPUTS")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "preview_panel_properties_view_120x40",
+            title="ACE prompt preview panel - properties view",
         )
 
 

@@ -414,6 +414,7 @@ title shows that logical reference beside the resolved local path.
 | `Y`                 | Copy the local source path, when available                 |
 | `%`                 | Open the active Artifacts sub-tab's **Copy as…** palette   |
 | `R`                 | Toggle Markdown previews between rendered and source views |
+| `p`                 | Toggle the full xprompt properties view                    |
 | `/`                 | Open source search (smartcase substring matching)          |
 | `n` / `N`           | Jump to the next / previous match with wraparound          |
 | `o`                 | Open the source path in `$EDITOR` (falling back to `nvim`) |
@@ -426,6 +427,15 @@ invoking one still produces a specific warning instead of failing. Clipboard ope
 run in the background and report when no clipboard tool is available. Plans open in
 rendered Markdown by default when they fit the reader's bounded render budget; chats,
 xprompts, skills, files, and oversized plan documents open as source.
+
+For an xprompt or skill preview with declared properties (inputs, tags, skill/snippet/
+memory flags, local xprompts, or steps), a compact band appears above the source pane
+showing its description, an inputs table, and a dim chips summary of everything else it
+declares. `p` opens a full, scrollable properties view — the same projection
+`sase xprompt show` renders — with the band hidden while that view is active; `p` again
+restores whichever mode was showing before. A preview with no declared properties (a
+bare-body xprompt, a plain file, a bead, and so on) shows no band, no `p` row in the
+footer, and `p` emits a warning toast instead of switching views.
 
 Search is commit-on-enter: `/` opens a one-line input prefilled with the last committed
 query, and `Enter` highlights every matching source line before jumping to the first

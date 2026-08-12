@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from difflib import get_close_matches
-import json
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from sase.xprompt._catalog_format import format_inputs
 from sase.xprompt._catalog_models import CatalogEntry
@@ -21,17 +20,15 @@ from sase.xprompt._parsing import (
     iter_xprompt_references,
 )
 from sase.xprompt.cli_show_model import (
-    ShowInput,
-    ShowLocalXPrompt,
     ShowProvenance,
     ShowReference,
-    ShowStep,
     XPromptShowRecord,
 )
 from sase.xprompt.config_yaml import config_entry_line_span
 from sase.xprompt.load_issues import collect_xprompt_load_issues
 from sase.xprompt.loader import get_all_workflows, get_all_xprompts
-from sase.xprompt.models import UNSET, InputArg, XPrompt, xprompt_to_workflow
+from sase.xprompt.models import XPrompt, xprompt_to_workflow
+from sase.xprompt.properties import show_inputs, show_local_xprompts, show_steps
 from sase.xprompt.reference_display import (
     workflow_kind_value,
     workflow_reference_insertion,
@@ -40,7 +37,6 @@ from sase.xprompt.reference_display import (
 from sase.xprompt.segment_separators import xprompt_segment_count
 from sase.xprompt.used_xprompts import scan_xprompt_references
 from sase.xprompt.workflow_models import Workflow
-from sase.xprompt.workflow_step_display import workflow_step_type_label
 from sase.xprompt.xprompt_sources import (
     definition_file_for_source,
     definition_line_for,
@@ -172,9 +168,9 @@ def resolve_show_record(
             selected_xprompt.log_skill_use if selected_xprompt is not None else None
         ),
         input_signature=format_inputs(selected_workflow.inputs) or None,
-        inputs=_show_inputs(selected_workflow.inputs),
-        local_xprompts=_show_local_xprompts(local_xprompts),
-        steps=_show_steps(selected_workflow),
+        inputs=show_inputs(selected_workflow.inputs),
+        local_xprompts=show_local_xprompts(local_xprompts),
+        steps=show_steps(selected_workflow),
         body=body,
         body_first_line=_body_first_line(provenance, raw, body),
         raw=raw,
@@ -326,74 +322,6 @@ def _body_first_line(
             first_body_index += 1
         return first_body_index + 1
     return 1 if body == raw else None
-
-
-def _show_inputs(inputs: list[InputArg]) -> list[ShowInput]:
-    rows: list[ShowInput] = []
-    for input_arg in inputs:
-        if input_arg.is_step_input:
-            continue
-        rows.append(
-            ShowInput(
-                name=input_arg.name,
-                type=input_arg.type.value,
-                required=input_arg.default is UNSET,
-                default_display=_default_display(input_arg.default),
-                description=input_arg.description,
-                repeatable=input_arg.repeatable,
-                position=len(rows),
-            )
-        )
-    return rows
-
-
-def _default_display(value: Any) -> str | None:
-    if value is UNSET:
-        return None
-    if value is None:
-        return "null"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, str):
-        return value
-    if isinstance(value, (dict, list, tuple)):
-        return json.dumps(value, ensure_ascii=False, sort_keys=True)
-    return str(value)
-
-
-def _show_local_xprompts(
-    local_xprompts: dict[str, XPrompt],
-) -> list[ShowLocalXPrompt]:
-    return [
-        ShowLocalXPrompt(
-            name=name,
-            description=xprompt.description,
-            input_signature=format_inputs(xprompt.inputs) or None,
-            line_count=len(xprompt.content.splitlines()),
-        )
-        for name, xprompt in local_xprompts.items()
-    ]
-
-
-def _show_steps(workflow: Workflow) -> list[ShowStep]:
-    if workflow.is_simple_xprompt():
-        return []
-    rows: list[ShowStep] = []
-    for index, step in enumerate(workflow.steps, start=1):
-        step_type, label = workflow_step_type_label(step)
-        rows.append(
-            ShowStep(
-                index=index,
-                name=step.name,
-                type=step_type,
-                label=label,
-                hidden=step.hidden,
-                condition=step.condition,
-                output_schema=(dict(step.output.schema) if step.output else None),
-                body=step.agent or step.bash or step.python or step.prompt_part,
-            )
-        )
-    return rows
 
 
 def _show_references(

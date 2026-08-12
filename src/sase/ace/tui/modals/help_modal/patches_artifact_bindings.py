@@ -193,6 +193,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("y / Y", "Copy contents / source path"),
                 ("%", "Open active pane Copy as… palette"),
                 ("R", "Toggle Markdown rendered/source view"),
+                ("p", "XPrompt properties view"),
                 ("/ · n/N", "Search source · next/previous match"),
                 ("o / Z", "Open editor / rich viewer"),
                 ("Esc / q", "Clear search then close / always close"),
