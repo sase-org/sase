@@ -25,7 +25,7 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStateWire,
 )
 
-AGENT_SCAN_WIRE_SCHEMA_VERSION = 4
+AGENT_SCAN_WIRE_SCHEMA_VERSION = 5
 AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 19
 
 # Workflow directory categories the Phase 3A scanner walks.
@@ -113,6 +113,12 @@ class AgentArtifactIndexQueryWire:
     The default query matches the Tier 1 startup use case: all active or
     otherwise incomplete visible rows plus a bounded window of recently
     completed visible rows.
+
+    Attributes:
+        only_monitors: Restrict results to monitor family members
+            (``agent_meta.agent_family_role == "monitor"``), so
+            ``sase monitor list`` can ask the index directly instead of
+            scanning and filtering every record in Python.
     """
 
     include_active: bool = True
@@ -122,6 +128,7 @@ class AgentArtifactIndexQueryWire:
     recent_completed_limit: int | None = 200
     include_hidden: bool = False
     freshness: Literal["revalidate", "cached"] = "revalidate"
+    only_monitors: bool = False
 
 
 @dataclass(frozen=True)

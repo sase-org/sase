@@ -62,6 +62,13 @@ class DoneMarkerWire:
             recorded.
         imported_transaction_key: Project-scoped journal key used to keep
             transactional imports hidden until their whole hood is complete.
+        monitor_state: Terminal monitor outcome (``completed`` / ``failed`` /
+            ``timeout`` / ``stopped``), mirroring the running member's
+            ``agent_meta.json::monitor_state``.
+        monitor_exit_code: The monitored command's exit code, when recorded.
+        monitor_elapsed_seconds: Wall-clock seconds the monitored command ran.
+        status_label: The configured stop-status label to display
+            (e.g. ``MONITORED``), overriding the raw ``outcome``.
     """
 
     outcome: str | None = None
@@ -94,6 +101,10 @@ class DoneMarkerWire:
     repeat_stopped: bool = False
     stopped_by: str | None = None
     imported_transaction_key: str | None = None
+    monitor_state: str | None = None
+    monitor_exit_code: int | None = None
+    monitor_elapsed_seconds: float | None = None
+    status_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -179,6 +190,22 @@ class AgentMetaWire:
     retried_as_timestamp: str | None = None
     retry_terminal: bool = False
     retry_error_category: str | None = None
+    monitor_id: str | None = None
+    monitor_command: str | None = None
+    monitor_cwd: str | None = None
+    monitor_label: str | None = None
+    monitor_reason: str | None = None
+    monitor_next_action: str | None = None
+    monitor_start_status: str | None = None
+    monitor_stop_status: str | None = None
+    monitor_timeout_seconds: float | None = None
+    monitor_state: str | None = None
+    monitor_exit_code: int | None = None
+    monitor_output_path: str | None = None
+    monitor_output_truncated: bool = False
+    monitor_starter_agent: str | None = None
+    monitor_followup_agent: str | None = None
+    monitor_tail_lines: int | None = None
 
 
 @dataclass(frozen=True)

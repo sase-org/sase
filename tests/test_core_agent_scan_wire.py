@@ -27,7 +27,7 @@ from .agent_scan_golden import (
 
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
-    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 4
+    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 5
     assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 19
 
 
@@ -118,6 +118,7 @@ def test_artifact_index_wire_helpers() -> None:
         recent_completed_limit=None,
         include_hidden=True,
         freshness="cached",
+        only_monitors=True,
     )
     assert agent_artifact_index_query_to_dict(query) == {
         "include_active": True,
@@ -127,7 +128,9 @@ def test_artifact_index_wire_helpers() -> None:
         "recent_completed_limit": None,
         "include_hidden": True,
         "freshness": "cached",
+        "only_monitors": True,
     }
+    assert AgentArtifactIndexQueryWire().only_monitors is False
 
     update = agent_artifact_index_update_from_dict(
         {
@@ -507,6 +510,99 @@ def test_used_xprompts_defaults_to_empty_for_older_payloads() -> None:
     )
 
     assert [record.used_xprompts for record in snapshot.records] == [[], []]
+
+
+def test_monitor_marker_fields_round_trip() -> None:
+    """Monitor family members must survive the agent artifact scan."""
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": [
+                _record_payload(
+                    agent_meta={
+                        "name": "acme--mon",
+                        "agent_family": "acme",
+                        "agent_family_role": "monitor",
+                        "monitor_id": "m4kq",
+                        "monitor_command": "just check-full",
+                        "monitor_cwd": "/home/bryan/workspaces/acme",
+                        "monitor_label": "just check-full",
+                        "monitor_reason": "Verify the refactor",
+                        "monitor_next_action": "Reply to the user.",
+                        "monitor_start_status": "MONITORING",
+                        "monitor_stop_status": "MONITORED",
+                        "monitor_timeout_seconds": 2700.0,
+                        "monitor_state": "running",
+                        "monitor_exit_code": None,
+                        "monitor_output_path": "live_reply.md",
+                        "monitor_output_truncated": True,
+                        "monitor_starter_agent": "acme--0",
+                        "monitor_followup_agent": None,
+                        "monitor_tail_lines": 200,
+                    },
+                    done={
+                        "outcome": "monitored",
+                        "monitor_state": "completed",
+                        "monitor_exit_code": 0,
+                        "monitor_elapsed_seconds": 17.5,
+                        "status_label": "MONITORED",
+                    },
+                )
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.agent_meta.monitor_id == "m4kq"
+    assert record.agent_meta.monitor_command == "just check-full"
+    assert record.agent_meta.monitor_state == "running"
+    assert record.agent_meta.monitor_output_truncated is True
+    assert record.agent_meta.monitor_tail_lines == 200
+    assert record.done is not None
+    assert record.done.monitor_state == "completed"
+    assert record.done.monitor_exit_code == 0
+    assert record.done.monitor_elapsed_seconds == 17.5
+    assert record.done.status_label == "MONITORED"
+
+    payload = agent_scan_wire_to_json_dict(snapshot)
+    meta_payload = payload["records"][0]["agent_meta"]
+    assert meta_payload["monitor_id"] == "m4kq"
+    assert meta_payload["monitor_state"] == "running"
+    done_payload = payload["records"][0]["done"]
+    assert done_payload["monitor_state"] == "completed"
+    assert done_payload["status_label"] == "MONITORED"
+
+
+def test_monitor_marker_fields_default_for_older_records() -> None:
+    """A record from a pre-monitor core/agent must still parse cleanly."""
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": [
+                _record_payload(
+                    agent_meta={"name": "pre-monitor-agent"},
+                    done={"outcome": "completed", "cl_name": "myproj"},
+                )
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.agent_meta.monitor_id is None
+    assert record.agent_meta.monitor_state is None
+    assert record.agent_meta.monitor_output_truncated is False
+    assert record.done is not None
+    assert record.done.monitor_state is None
+    assert record.done.monitor_exit_code is None
+    assert record.done.status_label is None
 
 
 def test_fixture_summary_matches_expectations() -> None:
