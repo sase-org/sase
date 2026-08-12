@@ -1,5 +1,10 @@
 INHERIT: mkdocs.yml
 
+theme:
+  # Keep PDF generation hermetic. Remote Google Font asset rotations otherwise
+  # surface as browser 404s and make MkDocs strict mode fail nondeterministically.
+  font: false
+
 extra:
   pdf_handbook:
     build_date: !ENV [SASE_PDF_BUILD_DATE, ""]
