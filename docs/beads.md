@@ -295,8 +295,11 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
    cancels the pending gate. If a request is answered, canceled, or missing while the
    task is still `ready`, the next scan creates a new generation-specific request. The
-   same happens if the task leaves `ready` and returns later. Normally a launch or close
-   changes the bead state before the next five-minute scan.
+   same happens if the task leaves `ready` and returns later. `sase bead close` settles
+   a just-closed task's pending `TaskTriage` or `BeadSnooze` gate immediately after the
+   bead mutation commits, so its notification does not wait for the next five-minute
+   scan. Launch flows settle their matching gate as part of the launch transition; the
+   scheduled scan remains the backstop for out-of-band status changes.
 
 4. Work it. You can bypass scheduled triage and launch directly:
 

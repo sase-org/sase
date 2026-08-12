@@ -69,6 +69,21 @@ Context affects ambiguity:
   cross-project collisions instead of guessing.
 - `@agent:<local-name>` canonicalizes to the durable global agent identity.
 
+### On-demand document sidecars
+
+When SASE prepares a workflow prompt for launch, a well-formed document reference can
+materialize its configured sidecar if that role has a recorded remote but no local
+clone. For example, the first live `@research:...` reference can clone the `research`
+sidecar, refresh that prompt segment's project context, and then resolve the document.
+SASE prints the role it is materializing. A clone failure stops launch with the remote's
+error and an explicit `sase repo path <role> --ensure` retry command.
+
+This write is launch-only. Validation, xprompt display and expansion previews, editor
+catalogs, and other discovery paths remain read-only and never clone a missing sidecar.
+Materialize the role explicitly when one of those surfaces needs a local inventory.
+References inside inline code, fenced code, or disabled xprompt regions stay literal and
+do not trigger materialization.
+
 ## Allow-Listed Files
 
 Path-backed `@file:` references are opt-in. Configure roots in `sase.yml`:
@@ -151,3 +166,22 @@ published prompt metadata.
 Artifact repos that opt into `referenced_by: markdown_table` get a managed
 `Referenced By` section at the bottom of cited Markdown documents. That section is a
 projection of recorded use rows, not part of the document's semantic content version.
+Each row names the publishing agent, project, canonical reference, publication date, and
+use count; the agent name links to its published page when SASE can build that URL.
+Repeated publication of the same agent revision and document is idempotent, while
+multiple citations of the document in that prompt increase the row's use count.
+
+After the prompt reaches the agents sidecar, SASE queues one durable write-back request
+per cited provider document and immediately tries to drain the project's queue. The
+drain groups writes by sidecar role, pulls the artifact repository with rebase, updates
+only the managed Markdown block and its `.sase/referenced-by/` index, and creates an
+`Update Referenced By projections` commit with an asynchronous push. Because the managed
+block is stripped when SASE hashes a clean Markdown input, adding a back-reference does
+not make the original citation appear to have changed.
+
+Failed write-backs remain retryable through `sase agent sync`. The same
+`--retry-quarantined` and `--drop-retired` controls used for agent publication also
+operate on Referenced By requests; see
+[Agent Hood Synchronization](agents_sidecar.md#commands-and-status). These commits use
+the non-user file-hook cause `referenced_by`, so ordinary file hooks ignore the managed
+write unless they explicitly opt in with `filters.causes`.

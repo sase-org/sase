@@ -433,10 +433,12 @@ Prompts that do not contain a workspace reference are normalized to `#git:home`,
 bare prompt runs from the managed bare-git `home` project by default and gets normal
 numbered workspace, checkout, diff, and release behavior.
 
-By default, a missing or uninitialized `home` ProjectSpec is bootstrapped as a managed
-empty bare-git project at the default `home` paths. To make bare prompts use an existing
-home/dotfiles bare repository, register a bare repository whose basename resolves to
-`home`, for example `#git:/path/to/home.git`.
+By default, a missing `home` ProjectSpec is bootstrapped as a managed empty bare-git
+project at the default `home` paths. An existing project owned by another workspace
+provider is never converted in place: a mismatched `#git:home` fails with a hint to use
+the provider's VCS tag. To make bare prompts use an existing home/dotfiles bare
+repository, register a bare repository whose basename resolves to `home`, for example
+`#git:/path/to/home.git`.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace
 launches even if the matching workspace plugin is not loaded in the current process.
@@ -452,7 +454,10 @@ resolution and xprompt expansion, so `#gh:bob #p` is processed as a ref to the
 directory-key project when that project declares `PROJECT_NAME: bob` or alias `bob`. The
 rewrite is exact and applies to colon, underscore, and parenthesized workspace-ref
 forms; it does not rewrite owner/repo paths such as `#gh:bbugyi200/bob`, partial project
-names, prose, or fenced code examples. See
+names, prose, or fenced code examples. The tag must also match the registered project's
+actual workspace provider: a mistyped `#git:<github-alias>` remains unresolved rather
+than being canonicalized into a destructive bare-git target, and provider-mismatched
+entries are pruned from the VCS-reference history. See
 [Project Names and Aliases](project_spec.md#project-names-and-aliases) for validation
 and management commands.
 

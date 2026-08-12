@@ -269,8 +269,10 @@ Silent notifications never contribute to the indicator (see
 New unmuted notifications remain visually prominent through the top-bar indicator and
 action-specific toasts. A genuinely new `PlanApproval` or `EpicApproval` rings once on
 arrival, alongside its priority inbox row, warning toast, and the producer's desktop
-notification. Already-handled plan reviews discovered during polling and the
-intermediate post-approval handoff remain silent. Task triage, questions,
+notification. The ACE toast says `Tale ready` or `Epic ready`; an epic adds the
+gate-time phase, dependency-wave, and non-zero phase-size counts, while batched toasts
+count tales and epics separately. Already-handled plan reviews discovered during polling
+and the intermediate post-approval handoff remain silent. Task triage, questions,
 launch/custom/HITL gates, errors, agent completions, and ordinary notifications retain
 their arrival bell.
 
@@ -321,12 +323,13 @@ gate offers three branches:
 The gate cannot be resolved automatically. While one of `TaskTriage`/`BeadSnooze`
 remains pending for a bead, the chop that owns both kinds (`bead_task_triage`)
 suppresses duplicates and keeps the two mutually exclusive — a task bead never holds
-both at once. If the bead's status changes out of band (leaves `ready`, gets snoozed, or
-wakes), the chop cancels the gate of the wrong kind and creates the right one on its
-next tick. If a gate becomes terminal, disappears, or uses an obsolete presentation or
-option-input contract while still expected, the next five-minute scan creates a
-replacement with a new generation-specific request ID, except while the task bead's
-detached launch is still in flight.
+both at once. `sase bead close` and task launch flows settle their matching pending gate
+immediately. If the bead's status otherwise changes out of band (leaves `ready`, gets
+snoozed, or wakes), the chop cancels the gate of the wrong kind and creates the right
+one on its next tick. If a gate becomes terminal, disappears, or uses an obsolete
+presentation or option-input contract while still expected, the next five-minute scan
+creates a replacement with a new generation-specific request ID, except while the task
+bead's detached launch is still in flight.
 
 ### Snoozed Task Notification
 

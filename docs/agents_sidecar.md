@@ -120,6 +120,15 @@ artifact pool inside the same bounded transaction that publishes the hood. A req
 acknowledged only once both halves reached the sidecar, so a prompt that could not be
 rebuilt keeps its request queued and retryable rather than retiring it.
 
+Document back-references are separate. After a prompt archive containing a provider
+document reference is published, SASE records a request in
+`~/.sase/projects/<project-key>/referenced-by-outbox.json` and tries to update the cited
+artifact sidecar's managed `Referenced By` table. These requests use the same retry,
+quarantine, and retired-entry operator controls as hood publication, but they do not
+delay or roll back the already-published prompt. See
+[Artifact Reference Publication](artifact_references.md#publication) for the write-back
+contract.
+
 Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>`
 prints the archived Markdown document. `sase agent prompts validate` verifies headers,
 artifact links, digest-bearing filenames, local manifests, and plan cross-links.
@@ -310,9 +319,10 @@ sase agent sync -p project-alias -p another-project
 The repository transaction acquires a bounded lock, fetches and pulls with rebase,
 imports validated shared v2 history and optional legacy v1 bundles, drains any
 outstanding agent-hood outbox requests, performs v2 publication for locally owned hoods,
-rebuilds deterministic indexes, commits with the full owner identity, and pushes. The
-commit path already enqueues and drains its own hood request inline; `sase agent sync`
-is the explicit recovery command for requests a commit could not immediately resolve
+rebuilds deterministic indexes, commits with the full owner identity, pushes, and then
+drains Referenced By requests into their artifact sidecars. The commit path already
+enqueues and drains its own hood and back-reference work inline; `sase agent sync` is
+the explicit recovery command for requests a commit could not immediately resolve
 (transient, quarantined, or retired) and the full-reconciliation command for hoods with
 no recent commit. A non-fast-forward rejection triggers one pull/recompute/commit/push
 retry. Conflicted rebases are aborted and reported; a failure in one project does not
@@ -341,19 +351,18 @@ Commit-triggered agent-hood publication uses a durable outbox at
 attributable error, and quarantine or retirement state. `publish_committed_agent_hood`
 enqueues the committing hood's request and immediately drains every active request for
 the project under the bounded agents lock, so a healthy commit publishes and pushes
-before it returns. Bead-page rendering, prompt-archive publication, and plan-header
-refresh are separate synchronous steps on the commit path — they are not outbox request
-kinds. Prompt-archive publication is still covered by the request, because every drain
-and full sync rebuilds the archives owed by the requests it is about to acknowledge. A
-prompt archive that cannot even be queued fails the commit with a
-`sase stitch create --resume` hint, the same way an unqueueable hood does. A
-hood-specific preparation failure increments only requests for that hood;
-repository-wide failures such as lock contention, pull failure, or push failure remain
-retryable without consuming unrelated per-item quarantine budgets. A repeatable failure
-that proves the requested hood can never be published retires that request after one
-confirming retry instead of quarantining it. Successful requests are acknowledged only
-after their sidecar work is committed and safely pushed, or after the prepared payload
-is already current.
+before it returns. Bead-page rendering and plan-header refresh are separate synchronous
+steps on the commit path. Prompt-archive publication is attempted synchronously too, but
+its retry obligation is covered by the hood request: every drain and full sync rebuilds
+the archives owed by the requests it is about to acknowledge. A prompt archive that
+cannot even be queued fails the commit with a `sase stitch create --resume` hint, the
+same way an unqueueable hood does. A hood-specific preparation failure increments only
+requests for that hood; repository-wide failures such as lock contention, pull failure,
+or push failure remain retryable without consuming unrelated per-item quarantine
+budgets. A repeatable failure that proves the requested hood can never be published
+retires that request after one confirming retry instead of quarantining it. Successful
+requests are acknowledged only after their sidecar work is committed and safely pushed,
+or after the prepared payload is already current.
 
 ### Chats provenance versus publication
 
@@ -375,9 +384,9 @@ cause, explicitly reset and retry them:
 sase agent sync --retry-quarantined -p project-alias
 ```
 
-Do not delete or hand-edit the outbox. `--retry-quarantined` clears the quarantine flag
-and gives those requests a fresh retry budget before running the normal full
-reconciliation.
+Do not delete or hand-edit either publication outbox. `--retry-quarantined` clears the
+quarantine flag for both hood and Referenced By requests and gives them a fresh retry
+budget before running the normal full reconciliation.
 
 A retired request cannot succeed on retry. After reviewing the diagnostic and accepting
 that its missing or invalid source cannot be reconstructed, drop only retired entries
@@ -387,8 +396,8 @@ with:
 sase agent sync --drop-retired -p project-alias
 ```
 
-The command reports every removed request and its terminal reason, then continues the
-normal full sync for the selected projects. Both `--drop-retired` and
+The command reports every removed hood or Referenced By request and its terminal reason,
+then continues the normal full sync for the selected projects. Both `--drop-retired` and
 `--retry-quarantined` mutate the outbox and are rejected with `--check`.
 
 Periodic detection and the equivalent CLI status checks maintain
@@ -451,10 +460,12 @@ validation, cache import, and full-sync work runs outside the Textual event loop
 ## Recovery
 
 - A busy lock is a benign skip; retry after the active sync finishes.
-- For an outbox diagnostic, run `sase agent sync --check --json` and inspect the
-  selected project's `quarantine_diagnostics`. The durable outbox file can also be read
-  to correlate a request's `global_agent`, `primary_revision`, `attempts`, and
-  `last_error`, but it must not be edited manually.
+- For an agent-hood outbox diagnostic, run `sase agent sync --check --json` and inspect
+  the selected project's `quarantine_diagnostics`. The durable outbox file can also be
+  read to correlate a request's `global_agent`, `primary_revision`, `attempts`, and
+  `last_error`, but it must not be edited manually. Referenced By failures are reported
+  by the mutating `sase agent sync` that tries to drain them; their durable
+  `referenced-by-outbox.json` may likewise be inspected but not edited.
 - A missing sidecar reports `not_created`; run `sase repo init` interactively if you
   intend to publish this scope.
 - A malformed legacy v1 manifest is quarantined and skipped with a diagnostic. A
@@ -471,9 +482,10 @@ validation, cache import, and full-sync work runs outside the Textual event loop
   request for the project, not just its own. Repeating the original commit workflow does
   not create another primary commit.
 - If an ordinary retry reports a quarantined publication request, fix the item-specific
-  cause and run `sase agent sync --retry-quarantined -p <project>`. Rerun
-  `sase agent sync --check --json` afterward and confirm that no publication quarantine
-  diagnostic remains.
+  cause and run `sase agent sync --retry-quarantined -p <project>`. For a hood request,
+  rerun `sase agent sync --check --json` afterward and confirm that no publication
+  quarantine diagnostic remains; for a Referenced By request, confirm that the mutating
+  sync reports no remaining referenced-by diagnostic.
 - If a request is reported as retired and its source truly cannot be reconstructed,
   review the terminal reason and run `sase agent sync --drop-retired -p <project>`.
   Retired requests are not reset by `--retry-quarantined`.

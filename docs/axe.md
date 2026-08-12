@@ -266,6 +266,11 @@ an active detached launch in flight. A persistent generation counter gives each
 replacement a new deterministic request ID, whether the task kept its status or left and
 came back.
 
+The same reconciliation also cancels pending task gates when their project leaves the
+active project inventory, and cancels producer-owned gates no longer represented in the
+lumberjack's lane state. A project whose bead store is temporarily unreadable is
+preserved for retry rather than being mistaken for an inactive project and swept.
+
 Two things also force a replacement. A gate of the wrong kind for the bead's current
 status is canceled as `bead_status_changed` and replaced in the same tick — a bead that
 was snoozed while its triage gate was pending is asking a different question now, so

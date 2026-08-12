@@ -1047,7 +1047,10 @@ SORT title
 
 Each research agent is expected to use `/bob_query` to run that query against Bryan's
 Bob vault, treat every returned title and URL entry as already-known, and only then
-search for new reading candidates. A normal invocation can rely on the default query:
+search for new reading candidates. The three researchers and the final consolidator
+share one invocation-specific `reads-<token>` clan, so ACE groups them together while
+simultaneous invocations remain distinct. A normal invocation can rely on the default
+query:
 
 ```text
 #!sase/reads(agent memory systems)

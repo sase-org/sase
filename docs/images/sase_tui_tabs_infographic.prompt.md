@@ -7,9 +7,9 @@ pdf: false
 !!! warning "Historical generation record"
 
     This prompt produced the retired pre-Artifacts ACE diagram. Current ACE navigation is **Agents · Artifacts · Axe**.
-    Artifacts has **Stitches · Patches · Beads · Files** as its top-level views, with **Plans · Chats · Other** nested
-    under Files. The PNG is no longer embedded in active documentation; do not reuse it without regenerating the
-    composition and labels for the current tab model.
+    Artifacts has fixed **Stitches · Patches · Beads · Files** views, with configured document-provider panes such as
+    **Plans** and **Research** inserted before Files. The PNG is no longer embedded in active documentation; do not
+    reuse it without regenerating the composition and labels for the current tab model.
 
 ## Target
 

@@ -167,8 +167,8 @@ that call through the plugin manager. These are the primary API for consumers:
 
 The bundled bare-git provider resolves `#git:<ref>` in four modes:
 
-1. A registered project shorthand, using `~/.sase/projects/<name>/<name>.sase` when it
-   contains `BARE_REPO_DIR` and `WORKSPACE_DIR`.
+1. A registered bare-git project shorthand, using `~/.sase/projects/<name>/<name>.sase`
+   when it contains `BARE_REPO_DIR` and `WORKSPACE_DIR`.
 2. A Patch name found across registered projects.
 3. A missing project shorthand with no slash, which initializes a new bare-git project
    using `~/.sase/repos/<name>.git` as the bare repository and `~/projects/git/<name>/`
@@ -180,11 +180,18 @@ The bundled bare-git provider resolves `#git:<ref>` in four modes:
 The missing-project shorthand is intended for first use from an xprompt or prompt bar:
 `#git:new_tool #!workflow` creates the bare-git project on demand.
 
+An existing ProjectSpec is never treated as a missing bare-git project merely because
+`BARE_REPO_DIR` is absent. If the spec belongs to another workspace provider, `#git:`
+fails with a provider-mismatch error and points to the matching VCS tag instead of
+rewriting the project in place. A genuine bare-git project whose checkout still has a
+local-path `origin` can repair a missing `BARE_REPO_DIR` automatically.
+
 `#git:home` is special because it is the default for bare prompts. If the `home`
-ProjectSpec is missing or has not yet recorded `BARE_REPO_DIR`, SASE bootstraps a
-managed empty bare-git project at the default `home` paths. To point a project at an
-existing bare repository, use `#git:<bare-repo-path>`; the path basename becomes the
-SASE project name, so `#git:/path/to/home.git` registers the `home` project.
+ProjectSpec is missing, SASE bootstraps a managed empty bare-git project at the default
+`home` paths; an existing non-bare-git `home` project receives the same provider guard
+as any other project. To point a project at an existing bare repository, use
+`#git:<bare-repo-path>`; the path basename becomes the SASE project name, so
+`#git:/path/to/home.git` registers the `home` project.
 
 Bare-git projects use in-tree SDD under `sdd/`. SASE creates or refreshes generated SDD
 guide files during new project initialization, existing bare-repo registration, and
