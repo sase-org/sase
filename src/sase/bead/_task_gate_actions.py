@@ -173,37 +173,11 @@ def _resolve_task_triage_project_cwd(project: str) -> Path:
 
 def _find_pending_task_triage(project: str, bead_id: str) -> str | None:
     """Return the pending TaskTriage request matching trusted payload fields."""
-    from sase.notification_gates.durability import read_json_object
-    from sase.notification_gates.paths import interaction_requests_dir
+    from sase.bead.gate_lookup import find_pending_bead_gates
 
-    kind_dir = interaction_requests_dir() / TASK_TRIAGE_KIND
-    try:
-        bundles = sorted(kind_dir.iterdir())
-    except FileNotFoundError:
-        return None
-    except OSError:
-        return None
-    for bundle in bundles:
-        if not bundle.is_dir():
-            continue
-        if (bundle / "response.json").exists() or (
-            bundle / "cancellation.json"
-        ).exists():
-            continue
-        try:
-            envelope = read_json_object(bundle / "request.json")
-        except GateError:
-            continue
-        if envelope.get("kind") != TASK_TRIAGE_KIND:
-            continue
-        payload = envelope.get("payload")
-        if not isinstance(payload, Mapping):
-            continue
-        if payload.get("project") != project or payload.get("bead_id") != bead_id:
-            continue
-        request_id = envelope.get("request_id")
-        if isinstance(request_id, str) and request_id:
-            return request_id
+    for gate in find_pending_bead_gates((TASK_TRIAGE_KIND,)):
+        if gate.project == project and gate.bead_id == bead_id:
+            return gate.request_id
     return None
 
 
