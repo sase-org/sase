@@ -142,10 +142,6 @@ async def test_axe_chop_overrun_narrow_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        # The lumberjack overview's wide/compact choice is width-gated; force
-        # a render pass now that layout has settled to the narrow width
-        # instead of the pre-layout wide-mode content from initial mount.
-        page.app._refresh_axe_display()
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

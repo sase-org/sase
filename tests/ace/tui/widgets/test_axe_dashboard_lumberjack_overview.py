@@ -28,6 +28,7 @@ def _overrun(
         worst_ratio=worst_ratio,
         worst_blocking_ms=None,
         latest_ratio=latest_ratio,
+        run_ratios=(latest_ratio,),
     )
 
 
@@ -304,6 +305,89 @@ def test_lumberjack_overview_narrow_layout_stacks_fields_and_chops() -> None:
     assert "Interval: 60s" in plain
 
 
+def test_lumberjack_overview_cached_repaint_compacts_after_first_layout() -> None:
+    """A first real narrow width corrects pre-layout wide overview content."""
+    snap = _overview_snapshot(
+        chops=[
+            ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="fast",
+                description="",
+                runs=[
+                    ChopRunSnapshot(
+                        entry=_entry("a", status="success", duration_ms=420),
+                        output_tail="",
+                    )
+                ],
+            )
+        ],
+    )
+    rendered: list[Text] = []
+    section = axe_dashboard._AxeOutputSection.__new__(axe_dashboard._AxeOutputSection)
+    section.update = lambda content: rendered.append(content)  # type: ignore[assignment,arg-type]
+
+    section.update_lumberjack_overview(snap, width=None)
+    assert "LAST RUN" in rendered[-1].plain
+
+    section._refresh_cached_lumberjack_overview_for_width(40)
+
+    assert len(rendered) == 2
+    assert "LAST RUN" not in rendered[-1].plain
+    assert "  fast\n" in rendered[-1].plain
+
+
+def test_lumberjack_overview_cached_repaint_on_resize_both_directions() -> None:
+    """Cached overview repaint switches wide/compact only at threshold crossings."""
+    snap = _overview_snapshot(
+        chops=[
+            ChopSnapshot(
+                lumberjack_name="hooks",
+                chop_name="fast",
+                description="",
+                runs=[
+                    ChopRunSnapshot(
+                        entry=_entry("a", status="success", duration_ms=420),
+                        output_tail="",
+                    )
+                ],
+            )
+        ],
+    )
+    rendered: list[Text] = []
+    section = axe_dashboard._AxeOutputSection.__new__(axe_dashboard._AxeOutputSection)
+    section.update = lambda content: rendered.append(content)  # type: ignore[assignment,arg-type]
+
+    section.update_lumberjack_overview(snap, width=40)
+    assert "LAST RUN" not in rendered[-1].plain
+
+    section._refresh_cached_lumberjack_overview_for_width(120)
+    assert "LAST RUN" in rendered[-1].plain
+
+    section._refresh_cached_lumberjack_overview_for_width(100)
+    assert len(rendered) == 2
+
+    section._refresh_cached_lumberjack_overview_for_width(40)
+    assert len(rendered) == 3
+    assert "LAST RUN" not in rendered[-1].plain
+
+
+def test_lumberjack_overview_cache_clears_when_output_mode_changes() -> None:
+    """Switching away from overview prevents later resize-only overview repaint."""
+    snap = _overview_snapshot(chops=[])
+    rendered: list[Text] = []
+    section = axe_dashboard._AxeOutputSection.__new__(axe_dashboard._AxeOutputSection)
+    section.update = lambda content: rendered.append(content)  # type: ignore[assignment,arg-type]
+
+    section.update_lumberjack_overview(snap, width=40)
+    section.update_display("plain log\n")
+    after_mode_switch = len(rendered)
+
+    section._refresh_cached_lumberjack_overview_for_width(120)
+
+    assert len(rendered) == after_mode_switch
+    assert "plain log" in rendered[-1].plain
+
+
 def test_lumberjack_overview_log_tail_uses_semantic_highlighter() -> None:
     """A non-empty log_tail surfaces a RECENT LOG section rendered semantically."""
     axe_log_renderer._render_cache.clear()
@@ -537,6 +621,7 @@ def test_advisory_line_intermittent_gets_second_dim_line() -> None:
             worst_ratio=1.5,
             worst_blocking_ms=None,
             latest_ratio=0.5,
+            run_ratios=(0.5,),
         ),
     )
     snap = _overview_snapshot(chops=[over_chop, intermittent_chop], interval=60)

@@ -340,21 +340,23 @@ class AxeStatusSection(Static):
                 text.append("Took: ", style="bold #87D7FF")
                 text.append(_format_duration_ms(entry.duration_ms), style="#00D7AF")
 
-            # Overrun segment — the displayed run's own ratio, not the
-            # window. Only the newest sampled run's ratio is known
-            # (`overrun.latest_ratio`), so this only ever renders while
-            # viewing that run (run_idx 0); paging to an older run hides it.
+            # Overrun segment — the displayed raw run's own aligned ratio,
+            # not the chop window summary.
             overrun = self._chop_overrun
+            run_ratio = (
+                overrun.run_ratios[self._chop_run_idx]
+                if overrun is not None
+                and 0 <= self._chop_run_idx < len(overrun.run_ratios)
+                else None
+            )
             if (
-                self._chop_run_idx == 0
-                and overrun is not None
-                and overrun.level == "over"
-                and overrun.latest_ratio is not None
+                run_ratio is not None
+                and run_ratio >= 1.0
                 and self._chop_interval_seconds is not None
             ):
                 text.append("  │  ", style="dim")
                 text.append(
-                    f"⚠ {_format_overrun_ratio(overrun.latest_ratio)} of "
+                    f"⚠ {_format_overrun_ratio(run_ratio)} of "
                     f"{self._chop_interval_seconds}s interval",
                     style="bold #FFAF5F",
                 )

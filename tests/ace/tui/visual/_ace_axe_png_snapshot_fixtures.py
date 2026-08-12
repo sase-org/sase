@@ -684,6 +684,7 @@ def axe_chop_overrun_data() -> AxeCollectedData:
             worst_ratio=4.0,
             worst_blocking_ms=240_000,
             latest_ratio=4.0,
+            run_ratios=(4.0,),
         ),
     )
     intermittent_chop = ChopSnapshot(
@@ -707,6 +708,7 @@ def axe_chop_overrun_data() -> AxeCollectedData:
             worst_ratio=1.2,
             worst_blocking_ms=72_000,
             latest_ratio=0.4,
+            run_ratios=(0.4,),
         ),
     )
     healthy_chop = ChopSnapshot(
@@ -730,6 +732,7 @@ def axe_chop_overrun_data() -> AxeCollectedData:
             worst_ratio=0.1,
             worst_blocking_ms=3_100,
             latest_ratio=0.1,
+            run_ratios=(0.1,),
         ),
     )
     chop_snapshots = {

@@ -108,6 +108,7 @@ def _fast_overrun() -> ChopOverrun:
         worst_ratio=1.5,
         worst_blocking_ms=90000,
         latest_ratio=1.5,
+        run_ratios=(1.5,),
     )
 
 
@@ -555,6 +556,7 @@ def test_collector_falls_back_to_config_interval_without_runtime_status() -> Non
             worst_ratio=2.0,
             worst_blocking_ms=90000,
             latest_ratio=0.5,
+            run_ratios=(0.5,),
         )
 
     with (

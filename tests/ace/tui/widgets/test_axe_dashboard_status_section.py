@@ -346,12 +346,104 @@ def test_chop_detail_header_shows_overrun_segment_for_over_newest_run() -> None:
             worst_ratio=4.0,
             worst_blocking_ms=240_000,
             latest_ratio=4.0,
+            run_ratios=(4.0,),
         ),
     )
     plain = _run_display_plain(snap, run_idx=0)
     assert "Took:" in plain
     assert "⚠ 4.0× of 60s interval" in plain
     assert plain.index("Took:") < plain.index("⚠ 4.0× of 60s interval")
+
+
+def test_chop_detail_header_omits_skipped_newest_when_older_run_overran() -> None:
+    """A skipped newest raw run stays unmarked even if an older sampled run is over."""
+    skipped = ChopRunSnapshot(
+        entry=_entry("newest", status="skipped", duration_ms=1),
+        output_tail="",
+    )
+    older_over = ChopRunSnapshot(
+        entry=_entry("older", status="success", duration_ms=65_000),
+        output_tail="",
+    )
+    snap = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="mentor_sweep",
+        description="",
+        runs=[skipped, older_over],
+        interval_seconds=60,
+        interval_source="runtime",
+        overrun=ChopOverrun(
+            level="over",
+            sampled_runs=1,
+            over_runs=1,
+            worst_ratio=1.0833333333333333,
+            worst_blocking_ms=65_000,
+            latest_ratio=1.0833333333333333,
+            run_ratios=(None, 1.0833333333333333),
+        ),
+    )
+
+    assert "⚠" not in _run_display_plain(snap, run_idx=0)
+    assert "⚠ 1.1× of 60s interval" in _run_display_plain(snap, run_idx=1)
+
+
+def test_chop_detail_header_follows_paging_onto_and_off_older_overrun() -> None:
+    """The selected raw run controls the mark, independent of window level."""
+    newest_fast = ChopRunSnapshot(
+        entry=_entry("newest", status="success", duration_ms=12_000),
+        output_tail="",
+    )
+    older_over = ChopRunSnapshot(
+        entry=_entry("older", status="success", duration_ms=120_000),
+        output_tail="",
+    )
+    snap = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="mentor_sweep",
+        description="",
+        runs=[newest_fast, older_over],
+        interval_seconds=60,
+        interval_source="runtime",
+        overrun=ChopOverrun(
+            level="intermittent",
+            sampled_runs=2,
+            over_runs=1,
+            worst_ratio=2.0,
+            worst_blocking_ms=120_000,
+            latest_ratio=0.2,
+            run_ratios=(0.2, 2.0),
+        ),
+    )
+
+    assert "⚠" not in _run_display_plain(snap, run_idx=0)
+    assert "⚠ 2.0× of 60s interval" in _run_display_plain(snap, run_idx=1)
+
+
+def test_chop_detail_header_omits_out_of_range_run_ratio() -> None:
+    """Out-of-range ratio data degrades to no overrun segment."""
+    run = ChopRunSnapshot(
+        entry=_entry("a", status="success", duration_ms=250),
+        output_tail="",
+    )
+    snap = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="",
+        runs=[run],
+        interval_seconds=60,
+        interval_source="runtime",
+        overrun=ChopOverrun(
+            level="over",
+            sampled_runs=1,
+            over_runs=1,
+            worst_ratio=2.0,
+            worst_blocking_ms=120_000,
+            latest_ratio=2.0,
+            run_ratios=(),
+        ),
+    )
+
+    assert "⚠" not in _run_display_plain(snap, run_idx=0)
 
 
 def test_chop_detail_header_omits_segment_for_fast_run() -> None:
@@ -374,6 +466,7 @@ def test_chop_detail_header_omits_segment_for_fast_run() -> None:
             worst_ratio=0.1,
             worst_blocking_ms=250,
             latest_ratio=0.1,
+            run_ratios=(0.1,),
         ),
     )
     plain = _run_display_plain(snap, run_idx=0)

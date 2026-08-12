@@ -208,7 +208,7 @@ def section_width(section: Static) -> int | None:
     """
     try:
         width = int(section.size.width)
-    except (AttributeError, TypeError, ValueError):
+    except (AttributeError, RuntimeError, TypeError, ValueError):
         return None
     return width if width > 0 else None
 

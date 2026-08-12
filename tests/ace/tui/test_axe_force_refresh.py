@@ -223,6 +223,7 @@ async def test_targeted_refresh_updates_selected_chop() -> None:
                 worst_ratio=1.1,
                 worst_blocking_ms=66000,
                 latest_ratio=1.1,
+                run_ratios=(1.1,),
             ),
         ),
     ):

@@ -35,6 +35,7 @@ def _payload(**overrides: Any) -> dict[str, Any]:
         "worst_ratio": 1.0166666666666666,
         "worst_blocking_ms": 61000,
         "latest_ratio": 1.0166666666666666,
+        "run_ratios": [1.0166666666666666],
     }
     payload.update(overrides)
     return payload
@@ -70,7 +71,7 @@ def test_facade_serializes_request_and_rehydrates_response(monkeypatch) -> None:
 
     install_fake_rust_extension(
         monkeypatch,
-        chop_overrun_wire_schema_version=lambda: 1,
+        chop_overrun_wire_schema_version=lambda: 2,
         classify_chop_overrun=classify,
     )
 
@@ -88,10 +89,11 @@ def test_facade_serializes_request_and_rehydrates_response(monkeypatch) -> None:
         worst_ratio=1.0166666666666666,
         worst_blocking_ms=61000,
         latest_ratio=1.0166666666666666,
+        run_ratios=(1.0166666666666666,),
     )
     assert seen == [
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "now": "2026-08-12T10:02:00+00:00",
             "interval_seconds": 60,
             "runs": [
@@ -111,7 +113,7 @@ def test_facade_serializes_request_and_rehydrates_response(monkeypatch) -> None:
 def test_facade_rejects_binding_schema_mismatch(monkeypatch) -> None:
     install_fake_rust_extension(
         monkeypatch,
-        chop_overrun_wire_schema_version=lambda: 2,
+        chop_overrun_wire_schema_version=lambda: 3,
     )
 
     with pytest.raises(models.ChopOverrunWireError, match="schema mismatch"):
@@ -125,11 +127,41 @@ def test_facade_rejects_binding_schema_mismatch(monkeypatch) -> None:
 def test_facade_rejects_malformed_binding_response(monkeypatch) -> None:
     install_fake_rust_extension(
         monkeypatch,
-        chop_overrun_wire_schema_version=lambda: 1,
+        chop_overrun_wire_schema_version=lambda: 2,
         classify_chop_overrun=lambda _request: _payload(level="urgent"),
     )
 
     with pytest.raises(models.ChopOverrunWireError, match="unsupported level"):
+        models.classify_chop_overrun(
+            now=datetime(2026, 8, 12, 10, 2, tzinfo=UTC),
+            interval_seconds=60,
+            runs=[_run_entry()],
+        )
+
+
+def test_facade_rejects_misaligned_run_ratios(monkeypatch) -> None:
+    install_fake_rust_extension(
+        monkeypatch,
+        chop_overrun_wire_schema_version=lambda: 2,
+        classify_chop_overrun=lambda _request: _payload(run_ratios=[]),
+    )
+
+    with pytest.raises(models.ChopOverrunWireError, match="run_ratios length"):
+        models.classify_chop_overrun(
+            now=datetime(2026, 8, 12, 10, 2, tzinfo=UTC),
+            interval_seconds=60,
+            runs=[_run_entry()],
+        )
+
+
+def test_facade_rejects_invalid_run_ratio_item(monkeypatch) -> None:
+    install_fake_rust_extension(
+        monkeypatch,
+        chop_overrun_wire_schema_version=lambda: 2,
+        classify_chop_overrun=lambda _request: _payload(run_ratios=[True]),
+    )
+
+    with pytest.raises(models.ChopOverrunWireError, match=r"run_ratios\[0\]"):
         models.classify_chop_overrun(
             now=datetime(2026, 8, 12, 10, 2, tzinfo=UTC),
             interval_seconds=60,

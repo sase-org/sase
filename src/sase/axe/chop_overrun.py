@@ -11,7 +11,7 @@ from sase.core.rust import require_rust_binding
 
 from .state import ChopRunEntry
 
-CHOP_OVERRUN_WIRE_SCHEMA_VERSION = 1
+CHOP_OVERRUN_WIRE_SCHEMA_VERSION = 2
 
 ChopOverrunLevel = Literal["none", "intermittent", "over"]
 
@@ -30,6 +30,7 @@ class ChopOverrun:
     worst_ratio: float | None
     worst_blocking_ms: int | None
     latest_ratio: float | None
+    run_ratios: tuple[float | None, ...]
 
 
 def classify_chop_overrun(
@@ -73,7 +74,7 @@ def classify_chop_overrun(
             "runs": [_run_to_wire(run) for run in runs],
         }
     )
-    return _rehydrate_chop_overrun(payload)
+    return _rehydrate_chop_overrun(payload, expected_run_count=len(runs))
 
 
 def _run_to_wire(run: ChopRunEntry) -> dict[str, Any]:
@@ -85,7 +86,11 @@ def _run_to_wire(run: ChopRunEntry) -> dict[str, Any]:
     }
 
 
-def _rehydrate_chop_overrun(payload: Any) -> ChopOverrun:
+def _rehydrate_chop_overrun(
+    payload: Any,
+    *,
+    expected_run_count: int,
+) -> ChopOverrun:
     if not isinstance(payload, dict):
         raise ChopOverrunWireError("chop-overrun binding returned a non-mapping result")
 
@@ -105,6 +110,7 @@ def _rehydrate_chop_overrun(payload: Any) -> ChopOverrun:
             "worst_ratio",
             "worst_blocking_ms",
             "latest_ratio",
+            "run_ratios",
         )
         if key not in payload
     }
@@ -126,6 +132,10 @@ def _rehydrate_chop_overrun(payload: Any) -> ChopOverrun:
     )
     worst_ratio = _optional_number(payload["worst_ratio"], "worst_ratio")
     latest_ratio = _optional_number(payload["latest_ratio"], "latest_ratio")
+    run_ratios = _run_ratios(
+        payload["run_ratios"],
+        expected_run_count=expected_run_count,
+    )
 
     return ChopOverrun(
         level=level,
@@ -134,6 +144,7 @@ def _rehydrate_chop_overrun(payload: Any) -> ChopOverrun:
         worst_ratio=worst_ratio,
         worst_blocking_ms=worst_blocking_ms,
         latest_ratio=latest_ratio,
+        run_ratios=run_ratios,
     )
 
 
@@ -159,6 +170,21 @@ def _optional_number(value: Any, field: str) -> float | None:
             f"chop-overrun binding returned invalid {field}: {value!r}"
         )
     return float(value)
+
+
+def _run_ratios(value: Any, *, expected_run_count: int) -> tuple[float | None, ...]:
+    if not isinstance(value, list):
+        raise ChopOverrunWireError(
+            f"chop-overrun binding returned invalid run_ratios: {value!r}"
+        )
+    if len(value) != expected_run_count:
+        raise ChopOverrunWireError(
+            "chop-overrun binding returned run_ratios length "
+            f"{len(value)}, expected {expected_run_count}"
+        )
+    return tuple(
+        _optional_number(item, f"run_ratios[{idx}]") for idx, item in enumerate(value)
+    )
 
 
 __all__ = [

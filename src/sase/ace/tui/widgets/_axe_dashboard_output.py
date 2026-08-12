@@ -1,8 +1,11 @@
 """Output-log section for the axe dashboard widget."""
 
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Literal
 
 from rich.text import Text
+from textual.events import Resize
 from textual.widgets import Static
 
 from sase.axe.chop_report_render import render_section_rule
@@ -17,6 +20,7 @@ from ._axe_dashboard_render import (
     render_compact_chop_list as _render_compact_chop_list,
     render_compact_summary_row as _render_compact_summary_row,
     render_wide_chop_table as _render_wide_chop_table,
+    section_width as _section_width,
     tail_lines as _tail_lines,
 )
 
@@ -36,9 +40,18 @@ _NARROW_SUMMARY_WIDTH = 70
 # Lumberjack log-tail footer in the overview view — capped so the chop table
 # is never crowded out. Counted in lines from the tail.
 _OVERVIEW_LOG_TAIL_LINES = 6
+_OverviewLayout = Literal["wide", "compact"]
 
 
-def _render_overrun_advisory(text: Text, chops: list["ChopSnapshot"]) -> None:
+def _overview_layout(width: int | None) -> _OverviewLayout:
+    return (
+        "compact"
+        if width is not None and 0 < width < _NARROW_OVERVIEW_WIDTH
+        else "wide"
+    )
+
+
+def _render_overrun_advisory(text: Text, chops: list[ChopSnapshot]) -> None:
     """Append the overrun advisory line(s) below the chops table.
 
     Renders only when at least one chop is marked (level ``"over"`` or
@@ -131,16 +144,42 @@ def _render_overrun_advisory(text: Text, chops: list["ChopSnapshot"]) -> None:
 class AxeOutputSection(Static):
     """Section showing live axe output log."""
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._cached_lumberjack_overview: LumberjackSnapshot | None = None
+        self._cached_lumberjack_overview_layout: _OverviewLayout | None = None
+
+    def on_resize(self, _event: Resize) -> None:
+        """Repaint cached overview content when the width crosses its threshold."""
+        self._refresh_cached_lumberjack_overview_for_width(_section_width(self))
+
+    def _clear_cached_lumberjack_overview(self) -> None:
+        self._cached_lumberjack_overview = None
+        self._cached_lumberjack_overview_layout = None
+
+    def _refresh_cached_lumberjack_overview_for_width(
+        self,
+        width: int | None,
+    ) -> None:
+        snapshot = getattr(self, "_cached_lumberjack_overview", None)
+        if snapshot is None:
+            return
+        layout = _overview_layout(width)
+        if layout == getattr(self, "_cached_lumberjack_overview_layout", None):
+            return
+        self.update_lumberjack_overview(snapshot, width=width)
+
     def update_chop_run(
         self,
         lumberjack_name: str,
         chop_name: str,
-        entry: "ChopRunEntry",
+        entry: ChopRunEntry,
         output: str,
         *,
         width: int | None = None,
     ) -> None:
         """Render a cached RESULT card, optional REPORT, and ANSI OUTPUT."""
+        AxeOutputSection._clear_cached_lumberjack_overview(self)
         text = render_cached_chop_card_and_report(
             lumberjack_name,
             chop_name,
@@ -188,6 +227,7 @@ class AxeOutputSection(Static):
                 external output. Cache slots are keyed on
                 ``(source_id, source_type)`` so the two paths can't collide.
         """
+        AxeOutputSection._clear_cached_lumberjack_overview(self)
         if not output:
             text = Text("No output yet. Start axe with ", style="dim italic")
             text.append("x", style="bold #FFD700")
@@ -200,6 +240,7 @@ class AxeOutputSection(Static):
 
     def update_empty_axe(self, add_key: str) -> None:
         """Render the zero-lumberjack call to action from cached key metadata."""
+        AxeOutputSection._clear_cached_lumberjack_overview(self)
         text = Text("No lumberjacks configured.\n\n", style="dim italic")
         text.append("  ")
         text.append(add_key, style="bold reverse #FFD700")
@@ -209,7 +250,7 @@ class AxeOutputSection(Static):
 
     def update_lumberjack_overview(
         self,
-        snapshot: "LumberjackSnapshot",
+        snapshot: LumberjackSnapshot,
         width: int | None = None,
     ) -> None:
         """Render a single lumberjack's overview: status + per-chop table.
@@ -221,10 +262,13 @@ class AxeOutputSection(Static):
                 compact stacked layout so the panel never overflows. ``None``
                 or non-positive values render the full-width layout.
         """
+        width = width if width is not None else _section_width(self)
+        self._cached_lumberjack_overview = snapshot
+        self._cached_lumberjack_overview_layout = _overview_layout(width)
         text = Text()
         status = snapshot.status
         metrics = snapshot.metrics
-        is_narrow = width is not None and 0 < width < _NARROW_OVERVIEW_WIDTH
+        is_narrow = self._cached_lumberjack_overview_layout == "compact"
 
         # Status / interval / cycles / errors line. The full-width layout
         # joins fields with four-space gaps; the narrow layout stacks them
@@ -304,6 +348,7 @@ class AxeOutputSection(Static):
         Args:
             summaries: List of (name, status, chops_executed) tuples.
         """
+        AxeOutputSection._clear_cached_lumberjack_overview(self)
         if not summaries:
             text = Text("No lumberjacks configured.", style="dim italic")
             self.update(text)

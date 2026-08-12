@@ -223,6 +223,7 @@ def test_overrun_chip_none_for_healthy_or_unsampled() -> None:
                 worst_ratio=None,
                 worst_blocking_ms=None,
                 latest_ratio=None,
+                run_ratios=(None,),
             )
         )
         is None
@@ -242,6 +243,7 @@ def test_overrun_chip_styles_by_level() -> None:
             worst_ratio=4.0,
             worst_blocking_ms=240_000,
             latest_ratio=4.0,
+            run_ratios=(4.0,),
         )
     )
     assert over_chip == ("⚠ 4.0×", "bold #FFAF5F")
@@ -254,6 +256,7 @@ def test_overrun_chip_styles_by_level() -> None:
             worst_ratio=1.2,
             worst_blocking_ms=72_000,
             latest_ratio=0.5,
+            run_ratios=(0.5,),
         )
     )
     assert intermittent_chip == ("⚠ 1.2×", "dim #FFAF5F")

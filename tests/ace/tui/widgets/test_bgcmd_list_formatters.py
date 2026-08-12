@@ -74,6 +74,7 @@ def _overrun(
         worst_ratio=worst_ratio,
         worst_blocking_ms=None,
         latest_ratio=latest_ratio,
+        run_ratios=(latest_ratio,),
     )
 
 
