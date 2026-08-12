@@ -192,28 +192,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("start_bead_issue_mode", "Beads: issue actions", "Bugs", CL_ONLY, ()),
     ("beads_open_plan", "Beads: go to linked plan", "Navigation", CL_ONLY, ()),
     ("beads_refresh", "Beads: refresh", "Proposals & Sync", CL_ONLY, ()),
-    # Retired Chats sub-tab compatibility actions
-    ("chats_next", "Chats: next row", "Navigation", CL_ONLY, ("chat down",)),
-    ("chats_prev", "Chats: previous row", "Navigation", CL_ONLY, ("chat up",)),
-    ("chats_view_selected", "Chats: view selected", "Display", CL_ONLY, ()),
-    ("chats_filters", "Chats: filter bar", "Display", CL_ONLY, ()),
-    (
-        "chats_cycle_provenance",
-        "Chats: cycle sync state",
-        "Proposals & Sync",
-        CL_ONLY,
-        ("chat provenance",),
-    ),
-    ("chats_open_agent", "Chats: open agent", "Agents", CL_ONLY, ()),
-    ("chats_open_external", "Chats: open in editor", "Display", CL_ONLY, ()),
-    ("chats_copy_path", "Chats: copy path", "Display", CL_ONLY, ()),
-    (
-        "chats_refresh",
-        "Chats: refresh",
-        "Proposals & Sync",
-        CL_ONLY,
-        ("reload chats",),
-    ),
     # Files sub-tab
     ("files_next", "Files: next row", "Navigation", CL_ONLY, ("file down",)),
     ("files_prev", "Files: previous row", "Navigation", CL_ONLY, ("file up",)),

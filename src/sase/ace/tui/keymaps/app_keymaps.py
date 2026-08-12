@@ -74,16 +74,6 @@ class AppKeymaps:
     start_bead_issue_mode: str
     beads_open_plan: str
     beads_refresh: str
-    # Chats sub-tab
-    chats_next: str
-    chats_prev: str
-    chats_view_selected: str
-    chats_filters: str
-    chats_cycle_provenance: str
-    chats_open_agent: str
-    chats_open_external: str
-    chats_copy_path: str
-    chats_refresh: str
     # Files sub-tab
     files_next: str
     files_prev: str

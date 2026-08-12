@@ -80,7 +80,6 @@ def check_app_action(
 
     from .actions.artifacts import (
         BEADS_ARTIFACT_ACTIONS,
-        CHATS_ARTIFACT_ACTIONS,
         COMMITS_ARTIFACT_ACTIONS,
         FILES_ARTIFACT_ACTIONS,
         NON_PRS_ARTIFACT_ACTIONS,
@@ -147,8 +146,6 @@ def check_app_action(
             or app.current_artifacts_pane_key != "beads"
         ):
             return False
-    if action in CHATS_ARTIFACT_ACTIONS:
-        return False
     if action in FILES_ARTIFACT_ACTIONS:
         if (
             app.current_tab != ARTIFACTS_TAB

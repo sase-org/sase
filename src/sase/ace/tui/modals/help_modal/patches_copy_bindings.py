@@ -13,13 +13,11 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
     commits_copy = cm.keys["artifacts_stitches"]
     beads_copy = cm.keys["artifacts_beads"]
     plans_copy = cm.keys["artifacts_plans"]
-    chats_copy = cm.keys["artifacts_chats"]
     files_copy = cm.keys["artifacts_other"]
     assert isinstance(cs_copy, dict)
     assert isinstance(commits_copy, dict)
     assert isinstance(beads_copy, dict)
     assert isinstance(plans_copy, dict)
-    assert isinstance(chats_copy, dict)
     assert isinstance(files_copy, dict)
     pr_copy_key = cs_copy.get("pr_number", cs_copy.get("cl_number"))
     assert isinstance(pr_copy_key, str)
@@ -151,44 +149,6 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, plans_copy["snapshot"]),
-                    "Copy sase ace snapshot",
-                ),
-            ],
-        ),
-        (
-            f"Copy Mode · Chats ({d(cm.prefix)})",
-            [
-                (d(cm.prefix), "Open Copy as… palette"),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["reference"]),
-                    "Copy @chat reference",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["link"]),
-                    "Copy Markdown link",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["handoff"]),
-                    "Reference in new agent prompt",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["path"]),
-                    "Copy transcript path",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["agent"]),
-                    "Copy agent name",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["transcript"]),
-                    "Copy transcript contents",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["json"]),
-                    "Copy metadata JSON",
-                ),
-                (
-                    key_sequence_display(cm.prefix, chats_copy["snapshot"]),
                     "Copy sase ace snapshot",
                 ),
             ],

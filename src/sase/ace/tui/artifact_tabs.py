@@ -64,7 +64,6 @@ ARTIFACTS_ACCENTS: dict[str, str] = {
     # keeps the old plans action surface.
     "plans": "#AF87FF",
     "other": "#FFAF5F",
-    "chats": "#5FAFFF",
 }
 
 _PROVIDER_ACCENTS: tuple[str, ...] = (

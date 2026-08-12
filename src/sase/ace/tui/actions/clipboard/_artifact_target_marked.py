@@ -6,14 +6,11 @@ from collections.abc import Callable
 from functools import partial
 from typing import Any
 
-from sase.core.agent_identity_facade import present_agent_name
-
 from ...models.artifact_file_clipboard import (
     artifact_file_clipboard_path,
     artifact_file_source_clipboard_path,
 )
 from ...widgets.artifacts.beads_list import bead_row_target
-from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._artifact_target_support import ClipboardArtifactTargetSupportMixin
 from ._artifact_target_values import (
@@ -124,43 +121,6 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
                 for row in rows
             ],
             plural_label=f"bead {plural(target)}",
-        )
-
-    def _copy_marked_chat_targets(
-        self,
-        pane: Any,
-        targets: tuple[tuple[str, ...], ...],
-        target: str,
-    ) -> None:
-        if not targets:
-            return
-        by_target: dict[tuple[str, ...], Any] = {
-            chat_row_target(row): row.entry
-            for row in getattr(pane, "_rows", {}).values()
-        }
-        entries = [by_target[item] for item in targets if item in by_target]
-
-        def value(entry: Any) -> str:
-            if target == "path":
-                return entry.absolute_path
-            if target == "agent":
-                agent = entry.agent_local_name or entry.agent
-                if not agent:
-                    raise ValueError(f"{entry.basename} has no agent name")
-                return present_agent_name(agent)
-            from ...widgets.artifacts.chats_detail import read_full_chat
-
-            return read_full_chat(entry)
-
-        labels = {
-            "path": "chat paths",
-            "agent": "chat agent names",
-            "transcript": "chat transcripts",
-        }
-        self._schedule_marked_copy(
-            [(entry.basename, partial(value, entry)) for entry in entries],
-            plural_label=labels[target],
-            task_name="sase-chat-copy-marked",
         )
 
     def _copy_marked_file_targets(

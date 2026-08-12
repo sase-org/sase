@@ -8,7 +8,6 @@ from sase.ace.tui.widgets._artifact_ref_entity_catalogs import (
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ArtifactRefCompletionCatalog,
-    _ArtifactRefChatCandidate,
     _ArtifactRefDocumentCandidate,
     _ArtifactRefFileCandidate,
 )
@@ -21,7 +20,6 @@ from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 KINDS = (
     "commit",
-    "chat",
     "bug",
     "file",
     "bead",
@@ -60,7 +58,6 @@ CATALOG = ArtifactRefCompletionCatalog(
             "2026-07-29T12:00:00Z",
         ),
     ),
-    chats=(_ArtifactRefChatCandidate("202607/agent.md", 1_785_326_400),),
     beads=(
         ArtifactRefBeadCandidate(
             "sase-9z",

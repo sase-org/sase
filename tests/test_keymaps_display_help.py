@@ -336,7 +336,7 @@ def test_help_modal_lists_global_restore_prompt_stash() -> None:
 def test_help_copy_sections_advertise_copy_as_palette() -> None:
     reg = load_keymap_registry({})
     expected_section_counts = (
-        (cls_bindings(reg), 6),
+        (cls_bindings(reg), 5),
         (agents_bindings(reg), 1),
         (axe_bindings(reg), 1),
     )

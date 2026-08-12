@@ -98,16 +98,6 @@ class CopyModeKeymaps(ModeKeymaps):
                 "json": "J",
                 "snapshot": "s",
             },
-            "artifacts_chats": {
-                "reference": "at",
-                "handoff": "exclamation_mark",
-                "path": "p",
-                "agent": "a",
-                "transcript": "t",
-                "link": "l",
-                "json": "J",
-                "snapshot": "s",
-            },
             "artifacts_other": {
                 "contents": "percent_sign",
                 "reference": "at",

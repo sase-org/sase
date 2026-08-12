@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol, cast
 
@@ -17,7 +16,6 @@ from sase.artifact_refs import (
 from sase.ace.tui.widgets import _artifact_ref_entity_catalogs as entity_catalogs
 from sase.ace.tui.widgets._artifact_ref_completion_models import (
     ArtifactRefBugCandidate,
-    ArtifactRefChatCandidate,
     ArtifactRefCommitCandidate,
     ArtifactRefCompletionContext,
     ArtifactRefCompletionResult,
@@ -57,7 +55,6 @@ class ArtifactRefCompletionCatalog:
     kinds: tuple[str, ...]
     documents: tuple[ArtifactRefDocumentCandidate, ...] = ()
     artifact_files: tuple[ArtifactRefFileCandidate, ...] = ()
-    chats: tuple[ArtifactRefChatCandidate, ...] = ()
     beads: tuple[entity_catalogs.ArtifactRefBeadCandidate, ...] = ()
     agents: tuple[entity_catalogs.ArtifactRefAgentCandidate, ...] = ()
     kind_details: tuple[tuple[str, str], ...] = ()
@@ -313,7 +310,6 @@ def build_catalog_payload_memos(
         (
             catalog.documents,
             catalog.artifact_files,
-            catalog.chats,
             catalog.beads,
             catalog.agents,
         )
@@ -323,7 +319,6 @@ def build_catalog_payload_memos(
         *catalog.kinds,
         *(row.kind for row in catalog.documents),
         "file",
-        "chat",
         "bead",
         "agent",
     ]
@@ -333,7 +328,7 @@ def build_catalog_payload_memos(
         Mapping[str, ArtifactRefPayloadCompletionMetadata],
     ] = {}
     for kind in dict.fromkeys(value.casefold() for value in kinds):
-        if kind in {"commit", "bug"}:
+        if kind in {"commit", "bug", "chat"}:
             continue
         rows = payload_rows(kind, catalog, commits=(), bugs=())
         index, metadata_by_payload = index_payload_rows(rows, inventory_builder)
@@ -414,20 +409,6 @@ def payload_rows(
                 ),
             )
             for row in catalog.artifact_files
-        )
-    elif folded == "chat" and catalog is not None:
-        rows.extend(
-            (
-                row.payload,
-                ArtifactRefPayloadCompletionMetadata(
-                    kind=kind,
-                    payload=row.payload,
-                    source="chat",
-                    label=Path(row.payload).name,
-                    age=age_label(row.modified_at),
-                ),
-            )
-            for row in catalog.chats
         )
     elif folded == "commit":
         rows.extend(

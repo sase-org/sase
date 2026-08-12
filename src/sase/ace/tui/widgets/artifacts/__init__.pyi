@@ -8,7 +8,6 @@ from .entry_navigation import ArtifactEntryNavigator as ArtifactEntryNavigator
 from .entry_navigation import ArtifactEntryTarget as ArtifactEntryTarget
 from .panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
 from .beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
-from .chats_pane import ArtifactsChatsPane as ArtifactsChatsPane
 from .plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .files_pane import ArtifactsFilesPane as ArtifactsFilesPane
 from .types import ArtifactsPaneKey as ArtifactsPaneKey

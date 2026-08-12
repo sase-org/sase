@@ -7,13 +7,16 @@ from dataclasses import dataclass, field
 import logging
 import os
 import re
-from typing import Any, cast, Literal
+from typing import Any, cast, Literal, TYPE_CHECKING
 
-from sase.artifact_providers.registry import ArtifactProviderRegistry
 from sase.config.core import (
     current_config_token,
     load_config_layers,
 )
+
+
+if TYPE_CHECKING:
+    from sase.artifact_providers.registry import ArtifactProviderRegistry
 
 
 logger = logging.getLogger(__name__)

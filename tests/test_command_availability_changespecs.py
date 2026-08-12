@@ -86,7 +86,7 @@ def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
         ctx = CommandContext(
             tab="changespecs", artifacts_subtab=active
         )  # legacy tab id
-        for group in (*active_groups.values(), "artifacts_chats"):
+        for group in active_groups.values():
             spec = catalog[f"copy.{group}.snapshot"]
             assert is_command_available(spec, ctx) is (group == expected_group)
 
@@ -95,7 +95,7 @@ def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     )  # legacy tab id
     assert all(
         not is_command_available(catalog[f"copy.{group}.snapshot"], patches_ctx)
-        for group in (*active_groups.values(), "artifacts_chats")
+        for group in active_groups.values()
     )
 
 

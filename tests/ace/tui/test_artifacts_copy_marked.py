@@ -5,9 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
-from sase.ace.tui.widgets.artifacts.chats_list import ChatRow, chat_row_target
 from sase.ace.tui.widgets.artifacts.plans_list import PlanRow, plan_row_target
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 from tests.ace.tui._artifacts_files_helpers import artifact_file
@@ -83,35 +80,6 @@ def test_marked_plans_copy_the_marked_set() -> None:
     assert "### proposal-1\n```\nPlan 1\n```" in copied
     assert "### proposal-2\n```\nPlan 2\n```" in copied
     assert message == "Copied 2 plan titles"
-
-
-@pytest.mark.skip(reason="Artifacts Chats pane was retired; transcripts copy elsewhere")
-def test_marked_chats_copy_the_marked_set() -> None:
-    app = CopyHarness()
-    app.current_artifacts_subtab = "chats"
-    entries = tuple(
-        SimpleNamespace(
-            absolute_path=f"/tmp/chat-{index}.md",
-            basename=f"chat-{index}",
-        )
-        for index in (1, 2)
-    )
-    rows = tuple(
-        ChatRow(f"chat-{index}", entry) for index, entry in enumerate(entries, start=1)
-    )
-    targets = tuple(chat_row_target(row) for row in rows)
-    app._artifacts_marked_targets = {"chats": set(targets)}
-    app.chats_pane = SimpleNamespace(
-        _rows={row.option_id: row for row in rows},
-        entry_targets=lambda: targets,
-    )
-
-    assert app._handle_copy_key("p") is True
-
-    copied, message = app.copies[0]
-    assert "### chat-1\n```\n/tmp/chat-1.md\n```" in copied
-    assert "### chat-2\n```\n/tmp/chat-2.md\n```" in copied
-    assert message == "Copied 2 chat paths"
 
 
 def test_marked_files_contents_report_pre_filtered_binary_rows(

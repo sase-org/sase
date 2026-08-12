@@ -15,7 +15,6 @@ from sase.project_display_names import (
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import FIXED_ARTIFACTS_SUBTAB_ORDER
 from .artifacts_beads import ArtifactsBeadsActionsMixin, BEADS_ARTIFACT_ACTIONS
-from .artifacts_chats import ArtifactsChatsActionsMixin, CHATS_ARTIFACT_ACTIONS
 from .artifacts_commits import (
     COMMITS_ARTIFACT_ACTIONS,
     ArtifactsCommitsActionsMixin,
@@ -38,7 +37,6 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         *COMMITS_ARTIFACT_ACTIONS,
         *BEADS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
-        *CHATS_ARTIFACT_ACTIONS,
         *FILES_ARTIFACT_ACTIONS,
         "copy_tab_content",
         "toggle_mark",
@@ -180,7 +178,6 @@ class ArtifactsMixin(
     ArtifactsCommitsActionsMixin,
     ArtifactsBeadsActionsMixin,
     ArtifactsPlansActionsMixin,
-    ArtifactsChatsActionsMixin,
     ArtifactsFilesActionsMixin,
 ):
     """Compose Artifacts pane actions and manage their shared project scope."""
@@ -344,7 +341,6 @@ class ArtifactsMixin(
 __all__ = [
     "ArtifactsMixin",
     "BEADS_ARTIFACT_ACTIONS",
-    "CHATS_ARTIFACT_ACTIONS",
     "COMMITS_ARTIFACT_ACTIONS",
     "NON_PRS_ARTIFACT_ACTIONS",
     "PLANS_ARTIFACT_ACTIONS",

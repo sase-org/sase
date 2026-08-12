@@ -380,7 +380,6 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
     (
         ("@plans:", "plans: documents", "@plans:202607/alpha.md"),
         ("@file:", "file: artifacts", "@file:explicit:abc123"),
-        ("@chat:", "chat: chats", "@chat:202607/agent.md"),
         ("@commit:", "commit: commits", "@commit:sase@" + "a" * 12),
         ("@bug:", "bug: bugs", "@bug:sase#42"),
         ("@bead:", "bead: beads", "@bead:sase-9z"),
@@ -499,7 +498,6 @@ async def test_warm_keystroke_paths_do_not_touch_discovery_providers() -> None:
                 "sase.core.artifact_file_query_facade.query_artifact_files",
                 side_effect=fail,
             ),
-            patch("sase.history.chat_storage.iter_chat_files", side_effect=fail),
             patch("subprocess.run", side_effect=fail),
         ):
             assert text_area._try_artifact_ref_completion(force=True) is True

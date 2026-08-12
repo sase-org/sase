@@ -71,14 +71,6 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "are inspected only to report member model and outcome metadata."
         ),
     ),
-    "src/sase/ace/tui/widgets/artifacts/chats_detail.py:load_chat_detail": (
-        PathPassingReview(
-            exemption=(
-                "Read-only off-thread Chats detail enrichment: agent_meta.json and "
-                "done.json are inspected only to display model, provider, and status."
-            ),
-        )
-    ),
     "src/sase/agent/names/_lookup_groups.py:_iter_clan_members": PathPassingReview(
         exemption=(
             "Read-only clan completion lookup: done.json presence and outcome are "

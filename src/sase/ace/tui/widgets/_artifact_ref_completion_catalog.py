@@ -12,7 +12,6 @@ from sase.ace.tui.widgets._artifact_ref_completion_menu import (
     ArtifactRefCompletionCatalog,
 )
 from sase.ace.tui.widgets._artifact_ref_completion_models import (
-    ArtifactRefChatCandidate,
     ArtifactRefDocumentCandidate,
     ArtifactRefFileCandidate,
     ArtifactRefLoadedCandidates,
@@ -35,10 +34,6 @@ _ArtifactFileCatalogLoader = Callable[
     [str | None, ArtifactRefContext],
     ArtifactRefLoadedCandidates[ArtifactRefFileCandidate],
 ]
-_ChatCatalogLoader = Callable[
-    [ArtifactRefContext],
-    ArtifactRefLoadedCandidates[ArtifactRefChatCandidate],
-]
 
 
 def load_artifact_ref_completion_catalog(
@@ -47,12 +42,9 @@ def load_artifact_ref_completion_catalog(
     *,
     max_document_rows_per_kind: int,
     max_artifact_file_rows: int,
-    max_chat_scan_rows: int,
-    max_chat_rows: int,
     read_artifact_index: _ArtifactIndexReader,
     load_document_candidates: _DocumentCatalogLoader | None = None,
     load_artifact_file_candidates: _ArtifactFileCatalogLoader | None = None,
-    load_chat_candidates: _ChatCatalogLoader | None = None,
 ) -> ArtifactRefCompletionCatalog:
     """Discover bounded payload rows; callers must run this off the UI thread."""
     documents = (
@@ -73,15 +65,6 @@ def load_artifact_ref_completion_catalog(
         if load_artifact_file_candidates is None
         else load_artifact_file_candidates(project, context)
     )
-    chats = (
-        load_chat_candidate_catalog(
-            context,
-            max_scan_rows=max_chat_scan_rows,
-            max_rows=max_chat_rows,
-        )
-        if load_chat_candidates is None
-        else load_chat_candidates(context)
-    )
     beads = entity_catalogs.load_bead_candidate_catalog(context)
     agents = entity_catalogs.load_agent_candidate_catalog(context)
     return ArtifactRefCompletionCatalog(
@@ -89,14 +72,12 @@ def load_artifact_ref_completion_catalog(
         kinds=tuple(context.known_kinds),
         documents=tuple(documents.rows),
         artifact_files=tuple(artifact_files.rows),
-        chats=tuple(chats.rows),
         beads=beads.rows,
         agents=agents.rows,
         kind_details=document_kind_details(context),
         truncated_payloads_by_kind=(
             *documents.truncated_by_kind,
             *artifact_files.truncated_by_kind,
-            *chats.truncated_by_kind,
             ("bead", beads.truncated),
             ("agent", agents.truncated),
         ),
@@ -292,38 +273,3 @@ def accepted_project_names(
         if folded in candidate_names:
             names.update(candidate_names)
     return frozenset(names)
-
-
-def load_chat_candidate_catalog(
-    context: ArtifactRefContext,
-    *,
-    max_scan_rows: int,
-    max_rows: int,
-) -> ArtifactRefLoadedCandidates[ArtifactRefChatCandidate]:
-    """Load bounded chat rows and count paths deliberately left unscanned."""
-    try:
-        from sase.history.chat_storage import iter_chat_files
-
-        paths = iter_chat_files()
-    except Exception:
-        return ArtifactRefLoadedCandidates(())
-    rows: list[ArtifactRefChatCandidate] = []
-    truncated = 0
-    root = context.chats_root.expanduser().resolve(strict=False)
-    for index, path in enumerate(paths):
-        if index >= max_scan_rows:
-            truncated += 1
-            continue
-        resolved = path.expanduser().resolve(strict=False)
-        try:
-            payload = resolved.relative_to(root).as_posix()
-            modified_at = resolved.stat().st_mtime
-        except (OSError, ValueError):
-            continue
-        rows.append(ArtifactRefChatCandidate(payload, modified_at))
-    rows.sort(key=lambda row: (-row.modified_at, row.payload.casefold(), row.payload))
-    truncated += max(0, len(rows) - max_rows)
-    return ArtifactRefLoadedCandidates(
-        tuple(rows[:max_rows]),
-        (("chat", truncated),),
-    )

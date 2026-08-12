@@ -105,7 +105,6 @@ def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
         "change_status",
         "stitches_cycle_merges",
         "beads_cycle_status",
-        "chats_cycle_provenance",
         "files_cycle_kind",
         "save_marked_agents",
     ]

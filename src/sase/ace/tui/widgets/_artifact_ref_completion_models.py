@@ -13,7 +13,6 @@ ArtifactRefCompletionStage = Literal["kind", "payload"]
 ArtifactRefPayloadSource = Literal[
     "document",
     "file",
-    "chat",
     "commit",
     "bug",
     "bead",
@@ -106,12 +105,6 @@ class ArtifactRefFileCandidate:
     label: str
     file_kind: str
     created_at: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class ArtifactRefChatCandidate:
-    payload: str
-    modified_at: float
 
 
 ArtifactRefCommitCandidate = ArtifactRefCommitRow

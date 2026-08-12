@@ -144,20 +144,6 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-_CHATS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
-    {
-        "app.chats_next",
-        "app.chats_prev",
-        "app.chats_view_selected",
-        "app.chats_filters",
-        "app.chats_cycle_provenance",
-        "app.chats_open_agent",
-        "app.chats_open_external",
-        "app.chats_copy_path",
-        "app.chats_refresh",
-    }
-)
-
 _FILES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.files_next",
@@ -275,8 +261,6 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "beads"
     if spec.id.startswith("bead_issue."):
         return ctx.artifacts_subtab == "beads"
-    if spec.id in _CHATS_ARTIFACT_COMMANDS:
-        return False
     if spec.id in _FILES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "files"
     if ctx.artifacts_subtab != "patches":

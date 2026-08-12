@@ -29,7 +29,6 @@ class PaletteHarness:
         self.commits_pane: Any = None
         self.beads_pane: Any = None
         self.plans_pane: Any = None
-        self.chats_pane: Any = None
         self.files_pane: Any = None
         self.agent: Any = None
 
@@ -54,9 +53,6 @@ class PaletteHarness:
 
     def _beads_pane(self) -> Any:
         return self.beads_pane
-
-    def _chats_pane(self) -> Any:
-        return self.chats_pane
 
     def _files_pane(self) -> Any:
         return self.files_pane

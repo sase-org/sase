@@ -16,7 +16,6 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
     _ARTIFACT_INDEX_CACHE,
     _load_artifact_file_candidate_catalog,
     _read_cached_artifact_index,
-    load_artifact_ref_completion_catalog,
 )
 from sase.artifact_refs import (
     ArtifactRefAgentOwner,
@@ -27,45 +26,6 @@ from sase.artifact_refs import (
 )
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.core.artifact_file_types import ArtifactFile
-
-
-def test_chat_catalog_scan_is_bounded(tmp_path) -> None:
-    yielded = 0
-
-    def _chat_files():
-        nonlocal yielded
-        for index in range(4):
-            yielded += 1
-            path = tmp_path / f"{index}.md"
-            path.touch()
-            yield path
-
-    context = ArtifactRefContext(
-        document_roots=(),
-        chats_root=tmp_path,
-        artifact_index_path=tmp_path / "missing-index.jsonl",
-        repositories=(),
-        projects=(),
-    )
-    with (
-        patch(
-            "sase.history.chat_storage.iter_chat_files",
-            return_value=_chat_files(),
-        ),
-        patch(
-            "sase.ace.tui.widgets.artifact_ref_completion._MAX_CHAT_SCAN_ROWS",
-            2,
-        ),
-        patch(
-            "sase.ace.tui.widgets.artifact_ref_completion._MAX_CHAT_ROWS",
-            2,
-        ),
-    ):
-        catalog = load_artifact_ref_completion_catalog(None, context)
-
-    assert yielded == 4
-    assert len(catalog.chats) == 2
-    assert catalog.payload_truncation["chat"] == 2
 
 
 def test_artifact_index_cache_miss_queries_rust_and_reuses_unchanged_token(

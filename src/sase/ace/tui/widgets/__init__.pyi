@@ -14,7 +14,6 @@ from .alias_overrides_indicator import (
 from .ancestors_children_panel import AncestorsChildrenPanel as AncestorsChildrenPanel
 from .artifacts.panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
 from .artifacts.beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
-from .artifacts.chats_pane import ArtifactsChatsPane as ArtifactsChatsPane
 from .artifacts.plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .artifacts.files_pane import ArtifactsFilesPane as ArtifactsFilesPane
 from .artifacts.plans_pane import ArtifactsPlansPane as ArtifactsPlansPane

@@ -6,7 +6,6 @@ from functools import partial
 from pathlib import Path
 
 from sase.artifact_refs import design_reference_for_plan_row
-from sase.core.agent_identity_facade import present_agent_name
 
 from ...models.artifact_file_clipboard import (
     ArtifactFilePathCopy,
@@ -141,44 +140,6 @@ class ClipboardArtifactSelectedTargetsMixin(ClipboardArtifactMarkedTargetsMixin)
             value,
             copied_message=f"Copied plan {target}",
             content_shaped=target == "body",
-        )
-
-    def _copy_chat_target(self, target: str) -> None:
-        pane = self._chats_pane()  # type: ignore[attr-defined]
-        marked = self._visible_marked_targets(pane)
-        if marked is not None:
-            self._copy_marked_chat_targets(pane, marked, target)
-            return
-        entry = pane.selected_entry if pane is not None else None
-        if entry is None:
-            self.notify("No chat selected", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        if target == "path":
-            self.action_chats_copy_path()  # type: ignore[attr-defined]
-            return
-        if target == "agent":
-            agent = entry.agent_local_name or entry.agent
-            if not agent:
-                self.notify(  # type: ignore[attr-defined]
-                    "The selected chat has no agent name",
-                    severity="warning",
-                )
-                return
-            presented = present_agent_name(agent)
-            self._schedule_artifacts_copy(
-                presented,
-                copied_message="Copied chat agent name",
-            )
-            return
-
-        from ...widgets.artifacts.chats_detail import read_full_chat
-
-        self._schedule_artifacts_copy(
-            lambda: read_full_chat(entry),
-            copied_message="Copied chat transcript",
-            task_name="sase-chat-copy-transcript",
-            content_shaped=True,
         )
 
     def _copy_file_target(self, target: str) -> None:

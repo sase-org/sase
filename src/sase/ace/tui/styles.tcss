@@ -193,21 +193,6 @@ PlanFilterBar .filter-bar-completion > .option-list--option-highlighted {
     text-style: bold;
 }
 
-ChatFilterBar .filter-bar-sigil {
-    color: #5FAFFF;
-}
-
-ChatFilterBar .filter-bar-input,
-ChatFilterBar .filter-bar-completion {
-    border: solid #5FAFFF;
-}
-
-ChatFilterBar .filter-bar-completion > .option-list--option-highlighted {
-    color: $background;
-    background: #5FAFFF;
-    text-style: bold;
-}
-
 FileFilterBar .filter-bar-sigil {
     color: #FFAF5F;
 }
@@ -361,7 +346,6 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
 
 #artifacts-plans-pane,
 #artifacts-beads-pane,
-#artifacts-chats-pane,
 .artifacts-documents-pane {
     width: 100%;
     height: 100%;
@@ -515,75 +499,6 @@ MarkdownBlock > .code_inline {
 }
 
 #beads-hints {
-    width: 100%;
-    height: 1;
-    max-height: 1;
-    background: $surface;
-    text-align: center;
-    text-wrap: nowrap;
-    text-overflow: ellipsis;
-}
-
-#chats-panels {
-    width: 100%;
-    height: 1fr;
-}
-
-#chats-list-panel {
-    width: 55%;
-    min-width: 56;
-    height: 100%;
-    border: round #5FAFFF;
-}
-
-#chats-status {
-    width: 100%;
-    height: 2;
-    max-height: 2;
-    padding: 0 1;
-    background: $surface;
-    text-wrap: nowrap;
-    text-overflow: ellipsis;
-}
-
-#chats-list {
-    width: 100%;
-    height: 1fr;
-    scrollbar-gutter: stable;
-    text-wrap: nowrap;
-    text-overflow: ellipsis;
-}
-
-#chats-list > .option-list--option-highlighted {
-    background: #5FAFFF 30%;
-}
-
-#chats-empty {
-    width: 100%;
-    height: 1fr;
-    color: $text-muted;
-    content-align: center middle;
-    text-align: center;
-}
-
-#chats-detail-panel {
-    width: 1fr;
-    height: 100%;
-    border: round #5F5F87;
-}
-
-#chats-detail-scroll {
-    width: 100%;
-    height: 1fr;
-}
-
-#chats-detail {
-    width: 100%;
-    height: auto;
-    padding: 1 2;
-}
-
-#chats-hints {
     width: 100%;
     height: 1;
     max-height: 1;

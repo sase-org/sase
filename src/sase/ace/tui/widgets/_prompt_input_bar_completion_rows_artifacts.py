@@ -25,7 +25,6 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 _ARTIFACT_SOURCE_BADGES = {
     "document": ("[D] ", "bold #87D7FF"),
     "file": ("[F] ", "bold #D7AF5F"),
-    "chat": ("[C] ", "bold #5FD7AF"),
     "commit": ("[G] ", "bold #AF87FF"),
     "bug": ("[B] ", "bold #FF875F"),
     "bead": ("[◆] ", "bold #FFD700"),

@@ -91,7 +91,6 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert page.app.check_action("start_leader_mode", ()) is not False
         assert page.app.check_action("beads_refresh", ()) is False
         assert page.app.check_action("plans_refresh", ()) is False
-        assert page.app.check_action("chats_refresh", ()) is False
         assert page.app.check_action("files_refresh", ()) is False
         footer = page.query_one_widget("#keybinding-content", Static)
         assert footer.content.plain == ""
@@ -541,7 +540,6 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
         "ref:plan": "#AF87FF",
         "plans": "#AF87FF",
         "other": "#FFAF5F",
-        "chats": "#5FAFFF",
     }.items() <= ARTIFACTS_ACCENTS.items()
     assert FILES_SUBTAB_ORDER == ()
     assert FILES_PANE_IDS == {}

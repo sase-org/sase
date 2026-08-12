@@ -25,7 +25,6 @@ class CopyHarness(ClipboardMixin):
         self.snapshot_copies = 0
         self.commits_pane: Any = None
         self.plans_pane: Any = None
-        self.chats_pane: Any = None
         self.files_pane: Any = None
 
     @property
@@ -80,14 +79,6 @@ class CopyHarness(ClipboardMixin):
 
     def _plans_pane(self) -> Any:
         return self.plans_pane
-
-    def _chats_pane(self) -> Any:
-        return self.chats_pane
-
-    def action_chats_copy_path(self) -> None:
-        self.copies.append(
-            (self.chats_pane.selected_entry.absolute_path, "Copied chat path")
-        )
 
     def _files_pane(self) -> Any:
         return self.files_pane

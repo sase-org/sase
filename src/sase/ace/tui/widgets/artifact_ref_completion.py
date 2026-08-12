@@ -22,7 +22,6 @@ from sase.ace.tui.widgets._artifact_ref_completion_menu import (
 )
 from sase.ace.tui.widgets._artifact_ref_completion_models import (
     ArtifactRefBugCandidate,
-    ArtifactRefChatCandidate,
     ArtifactRefCommitCandidate,
     ArtifactRefCompletionContext,
     ArtifactRefCompletionResult,
@@ -44,15 +43,12 @@ ARTIFACT_REF_COMPLETION_KIND = "artifact_ref"
 
 _MAX_DOCUMENT_ROWS_PER_KIND = 5000
 _MAX_ARTIFACT_FILE_ROWS = 5000
-_MAX_CHAT_SCAN_ROWS = 5000
-_MAX_CHAT_ROWS = 5000
 
 # Keep the original private helper/cache names available to tests and local callers.
 _ARTIFACT_INDEX_CACHE = _catalog._ARTIFACT_INDEX_CACHE
 _ArtifactIndexCacheEntry = _catalog.ArtifactIndexCacheEntry
 _SNAPSHOT_PAYLOAD_MEMOS = _menu._SNAPSHOT_PAYLOAD_MEMOS
 _SnapshotPayloadMemo = _menu.SnapshotPayloadMemo
-_ArtifactRefChatCandidate = ArtifactRefChatCandidate
 _ArtifactRefDocumentCandidate = ArtifactRefDocumentCandidate
 _ArtifactRefFileCandidate = ArtifactRefFileCandidate
 _LoadedCandidates = ArtifactRefLoadedCandidates
@@ -128,12 +124,9 @@ def load_artifact_ref_completion_catalog(
         context,
         max_document_rows_per_kind=_MAX_DOCUMENT_ROWS_PER_KIND,
         max_artifact_file_rows=_MAX_ARTIFACT_FILE_ROWS,
-        max_chat_scan_rows=_MAX_CHAT_SCAN_ROWS,
-        max_chat_rows=_MAX_CHAT_ROWS,
         read_artifact_index=_read_cached_artifact_index,
         load_document_candidates=_load_document_candidate_catalog,
         load_artifact_file_candidates=_load_artifact_file_candidate_catalog,
-        load_chat_candidates=_load_chat_candidate_catalog,
     )
 
 
@@ -160,16 +153,6 @@ def _load_artifact_file_candidate_catalog(
 
 def _read_cached_artifact_index(index_path: Path) -> tuple[object, ...]:
     return read_cached_artifact_index(index_path)
-
-
-def _load_chat_candidate_catalog(
-    context: ArtifactRefContext,
-) -> ArtifactRefLoadedCandidates[ArtifactRefChatCandidate]:
-    return _catalog.load_chat_candidate_catalog(
-        context,
-        max_scan_rows=_MAX_CHAT_SCAN_ROWS,
-        max_rows=_MAX_CHAT_ROWS,
-    )
 
 
 def _payload_inventory(

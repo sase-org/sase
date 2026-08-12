@@ -32,6 +32,8 @@ from sase.artifact_refs import (
     ArtifactRefContext,
     ArtifactRefDocumentRoot,
     ArtifactRefRepository,
+    completion_artifact_ref_kinds,
+    parsable_artifact_ref_kinds,
     parse_artifact_ref,
 )
 
@@ -96,7 +98,6 @@ def test_document_catalog_loads_each_role_without_prompt_corpus_starvation(
 
     with (
         patch("sase.plan_search.facade.search", side_effect=search) as search_mock,
-        patch("sase.history.chat_storage.iter_chat_files", return_value=()),
         patch(
             "sase.ace.tui.widgets.artifact_ref_completion._MAX_DOCUMENT_ROWS_PER_KIND",
             2,
@@ -172,7 +173,6 @@ def test_document_catalog_filters_role_payloads_with_shared_matcher(
 
     with (
         patch("sase.plan_search.facade.search", side_effect=search),
-        patch("sase.history.chat_storage.iter_chat_files", return_value=()),
     ):
         catalog = load_artifact_ref_completion_catalog(None, context)
 
@@ -235,6 +235,18 @@ def test_payload_counts_and_truncation_are_propagated_from_catalog() -> None:
     assert result.payload_count == 2
     assert result.payload_total == 19
     assert result.truncated_payloads == 17
+
+
+def test_chat_kind_is_excluded_from_kind_and_payload_completion() -> None:
+    assert "chat" not in {kind.casefold() for kind in completion_artifact_ref_kinds()}
+    assert "chat" in {kind.casefold() for kind in parsable_artifact_ref_kinds()}
+
+    catalog = ArtifactRefCompletionCatalog(
+        project=None,
+        kinds=("commit", "bug", "chat", "plans"),
+    )
+    assert catalog.payload_indexes.keys() & {"commit", "bug", "chat"} == set()
+    assert catalog.payload_metadata.keys() & {"commit", "bug", "chat"} == set()
 
 
 def test_dynamic_payload_index_is_memoized_by_snapshot_identity() -> None:

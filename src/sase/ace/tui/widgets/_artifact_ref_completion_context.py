@@ -82,8 +82,6 @@ def artifact_ref_payload_panel_title(kind: str) -> str:
     folded = kind.casefold()
     if folded == "file":
         return "file: artifacts"
-    if folded == "chat":
-        return "chat: chats"
     if folded == "commit":
         return "commit: commits"
     if folded == "bug":
