@@ -13,6 +13,13 @@ from sase.agent.agent_name_keys import (
     has_unresolved_agent_name_key_marker,
     resolve_agent_name_key_markers,
 )
+from sase.agent.multi_prompt_reference_directives import (
+    extract_static_clan_directive,
+    extract_static_name_directive,
+)
+from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
+from sase.xprompt.loader_sources import load_xprompt_from_file
+from tests._xprompt_swarm_helpers import patch_catalog
 
 
 def _configure_allocation(
@@ -204,3 +211,42 @@ def test_concrete_clan_target_cannot_be_stolen_by_a_later_launch(
             )
             == "research.o"
         )
+
+
+def test_checked_in_reads_swarm_declares_one_clan_per_invocation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every #sase/reads invocation puts its four agents in one reads-<token> clan."""
+    reads_path = Path(__file__).resolve().parents[1] / "sase" / "xprompts" / "reads.md"
+    source = reads_path.read_text(encoding="utf-8")
+    assert "%g:" not in source
+    assert "reads.{@1}" not in source
+
+    reads = load_xprompt_from_file(reads_path)
+    assert reads is not None
+    with patch_catalog({"reads": reads}):
+        records = expand_xprompt_swarms_with_metadata(
+            ["#reads(episodic agent memory)", "#reads(context rot)"]
+        )
+
+    _configure_allocation(monkeypatch, ["0", "1"])
+    resolved = resolve_agent_name_key_markers([record.prompt for record in records])
+    assert len(resolved) == 8
+
+    for invocation, clan_name in ((resolved[:4], "reads-0"), (resolved[4:], "reads-1")):
+        clans = []
+        for segment in invocation:
+            clan = extract_static_clan_directive(segment)
+            assert clan is not None
+            clans.append(clan)
+        assert {clan.name for clan in clans} == {clan_name}
+        assert [clan.declared for clan in clans] == [True, False, False, False]
+        assert all(clan.tribe is None for clan in clans)
+        assert [extract_static_name_directive(segment) for segment in invocation] == [
+            f"{clan_name}.agy",
+            f"{clan_name}.cld",
+            f"{clan_name}.cdx",
+            f"{clan_name}.final",
+        ]
+        for suffix in ("agy", "cld", "cdx"):
+            assert f"%wait:{clan_name}.{suffix}" in invocation[3]
