@@ -103,15 +103,14 @@ ACE has three top-level tabs:
 
 - **Agents** — live and recent agent records. Find the run you just launched: prompt,
   reply transcript, workspace path, status, retry chain.
-- **Artifacts** — four top-level views for stitches, Patches, beads, and files. Files
-  has nested Plans, Chats, and Other views, so documents and stored artifact files
-  remain easy to browse without crowding the main tab strip. The Patches view contains
-  every Patch on the project. A **Patch** is SASE's durable record of one PR-sized unit
-  of work; think of it as the long-lived sibling of a pull request that holds the
-  description, parent, status (WIP → Draft → Ready → Mailed → Submitted), commits,
-  hooks, comments, and mentor activity all in one place. The
-  [Patch guide](change_spec.md) goes deeper when you're curious. This first read-only
-  run should not have created one yet; editable committed work is where Patches appear.
+- **Artifacts** — views for stitches, Patches, beads, configured document providers such
+  as Plans and Research, and captured files. The Patches view contains every Patch on
+  the project. A **Patch** is SASE's durable record of one PR-sized unit of work; think
+  of it as the long-lived sibling of a pull request that holds the description, parent,
+  status (WIP → Draft → Ready → Mailed → Submitted), commits, hooks, comments, and
+  mentor activity all in one place. The [Patch guide](change_spec.md) goes deeper when
+  you're curious. This first read-only run should not have created one yet; editable
+  committed work is where Patches appear.
 - **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete,
   mentor launches, error digests. ACE auto-starts AXE the first time it opens, so this
   tab is already ticking before you click it.
@@ -214,8 +213,8 @@ literal.
 
 See the [`sase artifact` command reference](configuration.md#sase-artifact) for
 inspection, path, viewer, and repair commands. The
-[Artifact References](xprompt.md#artifact-references) section documents canonical forms,
-project context, compatibility aliases, and allow-listed files. The
+[Artifact References](artifact_references.md) page documents canonical forms, project
+context, compatibility aliases, and allow-listed files. The
 [prompt preprocessing reference](llms.md#prompt-preprocessing-pipeline) explains
 expansion order and literal regions.
 

@@ -1344,8 +1344,7 @@ captured input. The normal `artifacts.capture.max_file_size_bytes` limit applies
 
 Run `sase doctor -C config.artifact_refs` to find malformed, missing, nested,
 overlapping, or zero-usable-root configurations. See
-[Artifact References](xprompt.md#artifact-references) for prompt syntax and context
-rules.
+[Artifact References](artifact_references.md) for prompt syntax and context rules.
 
 ### llm_provider
 
@@ -1739,7 +1738,7 @@ fix it. Authors may omit `use` and provide the inline fields in the table instea
 alias that warns and maps to `ref.inventory.globs`; new configuration must use
 `inventory.globs`. The `beads` and `agents` sidecars are entity-backed rather than
 document inventories, so document filters do not apply to them. See
-[Artifact References](xprompt.md#artifact-references) for canonical prompt forms and
+[Artifact References](artifact_references.md) for canonical prompt forms and
 project-context rules.
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace

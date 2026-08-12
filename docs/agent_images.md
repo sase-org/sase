@@ -114,7 +114,9 @@ The directory has three responsibilities:
   replaces the old `.sase/home/` location.
 - `pool/<sha12>-<basename>` holds immutable content-addressed copies of external file
   bytes. The `sha12` prefix is the first twelve hexadecimal characters of the file's
-  SHA-256 digest, and the basename is sanitized for a single path component.
+  SHA-256 digest, and the basename is sanitized for a single path component. Published
+  prompt archives copy these pooled bytes to the agents sidecar's
+  `files/objects/sha256/<hex-prefix>/<sha256>` object store.
 - `prompt-artifacts.jsonl` records one manifest row per staged reference;
   `prompt-artifacts.lock` serializes concurrent writers.
 
@@ -125,12 +127,12 @@ with a skip reason, but their bytes are not copied. Locator-only references such
 `@agent:`, `@patch:`, and `@stitch:` get manifest rows without file bytes.
 
 When `sase commit` publishes the canonical prompt archive, it reads the manifest rows
-for that run, copies pooled files to the agents sidecar under `artifacts/<YYYYMM>/`, and
-writes the prompt to `prompts/<YYYYMM>/<name>.md`. The body is the prompt text selected
-for publication. The prompt's `ARTIFACTS` header section lists exactly the `@...`
-references made clickable in the body. VCS-backed rows link to hosted source blobs at
-the recorded revision, while copied external files link to
-`../../artifacts/<YYYYMM>/<sha12>-<basename>`.
+for that run, copies pooled files to the agents sidecar's content-addressed object
+store, and writes the prompt to `prompts/<YYYYMM>/<name>.md`. The body is the prompt
+text selected for publication. The prompt's `ARTIFACTS` header section lists exactly the
+`@...` references made clickable in the body. VCS-backed rows link to hosted source
+blobs at the recorded revision, while copied external files link to
+`../../files/objects/sha256/<hex-prefix>/<sha256>`.
 
 The local pool is a cache for publication, not the permanent archive.
 `artifacts.capture.pool_max_bytes` controls when SASE opportunistically garbage-collects

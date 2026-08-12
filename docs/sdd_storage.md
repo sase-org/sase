@@ -72,12 +72,12 @@ before that project is migrated.
 
 The plans sidecar keeps monthly plan directories at its root (`<YYYYMM>/*.md`).
 Canonical committed prompts are stored in the hidden agents sidecar at
-`prompts/<YYYYMM>/*.md`, with copied prompt-linked bytes beside them at
-`artifacts/<YYYYMM>/`. Every other document sidecar likewise keeps `<YYYYMM>/`
-directories at its root. The beads sidecar keeps bead state at its **repository
-root**—`config.json`, `metadata.json`, `issues.jsonl`, and `events/`—plus generated bead
-pages under `pages/`, so its clone root is itself the bead directory. Kind resolution is
-therefore:
+`prompts/<YYYYMM>/*.md`; copied prompt-linked bytes live in that sidecar's
+content-addressed `files/objects/sha256/<hex-prefix>/<sha256>` object store. Every other
+document sidecar likewise keeps `<YYYYMM>/` directories at its root. The beads sidecar
+keeps bead state at its **repository root**—`config.json`, `metadata.json`,
+`issues.jsonl`, and `events/`—plus generated bead pages under `pages/`, so its clone
+root is itself the bead directory. Kind resolution is therefore:
 
 | Kind              | Resolved path                                                      |
 | ----------------- | ------------------------------------------------------------------ |

@@ -65,11 +65,11 @@ can still be selected and recovered.
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                                    |
-| ------------- | ------------------------------------------------------------------------------ |
-| **Agents**    | View running and completed agents, their files and prompts                     |
-| **Artifacts** | Browse four top-level views, with Plans, Chats, and Other nested beneath Files |
-| **Axe**       | Monitor the Axe daemon and background commands                                 |
+| Tab           | Description                                                               |
+| ------------- | ------------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts                |
+| **Artifacts** | Browse Stitches, Patches, Beads, configured document providers, and Files |
+| **Axe**       | Monitor the Axe daemon and background commands                            |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press
 `,?` (leader mode) to open the Help modal on its **Keymaps** view, then `]` to switch to
@@ -94,25 +94,25 @@ more" links into the published docs. An empty Beads pane points agents to
 `/sase_new_task`, calls out sized draft tasks, and explains how ready tasks enter
 TaskTriage.
 
-Within Artifacts, the top-level strip is numbered **1 Stitches · 2 Patches · 3 Beads · 4
-Files**. Press `1`–`4` to jump directly to a view, or use `[` / `]` to cycle. Files
-contains a second strip — **Plans · Chats · Other** — cycled with `(` / `)`. The nested
-selection is remembered when you leave Files. These keys act only while Artifacts is
-visible. Press `p` in Stitches, Beads, Plans, Chats, or Other to change the shared
-project scope, or use the command palette to jump directly to a top-level view. Patches
-remains query-scoped and retains the existing Patch workflow.
+Within Artifacts, the fixed tab keys are **1 Stitches · 2 Patches · 3 Beads · 4 Files**.
+Configured document-provider tabs such as Plans and Research appear between Beads and
+Files; use `[` / `]` to cycle through the complete runtime strip. The fixed number keys
+keep their meaning even when provider tabs are present. These keys act only while
+Artifacts is visible. Press `p` in Stitches, Beads, provider document panes, or Files to
+change the shared project scope, or use the command palette to jump directly to a
+top-level view. Patches remains query-scoped and retains the existing Patch workflow.
 
-### Navigation in Stitches, Beads, Plans, Chats, and Other
+### Navigation in Stitches, Beads, Provider Documents, and Files
 
-The five non-Patches panes share fast navigation over their selectable left-panel
-entries. Stitches, Chats, and Other skip day headings; Beads and Plans skip section and
+The non-Patches panes share fast navigation over their selectable left-panel entries.
+Stitches and Files skip day headings; Beads and provider document panes skip section and
 empty-state rows. Movement clamps at the first or last entry and silently does nothing
 when a list is empty.
 
 | Key                       | Action                                                                                  |
 | ------------------------- | --------------------------------------------------------------------------------------- |
-| `g` / `G`                 | Select the first / last commit, issue, bead, proposal, plan, chat, or other file        |
-| `Enter`                   | Open the selected commit, plan, bead, or chat in its full-screen reader                 |
+| `g` / `G`                 | Select the first / last commit, issue, bead, document, or file                          |
+| `Enter`                   | Open the selected commit, document, bead, or file in its full-screen reader             |
 | `Ctrl+F` / `Ctrl+B`       | Move down / up 10 selectable entries                                                    |
 | `Ctrl+D` / `Ctrl+U`       | Scroll the active right-hand detail pane down / up (half page)                          |
 | `'`                       | Show adaptive entry hints; press `'` again for the first entry or the last jump origin  |
@@ -143,7 +143,7 @@ not. Changes that shift which row is where — refiltering the model picker, pag
 deleting in the revival modal — discard the stored origins instead of leaving them
 pointing at whatever row inherited the index.
 
-### Copy Mode in Stitches, Beads, Plans, Chats, and Other
+### Copy Mode in Stitches, Beads, Provider Documents, and Files
 
 Press `%` on any non-Patches Artifacts pane to open the context-aware **Copy as…**
 palette for the visible entry. Rows are grouped by representation, show their configured
@@ -152,20 +152,18 @@ accelerator and a warm preview, and can be selected with the mouse, arrow keys o
 is configured as `j`, `k`, or `q`, the configured copy target wins over navigation or
 cancellation.
 
-| Pane     | Keys                                                                                                                                                              |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stitches | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
-| Beads    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
-| Plans    | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
-| Chats    | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%a` agent · `%t` transcript                                 |
-| Other    | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
+| Pane               | Keys                                                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stitches           | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
+| Beads              | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
+| Provider documents | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
+| Files              | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
 
 `%s` captures the current `sase ace` tmux pane on every view.
 
-The palette and copied value follow the active leaf pane. Thus, for example, `%n` on
-Chats reports the Chats key set instead of copying the hidden PR's name. After selection
-or cancellation, the footer returns to the active pane's normal bindings. An unknown
-printable key warns but leaves the palette open so another choice can be made.
+The palette and copied value follow the active pane. After selection or cancellation,
+the footer returns to the active pane's normal bindings. An unknown printable key warns
+but leaves the palette open so another choice can be made.
 
 When entries are marked, `%@` copies newline-separated prompt references, `%l` copies a
 Markdown bullet list, `%J` copies one JSON array, and `%!` seeds one prompt with the
@@ -178,7 +176,7 @@ including the preview panel. Dismissing the palette returns to the underlying mo
 Snapshot choices dismiss the palette before capture, so the palette itself is not
 included in the copied pane.
 
-### Marks in Stitches, Beads, Plans, Chats, and Other
+### Marks in Stitches, Beads, Provider Documents, and Files
 
 Press `m` to mark or unmark the selected entry and `u` to clear the active pane's marks.
 Each non-Patches pane keeps an independent stable-target mark set, so marks survive
@@ -362,14 +360,22 @@ When that worker appears on the Agents tab, its bead badge points directly to th
 and its **SASE CONTEXT / BEAD** lane shows the task title and description, plus size
 when one is stored, without trying to resolve an epic plan.
 
-### Plans Pane
+### Document Provider Panes
 
-Files → Plans is a document-only view with three sections: pending proposals, active
-plans linked from non-closed beads, and the archive. A document appears in exactly one
-section. `A` and `X` approve or reject proposals, and `L` appears only when the selected
-document has an owning bead. That key jumps to Beads; pressing `L` on the linked bead
-returns to the document. If a destination filter hides the counterpart, ACE clears that
-filter before landing on the row.
+Artifacts includes one document pane per configured artifact-reference provider. The
+fixed tabs are Stitches, Patches, Beads, and Files; provider-backed document tabs such
+as Plans and Research appear between Beads and Files when an enabled project configures
+the matching sidecar `ref:` policy. Persisted selections use stable ids such as
+`ref:plan` and `ref:research`, so a missing provider falls back to Stitches instead of
+crashing startup.
+
+Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
+existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
+only when the selected document has an owning bead. That key jumps to Beads; pressing
+`L` on the linked bead returns to the document. If a destination filter hides the
+counterpart, ACE clears that filter before landing on the row. Other document providers
+reuse the same list, filter, detail, preview, copy, and refresh behavior from their
+declared properties and detail fields.
 
 ### Commit Detail and Linked Plans
 
@@ -400,7 +406,7 @@ always returns the modal to commit mode.
 
 ### Preview Reader
 
-Press `Enter` on a Beads entry, Plans document, or Chats transcript to open its full
+Press `Enter` on a Beads entry, provider document, or Files row to open its full
 contents in the preview reader. Prompt-normal-mode `K` opens the same reader for a
 previewable xprompt, skill, or file. When ACE knows a canonical artifact reference, the
 title shows that logical reference beside the resolved local path.
@@ -425,8 +431,8 @@ title shows that logical reference beside the resolved local path.
 Path-only actions are omitted from the footer when the preview has no local source path;
 invoking one still produces a specific warning instead of failing. Clipboard operations
 run in the background and report when no clipboard tool is available. Plans open in
-rendered Markdown by default when they fit the reader's bounded render budget; chats,
-xprompts, skills, files, and oversized plan documents open as source.
+rendered Markdown by default when they fit the reader's bounded render budget; xprompts,
+skills, files, and oversized documents open as source.
 
 For an xprompt or skill preview with declared properties (inputs, tags, skill/snippet/
 memory flags, local xprompts, or steps), a compact band appears above the source pane
@@ -445,80 +451,16 @@ Markdown switches to source view. `Esc` in the input cancels the edit, while `Es
 a committed search first clears the matches and only closes the reader on the next
 press.
 
-### Chats Pane
+### Files Pane
 
-Files → Chats lists agent chat transcripts newest first, grouped under day headings,
-from the same catalog that backs [`sase chat list`](cli.md). Each row carries a **sync
-provenance** badge describing how the transcript reached this machine:
+Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
+pane is flattened into the top-level Artifacts tab rather than living under nested
+Plans/Chats/Other sub-tabs. Rows are grouped by logical file identity, so repeated
+captures of `@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same
+logical artifact appear as one selectable row with versions.
 
-| Badge | Provenance | Meaning                                              |
-| ----- | ---------- | ---------------------------------------------------- |
-| `◇`   | `local`    | Written here and not published to an agents sidecar. |
-| `◆`   | `shared`   | Written here and published to an agents sidecar.     |
-| `↓`   | `remote`   | Imported from another machine.                       |
-| `○`   | `unknown`  | Provenance could not be determined.                  |
-
-`unknown` is a truthful "could not check" rather than a guess, so an unrecognized value
-renders as `unknown` instead of being coerced into one of the other three.
-
-Selecting a row loads a detail pane off the event loop with a bounded transcript preview
-(the first 200 lines) plus the originating agent's provider, model, status, and whether
-it has been dismissed. Those agent facts come from the run's artifact directory, so a
-`remote` transcript with no local artifact shows the transcript alone.
-
-| Key       | Action                                                                                    |
-| --------- | ----------------------------------------------------------------------------------------- |
-| `j` / `k` | Select the next / previous transcript, skipping day headings                              |
-| `Enter`   | Open the full transcript in the [preview reader](#preview-reader)                         |
-| `f`       | Edit the pane's filter query                                                              |
-| `s`       | Cycle the provenance filter: All → local → shared → remote → unknown → All                |
-| `a`       | Jump to the transcript's agent on the Agents tab, reviving it first when it was dismissed |
-| `o`       | Open the transcript in `$EDITOR` (falling back to `nvim`)                                 |
-| `y`       | Copy the transcript's absolute path to the clipboard                                      |
-| `R`       | Refresh the catalog                                                                       |
-| `p`       | Change the shared Artifacts project scope                                                 |
-
-These are the default keymap values; the nine Chats actions are remappable under
-[`ace.keymaps.app`](configuration.md#acekeymaps) as `chats_next`, `chats_prev`,
-`chats_view_selected`, `chats_filters`, `chats_cycle_provenance`, `chats_open_agent`,
-`chats_open_external`, `chats_copy_path`, and `chats_refresh`. The pane also shares the
-navigation and jump keys described in
-[Navigation in Stitches, Beads, Plans, Chats, and Other](#navigation-in-stitches-beads-plans-chats-and-other).
-
-`a` matches a transcript to an agent by artifact directory, then by raw name suffix,
-then by recorded local agent name, always within the transcript's own project. When
-nothing matches, ACE warns rather than guessing — a transcript imported from another
-machine reports that it has no local agent artifact.
-
-#### Filtering Chats
-
-`f` opens the same live filter row Stitches and Plans use, and like Plans it is visible
-only during an edit session. Results update as you type: `Enter` commits the query and
-returns focus to the list, `Escape` restores the last committed query and selection, and
-`Tab` accepts the highlighted key or value completion. An invalid query is reported
-inline and on submit, leaving the committed results in place. Chats accepts
-`provenance:`, `machine:`, `project:`, `agent:`, `workflow:`, `since:`, and `until:`,
-plus free text matched against the transcript. Tokens from different facets combine with
-AND semantics, while comma-separated or repeated values within `provenance:`,
-`machine:`, `project:`, `agent:`, and `workflow:` combine with OR semantics.
-`provenance:` accepts only `local`, `shared`, `remote`, and `unknown`.
-
-Unlike Stitches and Plans, **Chats filters do not support negation**; a leading `-` is
-rejected with an explicit error rather than excluding a match.
-
-`s` and the `provenance:` token drive the same filter state, so the two controls stay
-consistent: cycling with `s` closes an open edit session and sets `provenance:` to the
-next single value, and reopening the query row shows that value. `s` steps through the
-cycle only when exactly one provenance is selected; a query listing several is treated
-like `All`, so the next press selects `local`.
-
-### Other Pane
-
-Files → Other browses the whole artifact-file store — the same index that backs
-[`sase artifact list`](cli.md) — instead of reaching one agent run at a time through the
-Agents tab's artifact panel. Rows are newest first under day headings, and each row
-shows a view-mode glyph, the local time, the project, the producing agent, an origin
-badge for explicitly registered files, the label, and the indexed size.
+Each row shows a view-mode glyph, the project, the producing agents, an origin badge,
+the logical label, the latest selected version's timestamp, and the indexed size.
 
 | Glyph | View mode  | Opens with                                                 |
 | ----- | ---------- | ---------------------------------------------------------- |
@@ -529,25 +471,21 @@ badge for explicitly registered files, the label, and the indexed size.
 | `•`   | `text`     | The [preview reader](#preview-reader), as source           |
 
 The glyph comes from the same classifier that chooses the viewer, so it can never
-disagree with what `Enter` actually opens. A `◆` badge marks files registered explicitly
-with `sase artifact create`; everything else was captured automatically from an agent
-run.
+disagree with what `Enter` actually opens. Origin badges distinguish files cited in a
+prompt (`ref`), files registered explicitly with `sase artifact create` (`created`), and
+automatic captures (`capture`).
 
-The info line above the list summarizes the loaded snapshot as kind chips —
-`▨ images · ▤ documents · ▶ videos · • files · ◆ explicit` — where `documents` totals
-PDFs and Markdown. The index loads off the message pump in two pages: a first bounded
-page paints immediately, then the full index replaces it, and the status line reports
-both the loaded row count and any in-flight extension.
+The info line above the list summarizes the loaded snapshot as kind chips and origin
+chips, where `documents` totals PDFs and Markdown. The index loads off the message pump
+in two pages: a first bounded page paints immediately, then the full index replaces it,
+and the status line reports both the loaded row count and any in-flight extension.
 
-Selecting a row loads its detail panel off-thread: the durable `file:<id>` reference
-beside the resolved stored path, file metadata (label, kind and view mode, MIME type,
-size, short SHA-256, creation time), an origin sentence naming the agent and workflow,
-`live` / `missing` badges for the stored and source paths, and — for Markdown and text
-rows — a bounded preview. Row times, detail creation times, and any labeled log
-timestamps render in the configured timezone; zone-labeled values use that timezone's
-abbreviation rather than a hardcoded `UTC` suffix. Rows whose index entry predates
-metadata backfill render `-` for the missing values and add a hint to run
-`sase artifact doctor --fix` instead of guessing.
+Selecting a row loads its detail panel off-thread. The detail header shows
+`version i/n`, the durable `file:<id>` or logical `@file` reference, digest, capture
+time, project, agent, origin, MIME type, and size. Markdown and text rows include a
+bounded preview. `(`/`)` cycle the selected row's versions without moving to another
+logical file; repeated captures with the same SHA-256 share one version and accumulate
+provenance.
 
 | Key       | Action                                                                          |
 | --------- | ------------------------------------------------------------------------------- |
@@ -558,27 +496,29 @@ metadata backfill render `-` for the missing values and add a hint to run
 | `a`       | Jump to the producing agent on the Agents tab, reviving it first when dismissed |
 | `f`       | Edit the pane's filter query                                                    |
 | `s`       | Cycle the kind filter through All and the stored kinds present in the snapshot  |
+| `(` / `)` | Select previous / next version for the current logical file                     |
 | `y`       | Copy the row's durable `file:<id>` reference                                    |
 | `Y`       | Copy the row's anchored stored path                                             |
 | `m` / `u` | Mark / unmark the selected file · clear this pane's marks                       |
-| `%`       | Open the Other **Copy as…** palette                                             |
+| `%`       | Open the Files **Copy as…** palette                                             |
 | `R`       | Refresh the index                                                               |
 | `p`       | Change the shared Artifacts project scope                                       |
 
-These are the default keymap values; the eleven Other-pane actions retain their
-`files_*` configuration names and are remappable under
+These are the default keymap values; the Files-pane actions retain their `files_*`
+configuration names and are remappable under
 [`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`,
 `files_view_selected`, `files_open_viewer`, `files_open_external`, `files_open_agent`,
 `files_filters`, `files_cycle_kind`, `files_copy_reference`, `files_copy_path`, and
-`files_refresh`. The pane also shares the navigation and jump keys described in
-[Navigation in Stitches, Beads, Plans, Chats, and Other](#navigation-in-stitches-beads-plans-chats-and-other).
+`files_refresh`. Version cycling uses the old nested-files sub-tab keys. The pane also
+shares the navigation and jump keys described in
+[Navigation in Stitches, Beads, Provider Documents, and Files](#navigation-in-stitches-beads-provider-documents-and-files).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
 Markdown source they were rendered from when the index recorded one. Relative index
 paths are anchored to the producing workspace, so a copied path is always usable outside
 the workspace that created it, and the completion toast says when the copied path no
 longer exists. The palette previews that same preferred path, so what a PDF row shows is
-what `%p` copies. `%` adds the rest of the Other-pane copy targets: contents, Markdown
+what `%p` copies. `%` adds the rest of the Files-pane copy targets: contents, Markdown
 link, source path, label, and metadata JSON, each of which also operates on the marked
 set.
 
@@ -587,26 +527,26 @@ artifact directory, then by raw name suffix, then by recorded agent name, always
 the row's own project. A file whose source workspace was recycled still opens and still
 copies — only its `Source` path reports `missing`.
 
-#### Filtering Other Files
+#### Filtering Files
 
-`f` opens the same live filter row Plans and Chats use, visible only during an edit
-session, and `/` opens it too. Filtering is purely in-memory over the loaded snapshot,
-so a query narrows ~4,000 rows without a re-query. Files accepts `kind:`, `project:`,
-`agent:`, `workflow:`, `origin:`, `since:`, and `until:`, plus free text matched against
-the label, stored path, and source path. Tokens from different facets combine with AND
-semantics, while comma-separated or repeated values within `kind:`, `project:`,
-`agent:`, `workflow:`, and `origin:` combine with OR semantics. `kind:` accepts the
-stored kinds `chat`, `plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts
-`explicit` and `default`; `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`,
-`YYYYMM`, or a relative `Nd` / `Nw` / `Nm` offset and may each appear once.
+`f` opens the same live filter row provider document panes use, visible only during an
+edit session, and `/` opens it too. Filtering is purely in-memory over the loaded
+snapshot, so a query narrows thousands of rows without a re-query. Files accepts
+`kind:`, `project:`, `agent:`, `workflow:`, `origin:`, `since:`, and `until:`, plus free
+text matched against the label, logical path, stored path, source path, digest, and
+artifact id. Tokens from different facets combine with AND semantics, while
+comma-separated or repeated values within `kind:`, `project:`, `agent:`, `workflow:`,
+and `origin:` combine with OR semantics. `kind:` accepts the stored kinds `chat`,
+`plan`, `image`, `markdown`, `pdf`, and `file`; `origin:` accepts `ref`, `created`, and
+`capture`; `since:` and `until:` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or a relative
+`Nd` / `Nw` / `Nm` offset and may each appear once.
 
-Like Chats, **Other-pane filters do not support negation**; a leading `-` is rejected
-with an explicit error rather than excluding a match. `s` and the `kind:` token drive
-the same filter state: cycling with `s` closes an open edit session and sets `kind:` to
-the next stored kind actually present in the snapshot, wrapping back to All. A query
-listing several kinds is treated like All, so the next press selects the first present
-kind. When a filter hides every row, the pane says so and names the key that reopens the
-query row.
+Files-pane filters do not support negation; a leading `-` is rejected with an explicit
+error rather than excluding a match. `s` and the `kind:` token drive the same filter
+state: cycling with `s` closes an open edit session and sets `kind:` to the next stored
+kind actually present in the snapshot, wrapping back to All. A query listing several
+kinds is treated like All, so the next press selects the first present kind. When a
+filter hides every row, the pane says so and names the key that reopens the query row.
 
 ### Epic phase sizes across plan surfaces
 
@@ -1337,11 +1277,11 @@ labeled “not recorded,” and copying a stale source keeps the “no longer ex
 With marks, the palette copies rows in visible order: references and paths are
 newline-separated, links form a Markdown list, metadata is a JSON array, and Markdown
 contents use bounded fenced sections. Unavailable rows are skipped with an explicit
-count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Files →
-Other pane's compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y`
-accelerators remain available and apply to the same marked set.
+count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Files
+pane's compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators
+remain available and apply to the same marked set.
 
-`Y` shares one helper with the [Other pane](#other-pane), so both copy the same anchored
+`Y` shares one helper with the [Files pane](#files-pane), so both copy the same anchored
 path: the stored path, except that PDF rows yield the live Markdown source they were
 rendered from when the index recorded one. Relative index paths are anchored to the
 producing workspace — including legacy rows whose workspace is discoverable only through
@@ -2249,17 +2189,16 @@ cancels, with configured target keys taking precedence.
 ### Editing Queries
 
 Press `/` on Patches or Axe to open the current query editor; the canonical query is
-pre-filled. The same app-level key opens the inline filter bar on Stitches, Plans,
-Chats, and Files. Agents reserves bare `/` for forward inline metadata search, so its
-structured query editor uses the independent `,/` leader chord. Help remains `,?` on
-every tab.
+pre-filled. The same app-level key opens the inline filter bar on Stitches, provider
+document panes, and Files. Agents reserves bare `/` for forward inline metadata search,
+so its structured query editor uses the independent `,/` leader chord. Help remains `,?`
+on every tab.
 
 | Context                 | Default query key  |
 | ----------------------- | ------------------ |
 | Patches                 | `/`                |
 | Stitches                | `/` (or local `f`) |
-| Plans                   | `/` (or local `f`) |
-| Chats                   | `/` (or local `f`) |
+| Provider documents      | `/` (or local `f`) |
 | Files                   | `/` (or local `f`) |
 | Agents structured query | `,/`               |
 | Axe                     | `/`                |
@@ -2346,7 +2285,7 @@ effective binding and destination.
 Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
 adaptive hints over that section's selectable rows using the same hint alphabet
 described under
-[Navigation in Stitches, Beads, Plans, Chats, and Other](#navigation-in-stitches-beads-plans-chats-and-other),
+[Navigation in Stitches, Beads, Provider Documents, and Files](#navigation-in-stitches-beads-provider-documents-and-files),
 a hint character moves the selection there, `'` again returns to the previous position
 (or the first hint with an empty back stack), and `Esc` cancels. Each working section's
 own keybindings table names its jump targets; two are deliberate exceptions. The

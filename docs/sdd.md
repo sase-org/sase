@@ -107,11 +107,12 @@ plan concurrently.
 
 Plans and research notes are organized into `YYYYMM` subdirectories (for example,
 `202603/`) based on the creation date. Canonical prompts are organized in the agents
-sidecar under `prompts/<YYYYMM>/`, with copied prompt-linked bytes under sibling
-`artifacts/<YYYYMM>/`. Plan discovery remains limited to `<plans-root>/<YYYYMM>/*.md`.
-Resolve the plans root with `sase repo path plans` or `SASE_SDD_PLANS_DIR`; historical
-plans-sidecar prompt directories, top-level `prompts/`, and `specs/` aliases remain
-readable for compatibility.
+sidecar under `prompts/<YYYYMM>/`; copied prompt-linked bytes live in that sidecar's
+content-addressed `files/objects/sha256/<hex-prefix>/<sha256>` object store. Plan
+discovery remains limited to `<plans-root>/<YYYYMM>/*.md`. Resolve the plans root with
+`sase repo path plans` or `SASE_SDD_PLANS_DIR`; historical plans-sidecar prompt
+directories, top-level `prompts/`, and `specs/` aliases remain readable for
+compatibility.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes)
 and a `bead_id` field linking to the bead issue tracker. For an epic,
@@ -260,7 +261,7 @@ plan-to-prompt hrefs remain valid and readable during migration.
 | `PARENT`    | one link            | hosted plan URL in the plans sidecar, else a file-relative href          |
 | `BEAD`      | one link or label   | hosted bead page when available and not disproved by a readable store    |
 | `AGENTS`    | ordered sub-bullets | hosted agent README URL in the agents sidecar, else an unlinked name     |
-| `ARTIFACTS` | ordered sub-bullets | hosted repository blobs or agents-sidecar `artifacts/<YYYYMM>/` files    |
+| `ARTIFACTS` | ordered sub-bullets | hosted repository blobs or agents-sidecar file-object links              |
 | `COMMITS`   | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA        |
 
 Sub-bullets are indented exactly two spaces and deterministically ordered: agents by

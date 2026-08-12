@@ -521,95 +521,14 @@ the pattern from firing.
 
 ### Artifact References
 
-Artifact references are prompt syntax, not xprompts. They use `@kind:argument` and are
-resolved late in prompt preprocessing, after xprompt expansion and command substitution.
-Use them to give an agent a durable document, entity, revision, or file without pasting
-its contents or relying on a recycled workspace path.
+Artifact references are prompt syntax, not xprompts. They use `@<kind>:<argument>` to
+cite a durable document, entity, revision, or file, and SASE resolves them late in
+prompt preprocessing after xprompt expansion. The retired `#ref/<kind>:<argument>`
+renderer syntax is not accepted.
 
-| Canonical form                  | Target                                                               |
-| ------------------------------- | -------------------------------------------------------------------- |
-| `@stitch:<sha>`                 | Revision in the selected project's primary repository                |
-| `@stitch:<repo>@<sha>`          | Revision in a named primary, linked, or sidecar repository           |
-| `@patch:<name>`                 | Patch by name                                                        |
-| `@bead:<id>`                    | Bead by full id or an unambiguous shorthand                          |
-| `@agent:<name>`                 | Published agent page, accepting local or global names                |
-| `@plan:<path>`                  | Plan document from the configured plans sidecar                      |
-| `@<document-kind>:<path>`       | Document from another configured sidecar, such as `@research:<path>` |
-| `@file:<absolute-or-home-path>` | File below an allow-listed `artifact_refs.file.roots` directory      |
-| `@file:<source>:<digest>`       | Indexed file; source is `explicit` or `default`                      |
-
-`@commit:` is a permanent compatibility alias for `@stitch:`. The historical `@plans:`,
-`@chat:`, and `@bug:` spellings are still recognized when their targets are available,
-but emit migration guidance to `@plan:`, `@agent:`, and `@bead:` respectively. The
-editor LSP offers canonical live kinds only. ACE's prompt bar currently also lists the
-recognized compatibility and historical kinds; its repository-history payload picker is
-still attached to `@commit:` rather than `@stitch:`. The former `#ref/<kind>:<argument>`
-syntax and its custom Jinja renderer files are retired and do not resolve.
-
-#### Project context and ambiguity
-
-Each top-level prompt segment resolves references using that segment's own leading
-`#git:` or provider tag such as `#gh:`. If the segment has no tag, SASE uses the launch
-identity supplied by the caller. It never guesses artifact-reference context from the
-current directory or a workspace marker.
-
-This matters most for short forms:
-
-- `@stitch:<sha>` uses the selected project's primary repository. Use
-  `@stitch:<repo>@<sha>` or add an explicit VCS tag when no project context is
-  available.
-- With project context, `@patch:<name>` searches only that project's active ProjectSpec,
-  then its archive; the active record wins if both contain the name. Without project
-  context, SASE searches enabled projects and rejects an ambiguous name.
-- A short `@bead:<suffix>` searches the selected project's bead store first, then the
-  other stores in the reference context. The ordering does not break ties: if more than
-  one store resolves the shorthand, SASE rejects it as ambiguous. A full bead id uses
-  the normal project-qualified resolver.
-- `@agent:<local-name>` is normalized to the global agent identity. When both the prompt
-  and chat files exist beside the published agent page, the expansion tells the agent
-  where to find those two sibling files.
-
-The replacement text is intentionally readable. Documents, files, beads, and agents
-become local `@absolute-path` tokens. Stitches become
-`stitch <full-sha> in <repo> (checkout: <path>)`. Patches become
-`the <name> Patch in project <project>` plus a `sase patch show` hint. The historical
-`@bug:` reader becomes `#<number> <provider-url>`.
-
-A malformed or missing reference for a known kind stops the launch with a diagnostic. An
-unknown `@kind:` token remains ordinary prose so domain-specific notation is not
-silently consumed. Inline code, fenced code, and `%xprompts_enabled:false` regions stay
-literal.
-
-#### Explicit file references
-
-Path-backed `@file:` references are opt-in. Configure one or more allow-listed roots;
-relative paths are deliberately rejected and are never interpreted against the current
-working directory:
-
-```yaml
-artifact_refs:
-  file:
-    roots:
-      - name: notes
-        path: ~/notes
-        path_globs: ["**/*.md", "!private/**"]
-```
-
-The root name is a stable lowercase slug made of letters, digits, `_`, and `-`, and is
-used in published metadata. `path` must be absolute or `~/` rooted. Optional
-`path_globs` are root-relative POSIX globs; `!` entries exclude matches. A reference
-must identify an existing regular file under one of the effective roots, pass its glob
-policy, and fit `artifacts.capture.max_file_size_bytes`.
-
-At launch SASE snapshots the selected bytes into the workspace-local content-addressed
-artifact pool and expands the prompt to that captured copy. The manifest retains the
-authored path, logical root-relative identity, digest, and size so later source edits do
-not change what the agent received and the committing agent can publish the reference to
-the agents sidecar. Run `sase doctor -C config.artifact_refs` to diagnose invalid,
-missing, overlapping, or unusable roots. See
-[artifact reference configuration](configuration.md#artifact_refs) and
-[prompt artifact staging](agent_images.md#prompt-artifact-staging-and-archive) for the
-full persistence model.
+See [Artifact References](artifact_references.md) for the grammar, live kinds,
+compatibility aliases, provider specs, publication links, and allow-listed `@file`
+roots.
 
 ## Arguments
 

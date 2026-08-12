@@ -117,7 +117,18 @@ An agent tribe is a user-facing label for related agents across clans and famili
 Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
 and displayed with an `@` prefix.
 
-#### 2.8 Patch
+#### 2.8 Artifact Reference
+
+ALIASES: ref
+
+An artifact reference (ref) is a typed `@<kind>:<argument>` citation in an agent prompt.
+Builtin kinds are `@stitch`, `@patch`, `@bead`, `@agent`, and the special `@file`;
+artifact repos add document kinds such as `@plan` and `@research` through a project's
+`ref:` config, written inline or with `use: <provider>` from an installed provider
+plugin. Every ref expands to prompt text, is recorded against the agent that used it,
+and publishes as a `[@kind:arg][N]` link.
+
+#### 2.9 Patch
 
 A Patch is SASE's local unit of change. Every PR created or managed by SASE is
 associated with exactly one Patch, but a Patch may exist without a PR, represented by an
@@ -127,7 +138,7 @@ Reverted) live in `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR,
 STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> Mailed ->
 Submitted.
 
-#### 2.9 Sase Project
+#### 2.10 Sase Project
 
 ALIASES: project
 
@@ -141,15 +152,15 @@ or, if unset, the key. Projects have exactly two user-facing states, enabled and
 disabled; missing `PROJECT_STATE:` means enabled, and only an explicit disable changes
 that. The system-managed `home` project remains hidden.
 
-#### 2.10 Sase Repo
+#### 2.11 Sase Repo
 
 ALIASES: repo
 
-A sase repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
-(`<project>--plans` or `<project>--research`), or a repo declared through
-`linked_repos:`.
+A sase repo is any repository SASE knows: a project's primary repo, an artifact sidecar
+repo such as `<project>--plans` or `<project>--research`, or a repo declared through
+`repos.linked`.
 
-#### 2.11 Sase Workspace
+#### 2.12 Sase Workspace
 
 ALIASES: workspace
 
@@ -158,7 +169,7 @@ workspace store and tracked in that project's `registry.json`. Each SASE agent c
 exactly one workspace until completion. Workspace directories are not repos. Linked-repo
 clones materialized for a workspace are repo checkouts, not additional workspaces.
 
-#### 2.12 Stitch
+#### 2.13 Stitch
 
 A stitch is the lightweight ordered change record inside a Patch's `STITCHES:` section.
 Every VCS commit made through the tracked workflow has an associated numeric stitch, but
@@ -166,29 +177,29 @@ a stitch need not have a commit: proposals retain numeric-plus-letter IDs such a
 `(2a)`. The `sase commit` command and real Git/Mercurial commits are still called
 commits.
 
-#### 2.13 Xprompt
+#### 2.14 Xprompt
 
 Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or
 .yml file) or in ~/.config/sase/sase.yml (`xprompts` field).
 
-#### 2.14 Xprompt Memory
+#### 2.15 Xprompt Memory
 
 ALIASES: memory file
 
 A flat SASE memory note exposed as a namespaced xprompt: `sase/memory/foo.md` expands
 with `#memory/foo`, and the `memory/` prefix is required.
 
-#### 2.15 Xprompt Part
+#### 2.16 Xprompt Part
 
 .md file -> single `prompt_part` step with the file's content.
 
-#### 2.16 Xprompt Swarm
+#### 2.17 Xprompt Swarm
 
 An xprompt whose body contains top-level `---` segment separators outside fenced blocks
 and fans out into one agent per segment at launch. Literal user prompts can also use
 `---`, but those are generic multi-agent prompts rather than xprompt swarms.
 
-#### 2.17 Xprompt Workflow
+#### 2.18 Xprompt Workflow
 
 .yml file -> multiple steps (`prompt_part`, `python`, `bash`, etc.).
 
@@ -258,7 +269,12 @@ Configured linked and sidecar repositories for this context:
   notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor
   support.
-- `sase--research`: Durable SASE research reports and generated media.
+- `sase-research`: Installable artifact-reference plugin that provides the `@research`
+  document provider, `research-highlights` file-hook template, and `#research*`
+  xprompts; it is not the `sase--research` content sidecar.
+- `sase--research`: Durable SASE research reports and generated media; this is the
+  `sase--research` content sidecar consumed by the `sase-research` plugin, not the
+  plugin repository.
 
 When you need to read or modify files in any repository other than your own workspace
 checkout, agents MUST use your `/sase_repo` skill first. This includes configured linked

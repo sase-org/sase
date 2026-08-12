@@ -23,6 +23,7 @@ nav:
       - Spec-Driven Development: sdd.md
       - SDD Storage: sdd_storage.md
       - XPrompts: xprompt.md
+      - Artifact References: artifact_references.md
       - Prompt History: prompt.md
   - Beyond the Basics:
       - Architecture: architecture.md

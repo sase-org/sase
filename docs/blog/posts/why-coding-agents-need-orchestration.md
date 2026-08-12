@@ -342,9 +342,8 @@ The core logical roots are:
   that can be turned into Beads and driven by `sase bead work`.
 - `<agents-sidecar>/prompts/<YYYYMM>/`: canonical committed run prompts. XPrompts are
   resolved, directives are stripped, and prompt-linked artifacts are made clickable.
-- `<agents-sidecar>/artifacts/<YYYYMM>/`: copied prompt-linked bytes, named with a
-  SHA-256 prefix; clean tracked files link to hosted source blobs instead of being
-  duplicated.
+- `<agents-sidecar>/files/objects/sha256/<hex-prefix>/<sha256>`: copied prompt-linked
+  bytes; clean tracked files link to hosted source blobs instead of being duplicated.
 - `beads/`: git-portable issue/dependency state under the resolved SDD store, with bead
   data, events, JSONL compatibility output, and the SQLite query cache.
 
@@ -394,11 +393,10 @@ three top-level tabs:
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps,
   prompt panels, transcript panels, artifact viewers, tool metadata, file panels,
   retry/fork/wait/kill actions, and model/provider badges.
-- **Artifacts**: Stitches, Patches, Beads, and Files top-level views, with Plans, Chats,
-  and Other nested under Files. The Patches view owns Patch status, hooks, comments,
-  mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and
-  archive operations; Chats browses transcripts with local/shared/remote sync
-  provenance.
+- **Artifacts**: Stitches, Patches, Beads, configured document providers, and Files. The
+  Patches view owns Patch status, hooks, comments, mentor output, diffs, file deltas,
+  mail/submit flows, rewind, revert, restore, and archive operations; provider document
+  panes browse sidecar-backed material such as plans and research notes.
 - **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks,
   hook checks, mentor checks, comment polling, and error digests.
 

@@ -54,7 +54,7 @@ agents/<global-name>/
 families/<global-family>.md
 prompts/<YYYYMM>/<name>.md
 prompts/<YYYYMM>/README.md
-artifacts/<YYYYMM>/<sha12>-<basename>
+files/objects/sha256/<hex-prefix>/<sha256>
 ```
 
 An artifact reference such as `@agent:foo` or `@agent:<username>.<machine>.foo`
@@ -106,12 +106,11 @@ possible.
 Launch-time staging records prompt references in the workspace-local
 `.sase/artifacts/prompt-artifacts.jsonl` manifest. When a prompt archive is published,
 external file bytes are copied from `.sase/artifacts/pool/` into the agents sidecar
-under `artifacts/<YYYYMM>/<sha12>-<basename>`. The prefix is the first twelve
-hexadecimal characters of the file's SHA-256 digest, so identical bytes publish once and
-differing bytes do not overwrite each other. Clean tracked files inside known
-repositories are not duplicated; their prompt links point to hosted source blobs at the
-recorded revision. Non-file references such as `@agent:`, `@patch:`, and `@stitch:`
-remain links without copied bytes.
+under `files/objects/sha256/<hex-prefix>/<sha256>`. The path is derived from the file's
+SHA-256 digest, so identical bytes publish once and differing bytes do not overwrite
+each other. Clean tracked files inside known repositories are not duplicated; their
+prompt links point to hosted source blobs at the recorded revision. Non-file references
+such as `@agent:`, `@patch:`, and `@stitch:` remain links without copied bytes.
 
 Prompt-archive publication is not a separate durable queue. The commit path publishes
 the archive directly, and the outbox request enqueued for that commit's hood also owns

@@ -65,6 +65,17 @@ An agent tribe is a user-facing label for related agents across clans and famili
 Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
 and displayed with an `@` prefix.
 
+## Artifact Reference
+
+ALIASES: ref
+
+An artifact reference (ref) is a typed `@<kind>:<argument>` citation in an agent prompt.
+Builtin kinds are `@stitch`, `@patch`, `@bead`, `@agent`, and the special `@file`;
+artifact repos add document kinds such as `@plan` and `@research` through a project's
+`ref:` config, written inline or with `use: <provider>` from an installed provider
+plugin. Every ref expands to prompt text, is recorded against the agent that used it,
+and publishes as a `[@kind:arg][N]` link.
+
 ## Patch
 
 A Patch is SASE's local unit of change. Every PR created or managed by SASE is
@@ -93,9 +104,9 @@ that. The system-managed `home` project remains hidden.
 
 ALIASES: repo
 
-A sase repo is any repository SASE knows: a project's primary repo, an SDD sidecar repo
-(`<project>--plans` or `<project>--research`), or a repo declared through
-`linked_repos:`.
+A sase repo is any repository SASE knows: a project's primary repo, an artifact sidecar
+repo such as `<project>--plans` or `<project>--research`, or a repo declared through
+`repos.linked`.
 
 ## Sase Workspace
 
