@@ -321,10 +321,11 @@ def register_bead_sync_external_parser(
         help="Mirror external tracker issues into task beads",
         description=(
             "Diff an enabled project's external tracker against its beads on "
-            "external_ref and create unsized open task beads for uncovered "
-            "issues. Upstream state changes append an attributed note and "
-            "never close a bead. Runs the same reconciliation pass as the "
-            "external_issue_mirror AXE chop."
+            "external_ref and create small open task beads for uncovered "
+            "issues. Upstream closes and reopens update mirrored beads when "
+            "safe, while referenced, worked, parented, and already-matching "
+            "beads get attributed notes only. Runs the same reconciliation "
+            "pass as the external_issue_mirror AXE chop."
         ),
         epilog=(
             "Examples:\n"
@@ -343,7 +344,7 @@ def register_bead_sync_external_parser(
         "-n",
         "--dry-run",
         action="store_true",
-        help="Show exact planned creations without mutating anything",
+        help="Show exact planned creations and status transitions without mutating anything",
     )
     parser.add_argument(
         "-p",

@@ -44,15 +44,20 @@ def _provider(*plugins: object) -> VCSPluginManager:
     return VCSPluginManager(manager)
 
 
-def _issue(number: int) -> IssueWire:
+def _issue(
+    number: int,
+    *,
+    state: str = "open",
+    updated_at: str = "2026-08-10T18:00:00Z",
+) -> IssueWire:
     return IssueWire(
         number=number,
         title=f"Issue {number}",
-        state="open",
+        state=state,  # type: ignore[arg-type]
         url=f"https://example.test/issues/{number}",
         provider_id=f"I_{number}",
-        updated_at="2026-08-10T18:00:00Z",
-        created_at="2026-08-10T18:00:00Z",
+        updated_at=updated_at,
+        created_at=updated_at,
     )
 
 
@@ -121,6 +126,33 @@ def test_mirror_chop_creates_beads_and_reports_counters(
     assert result["counters"]["checkpoint_advanced"] == 1
 
 
+def test_mirror_chop_closes_mirrored_bead_and_reports_counter(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_provider(monkeypatch, _provider(FakeIssueProvider([_issue(1)])))
+    _run_chop(
+        tmp_path,
+        target={"name": "sase", "project": "sase", "workspace_dir": "/repo"},
+    )
+    _install_provider(
+        monkeypatch,
+        _provider(
+            FakeIssueProvider(
+                [_issue(1, state="closed", updated_at="2026-08-10T19:00:00Z")]
+            )
+        ),
+    )
+
+    result = _run_chop(
+        tmp_path,
+        target={"name": "sase", "project": "sase", "workspace_dir": "/repo"},
+    )
+
+    assert result["status"] == "ok"
+    assert result["counters"]["beads_closed"] == 1
+    assert result["counters"]["notes_appended"] == 1
+
+
 def test_mirror_chop_fails_closed_without_target_workspace_dir(
     tmp_path: Path,
 ) -> None:
@@ -128,6 +160,22 @@ def test_mirror_chop_fails_closed_without_target_workspace_dir(
 
     assert result["status"] == "check_error"
     assert result["reason"] == "missing_target_workspace"
+
+
+def test_mirror_chop_check_error_counter_keys_match_ok_summary(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _install_provider(monkeypatch, _provider(FakeIssueProvider([])))
+    ok = _run_chop(
+        tmp_path,
+        target={"name": "sase", "project": "sase", "workspace_dir": "/repo"},
+    )
+    check_error = _run_chop(
+        tmp_path,
+        target={"name": "sase", "project": "sase"},
+    )
+
+    assert set(check_error["counters"]) == set(ok["counters"])
 
 
 def test_mirror_chop_fails_closed_without_target_project(tmp_path: Path) -> None:

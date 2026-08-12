@@ -324,12 +324,18 @@ cap does not advance its watermark, so a large first backlog converges over seve
 exponential backoff (capped at one hour) keeps one unreachable tracker from stalling
 every pass.
 
-Upstream issue closes, reopens, and disappearances never change a bead's status or
-delete it — reconciliation stays an explicit user action. Each transition appends one
-attributed `sase bead note` the first time it is observed and updates the mirror's
-durable `upstream_states` record so the same transition is never re-noted. The
-[`external_mirror.issues.filters`](configuration.md#external_mirror) surface (empty by
-default) excludes tracker issues from mirroring by author, label, title, or state; a
+When an issue linked by `external_ref` closes or reopens upstream, the mirror closes or
+reopens the mirrored bead and appends one attributed note. It leaves status unchanged
+and appends the note only when the local bead merely references the issue with a `bug:`
+ref, an agent is working or claiming the bead, the bead has unclosed descendants, or the
+bead already matches the upstream state. Disappearances also remain note-only because
+there is no safe status target. Once a transition is recorded in durable
+`upstream_states`, the same transition is never re-noted. The Beads pane's drift badge
+therefore narrows to unreconciled cases: guard-skipped mirrored links, referenced-only
+links, and title drift.
+
+The [`external_mirror.issues.filters`](configuration.md#external_mirror) surface (empty
+by default) excludes tracker issues from mirroring by author, label, title, or state; a
 non-empty filter means the bead list is no longer a strict superset of the issue list.
 Filters gate creation only — clearing a filter re-examines the issues it previously
 dropped, but a filter never deletes a bead that already exists. Records a filter drops

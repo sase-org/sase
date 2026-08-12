@@ -104,14 +104,22 @@ def _render_reports(
             f"issues={report.issues_seen} created={report.beads_created} "
             f"notes={report.notes_appended} deferred={report.deferred}"
         )
+        if report.beads_closed:
+            line += f" closed={report.beads_closed}"
+        if report.beads_reopened:
+            line += f" reopened={report.beads_reopened}"
         if report.unmirrored:
             line += f" filtered={report.unmirrored}"
         if report.degraded:
             line += f"  [yellow]degraded={escape(report.degraded)}[/yellow]"
         console.print(line)
-        if dry_run and report.created_refs:
+        if dry_run:
             for ref in report.created_refs:
                 console.print(f"  [green]would create[/green] {escape(ref)}")
+            for ref in report.closed_refs:
+                console.print(f"  [yellow]would close[/yellow] {escape(ref)}")
+            for ref in report.reopened_refs:
+                console.print(f"  [green]would reopen[/green] {escape(ref)}")
 
 
 __all__ = ["handle_bead_sync_external"]

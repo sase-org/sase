@@ -759,12 +759,13 @@ axe:
             source: projects
             vcs: [git, gh]
           description: |-
-            Mirror every external tracker issue into an open task bead
+            Mirror every external tracker issue into a task bead
 
             Expands to one instance per enabled project and diffs that project's tracker against local beads on
-            external_ref, creating unsized open task beads for uncovered issues. Upstream state changes append an
-            attributed note and never close a bead. A per-pass creation cap, bounded store-lock waits, and persistent
-            exponential backoff keep one large backlog or one unreachable tracker from stalling the pass.
+            external_ref, creating small open task beads for uncovered issues. Upstream closes and reopens update
+            mirrored beads when safe; referenced, worked, parented, and already-matching beads get attributed notes
+            only. A per-pass creation cap, bounded store-lock waits, and persistent exponential backoff keep one large
+            backlog or one unreachable tracker from stalling the pass.
         - name: external_pr_mirror
           script: sase_chop_external_pr_mirror
           timeout: "5m"

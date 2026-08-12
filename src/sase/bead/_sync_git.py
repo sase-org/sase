@@ -160,7 +160,7 @@ def commit_external_issue_mirror(
     *,
     already_locked: bool = False,
 ) -> bool:
-    """Commit every bead created or noted by one external issue mirror pass."""
+    """Commit every bead created, noted, closed, or reopened by one issue mirror pass."""
     return _commit_bead_state(
         beads_dir,
         message=f"chore(beads): mirror external issues for {project}",

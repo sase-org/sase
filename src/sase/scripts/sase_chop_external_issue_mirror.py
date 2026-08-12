@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
-from sase.external_mirror.issues import run_issue_mirror_for_project, summary_counters
+from sase.external_mirror.issues import (
+    MirrorReport,
+    run_issue_mirror_for_project,
+    summary_counters,
+)
 
 #: Degradations that are surfaced as actionable failures, matching the
 #: doctor-visible auth/rate-limit categories. Every other degradation
@@ -25,16 +29,7 @@ def _check_error(
 ) -> ChopResultBuilder:
     runtime.log.error(detail)
     result = runtime.emit_summary(
-        {
-            "issues_seen": 0,
-            "beads_created": 0,
-            "notes_appended": 0,
-            "conflicts": 0,
-            "unmirrored": 0,
-            "deferred": 0,
-            "provider_calls": 0,
-            "checkpoint_advanced": 0,
-        },
+        summary_counters(MirrorReport(project="", display_name="")),
         reason=reason,
     )
     result.status = "check_error"
@@ -83,7 +78,13 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         reason = report.degraded
     elif runtime.context.dry_run:
         reason = "dry_run"
-    elif not (report.beads_created or report.notes_appended or report.deferred):
+    elif not (
+        report.beads_created
+        or report.beads_closed
+        or report.beads_reopened
+        or report.notes_appended
+        or report.deferred
+    ):
         reason = "no_changes"
     else:
         reason = None

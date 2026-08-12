@@ -574,14 +574,18 @@ same pass manually.
 
 A mirrored bead carries `external_ref` (the mirror's idempotency key, project-key
 qualified) and a matching `bug:<display-name>#<n>` entry in `refs` (the human-facing,
-searchable spelling); both normalize to the same identity. Upstream closes, reopens, and
-disappearances never change the bead's status or close it — that stays a deliberate
-human action — but each transition appends one attributed note the first time it is
-observed, so drift is visible without being auto-resolved. The
-[`external_mirror.issues.filters`](configuration.md#external_mirror) surface (empty by
-default) excludes tracker issues from mirroring by author, label, title, or state;
-filters gate creation only, so clearing one re-examines the issues it previously dropped
-without deleting a bead that already exists.
+searchable spelling); both normalize to the same identity. A bead that only carries the
+`bug:` ref is a reference, not a mirror, and its status stays human-owned. When the
+upstream issue behind `external_ref` closes or reopens, the mirror closes or reopens the
+mirrored bead and appends one attributed note. It appends the note without changing
+status when the bead is reference-only, claimed or in progress, has unclosed
+descendants, or already matches the upstream state. Disappearances are also note-only
+because there is no safe status target. After this reconciliation, the Beads pane's
+drift badge means the link is still unreconciled: guard-skipped, reference-only, or
+title drift. The [`external_mirror.issues.filters`](configuration.md#external_mirror)
+surface (empty by default) excludes tracker issues from mirroring by author, label,
+title, or state; filters gate creation only, so clearing one re-examines the issues it
+previously dropped without deleting a bead that already exists.
 
 ### Artifact References
 
@@ -1475,11 +1479,11 @@ Run one external tracker mirror pass — the same reconciliation path the
 `external_issue_mirror` AXE chop runs every fifteen minutes. See
 [External Issue Mirroring](#external-issue-mirroring).
 
-| Flag            | Description                                                        |
-| --------------- | ------------------------------------------------------------------ |
-| `-f, --full`    | Force a full repair scan instead of the steady-state short-circuit |
-| `-n, --dry-run` | Show exact planned creations without mutating anything             |
-| `-p, --project` | Only mirror one project by display name, alias, or canonical key   |
+| Flag            | Description                                                                   |
+| --------------- | ----------------------------------------------------------------------------- |
+| `-f, --full`    | Force a full repair scan instead of the steady-state short-circuit            |
+| `-n, --dry-run` | Show exact planned creations and status transitions without mutating anything |
+| `-p, --project` | Only mirror one project by display name, alias, or canonical key              |
 
 ### `sase bead update <id> [<id2> ...]`
 
