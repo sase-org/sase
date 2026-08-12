@@ -114,6 +114,10 @@ def _generated_sase_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md"
 
 
+def generated_glossary_memory_relative_path() -> Path:
+    return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
+
+
 def _generated_beads_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_beads.md"
 
@@ -396,7 +400,7 @@ def render_expected_memory_files(
         generated_sase_path: generated_sase_content,
     }
     if generated_glossary is not None:
-        note_overlay[root / (CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md")] = (
+        note_overlay[root / generated_glossary_memory_relative_path()] = (
             generated_glossary.content
         )
     if include_project_memory and generated_project_long_contents is not None:
@@ -439,7 +443,7 @@ def render_expected_memory_files(
     if generated_glossary is not None:
         expected.append(
             MemoryExpectedFile(
-                path=root / (CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"),
+                path=root / generated_glossary_memory_relative_path(),
                 content=generated_glossary.content,
                 detail="generated glossary memory",
             )
@@ -490,18 +494,9 @@ def render_expected_memory_files(
     return tuple(expected), None
 
 
-def generated_short_notes(
-    generated_sase_body: str,
-    *,
-    generated_glossary: GeneratedGlossaryMemory | None = None,
-) -> dict[str, str]:
-    """Return the freshly generated short-note bodies keyed by relative path."""
-    notes = {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
-    if generated_glossary is not None:
-        notes[(CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md").as_posix()] = (
-            generated_glossary.body
-        )
-    return notes
+def generated_short_notes(generated_sase_body: str) -> dict[str, str]:
+    """Return freshly generated short-note bodies keyed by relative path."""
+    return {_generated_sase_memory_relative_path().as_posix(): generated_sase_body}
 
 
 def generated_long_notes(

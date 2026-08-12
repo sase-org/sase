@@ -54,7 +54,7 @@ def test_memory_loader_creates_namespaced_no_arg_xprompt(
     project = tmp_path / "repo"
     _write(
         project / "sase" / "memory" / "glossary.md",
-        _memory_note("# Glossary\n", note_type="short", description="Terms."),
+        _memory_note("# Glossary\n", note_type="long", description="Terms."),
     )
     _write(project / "sase" / "memory" / "README.md", "# Ignored\n")
     _write(project / "sase" / "memory" / "nested" / "ignored.md", "# Ignored\n")
@@ -66,7 +66,7 @@ def test_memory_loader_creates_namespaced_no_arg_xprompt(
     assert glossary.inputs == []
     assert glossary.content == "# Glossary\n"
     assert glossary.description == "Terms."
-    assert glossary.memory_type == "short"
+    assert glossary.memory_type == "long"
     assert glossary.source_path == str(project / "sase" / "memory" / "glossary.md")
 
 

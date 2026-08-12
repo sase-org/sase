@@ -46,7 +46,7 @@ def test_xprompt_list_includes_kind_and_insertion(
         "memory/glossary": Workflow(
             name="memory/glossary",
             source_path="/tmp/sase/memory/glossary.md",
-            memory_type="short",
+            memory_type="long",
             steps=[WorkflowStep(name="prompt", prompt_part="Glossary body")],
         ),
         "multi": _xprompt_swarm_workflow("multi"),
@@ -75,7 +75,7 @@ def test_xprompt_list_includes_kind_and_insertion(
     assert rows["memory/glossary"]["kind"] == "memory"
     assert rows["memory/glossary"]["prefix"] == "#"
     assert rows["memory/glossary"]["insertion"] == "#memory/glossary"
-    assert rows["memory/glossary"]["memory_type"] == "short"
+    assert rows["memory/glossary"]["memory_type"] == "long"
     assert rows["memory/glossary"]["source"] == "/tmp/sase/memory/glossary.md"
 
     assert rows["multi"]["type"] == "xprompt"

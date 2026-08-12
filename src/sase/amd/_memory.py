@@ -198,6 +198,7 @@ def _long_memory_description_updates(
 def _short_memory_bodies(
     root: Path,
     generated_short_notes: Mapping[str, str],
+    generated_long_notes: Mapping[str, GeneratedLongMemoryNote] | None = None,
     *,
     source_memory_root: Path | None = None,
     excluded_note_paths: frozenset[str] = frozenset(),
@@ -207,13 +208,18 @@ def _short_memory_bodies(
     Bodies discovered on disk are overlaid with the freshly generated bodies in
     *generated_short_notes* (for example ``sase/memory/sase.md``) so a single
     ``sase memory init`` pass inlines the just-written note content rather than a
-    stale on-disk copy. The result is sorted by path so the rendered ``AGENTS.md``
-    section order is deterministic.
+    stale on-disk copy. Paths owned by generated long notes are excluded from the
+    discovered short-note set so type migrations converge in the same pass. The
+    result is sorted by path so the rendered ``AGENTS.md`` section order is
+    deterministic.
     """
+    generated_long_note_paths = frozenset(generated_long_notes or {})
     bodies: dict[str, str] = {
         note.relative_path: note.body
         for note in discover_memory_notes(root, source_memory_root=source_memory_root)
-        if note.type == "short" and note.relative_path not in excluded_note_paths
+        if note.type == "short"
+        and note.relative_path not in excluded_note_paths
+        and note.relative_path not in generated_long_note_paths
     }
     bodies.update(generated_short_notes)
     return dict(sorted(bodies.items()))
@@ -381,6 +387,8 @@ def plan_amd_memory_sync(
     fresh root lists top-level notes and omits child notes in Tier 2 in that same pass.
     """
     root = root or Path.cwd()
+    generated_short_notes = generated_short_notes or {}
+    generated_long_notes = generated_long_notes or {}
     title, title_error = resolve_amd_h1_title(
         root, derive_project_title=derive_project_title
     )
@@ -394,12 +402,13 @@ def plan_amd_memory_sync(
     if title is None:
         return plan_minimal_agents_sync(
             root,
-            generated_short_notes=generated_short_notes or {},
+            generated_short_notes=generated_short_notes,
         )
 
     short_memory_bodies = _short_memory_bodies(
         root,
-        generated_short_notes or {},
+        generated_short_notes,
+        generated_long_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
@@ -414,14 +423,14 @@ def plan_amd_memory_sync(
 
     descriptions = _long_memory_descriptions(
         root,
-        generated_long_notes or {},
+        generated_long_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
     updates = _long_memory_description_updates(
         root,
         descriptions,
-        generated_long_notes or {},
+        generated_long_notes,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
@@ -429,7 +438,7 @@ def plan_amd_memory_sync(
         root,
         title,
         long_memory_descriptions=descriptions,
-        generated_long_notes=generated_long_notes or {},
+        generated_long_notes=generated_long_notes,
         short_memory_bodies=short_memory_bodies,
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,

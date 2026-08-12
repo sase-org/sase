@@ -7,10 +7,13 @@ from pathlib import Path
 import pytest
 
 from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.main.init_memory.formatting import format_generated_memory_markdown
+from sase.memory.notes import parse_memory_note_text
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
     run_memory,
+    single_line,
     write,
 )
 
@@ -37,6 +40,16 @@ def _setup_project(
     if home_config is not None:
         write(config_dir / "sase.yml", home_config)
     return project_root, home_root, config_dir
+
+
+def _tier1_memory(agents: str) -> str:
+    return agents.split("## Tier 1 (short-term) Memory", 1)[1].split(
+        "## Tier 2 (long-term) Memory", 1
+    )[0]
+
+
+def _tier2_memory(agents: str) -> str:
+    return agents.split("## Tier 2 (long-term) Memory", 1)[1]
 
 
 def test_memory_plan_generates_project_glossary_before_agents(
@@ -67,23 +80,37 @@ memory:
     action_by_path = {action.path: action for action in plan.actions}
     glossary = action_by_path[project_root / "sase" / "memory" / "glossary.md"]
     glossary_text = str(glossary.new_content)
+    glossary_note = parse_memory_note_text(glossary_text, "sase/memory/glossary.md")
+    assert glossary_note.type == "long"
+    assert glossary_note.parent == "AGENTS.md"
+    assert glossary_note.description is not None
     assert "sase_generated: glossary" in glossary_text
     assert "# Glossary of Terms" in glossary_text
     assert "## Agent Clan" in glossary_text
     assert "ALIASES: clan" in glossary_text
     assert "agent clans" not in glossary_text
     assert "Aliases: clan" not in glossary_text
+    assert "Agent Clan (aka clan)" in glossary_note.description
+    assert "Workspace" in glossary_note.description
+    assert "`sase memory read glossary.md`" in glossary_note.description
 
     agents = str(action_by_path[project_root / "AGENTS.md"].new_content)
-    assert "### 1. Glossary of Terms (glossary)" in agents
-    assert "#### 1.1 Agent Clan" in agents
-    assert "A named, rootless container" in agents
+    tier1 = _tier1_memory(agents)
+    tier2 = _tier2_memory(agents)
+    assert "Glossary of Terms" not in tier1
+    assert "A named, rootless container" not in agents
+    assert "**`sase/memory/glossary.md`**" in tier2
+    assert "Agent Clan (aka clan)" in single_line(tier2)
+    assert "`sase memory read glossary.md`" in tier2
 
     readme = str(
         action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
     )
     assert "### `sase/memory/glossary.md`" in readme
-    assert "Project-local glossary generated from sase.yml." in readme
+    assert "- Type: `long`" in readme
+    assert "Agent Clan (aka clan)" in single_line(readme)
+    assert "- Short notes: 1" in readme
+    assert "- Long notes: 3" in readme
 
 
 def test_memory_plan_omits_alias_line_when_only_alias_is_term_plural(
@@ -111,10 +138,59 @@ memory:
         action for action in plan.actions if action.path.name == "glossary.md"
     )
     glossary_text = str(glossary.new_content)
+    glossary_note = parse_memory_note_text(glossary_text, "sase/memory/glossary.md")
     assert "## Patch\n\nA tracked unit of change." in glossary_text
     assert "## Patch\n\n\nA tracked unit of change." not in glossary_text
     assert "ALIASES:" not in glossary_text
     assert "Aliases:" not in glossary_text
+    assert glossary_note.description is not None
+    assert "Patch" in glossary_note.description
+    assert "patches" not in glossary_note.description
+    assert "(aka" not in glossary_note.description
+
+
+def test_memory_plan_glossary_description_indexes_terms_aliases_and_is_format_stable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config="""
+is_sase_managed: true
+memory:
+  glossary:
+    Agent Clan:
+      aliases:
+        - hood
+        - agent neighborhood
+      definition: A named, rootless container.
+    Artifact Reference:
+      aliases:
+        - artifact references
+        - ref
+      definition: A typed citation in an agent prompt.
+""",
+    )
+
+    plan = plan_memory()
+
+    assert plan.blockers == ()
+    glossary = next(
+        action for action in plan.actions if action.path.name == "glossary.md"
+    )
+    glossary_text = str(glossary.new_content)
+    glossary_note = parse_memory_note_text(glossary_text, "sase/memory/glossary.md")
+    description = glossary_note.description
+    assert description is not None
+    assert "Agent Clan (aka hood, agent neighborhood)" in description
+    assert "Artifact Reference (aka ref)" in description
+    assert "artifact references" not in description
+    assert "`sase memory read glossary.md`" in description
+    assert ": " not in description
+    assert "#" not in description
+    assert "\t" not in description
+    assert format_generated_memory_markdown(glossary_text) == glossary_text
 
 
 def test_memory_apply_generates_glossary_idempotently_and_copies_provider_shims(
@@ -138,12 +214,55 @@ memory:
     assert run_memory() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### 1. Glossary of Terms (glossary)" in agents
+    assert "Glossary of Terms" not in _tier1_memory(agents)
+    assert "**`sase/memory/glossary.md`**" in _tier2_memory(agents)
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
 
     assert run_memory(check=True) == 0
     assert plan_memory().actions == ()
+
+
+def test_memory_init_migrates_generated_glossary_short_note_in_single_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _, _ = _setup_project(
+        tmp_path,
+        monkeypatch,
+        project_config="""
+is_sase_managed: true
+memory:
+  glossary:
+    Workspace:
+      definition: A numbered project checkout.
+""",
+    )
+    write(
+        project_root / "sase" / "memory" / "glossary.md",
+        "---\n"
+        "type: short\n"
+        "parent: AGENTS.md\n"
+        "description: Project-local glossary generated from sase.yml.\n"
+        "sase_generated: glossary\n"
+        "---\n\n"
+        "# Glossary of Terms\n\n"
+        "## Workspace\n\n"
+        "A stale generated definition.\n",
+    )
+
+    assert run_memory() == 0
+
+    glossary_text = (project_root / "sase" / "memory" / "glossary.md").read_text(
+        encoding="utf-8"
+    )
+    glossary_note = parse_memory_note_text(glossary_text, "sase/memory/glossary.md")
+    assert glossary_note.type == "long"
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Glossary of Terms" not in _tier1_memory(agents)
+    assert "**`sase/memory/glossary.md`**" in _tier2_memory(agents)
+
+    assert run_memory(check=True) == 0
 
 
 def test_memory_plan_blocks_invalid_project_glossary(

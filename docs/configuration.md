@@ -524,16 +524,18 @@ memory:
 The legacy top-level `glossary` key has been removed; it is now reported as an
 unsupported key by `sase config layers` instead of being silently ignored. Run
 `sase memory init` after editing glossary entries. A nonempty glossary generates
-`sase/memory/glossary.md` with `sase_generated: glossary` frontmatter, adds that short
-note to `sase/memory/README.md`, and inlines it into `AGENTS.md` plus the provider
-instruction copies. The plural of the term and of each alias is matched automatically.
-Derivable plurals are omitted from the generated `ALIASES: <comma-separated>` line, and
-the line is omitted entirely when no configured aliases remain to display.
-`sase memory init --check` verifies that the generated glossary and agent instructions
-are current. If an existing `sase/memory/glossary.md` lacks the generated marker,
-initialization refuses to overwrite it; migrate the definitions into `memory.glossary`
-entries in `sase/sase.yml` or remove the manual note intentionally before rerunning the
-command.
+`sase/memory/glossary.md` as a long note with `sase_generated: glossary` frontmatter,
+adds it to `sase/memory/README.md`, and lists it in `AGENTS.md` plus the provider
+instruction copies. Its generated description indexes every displayed term and alias and
+tells agents to read the note with `sase memory read glossary.md` when they need
+definitions. The plural of the term and of each alias is matched automatically.
+Derivable plurals are omitted from the generated `ALIASES: <comma-separated>` line and
+from the generated description, and the alias line is omitted entirely when no
+configured aliases remain to display. `sase memory init --check` verifies that the
+generated glossary and agent instructions are current. If an existing
+`sase/memory/glossary.md` lacks the generated marker, initialization refuses to
+overwrite it; migrate the definitions into `memory.glossary` entries in `sase/sase.yml`
+or remove the manual note intentionally before rerunning the command.
 
 The canonical term is always the first effective alias, followed by configured aliases
 and accepted derived plurals. Matching is case-insensitive, Unicode-aware, bounded by
@@ -3716,7 +3718,7 @@ modifying any repo outside their own workspace checkout. The rule covers linked 
 sidecars, different SASE projects, and unlinked GitHub repos even when no linked
 repositories are configured. When a managed project has a nonempty `memory.glossary`
 section, the same run also regenerates `sase/memory/glossary.md`, lists it in
-`sase/memory/README.md`, and inlines the fresh definition text into `AGENTS.md`;
+`sase/memory/README.md`, and refreshes the generated Tier 2 description in `AGENTS.md`;
 `sase memory init --check` reports drift if any of those generated files are stale.
 
 | Flag                          | Values | Default | Description                                                                                             |

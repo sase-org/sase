@@ -146,7 +146,7 @@ def test_browser_labels_and_previews_memory_entries() -> None:
     workflow = Workflow(
         name="memory/glossary",
         description="Glossary terms.",
-        memory_type="short",
+        memory_type="long",
         steps=[WorkflowStep(name="prompt", prompt_part="Memory body")],
     )
     item = BrowserItem(
@@ -161,8 +161,8 @@ def test_browser_labels_and_previews_memory_entries() -> None:
         insertion="#memory/glossary",
     )
 
-    assert create_item_label(item).plain == "  #memory/glossary  memory · short"
+    assert create_item_label(item).plain == "  #memory/glossary  memory · long"
     preview = create_simple_preview(workflow)
     assert "# Memory: memory/glossary" in preview
-    assert "memory type: short" in preview
-    assert "Type: memory · short (simple)" in create_meta_text(item).plain
+    assert "memory type: long" in preview
+    assert "Type: memory · long (simple)" in create_meta_text(item).plain

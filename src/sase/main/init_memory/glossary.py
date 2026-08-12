@@ -27,15 +27,13 @@ from .formatting import format_generated_memory_markdown
 GLOSSARY_MEMORY_TITLE = "Glossary of Terms"
 GENERATED_GLOSSARY_MARKER_KEY = "sase_generated"
 GENERATED_GLOSSARY_MARKER_VALUE = "glossary"
-GENERATED_GLOSSARY_DESCRIPTION = "Project-local glossary generated from sase.yml."
 GLOSSARY_ALIASES_LABEL = "ALIASES"
 
 
 @dataclass(frozen=True)
 class GeneratedGlossaryMemory:
-    """Rendered project glossary note content plus its short-note body."""
+    """Rendered project glossary note content."""
 
-    body: str
     content: str
 
 
@@ -171,13 +169,31 @@ def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory
     body = format_generated_memory_markdown("\n".join(lines))
     content = apply_memory_frontmatter(
         body,
-        note_type="short",
+        note_type="long",
         parent=AGENTS_PARENT,
-        description=GENERATED_GLOSSARY_DESCRIPTION,
+        description=_glossary_memory_description(catalog),
         extra=_generated_glossary_frontmatter_extra(),
         preserve_existing_extra=False,
     )
-    return GeneratedGlossaryMemory(body=body, content=content)
+    return GeneratedGlossaryMemory(content=content)
+
+
+def _glossary_memory_description(catalog: GlossaryCatalog) -> str:
+    items: list[str] = []
+    for entry in catalog.entries:
+        term = md_escape(entry.term)
+        if not entry.display_aliases:
+            items.append(term)
+            continue
+        aliases = ", ".join(md_escape(alias) for alias in entry.display_aliases)
+        items.append(f"{term} (aka {aliases})")
+    indexed_terms = "; ".join(items)
+    return (
+        "Read this note before relying on any of these SASE glossary terms and "
+        f"aliases - {indexed_terms}. Read it with `sase memory read glossary.md` "
+        "whenever one of those terms or aliases appears in a prompt, bead, plan, "
+        "or code comment and you are not certain what it means in SASE."
+    )
 
 
 def _path_component(value: Any) -> str:

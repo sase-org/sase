@@ -201,10 +201,12 @@ source counterpart). Template variables and validation rules are listed in the
 A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also rendered
 during memory initialization. `sase memory init` validates the project-local entries,
 writes a managed `sase/memory/glossary.md` note with `sase_generated: glossary`
-frontmatter, adds it to the memory README, and uses the fresh body while composing
-`AGENTS.md` and the provider instruction files. An empty or absent glossary produces no
-empty note. If a manual `sase/memory/glossary.md` already exists without the generated
-marker, the initializer stops with migration guidance instead of overwriting it. See
+frontmatter, adds it to the memory README, and lists it as a long note in `AGENTS.md`
+and the provider instruction files. The generated long-note description indexes every
+displayed glossary term and alias so agents can read definitions on demand with
+`sase memory read glossary.md`. An empty or absent glossary produces no empty note. If a
+manual `sase/memory/glossary.md` already exists without the generated marker, the
+initializer stops with migration guidance instead of overwriting it. See
 [glossary configuration](configuration.md#memoryglossary) for the schema, matching
 behavior, and collision rules.
 

@@ -34,6 +34,7 @@ from .glossary import (
     is_generated_glossary_memory_content,
 )
 from .root_rendering import (
+    generated_glossary_memory_relative_path,
     generated_long_notes,
     generated_short_notes,
     render_generated_project_long_memory_contents,
@@ -204,17 +205,13 @@ def _retired_note_paths(
     return tuple(retired)
 
 
-def _generated_glossary_relative_path() -> Path:
-    return CANONICAL_MEMORY_RELATIVE_ROOT / "glossary.md"
-
-
 def _retired_glossary_note_paths(
     root: Path, *, generated_glossary: GeneratedGlossaryMemory | None
 ) -> tuple[Path, ...]:
     """Return a generated glossary memory note this root no longer manages."""
     if generated_glossary is not None:
         return ()
-    path = root / _generated_glossary_relative_path()
+    path = root / generated_glossary_memory_relative_path()
     if not path.exists():
         return ()
     try:
@@ -232,7 +229,7 @@ def _glossary_collision_blocker(
     """Return a blocker when generated glossary output would overwrite a user note."""
     if generated_glossary is None:
         return None
-    path = root / _generated_glossary_relative_path()
+    path = root / generated_glossary_memory_relative_path()
     if not path.exists():
         return None
     try:
@@ -551,18 +548,17 @@ def memory_root_context(
                 source_memory_root=migration.source_memory_root,
                 blockers=(generated_long_error,),
             )
+    generated_amd_long_contents = dict(generated_project_long_contents)
+    if generated_glossary is not None:
+        generated_amd_long_contents[
+            generated_glossary_memory_relative_path().as_posix()
+        ] = generated_glossary.content
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
-        generated_short_notes=generated_short_notes(
-            generated_sase_body, generated_glossary=generated_glossary
-        ),
-        generated_long_notes=(
-            generated_long_notes(generated_project_long_contents)
-            if include_project_memory
-            else {}
-        ),
+        generated_short_notes=generated_short_notes(generated_sase_body),
+        generated_long_notes=generated_long_notes(generated_amd_long_contents),
         source_memory_root=migration.source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
