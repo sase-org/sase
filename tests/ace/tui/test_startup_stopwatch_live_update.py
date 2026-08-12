@@ -372,21 +372,41 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
     await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
 
 
-def test_maybe_end_startup_stopwatch_requires_both_first_load_flags() -> None:
-    """Coordinator should end stopwatch only after both startup loads finish."""
+def test_maybe_end_startup_stopwatch_gates_on_visible_tab_only() -> None:
+    """Coordinator ends the stopwatch once the initially visible tab is ready.
+
+    The hidden tab's own load state must not matter — that is the point of
+    the visible-surface gate: a future hidden-tab feature cannot regress
+    every startup mode just by taking longer to finish loading.
+    """
     app = AceApp()
     footer = MagicMock()
 
     with patch.object(app, "query_one", return_value=footer):
-        app._agents_first_load_done = True
-        app._axe_first_load_done = False
-        app._maybe_end_startup_stopwatch()
-
+        app._startup_initial_tab = "agents"
         app._agents_first_load_done = False
         app._axe_first_load_done = True
         app._maybe_end_startup_stopwatch()
+        footer.end_startup_stopwatch.assert_not_called()
 
         app._agents_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+
+    footer.end_startup_stopwatch.assert_called_once()
+
+
+def test_maybe_end_startup_stopwatch_gates_on_axe_when_axe_is_visible() -> None:
+    """When axe is the initially visible tab, only its readiness gates."""
+    app = AceApp()
+    footer = MagicMock()
+
+    with patch.object(app, "query_one", return_value=footer):
+        app._startup_initial_tab = "axe"
+        app._agents_first_load_done = False
+        app._axe_first_load_done = False
+        app._maybe_end_startup_stopwatch()
+        footer.end_startup_stopwatch.assert_not_called()
+
         app._axe_first_load_done = True
         app._maybe_end_startup_stopwatch()
 
@@ -411,6 +431,7 @@ def test_maybe_end_startup_stopwatch_is_safe_when_called_repeatedly() -> None:
     footer = _Footer()
 
     with patch.object(app, "query_one", return_value=footer):
+        app._startup_initial_tab = "agents"
         app._agents_first_load_done = True
         app._axe_first_load_done = True
         app._maybe_end_startup_stopwatch()
@@ -422,6 +443,7 @@ def test_maybe_end_startup_stopwatch_is_safe_when_called_repeatedly() -> None:
 def test_axe_first_load_path_no_longer_ends_stopwatch_directly() -> None:
     """AXE first-load applies must route through the coordinator (not direct end)."""
     app = AceApp()
+    app._startup_initial_tab = "agents"
     app._agents_first_load_done = False
     app._axe_first_load_done = False
     footer = MagicMock()
@@ -464,8 +486,8 @@ def test_axe_first_load_path_no_longer_ends_stopwatch_directly() -> None:
     footer.end_startup_stopwatch.assert_not_called()
 
 
-def test_stopwatch_ends_when_second_startup_surface_finishes() -> None:
-    """Simulate each first-load completion path; second completion ends stopwatch."""
+def test_stopwatch_ends_as_soon_as_visible_surface_finishes_first() -> None:
+    """The hidden surface finishing later must not be required to end it."""
 
     class _Footer:
         def __init__(self) -> None:
@@ -479,15 +501,16 @@ def test_stopwatch_ends_when_second_startup_surface_finishes() -> None:
             self.end_calls += 1
 
     app = AceApp()
+    app._startup_initial_tab = "agents"
     footer = _Footer()
 
     with patch.object(app, "query_one", return_value=footer):
-        # Simulate agents first load finishing first.
-        app._agents_first_load_done = True
+        # The hidden (axe) surface finishing first must not end it early.
+        app._axe_first_load_done = True
         app._maybe_end_startup_stopwatch()
         assert footer.end_calls == 0
 
-        # Simulate axe first load finishing second.
-        app._axe_first_load_done = True
+        # The visible (agents) surface finishing ends it immediately.
+        app._agents_first_load_done = True
         app._maybe_end_startup_stopwatch()
         assert footer.end_calls == 1

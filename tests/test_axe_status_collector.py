@@ -104,8 +104,9 @@ def _patch_host(
         "is_process_running",
         lambda pid: pid in effective_live_pids,
     )
-    monkeypatch.setattr(collector, "count_hook_runners_global", lambda: 1)
-    monkeypatch.setattr(collector, "count_agent_runners_global", lambda: 2)
+    monkeypatch.setattr(
+        collector, "count_hook_and_agent_runners_global", lambda: (1, 2)
+    )
     monkeypatch.setattr(collector, "read_desired_state", lambda: None)
     monkeypatch.setattr(collector, "read_maintenance", lambda: None)
     monkeypatch.setattr(collector, "read_recent_lifecycle_events", lambda *, limit: [])
@@ -410,7 +411,7 @@ def test_required_config_and_runner_failures_become_error_snapshots(
     _patch_host(monkeypatch)
     monkeypatch.setattr(
         collector,
-        "count_hook_runners_global",
+        "count_hook_and_agent_runners_global",
         lambda: (_ for _ in ()).throw(OSError("runner store unavailable")),
     )
     runner_error = collector.collect_axe_status_snapshot(clock=lambda: NOW)
@@ -453,8 +454,9 @@ def test_collection_does_not_create_state_directories(monkeypatch, tmp_path) -> 
             legacy_pid=None,
         ),
     )
-    monkeypatch.setattr(collector, "count_hook_runners_global", lambda: 0)
-    monkeypatch.setattr(collector, "count_agent_runners_global", lambda: 0)
+    monkeypatch.setattr(
+        collector, "count_hook_and_agent_runners_global", lambda: (0, 0)
+    )
 
     snapshot = collector.collect_axe_status_snapshot(clock=lambda: NOW)
 

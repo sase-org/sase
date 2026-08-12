@@ -1,6 +1,6 @@
 """Status aggregation for the axe process facade."""
 
-from sase.ace.patch import count_agent_runners_global, count_hook_runners_global
+from sase.ace.patch import count_hook_and_agent_runners_global
 
 from . import _process_probe as process_probe
 from .config import load_axe_config
@@ -86,8 +86,9 @@ def get_axe_status() -> dict | None:
     # so its fields can be stale from a previous run.
     if lumberjack_start_times:
         result["started_at"] = min(lumberjack_start_times)
-    result["current_hook_runners"] = count_hook_runners_global()
-    result["current_agent_runners"] = count_agent_runners_global()
+    hook_runners, agent_runners = count_hook_and_agent_runners_global()
+    result["current_hook_runners"] = hook_runners
+    result["current_agent_runners"] = agent_runners
 
     return result
 

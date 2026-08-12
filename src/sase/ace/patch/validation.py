@@ -1,5 +1,7 @@
 """Patch validation functions."""
 
+from collections.abc import Iterable
+
 from .models import Patch, get_base_status
 
 
@@ -152,12 +154,10 @@ def count_running_agents_global() -> int:
     return count
 
 
-def count_hook_runners_global() -> int:
-    """Count limited running hook processes globally."""
-    from . import find_all_patches
-
+def _count_hook_runners(patches: Iterable[Patch]) -> int:
+    """Count limited running hook processes across *patches*."""
     count = 0
-    for patch in find_all_patches():
+    for patch in patches:
         if patch.hooks:
             for hook in patch.hooks:
                 if hook.is_unlimited:
@@ -169,12 +169,10 @@ def count_hook_runners_global() -> int:
     return count
 
 
-def count_agent_runners_global() -> int:
-    """Count running agents globally across hooks, comments, and mentors."""
-    from . import find_all_patches
-
+def _count_agent_runners(patches: Iterable[Patch]) -> int:
+    """Count running agents across *patches*, across hooks, comments, and mentors."""
     count = 0
-    for patch in find_all_patches():
+    for patch in patches:
         if patch.hooks:
             for hook in patch.hooks:
                 if hook.status_lines:
@@ -192,6 +190,36 @@ def count_agent_runners_global() -> int:
                         if mentor_line.suffix_type == "running_agent":
                             count += 1
     return count
+
+
+def count_hook_runners_global() -> int:
+    """Count limited running hook processes globally."""
+    from . import find_all_patches
+
+    return _count_hook_runners(find_all_patches())
+
+
+def count_agent_runners_global() -> int:
+    """Count running agents globally across hooks, comments, and mentors."""
+    from . import find_all_patches
+
+    return _count_agent_runners(find_all_patches())
+
+
+def count_hook_and_agent_runners_global() -> tuple[int, int]:
+    """Count hook and agent runners globally from one shared cached Patch load.
+
+    Callers that need both counts should use this instead of calling
+    ``count_hook_runners_global`` and ``count_agent_runners_global``
+    separately, which each independently parse the full ProjectSpec archive.
+    This loads the archive once through the cached snapshot and counts both
+    from the same Patch list. The cache returns Patch objects shared across
+    callers, but these counters only read them, so sharing is safe here.
+    """
+    from .cache import find_all_patches_cached
+
+    patches = find_all_patches_cached()
+    return _count_hook_runners(patches), _count_agent_runners(patches)
 
 
 def count_all_runners_global() -> int:

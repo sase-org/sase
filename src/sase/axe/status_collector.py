@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, tzinfo
 from typing import cast
 
-from sase.ace.patch import count_agent_runners_global, count_hook_runners_global
+from sase.ace.patch import count_hook_and_agent_runners_global
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config
@@ -76,8 +76,7 @@ def collect_axe_status_snapshot(
         )
 
     try:
-        hook_count = count_hook_runners_global()
-        agent_count = count_agent_runners_global()
+        hook_count, agent_count = count_hook_and_agent_runners_global()
         _require_wire_count(hook_count, "hook runner count")
         _require_wire_count(agent_count, "agent runner count")
     except Exception as exc:  # noqa: BLE001 - converted required host input.

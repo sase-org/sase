@@ -162,8 +162,16 @@ class StartupMountMixin:
         }
 
     def _maybe_end_startup_stopwatch(self: Any) -> None:
-        """End startup stopwatch once both async startup surfaces are loaded."""
-        if not (self._agents_first_load_done and self._axe_first_load_done):
+        """End the startup stopwatch once the initially visible tab is ready.
+
+        Deliberately visible-surface based, not "every hidden tab is ready":
+        a future hidden-tab feature must not be able to silently regress the
+        startup stopwatch for every mode by adding a third surface that has
+        to finish loading first. ``_startup_visible_surface_ready`` (from
+        ``StartupTelemetryMixin``) is the single source of truth for which
+        tab's readiness gates this.
+        """
+        if not self._startup_visible_surface_ready():
             return
         try:
             from ..widgets import KeybindingFooter
