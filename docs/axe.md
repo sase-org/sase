@@ -870,7 +870,7 @@ provider calls. A structural capability probe skips providers that cannot list P
 
 Incremental runs fetch a bounded PR inventory because the provider seam exposes a record
 limit, not pagination. The chop records `seen`, `fetched`, `unmirrored`, `created`,
-`repaired`, `skipped`, `conflicts`, `errors`, `budget_exhausted`, and
+`repaired`, `refreshed`, `skipped`, `conflicts`, `errors`, `budget_exhausted`, and
 `checkpoint_advanced` in its summary. Cursor and backoff state live at a stable path
 under `~/.sase/external_mirror/`, independent of whichever lumberjack the chop is
 configured in, so `sase patch sync-external` reads and writes the same files. A
@@ -894,6 +894,22 @@ closed PRs are appended directly to the archive ProjectSpec as `Submitted` or
 workflow, not PRs created by any SASE agent. An agent that bypasses the tracked workflow
 and calls `gh pr create` directly is indistinguishable from a human and is adopted as
 `external`.
+
+Adoption is not one-shot: a Patch that already owns a PR is refreshed whenever its
+recorded `STATUS` no longer matches the state that PR now maps to, so a PR adopted while
+open follows its own merge or close instead of freezing at its adoption-time status. A
+refresh rewrites the status in place and, when the PR reaches a terminal state, moves
+the Patch out of the active ProjectSpec into the archive. `refreshed` counts these
+updates separately from `repaired`, which stays specific to a corrected `PR_ORIGIN`
+marker.
+
+Refreshes are guarded to `pr_origin: external` Patches only: a Patch SASE's own tracked
+workflow created has a lifecycle AXE owns, and the mirror never writes its status.
+Ownership is re-checked under the ProjectSpec lock, so a Patch that changed hands since
+the pass planned its work is skipped rather than overwritten. Each refresh is a mutation
+charged against the same per-pass budget and deadline as an adoption, which makes the
+daily full scan load-bearing rather than merely defensive: a PR that merges long after
+adoption can fall outside the ten-minute incremental overlap window.
 
 #### Builtin `refresh_docs`
 

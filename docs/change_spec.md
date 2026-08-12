@@ -8,10 +8,13 @@ remote PRs in every state, discard PRs carrying SASE's tracked-workflow marker, 
 the case-insensitive
 [`external_mirror.pull_requests.filters`](configuration.md#external_mirror) criteria
 (author, base ref, head ref, title, state), and adopt the remaining PRs as local
-Patches. Open PRs remain active; merged or closed PRs are archived directly. Filters
-ship with head-ref exclusions for release-please and release-plz PRs and are otherwise
-empty, adopting every other otherwise-eligible PR; filters gate creation only and never
-delete a Patch that already exists.
+Patches. Open PRs remain active; merged or closed PRs are archived directly. An adopted
+`external` Patch keeps tracking its PR afterwards: when the PR merges or closes, the
+next pass rewrites that Patch's `STATUS:` and moves it into the archive. Patches SASE's
+own tracked workflow created are never rewritten this way. Filters ship with head-ref
+exclusions for release-please and release-plz PRs and are otherwise empty, adopting
+every other otherwise-eligible PR; filters gate creation only and never delete a Patch
+that already exists.
 
 Each Patch lives inside a project `.sase` file and records the change's description,
 dependency metadata, PR URL, lifecycle status, stitches, hooks, comments, mentor runs,
