@@ -727,35 +727,6 @@ axe:
             safely if work remains. Gates stranded by removed projects or forgotten lane state are swept without
             touching projects that are only temporarily unreadable. A ready bead with a detached launch still in flight
             is deferred instead of re-gated.
-        - name: external_issue_mirror
-          script: sase_chop_external_issue_mirror
-          run_every: "10m"
-          timeout: "2m"
-          for_each:
-            source: projects
-            vcs: [git, gh]
-          description: |-
-            Mirror every external tracker issue into an open task bead
-
-            Expands to one instance per enabled project and diffs that project's tracker against local beads on
-            external_ref, creating unsized open task beads for uncovered issues. Upstream state changes append an
-            attributed note and never close a bead. A per-pass creation cap, bounded store-lock waits, and persistent
-            exponential backoff keep one large backlog or one unreachable tracker from stalling the pass.
-        - name: external_pr_mirror
-          script: sase_chop_external_pr_mirror
-          run_every: "10m"
-          timeout: "2m"
-          for_each:
-            source: projects
-            vcs: [git, gh]
-          description: |-
-            Adopt remote pull requests SASE did not create as local Patches
-
-            Runs once per enabled git/gh project and first checks whether its provider can list pull requests. Each
-            pass fetches a bounded PR inventory, writes open PRs to the active ProjectSpec, writes merged or closed PRs
-            directly to the archive, advances a cursor only after clean runs, and performs a daily full repair scan.
-            The SASE_PATCH marker identifies PRs created by SASE's tracked PR workflow; direct gh pr create calls are
-            adopted as external.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-
