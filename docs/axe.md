@@ -327,10 +327,13 @@ every pass.
 Upstream issue closes, reopens, and disappearances never change a bead's status or
 delete it — reconciliation stays an explicit user action. Each transition appends one
 attributed `sase bead note` the first time it is observed and updates the mirror's
-durable `upstream_states` record so the same transition is never re-noted. An
-`external_mirror.exclude_labels` config knob (empty by default) excludes tracker labels
-from mirroring; a non-empty value means the bead list is no longer a strict superset of
-the issue list.
+durable `upstream_states` record so the same transition is never re-noted. The
+[`external_mirror.issues.filters`](configuration.md#external_mirror) surface (empty by
+default) excludes tracker issues from mirroring by author, label, title, or state; a
+non-empty filter means the bead list is no longer a strict superset of the issue list.
+Filters gate creation only — clearing a filter re-examines the issues it previously
+dropped, but a filter never deletes a bead that already exists. Records a filter drops
+count toward `sase bead sync-external`'s `filtered=<n>` per-project summary.
 
 Two machines reconciling stale copies of a hosted bead sidecar can independently import
 the same issue before either has seen the other's copy. The local partial-unique index
@@ -869,9 +872,15 @@ ten-minute overlap window covers incremental passes; the cursor advances only af
 clean pass, and a daily full scan ignores it so missed repairs are eventually found.
 
 `unmirrored` counts fetched PRs dropped by
-[`external_mirror.pr_authors`](configuration.md#external_mirror), which is empty by
-default so every PR SASE did not create is adopted. Dropped records never reach the
-checkpoint, so clearing the knob later re-examines them.
+[`external_mirror.pull_requests.filters`](configuration.md#external_mirror), which ships
+with head-ref exclusions for release-please and release-plz PRs so those never become
+Patches; every other criterion is empty by default, adopting every other PR SASE did not
+create. Dropped records never reach the checkpoint, so a filter change (clearing,
+narrowing, or widening one) forces the next pass to go full and re-examine them. Filters
+gate creation only — a PR a filter now excludes keeps whatever Patch it already has. The
+last pass's `unmirrored` count per project is also written to a lane-independent
+document that feeds the CLI's `Filtered` column and the Patches pane's `· M remote-only`
+banner chip.
 
 Open draft PRs become `Draft` Patches, open non-draft PRs become `Mailed`, and merged or
 closed PRs are appended directly to the archive ProjectSpec as `Submitted` or

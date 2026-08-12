@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 class MirrorReport:
     seen: int = 0
     fetched: int = 0
-    #: Fetched records dropped by ``external_mirror.pr_authors``.
+    #: Fetched records dropped by ``external_mirror.pull_requests.filters``
+    #: (or its deprecated ``pr_authors`` alias).
     unmirrored: int = 0
     created: int = 0
     repaired: int = 0

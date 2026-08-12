@@ -50,7 +50,8 @@ from sase.vcs_provider import IssueWire, get_vcs_provider, supports_issue_listin
 
 from .auth import classify_provider_error, record_tracker_probe
 from .budget import LANE_CHOP_TIMEOUT_SECONDS
-from .config import excluded_issue_labels
+from .config import issue_filters
+from .filters import IssueFilters
 from .state import (
     is_backed_off,
     iso_utc,
@@ -74,7 +75,8 @@ class MirrorReport:
     notes_appended: int = 0
     #: Already covered under the lock; a real duplicate was avoided.
     conflicts: int = 0
-    #: Skipped by ``external_mirror.exclude_labels``.
+    #: Skipped by ``external_mirror.issues.filters`` (or its deprecated
+    #: ``exclude_labels`` alias).
     unmirrored: int = 0
     #: Planned creations or notes the pass budget could not apply this pass.
     deferred: int = 0
@@ -199,6 +201,8 @@ def run_issue_mirror_for_project(
 
     record_tracker_probe(project_key, outcome="ok", source=source, now=current_time)
 
+    filters = issue_filters()
+    filters_fingerprint = filters.fingerprint()
     max_updated_at = max((issue.updated_at for issue in issues), default="")
     provider_ids = frozenset(_issue_identity(issue) for issue in issues)
 
@@ -208,18 +212,18 @@ def run_issue_mirror_for_project(
         and max_updated_at
         and max_updated_at <= state.watermark_updated_at
         and provider_ids == frozenset(state.watermark_provider_ids)
+        and filters_fingerprint == state.filters_fingerprint
     ):
         return MirrorReport(
             project=project_key,
             display_name=display_name,
             issues_seen=len(issues),
-            unmirrored=_excluded_count(issues),
+            unmirrored=_unmirrored_count(issues, filters),
             provider_calls=1,
             checkpoint_advanced=True,
         )
 
-    excluded = excluded_issue_labels()
-    mirrorable = [issue for issue in issues if not _is_excluded(issue, excluded)]
+    mirrorable = [issue for issue in issues if filters.matches(issue)]
     unmirrored = len(issues) - len(mirrorable)
 
     beads_dir = canonical_beads_dir_for_project(project_key)
@@ -299,6 +303,7 @@ def run_issue_mirror_for_project(
         if max_updated_at:
             state.watermark_updated_at = max_updated_at
             state.watermark_provider_ids = tuple(sorted(provider_ids))
+        state.filters_fingerprint = filters_fingerprint
         state.last_full_scan_at = iso_utc(current_time)
         state.last_success_at = iso_utc(current_time)
         state.failures = 0
@@ -493,17 +498,8 @@ def _build_identity_index(beads: list[Issue], *, project: str) -> dict[str, Issu
     return index
 
 
-def _is_excluded(issue: IssueWire, excluded_labels: frozenset[str]) -> bool:
-    if not excluded_labels:
-        return False
-    return any(label.casefold() in excluded_labels for label in issue.labels)
-
-
-def _excluded_count(issues: list[IssueWire]) -> int:
-    excluded = excluded_issue_labels()
-    if not excluded:
-        return 0
-    return sum(1 for issue in issues if _is_excluded(issue, excluded))
+def _unmirrored_count(issues: list[IssueWire], filters: IssueFilters) -> int:
+    return sum(1 for issue in issues if not filters.matches(issue))
 
 
 def _issue_identity(issue: IssueWire) -> str:

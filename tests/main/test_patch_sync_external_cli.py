@@ -83,7 +83,7 @@ def test_sync_external_dry_run_reports_selected_project(
 
     def _sync(**kwargs: object) -> MirrorReport:
         calls.append(kwargs)
-        return MirrorReport(fetched=3, seen=3, created=1, skipped=2)
+        return MirrorReport(fetched=3, unmirrored=1, seen=3, created=1, skipped=2)
 
     monkeypatch.setattr(
         "sase.external_mirror.pr_sync.sync_external_pull_requests",
@@ -98,7 +98,9 @@ def test_sync_external_dry_run_reports_selected_project(
     assert exit_code == 0
     assert "Dry run:" in output
     assert "Proj" in output
+    assert "Filtered" in output
     assert "3" in output
+    assert "1" in output
     assert calls[0]["project_key"] == "proj"
     assert calls[0]["dry_run"] is True
     assert calls[0]["full"] is True
@@ -107,6 +109,7 @@ def test_sync_external_dry_run_reports_selected_project(
 def test_sync_external_reports_missing_workspace(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
+    monkeypatch.setenv("COLUMNS", "200")
     record = _project_record(tmp_path, workspace_dir=None)
     monkeypatch.setattr(
         "sase.core.project_lifecycle_facade.list_project_records",

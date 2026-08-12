@@ -15,6 +15,45 @@ from ....patch import Patch
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 
+#: Module-level cache for the PR filter-outcome document, keyed on
+#: ``(st_mtime_ns, st_size)`` so an unchanged document is never re-read.
+_pr_unmirrored_cache_key: tuple[int, int] | None = None
+_pr_unmirrored_cache_value: dict[str, int] = {}
+
+
+def _cached_pr_unmirrored_counts() -> dict[str, int]:
+    """Return PR filter-outcome counts keyed by project display name.
+
+    Pure, synchronous file I/O (one stat plus, on a cache miss, one small
+    JSON read) — safe to call from a worker thread or from a synchronous
+    load path alike. See ``sase.external_mirror.state`` for the document
+    this reads and why it takes no lock.
+    """
+    global _pr_unmirrored_cache_key, _pr_unmirrored_cache_value
+    from sase.external_mirror.state import (
+        pr_unmirrored_state_path,
+        read_pr_unmirrored_counts,
+    )
+    from sase.project_display_names import project_display_name_for
+
+    try:
+        stat = pr_unmirrored_state_path().stat()
+    except OSError:
+        _pr_unmirrored_cache_key = None
+        _pr_unmirrored_cache_value = {}
+        return _pr_unmirrored_cache_value
+
+    key = (stat.st_mtime_ns, stat.st_size)
+    if key == _pr_unmirrored_cache_key:
+        return _pr_unmirrored_cache_value
+
+    _pr_unmirrored_cache_key = key
+    _pr_unmirrored_cache_value = {
+        project_display_name_for(project_key): count
+        for project_key, count in read_pr_unmirrored_counts().items()
+    }
+    return _pr_unmirrored_cache_value
+
 
 def _is_mock(value: object) -> bool:
     """Return whether *value* is a ``unittest.mock.Mock``, without importing it.
@@ -36,6 +75,7 @@ class _PreparedPatchLoad:
 
     all_patches: list[Patch]
     query_corpus: QueryCorpus | None
+    pr_unmirrored_counts: dict[str, int]
 
 
 class PatchLoadingMixin:
@@ -60,6 +100,7 @@ class PatchLoadingMixin:
     _current_patch_group_key: tuple[str, ...] | None
     _query_corpus: QueryCorpus | None
     _query_corpus_source_list_id: int | None
+    _pr_unmirrored_counts_by_display_name: dict[str, int]
 
     def _compat_loader(
         self,
@@ -123,6 +164,7 @@ class PatchLoadingMixin:
         return _PreparedPatchLoad(
             all_patches=all_patches,
             query_corpus=query_corpus,
+            pr_unmirrored_counts=_cached_pr_unmirrored_counts(),
         )
 
     def _compile_query_corpus_for_patches(self, patches: list[Patch]) -> QueryCorpus:
@@ -186,6 +228,7 @@ class PatchLoadingMixin:
 
     def _load_patches(self) -> None:
         """Load and filter patches from disk."""
+        self._pr_unmirrored_counts_by_display_name = _cached_pr_unmirrored_counts()
         self._apply_patches(self._read_patches_from_disk())
 
     def _filter_patches(self, patches: list[Patch]) -> list[Patch]:
@@ -276,6 +319,7 @@ class PatchLoadingMixin:
             prepared.all_patches,
             current_name,
             query_corpus=prepared.query_corpus,
+            pr_unmirrored_counts=prepared.pr_unmirrored_counts,
         )
 
     def _snapshot_active_patch_name(self) -> str | None:
@@ -317,6 +361,7 @@ class PatchLoadingMixin:
             prepared.all_patches,
             current_name,
             query_corpus=prepared.query_corpus,
+            pr_unmirrored_counts=prepared.pr_unmirrored_counts,
         )
 
     def _apply_reloaded_patches(
@@ -325,9 +370,13 @@ class PatchLoadingMixin:
         current_name: str | None,
         *,
         query_corpus: QueryCorpus | None = None,
+        pr_unmirrored_counts: dict[str, int] | None = None,
     ) -> None:
         """Apply a freshly-loaded patch list and reposition the cursor."""
         from ...util.selection import restore_selection_by_identity
+
+        if pr_unmirrored_counts is not None:
+            self._pr_unmirrored_counts_by_display_name = pr_unmirrored_counts
 
         on_patches_tab = self._on_patch_list_tab()
 

@@ -1039,15 +1039,43 @@ bead:
   push_after_commit: true
 
 external_mirror:
-  # Tracker labels whose issues are never mirrored into beads. Empty (the
-  # default) keeps the bead list a strict superset of the issue list, which is
-  # what lets the Artifacts tab drop a separate issue inventory. Every entry
-  # here removes issues from that superset.
+  # One shared filter surface governs which tracker issues become beads and
+  # which remote pull requests become Patches. Each *_globs list accepts
+  # !-prefixed exclusions: a record matches a criterion if it matches any
+  # positive glob (or the criterion has no positive globs) and matches no
+  # negative glob; a record is mirrored only when every criterion accepts it.
+  # Matching is case-folded. Setting a criterion here replaces the shipped
+  # defaults for that criterion rather than appending to them. Filters gate
+  # creation only: a record a filter now excludes keeps whatever bead or
+  # Patch it already has, the mirror never deletes.
+  issues:
+    filters:
+      # Empty by default, which keeps the bead list a strict superset of the
+      # issue list, which is what lets the Artifacts tab drop a separate
+      # issue inventory.
+      author_globs: []
+      label_globs: []
+      title_globs: []
+      states: []
+  pull_requests:
+    filters:
+      author_globs: []
+      base_ref_globs: []
+      # Excludes release-please and release-plz PRs by default; head_ref is
+      # the reliable key because release-please authors as a human account on
+      # some repos and titles are user-configurable.
+      head_ref_globs:
+        - "!release-please--*"
+        - "!release-please/*"
+        - "!release-plz-*"
+        - "!release-plz/*"
+      title_globs: []
+      states: []
+  # Deprecated: use issues.filters.label_globs, which wins once it is
+  # non-empty. Tracker labels whose issues are never mirrored into beads.
   exclude_labels: []
-  # Remote PR authors whose pull requests are adopted as Patches. Empty (the
-  # default) adopts every PR SASE's tracked workflow did not create, which is
-  # what "every PR not created by SASE has a Patch" means; listing authors
-  # narrows adoption to those accounts.
+  # Deprecated: use pull_requests.filters.author_globs, which wins once it is
+  # non-empty. Remote PR authors whose pull requests are adopted as Patches.
   pr_authors: []
 
 xprompt_aliases:

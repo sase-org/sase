@@ -456,6 +456,79 @@
         }
       }
     },
+    "externalMirrorIssueFilters": {
+      "type": "object",
+      "description": "Selection criteria for external_mirror.issues; an issue must pass every configured criterion to be mirrored into a bead. An empty criterion accepts everything; *_globs entries may be !-prefixed to exclude. Setting a criterion replaces the shipped defaults for that criterion rather than appending to them.",
+      "additionalProperties": false,
+      "properties": {
+        "author_globs": {
+          "type": "array",
+          "description": "Issue author globs, including !-prefixed exclusions. Empty (the default) accepts every author.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "label_globs": {
+          "type": "array",
+          "description": "Issue label globs, including !-prefixed exclusions, matched against every label on the issue. Empty (the default) accepts every label set.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "title_globs": {
+          "type": "array",
+          "description": "Issue title globs, including !-prefixed exclusions. Empty (the default) accepts every title.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "states": {
+          "type": "array",
+          "description": "Issue states accepted for mirroring. Empty (the default) accepts every state.",
+          "items": { "type": "string", "enum": ["open", "closed"] },
+          "default": []
+        }
+      }
+    },
+    "externalMirrorPullRequestFilters": {
+      "type": "object",
+      "description": "Selection criteria for external_mirror.pull_requests; a remote pull request must pass every configured criterion to be adopted as a Patch. An empty criterion accepts everything; *_globs entries may be !-prefixed to exclude. Setting a criterion replaces the shipped defaults for that criterion rather than appending to them.",
+      "additionalProperties": false,
+      "properties": {
+        "author_globs": {
+          "type": "array",
+          "description": "Remote PR author globs, including !-prefixed exclusions. Empty (the default) accepts every author.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "base_ref_globs": {
+          "type": "array",
+          "description": "Remote PR base-ref globs, including !-prefixed exclusions. Empty (the default) accepts every base ref.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "head_ref_globs": {
+          "type": "array",
+          "description": "Remote PR head-ref globs, including !-prefixed exclusions. Ships with release-please and release-plz head-ref exclusions so those PRs are not adopted as Patches by default.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": [
+            "!release-please--*",
+            "!release-please/*",
+            "!release-plz-*",
+            "!release-plz/*"
+          ]
+        },
+        "title_globs": {
+          "type": "array",
+          "description": "Remote PR title globs, including !-prefixed exclusions. Empty (the default) accepts every title.",
+          "items": { "type": "string", "minLength": 1 },
+          "default": []
+        },
+        "states": {
+          "type": "array",
+          "description": "Remote PR states accepted for adoption. Empty (the default) accepts every state.",
+          "items": { "type": "string", "enum": ["open", "closed"] },
+          "default": []
+        }
+      }
+    },
     "glossaryEntry": {
       "type": "object",
       "description": "One project-local glossary entry keyed by its canonical displayed term.",
@@ -2256,15 +2329,33 @@
       "description": "Configuration for the external tracker mirror (issues into beads, pull requests into Patches).",
       "additionalProperties": false,
       "properties": {
+        "issues": {
+          "type": "object",
+          "description": "Configuration for mirroring tracker issues into beads.",
+          "additionalProperties": false,
+          "properties": {
+            "filters": { "$ref": "#/definitions/externalMirrorIssueFilters" }
+          }
+        },
+        "pull_requests": {
+          "type": "object",
+          "description": "Configuration for adopting remote pull requests as Patches.",
+          "additionalProperties": false,
+          "properties": {
+            "filters": { "$ref": "#/definitions/externalMirrorPullRequestFilters" }
+          }
+        },
         "exclude_labels": {
           "type": "array",
-          "description": "Tracker labels whose issues are never mirrored into beads. Empty (the default) keeps the bead list a strict superset of the issue list.",
+          "deprecated": true,
+          "description": "Deprecated alias for external_mirror.issues.filters.label_globs; folds in as negated globs when label_globs is empty. Tracker labels whose issues are never mirrored into beads.",
           "items": { "type": "string", "minLength": 1 },
           "default": []
         },
         "pr_authors": {
           "type": "array",
-          "description": "Remote PR authors whose pull requests are adopted as Patches. Empty (the default) adopts every PR SASE's tracked workflow did not create.",
+          "deprecated": true,
+          "description": "Deprecated alias for external_mirror.pull_requests.filters.author_globs; folds in as plain (non-negated) globs when author_globs is empty. Remote PR authors whose pull requests are adopted as Patches.",
           "items": { "type": "string", "minLength": 1 },
           "default": []
         }

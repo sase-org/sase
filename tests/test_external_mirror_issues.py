@@ -11,6 +11,7 @@ from sase.bead.model import IssueType, PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.external_mirror.auth import read_tracker_probes
+from sase.external_mirror.filters import IssueFilters
 from sase.external_mirror.issues import run_issue_mirror_for_project
 from sase.external_mirror.state import mirror_state_document_path, read_mirror_state
 from sase.vcs_provider import VCSHookSpec, VCSPluginManager
@@ -330,8 +331,8 @@ def test_exclude_labels_skips_and_counts_unmirrored(
     bead_store: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "sase.external_mirror.issues.excluded_issue_labels",
-        lambda: frozenset({"question"}),
+        "sase.external_mirror.issues.issue_filters",
+        lambda: IssueFilters(label_globs=("!question",)),
     )
     provider = _provider(
         FakeIssueProvider(
@@ -347,6 +348,41 @@ def test_exclude_labels_skips_and_counts_unmirrored(
 
     assert report.beads_created == 1
     assert report.unmirrored == 1
+
+
+def test_filter_change_forces_reexamination_of_previously_dropped_issues(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    issues = [_issue(1, labels=("bug",)), _issue(2, labels=("question",))]
+    provider = _provider(FakeIssueProvider(issues))
+    _install_provider(monkeypatch, provider)
+
+    monkeypatch.setattr(
+        "sase.external_mirror.issues.issue_filters",
+        lambda: IssueFilters(label_globs=("!question",)),
+    )
+    report1 = _run()
+    assert report1.beads_created == 1
+    assert report1.unmirrored == 1
+    assert report1.checkpoint_advanced is True
+
+    # Same provider listing and same filter: hits the unchanged-upstream
+    # early return and does no new work.
+    report2 = _run()
+    assert report2.beads_created == 0
+    assert report2.checkpoint_advanced is True
+
+    # Clearing the filter changes its fingerprint, so the early return is
+    # skipped for one pass and #2 becomes includable.
+    monkeypatch.setattr(
+        "sase.external_mirror.issues.issue_filters",
+        lambda: IssueFilters(),
+    )
+    report3 = _run()
+
+    assert report3.beads_created == 1
+    assert report3.unmirrored == 0
+    assert len(_beads(bead_store)) == 2
 
 
 def test_dry_run_writes_nothing_but_reports_created_refs(

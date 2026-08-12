@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.ace.patch.importer import project_patch_files
 from sase.core.external_pr_wire import PR_ORIGIN_EXTERNAL
+from sase.external_mirror.filters import PullRequestFilters
 from sase.external_mirror.pr_sync import KIND, sync_external_pull_requests
 from sase.external_mirror.state import (
     MirrorCursor,
@@ -15,6 +16,13 @@ from sase.external_mirror.state import (
     write_mirror_cursor,
 )
 from sase.vcs_provider import PullRequestWire
+
+_DEFAULT_HEAD_REF_GLOBS = (
+    "!release-please--*",
+    "!release-please/*",
+    "!release-plz-*",
+    "!release-plz/*",
+)
 
 
 class _Provider:
@@ -50,6 +58,7 @@ def _pr(
     *,
     merged: bool = False,
     author: str = "",
+    head_ref: str = "",
 ) -> PullRequestWire:
     return PullRequestWire(
         number=number,
@@ -59,6 +68,7 @@ def _pr(
         url=f"https://github.com/acme/widget/pull/{number}",
         body="Body",
         author=author,
+        head_ref=head_ref,
         updated_at=updated_at,
         merged_at="2026-08-03T00:00:00Z" if merged else "",
     )
@@ -208,6 +218,10 @@ def test_incremental_window_skips_strictly_old_records(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
     )
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.pull_request_filters",
+        lambda: PullRequestFilters(),
+    )
     active_file, _ = project_patch_files("proj")
     Path(active_file).parent.mkdir(parents=True, exist_ok=True)
     Path(active_file).write_text("", encoding="utf-8")
@@ -220,6 +234,7 @@ def test_incremental_window_skips_strictly_old_records(monkeypatch, tmp_path):
             last_provider_id="PR_0",
             backfill_complete=True,
             last_full_scan_at=datetime(2026, 8, 3, tzinfo=UTC) - timedelta(hours=1),
+            filters_fingerprint=PullRequestFilters().fingerprint(),
         ),
     )
 
@@ -235,12 +250,13 @@ def test_incremental_window_skips_strictly_old_records(monkeypatch, tmp_path):
     assert PR_ORIGIN_EXTERNAL not in Path(active_file).read_text(encoding="utf-8")
 
 
-def test_pr_authors_narrows_adoption_case_insensitively(monkeypatch, tmp_path):
+def test_author_globs_narrows_adoption_case_insensitively(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
     )
     monkeypatch.setattr(
-        "sase.external_mirror.pr_sync.mirrored_pr_authors", lambda: frozenset({"bob"})
+        "sase.external_mirror.pr_sync.pull_request_filters",
+        lambda: PullRequestFilters(author_globs=("bob",)),
     )
     active_file, _ = project_patch_files("proj")
     Path(active_file).parent.mkdir(parents=True, exist_ok=True)
@@ -267,12 +283,13 @@ def test_pr_authors_narrows_adoption_case_insensitively(monkeypatch, tmp_path):
     assert "https://github.com/acme/widget/pull/1" not in body
 
 
-def test_pr_authors_empty_by_default_adopts_every_author(monkeypatch, tmp_path):
+def test_empty_filters_by_default_adopt_every_author(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
     )
     monkeypatch.setattr(
-        "sase.external_mirror.pr_sync.mirrored_pr_authors", lambda: frozenset()
+        "sase.external_mirror.pr_sync.pull_request_filters",
+        lambda: PullRequestFilters(),
     )
     _workspace_project("proj")
 
@@ -291,3 +308,101 @@ def test_pr_authors_empty_by_default_adopts_every_author(monkeypatch, tmp_path):
 
     assert report.unmirrored == 0
     assert report.created == 2
+
+
+def test_default_head_ref_filters_drop_release_bot_prs(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.pull_request_filters",
+        lambda: PullRequestFilters(head_ref_globs=_DEFAULT_HEAD_REF_GLOBS),
+    )
+    active_file, _ = project_patch_files("proj")
+    Path(active_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(active_file).write_text("", encoding="utf-8")
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider(
+            [
+                _pr(
+                    1,
+                    "2026-08-02T00:00:00Z",
+                    author="release-please[bot]",
+                    head_ref="release-please--branches--master",
+                ),
+                _pr(
+                    2,
+                    "2026-08-02T00:00:01Z",
+                    author="alice",
+                    head_ref="feature/human-branch",
+                ),
+            ]
+        ),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.fetched == 2
+    assert report.unmirrored == 1
+    assert report.created == 1
+    body = Path(active_file).read_text(encoding="utf-8")
+    assert "https://github.com/acme/widget/pull/2" in body
+    assert "https://github.com/acme/widget/pull/1" not in body
+
+
+def test_filter_change_forces_full_pass_even_when_incremental_otherwise(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    _workspace_project("proj")
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.pull_request_filters",
+        lambda: PullRequestFilters(author_globs=("alice",)),
+    )
+    provider = _Provider([_pr(1, "2026-08-02T00:00:00Z", author="alice")])
+
+    # Pass 1: a fresh cursor forces a full pass regardless of filters.
+    report1 = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=provider,
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+        fetch_limit=1,
+    )
+    assert provider.limits[-1] == 0
+    assert report1.checkpoint_advanced == 1
+
+    # Pass 2: unchanged filters, not due for a daily repair scan -> bounded
+    # incremental fetch.
+    report2 = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=provider,
+        now=datetime(2026, 8, 3, 0, 30, tzinfo=UTC),
+        fetch_limit=1,
+    )
+    assert provider.limits[-1] == 1
+    assert report2.checkpoint_advanced == 1
+
+    # Pass 3: the filters changed, so the fingerprint mismatch forces a full
+    # pass even though the daily repair scan still isn't due.
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.pull_request_filters",
+        lambda: PullRequestFilters(author_globs=("bob",)),
+    )
+    sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=provider,
+        now=datetime(2026, 8, 3, 1, 0, tzinfo=UTC),
+        fetch_limit=1,
+    )
+    assert provider.limits[-1] == 0

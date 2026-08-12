@@ -104,6 +104,8 @@ def _render_reports(
             f"issues={report.issues_seen} created={report.beads_created} "
             f"notes={report.notes_appended} deferred={report.deferred}"
         )
+        if report.unmirrored:
+            line += f" filtered={report.unmirrored}"
         if report.degraded:
             line += f"  [yellow]degraded={escape(report.degraded)}[/yellow]"
         console.print(line)

@@ -3,6 +3,12 @@
 The VCS provider seam accepts a fetch ``limit`` and does not expose a page
 cursor. Incremental passes therefore bound the number of fetched PR records;
 full repair passes use ``limit=0`` for an unbounded provider request.
+
+Fetched records that ``external_mirror.pull_requests.filters`` drops never
+reach the checkpoint, so clearing or narrowing a filter later must
+re-examine them. A pass instead goes full (``limit=0``, and every record is
+candidate-in-window) whenever the filters' fingerprint no longer matches the
+one the cursor last observed on a clean pass; see ``_advanced_cursor``.
 """
 
 from __future__ import annotations
@@ -24,7 +30,8 @@ from sase.core.external_pr_wire import (
     ExternalPrImportRequestWire,
     RemotePullRequestWire,
 )
-from sase.external_mirror.config import mirrored_pr_authors
+from sase.external_mirror.config import pull_request_filters
+from sase.external_mirror.filters import PullRequestFilters
 from sase.external_mirror.report import MirrorReport
 from sase.external_mirror.state import (
     MirrorCursor,
@@ -34,6 +41,7 @@ from sase.external_mirror.state import (
     read_mirror_cursor,
     write_backoff_state,
     write_mirror_cursor,
+    write_pr_unmirrored_count,
 )
 from sase.vcs_provider import (
     PullRequestListState,
@@ -82,7 +90,13 @@ def sync_external_pull_requests(
     state_dir = state_dir if state_dir is not None else pr_mirror_state_dir()
     now = _utc(now)
     cursor = read_mirror_cursor(state_dir, KIND, project_key)
-    full = full or _needs_daily_repair_scan(cursor, now)
+    filters = pull_request_filters()
+    filters_fingerprint = filters.fingerprint()
+    full = (
+        full
+        or _needs_daily_repair_scan(cursor, now)
+        or filters_fingerprint != cursor.filters_fingerprint
+    )
     limit = 0 if full else fetch_limit
 
     try:
@@ -100,8 +114,15 @@ def sync_external_pull_requests(
         return report
 
     report.fetched = len(remotes)
-    remotes = _authored_remotes(remotes, mirrored_pr_authors())
+    remotes = _filtered_remotes(remotes, filters)
     report.unmirrored = report.fetched - len(remotes)
+    if not dry_run:
+        write_pr_unmirrored_count(
+            project_key,
+            fetched=report.fetched,
+            unmirrored=report.unmirrored,
+            now=now,
+        )
     active_file, archive_file = project_patch_files(project_key)
     index = read_project_patch_index(active_file, archive_file)
     clean_pass = True
@@ -168,7 +189,7 @@ def sync_external_pull_requests(
         return report
 
     if clean_pass and not report.budget_exhausted and not report.errors:
-        cursor = _advanced_cursor(cursor, latest_seen, full, now)
+        cursor = _advanced_cursor(cursor, latest_seen, full, now, filters_fingerprint)
         write_mirror_cursor(state_dir, KIND, project_key, cursor)
         report.checkpoint_advanced = 1
         backoff = read_backoff_state(state_dir, KIND)
@@ -198,18 +219,16 @@ def _remote_to_wire(remote: PullRequestWire) -> RemotePullRequestWire:
     )
 
 
-def _authored_remotes(
+def _filtered_remotes(
     remotes: list[PullRequestWire],
-    authors: frozenset[str],
+    filters: PullRequestFilters,
 ) -> list[PullRequestWire]:
-    """Narrow *remotes* to ``external_mirror.pr_authors`` when it is set.
+    """Narrow *remotes* to ``external_mirror.pull_requests.filters``.
 
-    An empty set is the default and adopts every remote PR. Dropped records
-    never reach the checkpoint, so clearing the knob later re-examines them.
+    Dropped records never reach the checkpoint; see the module docstring for
+    how a filter change forces a full re-examination pass regardless.
     """
-    if not authors:
-        return remotes
-    return [remote for remote in remotes if remote.author.casefold() in authors]
+    return [remote for remote in remotes if filters.matches(remote)]
 
 
 def _sorted_remotes(remotes: list[PullRequestWire]) -> list[PullRequestWire]:
@@ -240,6 +259,7 @@ def _advanced_cursor(
     latest_seen: tuple[datetime, str] | None,
     full: bool,
     now: datetime,
+    filters_fingerprint: str,
 ) -> MirrorCursor:
     last_updated_at = cursor.last_updated_at
     last_provider_id = cursor.last_provider_id
@@ -250,6 +270,7 @@ def _advanced_cursor(
         last_provider_id=last_provider_id,
         backfill_complete=cursor.backfill_complete or full,
         last_full_scan_at=now if full else cursor.last_full_scan_at,
+        filters_fingerprint=filters_fingerprint,
     )
 
 

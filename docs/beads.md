@@ -577,9 +577,11 @@ qualified) and a matching `bug:<display-name>#<n>` entry in `refs` (the human-fa
 searchable spelling); both normalize to the same identity. Upstream closes, reopens, and
 disappearances never change the bead's status or close it — that stays a deliberate
 human action — but each transition appends one attributed note the first time it is
-observed, so drift is visible without being auto-resolved. An
-`external_mirror.exclude_labels` config knob (empty by default) excludes tracker labels
-from mirroring.
+observed, so drift is visible without being auto-resolved. The
+[`external_mirror.issues.filters`](configuration.md#external_mirror) surface (empty by
+default) excludes tracker issues from mirroring by author, label, title, or state;
+filters gate creation only, so clearing one re-examines the issues it previously dropped
+without deleting a bead that already exists.
 
 ### Artifact References
 

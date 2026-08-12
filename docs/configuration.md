@@ -2906,16 +2906,68 @@ Configuration for the external tracker mirror. See
 `external_issue_mirror` and `external_pr_mirror` chops, the first production use of
 `for_each: {source: projects}` fan-out.
 
+One shared filter surface governs which tracker issues become beads
+(`external_mirror.issues.filters`) and which remote pull requests become Patches
+(`external_mirror.pull_requests.filters`). Each criterion is either a `*_globs` list
+(accepting `!`-prefixed exclusions, matched like [`file_hooks`](#file_hooks)'s
+`path_globs`) or a `states` enum list. A record matches a criterion if it matches any
+positive glob (or the criterion has no positive globs) and matches no negative glob; a
+record is mirrored only when every criterion accepts it, and matching is case-folded.
+Setting a criterion replaces the shipped defaults for that criterion rather than
+appending to them. **Filters gate creation only**: a record a filter now excludes keeps
+whatever bead or Patch it already has, the mirror never deletes.
+
 ```yaml
 external_mirror:
-  exclude_labels: [] # tracker labels whose issues are never mirrored into beads
-  pr_authors: [] # remote PR authors whose pull requests are adopted as Patches
+  issues:
+    filters:
+      author_globs: []
+      label_globs: []
+      title_globs: []
+      states: []
+  pull_requests:
+    filters:
+      author_globs: []
+      base_ref_globs: []
+      head_ref_globs:
+        - "!release-please--*"
+        - "!release-please/*"
+        - "!release-plz-*"
+        - "!release-plz/*"
+      title_globs: []
+      states: []
 ```
 
-| Field                            | Type        | Default | Description                                                                                                                                                                     |
-| -------------------------------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `external_mirror.exclude_labels` | list of str | `[]`    | Tracker labels whose issues are never mirrored into beads. Empty keeps the mirrored bead list a strict superset of the tracker's issue list; a non-empty value breaks that.     |
-| `external_mirror.pr_authors`     | list of str | `[]`    | Remote PR authors whose pull requests are adopted as Patches. Empty adopts every PR SASE's tracked workflow did not create; listing authors narrows adoption to those accounts. |
+Pull requests ship with the four `head_ref_globs` exclusions above, so release-please
+and release-plz PRs stop becoming Patches by default. Head ref is the key those defaults
+filter on rather than author or title: release automation can author as a human account
+on some repos, and PR titles are user-configurable, but the release branch name is
+stable.
+
+| Field                                                  | Type        | Default                                                                           | Description                                                  |
+| ------------------------------------------------------ | ----------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `external_mirror.issues.filters.author_globs`          | list of str | `[]`                                                                              | Issue author globs, including `!`-prefixed exclusions.       |
+| `external_mirror.issues.filters.label_globs`           | list of str | `[]`                                                                              | Issue label globs, matched against every label on the issue. |
+| `external_mirror.issues.filters.title_globs`           | list of str | `[]`                                                                              | Issue title globs.                                           |
+| `external_mirror.issues.filters.states`                | list of str | `[]`                                                                              | Issue states (`open`/`closed`) accepted for mirroring.       |
+| `external_mirror.pull_requests.filters.author_globs`   | list of str | `[]`                                                                              | Remote PR author globs.                                      |
+| `external_mirror.pull_requests.filters.base_ref_globs` | list of str | `[]`                                                                              | Remote PR base-ref globs.                                    |
+| `external_mirror.pull_requests.filters.head_ref_globs` | list of str | `["!release-please--*", "!release-please/*", "!release-plz-*", "!release-plz/*"]` | Remote PR head-ref globs.                                    |
+| `external_mirror.pull_requests.filters.title_globs`    | list of str | `[]`                                                                              | Remote PR title globs.                                       |
+| `external_mirror.pull_requests.filters.states`         | list of str | `[]`                                                                              | Remote PR states (`open`/`closed`) accepted for adoption.    |
+
+`external_mirror.exclude_labels` and `external_mirror.pr_authors` are deprecated aliases
+for `external_mirror.issues.filters.label_globs` (folded in as negated globs) and
+`external_mirror.pull_requests.filters.author_globs` (folded in as plain globs),
+respectively. The fold applies only when the modern criterion is empty — a non-empty
+modern criterion always wins, and the legacy key's value is then ignored.
+`sase doctor -C config.external_mirror` flags both a set legacy key and the "set
+alongside a non-empty modern criterion" case.
+
+Records a filter drops are visible rather than silently missing:
+`sase patch sync-external`'s table gets a `Filtered` column, `sase bead sync-external`'s
+per-project line gains `filtered=<n>` when non-zero, and the Patches pane's project
+banners show a `· M remote-only` suffix when a filtered-PR count is known.
 
 Source: `src/sase/default_config.yml`
 

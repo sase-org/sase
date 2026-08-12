@@ -9,6 +9,13 @@ path (``sase_subdir("external_mirror")``, see ``pr_mirror_state_dir`` and
 ``_mirror_state_dir`` below), because their manual CLI entry points must read
 and write the same cursor as their AXE chop without knowing which lane the
 chop is configured in.
+
+The PR filter-outcome document (``read_pr_unmirrored_counts`` /
+``write_pr_unmirrored_count``) is lane-independent from birth for the same
+reason, and is a single shared, read-modify-write document keyed by project
+rather than one file per project. No lock guards the read-modify-write: a
+lost update between two concurrent per-project chop instances costs one
+stale cosmetic counter until the next pass, which is cheaper than a lock.
 """
 
 from __future__ import annotations
@@ -32,6 +39,11 @@ class MirrorCursor:
     last_provider_id: str = ""
     backfill_complete: bool = False
     last_full_scan_at: datetime | None = None
+    #: Digest of the last ``PullRequestFilters`` a clean pass observed. A
+    #: mismatch against the current filters' fingerprint means the filter
+    #: config changed since, so the next pass must go full to re-examine
+    #: records the old filters dropped.
+    filters_fingerprint: str = ""
 
 
 @dataclass(frozen=True)
@@ -99,6 +111,7 @@ def read_mirror_cursor(state_dir: Path, kind: str, project_key: str) -> MirrorCu
         last_provider_id=str(payload.get("last_provider_id") or ""),
         backfill_complete=bool(payload.get("backfill_complete", False)),
         last_full_scan_at=_parse_datetime(payload.get("last_full_scan_at")),
+        filters_fingerprint=str(payload.get("filters_fingerprint") or ""),
     )
 
 
@@ -117,6 +130,7 @@ def write_mirror_cursor(
             "last_provider_id": cursor.last_provider_id,
             "backfill_complete": cursor.backfill_complete,
             "last_full_scan_at": _format_datetime(cursor.last_full_scan_at),
+            "filters_fingerprint": cursor.filters_fingerprint,
         },
     )
 
@@ -245,6 +259,71 @@ def mirror_state_document_path(kind: str, project_key: str) -> Path:
     return _mirror_state_dir(kind) / f"{project_key}.json"
 
 
+def pr_unmirrored_state_path() -> Path:
+    return _mirror_state_dir("external_pr") / "unmirrored.json"
+
+
+def read_pr_unmirrored_counts() -> dict[str, int]:
+    """Return ``{project_key: unmirrored}`` from the last recorded PR pass.
+
+    Tolerant of a missing or malformed document, including per-entry
+    malformation; degrades to omitting the offending project rather than
+    discarding the whole read. Safe to call from a render path: pure and
+    synchronous, so callers that must avoid event-loop I/O should still wrap
+    it (e.g. ``asyncio.to_thread``).
+    """
+    path = pr_unmirrored_state_path()
+    try:
+        with path.open(encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    counts: dict[str, int] = {}
+    for project_key, raw_entry in payload.items():
+        if not isinstance(project_key, str) or not isinstance(raw_entry, dict):
+            continue
+        unmirrored = raw_entry.get("unmirrored")
+        if (
+            not isinstance(unmirrored, int)
+            or isinstance(unmirrored, bool)
+            or unmirrored < 0
+        ):
+            continue
+        counts[project_key] = unmirrored
+    return counts
+
+
+def write_pr_unmirrored_count(
+    project_key: str,
+    *,
+    fetched: int,
+    unmirrored: int,
+    now: datetime,
+) -> None:
+    """Read-modify-write this project's entry in the shared PR filter document.
+
+    See the module docstring for why this shared document takes no lock.
+    """
+    path = pr_unmirrored_state_path()
+    if not best_effort_test_state_write_allowed(path, category="external-mirror-state"):
+        return
+    try:
+        with path.open(encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    payload[project_key] = {
+        "fetched": fetched,
+        "unmirrored": unmirrored,
+        "observed_at": iso_utc(now),
+    }
+    _atomic_json_write(path, payload)
+
+
 @dataclass
 class _MirrorState:
     """One project's durable mirror cursor, drift, and backoff record."""
@@ -264,6 +343,11 @@ class _MirrorState:
     upstream_states: dict[str, str] = field(default_factory=dict)
     failures: int = 0
     next_attempt_at: str = ""
+    #: Digest of the last ``IssueFilters`` a clean (``deferred == 0``) pass
+    #: observed. A mismatch against the current filters' fingerprint means the
+    #: filter config changed since, so the unchanged-upstream early return is
+    #: skipped for one pass to re-examine records the old filters dropped.
+    filters_fingerprint: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -277,6 +361,7 @@ class _MirrorState:
             "upstream_states": dict(self.upstream_states),
             "failures": self.failures,
             "next_attempt_at": self.next_attempt_at,
+            "filters_fingerprint": self.filters_fingerprint,
         }
 
 
@@ -324,6 +409,7 @@ def read_mirror_state(path: Path, *, project: str) -> _MirrorState:
         upstream_states=upstream_states,
         failures=failures,
         next_attempt_at=str(payload.get("next_attempt_at") or ""),
+        filters_fingerprint=str(payload.get("filters_fingerprint") or ""),
     )
 
 
@@ -397,10 +483,13 @@ __all__ = [
     "next_backoff",
     "next_backoff_entry",
     "pr_mirror_state_dir",
+    "pr_unmirrored_state_path",
     "read_backoff_state",
     "read_mirror_cursor",
     "read_mirror_state",
+    "read_pr_unmirrored_counts",
     "write_backoff_state",
     "write_mirror_cursor",
     "write_mirror_state",
+    "write_pr_unmirrored_count",
 ]

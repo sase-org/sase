@@ -58,6 +58,7 @@ def render_grouped(
     current_group_key: GroupKey | None,
     banner_jump_hints: dict[GroupKey, str] | None,
     now: datetime | None,
+    pr_unmirrored_counts: dict[str, int] | None = None,
 ) -> None:
     """Render banner rows + Patch rows for the active grouping mode.
 
@@ -126,7 +127,9 @@ def render_grouped(
             banner_hint = (banner_jump_hints or {}).get(entry.group.group_key)
             max_banner_natural = max(
                 max_banner_natural,
-                banner_natural_width(entry.group, banner_hint),
+                banner_natural_width(
+                    entry.group, banner_hint, pr_unmirrored_counts=pr_unmirrored_counts
+                ),
             )
     natural_banner_width = max(banner_min, max_banner_natural)
     banner_width = min(natural_banner_width, CL_LIST_MAX_CONTENT_WIDTH)
@@ -160,6 +163,7 @@ def render_grouped(
                 sequence=banner_seq,
                 selectable=selectable,
                 hint_char=banner_hint,
+                pr_unmirrored_counts=pr_unmirrored_counts,
             )
             banner_seq += 1
             row_index = len(widget._row_entries)

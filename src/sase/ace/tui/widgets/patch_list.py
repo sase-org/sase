@@ -117,6 +117,7 @@ class PatchList(OptionList):
         current_group_key: GroupKey | None = None,
         banner_jump_hints: dict[GroupKey, str] | None = None,
         now: datetime | None = None,
+        pr_unmirrored_counts: dict[str, int] | None = None,
     ) -> None:
         """Update the list with new patches.
 
@@ -141,6 +142,9 @@ class PatchList(OptionList):
                 only needs to render whatever it is given).
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to
                 ``datetime.now()`` inside the tree builder.
+            pr_unmirrored_counts: Project display name -> remote-only PR
+                count from the last external mirror pass. Applied only to
+                level-0 (project) banners.
         """
         with tui_trace("widget.patch_list.update_list", count=len(patches)):
             self._update_list_impl(
@@ -155,6 +159,7 @@ class PatchList(OptionList):
                 current_group_key=current_group_key,
                 banner_jump_hints=banner_jump_hints,
                 now=now,
+                pr_unmirrored_counts=pr_unmirrored_counts,
             )
 
     def _update_list_impl(
@@ -170,6 +175,7 @@ class PatchList(OptionList):
         current_group_key: GroupKey | None = None,
         banner_jump_hints: dict[GroupKey, str] | None = None,
         now: datetime | None = None,
+        pr_unmirrored_counts: dict[str, int] | None = None,
     ) -> None:
         self._programmatic_update = True
         self._marked_indices = marked_indices or set()
@@ -199,6 +205,7 @@ class PatchList(OptionList):
             current_group_key=current_group_key,
             banner_jump_hints=banner_jump_hints,
             now=now,
+            pr_unmirrored_counts=pr_unmirrored_counts,
         )
 
     def _clear_programmatic_flag(self) -> None:

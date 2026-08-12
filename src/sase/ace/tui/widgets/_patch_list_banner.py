@@ -48,10 +48,23 @@ def _banner_label(group: PatchGroupRow) -> str:
     return humanize_cl_name(group.group_key[-1])
 
 
-def _banner_chip(group: PatchGroupRow) -> str:
-    """Right-aligned ``N PRs`` summary chip for *group*."""
+def _banner_chip(group: PatchGroupRow, unmirrored_count: int | None = None) -> str:
+    """Right-aligned ``N PRs`` (optionally ``· M remote-only``) summary chip."""
     n = len(group.patch_indices)
-    return f"{n} PR{'s' if n != 1 else ''}"
+    chip = f"{n} PR{'s' if n != 1 else ''}"
+    if unmirrored_count:
+        chip += f"  ·  {unmirrored_count} remote-only"
+    return chip
+
+
+def _unmirrored_count_for(
+    group: PatchGroupRow,
+    pr_unmirrored_counts: dict[str, int] | None,
+) -> int | None:
+    """Return the remote-only count for *group*, level-0 project banners only."""
+    if group.level != 0 or not pr_unmirrored_counts:
+        return None
+    return pr_unmirrored_counts.get(_banner_label(group))
 
 
 def _banner_parts(group: PatchGroupRow) -> tuple[str, str, str, str, str]:
@@ -97,6 +110,7 @@ def format_patch_banner_option(
     sequence: int,
     selectable: bool = False,
     hint_char: str | None = None,
+    pr_unmirrored_counts: dict[str, int] | None = None,
 ) -> Option:
     """Render one Patch group banner Option.
 
@@ -109,6 +123,10 @@ def format_patch_banner_option(
     same name root appearing under two projects) keep distinct Option
     ids; the Option id encodes ``sequence:level:key`` so OptionList can
     address each row uniquely.
+
+    ``pr_unmirrored_counts`` (project display name -> remote-only PR count)
+    is applied only to level-0 (project) banners, appending a
+    ``· M remote-only`` suffix to the chip when a nonzero count is known.
     """
     key_str = "/".join(group.group_key)
     if width <= 0:
@@ -119,7 +137,7 @@ def format_patch_banner_option(
         )
 
     label = _banner_label(group)
-    chip = _banner_chip(group)
+    chip = _banner_chip(group, _unmirrored_count_for(group, pr_unmirrored_counts))
     prefix, prefix_style, label_style, rule_char, rule_style = _banner_parts(group)
 
     hint_text = f"[{hint_char}] " if hint_char is not None else ""
@@ -169,15 +187,22 @@ def format_patch_banner_option(
     )
 
 
-def banner_natural_width(group: PatchGroupRow, hint_char: str | None) -> int:
+def banner_natural_width(
+    group: PatchGroupRow,
+    hint_char: str | None,
+    *,
+    pr_unmirrored_counts: dict[str, int] | None = None,
+) -> int:
     """Lower bound on banner cell width before padding kicks in.
 
     Used to size banner widths so the rule has at least two ``rule_char``
     cells before the chip.  Mirrors the calculation in
-    :func:`format_patch_banner_option`.
+    :func:`format_patch_banner_option`, including the optional
+    ``pr_unmirrored_counts`` chip suffix, so the two functions agree on
+    width for the same group.
     """
     label = _banner_label(group)
-    chip = _banner_chip(group)
+    chip = _banner_chip(group, _unmirrored_count_for(group, pr_unmirrored_counts))
     prefix, *_ = _banner_parts(group)
     hint_text = f"[{hint_char}] " if hint_char is not None else ""
     return (

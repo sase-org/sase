@@ -106,6 +106,7 @@ def handle_sync_external(
     table = Table(title="External PR Mirror")
     table.add_column("Project", style="cyan")
     table.add_column("Fetched", justify="right")
+    table.add_column("Filtered", justify="right", style="yellow")
     table.add_column("Adopted", justify="right", style="green")
     table.add_column("Repaired", justify="right", style="green")
     table.add_column("Skipped", justify="right")
@@ -116,7 +117,9 @@ def handle_sync_external(
     for record in sorted(records, key=lambda item: effective_project_name(item)):
         project_label = effective_project_name(record)
         if not record.workspace_dir:
-            table.add_row(project_label, "0", "0", "0", "0", "1", "missing_workspace")
+            table.add_row(
+                project_label, "0", "0", "0", "0", "0", "1", "missing_workspace"
+            )
             exit_code = 1
             continue
         try:
@@ -130,7 +133,7 @@ def handle_sync_external(
                 full=bool(args.full),
             )
         except Exception as exc:  # noqa: BLE001 - CLI reports per-project failures.
-            table.add_row(project_label, "0", "0", "0", "0", "1", str(exc))
+            table.add_row(project_label, "0", "0", "0", "0", "0", "1", str(exc))
             exit_code = 1
             continue
         if report.errors:
@@ -138,6 +141,7 @@ def handle_sync_external(
         table.add_row(
             project_label,
             str(report.fetched),
+            str(report.unmirrored),
             str(report.created),
             str(report.repaired),
             str(report.skipped),

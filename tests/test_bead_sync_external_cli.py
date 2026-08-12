@@ -171,6 +171,50 @@ def test_output_renders_display_name_not_project_key(
     assert "gh_sase-org__sase" not in out
 
 
+def test_output_shows_filtered_count_when_nonzero(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    from sase.external_mirror.issues import MirrorReport
+
+    monkeypatch.setattr(
+        "sase.bead.cli_sync_external.list_project_records",
+        lambda *a, **k: [_record(project_name="sase", workspace_dir="/repo")],
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_sync_external.run_issue_mirror_for_project",
+        lambda **_kwargs: MirrorReport(
+            project="sase", display_name="sase", issues_seen=3, unmirrored=2
+        ),
+    )
+
+    handle_bead_sync_external(_namespace())
+
+    out = capsys.readouterr().out
+    assert "filtered=2" in out
+
+
+def test_output_omits_filtered_when_zero(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    from sase.external_mirror.issues import MirrorReport
+
+    monkeypatch.setattr(
+        "sase.bead.cli_sync_external.list_project_records",
+        lambda *a, **k: [_record(project_name="sase", workspace_dir="/repo")],
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_sync_external.run_issue_mirror_for_project",
+        lambda **_kwargs: MirrorReport(
+            project="sase", display_name="sase", issues_seen=3, unmirrored=0
+        ),
+    )
+
+    handle_bead_sync_external(_namespace())
+
+    out = capsys.readouterr().out
+    assert "filtered=" not in out
+
+
 def test_all_degraded_projects_exit_non_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

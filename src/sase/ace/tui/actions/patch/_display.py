@@ -430,6 +430,11 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             if self._entry_jump_mode_active
             else None
         )
+        pr_unmirrored_counts = (
+            getattr(self, "_pr_unmirrored_counts_by_display_name", None)
+            if grouping_mode is PatchGroupingMode.BY_PROJECT
+            else None
+        )
         list_widget.update_list(  # type: ignore[attr-defined]
             self.patches,
             self.current_idx,
@@ -443,6 +448,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             fold_registry=fold_registry,
             current_group_key=current_group_key,
             banner_jump_hints=banner_jump_hints,
+            pr_unmirrored_counts=pr_unmirrored_counts,
         )
 
         # Calculate effective hide_reverted (disabled if query targets reverted)
