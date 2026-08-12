@@ -260,3 +260,99 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
         for chop in lumberjack.chops:
             assert chop.script is not None
             assert chop.script.startswith("sase_chop_")
+
+
+def test_axe_config_error_hints_at_stale_core_binding_for_advertised_provider() -> None:
+    from sase.axe._config_types import AxeConfigDiagnostic
+
+    diagnostic = AxeConfigDiagnostic(
+        code="unknown_guard_provider",
+        message=(
+            "unknown guard provider `agent_runners`; supported providers: "
+            "patch, agent_hood, agent_clan"
+        ),
+        path="axe.lumberjacks.ci_watch.chops.ci_watch.inhibit_if.agent_runners",
+        layer="overlay:sase_athena.yml",
+    )
+
+    message = str(AxeConfigError([diagnostic]))
+
+    assert "hint: this sase build advertises guard provider 'agent_runners'" in message
+    assert "sase_core_rs" in message
+    assert "sase update" in message
+
+
+def test_axe_config_error_hints_at_stale_core_binding_for_trigger_providers_too() -> (
+    None
+):
+    from sase.axe._config_types import AxeConfigDiagnostic
+
+    diagnostic = AxeConfigDiagnostic(
+        code="unknown_trigger_provider",
+        message=(
+            "unknown trigger provider `git.commits_since`; supported providers: always"
+        ),
+        path="axe.lumberjacks.lj.chops.c1.trigger",
+    )
+
+    message = str(AxeConfigError([diagnostic]))
+
+    assert (
+        "hint: this sase build advertises trigger provider 'git.commits_since'"
+        in message
+    )
+
+
+def test_axe_config_error_omits_hint_for_a_bogus_provider_name() -> None:
+    from sase.axe._config_types import AxeConfigDiagnostic
+
+    diagnostic = AxeConfigDiagnostic(
+        code="unknown_guard_provider",
+        message=(
+            "unknown guard provider `mystery_provider`; supported providers: patch"
+        ),
+        path="axe.lumberjacks.lj.chops.c1.inhibit_if.mystery_provider",
+    )
+
+    message = str(AxeConfigError([diagnostic]))
+
+    assert "hint:" not in message
+
+
+def test_axe_config_error_omits_hint_for_unrelated_diagnostic_codes() -> None:
+    from sase.axe._config_types import AxeConfigDiagnostic
+
+    diagnostic = AxeConfigDiagnostic(
+        code="required_missing",
+        message="guard provider is required",
+        path="axe.lumberjacks.lj.chops.c1.inhibit_if[0].provider",
+    )
+
+    message = str(AxeConfigError([diagnostic]))
+
+    assert "hint:" not in message
+
+
+def test_axe_config_error_omits_hint_when_the_schema_cannot_be_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.axe import _config_types
+    from sase.config.inventory import ConfigBackendError
+
+    def _raise() -> dict[str, object]:
+        raise ConfigBackendError("boom")
+
+    monkeypatch.setattr("sase.config.inventory.load_config_schema", _raise)
+    _config_types._advertised_chop_providers.cache_clear()
+
+    diagnostic = _config_types.AxeConfigDiagnostic(
+        code="unknown_guard_provider",
+        message=("unknown guard provider `agent_runners`; supported providers: patch"),
+        path="axe.lumberjacks.lj.chops.c1.inhibit_if.agent_runners",
+    )
+    try:
+        message = str(AxeConfigError([diagnostic]))
+    finally:
+        _config_types._advertised_chop_providers.cache_clear()
+
+    assert "hint:" not in message

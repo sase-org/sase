@@ -158,6 +158,29 @@ def test_extract_capabilities_from_both_probe_outputs(tool: ModuleType) -> None:
     )
 
 
+def test_extract_capabilities_from_axe_chop_guard_probe_line(tool: ModuleType) -> None:
+    """The axe-chop-guard probe line shape must stay extractable by name.
+
+    `tools/validate_sase_core_rs`'s `_validate_axe_chop_guard_providers` emits
+    `[axe-chop-guard] <provider>(...) rejected by the installed core: ...`; this
+    pins that the two scripts cannot drift apart silently.
+    """
+    raw = tool.RawProbeResult(
+        bindings=tool.CommandResult(returncode=0, stdout="", stderr=""),
+        validator=tool.CommandResult(
+            returncode=1,
+            stdout="",
+            stderr=(
+                "[validate_sase_core_rs] [axe-chop-guard] agent_runners(...) "
+                "rejected by the installed core: "
+                "[{'code': 'unknown_guard_provider'}]\n"
+            ),
+        ),
+    )
+
+    assert tool._extract_capabilities(raw) == ("agent_runners",)
+
+
 def test_blocked_unpublished_verdict_uses_cached_probe_and_core_history(
     tool: ModuleType,
     tmp_path: Path,

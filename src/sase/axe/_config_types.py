@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import importlib.metadata
+import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any
 
 from .chop_env import ChopEnvValue
@@ -10,6 +13,15 @@ from .chop_env import ChopEnvValue
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
 DEFAULT_LUMBERJACK_RESTART_BACKOFF_MAX_SECONDS = 60
+
+# Diagnostic codes the Rust axe-chop config validator raises when a
+# guard/trigger provider token isn't one it recognizes, mapped to the noun
+# used in the stale-core-binding hint below.
+_STALE_CORE_HINT_CODES = {
+    "unknown_guard_provider": "guard",
+    "unknown_trigger_provider": "trigger",
+}
+_PROVIDER_TOKEN_RE = re.compile(r"provider `([^`]+)`")
 
 
 @dataclass(frozen=True)
@@ -39,13 +51,113 @@ class AxeConfigDiagnostic:
         return f"[{self.code}] {location}{source}: {self.message}"
 
 
+def _rejected_provider_token(item: AxeConfigDiagnostic) -> str | None:
+    """Extract the rejected provider name from an unknown-provider diagnostic.
+
+    The Rust validator always backtick-quotes the token in ``message`` (both
+    the tagged-array and keyed guard/trigger forms), so that is the reliable
+    source; the diagnostic ``path`` only ends in the token for the keyed form.
+    """
+    match = _PROVIDER_TOKEN_RE.search(item.message)
+    if match:
+        return match.group(1)
+    if item.path:
+        tail = item.path.rsplit(".", 1)[-1].split("[", 1)[0]
+        return tail or None
+    return None
+
+
+def _collect_schema_providers(
+    node: Any, *, keys: frozenset[str], active: bool
+) -> set[str]:
+    """Recursively collect ``provider`` enum values nested under any of *keys*."""
+    providers: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            nested = active or key in keys
+            if active and key == "provider" and isinstance(value, dict):
+                enum_values = value.get("enum")
+                if isinstance(enum_values, list):
+                    providers.update(v for v in enum_values if isinstance(v, str))
+            providers |= _collect_schema_providers(value, keys=keys, active=nested)
+    elif isinstance(node, list):
+        for item in node:
+            providers |= _collect_schema_providers(item, keys=keys, active=active)
+    return providers
+
+
+@lru_cache(maxsize=1)
+def _advertised_chop_providers() -> frozenset[str]:
+    """Return every guard/trigger provider name the bundled schema advertises.
+
+    Returns an empty set, and never raises, when the schema cannot be read or
+    parsed -- a malformed/missing schema degrades to "no hint" instead of
+    turning a config error into a crash.
+    """
+    try:
+        from sase.config.inventory import load_config_schema
+
+        schema = load_config_schema()
+    except Exception:
+        return frozenset()
+    return frozenset(
+        _collect_schema_providers(
+            schema, keys=frozenset({"inhibit_if", "trigger"}), active=False
+        )
+    )
+
+
+def _installed_core_version() -> str | None:
+    try:
+        return importlib.metadata.version("sase-core-rs")
+    except Exception:
+        return None
+
+
+def _stale_core_binding_hint(
+    diagnostics: tuple[AxeConfigDiagnostic, ...],
+) -> str | None:
+    """Return a hint line when the core rejected a provider this build advertises.
+
+    Deliberately does not compare the installed core version against the
+    declared floor: between core releases the Cargo version does not move and
+    the floor legitimately lags master, so a version comparison both misses
+    real skew and fires falsely. Whether the bundled schema advertises a
+    provider the installed core just rejected is the exact signal.
+    """
+    try:
+        for item in diagnostics:
+            kind = _STALE_CORE_HINT_CODES.get(item.code)
+            if kind is None:
+                continue
+            token = _rejected_provider_token(item)
+            if not token or token not in _advertised_chop_providers():
+                continue
+            version = _installed_core_version()
+            version_part = f" ({version})" if version else ""
+            return (
+                f"hint: this sase build advertises {kind} provider {token!r}, "
+                f"but the installed sase_core_rs{version_part} rejects it — "
+                "the Rust core binding is older than this sase build; run "
+                "'sase update' (dev installs) or reinstall sase to rebuild "
+                "sase_core_rs."
+            )
+    except Exception:
+        return None
+    return None
+
+
 class AxeConfigError(ValueError):
     """Raised when the effective ``axe:`` configuration is invalid."""
 
     def __init__(self, diagnostics: list[AxeConfigDiagnostic]) -> None:
         self.diagnostics = tuple(diagnostics)
         details = "\n".join(f"- {item.format()}" for item in diagnostics)
-        super().__init__(f"Invalid axe configuration:\n{details}")
+        message = f"Invalid axe configuration:\n{details}"
+        hint = _stale_core_binding_hint(self.diagnostics)
+        if hint:
+            message += f"\n{hint}"
+        super().__init__(message)
 
 
 @dataclass

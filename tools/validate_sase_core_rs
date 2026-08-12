@@ -596,6 +596,137 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     return True
 
 
+_CONFIG_SCHEMA_PATH = REPO_ROOT / "src" / "sase" / "config" / "sase.schema.json"
+
+# Minimal valid ``inhibit_if`` payload per guard provider the bundled schema
+# advertises. Adding a provider to the schema without adding it here fails
+# `_validate_axe_chop_guard_providers` instead of silently skipping it.
+AXE_CHOP_GUARD_PROVIDER_PAYLOADS: dict[str, dict[str, Any]] = {
+    "patch": {"name_prefix": "x"},
+    "changespec": {"name_prefix": "x"},
+    "agent_hood": {"hood": "h"},
+    "agent_clan": {"name_prefix": "x"},
+    "agent_runners": {"max": 0},
+}
+
+
+def _collect_inhibit_if_providers(node: Any, *, in_inhibit_if: bool) -> set[str]:
+    """Recursively collect every ``provider`` enum value under ``inhibit_if``."""
+    providers: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            nested = in_inhibit_if or key == "inhibit_if"
+            if in_inhibit_if and key == "provider" and isinstance(value, dict):
+                enum_values = value.get("enum")
+                if isinstance(enum_values, list):
+                    providers.update(v for v in enum_values if isinstance(v, str))
+            providers |= _collect_inhibit_if_providers(value, in_inhibit_if=nested)
+    elif isinstance(node, list):
+        for item in node:
+            providers |= _collect_inhibit_if_providers(item, in_inhibit_if=in_inhibit_if)
+    return providers
+
+
+def _axe_chop_guard_providers(schema_path: Path) -> list[str] | None:
+    """Return the sorted ``inhibit_if`` guard providers the schema advertises."""
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        _error(f"could not read bundled config schema at {schema_path}: {exc}")
+        return None
+    providers = _collect_inhibit_if_providers(schema, in_inhibit_if=False)
+    if not providers:
+        _error(f"found no inhibit_if guard providers in {schema_path}")
+        return None
+    return sorted(providers)
+
+
+def _axe_chop_guard_request(
+    provider: str, payload: dict[str, Any], schema_version: int
+) -> dict[str, Any]:
+    return {
+        "schema_version": schema_version,
+        "config": {
+            "axe": {
+                "lumberjacks": {
+                    "probe": {
+                        "interval": 60,
+                        "description": "probe",
+                        "chops": [
+                            {
+                                "name": "probe",
+                                "description": "probe",
+                                "inhibit_if": {provider: payload},
+                            }
+                        ],
+                    }
+                }
+            }
+        },
+        "provenance": {},
+        "require_descriptions": False,
+        "require_description_shape": False,
+    }
+
+
+def _validate_axe_chop_guard_providers(
+    module: ModuleType, *, schema_path: Path = _CONFIG_SCHEMA_PATH
+) -> bool:
+    """Fail when the installed core rejects a guard provider this build advertises.
+
+    Config validation gaining a new guard provider (``crates/sase_core/src/
+    axe_chop/config.rs``) is a *behavioral* capability: the binding name and the
+    Cargo version are unchanged, so only calling the validator with each
+    advertised provider can tell an old core from a new one.
+    """
+    providers = _axe_chop_guard_providers(schema_path)
+    if providers is None:
+        return False
+
+    uncovered = [
+        name for name in providers if name not in AXE_CHOP_GUARD_PROVIDER_PAYLOADS
+    ]
+    if uncovered:
+        _error(
+            "bundled schema advertises inhibit_if guard provider(s) with no "
+            "probe payload: " + ", ".join(sorted(uncovered))
+        )
+        return False
+
+    validate_axe_config = getattr(module, "validate_axe_config", None)
+    schema_version_fn = getattr(module, "chop_engine_schema_version", None)
+    if not callable(validate_axe_config) or not callable(schema_version_fn):
+        _error(
+            "[axe-chop-guard] validate_axe_config/chop_engine_schema_version "
+            "binding missing; cannot probe guard providers"
+        )
+        return False
+
+    try:
+        schema_version = int(schema_version_fn())
+    except Exception as exc:
+        _error(f"chop_engine_schema_version() probe failed: {exc}")
+        return False
+
+    valid = True
+    for provider in providers:
+        payload = AXE_CHOP_GUARD_PROVIDER_PAYLOADS[provider]
+        request = _axe_chop_guard_request(provider, payload, schema_version)
+        try:
+            diagnostics = validate_axe_config(request)
+        except Exception as exc:
+            _error(f"[axe-chop-guard] {provider}(...) probe failed: {exc}")
+            valid = False
+            continue
+        if diagnostics:
+            _error(
+                f"[axe-chop-guard] {provider}(...) rejected by the installed "
+                f"core: {diagnostics!r}"
+            )
+            valid = False
+    return valid
+
+
 def _load_version_validator() -> ModuleType:
     """Load `tools/validate_sase_core_rs_version` to reuse its specifier parsing.
 
@@ -702,6 +833,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_saved_group_wire_fields(module):
         return 1
     if not _validate_project_lifecycle_contract(module):
+        return 1
+    if not _validate_axe_chop_guard_providers(module):
         return 1
     return 0
 
