@@ -98,6 +98,12 @@ def test_xprompt_expand_canonicalizes_project_alias(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    late_kwargs = []
+
+    def preprocess_late(prompt: str, **kwargs: object) -> str:
+        late_kwargs.append(kwargs)
+        return prompt
+
     monkeypatch.setattr(
         "sase.project_aliases.load_project_alias_map",
         lambda projects_root=None: {"bob": "bob-cli"},
@@ -111,7 +117,7 @@ def test_xprompt_expand_canonicalizes_project_alias(
         ),
         patch(
             "sase.llm_provider.preprocessing.preprocess_prompt_late",
-            side_effect=lambda prompt, **_kwargs: prompt,
+            side_effect=preprocess_late,
         ),
         pytest.raises(SystemExit) as exc_info,
     ):
@@ -119,6 +125,8 @@ def test_xprompt_expand_canonicalizes_project_alias(
 
     assert exc_info.value.code == 0
     assert capsys.readouterr().out == "#gh:bob-cli do it"
+    assert late_kwargs
+    assert late_kwargs[0].get("materialize_missing_roots", False) is False
 
 
 def test_xprompt_expand_warns_on_unresolved_reference_on_stderr(

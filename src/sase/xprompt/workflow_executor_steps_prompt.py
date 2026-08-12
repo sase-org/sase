@@ -247,7 +247,9 @@ class PromptStepMixin:
             early.segment_vcs_refs, is_home_mode=False
         )
         expanded_prompt = preprocess_prompt_late(
-            expanded_prompt, ref_contexts=ref_contexts
+            expanded_prompt,
+            ref_contexts=ref_contexts,
+            materialize_missing_roots=True,
         )
 
         # Append output format instructions if step has output spec

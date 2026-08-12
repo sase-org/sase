@@ -321,9 +321,11 @@ def test_late_preprocessing_expands_artifacts_before_file_refs() -> None:
         ref_contexts: object = None,
         staged_file_paths: set[str],
         jinja_protection: object,
+        materialize_missing_roots: bool = False,
     ) -> str:
         assert jinja_protection is not None
         assert staged_file_paths == set()
+        assert materialize_missing_roots is False
         seen.append(("artifact", is_home_mode))
         return prompt.replace("@plans:x.md", "@/resolved/x.md")
 

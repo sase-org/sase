@@ -14,7 +14,7 @@ unrecognized VCS tag never crashes prompt processing.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import logging
 import os
 from pathlib import Path
@@ -57,6 +57,7 @@ class PromptRefContext:
     workspace_num: int | None
     origin: Literal["vcs_workflow", "launch_identity", "explicit", "none"]
     vcs_ref: str | None = None
+    project_ref: str | None = None
 
 
 def prompt_ref_context_for_vcs_ref(
@@ -91,10 +92,11 @@ def prompt_ref_context_for_vcs_ref(
         else _resolved_workspace_num(is_home_mode)
     )
     workspace_dir = _workspace_dir_for_ref(ref, key=key, workflow_type=workflow_type)
+    project_ref = key or ref or "home"
     artifact_context = _safe_artifact_ref_context(
         workspace_dir,
         resolved_workspace_num,
-        project=key or ref or "home",
+        project=project_ref,
     )
 
     return PromptRefContext(
@@ -105,6 +107,7 @@ def prompt_ref_context_for_vcs_ref(
         workspace_num=resolved_workspace_num,
         origin="vcs_workflow",
         vcs_ref=ref,
+        project_ref=project_ref,
     )
 
 
@@ -133,10 +136,11 @@ def prompt_ref_context_from_launch_identity(*, is_home_mode: bool) -> PromptRefC
             workspace_dir = None
 
     resolved_workspace_num = _resolved_workspace_num(is_home_mode)
+    project_ref = key or "home"
     artifact_context = _safe_artifact_ref_context(
         workspace_dir,
         resolved_workspace_num,
-        project=key or "home",
+        project=project_ref,
     )
 
     return PromptRefContext(
@@ -147,6 +151,7 @@ def prompt_ref_context_from_launch_identity(*, is_home_mode: bool) -> PromptRefC
         workspace_num=resolved_workspace_num,
         origin="launch_identity",
         vcs_ref=None,
+        project_ref=project_ref,
     )
 
 
@@ -180,6 +185,23 @@ def explicit_prompt_ref_context(context: ArtifactRefContext) -> PromptRefContext
         workspace_num=None,
         origin="explicit",
         vcs_ref=None,
+    )
+
+
+def refresh_prompt_ref_context(context: PromptRefContext) -> PromptRefContext:
+    """Rebuild one context's ArtifactRefContext after its sidecars changed."""
+
+    if context.workspace_dir is None or context.workspace_num is None:
+        return context
+    artifact_context = _safe_artifact_ref_context(
+        context.workspace_dir,
+        context.workspace_num,
+        project=context.project_ref or "home",
+    )
+    return replace(
+        context,
+        artifact_context=artifact_context,
+        primary_repo=_primary_repo_name(artifact_context),
     )
 
 
@@ -506,4 +528,5 @@ __all__ = [
     "prompt_ref_contexts_for_prompt",
     "prompt_ref_contexts_for_segment_vcs_refs",
     "prompt_segment_vcs_refs",
+    "refresh_prompt_ref_context",
 ]

@@ -180,6 +180,19 @@ def artifact_ref_resolution_hint(
         if not name:
             return None
         return f"hint: no published page for {name}; run `sase agent sync`"
+    if (
+        reference.kind_type == "document"
+        and resolution.status == "missing"
+        and context is not None
+    ):
+        roots = tuple(
+            root.root for root in context.document_roots if root.kind == reference.kind
+        )
+        if not roots:
+            return f"hint: no document root is configured for @{reference.kind}"
+        label = "document root" if len(roots) == 1 else "document roots"
+        searched = ", ".join(str(root) for root in roots)
+        return f"hint: searched {label}: {searched}"
     return None
 
 

@@ -22,6 +22,7 @@ from sase.artifact_ref_kinds import parse_artifact_ref_canonical
 from sase.artifact_ref_models import (
     ArtifactRef,
     ArtifactRefContext,
+    ArtifactRefPromptCandidate,
     ArtifactRefResolution,
 )
 from sase.artifact_ref_operations import render_artifact_ref, scan_artifact_refs
@@ -29,6 +30,10 @@ from sase.artifact_ref_prompt_context import (
     PromptRefContext,
     explicit_prompt_ref_context,
     prompt_ref_contexts_for_prompt,
+)
+from sase.artifact_ref_prompt_materialize import (
+    MaterializationFailure,
+    materialize_missing_document_roots,
 )
 from sase.artifact_ref_prompt_parsing import (
     ArtifactRefFailure as _ArtifactRefFailure,
@@ -93,6 +98,7 @@ def process_artifact_references(
     ref_contexts: Sequence[PromptRefContext] | None = None,
     staged_file_paths: set[str] | None = None,
     jinja_protection: ArtifactRendererJinjaProtection | None = None,
+    materialize_missing_roots: bool = False,
 ) -> str:
     """Resolve and expand live artifact references in a launch prompt.
 
@@ -109,6 +115,7 @@ def process_artifact_references(
         rewrite=True,
         staged_file_paths=staged_file_paths,
         jinja_protection=jinja_protection,
+        materialize_missing_roots=materialize_missing_roots,
     )
 
 
@@ -141,6 +148,7 @@ def _expand_artifact_references(
     rewrite: bool,
     staged_file_paths: set[str] | None,
     jinja_protection: ArtifactRendererJinjaProtection | None,
+    materialize_missing_roots: bool = False,
 ) -> str:
     if "@" not in prompt:
         return prompt
@@ -161,6 +169,17 @@ def _expand_artifact_references(
 
     literal_ranges = literal_zone_ranges(prompt)
     byte_to_char = _byte_to_character_offsets(prompt)
+    materialization_failures: dict[tuple[int, str], MaterializationFailure] = {}
+    if materialize_missing_roots:
+        segment_contexts, materialization_failures = (
+            _materialize_missing_roots_for_candidates(
+                candidates,
+                segment_contexts,
+                literal_ranges=literal_ranges,
+                byte_to_char=byte_to_char,
+            )
+        )
+
     replacements: list[tuple[int, int, str]] = []
     consumptions: list[_ExpandedArtifactRef] = []
     failures: list[_ArtifactRefFailure] = []
@@ -173,7 +192,8 @@ def _expand_artifact_references(
         raw_candidate = candidate.text
         if _overlaps_any(start, end, literal_ranges):
             continue
-        ref_context = _context_for_offset(start, segment_contexts)
+        context_index = _context_index_for_offset(start, segment_contexts)
+        ref_context = segment_contexts[context_index][1]
         known_kinds = set(ref_context.artifact_context.known_kinds)
         if candidate.kind not in known_kinds:
             continue
@@ -199,14 +219,21 @@ def _expand_artifact_references(
             else _resolve_for_launch(parsed, context=ref_context.artifact_context)
         )
         if resolution.status not in {"exact", "drifted", "vcs_backed"}:
+            materialization_failure = materialization_failures.get(
+                (context_index, parsed.kind)
+            )
             failures.append(
                 _ArtifactRefFailure(
                     raw_candidate,
                     resolution.status,
-                    artifact_ref_resolution_hint(
-                        parsed,
-                        resolution,
-                        context=ref_context.artifact_context,
+                    (
+                        materialization_failure.detail
+                        if materialization_failure is not None
+                        else artifact_ref_resolution_hint(
+                            parsed,
+                            resolution,
+                            context=ref_context.artifact_context,
+                        )
                     ),
                 )
             )
@@ -262,14 +289,63 @@ def _expand_artifact_references(
     return expanded
 
 
-def _context_for_offset(
+def _context_index_for_offset(
     offset: int,
     segment_contexts: tuple[tuple[tuple[int, int], PromptRefContext], ...],
-) -> PromptRefContext:
-    for (start, end), ref_context in segment_contexts:
+) -> int:
+    last_index = len(segment_contexts) - 1
+    for index, ((start, end), _ref_context) in enumerate(segment_contexts):
         if start <= offset < end:
-            return ref_context
-    return segment_contexts[-1][1]
+            return index
+    return last_index
+
+
+def _materialize_missing_roots_for_candidates(
+    candidates: Sequence[ArtifactRefPromptCandidate],
+    segment_contexts: tuple[tuple[tuple[int, int], PromptRefContext], ...],
+    *,
+    literal_ranges: list[tuple[int, int]],
+    byte_to_char: dict[int, int],
+) -> tuple[
+    tuple[tuple[tuple[int, int], PromptRefContext], ...],
+    dict[tuple[int, str], MaterializationFailure],
+]:
+    kinds_by_context: dict[int, dict[str, None]] = {}
+    for candidate in candidates:
+        start, end = _character_span(
+            candidate.candidate_span,
+            byte_to_char=byte_to_char,
+        )
+        if _overlaps_any(start, end, literal_ranges):
+            continue
+        context_index = _context_index_for_offset(start, segment_contexts)
+        ref_context = segment_contexts[context_index][1]
+        known_kinds = set(ref_context.artifact_context.known_kinds)
+        if candidate.kind not in known_kinds or not candidate.well_formed:
+            continue
+        try:
+            canonical = parse_artifact_ref_canonical(candidate.reference)
+        except (RuntimeError, ValueError):
+            continue
+        for kind in dict.fromkeys((canonical.reference.kind, candidate.kind)):
+            if kind in known_kinds:
+                kinds_by_context.setdefault(context_index, {})[kind] = None
+
+    if not kinds_by_context:
+        return segment_contexts, {}
+
+    updated = list(segment_contexts)
+    failures_by_context_kind: dict[tuple[int, str], MaterializationFailure] = {}
+    for context_index, kinds in kinds_by_context.items():
+        span, ref_context = updated[context_index]
+        refreshed_context, failures = materialize_missing_document_roots(
+            tuple(kinds),
+            ref_context,
+        )
+        updated[context_index] = (span, refreshed_context)
+        for failure in failures:
+            failures_by_context_kind[(context_index, failure.kind)] = failure
+    return tuple(updated), failures_by_context_kind
 
 
 def _kind_diagnostic(

@@ -128,6 +128,7 @@ def preprocess_prompt_late(
     file_ref_mode: FileRefMode = "process",
     is_home_mode: bool = False,
     ref_contexts: Sequence[PromptRefContext] | None = None,
+    materialize_missing_roots: bool = False,
 ) -> str:
     """Late preprocessing phase: command sub, artifact/file refs, Jinja2, formatting.
 
@@ -150,6 +151,8 @@ def preprocess_prompt_late(
             usually built from :attr:`PreprocessResult.segment_vcs_refs`.
             Each candidate still prefers its own segment's live VCS tag over
             this sequence; see ``artifact_ref_prompt``'s resolution order.
+        materialize_missing_roots: If True, clone missing document sidecar
+            roots cited by artifact refs before resolving them.
 
     Returns:
         The fully preprocessed prompt text.
@@ -189,6 +192,7 @@ def preprocess_prompt_late(
             ref_contexts=ref_contexts,
             staged_file_paths=staged_artifact_paths,
             jinja_protection=artifact_jinja_protection,
+            materialize_missing_roots=materialize_missing_roots,
         )
     elif file_ref_mode == "validate":
         validate_artifact_references(
@@ -226,7 +230,12 @@ def preprocess_prompt_late(
     return prompt
 
 
-def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> PreprocessResult:
+def preprocess_prompt(
+    prompt: str,
+    *,
+    is_home_mode: bool = False,
+    materialize_missing_roots: bool = False,
+) -> PreprocessResult:
     """Apply the full preprocessing pipeline to a raw prompt.
 
     Composes :func:`preprocess_prompt_early` and :func:`preprocess_prompt_late`
@@ -235,6 +244,8 @@ def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> PreprocessR
     Args:
         prompt: The raw prompt text.
         is_home_mode: If True, skip file copying for ``@`` file references.
+        materialize_missing_roots: If True, clone missing document sidecar
+            roots cited by artifact refs before resolving them.
 
     Returns:
         A PreprocessResult with the cleaned prompt and extracted directives.
@@ -249,6 +260,9 @@ def preprocess_prompt(prompt: str, *, is_home_mode: bool = False) -> PreprocessR
         early.segment_vcs_refs, is_home_mode=is_home_mode
     )
     final_prompt = preprocess_prompt_late(
-        early.prompt, is_home_mode=is_home_mode, ref_contexts=ref_contexts
+        early.prompt,
+        is_home_mode=is_home_mode,
+        ref_contexts=ref_contexts,
+        materialize_missing_roots=materialize_missing_roots,
     )
     return PreprocessResult(prompt=final_prompt, directives=early.directives)

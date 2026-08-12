@@ -75,6 +75,7 @@ from sase.artifact_ref_prompt_context import (
     prompt_ref_context_for_vcs_ref,
     prompt_ref_context_from_launch_identity,
     prompt_ref_contexts_for_prompt,
+    refresh_prompt_ref_context,
 )
 from sase.artifact_ref_renderers import (
     ArtifactRendererJinjaProtection,
@@ -135,6 +136,7 @@ __all__ = [
     "prompt_ref_context_for_vcs_ref",
     "prompt_ref_context_from_launch_identity",
     "prompt_ref_contexts_for_prompt",
+    "refresh_prompt_ref_context",
     "query_ref_file_versions",
     "reference_for_agent_name",
     "reference_for_entry_target",
