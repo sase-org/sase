@@ -3,13 +3,14 @@
 from .types import ARTIFACTS_ACCENTS as ARTIFACTS_ACCENTS
 from .types import ARTIFACTS_PANE_IDS as ARTIFACTS_PANE_IDS
 from .types import ARTIFACTS_SUBTAB_ORDER as ARTIFACTS_SUBTAB_ORDER
+from .types import FIXED_ARTIFACTS_SUBTAB_ORDER as FIXED_ARTIFACTS_SUBTAB_ORDER
 from .entry_navigation import ArtifactEntryNavigator as ArtifactEntryNavigator
 from .entry_navigation import ArtifactEntryTarget as ArtifactEntryTarget
 from .panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
 from .beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .chats_pane import ArtifactsChatsPane as ArtifactsChatsPane
+from .plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .files_pane import ArtifactsFilesPane as ArtifactsFilesPane
-from .files_view import ArtifactsFilesView as ArtifactsFilesView
 from .types import ArtifactsPaneKey as ArtifactsPaneKey
 from .lifecycle import ArtifactsPaneLifecycle as ArtifactsPaneLifecycle
 from .plans_pane import ArtifactsPlansPane as ArtifactsPlansPane
@@ -26,3 +27,5 @@ from .types import FILES_SUBTAB_ORDER as FILES_SUBTAB_ORDER
 from .types import FilesSubTab as FilesSubTab
 from .plans_pane import PlanRow as PlanRow
 from .types import artifacts_pane_key as artifacts_pane_key
+from .types import artifacts_subtab_order as artifacts_subtab_order
+from .types import normalize_artifacts_subtab as normalize_artifacts_subtab

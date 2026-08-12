@@ -127,7 +127,7 @@ class CommandExecutor:
         kind: Which dispatch path to use.
         action: For ``app_action`` — the action method name without the
             ``action_`` prefix (e.g. ``"refresh"``).
-        digit: For ``saved_query`` — the digit 0..9.
+        digit: For ``saved_query`` and numbered app actions — the digit 0..9.
         subkey: For mode-key kinds — the Textual subkey (e.g. ``"c"`` for
             ``z c`` cycle commits).
         mode_name: For ``custom_mode_key`` — the user-defined mode name.
@@ -198,9 +198,7 @@ class CommandContext:
     """
 
     tab: CommandTab | LegacyCommandTab = "artifacts"
-    artifacts_subtab: Literal[
-        "patches", "stitches", "beads", "plans", "chats", "other"
-    ] = "patches"
+    artifacts_subtab: str = "patches"
     patch: Patch | None = None
     changespec: InitVar[Patch | None] = None  # legacy compatibility alias
     agent: Agent | None = None

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from ...modals.copy_as_types import CopyAsContext
 
 
-_ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "plans", "chats", "other"})
+_ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "files"})
 
 
 def build_copy_as_context(app: Any) -> CopyAsContext | None:
@@ -33,15 +33,11 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
 
     tab = app.current_tab
     subtab = getattr(app, "current_artifacts_pane_key", "patches")
-    if (
-        tab
-        in {
-            "artifacts",
-            "patches",
-            "changespecs",  # legacy compatibility alias
-        }
-        and subtab in _ARTIFACT_SUBTABS
-    ):
+    if tab in {
+        "artifacts",
+        "patches",
+        "changespecs",  # legacy compatibility alias
+    } and (subtab in _ARTIFACT_SUBTABS or str(subtab).startswith("ref:")):
         return build_artifacts_context(app, subtab)
     if tab in {
         "artifacts",

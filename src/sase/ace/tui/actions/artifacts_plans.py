@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from sase.bead.model import IssueType
 
 from ..widgets.artifacts.bead_plan_links import BeadPlanLink
-from ..widgets.artifacts.plans_pane import ArtifactsPlansPane
+from ..widgets.artifacts.plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 
 PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
@@ -30,8 +32,20 @@ class ArtifactsPlansActionsMixin:
         except Exception:
             return None
 
+    def _active_documents_pane(self) -> ArtifactsDocumentsPane | None:
+        pane_key = getattr(self, "current_artifacts_pane_key", "ref:plan")
+        if not isinstance(pane_key, str) or not pane_key.startswith("ref:"):
+            return None
+        view = getattr(self, "_artifacts_view", lambda: None)()
+        if view is None:
+            return self._plans_pane()
+        try:
+            return cast(ArtifactsDocumentsPane, view.entry_navigator(pane_key))
+        except Exception:
+            return None
+
     def action_plans_next(self) -> None:
-        pane = self._plans_pane()
+        pane = self._active_documents_pane()
         if pane is not None:
             self._begin_artifacts_navigation("next")  # type: ignore[attr-defined]
             try:
@@ -40,7 +54,7 @@ class ArtifactsPlansActionsMixin:
                 self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_plans_prev(self) -> None:
-        pane = self._plans_pane()
+        pane = self._active_documents_pane()
         if pane is not None:
             self._begin_artifacts_navigation("prev")  # type: ignore[attr-defined]
             try:
@@ -49,11 +63,11 @@ class ArtifactsPlansActionsMixin:
                 self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_plans_filters(self) -> None:
-        if (pane := self._plans_pane()) is not None:
+        if (pane := self._active_documents_pane()) is not None:
             pane.show_filters()
 
     def action_plans_view_selected(self) -> None:
-        pane = self._plans_pane()
+        pane = self._active_documents_pane()
         payload = None if pane is None else pane.selected_preview()
         if payload is None:
             return
@@ -62,11 +76,17 @@ class ArtifactsPlansActionsMixin:
         self.push_screen(PreviewPanelModal(payload))  # type: ignore[attr-defined]
 
     def action_plans_refresh(self) -> None:
-        if (pane := self._plans_pane()) is not None:
+        if (pane := self._active_documents_pane()) is not None:
             pane.request_refresh()
 
     def action_plans_open_bead(self) -> None:
-        pane = self._plans_pane()
+        pane = self._active_documents_pane()
+        if pane is not None and pane.provider_kind != "plan":
+            self.notify(  # type: ignore[attr-defined]
+                "Linked bead navigation is only available for plans",
+                severity="warning",
+            )
+            return
         row = None if pane is None else pane.selected_row()
         link = None if row is None else row.bead_link
         if link is None:
@@ -84,7 +104,13 @@ class ArtifactsPlansActionsMixin:
         self._open_selected_plan_approval(intent="reject")
 
     def _open_selected_plan_approval(self, *, intent: str) -> None:
-        pane = self._plans_pane()
+        pane = self._active_documents_pane()
+        if pane is not None and pane.provider_kind != "plan":
+            self.notify(  # type: ignore[attr-defined]
+                "Plan proposal approval is only available for plans",
+                severity="warning",
+            )
+            return
         row = None if pane is None else pane.selected_row()
         if row is None or row.proposal is None:
             self.notify("Select a pending plan proposal first", severity="warning")  # type: ignore[attr-defined]

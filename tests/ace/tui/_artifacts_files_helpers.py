@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from sase.ace.tui.widgets.artifacts.files_data import FilesSnapshot, _files_snapshot
+from sase.ace.tui.widgets.artifacts.files_data import (
+    FilesSnapshot,
+    LogicalFile,
+    _files_snapshot,
+    _logical_file,
+    _version_from_legacy_row,
+)
 from sase.core.artifact_file_types import ArtifactFile
 
 
@@ -38,19 +44,26 @@ def artifact_file(
     return ArtifactFile(**values)
 
 
+def logical_file(row: ArtifactFile) -> LogicalFile:
+    version = _version_from_legacy_row(row)
+    return _logical_file(version.logical_id, [version])
+
+
 def snapshot(
-    rows: tuple[ArtifactFile, ...],
+    rows: tuple[ArtifactFile | LogicalFile, ...],
     *,
     project: str | None = "alpha",
     complete: bool = True,
     load_error: str | None = None,
 ) -> FilesSnapshot:
     return _files_snapshot(
-        rows,
+        tuple(
+            row if isinstance(row, LogicalFile) else logical_file(row) for row in rows
+        ),
         project=project,
         complete=complete,
         load_error=load_error,
     )
 
 
-__all__ = ["artifact_file", "snapshot"]
+__all__ = ["artifact_file", "logical_file", "snapshot"]

@@ -60,7 +60,7 @@ class _FakeApp(ArtifactsFilesActionsMixin):
         self.opened_single: list[ArtifactFile] = []
         self.opened_many: list[list[ArtifactFile]] = []
         self._artifacts_marked_targets: dict[str, set[tuple[str, str]]] = {
-            "other": set()
+            "files": set()
         }
         self.toggle_result = False
         self.current_tab = "patches"
@@ -175,7 +175,7 @@ def test_files_explicit_viewer_handoff_uses_visible_mark_order() -> None:
     second = artifact_file("second")
     third = artifact_file("third")
     app = _FakeApp(_pane(first, second, third, modes=("text", "image", "pdf")))
-    app._artifacts_marked_targets["other"] = {
+    app._artifacts_marked_targets["files"] = {
         ("file", third.id),
         ("file", first.id),
     }

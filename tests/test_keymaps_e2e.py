@@ -50,13 +50,12 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
                 ("stitches", None, "stitches", True),
                 ("patches", "2", "patches", True),
                 ("beads", "3", "beads", True),
-                ("plans", "4", "files", True),
+                ("plans", "5", "ref:plan", True),
+                ("files", "4", "files", True),
             ):
                 if subtab_key is not None:
                     await page.press(subtab_key)
                     await page.expect_state("artifacts_subtab", top_level_subtab)
-                    if subtab == "plans":
-                        await page.expect_state("files_subtab", "plans")
                 edits.clear()
                 page.app.action_edit_query = (  # type: ignore[method-assign]
                     lambda edits=edits, subtab=subtab: edits.append(subtab)

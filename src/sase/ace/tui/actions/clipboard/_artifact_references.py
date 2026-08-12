@@ -16,13 +16,17 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
         self,
     ) -> ArtifactReferenceSelection | None:
         subtab = self.current_artifacts_pane_key
-        resolver_name = {
-            "stitches": "_commits_pane",
-            "beads": "_beads_pane",
-            "plans": "_plans_pane",
-            "chats": "_chats_pane",
-            "other": "_files_pane",
-        }[subtab]
+        if subtab == "stitches":
+            resolver_name = "_commits_pane"
+        elif subtab == "beads":
+            resolver_name = "_beads_pane"
+        elif subtab == "files":
+            resolver_name = "_files_pane"
+        elif str(subtab).startswith("ref:"):
+            resolver_name = "_active_documents_pane"
+        else:
+            self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]
+            return None
         resolver = getattr(self, resolver_name, None)
         pane = resolver() if callable(resolver) else None
         if pane is None:

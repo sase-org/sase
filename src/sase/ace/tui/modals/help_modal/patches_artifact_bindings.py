@@ -34,15 +34,11 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             [
                 (
                     "1 / 2 / 3 / 4",
-                    "Jump four top-level views",
+                    "Jump fixed top-level views",
                 ),
                 (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
                     "Cycle top-level views",
-                ),
-                (
-                    f"{d(a.cycle_files_subtab_reverse)} / {d(a.cycle_files_subtab)}",
-                    "Cycle Plans / Chats / Other",
                 ),
                 (
                     d(a.pick_artifacts_project),
@@ -137,13 +133,13 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Plans Pane",
+            "Document Panes",
             [
                 (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
-                (d(a.plans_view_selected), "Open selected plan"),
+                (d(a.plans_view_selected), "Open selected document"),
                 (
                     f"{d(a.edit_query)} / {d(a.plans_filters)}",
-                    "Open inline plans filter bar",
+                    "Open inline document filter bar",
                 ),
                 ("kind: / status: / tier:", "Filter kind, status, or tier"),
                 ("kind:<sidecar role>", "Filter archived document kind"),
@@ -152,28 +148,18 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.plans_approve), "Approve selected proposal"),
                 (d(a.plans_reject), "Reject selected proposal"),
                 (d(a.plans_open_bead), "Go to linked bead"),
-                (d(a.plans_refresh), "Refresh plans"),
+                (d(a.plans_refresh), "Refresh documents"),
                 *artifact_list_navigation,
             ],
         ),
         (
-            "Chats Pane",
-            [
-                (f"{d(a.chats_next)} / {d(a.chats_prev)}", "Next / previous row"),
-                (d(a.chats_view_selected), "Open selected chat transcript"),
-                (d(a.chats_filters), "Open chat filter bar"),
-                (d(a.chats_cycle_provenance), "Cycle chat sync provenance"),
-                (d(a.chats_open_agent), "Open associated agent"),
-                (d(a.chats_open_external), "Open chat in editor"),
-                (d(a.chats_copy_path), "Copy chat transcript path"),
-                (d(a.chats_refresh), "Refresh chat transcripts"),
-                *artifact_list_navigation,
-            ],
-        ),
-        (
-            "Other Pane",
+            "Files Pane",
             [
                 (f"{d(a.files_next)} / {d(a.files_prev)}", "Next / previous row"),
+                (
+                    f"{d(a.files_prev_version)} / {d(a.files_next_version)}",
+                    "Previous / next version",
+                ),
                 (d(a.files_view_selected), "View selected artifact file"),
                 (d(a.files_open_viewer), "Open in rich viewer"),
                 (d(a.files_open_external), "Open externally"),

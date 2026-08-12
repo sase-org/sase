@@ -110,7 +110,9 @@ def test_snapshot_partitions_live_linked_documents_from_archive(
         plans_data, "_project_beads_dir", lambda _project: tmp_path / "beads"
     )
     monkeypatch.setattr(
-        plans_data, "_project_document_roots", lambda _item: {"plans": tmp_path}
+        plans_data,
+        "_project_document_roots",
+        lambda _item, *, provider_kind="plan": {"plans": tmp_path},
     )
     monkeypatch.setattr(plans_data, "_store_mtime_key", lambda *_args: ("mtime",))
     monkeypatch.setattr(plans_data, "_load_project_beads", lambda _path: [object()])
@@ -156,7 +158,11 @@ def test_snapshot_reuses_unchanged_previous_snapshot(
     )
     monkeypatch.setattr(plans_data, "_load_proposals", lambda *_args: ())
     monkeypatch.setattr(plans_data, "_project_beads_dir", lambda _project: None)
-    monkeypatch.setattr(plans_data, "_project_document_roots", lambda _item: {})
+    monkeypatch.setattr(
+        plans_data,
+        "_project_document_roots",
+        lambda _item, *, provider_kind="plan": {},
+    )
     first = plans_data.load_plans_snapshot("alpha", force=True)
 
     assert plans_data.load_plans_snapshot("alpha", previous=first) is first

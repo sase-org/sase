@@ -84,20 +84,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("previous artifact",),
     ),
-    (
-        "cycle_files_subtab",
-        "Next Files view",
-        "Tabs",
-        CL_ONLY,
-        ("plans", "chats", "other"),
-    ),
-    (
-        "cycle_files_subtab_reverse",
-        "Previous Files view",
-        "Tabs",
-        CL_ONLY,
-        (),
-    ),
+    ("files_next_version", "Files: next version", "Navigation", CL_ONLY, ()),
+    ("files_prev_version", "Files: previous version", "Navigation", CL_ONLY, ()),
     (
         "pick_artifacts_project",
         "Pick Artifacts project scope",
@@ -204,7 +192,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("start_bead_issue_mode", "Beads: issue actions", "Bugs", CL_ONLY, ()),
     ("beads_open_plan", "Beads: go to linked plan", "Navigation", CL_ONLY, ()),
     ("beads_refresh", "Beads: refresh", "Proposals & Sync", CL_ONLY, ()),
-    # Chats sub-tab
+    # Retired Chats sub-tab compatibility actions
     ("chats_next", "Chats: next row", "Navigation", CL_ONLY, ("chat down",)),
     ("chats_prev", "Chats: previous row", "Navigation", CL_ONLY, ("chat up",)),
     ("chats_view_selected", "Chats: view selected", "Display", CL_ONLY, ()),
@@ -217,13 +205,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("chat provenance",),
     ),
     ("chats_open_agent", "Chats: open agent", "Agents", CL_ONLY, ()),
-    (
-        "chats_open_external",
-        "Chats: open in editor",
-        "Display",
-        CL_ONLY,
-        (),
-    ),
+    ("chats_open_external", "Chats: open in editor", "Display", CL_ONLY, ()),
     ("chats_copy_path", "Chats: copy path", "Display", CL_ONLY, ()),
     (
         "chats_refresh",

@@ -259,10 +259,10 @@ class TabQuickStart(VerticalScroll):
                 5,
                 (
                     (
-                        key_display_name(app.cycle_files_subtab_reverse),
-                        key_display_name(app.cycle_files_subtab),
+                        key_display_name(app.files_prev_version),
+                        key_display_name(app.files_next_version),
                     ),
-                    "Inside Files: Plans · Chats · Other.",
+                    "Files: previous / next version.",
                 ),
             )
 

@@ -34,7 +34,7 @@ def test_rows_stay_newest_first_with_date_headers_and_display_names() -> None:
         artifact_file("historic", created_at="2026-07-20T08:00:00-04:00"),
     )
     options, option_rows = build_file_options(
-        snapshot(rows),
+        model := snapshot(rows),
         project_scope="alpha",
         project_ref_display=_projects(),
         loading=False,
@@ -46,7 +46,7 @@ def test_rows_stay_newest_first_with_date_headers_and_display_names() -> None:
         "── Yesterday ────────────────────",
         "── 2026-07-20 ────────────────────",
     ]
-    assert [row.entry for row in option_rows.values()] == list(rows)
+    assert [row.entry for row in option_rows.values()] == list(model.rows)
     assert "14:32" in options[1].prompt.plain
     assert "09:15" in options[2].prompt.plain
     assert "[Alpha]" in options[1].prompt.plain
@@ -85,9 +85,9 @@ def test_viewer_classifier_drives_icons_colors_origin_and_size() -> None:
         assert prompt.no_wrap is True
         assert len(prompt.wrap(Console(width=80), 80)) == 1
 
-    assert "◆" in prompts[2].plain
+    assert "C" in prompts[2].plain
     assert prompts[3].plain.endswith("-")
-    assert model.view_mode_for(rows[1]) == "video"
+    assert model.view_mode_for(model.rows[1].latest) == "video"
 
 
 def test_info_uses_precomputed_kind_and_explicit_counts() -> None:
@@ -109,4 +109,5 @@ def test_info_uses_precomputed_kind_and_explicit_counts() -> None:
     assert "▤ 2 documents" in info.plain
     assert "▶ 1 videos" in info.plain
     assert "• 1 files" in info.plain
-    assert "◆ 1 explicit" in info.plain
+    assert "C 1" in info.plain
+    assert "A 4" in info.plain

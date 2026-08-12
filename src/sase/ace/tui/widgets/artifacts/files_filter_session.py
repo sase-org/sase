@@ -172,7 +172,7 @@ class FilesFilterSessionMixin(_MixinBase):
             None,
         )
         if callable(cancel):
-            cancel("other")
+            cancel("files")
 
 
 __all__ = ["FilesFilterSessionMixin"]

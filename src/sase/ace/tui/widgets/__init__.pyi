@@ -15,8 +15,8 @@ from .ancestors_children_panel import AncestorsChildrenPanel as AncestorsChildre
 from .artifacts.panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
 from .artifacts.beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .artifacts.chats_pane import ArtifactsChatsPane as ArtifactsChatsPane
+from .artifacts.plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .artifacts.files_pane import ArtifactsFilesPane as ArtifactsFilesPane
-from .artifacts.files_view import ArtifactsFilesView as ArtifactsFilesView
 from .artifacts.plans_pane import ArtifactsPlansPane as ArtifactsPlansPane
 from .artifacts.panes import ArtifactsPatchesPane as ArtifactsPatchesPane
 from .artifacts.types import ArtifactsSubTab as ArtifactsSubTab

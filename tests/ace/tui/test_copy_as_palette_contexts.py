@@ -249,7 +249,7 @@ def test_marked_files_keep_partially_representable_targets_with_warm_counts() ->
         view_modes={text.id: "text", image.id: "image"},
         target_order=visible_order,
     )
-    app._artifacts_marked_targets = {"other": set(visible_order)}
+    app._artifacts_marked_targets = {"files": set(visible_order)}
 
     context = build_copy_as_context(app)
 
@@ -419,9 +419,8 @@ def test_duplicate_and_rebound_accelerators_follow_dispatch_precedence() -> None
     [
         ("stitches", "No stitches entry to copy"),
         ("beads", "No beads entry to copy"),
-        ("plans", "No plans entry to copy"),
-        ("chats", "No chats entry to copy"),
-        ("other", "No other entry to copy"),
+        ("ref:plan", "No plans entry to copy"),
+        ("files", "No files entry to copy"),
     ],
 )
 def test_empty_artifacts_context_warns(tab: str, warning: str) -> None:

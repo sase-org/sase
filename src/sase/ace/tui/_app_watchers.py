@@ -94,14 +94,20 @@ class AppWatchersMixin:
 
         if new_tab == ARTIFACTS_TAB:
             patches_view.remove_class("hidden")
+            patches_view.disabled = False
             agents_view.add_class("hidden")
+            agents_view.disabled = True
             axe_view.add_class("hidden")
+            axe_view.disabled = True
             patches_view.activate_current()
             self._sync_active_artifacts_entry_state()
         elif new_tab == "agents":
             patches_view.add_class("hidden")
+            patches_view.disabled = True
             agents_view.remove_class("hidden")
+            agents_view.disabled = False
             axe_view.add_class("hidden")
+            axe_view.disabled = True
             self._sync_artifact_file_viewer_layout()
             # During mount, on_mount schedules the initial async load. On a
             # later tab switch, show cached data immediately and only re-fetch
@@ -115,8 +121,11 @@ class AppWatchersMixin:
                         self._schedule_agents_async_refresh(source="tab_switch")
         else:  # axe
             patches_view.add_class("hidden")
+            patches_view.disabled = True
             agents_view.add_class("hidden")
+            agents_view.disabled = True
             axe_view.remove_class("hidden")
+            axe_view.disabled = False
             self._refresh_axe_display()
             self._schedule_axe_async_refresh()
 
@@ -168,22 +177,5 @@ class AppWatchersMixin:
         old_subtab: FilesSubTab,
         new_subtab: FilesSubTab,
     ) -> None:
-        """Switch nested Files panes while preserving top-level Files state."""
-        if old_subtab == new_subtab:
-            return
-        if self._entry_jump_mode_active:
-            self._exit_entry_jump_mode()
-        else:
-            self._cancel_non_pr_artifacts_jump_mode()
-        try:
-            from .widgets.artifacts import ArtifactsFilesView
-
-            view = self.query_one(ArtifactsFilesView)
-        except Exception:
-            return
-        view.switch_to(new_subtab)
-        if (
-            self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab == "files"
-        ):
-            self._sync_active_artifacts_entry_state()
+        """Compatibility watcher for the retired nested Files panes."""
+        del old_subtab, new_subtab

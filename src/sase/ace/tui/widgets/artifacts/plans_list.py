@@ -32,6 +32,7 @@ class PlanRow:
     kind: PlanRowKind
     row_id: str
     project: str
+    ref_kind: str = "plan"
     proposal: PlanProposal | None = None
     active: ActivePlanDocument | None = None
     archive: PlanSearchMatch | None = None
@@ -48,7 +49,7 @@ def plan_row_target(row: PlanRow) -> ArtifactEntryTarget:
         identity = row.archive.plan.path
     else:  # pragma: no cover - construction keeps one payload populated.
         identity = row.row_id
-    return ("plan", row.project, row.kind, identity)
+    return (row.ref_kind, row.project, row.kind, identity)
 
 
 def build_plan_options(
@@ -67,7 +68,12 @@ def build_plan_options(
     rows: dict[str, PlanRow] = {}
     active_marks = marks or set()
     if snapshot is None or snapshot.project != project_scope:
-        label = "Loading plans…" if loading else "Plans have not loaded yet."
+        provider_label = snapshot.provider_label if snapshot is not None else "Plans"
+        label = (
+            f"Loading {provider_label.casefold()}…"
+            if loading
+            else f"{provider_label} have not loaded yet."
+        )
         return [Option(single_line_text(label), disabled=True)], rows
 
     filter_active = matched_option_ids is not None
@@ -93,7 +99,13 @@ def build_plan_options(
         )
     )
     for proposal, option_id in visible_proposals:
-        row = PlanRow("proposal", option_id, proposal.project, proposal=proposal)
+        row = PlanRow(
+            "proposal",
+            option_id,
+            proposal.project,
+            snapshot.provider_kind,
+            proposal=proposal,
+        )
         _append_row(
             options,
             rows,
@@ -132,6 +144,7 @@ def build_plan_options(
             "active",
             option_id,
             active.project,
+            snapshot.provider_kind,
             active=active,
             bead_link=active.owner,
         )
@@ -179,6 +192,7 @@ def build_plan_options(
             "archive",
             option_id,
             project_archive.project,
+            snapshot.provider_kind,
             archive=project_archive.match,
             archive_role=project_archive.role,
             bead_link=owner,

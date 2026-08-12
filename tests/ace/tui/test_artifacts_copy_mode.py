@@ -33,15 +33,10 @@ def test_copy_mode_rejects_empty_artifacts_without_using_hidden_pr_state() -> No
     assert app.tab_footer_restores == 0
 
 
-@pytest.mark.parametrize("subtab", ["chats", "other"])
-async def test_percent_rejects_empty_real_artifacts_panes(
-    subtab: str,
-) -> None:
+async def test_percent_rejects_empty_files_pane() -> None:
     async with AcePage() as page:
         page.app.current_artifacts_subtab = "files"
-        page.app.current_files_subtab = subtab  # type: ignore[assignment]
         await page.expect_state("artifacts_subtab", "files")
-        await page.expect_state("files_subtab", subtab)
         footer = page.query_one_widget("#keybinding-footer", KeybindingFooter)
 
         await page.press("%")
@@ -51,7 +46,7 @@ async def test_percent_rejects_empty_real_artifacts_panes(
         assert footer._last_layout_inputs[1] is None
 
 
-@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats", "other"])
+@pytest.mark.parametrize("subtab", ["stitches", "ref:plan", "files"])
 def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     subtab: str,
 ) -> None:
@@ -63,20 +58,21 @@ def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     assert app.artifacts_footer_restores == 1
 
     assert app._handle_copy_key("n") is False
-    assert app.notifications[-1][0].startswith(f"Unknown copy key ({subtab.title()}:")
+    label = "Plans" if subtab == "ref:plan" else subtab.title()
+    assert app.notifications[-1][0].startswith(f"Unknown copy key ({label}:")
     assert app.artifacts_footer_restores == 2
 
 
-def test_chats_percent_n_never_copies_a_patch_name() -> None:
+def test_document_percent_n_never_copies_a_patch_name() -> None:
     app = CopyHarness()
-    app.current_artifacts_subtab = "chats"
+    app.current_artifacts_subtab = "ref:plan"
     app.patches = [SimpleNamespace(name="hidden-pr")]
     app._copy_cl_name = MagicMock()  # type: ignore[method-assign]
 
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "Chats:" in app.notifications[-1][0]
+    assert "Plans:" in app.notifications[-1][0]
 
 
 def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
@@ -88,7 +84,7 @@ def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "Other:" in app.notifications[-1][0]
+    assert "Files:" in app.notifications[-1][0]
 
 
 def _artifact_file(
@@ -164,7 +160,7 @@ def test_files_marked_paths_preserve_visible_order(tmp_path: Path) -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
     app.files_pane = _files_pane(first, second)
-    app._artifacts_marked_targets = {"other": {("file", first.id), ("file", second.id)}}
+    app._artifacts_marked_targets = {"files": {("file", first.id), ("file", second.id)}}
 
     assert app._handle_copy_key("p") is True
 
@@ -233,7 +229,7 @@ def test_files_generic_reference_keys_degrade_safely_on_empty_scaffold(
 
     assert app._handle_copy_key(key) is True
 
-    assert app.notifications[-1] == ("No other entry selected", "warning")
+    assert app.notifications[-1] == ("No files entry selected", "warning")
 
 
 def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> None:
@@ -263,7 +259,7 @@ def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> 
 
 def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
     app = CopyHarness()
-    app.current_artifacts_subtab = "plans"
+    app.current_artifacts_subtab = "ref:plan"
     proposal = SimpleNamespace(
         plan_path="/tmp/plan.md",
         title="Copy all artifacts",
@@ -292,7 +288,7 @@ def test_plans_copy_targets_use_the_selected_plan_payload() -> None:
 
 def test_plans_owner_copy_targets_preserve_the_bead_link() -> None:
     app = CopyHarness()
-    app.current_artifacts_subtab = "plans"
+    app.current_artifacts_subtab = "ref:plan"
     bead_link = SimpleNamespace(
         bead_id="sase-b2",
         reference="plans:202607/bead_and_agent_artifact_refs.md",
@@ -328,7 +324,7 @@ def test_plans_owner_copy_targets_preserve_the_bead_link() -> None:
 
 def test_plans_design_copy_warns_when_selected_row_has_no_bead_design() -> None:
     app = CopyHarness()
-    app.current_artifacts_subtab = "plans"
+    app.current_artifacts_subtab = "ref:plan"
     row = SimpleNamespace(
         proposal=SimpleNamespace(
             plan_path="/tmp/proposal.md",
@@ -353,32 +349,6 @@ def test_plans_design_copy_warns_when_selected_row_has_no_bead_design() -> None:
     )
 
 
-def test_chats_copy_targets_use_path_agent_and_full_transcript(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = CopyHarness()
-    app.current_artifacts_subtab = "chats"
-    entry = SimpleNamespace(
-        absolute_path="/tmp/chat.md",
-        agent_local_name="copy-mode--worker",
-        agent=None,
-    )
-    app.chats_pane = SimpleNamespace(selected_entry=entry)
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.chats_detail.read_full_chat",
-        lambda _entry: "# Full transcript",
-    )
-
-    for key in ("p", "a", "t"):
-        assert app._handle_copy_key(key) is True
-
-    assert [value for value, _message in app.copies] == [
-        "/tmp/chat.md",
-        "copy-mode--worker",
-        "# Full transcript",
-    ]
-
-
 @pytest.mark.parametrize(
     ("subtab", "expected"),
     [
@@ -397,7 +367,7 @@ def test_chats_copy_targets_use_path_agent_and_full_transcript(
             ],
         ),
         (
-            "plans",
+            "ref:plan",
             [
                 ("%", "bead id"),
                 ("@", "@ref"),
@@ -412,20 +382,7 @@ def test_chats_copy_targets_use_path_agent_and_full_transcript(
             ],
         ),
         (
-            "chats",
-            [
-                ("@", "@ref"),
-                ("l", "link"),
-                ("p", "path"),
-                ("a", "agent"),
-                ("t", "transcript"),
-                ("J", "JSON"),
-                ("!", "agent + @ref"),
-                ("s", "snap"),
-            ],
-        ),
-        (
-            "other",
+            "files",
             [
                 ("%", "contents"),
                 ("@", "@ref"),
@@ -453,7 +410,7 @@ def test_copy_footer_uses_the_active_artifacts_subtab(
     footer._update_display.assert_called_once_with(expected, mode_label="COPY")
 
 
-@pytest.mark.parametrize("subtab", ["stitches", "plans", "chats"])
+@pytest.mark.parametrize("subtab", ["stitches", "ref:plan", "files"])
 def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     subtab: str,
 ) -> None:
@@ -474,9 +431,8 @@ def test_reference_keys_dispatch_uniformly_across_artifacts_subtabs(
     ("subtab", "link_key", "json_key"),
     [
         ("stitches", "l", "J"),
-        ("plans", "l", "J"),
-        ("chats", "l", "J"),
-        ("other", "L", "j"),
+        ("ref:plan", "l", "J"),
+        ("files", "L", "j"),
     ],
 )
 def test_link_and_json_keys_dispatch_uniformly_across_artifacts_subtabs(

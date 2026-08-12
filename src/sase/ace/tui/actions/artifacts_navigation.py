@@ -6,8 +6,6 @@ from typing import Any, cast
 
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import (
-    ARTIFACTS_SUBTAB_ORDER,
-    FILES_SUBTAB_ORDER,
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
     ArtifactsPaneKey,
@@ -15,6 +13,8 @@ from ..widgets.artifacts import (
     ArtifactsView,
     FilesSubTab,
     artifacts_pane_key,
+    artifacts_subtab_order,
+    normalize_artifacts_subtab,
 )
 
 
@@ -35,11 +35,7 @@ class ArtifactsNavigationActionsMixin:
     def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
         """Resolve the visible leaf for lightweight mixin test harnesses."""
 
-        files_subtab = getattr(self, "current_files_subtab", "other")
-        return artifacts_pane_key(
-            cast(ArtifactsSubTab, self.current_artifacts_subtab),
-            cast(FilesSubTab, files_subtab),
-        )
+        return artifacts_pane_key(cast(ArtifactsSubTab, self.current_artifacts_subtab))
 
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
@@ -111,11 +107,7 @@ class ArtifactsNavigationActionsMixin:
     ) -> None:
         """Switch to a leaf pane and select *target* when its rows are ready."""
 
-        if pane_key in FILES_SUBTAB_ORDER:
-            self.current_files_subtab = cast(FilesSubTab, pane_key)
-            self._switch_artifacts_subtab("files")
-        else:
-            self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
+        self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
         pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:
             return
@@ -171,7 +163,9 @@ class ArtifactsNavigationActionsMixin:
 
     def _clear_all_artifacts_marks(self) -> None:
         """Drop every pane's marks after the shared project scope changes."""
-        for pane_key in ("stitches", "beads", "plans", "chats", "other"):
+        for pane_key in artifacts_subtab_order():
+            if pane_key == "patches":
+                continue
             self._clear_artifacts_marks_for_pane(pane_key)
 
     def _clear_artifacts_marks_for_pane(self, pane_key: ArtifactsPaneKey) -> None:
@@ -349,7 +343,6 @@ class ArtifactsNavigationActionsMixin:
 
     def _switch_artifacts_subtab(self, subtab: ArtifactsSubTab) -> None:
         from ..artifact_tabs import (
-            normalize_artifacts_subtab,
             switch_to_artifacts_subtab,
         )
 
@@ -358,23 +351,15 @@ class ArtifactsNavigationActionsMixin:
     def _cycle_artifacts_subtab(self, step: int) -> None:
         if self.current_tab != ARTIFACTS_TAB:
             return
-        index = ARTIFACTS_SUBTAB_ORDER.index(
+        order = artifacts_subtab_order()
+        current = normalize_artifacts_subtab(
             cast(ArtifactsSubTab, self.current_artifacts_subtab)
         )
-        self.current_artifacts_subtab = ARTIFACTS_SUBTAB_ORDER[
-            (index + step) % len(ARTIFACTS_SUBTAB_ORDER)
-        ]
+        index = order.index(current)
+        self.current_artifacts_subtab = order[(index + step) % len(order)]
 
     def _cycle_files_subtab(self, step: int) -> None:
-        if (
-            self.current_tab != ARTIFACTS_TAB
-            or self.current_artifacts_subtab != "files"
-        ):
-            return
-        index = FILES_SUBTAB_ORDER.index(self.current_files_subtab)
-        self.current_files_subtab = FILES_SUBTAB_ORDER[
-            (index + step) % len(FILES_SUBTAB_ORDER)
-        ]
+        del step
 
     def _begin_artifacts_navigation(self, direction: str) -> None:
         """Start activity-gate and key-to-paint tracking for a pane cursor."""
@@ -402,14 +387,31 @@ class ArtifactsNavigationActionsMixin:
         self._cycle_artifacts_subtab(-1)
 
     def action_cycle_files_subtab(self) -> None:
-        """Move to the next nested Files pane with wraparound."""
+        """Retired nested Files pane cycle action."""
 
         self._cycle_files_subtab(1)
 
     def action_cycle_files_subtab_reverse(self) -> None:
-        """Move to the previous nested Files pane with wraparound."""
+        """Retired nested Files pane cycle action."""
 
         self._cycle_files_subtab(-1)
+
+    def action_show_artifacts_digit(self, digit: int) -> None:
+        """Switch to the descriptor carrying *digit* as its shortcut."""
+
+        view = self._artifacts_view()
+        if view is None:
+            return
+        selected = next(
+            (
+                descriptor
+                for descriptor in view.descriptors
+                if descriptor.digit_shortcut == str(digit)
+            ),
+            None,
+        )
+        if selected is not None:
+            self._switch_artifacts_subtab(selected.id)
 
     def action_show_artifacts_patches(self) -> None:
         self._switch_artifacts_subtab("patches")

@@ -361,7 +361,8 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
 
 #artifacts-plans-pane,
 #artifacts-beads-pane,
-#artifacts-chats-pane {
+#artifacts-chats-pane,
+.artifacts-documents-pane {
     width: 100%;
     height: 100%;
 }

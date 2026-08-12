@@ -24,9 +24,7 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Artifact Views" in left
     assert "Stitches Pane" in left
     assert "Beads Pane" in left
-    assert "Plans Pane" in combined
-    assert "Chats Pane" in combined
-    assert "Other Pane" in combined
+    assert "Files Pane" in combined
     assert "Filter kind, status, or tier" in combined
     assert "Filter project or creation date" in combined
     assert "Title/body/id/metadata (AND)" in combined
@@ -39,9 +37,8 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "01-9 / 00" in right
     assert "Choose saved Patch query" in right
     assert "1 / 2 / 3 / 4" in left
-    assert "Jump four top-level views" in left
+    assert "Jump fixed top-level views" in left
     assert "Cycle top-level views" in left
-    assert "Cycle Plans / Chats / Other" in left
     assert "Select first / last entry" in combined
     assert "Scroll right detail down / up" in combined
     assert "Move down / up 10 entries" in combined

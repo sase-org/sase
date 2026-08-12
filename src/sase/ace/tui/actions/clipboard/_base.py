@@ -34,7 +34,7 @@ class ClipboardBase:
 
         return artifacts_pane_key(
             self.current_artifacts_subtab,
-            getattr(self, "current_files_subtab", "other"),
+            getattr(self, "current_files_subtab", "files"),
         )
 
     @property

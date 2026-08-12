@@ -4,8 +4,6 @@ import os
 
 from textual.binding import Binding, BindingType
 
-from .artifact_tabs import ARTIFACTS_SUBTAB_ORDER
-
 # Default bindings for AceApp. These are overridden at runtime by the keymap
 # registry (see keymaps/ module), but serve as the fallback definition.
 DEFAULT_BINDINGS: list[BindingType] = [
@@ -91,26 +89,21 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     Binding(
         "right_parenthesis",
-        "cycle_files_subtab",
-        "Next Files View",
+        "files_next_version",
+        "Next File Version",
         show=False,
     ),
     Binding(
         "left_parenthesis",
-        "cycle_files_subtab_reverse",
-        "Previous Files View",
+        "files_prev_version",
+        "Previous File Version",
         show=False,
     ),
     Binding("p", "pick_artifacts_project", "Project Scope", show=False),
-    *[
-        Binding(
-            str(index),
-            f"show_artifacts_{subtab}",
-            f"Show {subtab.title()}",
-            show=False,
-        )
-        for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1)
-    ],
+    Binding("1", "show_artifacts_digit(1)", "Show Stitches", show=False),
+    Binding("2", "show_artifacts_digit(2)", "Show Patches", show=False),
+    Binding("3", "show_artifacts_digit(3)", "Show Beads", show=False),
+    Binding("4", "show_artifacts_digit(4)", "Show Files", show=False),
     # Stitches sub-tab actions.
     Binding("j", "stitches_next", "Next Commit", show=False),
     Binding("k", "stitches_prev", "Previous Commit", show=False),

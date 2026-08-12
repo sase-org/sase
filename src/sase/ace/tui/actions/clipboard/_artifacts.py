@@ -27,6 +27,22 @@ from ._representations import (
 )
 
 
+def _copy_group_for_artifacts_subtab(subtab: str) -> str:
+    if subtab.startswith("ref:"):
+        return "artifacts_plans"
+    if subtab == "files":
+        return "artifacts_other"
+    return f"artifacts_{subtab}"
+
+
+def _copy_label_for_artifacts_subtab(subtab: str) -> str:
+    if subtab.startswith("ref:"):
+        return "Plans"
+    if subtab == "files":
+        return "Files"
+    return subtab.title()
+
+
 class ClipboardArtifactsMixin(
     ClipboardArtifactReferencesMixin,
     ClipboardArtifactTargetsMixin,
@@ -46,7 +62,7 @@ class ClipboardArtifactsMixin(
 
     def _handle_artifacts_copy_key(self, key: str) -> bool:
         subtab = self.current_artifacts_pane_key
-        group_name = f"artifacts_{subtab}"
+        group_name = _copy_group_for_artifacts_subtab(str(subtab))
         subtab_keys = self._keymap_registry.copy_mode.keys.get(group_name, {})
         assert isinstance(subtab_keys, dict)
 
@@ -78,21 +94,13 @@ class ClipboardArtifactsMixin(
                 ),
                 str(subtab_keys["plan"]): lambda: self._copy_commit_target("plan"),
             }
-        elif subtab == "plans":
+        elif str(subtab).startswith("ref:"):
             handlers = {
                 str(subtab_keys["bead_id"]): lambda: self._copy_plan_target("bead_id"),
                 str(subtab_keys["design"]): lambda: self._copy_plan_target("design"),
                 str(subtab_keys["path"]): lambda: self._copy_plan_target("path"),
                 str(subtab_keys["title"]): lambda: self._copy_plan_target("title"),
                 str(subtab_keys["body"]): lambda: self._copy_plan_target("body"),
-            }
-        elif subtab == "chats":
-            handlers = {
-                str(subtab_keys["path"]): lambda: self._copy_chat_target("path"),
-                str(subtab_keys["agent"]): lambda: self._copy_chat_target("agent"),
-                str(subtab_keys["transcript"]): lambda: self._copy_chat_target(
-                    "transcript"
-                ),
             }
         elif subtab == "beads":
             handlers = {
@@ -119,7 +127,8 @@ class ClipboardArtifactsMixin(
                 if isinstance(value, str)
             )
             self.notify(  # type: ignore[attr-defined]
-                f"Unknown copy key ({subtab.title()}: {key_list})",
+                f"Unknown copy key ({_copy_label_for_artifacts_subtab(str(subtab))}: "
+                f"{key_list})",
                 severity="warning",
             )
             return False

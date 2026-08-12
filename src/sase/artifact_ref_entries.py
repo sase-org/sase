@@ -18,21 +18,25 @@ def reference_for_entry_target(
 ) -> str | None:
     """Render the canonical reference represented by one ACE artifact row."""
 
-    expected = {
-        "stitches": "commit",
-        "commits": "commit",
-        "commit": "commit",
-        "chats": "chat",
-        "chat": "chat",
-        "bugs": "bug",
-        "bug": "bug",
-        "beads": "bead",
-        "bead": "bead",
-        "plans": "plan",
-        "plan": "plan",
-        "files": "file",
-        "file": "file",
-    }.get(subtab)
+    expected = (
+        subtab.removeprefix("ref:")
+        if subtab.startswith("ref:")
+        else {
+            "stitches": "commit",
+            "commits": "commit",
+            "commit": "commit",
+            "chats": "chat",
+            "chat": "chat",
+            "bugs": "bug",
+            "bug": "bug",
+            "beads": "bead",
+            "bead": "bead",
+            "plans": "plan",
+            "plan": "plan",
+            "files": "file",
+            "file": "file",
+        }.get(subtab)
+    )
     if expected is None or not target or target[0] != expected:
         return None
     try:
@@ -63,9 +67,29 @@ def reference_for_entry_target(
             return parse_artifact_ref(f"bead:{issue_id}").rendered
         if expected == "plan" and len(target) == 4:
             return _reference_for_plan_row(target[2], row, context)
+        if subtab.startswith("ref:") and len(target) == 4:
+            return _reference_for_document_row(expected, target[2], row)
     except (KeyError, TypeError, ValueError):
         return None
     return None
+
+
+def _reference_for_document_row(
+    ref_kind: str,
+    row_kind: str,
+    row: object | None,
+) -> str | None:
+    if row is None or row_kind != "archive":
+        return None
+    archive = getattr(row, "archive", None)
+    plan = getattr(archive, "plan", None)
+    relpath = getattr(plan, "relpath", None)
+    if not isinstance(relpath, str) or not relpath:
+        return None
+    kind = getattr(row, "ref_kind", None)
+    if not isinstance(kind, str) or not kind:
+        kind = ref_kind
+    return parse_artifact_ref(f"{kind}:{relpath}").rendered
 
 
 def _reference_for_plan_row(

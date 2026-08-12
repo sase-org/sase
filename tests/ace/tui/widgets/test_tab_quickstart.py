@@ -85,7 +85,7 @@ def test_artifacts_quickstart_advertises_every_subtab() -> None:
 
     assert "Jump: Stitches · Patches · Beads · Files." in artifacts_card
     assert "Cycle Artifacts: Stitches · Patches · Beads · Files." in artifacts_card
-    assert "Inside Files: Plans · Chats · Other" in artifacts_card
+    assert "Files: previous / next version." in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
         patches, "#patch-quickstart-hero"
@@ -103,8 +103,8 @@ def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
                     "cycle_artifacts_subtab_reverse": "f8",
                     "cycle_artifacts_subtab": "f9",
                     "edit_query": "f10",
-                    "cycle_files_subtab_reverse": "f11",
-                    "cycle_files_subtab": "f12",
+                    "files_prev_version": "f11",
+                    "files_next_version": "f12",
                 }
             }
         }

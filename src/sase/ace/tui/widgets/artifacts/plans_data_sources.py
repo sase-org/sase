@@ -73,15 +73,30 @@ def project_beads_dir(project: str) -> Path | None:
     return directories[0]
 
 
-def project_document_roots(project: PlansProject) -> dict[str, Path]:
+def project_document_roots(
+    project: PlansProject,
+    *,
+    provider_kind: str | None = None,
+) -> dict[str, Path]:
     """Resolve one project's configured document-sidecar roots."""
-    if project.workspace_dir is None:
-        return {}
+    if provider_kind is not None:
+        from .types import document_provider_roots
+
+        return {
+            root.role: root.root
+            for root in document_provider_roots(
+                provider_kind,
+                project=project.project,
+            )
+        }
 
     from sase.sdd.store import (
         document_sidecar_roles,
         resolve_sdd_store,
     )
+
+    if project.workspace_dir is None:
+        return {}
 
     try:
         store = resolve_sdd_store(project.workspace_dir, 1)

@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import cast
 
 from rich.text import Text
 
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.core.agent_identity_facade import present_agent_name
-from sase.core.artifact_file_types import ArtifactFile
 from sase.core.time import parse_local
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
-from .files_data import FilesSnapshot
+from .files_data import FileOrigin, FileVersion, FilesSnapshot, LogicalFile
 from .files_filtering import FilesFilterValues, to_query_tokens
 from .types import ARTIFACTS_ACCENTS
 
@@ -35,6 +35,11 @@ FILE_VIEW_MODE_COLORS: dict[ArtifactViewMode, str] = {
 _PROJECT_WIDTH = 12
 _AGENT_WIDTH = 20
 _SIZE_WIDTH = 10
+_ORIGIN_BADGES: dict[FileOrigin, tuple[str, str]] = {
+    "ref": ("R", "#5FD7AF"),
+    "created": ("C", "#FFD700"),
+    "capture": ("A", "#FFAF5F"),
+}
 
 
 def build_files_info(
@@ -81,7 +86,7 @@ def build_files_info(
         ("text", snapshot.view_mode_counts.get("text", 0), "files"),
     )
     active_modes = {
-        snapshot.view_mode_for(row)
+        snapshot.view_mode_for(row.latest)
         for row in snapshot.rows
         if row.kind in filters.kinds
     }
@@ -98,10 +103,15 @@ def build_files_info(
             )
         text.append(f"{FILE_VIEW_MODE_GLYPHS[mode]} {count:,} {label}", style=style)
     text.append(" · ", style="dim")
-    text.append(
-        f"◆ {snapshot.explicit_count:,} explicit",
-        style=f"bold {accent}",
-    )
+    origins: tuple[FileOrigin, ...] = ("ref", "created", "capture")
+    for index, origin in enumerate(origins):
+        if index:
+            text.append(" · ", style="dim")
+        badge, color = _ORIGIN_BADGES[origin]
+        text.append(
+            f"{badge} {snapshot.origin_counts.get(origin, 0):,}",
+            style=f"bold {color}",
+        )
     if not filters.is_empty:
         visible = len(snapshot.rows) if filtered_count is None else filtered_count
         text.append("  │  ", style="dim")
@@ -156,6 +166,8 @@ def build_files_hints(
         (key_display_name(keymap.files_view_selected), "view"),
         (key_display_name(keymap.files_filters), "filter"),
         (key_display_name(keymap.files_cycle_kind), "kind"),
+        (key_display_name(keymap.files_prev_version), "prev version"),
+        (key_display_name(keymap.files_next_version), "next version"),
         (key_display_name(keymap.files_open_agent), "agent"),
         (key_display_name(keymap.files_open_external), "external"),
         (key_display_name(keymap.files_copy_reference), "copy ref"),
@@ -176,10 +188,10 @@ def build_files_hints(
     return text
 
 
-def file_group_label(row: ArtifactFile, *, today: datetime) -> str:
+def file_group_label(row: LogicalFile, *, today: datetime) -> str:
     """Return Today, Yesterday, or an ISO date for one artifact row."""
 
-    timestamp = _artifact_file_datetime(row)
+    timestamp = _artifact_file_datetime(row.latest)
     if timestamp is None:
         return "Unknown"
     day_delta = (today.date() - timestamp.date()).days
@@ -200,41 +212,54 @@ def file_group_header(label: str) -> Text:
 
 
 def file_row_text(
-    row: ArtifactFile,
+    row: LogicalFile,
     *,
     view_mode: ArtifactViewMode,
     projects: ProjectRefDisplaySnapshot,
 ) -> Text:
     """Render one aligned, single-line artifact-file row."""
 
-    timestamp = _artifact_file_datetime(row)
+    version = row.latest
+    timestamp = _artifact_file_datetime(version)
     time_label = timestamp.strftime("%H:%M") if timestamp is not None else "--:--"
-    project = projects.display_snapshot.label_for(row.project) if row.project else "-"
-    agent = row.agent_name
-    presented = present_agent_name(agent) if agent else (row.workflow or "file")
-    size = humanize_file_size(row.size_bytes)
+    project_refs = row.projects
+    project = (
+        projects.display_snapshot.label_for(project_refs[0]) if project_refs else "-"
+    )
+    agent = row.agents[0] if row.agents else None
+    presented = present_agent_name(agent) if agent else (version.workflow or "file")
+    size = humanize_file_size(version.size_bytes)
     color = FILE_VIEW_MODE_COLORS[view_mode]
+    origin_badge, origin_color = _origin_badge(row)
+    version_label = f" {len(row.versions)}v" if len(row.versions) > 1 else ""
 
     text = Text(no_wrap=True, overflow="ellipsis")
     text.append(FILE_VIEW_MODE_GLYPHS[view_mode], style=f"bold {color}")
     text.append(f" {time_label}  ", style="dim")
     text.append(f"[{project}]".ljust(_PROJECT_WIDTH), style="bold #87D7FF")
     text.append(f"{presented}".ljust(_AGENT_WIDTH), style="bold white")
-    if row.explicit:
-        text.append("◆ ", style=f"bold {ARTIFACTS_ACCENTS['files']}")
-    else:
-        text.append("  ")
+    text.append(f"{origin_badge} ", style=f"bold {origin_color}")
     text.append(row.label, style=color)
+    if version_label:
+        text.append(version_label, style="dim")
     text.append(f"  {size:>{_SIZE_WIDTH}}", style="dim")
     return text
 
 
 def _artifact_file_datetime(
-    row: ArtifactFile,
+    row: FileVersion,
 ) -> datetime | None:
     """Parse an index timestamp in the configured display timezone."""
 
     return parse_local(row.created_at)
+
+
+def _origin_badge(row: LogicalFile) -> tuple[str, str]:
+    if len(row.origins) > 1:
+        return "+", "#FFFFFF"
+    origin = next(iter(row.origins), "capture")
+    origin_key = origin if origin in _ORIGIN_BADGES else "capture"
+    return _ORIGIN_BADGES[cast(FileOrigin, origin_key)]
 
 
 def humanize_file_size(size_bytes: int | None) -> str:

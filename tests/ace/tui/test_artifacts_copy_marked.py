@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from sase.ace.tui.widgets.artifacts.chats_list import ChatRow, chat_row_target
 from sase.ace.tui.widgets.artifacts.plans_list import PlanRow, plan_row_target
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
@@ -69,7 +71,7 @@ def test_marked_plans_copy_the_marked_set() -> None:
         for index in (1, 2)
     )
     targets = tuple(plan_row_target(row) for row in rows)
-    app._artifacts_marked_targets = {"plans": set(targets)}
+    app._artifacts_marked_targets = {"ref:plan": set(targets)}
     app.plans_pane = SimpleNamespace(
         _rows={row.row_id: row for row in rows},
         entry_targets=lambda: targets,
@@ -83,6 +85,7 @@ def test_marked_plans_copy_the_marked_set() -> None:
     assert message == "Copied 2 plan titles"
 
 
+@pytest.mark.skip(reason="Artifacts Chats pane was retired; transcripts copy elsewhere")
 def test_marked_chats_copy_the_marked_set() -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "chats"
@@ -132,8 +135,7 @@ def test_marked_files_contents_report_pre_filtered_binary_rows(
     by_target = dict(zip(targets, (text, image), strict=True))
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
-    app.current_files_subtab = "other"
-    app._artifacts_marked_targets = {"other": set(targets)}
+    app._artifacts_marked_targets = {"files": set(targets)}
     app.files_pane = SimpleNamespace(
         entry_targets=lambda: targets,
         entries_for_targets=lambda requested: tuple(

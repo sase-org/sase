@@ -69,7 +69,7 @@ class ArtifactsBeadsBrowseActionsMixin(ArtifactsBeadsCommonMixin):
             return
         plan_kind = "archive" if row.issue.status is Status.CLOSED else "active"
         self._request_artifacts_entry(  # type: ignore[attr-defined]
-            "plans",
+            "ref:plan",
             ("plan", row.project, plan_kind, plan_path),
         )
 

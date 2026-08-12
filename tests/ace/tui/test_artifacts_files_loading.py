@@ -10,7 +10,11 @@ from textual.widgets import OptionList, Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_data, files_pane
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
-from tests.ace.tui._artifacts_files_helpers import artifact_file, snapshot
+from tests.ace.tui._artifacts_files_helpers import (
+    artifact_file,
+    logical_file,
+    snapshot,
+)
 from tests.ace.tui._artifacts_plans_helpers import _choices
 from tests._load_tolerant import LOAD_TOLERANT_TIMEOUT
 
@@ -29,7 +33,7 @@ def test_data_loader_uses_only_project_scope_and_limit(
     result = files_data.load_files_snapshot("alpha", 500)
 
     assert calls == [{"project": "alpha", "limit": 500}]
-    assert result.rows == (row,)
+    assert result.rows == (logical_file(row),)
     assert result.complete is True
     assert result.load_error is None
 
@@ -91,10 +95,11 @@ async def test_first_page_paints_before_full_extension(
                 timeout=LOAD_TOLERANT_TIMEOUT,
             )
 
-            assert pane.selected_entry is first_rows[0]
+            assert pane.selected_entry is not None
+            assert pane.selected_entry.id == first_rows[0].id
             assert pane.entry_targets() == (
-                ("file", first_rows[0].id),
-                ("file", first_rows[1].id),
+                ("file", logical_file(first_rows[0]).logical_id),
+                ("file", logical_file(first_rows[1]).logical_id),
             )
             assert full_started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             assert requested_limits[:2] == [500, None]
@@ -108,7 +113,8 @@ async def test_first_page_paints_before_full_extension(
                 ),
                 timeout=LOAD_TOLERANT_TIMEOUT,
             )
-            assert pane.selected_entry is first_rows[0]
+            assert pane.selected_entry is not None
+            assert pane.selected_entry.id == first_rows[0].id
     finally:
         release_full.set()
 
@@ -166,27 +172,43 @@ async def test_cursor_survives_refresh_and_jk_has_no_highlight_echoes(
     async with AcePage(initial_tab="patches") as page:
         await page.press("4", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
-        await page.wait_for(lambda _state: pane.selected_entry is rows[0])
+        await page.wait_for(
+            lambda _state: (
+                pane.selected_entry is not None and pane.selected_entry.id == rows[0].id
+            )
+        )
         option_list = pane.query_one("#files-list", OptionList)
         assert option_list.highlighted == 1
 
         await page.press("j")
-        assert pane.selected_entry is rows[1]
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[1].id
         await page.press("k")
-        assert pane.selected_entry is rows[0]
-        assert pane.select_entry_target(("file", rows[1].id))
-        assert pane.selected_entry is rows[1]
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[0].id
+        assert pane.select_entry_target(("file", logical_file(rows[1]).logical_id))
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[1].id
 
         before_refresh = calls
         await page.press("R")
         await page.wait_for(lambda _state: calls > before_refresh)
-        await page.wait_for(lambda _state: pane.selected_entry is rows[1])
-        assert pane.selected_entry_target() == ("file", rows[1].id)
+        await page.wait_for(
+            lambda _state: (
+                pane.selected_entry is not None and pane.selected_entry.id == rows[1].id
+            )
+        )
+        assert pane.selected_entry_target() == (
+            "file",
+            logical_file(rows[1]).logical_id,
+        )
 
         await page.press("g")
-        assert pane.selected_entry is rows[0]
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[0].id
         await page.press("G")
-        assert pane.selected_entry is rows[-1]
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[-1].id
         selected = pane.selected_entry_target()
         assert selected is not None
         pane.apply_entry_jump_hints({selected: "A"})

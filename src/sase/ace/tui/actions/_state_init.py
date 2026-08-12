@@ -360,9 +360,8 @@ class StateInitMixin:
         ] = {
             "stitches": set(),
             "beads": set(),
-            "plans": set(),
-            "chats": set(),
-            "other": set(),
+            "ref:plan": set(),
+            "files": set(),
         }
 
         # Cross-tab jump back state (`)

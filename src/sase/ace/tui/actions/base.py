@@ -442,7 +442,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
     def action_edit_query(self) -> None:
         """Edit the search query.
 
-        On Agents and Artifacts → Stitches/Plans, delegates to inline filters.
+        On Agents and Artifacts entry panes, delegates to inline filters.
 
         Supports saving queries with # prefix:
         - #<N> <query> - Save query to slot N (0-9)
@@ -460,11 +460,10 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             if pane is not None:
                 pane.show_filters()
             return
-        if (
-            self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "patches") == "plans"
-        ):
-            pane = self._plans_pane()  # type: ignore[attr-defined]
+        if self.current_tab == "artifacts" and str(
+            getattr(self, "current_artifacts_pane_key", "patches")
+        ).startswith("ref:"):
+            pane = self._active_documents_pane()  # type: ignore[attr-defined]
             if pane is not None:
                 pane.show_filters()
             return
@@ -478,15 +477,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "patches") == "chats"
-        ):
-            pane = self._chats_pane()  # type: ignore[attr-defined]
-            if pane is not None:
-                pane.show_filters()
-            return
-        if (
-            self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_pane_key", "patches") == "other"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "files"
         ):
             pane = self._files_pane()  # type: ignore[attr-defined]
             if pane is not None:

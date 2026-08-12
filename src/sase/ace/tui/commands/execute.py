@@ -50,7 +50,10 @@ def execute_command(app: AceApp, spec: CommandSpec) -> None:  # type: ignore[no-
                 severity="error",
             )
             return
-        method()
+        if executor.digit is None:
+            method()
+        else:
+            method(executor.digit)
         return
 
     if kind == "saved_query":

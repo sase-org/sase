@@ -2,7 +2,7 @@
 
 from textual.binding import Binding
 
-from sase.ace.tui.artifact_tabs import ARTIFACTS_SUBTAB_ORDER
+from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.keymaps.display import key_display_name
 from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
@@ -16,18 +16,22 @@ from sase.ace.tui.keymaps.metadata import (
 )
 
 
-# Non-configurable numbered Artifacts sub-tab bindings.
-_ARTIFACT_SUBTAB_BINDINGS: list[Binding] = [
-    Binding(
-        str(index),
-        f"show_artifacts_{subtab}",
-        f"Show {subtab.title()}",
-        show=False,
-    )
-    for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1)
-]
-
 _GATE_NUMBERED_BRANCH_KEYS = tuple(str(index) for index in range(1, 10))
+
+
+def _artifact_subtab_bindings() -> list[Binding]:
+    """Return non-configurable numbered Artifacts sub-tab bindings."""
+
+    return [
+        Binding(
+            descriptor.digit_shortcut,
+            f"show_artifacts_digit({descriptor.digit_shortcut})",
+            f"Show {descriptor.label}",
+            show=False,
+        )
+        for descriptor in resolve_artifacts_subtabs()
+        if descriptor.digit_shortcut is not None
+    ]
 
 
 def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
@@ -40,7 +44,7 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     for action, desc, priority in _BINDING_META:
         key = getattr(app_km, action)
         bindings.append(Binding(key, action, desc, show=False, priority=priority))
-    bindings.extend(_ARTIFACT_SUBTAB_BINDINGS)
+    bindings.extend(_artifact_subtab_bindings())
     return bindings
 
 

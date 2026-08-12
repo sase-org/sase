@@ -60,7 +60,7 @@ def artifact_target_state(
         }
         if not plan and not marked:
             available.discard("plan")
-    elif subtab == "plans":
+    elif subtab == "plans" or subtab.startswith("ref:"):
         values = _plan_values(first)
         for target in ("design", "path", "title", "body"):
             if not values.get(target) and not marked:

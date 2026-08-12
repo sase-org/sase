@@ -20,6 +20,10 @@ from sase.history.chat_filter_query import (
 from tests.ace.tui._artifacts_chats_helpers import catalog, chat_entry
 from tests.ace.tui._artifacts_plans_helpers import _choices
 
+_SKIP_MOUNTED_CHATS = pytest.mark.skip(
+    reason="Artifacts Chats is no longer a mounted pane"
+)
+
 
 def test_filter_tokens_match_catalog_fields() -> None:
     entry = replace(
@@ -62,6 +66,7 @@ def test_invalid_filter_tokens_are_rejected(query: str) -> None:
         parse_chat_filter_query(query)
 
 
+@_SKIP_MOUNTED_CHATS
 async def test_filter_bar_and_provenance_cycle_update_rows_and_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -113,6 +118,7 @@ async def test_filter_bar_and_provenance_cycle_update_rows_and_summary(
         assert options.option_count == 2
 
 
+@_SKIP_MOUNTED_CHATS
 async def test_enter_pushes_full_transcript_preview(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

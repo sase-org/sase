@@ -38,11 +38,9 @@ class PaletteHarness:
         """Expose the active leaf pane like ``AceApp`` does."""
 
         # A few unit cases assign a leaf directly because this harness predates
-        # the nested Files shell. Keep that shorthand local to the harness.
-        if self.current_artifacts_subtab in {"plans", "chats", "other"}:
-            return self.current_artifacts_subtab
-        if self.current_artifacts_subtab == "files":
-            return "other"
+        # the dynamic document panes. Keep that shorthand local to the harness.
+        if self.current_artifacts_subtab == "plans":
+            return "ref:plan"
         return self.current_artifacts_subtab
 
     def notify(self, message: str, *, severity: str = "information") -> None:
@@ -123,6 +121,7 @@ def file_entry(
 ) -> Any:
     return SimpleNamespace(
         id=artifact_id,
+        logical_id=artifact_id,
         label=label,
         kind=kind,
         path=path,
@@ -245,7 +244,7 @@ def controlled_artifact_pane(subtab: str) -> Any:
         return commit_pane((commit_entry("a", subject="Live commit"),))
     if subtab == "beads":
         return bead_pane()
-    if subtab == "plans":
+    if subtab in {"plans", "ref:plan"}:
         proposal = SimpleNamespace(
             notification=SimpleNamespace(id="plan-notice"),
             plan_path="/workspace/plans/copy.md",
@@ -253,6 +252,7 @@ def controlled_artifact_pane(subtab: str) -> Any:
             body="# Copy palette plan",
         )
         row = SimpleNamespace(
+            ref_kind="plan",
             kind="proposal",
             row_id="plan-row",
             project="sase",
@@ -268,26 +268,10 @@ def controlled_artifact_pane(subtab: str) -> Any:
             selected_entry_target=lambda: plan_target,
             selected_row=lambda: row,
         )
-    if subtab == "chats":
-        entry = SimpleNamespace(
-            absolute_path="/workspace/chats/agent.md",
-            basename="agent.md",
-            agent_local_name="copy-worker",
-            prompt_snippet="Implement the copy palette",
-            size_bytes=2048,
-        )
-        row = SimpleNamespace(option_id="chat-row", entry=entry)
-        chat_target = ("chat", entry.absolute_path)
-        return SimpleNamespace(
-            _rows={"chat-row": row},
-            snapshot=SimpleNamespace(display_name="SASE"),
-            entry_targets=lambda: (chat_target,),
-            selected_entry_target=lambda: chat_target,
-            selected_entry=entry,
-        )
-    if subtab == "other":
+    if subtab == "files":
         entry = SimpleNamespace(
             id="artifact-file",
+            logical_id="artifact-file",
             label="copy.png",
             kind="image",
             size_bytes=4096,

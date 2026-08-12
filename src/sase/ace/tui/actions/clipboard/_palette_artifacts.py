@@ -15,9 +15,11 @@ if TYPE_CHECKING:
 
 
 def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
+    subtab = _canonical_artifact_subtab(subtab)
+    label = _artifact_context_label(subtab)
     pane = _artifact_pane(app, subtab)
     if pane is None:
-        notify_copy_warning(app, f"No {subtab} entry to copy")
+        notify_copy_warning(app, f"No {label} entry to copy")
         return None
 
     visible_targets = _entry_targets(pane)
@@ -26,7 +28,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     marked_targets = tuple(target for target in visible_targets if target in marks)
     marked = bool(marks)
     if marked and not marked_targets:
-        notify_copy_warning(app, f"No marked {subtab} entries are visible")
+        notify_copy_warning(app, f"No marked {label} entries are visible")
         return None
 
     selected_target = _selected_entry_target(pane)
@@ -42,11 +44,11 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         if selected is not None and not selected_objects:
             selected_objects = (selected,)
         if selected_target is None and not selected_objects:
-            notify_copy_warning(app, f"No {subtab} entry to copy")
+            notify_copy_warning(app, f"No {label} entry to copy")
             return None
 
     count = len(marked_targets) if marked else 1
-    copy_mode_group = f"artifacts_{subtab}"
+    copy_mode_group = _copy_mode_group(subtab)
     available, previews = artifact_target_state(
         group=copy_mode_group,
         subtab=subtab,
@@ -63,7 +65,7 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
     )
     display_name = _artifact_display_name(pane, selected_objects)
     if marked:
-        subtitle = f"{count} marked {subtab}"
+        subtitle = f"{count} marked {label}"
         if display_name:
             subtitle += f" · {display_name}"
     else:
@@ -72,24 +74,26 @@ def build_artifacts_context(app: Any, subtab: str) -> CopyAsContext | None:
         )
         subtitle = " · ".join(part for part in (display_name, identity) if part)
         if not subtitle:
-            subtitle = f"Selected {subtab[:-1] if subtab.endswith('s') else subtab}"
+            subtitle = f"Selected {label[:-1] if label.endswith('s') else label}"
 
     return context_from_registry(
         app,
         group=copy_mode_group,
         command_context=ctx,
         subtitle=subtitle,
-        unknown_context=subtab.title(),
+        unknown_context=label.title(),
         previews=previews,
         marked=marked,
     )
 
 
 def _artifact_pane(app: Any, subtab: str) -> Any | None:
-    if subtab == "other":
+    if subtab == "files":
         resolver_name = "_files_pane"
     elif subtab == "stitches":
         resolver_name = "_commits_pane"
+    elif subtab.startswith("ref:"):
+        resolver_name = "_active_documents_pane"
     else:
         resolver_name = f"_{subtab}_pane"
     resolver = getattr(app, resolver_name, None)
@@ -125,10 +129,10 @@ def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
     if subtab == "stitches":
         resolver = getattr(pane, "_selected_entry", None)
         return resolver() if callable(resolver) else None
-    if subtab == "plans":
+    if subtab.startswith("ref:"):
         resolver = getattr(pane, "selected_row", None)
         return resolver() if callable(resolver) else None
-    if subtab in {"chats", "other"}:
+    if subtab == "files":
         return getattr(pane, "selected_entry", None)
     if subtab == "beads":
         resolver = getattr(pane, "selected_row", None)
@@ -155,7 +159,7 @@ def _artifact_objects(
             for target in ordered_targets
             if target in commit_by_target
         )
-    if subtab in {"beads", "plans", "chats", "other"}:
+    if subtab == "beads" or subtab.startswith("ref:") or subtab == "files":
         rows = getattr(pane, "_rows", {}).values()
         row_by_target: dict[tuple[str, ...], Any] = {}
         for row in rows:
@@ -164,16 +168,11 @@ def _artifact_objects(
 
                 target = bead_row_target(row)
                 value = row
-            elif subtab == "plans":
+            elif subtab.startswith("ref:"):
                 from ...widgets.artifacts.plans_list import plan_row_target
 
                 target = plan_row_target(row)
                 value = row
-            elif subtab == "chats":
-                from ...widgets.artifacts.chats_list import chat_row_target
-
-                target = chat_row_target(row)
-                value = row.entry
             else:
                 from ...widgets.artifacts.files_list import file_row_target
 
@@ -226,7 +225,7 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
     if subtab == "stitches":
         commit = getattr(value, "commit", None)
         return f"{getattr(value, 'repo', '')}@{getattr(commit, 'short_id', '')}"
-    if subtab == "plans":
+    if subtab.startswith("ref:"):
         if getattr(value, "proposal", None) is not None:
             return str(value.proposal.title)
         if getattr(value, "active", None) is not None:
@@ -243,6 +242,26 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
         if issue is None:
             return ""
         return f"{getattr(issue, 'id', '')} · {getattr(issue, 'title', '')}"
-    if subtab == "chats":
-        return str(getattr(value, "basename", ""))
     return str(getattr(value, "label", "") or getattr(value, "path", ""))
+
+
+def _copy_mode_group(subtab: str) -> str:
+    if subtab.startswith("ref:"):
+        return "artifacts_plans"
+    if subtab == "files":
+        return "artifacts_other"
+    return f"artifacts_{subtab}"
+
+
+def _canonical_artifact_subtab(subtab: str) -> str:
+    if subtab == "plans":
+        return "ref:plan"
+    if subtab == "other":
+        return "files"
+    return subtab
+
+
+def _artifact_context_label(subtab: str) -> str:
+    if subtab.startswith("ref:"):
+        return "plans" if subtab == "ref:plan" else "documents"
+    return subtab

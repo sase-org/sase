@@ -580,6 +580,10 @@ _TARGETS_BY_KEY = {(item.group, item.target): item for item in COPY_TARGETS}
 
 def _normalize_copy_group(group: str) -> str:
     """Return the canonical copy-mode group id."""
+    if group.startswith("artifacts_ref:"):
+        return "artifacts_plans"
+    if group == "artifacts_files":
+        return "artifacts_other"
     return "patches" if group == "patches" else group
 
 

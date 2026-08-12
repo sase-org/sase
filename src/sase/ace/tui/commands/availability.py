@@ -85,9 +85,9 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.cycle_artifacts_subtab",
         "app.cycle_artifacts_subtab_reverse",
-        "app.cycle_files_subtab",
-        "app.cycle_files_subtab_reverse",
         "app.pick_artifacts_project",
+        "app.files_next_version",
+        "app.files_prev_version",
         "app.next_tab",
         "app.prev_tab",
         "app.quit",
@@ -235,6 +235,14 @@ def _get_base_status(status: str) -> str:
     return get_base_status(status)
 
 
+def _artifacts_copy_group(subtab: str) -> str:
+    if subtab.startswith("ref:"):
+        return "artifacts_plans"
+    if subtab == "files":
+        return "artifacts_other"
+    return f"artifacts_{subtab}"
+
+
 # ---------------------------------------------------------------------------
 # Per-spec entry predicates
 # ---------------------------------------------------------------------------
@@ -242,7 +250,8 @@ def _get_base_status(status: str) -> str:
 
 def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id.startswith("copy.artifacts_"):
-        if not spec.id.startswith(f"copy.artifacts_{ctx.artifacts_subtab}."):
+        copy_group = _artifacts_copy_group(ctx.artifacts_subtab)
+        if not spec.id.startswith(f"copy.{copy_group}."):
             return False
         if ctx.artifact_selection_present is False:
             return False
@@ -250,21 +259,26 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return spec.id.rsplit(".", 1)[-1] in ctx.artifact_available_targets
         return True
     if spec.id == "app.edit_query":
-        return ctx.artifacts_subtab in {"patches", "stitches", "plans"}
+        return ctx.artifacts_subtab in {
+            "patches",
+            "stitches",
+            "beads",
+            "files",
+        } or ctx.artifacts_subtab.startswith("ref:")
     if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:
-        return ctx.artifacts_subtab in {"plans", "chats", "other"}
+        return False
     if spec.id in _STITCHES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "stitches"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
-        return ctx.artifacts_subtab == "plans"
+        return ctx.artifacts_subtab.startswith("ref:")
     if spec.id in _BEADS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "beads"
     if spec.id.startswith("bead_issue."):
         return ctx.artifacts_subtab == "beads"
     if spec.id in _CHATS_ARTIFACT_COMMANDS:
-        return ctx.artifacts_subtab == "chats"
+        return False
     if spec.id in _FILES_ARTIFACT_COMMANDS:
-        return ctx.artifacts_subtab == "other"
+        return ctx.artifacts_subtab == "files"
     if ctx.artifacts_subtab != "patches":
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":

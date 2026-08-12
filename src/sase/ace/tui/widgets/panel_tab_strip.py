@@ -21,6 +21,7 @@ class PanelTab:
     accent_color: str
     compact_label: str | None = None
     micro_label: str | None = None
+    shortcut: str | None = None
 
 
 _PanelTabTier = Literal["full", "compact", "micro"]
@@ -95,7 +96,8 @@ class PanelTabStrip(Static):
             start = len(text.plain)
             if self._show_numbers:
                 number_style = tab.accent_color if is_active else "#666666"
-                number = f" {index + 1} " if self._tier == "full" else f"{index + 1} "
+                shortcut = tab.shortcut or str(index + 1)
+                number = f" {shortcut} " if self._tier == "full" else f"{shortcut} "
                 text.append(number, style=number_style)
             else:
                 if self._tier == "full":

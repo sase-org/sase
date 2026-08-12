@@ -101,7 +101,7 @@ def check_app_action(
     if (
         action == "refresh"
         and app.current_tab == ARTIFACTS_TAB
-        and app.current_artifacts_pane_key in {"stitches", "beads", "other", "chats"}
+        and app.current_artifacts_pane_key != "patches"
     ):
         # ``y`` copies the selected pane entry; explicit pane refresh is
         # registry-backed and defaults to ``R``.
@@ -113,8 +113,7 @@ def check_app_action(
         if app.current_tab != ARTIFACTS_TAB:
             return False
     if action in {"cycle_files_subtab", "cycle_files_subtab_reverse"}:
-        if app.current_tab != ARTIFACTS_TAB or app.current_artifacts_subtab != "files":
-            return False
+        return False
     if action in {
         "show_artifacts_patches",
         "show_artifacts_prs",
@@ -122,6 +121,7 @@ def check_app_action(
         "show_artifacts_bugs",
         "show_artifacts_beads",
         "show_artifacts_files",
+        "show_artifacts_digit",
     }:
         if app.current_tab != ARTIFACTS_TAB:
             return False
@@ -134,11 +134,13 @@ def check_app_action(
     if action == "start_saved_query_mode" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action in PLANS_ARTIFACT_ACTIONS:
-        if (
-            app.current_tab != ARTIFACTS_TAB
-            or app.current_artifacts_pane_key != "plans"
-        ):
+        pane_key = app.current_artifacts_pane_key
+        if app.current_tab != ARTIFACTS_TAB or not str(pane_key).startswith("ref:"):
             return False
+        if action in {"plans_approve", "plans_reject", "plans_open_bead"}:
+            pane = getattr(app, "_active_documents_pane", lambda: None)()
+            if pane is None or getattr(pane, "provider_kind", None) != "plan":
+                return False
     if action in BEADS_ARTIFACT_ACTIONS:
         if (
             app.current_tab != ARTIFACTS_TAB
@@ -146,15 +148,11 @@ def check_app_action(
         ):
             return False
     if action in CHATS_ARTIFACT_ACTIONS:
-        if (
-            app.current_tab != ARTIFACTS_TAB
-            or app.current_artifacts_pane_key != "chats"
-        ):
-            return False
+        return False
     if action in FILES_ARTIFACT_ACTIONS:
         if (
             app.current_tab != ARTIFACTS_TAB
-            or app.current_artifacts_pane_key != "other"
+            or app.current_artifacts_pane_key != "files"
         ):
             return False
     if action == "pick_artifacts_project":

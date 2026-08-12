@@ -3,14 +3,19 @@
 from dataclasses import fields
 
 from sase.ace.tui.bindings import DEFAULT_BINDINGS
+from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.keymaps import AppKeymaps, build_app_bindings
 from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """Bindings contain every configurable action plus four fixed tab jumps."""
+    """Bindings contain configurable actions plus runtime artifact jumps."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == len(fields(AppKeymaps)) + 4
+    artifact_jump_count = sum(
+        descriptor.digit_shortcut is not None
+        for descriptor in resolve_artifacts_subtabs()
+    )
+    assert len(bindings) == len(fields(AppKeymaps)) + artifact_jump_count
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:
@@ -167,23 +172,23 @@ def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
     """Bare digits jump Artifacts panes; saved query slots live behind 0."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {binding.action: binding for binding in bindings}
+    expected_digits = {
+        descriptor.digit_shortcut: descriptor.id
+        for descriptor in resolve_artifacts_subtabs()
+        if descriptor.digit_shortcut is not None
+    }
 
     assert {
-        by_action[f"show_artifacts_{subtab}"].key: subtab
-        for subtab in ("stitches", "patches", "beads", "files")
-    } == {
-        "1": "stitches",
-        "2": "patches",
-        "3": "beads",
-        "4": "files",
-    }
+        by_action[f"show_artifacts_digit({digit})"].key: subtab
+        for digit, subtab in expected_digits.items()
+    } == expected_digits
     assert by_action["open_saved_query_picker"].key == "asterisk"
     assert by_action["start_saved_query_mode"].key == "0"
     assert {
         binding.key
         for binding in bindings
         if len(binding.key) == 1 and binding.key.isdigit()
-    } == {"1", "2", "3", "4", "0"}
+    } == {*expected_digits, "0"}
     assert not any(
         binding.action.startswith("load_saved_query") for binding in bindings
     )
@@ -194,8 +199,13 @@ def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> 
     by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
     assert [
-        (by_action[f"show_artifacts_{subtab}"].key, subtab)
-        for subtab in ("stitches", "patches", "beads", "files")
+        (by_action[f"show_artifacts_digit({digit})"].key, subtab)
+        for digit, subtab in (
+            ("1", "stitches"),
+            ("2", "patches"),
+            ("3", "beads"),
+            ("4", "files"),
+        )
     ] == [
         ("1", "stitches"),
         ("2", "patches"),

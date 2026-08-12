@@ -116,16 +116,19 @@ class FilterBar(Static):
         """Compose the command line and its screen-overlay completion menu."""
         with Horizontal(id=self.ROW_ID, classes="filter-bar-row"):
             yield Static("/", id=self.SIGIL_ID, classes="filter-bar-sigil")
-            yield _FilterBarInput(
+            editor = _FilterBarInput(
                 id=self.INPUT_ID,
                 classes="filter-bar-input",
                 read_only=self.PERSISTENT,
             )
+            editor.can_focus = not self.PERSISTENT
+            yield editor
             yield Static("", id=self.STATUS_ID, classes="filter-bar-status")
         completion = _FilterBarCompletionList(
             id=self.COMPLETION_ID,
             classes="filter-bar-completion",
         )
+        completion.can_focus = False
         completion.display = False
         yield completion
 
@@ -134,6 +137,7 @@ class FilterBar(Static):
         editor = self._editor()
         self._editing = True
         self.display = True
+        editor.can_focus = True
         editor.read_only = False
         self.set_query(prefill)
         editor.cursor_position = len(prefill)
@@ -148,6 +152,7 @@ class FilterBar(Static):
         editor = self._editor()
         editor._enter_normal_mode()
         editor.read_only = self.PERSISTENT
+        editor.can_focus = not self.PERSISTENT
         self.display = self.PERSISTENT
 
     def set_query(self, text: str) -> None:

@@ -65,9 +65,8 @@ def test_marked_copy_contents_uses_snapshot_mode_and_materializes(
     target = ("file", row.id)
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
-    app.current_files_subtab = "other"
     app.files_pane = _files_pane(row)
-    app._artifacts_marked_targets = {"other": {target}}
+    app._artifacts_marked_targets = {"files": {target}}
 
     assert app._handle_copy_key("percent_sign") is True
 

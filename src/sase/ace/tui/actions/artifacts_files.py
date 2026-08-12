@@ -38,6 +38,8 @@ FILES_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "files_open_agent",
         "files_filters",
         "files_cycle_kind",
+        "files_next_version",
+        "files_prev_version",
         "files_copy_reference",
         "files_copy_path",
         "files_refresh",
@@ -156,7 +158,7 @@ class ArtifactsFilesActionsMixin:
             self._notify_no_file_selected()
             return
 
-        marks = getattr(self, "_artifacts_marked_targets", {}).get("other", set())
+        marks = getattr(self, "_artifacts_marked_targets", {}).get("files", set())
         if marks:
             targets = tuple(
                 target for target in pane.entry_targets() if target in marks
@@ -307,6 +309,16 @@ class ArtifactsFilesActionsMixin:
         pane = self._files_pane()
         if pane is not None:
             pane.cycle_kind()
+
+    def action_files_next_version(self) -> None:
+        pane = self._files_pane()
+        if pane is not None:
+            pane.select_version(1)
+
+    def action_files_prev_version(self) -> None:
+        pane = self._files_pane()
+        if pane is not None:
+            pane.select_version(-1)
 
     def action_files_copy_reference(self) -> None:
         """Copy the selected row's durable ``file:`` reference."""

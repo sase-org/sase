@@ -12,9 +12,7 @@ from textual.widgets import Static
 from ..artifact_tabs import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_SUBTAB_ORDER,
-    FILES_SUBTAB_ORDER,
     ArtifactsSubTab,
-    FilesSubTab,
 )
 from ...display_helpers import get_status_color
 from ..keymaps import (
@@ -37,12 +35,7 @@ _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "stitches": "Trace committed work across projects.",
     "patches": "Inspect Patches and move PRs through review.",
     "beads": "Review task, epic, and phase work items.",
-    "files": "Browse Plans, Chats, and Other artifact files.",
-}
-_FILES_DESCRIPTIONS: dict[FilesSubTab, str] = {
-    "plans": "Plan proposals, active plans, and the archive.",
-    "chats": "Agent chat transcripts and their sync state.",
-    "other": "Every other artifact file agents have produced.",
+    "files": "Browse logical artifact files and their versions.",
 }
 
 
@@ -66,7 +59,7 @@ class PatchOnboarding(VerticalScroll):
             id="patch-onboarding-tabs",
             classes="patch-onboarding-card",
         )
-        tabs.border_title = "The five views"
+        tabs.border_title = "Artifact views"
         yield tabs
 
         what = Static(
@@ -146,17 +139,13 @@ class PatchOnboarding(VerticalScroll):
         )
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Browse commits, patches, beads, and nested files in Artifacts",
+            "Browse commits, patches, beads, document providers, and files in Artifacts",
             style=f"dim {_ACCENT}",
         )
         return text
 
     @staticmethod
     def _artifact_label(subtab: ArtifactsSubTab) -> str:
-        return subtab.title()
-
-    @staticmethod
-    def _files_label(subtab: FilesSubTab) -> str:
         return subtab.title()
 
     @classmethod
@@ -174,26 +163,12 @@ class PatchOnboarding(VerticalScroll):
         text.append("\n")
 
     @classmethod
-    def _append_files_row(cls, text: Text, subtab: FilesSubTab) -> None:
-        text.append("    ", style="dim")
-        text.append(
-            f" {cls._files_label(subtab)} ",
-            style=f"bold {ARTIFACTS_ACCENTS[subtab]}",
-        )
-        text.append("  ")
-        text.append(_FILES_DESCRIPTIONS[subtab])
-        text.append("\n")
-
-    @classmethod
     def _build_tabs_card(cls, registry: KeymapRegistry) -> Text:
         app = registry.app
         text = Text()
         append_section_heading(text, "Know what each view shows", accent=_ACCENT)
         for subtab in ARTIFACTS_SUBTAB_ORDER:
             cls._append_artifact_row(text, subtab)
-            if subtab == "files":
-                for files_subtab in FILES_SUBTAB_ORDER:
-                    cls._append_files_row(text, files_subtab)
         text.append("Jump directly:")
         for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
             append_keycap(text, str(index))
@@ -206,10 +181,6 @@ class PatchOnboarding(VerticalScroll):
         text.append("/")
         append_keycap(text, key_display_name(app.cycle_artifacts_subtab))
         text.append("cycle top-level views.")
-        append_keycap(text, key_display_name(app.cycle_files_subtab_reverse))
-        text.append("/")
-        append_keycap(text, key_display_name(app.cycle_files_subtab))
-        text.append("cycle Plans, Chats, and Other inside Files.")
         append_keycap(text, key_display_name(app.pick_artifacts_project))
         text.append("pick project scope.")
         return text

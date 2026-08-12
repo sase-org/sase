@@ -363,7 +363,7 @@ class PlansFilterSessionMixin(_MixinBase):
             None,
         )
         if callable(cancel_jump):
-            cancel_jump("plans")
+            cancel_jump(getattr(self, "pane_key", "ref:plan"))
 
 
 __all__ = ["PlansFilterSessionMixin"]

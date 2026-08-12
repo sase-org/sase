@@ -495,9 +495,16 @@ class KeybindingModesMixin:
         key_group = (
             f"artifacts_{artifacts_pane_key}"
             if tab == "artifacts"
-            and artifacts_pane_key in {"stitches", "beads", "plans", "chats", "other"}
+            and (
+                artifacts_pane_key in {"stitches", "beads", "files"}
+                or str(artifacts_pane_key or "").startswith("ref:")
+            )
             else tab
         )
+        if key_group.startswith("artifacts_ref:"):
+            key_group = "artifacts_plans"
+        elif key_group == "artifacts_files":
+            key_group = "artifacts_other"
         tab_keys = self._kr().copy_mode.keys.get(key_group, {})
         assert isinstance(tab_keys, dict)
 

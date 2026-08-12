@@ -24,16 +24,19 @@ from sase.ace.tui.util.pump_tasks import (
     cancel_pump_free_tasks,
     spawn_pump_free_task,
 )
-from sase.core.artifact_file_types import ArtifactFile
 from sase.core.time import local_now
+from sase.core.artifact_file_types import ArtifactFile
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .entry_navigation import ArtifactEntryTarget
 from .file_filter_bar import FileFilterBar
 from .files_data import (
     FILES_FIRST_PAGE_LIMIT,
+    FileVersion,
     FilesSnapshot,
+    LogicalFile,
     load_files_snapshot,
+    selected_file_version_to_artifact_file,
 )
 from .files_detail import (
     FileDetailCacheKey,
@@ -89,6 +92,7 @@ class ArtifactsFilesPane(
         self._detail_generation = 0
         self._detail_cache: dict[FileDetailCacheKey, FileDetailData] = {}
         self._detail_keys_by_id: dict[str, FileDetailCacheKey] = {}
+        self._selected_version_indices: dict[str, int] = {}
         self._init_files_navigation()
         self._init_files_filter_session()
 
@@ -188,15 +192,29 @@ class ArtifactsFilesPane(
         return self._snapshot
 
     @property
-    def selected_entry(self) -> ArtifactFile | None:
+    def selected_logical_file(self) -> LogicalFile | None:
         row = self.selected_row()
         return None if row is None else row.entry
+
+    @property
+    def selected_version(self) -> FileVersion | None:
+        logical = self.selected_logical_file
+        if logical is None:
+            return None
+        return logical.versions[self.selected_version_index(logical)]
+
+    @property
+    def selected_entry(self) -> ArtifactFile | None:
+        version = self.selected_version
+        return (
+            None if version is None else selected_file_version_to_artifact_file(version)
+        )
 
     @property
     def selected_view_mode(self) -> ArtifactViewMode | None:
         """Return the selected row's cached terminal-viewer classification."""
 
-        entry = self.selected_entry
+        entry = self.selected_version
         snapshot = self._current_snapshot()
         if entry is None or snapshot is None:
             return None
@@ -209,7 +227,39 @@ class ArtifactsFilesPane(
         """Resolve visible stable targets to rows while preserving caller order."""
 
         entries = {file_row_target(row): row.entry for row in self._rows.values()}
-        return tuple(entries[target] for target in targets if target in entries)
+        result = []
+        for target in targets:
+            logical = entries.get(target)
+            if logical is None:
+                continue
+            result.append(
+                selected_file_version_to_artifact_file(
+                    logical.versions[self.selected_version_index(logical)]
+                )
+            )
+        return tuple(result)
+
+    def selected_version_index(self, logical: LogicalFile | None = None) -> int:
+        logical = logical or self.selected_logical_file
+        if logical is None:
+            return 0
+        index = self._selected_version_indices.get(
+            logical.logical_id,
+            len(logical.versions) - 1,
+        )
+        return max(0, min(index, len(logical.versions) - 1))
+
+    def select_version(self, step: int) -> bool:
+        logical = self.selected_logical_file
+        if logical is None or len(logical.versions) <= 1:
+            return False
+        before = self.selected_version_index(logical)
+        after = (before + step) % len(logical.versions)
+        self._selected_version_indices[logical.logical_id] = after
+        self._detail_generation += 1
+        self._schedule_detail()
+        self._refresh_options(preferred_target=self.selected_entry_target())
+        return after != before
 
     def _request_load(self, *, force: bool, full: bool) -> None:
         """Coalesce one off-thread load with last-request-wins semantics."""
@@ -273,7 +323,7 @@ class ArtifactsFilesPane(
                     None,
                 )
                 if callable(cancel_jump):
-                    cancel_jump("other")
+                    cancel_jump("files")
                 self._snapshot = result
                 self._load_error = result.load_error
                 self._detail_generation += 1
@@ -284,6 +334,16 @@ class ArtifactsFilesPane(
                     self._detail_worker.cancel()
                 self._detail_cache.clear()
                 self._detail_keys_by_id.clear()
+                self._selected_version_indices = {
+                    row.logical_id: min(
+                        self._selected_version_indices.get(
+                            row.logical_id,
+                            len(row.versions) - 1,
+                        ),
+                        len(row.versions) - 1,
+                    )
+                    for row in result.rows
+                }
                 if self._filter_session_open:
                     self._set_filter_completion_sources()
                 self._refresh_options(preferred_target=preferred)
@@ -506,12 +566,20 @@ class ArtifactsFilesPane(
 
     def _view_mode_for(self, entry: ArtifactFile) -> ArtifactViewMode:
         snapshot = self._snapshot
-        return "text" if snapshot is None else snapshot.view_mode_for(entry)
+        version = self.selected_version
+        if snapshot is None or version is None:
+            return "text"
+        selected = self.selected_entry
+        if selected is not None and selected.id == entry.id:
+            return snapshot.view_mode_for(version)
+        return "text"
 
     def _render_detail(self, *, loading: bool) -> None:
         if not self.is_mounted:
             return
         entry = self.selected_entry
+        logical = self.selected_logical_file
+        version = self.selected_version
         detail = None if entry is None else self._detail_for(entry)
         self.query_one("#files-detail", Static).update(
             build_file_detail(
@@ -519,6 +587,9 @@ class ArtifactsFilesPane(
                 detail,
                 view_mode=None if entry is None else self._view_mode_for(entry),
                 projects=self._project_ref_display,
+                logical=logical,
+                version=version,
+                version_index=self.selected_version_index(logical),
                 loading=loading and detail is None,
             )
         )
@@ -527,12 +598,17 @@ class ArtifactsFilesPane(
         rows = () if self._snapshot is None else self._snapshot.rows
         self.query_one(FileFilterBar).set_completion_sources(
             projects=(
-                self._project_ref_display.label_for_ref(row.project) or row.project
+                self._project_ref_display.label_for_ref(project) or project
                 for row in rows
-                if row.project
+                for project in row.projects
             ),
-            agents=(row.agent_name for row in rows if row.agent_name),
-            workflows=(row.workflow for row in rows if row.workflow),
+            agents=(agent for row in rows for agent in row.agents),
+            workflows=(
+                version.workflow
+                for row in rows
+                for version in row.versions
+                if version.workflow
+            ),
         )
 
 

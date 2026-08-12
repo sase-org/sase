@@ -37,6 +37,7 @@ from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
 )
+from tests.ace.tui._artifacts_files_helpers import logical_file
 
 
 def _artifact_file(created_at: str = "2026-07-25T01:30:00Z") -> ArtifactFile:
@@ -60,10 +61,11 @@ def test_files_rows_and_groups_use_configured_timezone(
     tz_divergence: None,
 ) -> None:
     row = _artifact_file()
+    logical = logical_file(row)
     today = datetime(2026, 7, 24, 23, 0)
 
-    assert file_group_label(row, today=today) == "Today"
-    rendered = file_row_text(row, view_mode="markdown", projects=_projects())
+    assert file_group_label(logical, today=today) == "Today"
+    rendered = file_row_text(logical, view_mode="markdown", projects=_projects())
     assert "21:30" in rendered.plain
     assert "01:30" not in rendered.plain
 

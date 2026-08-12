@@ -13,7 +13,6 @@ from sase.artifact_refs import (
     reference_for_entry_target,
 )
 
-from ...widgets.artifacts.chats_list import chat_row_target
 from ...widgets.artifacts.beads_list import bead_row_target
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._representations import (
@@ -85,7 +84,7 @@ def reference_items_for_targets(
                     kind_label="bead",
                 )
             )
-    elif subtab == "plans":
+    elif subtab.startswith("ref:") or subtab == "plans":
         plans_by_target: dict[tuple[str, ...], Any] = {
             plan_row_target(row): row for row in getattr(pane, "_rows", {}).values()
         }
@@ -105,31 +104,7 @@ def reference_items_for_targets(
                     project,
                     workspace_dir,
                     markdown_label=_plan_markdown_label(row),
-                    kind_label="plan",
-                )
-            )
-    elif subtab == "chats":
-        chats_by_target: dict[tuple[str, ...], Any] = {
-            chat_row_target(row): row.entry
-            for row in getattr(pane, "_rows", {}).values()
-        }
-        selected = getattr(pane, "selected_entry", None)
-        if selected is not None:
-            chats_by_target.setdefault(("chat", selected.absolute_path), selected)
-        project = getattr(pane, "project_scope", None)
-        for target in targets:
-            entry = chats_by_target.get(target)
-            if entry is None:
-                continue
-            items.append(
-                ArtifactReferenceItem(
-                    entry.basename,
-                    target,
-                    None,
-                    project,
-                    cwd,
-                    markdown_label=entry.basename,
-                    kind_label="chat",
+                    kind_label=subtab[4:] if subtab.startswith("ref:") else "plan",
                 )
             )
     elif subtab in {"other", "files"}:
@@ -262,11 +237,9 @@ def _workspace_num(workspace_dir: str) -> int:
 
 
 def _missing_reference_message(subtab: str, label: str) -> str:
-    if subtab == "chats":
-        reason = "it is an imported transcript outside the chats root"
-    elif subtab == "plans":
+    if subtab == "plans" or subtab.startswith("ref:"):
         reason = "it has no canonical document reference"
-    elif subtab == "other":
+    elif subtab in {"other", "files"}:
         reason = "it has no durable file id"
     else:
         reason = "its artifact identity is incomplete"

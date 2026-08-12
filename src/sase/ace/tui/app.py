@@ -273,10 +273,7 @@ class AceApp(
     @property
     def current_artifacts_pane_key(self) -> ArtifactsPaneKey:
         """Return the visible leaf pane that owns Artifacts state."""
-        return artifacts_pane_key(
-            self.current_artifacts_subtab,
-            self.current_files_subtab,
-        )
+        return artifacts_pane_key(self.current_artifacts_subtab)
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         """Return whether an action is available in the current UI context."""

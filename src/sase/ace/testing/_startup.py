@@ -37,6 +37,27 @@ _ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
 )
 
 
+def _fast_artifacts_subtabs() -> tuple[Any, ...]:
+    """Expose a deterministic plan document provider in fast TUI tests."""
+    from sase.ace.tui import artifact_tabs
+
+    return (
+        artifact_tabs._fixed_descriptor("stitches"),
+        artifact_tabs._fixed_descriptor("patches"),
+        artifact_tabs._fixed_descriptor("beads"),
+        artifact_tabs.ArtifactsTabDescriptor(
+            id="ref:plan",
+            label="Plans",
+            accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
+            pane_id="artifacts-plans-pane",
+            provider_kind="plan",
+            provider_spec={},
+            digit_shortcut="5",
+        ),
+        artifact_tabs._fixed_descriptor("files"),
+    )
+
+
 def _noop_startup_service(*_args: Any, **_kwargs: Any) -> None:
     """Stand in for a background service suppressed by fast pilot startup."""
 
@@ -157,6 +178,23 @@ def _patch_method_if_unchanged(
 
 def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
     """Install the scoped nonessential-service overrides used by AcePage."""
+    from sase.ace.tui import artifact_tabs as _artifact_tabs
+    from sase.ace.tui.commands import catalog as _commands_catalog
+    from sase.ace.tui.keymaps import bindings as _keymap_bindings
+    from sase.ace.tui.widgets.artifacts import types as _artifacts_types
+    from sase.ace.tui.widgets.artifacts import view as _artifacts_view
+
+    for module in (
+        _artifact_tabs,
+        _artifacts_types,
+        _artifacts_view,
+        _commands_catalog,
+        _keymap_bindings,
+    ):
+        stack.enter_context(
+            patch.object(module, "resolve_artifacts_subtabs", _fast_artifacts_subtabs)
+        )
+
     _patch_method_if_unchanged(
         stack,
         "_run_mount_state_loads",

@@ -29,6 +29,8 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
         "plans_edit_bead",
         "plans_launch_epic",
         "plans_open_bug",
+        "cycle_files_subtab",
+        "cycle_files_subtab_reverse",
         "next_bug",
         "prev_bug",
         "cycle_bug_filter",

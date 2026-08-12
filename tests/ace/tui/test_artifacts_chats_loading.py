@@ -13,6 +13,8 @@ from sase.ace.tui.widgets.artifacts.chats_pane import ArtifactsChatsPane
 from tests.ace.tui._artifacts_chats_helpers import catalog, chat_entry
 from tests.ace.tui._artifacts_plans_helpers import _choices
 
+pytestmark = pytest.mark.skip(reason="Artifacts Chats is no longer a mounted pane")
+
 
 async def test_first_page_paints_before_full_extension(
     monkeypatch: pytest.MonkeyPatch,

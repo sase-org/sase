@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from textual import on
 from textual.app import ComposeResult
@@ -39,20 +39,32 @@ _archive_text = archive_text
 _project_badge = project_badge
 
 
-class ArtifactsPlansPane(
+class ArtifactsDocumentsPane(
     PlansFilterSessionMixin,
     PlansNavigationMixin,
     PlansOptionsMixin,
     ArtifactsPaneLifecycle,
     Vertical,
 ):
-    """Browse proposal, active, and archived plan documents."""
+    """Browse provider-backed markdown documents."""
 
     can_focus = False
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        provider_kind: str = "plan",
+        provider_label: str = "Plans",
+        pane_key: str = "ref:plan",
+        provider_spec: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
+        self.provider_kind = provider_kind
+        self.provider_label = provider_label
+        self.pane_key = pane_key
+        self.provider_spec = provider_spec or {}
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
@@ -71,7 +83,9 @@ class ArtifactsPlansPane(
         yield Static(self._scope_text(), classes="artifacts-pane-info", id="plans-info")
         with Horizontal(id="plans-panels"):
             list_panel = Vertical(id="plans-list-panel")
-            list_panel.border_title = "Plan pipeline"
+            list_panel.border_title = (
+                "Plan pipeline" if self.provider_kind == "plan" else self.provider_label
+            )
             with list_panel:
                 yield Static(self._status_text(), id="plans-status")
                 yield PlansOptionList(id="plans-list")
@@ -167,7 +181,13 @@ class ArtifactsPlansPane(
         )
 
         def task() -> PlansSnapshot:
-            return load_plans_snapshot(project, previous=previous, force=force)
+            return load_plans_snapshot(
+                project,
+                provider_kind=self.provider_kind,
+                provider_label=self.provider_label,
+                previous=previous,
+                force=force,
+            )
 
         self._worker = self.run_worker(
             task,
@@ -199,7 +219,7 @@ class ArtifactsPlansPane(
                     self.app, "_cancel_artifacts_jump_mode_for_model_change", None
                 )
                 if callable(cancel_jump):
-                    cancel_jump("plans")
+                    cancel_jump(self.pane_key)
                 snapshot_changed = result is not self._snapshot
                 self._snapshot = result
                 self._filter_index = None
@@ -237,7 +257,16 @@ class ArtifactsPlansPane(
     @on(OptionList.OptionSelected, "#plans-list")
     def _on_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
-        cast("AceApp", self.app).action_plans_view_selected()
+        payload = self.selected_preview()
+        if payload is None:
+            return
+        from ...modals.preview_panel_modal import PreviewPanelModal
+
+        self.app.push_screen(PreviewPanelModal(payload))
 
 
-__all__ = ["ArtifactsPlansPane", "PlanRow"]
+class ArtifactsPlansPane(ArtifactsDocumentsPane):
+    """Compatibility name for the provider-backed plan documents pane."""
+
+
+__all__ = ["ArtifactsDocumentsPane", "ArtifactsPlansPane", "PlanRow"]

@@ -14,6 +14,7 @@ from sase.core.artifact_file_types import ArtifactFile
 from sase.core.time import format_local
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
+from .files_data import FileVersion, LogicalFile
 from .files_rendering import humanize_file_size
 from .types import ARTIFACTS_ACCENTS
 
@@ -84,6 +85,9 @@ def build_file_detail(
     *,
     view_mode: ArtifactViewMode | None,
     projects: ProjectRefDisplaySnapshot,
+    logical: LogicalFile | None = None,
+    version: FileVersion | None = None,
+    version_index: int = 0,
     loading: bool = False,
 ) -> Text:
     """Render reference, metadata, origin, path, and optional preview sections."""
@@ -104,10 +108,11 @@ def build_file_detail(
     _heading(text, "FILE")
     _field(text, "Label", row.label)
     _field(text, "Kind", f"{row.kind} · {mode}")
+    if logical is not None:
+        _field(text, "Version", f"{version_index + 1}/{len(logical.versions)}")
     _field(text, "MIME type", row.mime_type)
     _field(text, "Size", humanize_file_size(row.size_bytes))
-    sha = f"{row.sha256[:12]}…" if row.sha256 else None
-    _field(text, "SHA-256", sha, value_style="dim")
+    _field(text, "SHA-256", _short_digest(row.sha256), value_style="dim")
     _field(text, "Created", _minute_precision(row.created_at))
     if any(value is None for value in (row.mime_type, row.size_bytes, row.sha256)):
         text.append(
@@ -116,19 +121,28 @@ def build_file_detail(
         )
 
     _heading(text, "ORIGIN")
-    project = projects.display_snapshot.label_for(row.project) if row.project else "-"
+    project_values = (
+        logical.projects
+        if logical is not None
+        else ((row.project,) if row.project else ())
+    )
+    project = _display_joined_projects(project_values, projects)
     agent = present_agent_name(row.agent_name) if row.agent_name else "-"
     workflow = row.workflow or "-"
-    if row.explicit:
-        text.append(
-            f"Registered explicitly by {agent} during {workflow} in {project}.\n"
-        )
-    else:
-        text.append(f"Captured automatically from {agent}'s run.\n")
+    origins = (
+        ("created" if row.explicit else "capture",)
+        if version is None
+        else tuple(sorted(version.origins))
+    )
+    text.append(f"{', '.join(origins)}\n")
     _field(text, "Project", project)
     _field(text, "Workflow", workflow)
     _field(text, "Agent", agent)
     _field(text, "Artifacts dir", row.agent_artifacts_dir or "-")
+    if version is not None:
+        _field(text, "Logical path", version.logical_id, value_style="dim")
+        _field(text, "Object", version.object_relpath, value_style="dim")
+        _field(text, "Sidecar", version.sidecar_repo, value_style="dim")
 
     if row.is_vcs_backed:
         _heading(text, "PROVENANCE")
@@ -218,6 +232,22 @@ def _read_preview(path: Path) -> tuple[str, bool]:
 
 def _minute_precision(created_at: str | None) -> str:
     return format_local(created_at, "%Y-%m-%d %H:%M", default="-")
+
+
+def _display_joined_projects(
+    values: tuple[str, ...],
+    projects: ProjectRefDisplaySnapshot,
+) -> str:
+    labels = [
+        projects.display_snapshot.label_for(value) or value for value in values if value
+    ]
+    return ", ".join(dict.fromkeys(labels)) or "-"
+
+
+def _short_digest(value: str | None) -> str | None:
+    if value is None or len(value) <= 12:
+        return value
+    return f"{value[:12]}…"
 
 
 def _heading(text: Text, label: str) -> None:

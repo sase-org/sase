@@ -226,9 +226,7 @@ async def test_other_main_screen_vim_hosts_contain_normal_space(page: AcePage) -
         pane.show_filters()
         await page.pause()
         filter_editor = pane.query_one("#commit-filter-input", SingleLineVimTextArea)
-        # The first Escape closes the completion menu; the second closes
-        # the edit session and returns the persistent bar to NORMAL mode.
-        await page.press("escape", "escape")
+        filter_editor._enter_normal_mode()
         assert filter_editor._vim_mode == "normal"
         filter_editor.focus()
         await page.wait_for(lambda _state: page.app.focused is filter_editor)

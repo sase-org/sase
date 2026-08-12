@@ -27,7 +27,7 @@ def test_beads_issue_commands_only_available_on_beads_subtab() -> None:
     )
 
 
-def test_app_edit_query_is_available_on_patches_stitches_plans_and_axe() -> None:
+def test_app_edit_query_is_available_on_artifact_filters_and_axe() -> None:
     spec = _catalog_by_id()["app.edit_query"]
     assert is_command_available(
         spec,
@@ -39,9 +39,9 @@ def test_app_edit_query_is_available_on_patches_stitches_plans_and_axe() -> None
     )
     assert is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="plans"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="ref:plan"),  # legacy tab id
     )
-    assert not is_command_available(
+    assert is_command_available(
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="beads"),  # legacy tab id
     )
@@ -64,7 +64,7 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
     spec = _catalog_by_id()["app.plans_filters"]
     assert is_command_available(
         spec,
-        CommandContext(tab="changespecs", artifacts_subtab="plans"),  # legacy tab id
+        CommandContext(tab="changespecs", artifacts_subtab="ref:plan"),  # legacy tab id
     )
     for subtab in ("patches", "stitches", "beads"):
         assert not is_command_available(
@@ -75,24 +75,27 @@ def test_plans_filter_command_is_available_only_on_plans() -> None:
 
 def test_artifacts_copy_commands_follow_the_active_subtab() -> None:
     catalog = _catalog_by_id()
-    groups = ("stitches", "beads", "plans", "chats", "other")
+    active_groups = {
+        "stitches": "artifacts_stitches",
+        "beads": "artifacts_beads",
+        "ref:plan": "artifacts_plans",
+        "files": "artifacts_other",
+    }
 
-    for active in groups:
+    for active, expected_group in active_groups.items():
         ctx = CommandContext(
             tab="changespecs", artifacts_subtab=active
         )  # legacy tab id
-        for group in groups:
-            spec = catalog[f"copy.artifacts_{group}.snapshot"]
-            assert is_command_available(spec, ctx) is (group == active)
+        for group in (*active_groups.values(), "artifacts_chats"):
+            spec = catalog[f"copy.{group}.snapshot"]
+            assert is_command_available(spec, ctx) is (group == expected_group)
 
     patches_ctx = CommandContext(
         tab="changespecs", artifacts_subtab="patches"
     )  # legacy tab id
     assert all(
-        not is_command_available(
-            catalog[f"copy.artifacts_{group}.snapshot"], patches_ctx
-        )
-        for group in groups
+        not is_command_available(catalog[f"copy.{group}.snapshot"], patches_ctx)
+        for group in (*active_groups.values(), "artifacts_chats")
     )
 
 

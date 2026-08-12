@@ -95,8 +95,7 @@ async def test_beads_open_plan_selects_unloaded_plans_pane(
         assert beads_pane.select_entry_target(("bead", "alpha", "epic", "alpha-1"))
 
         await page.press("L")
-        await page.expect_state("artifacts_subtab", "files")
-        await page.expect_state("files_subtab", "plans")
+        await page.expect_state("artifacts_subtab", "ref:plan")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
 
@@ -119,7 +118,7 @@ async def test_plans_open_bead_clears_filter_and_selects_closed_bead(
     _patch_loaders(monkeypatch, plans=plans, beads=beads)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("4")
+        await page.press("5")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
         await page.press("j", "j")
@@ -169,7 +168,7 @@ async def test_crosslink_actions_warn_when_counterpart_is_missing(
         page.app.action_beads_open_plan()
         assert messages[-1] == ("This bead links no plan file", "warning")
 
-        await page.press("4")
+        await page.press("5")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
         assert plans_pane.selected_row().kind == "proposal"  # type: ignore[union-attr]

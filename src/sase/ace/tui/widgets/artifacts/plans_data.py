@@ -54,6 +54,8 @@ _unavailable_linked_plan_payload = _documents._unavailable_linked_plan_payload
 def load_plans_snapshot(
     project: str | None,
     *,
+    provider_kind: str = "plan",
+    provider_label: str | None = None,
     previous: PlansSnapshot | None = None,
     force: bool = False,
 ) -> PlansSnapshot:
@@ -65,22 +67,26 @@ def load_plans_snapshot(
     resolved = _resolve_projects(project)
     project_names = tuple(item.project for item in resolved)
     enabled_projects = frozenset(project_names)
-    proposals = tuple(
-        sorted(
-            _load_proposals(project, enabled_projects),
-            key=lambda proposal: (
-                _timestamp_recency_key(proposal.timestamp),
-                proposal.notification.id,
-                proposal.project,
-            ),
+    proposals = (
+        tuple(
+            sorted(
+                _load_proposals(project, enabled_projects),
+                key=lambda proposal: (
+                    _timestamp_recency_key(proposal.timestamp),
+                    proposal.notification.id,
+                    proposal.project,
+                ),
+            )
         )
+        if provider_kind == "plan"
+        else ()
     )
     beads_by_project: dict[str, Path | None] = {}
     plans_by_project: dict[str, dict[str, Path]] = {}
     store_keys: list[tuple[str, object]] = []
     for item in resolved:
         beads_dir = _project_beads_dir(item.project)
-        plans_roots = _project_document_roots(item)
+        plans_roots = _project_document_roots(item, provider_kind=provider_kind)
         beads_by_project[item.project] = beads_dir
         plans_by_project[item.project] = plans_roots
         store_keys.append(
@@ -93,6 +99,7 @@ def load_plans_snapshot(
         )
 
     base_source_key = (
+        provider_kind,
         project,
         tuple(
             (item.project, item.display_name, item.workspace_dir) for item in resolved
@@ -115,9 +122,11 @@ def load_plans_snapshot(
         project_name = item.project
         beads_dir = beads_by_project[project_name]
         plans_roots = plans_by_project[project_name]
-        plans_root = plans_roots.get("plans")
+        plans_root = plans_roots.get("plans") if provider_kind == "plan" else None
         issues: tuple[Issue, ...] = ()
-        if beads_dir is None:
+        if provider_kind != "plan":
+            issues = ()
+        elif beads_dir is None:
             if project is not None:
                 errors[project_name] = "No bead store is available for this project."
         else:
@@ -245,6 +254,8 @@ def load_plans_snapshot(
         source_key=source_key,
         errors=errors,
         archive_truncated=archive_truncated,
+        provider_kind=provider_kind,
+        provider_label=provider_label or _provider_label(provider_kind),
     )
 
 
@@ -254,6 +265,13 @@ def _active_timestamp(entry: ActivePlanDocument) -> str:
         or entry.document.frontmatter.get("created_at", "")
         or entry.owner.bead_created_at
     )
+
+
+def _provider_label(provider_kind: str) -> str:
+    label = provider_kind.replace("_", " ").replace("-", " ").strip().title()
+    if not label:
+        return "Documents"
+    return label if label.casefold().endswith("s") else f"{label}s"
 
 
 def _add_project_error(errors: dict[str, str], project: str, message: str) -> None:

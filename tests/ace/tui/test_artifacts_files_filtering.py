@@ -22,7 +22,11 @@ from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
 )
-from tests.ace.tui._artifacts_files_helpers import artifact_file, snapshot
+from tests.ace.tui._artifacts_files_helpers import (
+    artifact_file,
+    logical_file,
+    snapshot,
+)
 from tests.ace.tui._artifacts_plans_helpers import _choices
 
 
@@ -48,14 +52,14 @@ def test_filter_tokens_match_file_fields_and_date_bounds() -> None:
     model = snapshot((explicit, default), project=None)
     values = parse_files_filter_query(
         "kind:image project:bob agent:bob.render--code workflow:render "
-        "origin:explicit since:2026-07 until:202607 teaser-source",
+        "origin:created since:2026-07 until:202607 teaser-source",
         now=datetime(2026, 7, 29, tzinfo=UTC),
     )
     matched = filter_files_snapshot(model, values)
 
-    assert matched is not None and matched.rows == (explicit,)
+    assert matched is not None and matched.rows == (model.rows[0],)
     assert matched.view_mode_counts == model.view_mode_counts
-    assert matched.explicit_count == model.explicit_count
+    assert matched.origin_counts == model.origin_counts
 
 
 def test_repeatable_kind_is_or_while_free_text_terms_are_anded() -> None:
@@ -75,7 +79,7 @@ def test_repeatable_kind_is_or_while_free_text_terms_are_anded() -> None:
         parse_files_filter_query("kind:image kind:pdf build result"),
     )
 
-    assert filtered is not None and filtered.rows == (image, pdf)
+    assert filtered is not None and filtered.rows == snapshot((image, pdf)).rows
 
 
 def test_free_text_filter_matches_vcs_relative_path() -> None:
@@ -93,7 +97,7 @@ def test_free_text_filter_matches_vcs_relative_path() -> None:
         parse_files_filter_query("build-result.png"),
     )
 
-    assert filtered is not None and filtered.rows == (row,)
+    assert filtered is not None and filtered.rows == snapshot((row,)).rows
 
 
 def test_project_filter_accepts_display_name_without_rendering_storage_key() -> None:
@@ -107,7 +111,7 @@ def test_project_filter_accepts_display_name_without_rendering_storage_key() -> 
         projects,
     )
 
-    assert filtered is not None and filtered.rows == (row,)
+    assert filtered is not None and filtered.rows == snapshot((row,), project=None).rows
 
 
 @pytest.mark.parametrize(
@@ -175,7 +179,7 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         await page.press("4", "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is not None)
-        assert pane.select_entry_target(("file", rows[1].id))
+        assert pane.select_entry_target(("file", logical_file(rows[1]).logical_id))
 
         await page.press("/")
         bar = pane.query_one(FileFilterBar)
@@ -183,7 +187,8 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         bar.set_query("kind:image")
         bar.post_message(FileFilterBar.QueryChanged("kind:image"))
         await page.wait_for(lambda _state: len(pane.entry_targets()) == 2)
-        assert pane.selected_entry is rows[1]
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[1].id
         assert {"Alpha", "alpha.1--code", "code"} <= {
             value for values in bar._completion_sources.values() for value in values
         }
@@ -194,7 +199,8 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
 
         await page.press("s")
         assert pane.filters.kinds == ("markdown",)
-        assert pane.selected_entry is rows[2]
+        assert pane.selected_entry is not None
+        assert pane.selected_entry.id == rows[2].id
         await page.press("s")
         assert pane.filters.kinds == ()
 

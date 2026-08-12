@@ -51,10 +51,15 @@ class StartupMountMixin:
                 self.artifacts_project_scope,
                 update_commits=False,
             )
+            self.query_one("#artifacts-view").disabled = self.current_tab != "artifacts"
+            self.query_one("#agents-view").disabled = self.current_tab != "agents"
+            self.query_one("#axe-view").disabled = self.current_tab != "axe"
             if self.current_tab == "artifacts":
                 # The view's mount hook owns lifecycle activation; share the
                 # same footer/scope entry behavior as top-level navigation.
                 self._sync_active_artifacts_entry_state()
+            else:
+                self.set_timer(0.01, self._focus_startup_visible_tab)
             if self._commits_default_query_diagnostic is not None:
                 self.notify(
                     self._commits_default_query_diagnostic,
@@ -123,6 +128,19 @@ class StartupMountMixin:
 
         finally:
             self._mounting = False
+
+    def _focus_startup_visible_tab(self: Any) -> None:
+        """Keep hidden startup panes from retaining keyboard focus."""
+        if self.current_tab == "agents":
+            selector = "#agent-list-panel"
+        elif self.current_tab == "axe":
+            selector = "#bgcmd-list-panel"
+        else:
+            return
+        try:
+            self.query_one(selector).focus()
+        except Exception:
+            log.debug("startup focus normalization skipped: %s not found", selector)
 
     def _tui_stall_context(self: Any) -> dict[str, Any]:
         """Return side-effect-free context for the stall watchdog thread."""

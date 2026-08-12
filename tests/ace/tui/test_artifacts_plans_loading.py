@@ -44,7 +44,7 @@ def test_snapshot_reads_beads_only_to_partition_plan_documents(
     )
     monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.plans_data._project_document_roots",
-        lambda _project: {"plans": plans_root},
+        lambda _project, *, provider_kind="plan": {"plans": plans_root},
     )
     monkeypatch.setattr(
         "sase.ace.tui.widgets.artifacts.plans_data._resolve_projects",
@@ -99,7 +99,11 @@ def test_snapshot_resolves_display_name_scope_without_store_errors(
     def project_beads_dir(project: str) -> Path | None:
         return beads_dir if project == "gh_acme__widget" else None
 
-    def project_document_roots(item: object) -> dict[str, Path]:
+    def project_document_roots(
+        item: object,
+        *,
+        provider_kind: str = "plan",
+    ) -> dict[str, Path]:
         project = getattr(item, "project", None)
         return {"plans": tmp_path} if project == "gh_acme__widget" else {}
 

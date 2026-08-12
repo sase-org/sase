@@ -28,6 +28,15 @@ class CopyHarness(ClipboardMixin):
         self.chats_pane: Any = None
         self.files_pane: Any = None
 
+    @property
+    def current_artifacts_pane_key(self) -> str:
+        subtab = str(self.current_artifacts_subtab)
+        if subtab == "plans":
+            return "ref:plan"
+        if subtab == "other":
+            return "files"
+        return subtab
+
     def notify(
         self,
         message: str,

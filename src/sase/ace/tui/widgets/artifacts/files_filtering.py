@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, time, timedelta, tzinfo
 from typing import Literal
 
-from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS, ArtifactFile
+from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
 from sase.filter_tokens import (
     FilterQueryError,
     FilterToken,
@@ -24,7 +24,7 @@ from sase.filter_tokens import (
 from sase.project_display_names import ProjectRefDisplaySnapshot
 from sase.vcs_log.dates import normalize_reference_time
 
-from .files_data import FilesSnapshot
+from .files_data import FilesSnapshot, LogicalFile
 
 FileCompletionKind = Literal[
     "key",
@@ -38,7 +38,7 @@ FileCompletionKind = Literal[
     "text",
 ]
 
-FILE_ORIGIN_VALUES = ("explicit", "default")
+FILE_ORIGIN_VALUES = ("ref", "created", "capture")
 _FILTER_KEYS = (
     "kind",
     "project",
@@ -256,7 +256,7 @@ def files_completion_context(
 
 
 def _file_matches(
-    row: ArtifactFile,
+    row: LogicalFile,
     values: FilesFilterValues,
     *,
     project_values: tuple[str, ...],
@@ -264,18 +264,18 @@ def _file_matches(
 ) -> bool:
     if values.kinds and row.kind.casefold() not in values.kinds:
         return False
-    if project_values and not _matches_any(row.project, project_values):
+    if project_values and not _matches_any(row.projects, project_values):
         return False
-    if values.agents and not _matches_any(row.agent_name, values.agents):
+    if values.agents and not _matches_any(row.agents, values.agents):
         return False
-    if values.workflows and not _matches_any(row.workflow, values.workflows):
+    workflows = tuple(version.workflow for version in row.versions if version.workflow)
+    if values.workflows and not _matches_any(workflows, values.workflows):
         return False
-    origin = "explicit" if row.explicit else "default"
-    if values.origins and origin not in values.origins:
+    if values.origins and row.origins.isdisjoint(values.origins):
         return False
 
     if values.since is not None or values.until is not None:
-        timestamp = _entry_epoch(row, naive_timezone=naive_timezone)
+        timestamp = _entry_epoch(row.latest.created_at, naive_timezone=naive_timezone)
         if values.since is not None and (timestamp is None or timestamp < values.since):
             return False
         if values.until is not None and (timestamp is None or timestamp > values.until):
@@ -283,28 +283,45 @@ def _file_matches(
 
     haystack = " ".join(
         value
-        for value in (row.label, row.path, row.source_path, row.vcs_relpath)
+        for value in (
+            row.label,
+            row.logical_id,
+            *row.projects,
+            *row.agents,
+            *(
+                value
+                for version in row.versions
+                for value in (
+                    version.label,
+                    version.path,
+                    version.source_path,
+                    version.vcs_relpath,
+                    version.object_relpath,
+                    version.sha256,
+                    version.artifact_id,
+                )
+                if value
+            ),
+        )
         if value
     ).casefold()
     return all(term.casefold() in haystack for term in values.text)
 
 
-def _matches_any(value: str | None, needles: tuple[str, ...]) -> bool:
-    if value is None:
-        return False
-    folded = value.casefold()
-    return any(folded == needle.casefold() for needle in needles)
+def _matches_any(values: tuple[str, ...], needles: tuple[str, ...]) -> bool:
+    folded = {value.casefold() for value in values}
+    return any(needle.casefold() in folded for needle in needles)
 
 
 def _entry_epoch(
-    row: ArtifactFile,
+    created_at: str | None,
     *,
     naive_timezone: tzinfo | None,
 ) -> int | None:
-    if not row.created_at:
+    if not created_at:
         return None
     try:
-        timestamp = datetime.fromisoformat(row.created_at)
+        timestamp = datetime.fromisoformat(created_at)
     except ValueError:
         return None
     if timestamp.tzinfo is None:

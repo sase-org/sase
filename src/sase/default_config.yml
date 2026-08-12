@@ -276,8 +276,8 @@ ace:
       prev_tab: "shift+tab"
       cycle_artifacts_subtab: "right_square_bracket"
       cycle_artifacts_subtab_reverse: "left_square_bracket"
-      cycle_files_subtab: "right_parenthesis"
-      cycle_files_subtab_reverse: "left_parenthesis"
+      files_next_version: "right_parenthesis"
+      files_prev_version: "left_parenthesis"
       pick_artifacts_project: "p"
       # Stitches sub-tab
       stitches_next: "j"

@@ -8,7 +8,6 @@ from datetime import datetime
 
 from textual.widgets.option_list import Option
 
-from sase.core.artifact_file_types import ArtifactFile
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .entry_navigation import (
@@ -16,7 +15,7 @@ from .entry_navigation import (
     prepend_jump_hint,
     prepend_mark_glyph,
 )
-from .files_data import FilesSnapshot
+from .files_data import FilesSnapshot, LogicalFile
 from .files_rendering import (
     file_group_header,
     file_group_label,
@@ -29,13 +28,13 @@ class FileRow:
     """Identity-preserving row backing one selectable file option."""
 
     option_id: str
-    entry: ArtifactFile
+    entry: LogicalFile
 
 
 def file_row_target(row: FileRow) -> ArtifactEntryTarget:
-    """Use the durable artifact index id as the navigation identity."""
+    """Use the portable logical file identity as the navigation identity."""
 
-    return ("file", row.entry.id)
+    return ("file", row.entry.logical_id)
 
 
 def build_file_options(
@@ -71,7 +70,7 @@ def build_file_options(
                 )
             )
             current_group = group
-        option_id = f"file:{entry.id}"
+        option_id = f"file:{entry.logical_id}"
         row = FileRow(option_id, entry)
         rows[option_id] = row
         target = file_row_target(row)
@@ -81,7 +80,7 @@ def build_file_options(
                     prepend_mark_glyph(
                         file_row_text(
                             entry,
-                            view_mode=snapshot.view_mode_for(entry),
+                            view_mode=snapshot.view_mode_for(entry.latest),
                             projects=project_ref_display,
                         ),
                         target in active_marks,

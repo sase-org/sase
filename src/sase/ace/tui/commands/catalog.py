@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
-from sase.ace.tui.artifact_tabs import ARTIFACTS_SUBTAB_ORDER
+from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.commands._app_metadata import (
     APP_COMMAND_META as _APP_COMMAND_META,
     ensure_metadata_covers_app_keymaps,
@@ -122,21 +122,28 @@ def _iter_projects_command() -> Iterator[CommandSpec]:
 
 def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
     """Yield numbered direct jumps for every Artifacts sub-tab."""
-    for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
-        key = str(index)
-        aliases: tuple[str, ...] = ("artifacts", subtab, f"artifact {subtab}")
+    for descriptor in resolve_artifacts_subtabs():
+        key = descriptor.digit_shortcut
+        if key is None:
+            continue
+        subtab = descriptor.id
+        label = descriptor.label
+        aliases: tuple[str, ...] = ("artifacts", subtab, f"artifact {label}")
         if subtab == "patches":
             aliases = (*aliases, "prs")
+        if descriptor.provider_kind is not None:
+            aliases = (*aliases, descriptor.provider_kind)
         yield CommandSpec(
             id=f"artifacts.{subtab}",
-            label=f"Show Artifacts: {subtab.title()}",
+            label=f"Show Artifacts: {label}",
             key_sequence=(key,),
             key_display=key,
             category="Tabs",
             tabs=CL_ONLY,
             executor=CommandExecutor(
                 kind="app_action",
-                action=f"show_artifacts_{subtab}",
+                action="show_artifacts_digit",
+                digit=int(key),
             ),
             aliases=aliases,
         )

@@ -83,6 +83,8 @@ class PlansSnapshot:
     source_key: tuple[object, ...]
     errors: dict[str, str]
     archive_truncated: bool = False
+    provider_kind: str = "plan"
+    provider_label: str = "Plans"
 
 
 @dataclass(frozen=True)

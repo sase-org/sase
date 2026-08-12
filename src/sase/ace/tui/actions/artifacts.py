@@ -13,7 +13,7 @@ from sase.project_display_names import (
 )
 
 from ..tab_order import ARTIFACTS_TAB
-from ..widgets.artifacts import ARTIFACTS_SUBTAB_ORDER, FILES_SUBTAB_ORDER
+from ..widgets.artifacts import FIXED_ARTIFACTS_SUBTAB_ORDER
 from .artifacts_beads import ArtifactsBeadsActionsMixin, BEADS_ARTIFACT_ACTIONS
 from .artifacts_chats import ArtifactsChatsActionsMixin, CHATS_ARTIFACT_ACTIONS
 from .artifacts_commits import (
@@ -45,9 +45,10 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "clear_marks",
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
-        "cycle_files_subtab",
-        "cycle_files_subtab_reverse",
-        *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
+        "files_next_version",
+        "files_prev_version",
+        *{f"show_artifacts_{subtab}" for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER},
+        "show_artifacts_digit",
         "show_artifacts_bugs",
         "show_artifacts_prs",
         "pick_artifacts_project",
