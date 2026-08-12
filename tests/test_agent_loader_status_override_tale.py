@@ -3,6 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 
+from sase.ace.tui.models._agent_status_diff import classify_diff_badges
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
@@ -496,9 +497,16 @@ def test_apply_status_overrides_suppresses_sdd_only_diff_badge_for_working_tale_
         role_suffix="-code",
     )
 
-    _apply_status_overrides([parent, code_child])
+    _apply_status_overrides([parent, code_child], classify_diff_badges=False)
 
     assert parent.status == "WORKING TALE"
+    # Persisted diff-badge classification is deferred off the loader pass
+    # (see AgentDiffBadgeMixin); the field stays unset until that background
+    # pass runs.
+    assert parent.diff_has_real_edits is None
+
+    classify_diff_badges([parent, code_child])
+
     assert parent.diff_has_real_edits is False
     left, suffix, _ = format_agent_option(parent, 0, is_selected=False)
     assert "✏️" not in left.plain
@@ -539,10 +547,17 @@ def test_apply_status_overrides_shows_badge_after_coder_real_diff_propagates(
         diff_path=str(code_diff),
     )
 
-    _apply_status_overrides([parent, code_child])
+    _apply_status_overrides([parent, code_child], classify_diff_badges=False)
 
     assert parent.status == "WORKING TALE"
     assert parent.diff_path == str(code_diff)
+    # Persisted diff-badge classification is deferred off the loader pass
+    # (see AgentDiffBadgeMixin); the field stays unset until that background
+    # pass runs.
+    assert parent.diff_has_real_edits is None
+
+    classify_diff_badges([parent, code_child])
+
     assert parent.diff_has_real_edits is True
     left, suffix, _ = format_agent_option(parent, 0, is_selected=False)
     assert "✏️" not in left.plain

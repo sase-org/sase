@@ -61,7 +61,8 @@ class AgentState:
     diff_path: str | None = None
 
     # Precomputed badge classification for ``diff_path``. None means the row
-    # has not gone through the loader classification pass yet.
+    # has not gone through the deferred background classification pass yet
+    # (see ``AgentDiffBadgeMixin``); the loader pass leaves it unset.
     diff_has_real_edits: bool | None = field(default=None, compare=False)
 
     # Precomputed live-primary-first file-change hint for active agents.

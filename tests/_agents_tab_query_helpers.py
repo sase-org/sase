@@ -92,6 +92,12 @@ class FakeAgentApp(AgentLoadingMixin):
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
+        # Deferred persisted diff-badge classification coalescing state (same
+        # apply path).
+        self._diff_badge_scan_scheduled = False
+        self._diff_badge_scan_running = False
+        self._diff_badge_scan_pending = False
+        self._diff_badge_scan_source = "unknown"
         self.timer_calls: list[tuple[float, Callable[[], Any]]] = []
         self.call_later_calls: list[Callable[..., Any]] = []
         self.notify = MagicMock()  # type: ignore[assignment]

@@ -179,7 +179,12 @@ def _normalize_relationships_after_merge(agents: list[Agent]) -> list[Agent]:
         else:
             top_level_and_followups.append(agent)
 
-    apply_status_overrides(top_level_and_followups, workflow_steps)
+    # See ``normalize_loaded_agents`` in ``_agent_loader_normalization.py``:
+    # persisted diff-badge classification is deferred to a background pass, so
+    # this merge path must not resurrect it either.
+    apply_status_overrides(
+        top_level_and_followups, workflow_steps, classify_diff_badges=False
+    )
     return sort_and_reorder(top_level_and_followups, workflow_steps)
 
 

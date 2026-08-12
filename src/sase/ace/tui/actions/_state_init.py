@@ -188,6 +188,16 @@ class StateInitMixin:
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
         self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
+        # Deferred persisted diff-badge classification coalescing. Row
+        # rendering can only show the badge from its precomputed field, so the
+        # per-row diff/commit reads run in a background worker after an
+        # agents load applies; these flags collapse refresh bursts into one
+        # trailing scan.
+        self._diff_badge_scan_scheduled = False
+        self._diff_badge_scan_running = False
+        self._diff_badge_scan_pending = False
+        self._diff_badge_scan_source = "unknown"
+        self._diff_badge_async_tasks: set[asyncio.Task[None]] = set()
         self.query_string = query
         self.parsed_query = parse_query(query)
         from ...query import get_sole_project_filter

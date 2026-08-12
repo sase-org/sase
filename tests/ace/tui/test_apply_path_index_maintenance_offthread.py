@@ -78,6 +78,9 @@ class _ApplyHarness(AgentLoadingApplyMixin):
     def _schedule_bead_confirmation_warmup(self, *, source: str = "unknown") -> None:
         del source
 
+    def _schedule_diff_badge_classification(self, *, source: str = "unknown") -> None:
+        del source
+
 
 def _fail_sync(*args: object, **kwargs: object) -> object:
     del args, kwargs

@@ -21,6 +21,7 @@ from ._loading_compute import (
     PreparedApplyData,
     PreparedApplySnapshot,
 )
+from ._loading_diff_badges import AgentDiffBadgeMixin
 from ._loading_disk import AgentLoadingDiskMixin
 from ._loading_filter import AgentLoadingFilterMixin
 from ._loading_helpers import (
@@ -61,5 +62,6 @@ class AgentLoadingMixin(
     AgentLoadingFilterMixin,
     AgentLiveHintMixin,
     AgentBeadWarmupMixin,
+    AgentDiffBadgeMixin,
 ):
     """Mixin providing agent loading and filtering methods."""

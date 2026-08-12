@@ -79,7 +79,11 @@ def normalize_loaded_agents(
 
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
-    apply_status_overrides(agents, workflow_agent_steps)
+    # Persisted diff-badge classification reads every referenced diff file and
+    # dominates startup (~0.4 s over 213 rows). It is display enrichment that
+    # nothing downstream depends on, so it is deferred to a background pass
+    # after the list has painted (see ``AgentDiffBadgeMixin``).
+    apply_status_overrides(agents, workflow_agent_steps, classify_diff_badges=False)
     return sort_and_reorder(agents, workflow_agent_steps)
 
 

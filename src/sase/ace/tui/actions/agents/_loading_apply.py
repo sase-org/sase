@@ -18,6 +18,7 @@ from ._loading_compute import (
     prepare_loaded_agents_apply_boundary,
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
+from ._loading_diff_badges import carry_over_diff_badges
 from ._loading_helpers import is_always_visible
 from ._loading_live_hints import carry_over_live_hints
 from ._loading_state import AgentLoadingStateMixin
@@ -395,6 +396,10 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             [*previous_agents_with_children, *previous_agents],
             [*self._agents_with_children, *self._agents],
         )
+        carry_over_diff_badges(
+            [*previous_agents_with_children, *previous_agents],
+            [*self._agents_with_children, *self._agents],
+        )
         self._fold_counts = boundary.fold.fold_counts
 
         finalize_plan = self._select_finalize_plan(
@@ -454,6 +459,11 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 load_state,
                 source=getattr(self, "_agents_refresh_active_source", "unknown"),
             )
+
+        # Persisted diff-badge classification reads every referenced diff
+        # file, so it is deferred off the loader path the same way; it
+        # no-ops cheaply when every visible row is already classified.
+        self._schedule_diff_badge_classification(source="apply")  # type: ignore[attr-defined]
 
     def _maybe_notify_agent_index_repair(
         self, load_state: AgentLoadState | None

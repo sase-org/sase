@@ -93,6 +93,12 @@ class FakeLoadingApp(AgentLoadingMixin):
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
+        # Deferred persisted diff-badge classification coalescing state (same
+        # apply path).
+        self._diff_badge_scan_scheduled = False
+        self._diff_badge_scan_running = False
+        self._diff_badge_scan_pending = False
+        self._diff_badge_scan_source = "unknown"
         # Deferred artifact-index maintenance scheduled by the apply path.
         self._artifact_index_maintenance_running = False
         self._artifact_index_maintenance_pending = False
