@@ -18,6 +18,13 @@ from .process import (
 )
 from .chop_script_context import ChopScriptContext
 from .chop_script_runner import discover_chop_script, list_chop_scripts, run_chop_script
+from .chop_overrun import (
+    CHOP_OVERRUN_WIRE_SCHEMA_VERSION,
+    ChopOverrun,
+    ChopOverrunLevel,
+    ChopOverrunWireError,
+    classify_chop_overrun,
+)
 from .config import AxeConfig, LumberjackConfig, load_axe_config
 from .config_backend import (
     AxeConfigComposition,
@@ -102,7 +109,12 @@ __all__ = [
     "start_axe_daemon",
     "stop_axe_daemon",
     # Chop scripts
+    "CHOP_OVERRUN_WIRE_SCHEMA_VERSION",
     "ChopScriptContext",
+    "ChopOverrun",
+    "ChopOverrunLevel",
+    "ChopOverrunWireError",
+    "classify_chop_overrun",
     "discover_chop_script",
     "list_chop_scripts",
     "run_chop_script",

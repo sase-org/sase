@@ -211,6 +211,8 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                     generated=existing.generated,
                     base_chop_name=existing.base_chop_name,
                     target_key=existing.target_key,
+                    interval_seconds=existing.interval_seconds,
+                    interval_source=existing.interval_source,
                 )
 
             snap = await asyncio.to_thread(_read_chop)
@@ -226,6 +228,16 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                 jack_snap.chops = [
                     snap if c.chop_name == chop_name else c for c in jack_snap.chops
                 ]
+                jack_snap.overrun_chop_count = sum(
+                    1
+                    for c in jack_snap.chops
+                    if c.overrun is not None and c.overrun.level == "over"
+                )
+                jack_snap.intermittent_chop_count = sum(
+                    1
+                    for c in jack_snap.chops
+                    if c.overrun is not None and c.overrun.level == "intermittent"
+                )
             if self.current_tab == "axe":
                 self._refresh_axe_display()  # type: ignore[attr-defined]
             return

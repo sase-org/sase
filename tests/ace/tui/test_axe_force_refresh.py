@@ -26,6 +26,7 @@ from sase.ace.tui.widgets.bgcmd_list import (
     ChopItem,
     LumberjackItem,
 )
+from sase.axe.chop_overrun import ChopOverrun
 from sase.axe.state import ChopRunEntry, LumberjackMetrics, LumberjackStatus
 
 
@@ -81,6 +82,8 @@ class FakeAxeApp(AxeDisplayMixin):
                 description="fast desc\n\nfast body",
                 description_summary="fast desc",
                 description_body="fast body",
+                interval_seconds=60,
+                interval_source="runtime",
                 runs=[],
             ),
         }
@@ -91,6 +94,8 @@ class FakeAxeApp(AxeDisplayMixin):
                 metrics=LumberjackMetrics(),
                 log_tail="stale\n",
                 chops=[self._axe_chop_snapshots[("hooks", "fast")]],
+                overrun_chop_count=0,
+                intermittent_chop_count=0,
             ),
         }
         self._axe_detail_update_timer = None
@@ -209,12 +214,27 @@ async def test_targeted_refresh_updates_selected_chop() -> None:
             "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
             return_value="fresh chop output\n",
         ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.classify_chop_overrun",
+            return_value=ChopOverrun(
+                level="over",
+                sampled_runs=1,
+                over_runs=1,
+                worst_ratio=1.1,
+                worst_blocking_ms=66000,
+                latest_ratio=1.1,
+            ),
+        ),
     ):
         await app._refresh_selected_axe_item_async()
 
     snap = app._axe_chop_snapshots[("hooks", "fast")]
     assert [r.entry.run_id for r in snap.runs] == [new_run.run_id]
     assert snap.runs[0].output_tail == "fresh chop output\n"
+    assert snap.interval_seconds == 60
+    assert snap.interval_source == "runtime"
+    assert snap.overrun is not None
+    assert snap.overrun.level == "over"
     # Preserve config description across refresh — we only know it from
     # the most recent collector pass, never from the run log.
     assert snap.description == "fast desc\n\nfast body"
@@ -223,6 +243,8 @@ async def test_targeted_refresh_updates_selected_chop() -> None:
     # Composite snapshot tracks the per-chop update.
     hooks_snap = app._axe_lumberjack_snapshots["hooks"]
     assert hooks_snap.chops[0] is snap
+    assert hooks_snap.overrun_chop_count == 1
+    assert hooks_snap.intermittent_chop_count == 0
     # Lumberjack-level caches untouched.
     assert app._axe_lumberjack_log_tails["hooks"] == "stale\n"
     assert app._refreshed == 1

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import dataclasses
 import types
+from datetime import datetime
 from typing import Literal
 
 from sase.axe import config as axe_config
+from sase.axe.chop_overrun import ChopOverrun, classify_chop_overrun
 from sase.axe.chop_script_runner import discover_chop_script
 from sase.axe.state import (
     AxeMetrics,
@@ -23,6 +25,7 @@ from sase.axe.state import (
     read_metrics,
     read_output_log_tail,
 )
+from sase.core.time import get_timezone
 
 from ...bgcmd import (
     BackgroundCommandInfo,
@@ -32,6 +35,7 @@ from ...bgcmd import (
     mark_slot_finished,
     read_slot_output_tail,
 )
+from ...util.trace import trace_event
 
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "axe"]
@@ -88,6 +92,9 @@ class ChopSnapshot:
     target_key: str | None = None
     description_summary: str = ""
     description_body: str = ""
+    interval_seconds: int | None = None
+    interval_source: Literal["runtime", "config"] | None = None
+    overrun: ChopOverrun | None = None
 
     @property
     def base_identity(self) -> tuple[str, str]:
@@ -112,6 +119,8 @@ class LumberjackSnapshot:
     description: str = ""
     description_summary: str = ""
     description_body: str = ""
+    overrun_chop_count: int = 0
+    intermittent_chop_count: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -182,6 +191,8 @@ def collect_chop_snapshot(
     generated: bool = False,
     base_chop_name: str | None = None,
     target_key: str | None = None,
+    interval_seconds: int | None = None,
+    interval_source: Literal["runtime", "config"] | None = None,
 ) -> ChopSnapshot:
     """Read a chop's bounded run history from disk into a snapshot.
 
@@ -198,6 +209,21 @@ def collect_chop_snapshot(
             lumberjack_name, chop_name, run_id, _CHOP_RUN_TAIL_LINES
         )
         runs.append(ChopRunSnapshot(entry=entry, output_tail=tail))
+    overrun: ChopOverrun | None = None
+    if enabled and config_status == "configured" and interval_seconds is not None:
+        try:
+            overrun = classify_chop_overrun(
+                now=datetime.now(get_timezone()),
+                interval_seconds=interval_seconds,
+                runs=[run.entry for run in runs],
+            )
+        except Exception as exc:
+            trace_event(
+                "axe.chop_overrun.unavailable",
+                lumberjack=lumberjack_name,
+                chop=chop_name,
+                error_type=type(exc).__name__,
+            )
     return ChopSnapshot(
         lumberjack_name=lumberjack_name,
         chop_name=chop_name,
@@ -212,7 +238,26 @@ def collect_chop_snapshot(
         generated=generated,
         base_chop_name=base_chop_name,
         target_key=target_key,
+        interval_seconds=interval_seconds,
+        interval_source=interval_source,
+        overrun=overrun,
     )
+
+
+def _effective_interval(
+    status: LumberjackStatus | None,
+    config_interval: int,
+) -> tuple[int | None, Literal["runtime", "config"] | None]:
+    """Return the interval actually used for chop-overrun classification."""
+    if status is not None and _positive_int(status.interval):
+        return status.interval, "runtime"
+    if _positive_int(config_interval):
+        return config_interval, "config"
+    return None, None
+
+
+def _positive_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def collect_axe_status_data() -> AxeCollectedData:
@@ -269,6 +314,9 @@ def collect_axe_status_data() -> AxeCollectedData:
         status = read_lumberjack_status(name)
         metrics = read_lumberjack_metrics(name)
         log_tail = read_lumberjack_log_tail(name, 500)
+        interval_seconds, interval_source = _effective_interval(
+            status, config.lumberjacks[name].interval
+        )
         lumberjack_statuses[name] = status
         lumberjack_metrics[name] = metrics
         lumberjack_log_tails[name] = log_tail
@@ -308,10 +356,22 @@ def collect_axe_status_data() -> AxeCollectedData:
                 generated=chop_cfg.parent_name is not None,
                 base_chop_name=chop_cfg.parent_name,
                 target_key=chop_cfg.target_key or None,
+                interval_seconds=interval_seconds,
+                interval_source=interval_source,
             )
             chop_names.append(chop_cfg.name)
             chop_snapshots[(name, chop_cfg.name)] = snap
             chops_for_jack.append(snap)
+        overrun_chop_count = sum(
+            1
+            for snap in chops_for_jack
+            if snap.overrun is not None and snap.overrun.level == "over"
+        )
+        intermittent_chop_count = sum(
+            1
+            for snap in chops_for_jack
+            if snap.overrun is not None and snap.overrun.level == "intermittent"
+        )
         lumberjack_chop_names[name] = chop_names
         lumberjack_snapshots[name] = LumberjackSnapshot(
             name=name,
@@ -322,6 +382,8 @@ def collect_axe_status_data() -> AxeCollectedData:
             metrics=metrics,
             log_tail=log_tail,
             chops=chops_for_jack,
+            overrun_chop_count=overrun_chop_count,
+            intermittent_chop_count=intermittent_chop_count,
         )
 
     # Load bgcmd state
