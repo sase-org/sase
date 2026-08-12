@@ -455,9 +455,12 @@ directory-key project when that project declares `PROJECT_NAME: bob` or alias `b
 rewrite is exact and applies to colon, underscore, and parenthesized workspace-ref
 forms; it does not rewrite owner/repo paths such as `#gh:bbugyi200/bob`, partial project
 names, prose, or fenced code examples. The tag must also match the registered project's
-actual workspace provider: a mistyped `#git:<github-alias>` remains unresolved rather
-than being canonicalized into a destructive bare-git target, and provider-mismatched
-entries are pruned from the VCS-reference history. See
+actual workspace provider. A provider-mismatched alias is left unchanged rather than
+canonicalized to that project's directory key, but this does not make it a rejected
+reference: because an unknown slashless `#git:` name triggers bare-git project
+initialization, `#git:<github-alias>` may create a separate bare-git project named after
+the alias. Use `#gh:<github-alias>` for the registered GitHub project.
+Provider-mismatched entries are pruned from the VCS-reference history. See
 [Project Names and Aliases](project_spec.md#project-names-and-aliases) for validation
 and management commands.
 

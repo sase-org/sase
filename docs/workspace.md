@@ -186,6 +186,15 @@ fails with a provider-mismatch error and points to the matching VCS tag instead 
 rewriting the project in place. A genuine bare-git project whose checkout still has a
 local-path `origin` can repair a missing `BARE_REPO_DIR` automatically.
 
+That provider guard applies when `<ref>` is the existing ProjectSpec's directory key.
+Friendly-alias handling has a narrower current guarantee: canonicalization leaves an
+alias unchanged when its tag names the wrong provider, but the bare-git resolver treats
+an otherwise unknown slashless name as a new project. Consequently,
+`#git:<github-alias>` may initialize a separate bare-git project named after the alias;
+use the registered project's matching tag, such as `#gh:<github-alias>`. The
+VCS-reference history removes provider-mismatched alias entries even though launch
+resolution does not reject them.
+
 `#git:home` is special because it is the default for bare prompts. If the `home`
 ProjectSpec is missing, SASE bootstraps a managed empty bare-git project at the default
 `home` paths; an existing non-bare-git `home` project receives the same provider guard

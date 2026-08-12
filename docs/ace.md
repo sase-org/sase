@@ -454,10 +454,11 @@ press.
 ### Files Pane
 
 Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
-pane is a fixed top-level Artifacts view alongside the dynamic provider panes. Rows are
-grouped by logical file identity, so repeated captures of `@file:~/bob/gtd.md` or
-repeated `sase artifact create` rows for the same logical artifact appear as one
-selectable row with versions.
+pane is one of the four fixed Artifacts views: Stitches, Patches, Beads, and Files.
+Configured document-provider panes appear between Beads and Files in the runtime tab
+strip. Rows are grouped by logical file identity, so repeated captures of
+`@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
+artifact appear as one selectable row with versions.
 
 Each row shows a view-mode glyph, the project, the producing agents, an origin badge,
 the logical label, the latest selected version's timestamp, and the indexed size.

@@ -120,14 +120,18 @@ artifact pool inside the same bounded transaction that publishes the hood. A req
 acknowledged only once both halves reached the sidecar, so a prompt that could not be
 rebuilt keeps its request queued and retryable rather than retiring it.
 
-Document back-references are separate. After a prompt archive containing a provider
-document reference is published, SASE records a request in
-`~/.sase/projects/<project-key>/referenced-by-outbox.json` and tries to update the cited
-artifact sidecar's managed `Referenced By` table. These requests use the same retry,
-quarantine, and retired-entry operator controls as hood publication, but they do not
-delay or roll back the already-published prompt. See
-[Artifact Reference Publication](artifact_references.md#publication) for the write-back
-contract.
+Document back-references are separate. Only after publishing a prompt archive that
+contains a provider-document reference does SASE record a request in
+`~/.sase/projects/<project-key>/referenced-by-outbox.json` and try to update the cited
+artifact sidecar's managed `Referenced By` table. This drain attempt runs before the
+publishing command returns, but it cannot delay or roll back the prompt publication that
+already completed. A request stays queued when the artifact-sidecar pull, update, or
+local commit fails. Once the local refresh succeeds, SASE acknowledges the request; if
+it created a commit, SASE starts that commit's push asynchronously. A later push failure
+is recorded in the managed SDD sync log rather than restored to this outbox. Queued
+requests use the same retry, quarantine, and retired-entry operator controls as hood
+publication. See [Artifact Reference Publication](artifact_references.md#publication)
+for the complete ordering and recovery boundary.
 
 Use `sase agent prompts list` to browse the archive. `sase agent prompts show <prompt>`
 prints the archived Markdown document. `sase agent prompts validate` verifies headers,
@@ -319,20 +323,23 @@ sase agent sync -p project-alias -p another-project
 The repository transaction acquires a bounded lock, fetches and pulls with rebase,
 imports validated shared v2 history and optional legacy v1 bundles, drains any
 outstanding agent-hood outbox requests, performs v2 publication for locally owned hoods,
-rebuilds deterministic indexes, commits with the full owner identity, pushes, and then
-drains Referenced By requests into their artifact sidecars. The commit path already
-enqueues and drains its own hood and back-reference work inline; `sase agent sync` is
-the explicit recovery command for requests a commit could not immediately resolve
-(transient, quarantined, or retired) and the full-reconciliation command for hoods with
-no recent commit. A non-fast-forward rejection triggers one pull/recompute/commit/push
-retry. Conflicted rebases are aborted and reported; a failure in one project does not
-prevent the others from running. Import preflight indexes local artifacts once per
-project sync and reuses that view across every incoming hood and run. Exact-owner
-preflight also indexes matching `SASE_AGENT` commit evidence across local project
-checkouts, so cleaned runs are observed instead of re-imported. Interrupted transaction
-recovery runs once per project pass, v1 compatibility lookup scans artifacts once, and
-imported dismissed bundles update their summary index incrementally. The Updates pane's
-`a` action is the ACE equivalent for all enabled projects.
+rebuilds deterministic indexes, commits with the full owner identity, and pushes. Only
+after that agents-sidecar transaction completes does SASE drain queued Referenced By
+requests into their artifact sidecars. The commit workflow has a separate earlier
+prompt-archive step: it publishes that archive and drains the resulting back-reference
+requests before it proceeds to agent-hood publication. In both cases, the prompt's
+agents-sidecar publication completes before its back-reference drain begins.
+`sase agent sync` is the explicit recovery command for queued requests a commit could
+not immediately resolve and the full-reconciliation command for hoods with no recent
+commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry.
+Conflicted rebases are aborted and reported; a failure in one project does not prevent
+the others from running. Import preflight indexes local artifacts once per project sync
+and reuses that view across every incoming hood and run. Exact-owner preflight also
+indexes matching `SASE_AGENT` commit evidence across local project checkouts, so cleaned
+runs are observed instead of re-imported. Interrupted transaction recovery runs once per
+project pass, v1 compatibility lookup scans artifacts once, and imported dismissed
+bundles update their summary index incrementally. The Updates pane's `a` action is the
+ACE equivalent for all enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. In addition to the legacy
 `integrated`, `refreshed`, `exported`, and `export_refreshed` fields, each project
@@ -465,7 +472,9 @@ validation, cache import, and full-sync work runs outside the Textual event loop
   read to correlate a request's `global_agent`, `primary_revision`, `attempts`, and
   `last_error`, but it must not be edited manually. Referenced By failures are reported
   by the mutating `sase agent sync` that tries to drain them; their durable
-  `referenced-by-outbox.json` may likewise be inspected but not edited.
+  `referenced-by-outbox.json` may likewise be inspected but not edited. If the local
+  Referenced By commit succeeded and its detached push later failed, there is no
+  remaining outbox entry; inspect the managed SDD sync log instead.
 - A missing sidecar reports `not_created`; run `sase repo init` interactively if you
   intend to publish this scope.
 - A malformed legacy v1 manifest is quarantined and skipped with a diagnostic. A
@@ -486,6 +495,10 @@ validation, cache import, and full-sync work runs outside the Textual event loop
   rerun `sase agent sync --check --json` afterward and confirm that no publication
   quarantine diagnostic remains; for a Referenced By request, confirm that the mutating
   sync reports no remaining referenced-by diagnostic.
+- A post-publication Referenced By failure currently reuses the generic warning that
+  says prompt-archive publication was deferred. In this case that wording is misleading:
+  the prompt archive was already pushed. Inspect the Referenced By diagnostic and outbox
+  rather than republishing the primary commit.
 - If a request is reported as retired and its source truly cannot be reconstructed,
   review the terminal reason and run `sase agent sync --drop-retired -p <project>`.
   Retired requests are not reset by `--retry-quarantined`.

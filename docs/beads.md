@@ -290,16 +290,20 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    `sase bead work <task-id> --yes-to-all`; **Close** requires feedback and closes the
    bead with `resolution=canceled` and that feedback as the reason. The detached launch
    survives ACE, CLI, Telegram, or mobile client exit and appears in `sase task list`
-   and ACE's Tasks tab.
+   and ACE's Tasks tab. **Snooze** requires a wake time, accepts an optional `+N` wake
+   threshold and reason, and defers the task until either condition is met.
 
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
    cancels the pending gate. If a request is answered, canceled, or missing while the
    task is still `ready`, the next scan creates a new generation-specific request. The
-   same happens if the task leaves `ready` and returns later. `sase bead close` settles
-   a just-closed task's pending `TaskTriage` or `BeadSnooze` gate immediately after the
-   bead mutation commits, so its notification does not wait for the next five-minute
-   scan. Launch flows settle their matching gate as part of the launch transition; the
-   scheduled scan remains the backstop for out-of-band status changes.
+   same happens if the task leaves `ready` and returns later. After the bead mutation
+   commits, `sase bead close` makes a best-effort attempt to cancel a just-closed task's
+   pending `TaskTriage` or `BeadSnooze` gate. A cancellation failure does not undo or
+   fail the close; the next five-minute scan remains the backstop. Choosing **Launch**
+   in that gate answers it through the normal gate workflow, and a successful launch
+   submission from ACE's Beads pane explicitly cancels the matching gate. A direct
+   `sase bead work` command changes the task's status but does not settle an existing
+   gate itself; the scheduled scan remains its cleanup backstop.
 
 4. Work it. You can bypass scheduled triage and launch directly:
 
@@ -551,13 +555,16 @@ that task bead's detached launch is still in flight, and uses a new deterministi
 generation if the same task becomes ready again or its pending gate needs a
 presentation-contract refresh.
 
-The gate offers two decisions:
+The gate offers three decisions:
 
 - **Launch** (default) submits a detached background task that runs
   `sase bead work <task-id> --yes-to-all`. Optional feedback is appended to the worker
   prompt.
 - **Close** requires feedback and closes the task with that reason and
   `resolution=canceled`.
+- **Snooze** requires a wake time, accepts an optional `+N` wake threshold and reason,
+  and moves the task to `snoozed`. The next reconciliation replaces the settled triage
+  gate with a snoozed `BeadSnooze` gate.
 
 Epic phase workers follow a stricter capture rule: they do not create beads. Instead, a
 phase worker appends `PROPOSED FOLLOW-UP: <one-line summary — detail>` to its own bead

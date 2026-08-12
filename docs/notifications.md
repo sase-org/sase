@@ -320,16 +320,21 @@ gate offers three branches:
   once the reconciler's next tick runs; see
   [Snoozed Task Notification](#snoozed-task-notification) below.
 
-The gate cannot be resolved automatically. While one of `TaskTriage`/`BeadSnooze`
+No decision branch is chosen automatically. While one of `TaskTriage`/`BeadSnooze`
 remains pending for a bead, the chop that owns both kinds (`bead_task_triage`)
 suppresses duplicates and keeps the two mutually exclusive — a task bead never holds
-both at once. `sase bead close` and task launch flows settle their matching pending gate
-immediately. If the bead's status otherwise changes out of band (leaves `ready`, gets
-snoozed, or wakes), the chop cancels the gate of the wrong kind and creates the right
-one on its next tick. If a gate becomes terminal, disappears, or uses an obsolete
-presentation or option-input contract while still expected, the next five-minute scan
-creates a replacement with a new generation-specific request ID, except while the task
-bead's detached launch is still in flight.
+both at once. After the bead mutation commits, `sase bead close` makes a best-effort
+attempt to cancel the matching pending gate; a cancellation failure does not fail the
+close, and the next reconciliation remains the backstop. Choosing **Launch** in
+`TaskTriage` answers that gate normally, and a successful launch submission from ACE's
+Beads pane explicitly cancels it. A direct `sase bead work <task-id>` command does not
+settle an older gate itself; because the launch changes the stored status, the next
+reconciliation cancels that stale gate. If the bead's status otherwise changes out of
+band (leaves `ready`, gets snoozed, or wakes), the chop cancels the gate of the wrong
+kind and creates the right one on its next tick. If a gate becomes terminal, disappears,
+or uses an obsolete presentation or option-input contract while still expected, the next
+five-minute scan creates a replacement with a new generation-specific request ID, except
+while the task bead's detached launch is still in flight.
 
 ### Snoozed Task Notification
 
