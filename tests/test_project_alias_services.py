@@ -224,6 +224,43 @@ def test_load_project_alias_map_includes_display_name(
     )
 
 
+def test_canonicalize_leaves_provider_mismatched_ref_untouched(
+    projects_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A #git: tag aimed at a GitHub project must not canonicalize.
+
+    Rewriting it to the real spec key would let a downstream bare-git
+    resolver silently convert that project's ProjectSpec (the
+    ``bare_git_project_clobber`` bug). #gh: (the tag matching the project's
+    actual provider) must still canonicalize normally.
+    """
+    sase_file = _write_project(
+        projects_root,
+        "gh_sase-org__sase",
+        "PROJECT_ALIASES: sase\nWORKSPACE_DIR: /tmp/sase\nNAME: b\n",
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases.list_project_records",
+        lambda *_args, **_kwargs: [
+            _record(
+                "gh_sase-org__sase",
+                aliases=["sase"],
+                project_file=sase_file,
+            ),
+        ],
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases._project_workflow_type",
+        lambda project: "gh" if project == "gh_sase-org__sase" else None,
+    )
+
+    assert canonicalize_project_aliases_in_prompt("#git:sase fix") == "#git:sase fix"
+    assert canonicalize_project_aliases_in_prompt("#gh:sase fix") == (
+        "#gh:gh_sase-org__sase fix"
+    )
+
+
 def test_humanize_project_refs_in_prompt_rewrites_only_vcs_refs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

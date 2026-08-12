@@ -127,6 +127,38 @@ def test_run_agent_launch_body_uses_canonical_ref_for_first_use_repo_path(
     record_mru.assert_called_once_with("#gh:proj_key")
 
 
+def test_resolve_ref_from_prompt_propagates_provider_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider-mismatched ``#git:`` ref must surface, not vanish as None.
+
+    Regression test for bare_git_project_clobber: swallowing this alongside
+    ordinary unresolved refs would silently drop the launch's VCS
+    resolution instead of telling the user why it failed.
+    """
+    from sase.ace.tui.actions.agent_workflow._ref_resolution import (
+        resolve_ref_from_prompt,
+    )
+    from sase.workspace_provider.utils import ProjectProviderMismatchError
+
+    import sase.workspace_provider._registry as registry
+
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", git_metadata)
+    monkeypatch.setattr(
+        "sase.project_aliases.canonicalize_project_aliases_in_prompt",
+        lambda prompt: prompt,
+    )
+
+    def _raise_mismatch(ref: str, workflow_type: str):  # type: ignore[no-untyped-def]
+        raise ProjectProviderMismatchError(
+            "'sase' is not a bare-git project — #git:sase would convert it into one."
+        )
+
+    with patch("sase.workspace_provider.resolve_ref", side_effect=_raise_mismatch):
+        with pytest.raises(ProjectProviderMismatchError):
+            resolve_ref_from_prompt("#git:sase do work", "git")
+
+
 def test_run_agent_launch_body_no_ref_defaults_home_mode_to_git_home(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

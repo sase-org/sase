@@ -252,6 +252,26 @@ def _load_project_changespec_names(project: str) -> frozenset[str]:
     return frozenset(names)
 
 
+def _project_workflow_type(project: str) -> str | None:
+    """Return the detected VCS workflow type for *project*, if resolvable.
+
+    Offline-safe: returns ``None`` when the project has no spec file yet or
+    no plugin claims it, so canonicalization degrades to today's
+    alias-only behavior instead of raising mid-rewrite.
+    """
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
+    from sase.workspace_provider import detect_workflow_type
+
+    project_dir = sase_projects_dir() / project
+    project_file = Path(preferred_project_spec_path(str(project_dir), project))
+    if not project_file.is_file():
+        return None
+    try:
+        return detect_workflow_type(str(project_file))
+    except ValueError:
+        return None
+
+
 def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
     """Rewrite project alias refs in VCS launch tags to canonical names."""
     if "#" not in prompt:
@@ -264,6 +284,7 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
         pattern=pattern,
         load_alias_map=load_project_alias_map,
         load_changespec_names=_load_project_changespec_names,
+        project_workflow_type=_project_workflow_type,
     )
 
 

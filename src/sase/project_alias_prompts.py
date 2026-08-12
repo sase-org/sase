@@ -44,6 +44,7 @@ def canonicalize_project_aliases_in_prompt(
     pattern: re.Pattern[str],
     load_alias_map: Callable[[], Mapping[str, str]],
     load_changespec_names: Callable[[str], frozenset[str]],
+    project_workflow_type: Callable[[str], str | None],
 ) -> str:
     """Rewrite project alias refs using injected resolution dependencies."""
     protected, fenced_blocks = _candidate_prompt(prompt)
@@ -62,6 +63,13 @@ def canonicalize_project_aliases_in_prompt(
             names = load_changespec_names(project)
             changespec_names_by_project[project] = names
         return names
+
+    workflow_type_by_project: dict[str, str | None] = {}
+
+    def workflow_type_for(project: str) -> str | None:
+        if project not in workflow_type_by_project:
+            workflow_type_by_project[project] = project_workflow_type(project)
+        return workflow_type_by_project[project]
 
     aliases_by_project: dict[str, list[str]] = {}
     for alias, project in alias_map.items():
@@ -105,6 +113,20 @@ def canonicalize_project_aliases_in_prompt(
                 ),
             )
         if canonical is None:
+            return match.group(0)
+
+        tag_workflow_type = match.group("workflow")
+        actual_workflow_type = workflow_type_for(canonical)
+        if (
+            actual_workflow_type is not None
+            and actual_workflow_type != tag_workflow_type
+        ):
+            # The alias resolves to a real project, but that project's actual
+            # provider doesn't match the tag the user typed. Canonicalizing
+            # would aim a mistyped tag (e.g. #git:sase) at the real spec key
+            # of an unrelated-provider project (e.g. a GitHub project),
+            # letting a downstream resolver silently convert it. Leave it
+            # untouched so it stays a harmless, non-resolving ref.
             return match.group(0)
 
         prefix = (

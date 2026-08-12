@@ -6,6 +6,7 @@ in ``.gp`` project files.
 """
 
 import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,7 +20,9 @@ from sase.core.paths import (
     sase_projects_dir,
     validate_sase_project_name,
 )
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.utils import (
+    ProjectProviderMismatchError,
     get_default_branch,
     parse_bare_repo_dir,
     parse_workspace_dir,
@@ -90,6 +93,71 @@ def set_bare_repo_dir(project_file: str, bare_repo_dir: str) -> bool:
             return True
     except Exception:
         return False
+
+
+def is_bare_git_project(project_file: str) -> bool:
+    """Return whether *project_file* represents a bare-git project.
+
+    A project is bare-git if its ``WORKSPACE_DIR`` is a git checkout with
+    ``BARE_REPO_DIR`` recorded, or (fallback, e.g. before that field is
+    written) whose ``origin`` remote is a local filesystem path rather than a
+    hosted service.
+    """
+    workspace_dir = parse_workspace_dir(project_file)
+    if not workspace_dir or not os.path.isdir(os.path.join(workspace_dir, ".git")):
+        return False
+
+    if parse_bare_repo_dir(project_file):
+        return True
+
+    try:
+        result, _ = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "config", "--get", "remote.origin.url"],
+                cwd=workspace_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
+            cwd=workspace_dir,
+        )
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            if url and not url.startswith(("http://", "https://", "git@", "ssh://")):
+                return True
+    except Exception:
+        pass
+
+    return False
+
+
+def build_provider_mismatch_error(
+    project_name: str, project_file: str
+) -> ProjectProviderMismatchError:
+    """Build the error for a ``#git:`` ref that targets a non-bare-git project.
+
+    Names the project by its configured display name rather than its
+    directory key, and points at the VCS tag matching its actual provider
+    when one can be confidently detected.
+    """
+    from sase.project_display_names import project_display_name_for
+    from sase.workspace_provider import detect_workflow_type
+
+    display_name = project_display_name_for(project_name, sase_projects_dir())
+    try:
+        actual_workflow_type: str | None = detect_workflow_type(project_file)
+    except ValueError:
+        actual_workflow_type = None
+
+    hint = (
+        f"Use #{actual_workflow_type}:{project_name} instead."
+        if actual_workflow_type
+        else "Use the VCS tag matching its actual provider instead."
+    )
+    return ProjectProviderMismatchError(
+        f"'{display_name}' is not a bare-git project — #git:{project_name} "
+        f"would convert it into one. {hint}"
+    )
 
 
 @dataclass
@@ -185,6 +253,13 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                         bare_repo_dir=bare_repo_dir,
                         checkout_target=checkout_target,
                     )
+                # No BARE_REPO_DIR recorded. A bare-git project that merely
+                # lost that field still heals via the missing-project init
+                # path below (dff269e3a). Any other provider's project must
+                # not fall through into that path — it would silently
+                # convert the existing spec into a bare-git project.
+                if not is_bare_git_project(str(project_file_path)):
+                    raise build_provider_mismatch_error(git_ref, str(project_file_path))
 
         # --- Mode 2: Patch name ---
         for cs in find_all_patches():

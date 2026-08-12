@@ -12,6 +12,12 @@ from sase.history.vcs_xprompt_mru import (
     _load_vcs_xprompt_mru,
     record_vcs_xprompt_usage,
 )
+from sase.workspace_provider import reset_workflow_metadata_caches
+from sase.workspace_provider._hookspec import WorkflowMetadata
+from tests._workspace_provider_helpers import (
+    _restore_xprompt_vcs_caches_on_teardown,
+    git_metadata,
+)
 from tests.conftest import redirect_sase_home
 
 
@@ -44,6 +50,29 @@ def _write_named_project(
         f"NAME: {directory_key}_change\n",
         encoding="utf-8",
     )
+
+
+def _git_and_gh_metadata() -> tuple[WorkflowMetadata, ...]:
+    return git_metadata() + (
+        WorkflowMetadata(
+            workflow_type="gh",
+            ref_pattern=r"(?:^|(?<=\s))#gh(?:[_:]([a-zA-Z0-9_./-]+)|\(([^)]+)\))",
+            display_name="GitHub",
+            pre_allocated_env_prefix="SASE_GH",
+        ),
+    )
+
+
+def _patch_git_and_gh_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sase.workspace_provider as workspace_provider
+    import sase.workspace_provider._registry as registry
+
+    monkeypatch.setattr(registry, "get_all_workflow_metadata", _git_and_gh_metadata)
+    monkeypatch.setattr(
+        workspace_provider, "get_all_workflow_metadata", _git_and_gh_metadata
+    )
+    reset_workflow_metadata_caches()
+    _restore_xprompt_vcs_caches_on_teardown(monkeypatch)
 
 
 @pytest.fixture
@@ -510,3 +539,97 @@ def test_record_canonicalizes_alias_form_and_dedupes_against_canonical(
     record_vcs_xprompt_usage("#gh:widgets")
 
     assert _load_vcs_xprompt_mru() == ["#gh:gh_acme__widgets", "#gh:other"]
+
+
+def test_load_launchable_prunes_provider_mismatched_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale ``#git:`` entry for a project whose real provider is GitHub
+    is pruned, while ``#gh:`` for the same project and an unrelated
+    ``#git:`` entry for a genuine bare-git project both survive.
+
+    Regression test for bare_git_project_clobber: a ``#git:`` ref cycled
+    from the MRU must never again silently re-point ``resolve_git_ref`` at
+    a real GitHub project.
+    """
+    _patch_git_and_gh_metadata(monkeypatch)
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    projects_dir = sase_home / "projects"
+    sase_ws = tmp_path / "sase-ws"
+    sase_ws.mkdir()
+    other_ws = tmp_path / "other-ws"
+    other_ws.mkdir()
+    _write_named_project(projects_dir, "gh_sase-org__sase", "sase", sase_ws)
+    _write_named_project(projects_dir, "otherproj", "otherproj", other_ws)
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    "#git:gh_sase-org__sase",
+                    "#gh:gh_sase-org__sase",
+                    "#git:otherproj",
+                ]
+            }
+        )
+    )
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"gh_sase-org__sase": sase_ws, "otherproj": other_ws},
+    )
+    monkeypatch.setattr(
+        "sase.ace.patch.cache.find_all_patches_cached",
+        lambda *a, **k: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.detect_workflow_type",
+        lambda project_file: "gh" if "gh_sase-org__sase" in project_file else "git",
+    )
+
+    result = load_launchable_vcs_xprompt_mru()
+
+    assert result == ["#gh:sase", "#git:otherproj"]
+    assert json.loads(mru_file.read_text()) == {
+        "entries": ["#gh:gh_sase-org__sase", "#git:otherproj"]
+    }
+
+
+def test_record_prunes_provider_mismatched_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Recording a provider-mismatched ``#git:`` prefix drops it instead of
+    writing it back to disk."""
+    _patch_git_and_gh_metadata(monkeypatch)
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    projects_dir = sase_home / "projects"
+    sase_ws = tmp_path / "sase-ws"
+    sase_ws.mkdir()
+    _write_named_project(projects_dir, "gh_sase-org__sase", "sase", sase_ws)
+    mru_file = sase_home / "vcs_xprompt_mru.json"
+    mru_file.write_text(json.dumps({"entries": ["#gh:gh_sase-org__sase"]}))
+
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda *a, **k: {"gh_sase-org__sase": sase_ws},
+    )
+    monkeypatch.setattr(
+        "sase.ace.patch.cache.find_all_patches_cached",
+        lambda *a, **k: [],
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_discovery.detect_workflow_type",
+        lambda _project_file: "git",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.detect_workflow_type",
+        lambda _project_file: "gh",
+    )
+
+    record_vcs_xprompt_usage("#git:gh_sase-org__sase")
+
+    assert _load_vcs_xprompt_mru() == ["#gh:gh_sase-org__sase"]

@@ -41,17 +41,21 @@ def load_launchable_vcs_xprompt_mru(
 ) -> list[str]:
     """Load MRU prefixes, dropping entries that would no longer launch.
 
-    Three classes of non-cyclable entry are pruned so ``<ctrl+p>`` only ever
+    Four classes of non-cyclable entry are pruned so ``<ctrl+p>`` only ever
     cycles to explicit refs that will actually launch (and so the
     unresolved-ref launch guard is never reachable through normal cycling):
 
     - the implicit default prefix (:func:`is_default_vcs_xprompt_prefix`),
       which is normalized data rather than a user MRU choice,
     - prefixes for a known but non-launchable project
-      (:func:`_is_stale_known_project_prefix`), and
+      (:func:`_is_stale_known_project_prefix`),
     - prefixes whose ref no longer resolves to any launch target at all
       (:func:`_vcs_prefix_ref_is_gone`), e.g. a ``#gh:<patch>`` whose
-      Patch has since been submitted/archived.
+      Patch has since been submitted/archived, and
+    - prefixes whose workflow tag no longer matches their project's actual
+      provider (:func:`_vcs_prefix_provider_mismatched`), e.g. a stale
+      ``#git:<gh-project>`` entry recorded before a project's spec was
+      repaired back to its real provider.
     """
     entries = _load_vcs_xprompt_mru()
     if not entries:
@@ -77,6 +81,7 @@ def load_launchable_vcs_xprompt_mru(
         if not is_default_vcs_xprompt_prefix(entry)
         and not _is_stale_known_project_prefix(entry, projects_dir, alias_map=alias_map)
         and not _vcs_prefix_ref_is_gone(entry, resolvable_refs)
+        and not _vcs_prefix_provider_mismatched(entry, resolvable_refs)
     ]
     if prune and filtered != entries:
         _save_vcs_xprompt_mru(filtered)
@@ -113,6 +118,11 @@ def record_vcs_xprompt_usage(prefix: str) -> None:
             _save_vcs_xprompt_mru(filtered)
         return
     if _is_stale_known_project_prefix(prefix):
+        filtered = [e for e in entries if e != prefix]
+        if filtered != entries:
+            _save_vcs_xprompt_mru(filtered)
+        return
+    if _vcs_prefix_provider_mismatched(prefix, _resolvable_vcs_ref_index()):
         filtered = [e for e in entries if e != prefix]
         if filtered != entries:
             _save_vcs_xprompt_mru(filtered)
@@ -307,4 +317,57 @@ def _vcs_prefix_ref_is_gone(
         return canonical_ref not in patch_names
     except Exception:
         log.debug("VCS MRU resolvability check failed for %r", prefix, exc_info=True)
+        return False
+
+
+def _vcs_prefix_provider_mismatched(
+    prefix: str,
+    index: tuple[dict[str, Path], set[str], dict[str, str]] | None,
+) -> bool:
+    """Return whether *prefix*'s workflow tag mismatches its project's real provider.
+
+    Offline and side-effect-free like :func:`_vcs_prefix_ref_is_gone`: it
+    reads the resolved project's spec file to detect its actual provider via
+    :func:`~sase.workspace_provider.detect_workflow_type` instead of calling
+    ``resolve_ref``, so cycling or recording an MRU entry never creates or
+    mutates a project.
+
+    Returns ``True`` only when a provider is confidently detected and differs
+    from the tag's workflow type. Structural, unresolvable, unregistered, or
+    error cases all keep the entry.
+    """
+    if index is None:
+        return False
+    try:
+        parsed = _workflow_and_ref_for_prefix(prefix)
+        if parsed is None:
+            return False
+        workflow_type, ref = parsed
+
+        if "/" in ref or ref.startswith("~") or ref == "home":
+            return False
+
+        known_projects, _patch_names, alias_map = index
+        canonical_ref = alias_map.get(ref, ref)
+
+        from sase.xprompt._parsing import resolve_known_project_ref
+
+        project_name = resolve_known_project_ref(canonical_ref, known_projects)
+        if project_name is None:
+            return False
+
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
+        from sase.workspace_provider import detect_workflow_type
+
+        project_dir = sase_projects_dir() / project_name
+        project_file = Path(preferred_project_spec_path(str(project_dir), project_name))
+        if not project_file.is_file():
+            return False
+
+        actual_workflow_type = detect_workflow_type(str(project_file))
+        return actual_workflow_type != workflow_type
+    except Exception:
+        log.debug(
+            "VCS MRU provider-mismatch check failed for %r", prefix, exc_info=True
+        )
         return False

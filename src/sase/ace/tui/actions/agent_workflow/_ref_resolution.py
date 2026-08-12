@@ -47,6 +47,7 @@ def resolve_ref_from_prompt(
         get_workspace_directory,
         resolve_ref,
     )
+    from sase.workspace_provider.utils import ProjectProviderMismatchError
 
     prompt = canonicalize_project_aliases_in_prompt(prompt)
     patterns = get_ref_patterns()
@@ -75,6 +76,8 @@ def resolve_ref_from_prompt(
                 resolved.project_name,
                 resolved.primary_workspace_dir,
             )
+    except ProjectProviderMismatchError:
+        raise
     except (ValueError, RuntimeError):
         if workflow_type == "git" and ref == "home":
             raise

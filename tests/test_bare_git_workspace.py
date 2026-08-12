@@ -14,6 +14,7 @@ from sase.workspace_provider.plugins.bare_git_ref import (
     set_bare_repo_dir,
 )
 from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
+from sase.workspace_provider.utils import ProjectProviderMismatchError
 
 _REF_MOD = "sase.workspace_provider.plugins.bare_git_ref"
 _INIT_MOD = "sase.workspace_provider.plugins.bare_git_init"
@@ -159,46 +160,37 @@ class TestResolveGitRef:
         mock_find.assert_called_once()
         mock_init.assert_not_called()
 
-    @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
-    def test_home_project_without_bare_repo_auto_initializes(
+    def test_project_spec_without_workspace_dir_raises_provider_mismatch(
         self,
         mock_init: MagicMock,
         mock_find: MagicMock,
-        mock_branch: MagicMock,
     ) -> None:
+        """An existing spec with no WORKSPACE_DIR at all isn't bare-git yet.
+
+        Previously this silently fell through to auto-init, converting
+        whatever the spec actually was into a bare-git project. It must now
+        fail loudly instead, unchanged, exactly like a spec for a real
+        other-provider project (regression test for
+        bare_git_project_clobber).
+        """
         with tempfile.TemporaryDirectory() as d:
             home = Path(d)
             project_file = home / ".sase" / "projects" / "home" / "home.sase"
-            bare_dir = home / ".sase" / "repos" / "home.git"
-            workspace_dir = str(home / "projects" / "git" / "home") + "/"
             project_file.parent.mkdir(parents=True)
-            project_file.write_text("NAME: home\n", encoding="utf-8")
-
-            def init_project(project_name: str) -> str:
-                assert project_name == "home"
-                project_file.write_text(
-                    f"BARE_REPO_DIR: {bare_dir}\nWORKSPACE_DIR: {workspace_dir}\n",
-                    encoding="utf-8",
-                )
-                return str(project_file)
-
-            mock_init.side_effect = init_project
+            original_content = "NAME: home\n"
+            project_file.write_text(original_content, encoding="utf-8")
 
             with patch(f"{_REF_MOD}.Path.home", return_value=home):
-                result = resolve_git_ref("home")
+                with pytest.raises(ProjectProviderMismatchError):
+                    resolve_git_ref("home")
 
-            assert result == ResolvedGitRef(
-                project_file=str(project_file),
-                project_name="home",
-                primary_workspace_dir=workspace_dir,
-                bare_repo_dir=str(bare_dir),
-                checkout_target="origin/main",
-            )
-            mock_find.assert_called_once()
-            mock_init.assert_called_once_with("home")
-            mock_branch.assert_called_once_with(workspace_dir)
+            assert project_file.read_text(encoding="utf-8") == original_content
+            assert not (home / ".sase" / "repos").exists()
+            assert not (home / "projects" / "git").exists()
+            mock_find.assert_not_called()
+            mock_init.assert_not_called()
 
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
@@ -252,29 +244,80 @@ class TestResolveGitRef:
             assert records[0].is_project is True
             assert records[0].vcs_kind == "git"
 
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_existing_project_with_unmaterialized_workspace_raises_provider_mismatch(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+    ) -> None:
+        """A spec whose WORKSPACE_DIR was never actually checked out.
+
+        Regression test for bare_git_project_clobber: this is structurally
+        identical to a real other-provider project's spec that has lost its
+        BARE_REPO_DIR (e.g. a GitHub project's ``WORKSPACE_DIR`` pointing at
+        its real checkout, whose origin is a github/https URL rather than a
+        local path). Both must raise rather than silently convert the spec
+        into a bare-git project.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            home = Path(d)
+            project_dir = home / ".sase" / "projects" / "plainproj"
+            project_file = project_dir / "plainproj.sase"
+            project_dir.mkdir(parents=True)
+            original_content = "WORKSPACE_DIR: /work/plainproj/\nNAME: cl\n"
+            project_file.write_text(original_content, encoding="utf-8")
+
+            with patch(f"{_REF_MOD}.Path.home", return_value=home):
+                with pytest.raises(ProjectProviderMismatchError):
+                    resolve_git_ref("plainproj")
+
+            assert project_file.read_text(encoding="utf-8") == original_content
+            assert not (home / ".sase" / "repos").exists()
+            assert not (home / "projects" / "git").exists()
+            mock_find.assert_not_called()
+            mock_init.assert_not_called()
+
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")
-    def test_existing_project_without_bare_repo_auto_initializes(
+    def test_bare_git_project_missing_bare_repo_dir_still_heals(
         self,
         mock_init: MagicMock,
         mock_find: MagicMock,
         mock_branch: MagicMock,
     ) -> None:
+        """A bare-git project that merely lost BARE_REPO_DIR still auto-heals.
+
+        Distinguishes the dff269e3a healing case from the new
+        provider-mismatch guard: this checkout's origin is a local
+        filesystem path, so ``is_bare_git_project`` still recognizes it as
+        bare-git even without the BARE_REPO_DIR field, and today's
+        missing-project init path is left free to repair it.
+        """
         with tempfile.TemporaryDirectory() as d:
             home = Path(d)
-            project_dir = home / ".sase" / "projects" / "plainproj"
-            project_file = project_dir / "plainproj.sase"
-            bare_dir = home / ".sase" / "repos" / "plainproj.git"
-            workspace_dir = str(home / "projects" / "git" / "plainproj") + "/"
+            project_dir = home / ".sase" / "projects" / "recovering"
+            project_file = project_dir / "recovering.sase"
+            bare_dir = home / ".sase" / "repos" / "recovering.git"
+            workspace_dir = str(home / "projects" / "git" / "recovering") + "/"
+            checkout = home / "checkout"
+
+            subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+            subprocess.run(
+                ["git", "remote", "add", "origin", "/some/local/bare.git"],
+                cwd=checkout,
+                check=True,
+            )
+
             project_dir.mkdir(parents=True)
             project_file.write_text(
-                "WORKSPACE_DIR: /work/plainproj/\nNAME: cl\n",
+                f"WORKSPACE_DIR: {checkout}/\nNAME: cl\n",
                 encoding="utf-8",
             )
 
             def init_project(project_name: str) -> str:
-                assert project_name == "plainproj"
+                assert project_name == "recovering"
                 project_file.write_text(
                     f"BARE_REPO_DIR: {bare_dir}\nWORKSPACE_DIR: {workspace_dir}\n",
                     encoding="utf-8",
@@ -284,18 +327,17 @@ class TestResolveGitRef:
             mock_init.side_effect = init_project
 
             with patch(f"{_REF_MOD}.Path.home", return_value=home):
-                result = resolve_git_ref("plainproj")
+                result = resolve_git_ref("recovering")
 
             assert result == ResolvedGitRef(
                 project_file=str(project_file),
-                project_name="plainproj",
+                project_name="recovering",
                 primary_workspace_dir=workspace_dir,
                 bare_repo_dir=str(bare_dir),
                 checkout_target="origin/main",
             )
-
             mock_find.assert_called_once()
-            mock_init.assert_called_once_with("plainproj")
+            mock_init.assert_called_once_with("recovering")
             mock_branch.assert_called_once_with(workspace_dir)
 
     @patch(f"{_REF_MOD}.find_all_patches", return_value=[])

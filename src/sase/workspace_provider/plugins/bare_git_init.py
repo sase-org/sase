@@ -15,7 +15,11 @@ from urllib.parse import unquote, urlparse
 
 from sase.core.paths import sase_projects_dir, sase_subdir, validate_sase_project_name
 from sase.git_lock_retry import run_with_git_lock_retry
-from sase.workspace_provider.plugins.bare_git_ref import set_bare_repo_dir
+from sase.workspace_provider.plugins.bare_git_ref import (
+    build_provider_mismatch_error,
+    is_bare_git_project,
+    set_bare_repo_dir,
+)
 from sase.workspace_provider.utils import set_workspace_dir
 
 
@@ -67,8 +71,21 @@ def init_bare_git_project(
 
     Raises:
         RuntimeError: If git commands fail or existing_bare is not a bare repo.
+        ProjectProviderMismatchError: If a project spec already exists at the
+            destination and belongs to another provider.
     """
     validate_sase_project_name(project_name)
+
+    # Resolve the destination spec path and guard before any filesystem or
+    # git work runs, so a rejected call leaves no bare repo or clone behind.
+    from sase.ace.patch.project_spec_path import active_project_spec_filename
+
+    projects_base = sase_projects_dir()
+    project_file = str(
+        projects_base / project_name / active_project_spec_filename(project_name)
+    )
+    if os.path.exists(project_file) and not is_bare_git_project(project_file):
+        raise build_provider_mismatch_error(project_name, project_file)
 
     target_bare = existing_bare or bare_dir
     if target_bare is None:
@@ -99,14 +116,6 @@ def init_bare_git_project(
             _fresh_init_empty_bare_project(bare_path, clone_path)
     elif bare_state.state in {_BareRepoState.MISSING, _BareRepoState.EMPTY}:
         _rebuild_bare_from_matching_clone(bare_path, clone_path)
-
-    # Create project spec file (canonical .sase extension).
-    from sase.ace.patch.project_spec_path import active_project_spec_filename
-
-    projects_base = sase_projects_dir()
-    project_file = str(
-        projects_base / project_name / active_project_spec_filename(project_name)
-    )
 
     set_bare_repo_dir(project_file, str(bare_path))
     set_workspace_dir(project_file, _workspace_dir_value(clone_path))

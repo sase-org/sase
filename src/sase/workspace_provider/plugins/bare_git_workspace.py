@@ -14,6 +14,7 @@ from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider._hookspec import ResolvedRef, WorkflowMetadata, hookimpl
 from sase.workspace_provider.plugins.bare_git_ref import (
     ResolvedGitRef,
+    is_bare_git_project,
     resolve_git_ref,
     set_bare_repo_dir,
 )
@@ -21,10 +22,6 @@ from sase.workspace_provider.plugins.bare_git_init import init_bare_git_project
 from sase.workspace_provider.plugins.bare_git_submit import (
     prepare_mail_git,
     submit_bare_git,
-)
-from sase.workspace_provider.utils import (
-    parse_bare_repo_dir,
-    parse_workspace_dir,
 )
 
 # Re-export for backwards compatibility with external imports
@@ -63,29 +60,7 @@ class BareGitWorkspacePlugin:
 
     def _is_bare_git_project(self, project_file: str) -> bool:
         """Check if *project_file* represents a bare-git project."""
-        workspace_dir = parse_workspace_dir(project_file)
-        if not workspace_dir or not os.path.isdir(os.path.join(workspace_dir, ".git")):
-            return False
-
-        if parse_bare_repo_dir(project_file):
-            return True
-
-        # Check origin remote URL — local path means bare git
-        try:
-            result = _run_git(
-                ["config", "--get", "remote.origin.url"],
-                cwd=workspace_dir,
-            )
-            if result.returncode == 0:
-                url = result.stdout.strip()
-                if url and not url.startswith(
-                    ("http://", "https://", "git@", "ssh://")
-                ):
-                    return True
-        except Exception:
-            pass
-
-        return False
+        return is_bare_git_project(project_file)
 
     @hookimpl
     def ws_get_workflow_metadata(self) -> WorkflowMetadata | None:

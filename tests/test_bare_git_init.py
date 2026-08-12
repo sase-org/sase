@@ -11,6 +11,7 @@ from sase.workspace_provider.plugins.bare_git_init import (
     init_bare_git_project,
 )
 from sase.workspace_provider.plugins.bare_git_ref import resolve_git_ref
+from sase.workspace_provider.utils import ProjectProviderMismatchError
 
 _GIT_AVAILABLE = shutil.which("git") is not None
 
@@ -321,6 +322,37 @@ class TestInitBareGitProjectEndToEnd:
         assert result.primary_workspace_dir == _workspace_value(clone)
         assert (clone / "app.py").is_file()
         _assert_project_spec(result.project_file, bare, clone)
+
+    def test_existing_non_bare_git_project_spec_raises_provider_mismatch(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression test for bare_git_project_clobber.
+
+        A GitHub-style project spec (a real checkout whose origin is a
+        hosted URL, no BARE_REPO_DIR) must not be silently converted into a
+        bare-git project by ``init_bare_git_project``'s default-path
+        destination colliding with the existing spec. This is the same
+        guard exercised through ``resolve_git_ref`` in
+        ``test_bare_git_workspace.py``, verified here at the
+        ``init_bare_git_project`` call site directly (defense in depth for
+        Mode 4's bare-repo-path dispatch, which calls this function too).
+        """
+        home = _isolate_sase_home(tmp_path, monkeypatch)
+        project_dir = home / ".sase" / "projects" / "gh_acme__widget"
+        project_file = project_dir / "gh_acme__widget.sase"
+        checkout = home / "projects" / "github" / "acme" / "widget"
+        project_dir.mkdir(parents=True)
+        _git(None, "init", "-q", str(checkout))
+        _git(checkout, "remote", "add", "origin", "https://github.com/acme/widget.git")
+        original_content = f"WORKSPACE_DIR: {checkout}/\nPROJECT_NAME: widget\n"
+        project_file.write_text(original_content, encoding="utf-8")
+
+        with pytest.raises(ProjectProviderMismatchError):
+            init_bare_git_project("gh_acme__widget")
+
+        assert project_file.read_text(encoding="utf-8") == original_content
+        assert not (home / ".sase" / "repos").exists()
+        assert not (home / "projects" / "git").exists()
 
 
 def test_run_git_error_includes_stderr(monkeypatch: pytest.MonkeyPatch) -> None:

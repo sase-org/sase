@@ -19,6 +19,10 @@ from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
 
+class ProjectProviderMismatchError(ValueError):
+    """A VCS ref's workflow tag doesn't match its project's actual provider."""
+
+
 def non_interactive_git_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
     """Return an environment that prevents git/SSH credential prompts."""
     env = dict(os.environ if base is None else base)
@@ -403,6 +407,7 @@ def _record_managed_workspace(store: WorkspaceStore, path: WorkspacePath) -> Non
 # Re-export Path for convenience (used by callers that need projects_base)
 __all__ = [
     "Path",
+    "ProjectProviderMismatchError",
     "ensure_workspace_checkout",
     "get_default_branch",
     "non_interactive_git_env",
