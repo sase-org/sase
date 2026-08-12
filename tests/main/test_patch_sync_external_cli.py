@@ -60,6 +60,7 @@ def _args(
 def test_sync_external_dry_run_reports_selected_project(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
+    monkeypatch.setenv("COLUMNS", "200")
     calls: list[dict[str, object]] = []
     record = _project_record(tmp_path, aliases=["alias-proj"])
 

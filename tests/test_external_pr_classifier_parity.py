@@ -68,6 +68,22 @@ def _request(
     )
 
 
+def _owned_local(
+    *,
+    pr_origin: str,
+    status: str = "Mailed",
+    archived: bool = False,
+) -> LocalPatchWire:
+    return LocalPatchWire(
+        name="pr_feature_1",
+        pr_url="https://github.com/sase-org/sase/pull/17",
+        pr_origin=pr_origin,
+        status=status,
+        archived=archived,
+        reserved=status == "Reserved",
+    )
+
+
 def test_external_pr_classifier_python_rust_parity() -> None:
     cases = [
         _request(
@@ -87,6 +103,37 @@ def test_external_pr_classifier_python_rust_parity() -> None:
         _request(_remote(body="Body\n\nSASE_PATCH=")),
         _request(_remote(state="closed", merged_at="2026-08-03T00:00:00Z")),
         _request(_remote(title="", body="", state="open")),
+        # Refresh: an owned external Patch whose status drifted from the
+        # remote's mapped status (open -> Draft here).
+        _request(
+            _remote(is_draft=True),
+            _owned_local(pr_origin="external", status="Mailed"),
+        ),
+        # Refresh: merged PR moves an owned external Patch to Submitted/archive.
+        _request(
+            _remote(merged_at="2026-08-03T00:00:00Z"),
+            _owned_local(pr_origin="external", status="Mailed"),
+        ),
+        # Refresh: closed-unmerged PR moves an owned external Patch to Archived.
+        _request(
+            _remote(state="closed"),
+            _owned_local(pr_origin="external", status="Mailed"),
+        ),
+        # Non-refresh: already matches remote status/destination.
+        _request(
+            _remote(merged_at="2026-08-03T00:00:00Z"),
+            _owned_local(pr_origin="external", status="Submitted", archived=True),
+        ),
+        # Non-refresh: SASE-owned Patches are never refreshed.
+        _request(
+            _remote(merged_at="2026-08-03T00:00:00Z"),
+            _owned_local(pr_origin="sase", status="Mailed"),
+        ),
+        # Non-refresh: unknown-origin Patches are never refreshed.
+        _request(
+            _remote(merged_at="2026-08-03T00:00:00Z"),
+            _owned_local(pr_origin="unknown", status="Mailed"),
+        ),
     ]
 
     for request in cases:

@@ -109,6 +109,7 @@ def handle_sync_external(
     table.add_column("Filtered", justify="right", style="yellow")
     table.add_column("Adopted", justify="right", style="green")
     table.add_column("Repaired", justify="right", style="green")
+    table.add_column("Refreshed", justify="right", style="green")
     table.add_column("Skipped", justify="right")
     table.add_column("Errors", justify="right", style="red")
     table.add_column("Reason")
@@ -118,7 +119,7 @@ def handle_sync_external(
         project_label = effective_project_name(record)
         if not record.workspace_dir:
             table.add_row(
-                project_label, "0", "0", "0", "0", "0", "1", "missing_workspace"
+                project_label, "0", "0", "0", "0", "0", "0", "1", "missing_workspace"
             )
             exit_code = 1
             continue
@@ -133,7 +134,7 @@ def handle_sync_external(
                 full=bool(args.full),
             )
         except Exception as exc:  # noqa: BLE001 - CLI reports per-project failures.
-            table.add_row(project_label, "0", "0", "0", "0", "0", "1", str(exc))
+            table.add_row(project_label, "0", "0", "0", "0", "0", "0", "1", str(exc))
             exit_code = 1
             continue
         if report.errors:
@@ -144,6 +145,7 @@ def handle_sync_external(
             str(report.unmirrored),
             str(report.created),
             str(report.repaired),
+            str(report.refreshed),
             str(report.skipped),
             str(report.errors),
             report.reason() or "",

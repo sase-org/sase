@@ -25,6 +25,9 @@ from sase.ace.patch.importer import (
 )
 from sase.core.external_pr_facade import plan_external_pr_import
 from sase.core.external_pr_wire import (
+    ACTION_ADOPT,
+    ACTION_REFRESH,
+    ACTION_REPAIR_ORIGIN,
     ACTION_SKIP,
     EXTERNAL_PR_WIRE_SCHEMA_VERSION,
     ExternalPrImportRequestWire,
@@ -178,6 +181,9 @@ def sync_external_pull_requests(
         elif outcome.action_taken == "repaired":
             report.repaired += 1
             mutations += 1
+        elif outcome.action_taken == "refreshed":
+            report.refreshed += 1
+            mutations += 1
         elif outcome.action_taken == "skipped":
             report.skipped += 1
         else:
@@ -281,10 +287,12 @@ def _needs_daily_repair_scan(cursor: MirrorCursor, now: datetime) -> bool:
 
 
 def _count_dry_run(report: MirrorReport, action: str) -> None:
-    if action == "adopt":
+    if action == ACTION_ADOPT:
         report.created += 1
-    elif action == "repair_origin":
+    elif action == ACTION_REPAIR_ORIGIN:
         report.repaired += 1
+    elif action == ACTION_REFRESH:
+        report.refreshed += 1
     else:
         report.skipped += 1
 

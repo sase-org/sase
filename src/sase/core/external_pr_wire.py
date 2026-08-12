@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
-EXTERNAL_PR_WIRE_SCHEMA_VERSION = 1
+EXTERNAL_PR_WIRE_SCHEMA_VERSION = 2
 
 ACTION_ADOPT = "adopt"
+ACTION_REFRESH = "refresh"
 ACTION_REPAIR_ORIGIN = "repair_origin"
 ACTION_SKIP = "skip"
 
@@ -137,6 +138,7 @@ def external_pr_plan_from_dict(data: dict[str, Any]) -> ExternalPrImportPlanWire
 
 __all__ = [
     "ACTION_ADOPT",
+    "ACTION_REFRESH",
     "ACTION_REPAIR_ORIGIN",
     "ACTION_SKIP",
     "DESTINATION_ACTIVE",

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sase.ace.patch.importer import project_patch_files
+from sase.ace.patch.parser import parse_project_file
 from sase.core.external_pr_wire import PR_ORIGIN_EXTERNAL
 from sase.external_mirror.filters import PullRequestFilters
 from sase.external_mirror.pr_sync import KIND, sync_external_pull_requests
@@ -90,6 +91,22 @@ def _workspace_project(project: str) -> None:
     active_file, _ = project_patch_files(project)
     Path(active_file).parent.mkdir(parents=True, exist_ok=True)
     Path(active_file).write_text("", encoding="utf-8")
+
+
+_OWNED_PATCH_FIXTURE = (
+    "NAME: proj_pr_1\nDESCRIPTION:\n  Feature 1\n"
+    "PR: https://github.com/acme/widget/pull/1\n"
+    "PR_ORIGIN: {pr_origin}\nSTATUS: Mailed\n"
+)
+
+
+def _write_owned_patch(project: str, *, pr_origin: str = "external") -> str:
+    active_file, _ = project_patch_files(project)
+    Path(active_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(active_file).write_text(
+        _OWNED_PATCH_FIXTURE.format(pr_origin=pr_origin), encoding="utf-8"
+    )
+    return active_file
 
 
 def test_budget_exhaustion_defers_without_advancing_cursor(monkeypatch, tmp_path):
@@ -406,3 +423,133 @@ def test_filter_change_forces_full_pass_even_when_incremental_otherwise(
         fetch_limit=1,
     )
     assert provider.limits[-1] == 0
+
+
+def test_open_external_patch_becomes_submitted_and_archived_on_merge(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    active_file = _write_owned_patch("proj")
+    _, archive_file = project_patch_files("proj")
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider([_pr(1, "2026-08-02T00:00:00Z", merged=True)]),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.refreshed == 1
+    assert parse_project_file(active_file) == []
+    archived = parse_project_file(archive_file)
+    assert [patch.status for patch in archived] == ["Submitted"]
+    assert archived[0].pr_origin == "external"
+
+
+def test_closed_unmerged_pr_maps_local_patch_to_archived(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    active_file = _write_owned_patch("proj")
+    _, archive_file = project_patch_files("proj")
+    closed_unmerged = PullRequestWire(
+        number=1,
+        title="Feature 1",
+        state="closed",
+        provider_id="PR_1",
+        url="https://github.com/acme/widget/pull/1",
+        body="Body",
+        updated_at="2026-08-02T00:00:00Z",
+    )
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider([closed_unmerged]),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.refreshed == 1
+    assert parse_project_file(active_file) == []
+    archived = parse_project_file(archive_file)
+    assert [patch.status for patch in archived] == ["Archived"]
+
+
+def test_dry_run_reports_refresh_without_writing(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    active_file = _write_owned_patch("proj")
+    _, archive_file = project_patch_files("proj")
+    before = Path(active_file).read_text(encoding="utf-8")
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider([_pr(1, "2026-08-02T00:00:00Z", merged=True)]),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+        dry_run=True,
+    )
+
+    assert report.refreshed == 1
+    assert Path(active_file).read_text(encoding="utf-8") == before
+    assert not Path(archive_file).exists()
+
+
+def test_refresh_mutation_budget_defers_without_advancing_cursor(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    active_file, _ = project_patch_files("proj")
+    Path(active_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(active_file).write_text(
+        _OWNED_PATCH_FIXTURE.format(pr_origin="external")
+        + "\n"
+        + "NAME: proj_pr_2\nDESCRIPTION:\n  Feature 2\n"
+        "PR: https://github.com/acme/widget/pull/2\n"
+        "PR_ORIGIN: external\nSTATUS: Mailed\n",
+        encoding="utf-8",
+    )
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider(
+            [
+                _pr(1, "2026-08-02T00:00:00Z", merged=True),
+                _pr(2, "2026-08-02T00:01:00Z", merged=True),
+            ]
+        ),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+        create_budget=1,
+    )
+
+    assert report.refreshed == 1
+    assert report.budget_exhausted == 1
+    assert read_mirror_cursor(tmp_path, KIND, "proj") == MirrorCursor()
+
+
+def test_sase_owned_patch_is_never_refreshed(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    active_file = _write_owned_patch("proj", pr_origin="sase")
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider([_pr(1, "2026-08-02T00:00:00Z", merged=True)]),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.refreshed == 0
+    patches = parse_project_file(active_file)
+    assert [patch.status for patch in patches] == ["Mailed"]
+    assert [patch.pr_origin for patch in patches] == ["sase"]

@@ -9,13 +9,16 @@ from sase.ace.patch.parser import parse_project_file
 from sase.axe.patch_filtering import filter_axe_candidate_patches
 from sase.core.external_pr_wire import (
     ACTION_ADOPT,
+    ACTION_REFRESH,
     ACTION_REPAIR_ORIGIN,
     DESTINATION_ACTIVE,
     DESTINATION_ARCHIVE,
     PR_ORIGIN_EXTERNAL,
     PR_ORIGIN_SASE,
+    REASON_ALREADY_OWNED,
     REASON_MARKER_ORPHAN,
     REASON_MARKER_REPAIR,
+    REASON_RACED_ALREADY_OWNED,
     REASON_UNMARKED,
     ExternalPrImportPlanWire,
 )
@@ -200,3 +203,75 @@ def test_marker_orphan_uses_marker_name_verbatim() -> None:
     assert [patch.name for patch in parse_project_file(active_file)] == [
         "proj_marker_7"
     ]
+
+
+def _refresh_plan(*, status: str, destination: str) -> ExternalPrImportPlanWire:
+    return _plan(
+        action=ACTION_REFRESH,
+        reason=REASON_ALREADY_OWNED,
+        patch_name="proj_pr_5",
+        name_base=None,
+        pr_origin=PR_ORIGIN_EXTERNAL,
+        status=status,
+        destination=destination,
+    )
+
+
+def _external_owned_patch(status: str) -> str:
+    return (
+        "NAME: proj_pr_5\nDESCRIPTION:\n  Widget change\n"
+        "PR: https://github.com/acme/widget/pull/5\n"
+        f"PR_ORIGIN: external\nSTATUS: {status}\n"
+    )
+
+
+def test_refresh_moves_merged_external_patch_from_active_to_archive() -> None:
+    active_file, archive_file = _write_project("proj", _external_owned_patch("Mailed"))
+
+    outcome = apply_external_pr_plan(
+        "proj",
+        _refresh_plan(status="Submitted", destination=DESTINATION_ARCHIVE),
+    )
+
+    assert outcome.action_taken == "refreshed"
+    assert outcome.destination_file == archive_file
+    assert parse_project_file(active_file) == []
+    archived = parse_project_file(archive_file)
+    assert [patch.name for patch in archived] == ["proj_pr_5"]
+    assert [patch.status for patch in archived] == ["Submitted"]
+    assert archived[0].pr_origin == "external"
+    assert archived[0].description == "Widget change"
+
+
+def test_refresh_maps_closed_unmerged_patch_to_archived() -> None:
+    active_file, archive_file = _write_project("proj", _external_owned_patch("Mailed"))
+
+    outcome = apply_external_pr_plan(
+        "proj",
+        _refresh_plan(status="Archived", destination=DESTINATION_ARCHIVE),
+    )
+
+    assert outcome.action_taken == "refreshed"
+    assert parse_project_file(active_file) == []
+    archived = parse_project_file(archive_file)
+    assert [patch.status for patch in archived] == ["Archived"]
+
+
+def test_refresh_guards_against_raced_ownership_change() -> None:
+    active_file, _ = _write_project(
+        "proj",
+        "NAME: proj_pr_5\nDESCRIPTION:\n  Widget change\n"
+        "PR: https://github.com/acme/widget/pull/5\n"
+        "PR_ORIGIN: sase\nSTATUS: Mailed\n",
+    )
+
+    outcome = apply_external_pr_plan(
+        "proj",
+        _refresh_plan(status="Submitted", destination=DESTINATION_ARCHIVE),
+    )
+
+    assert outcome.action_taken == "skipped"
+    assert outcome.reason == REASON_RACED_ALREADY_OWNED
+    patches = parse_project_file(active_file)
+    assert [patch.status for patch in patches] == ["Mailed"]
+    assert [patch.pr_origin for patch in patches] == ["sase"]

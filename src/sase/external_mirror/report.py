@@ -14,6 +14,7 @@ class MirrorReport:
     unmirrored: int = 0
     created: int = 0
     repaired: int = 0
+    refreshed: int = 0
     skipped: int = 0
     conflicts: int = 0
     errors: int = 0
@@ -30,6 +31,7 @@ class MirrorReport:
             "unmirrored": self.unmirrored,
             "created": self.created,
             "repaired": self.repaired,
+            "refreshed": self.refreshed,
             "skipped": self.skipped,
             "conflicts": self.conflicts,
             "errors": self.errors,
@@ -49,7 +51,12 @@ class MirrorReport:
             return "conflicts"
         if self.fetched == 0:
             return "no_remote_pull_requests"
-        if self.created == 0 and self.repaired == 0 and self.skipped:
+        if (
+            self.created == 0
+            and self.repaired == 0
+            and self.refreshed == 0
+            and self.skipped
+        ):
             return "all_skipped"
         return None
 

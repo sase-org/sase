@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from sase.core.commit_footer_facade import parse_commit_footer
 from sase.core.external_pr_wire import (
     ACTION_ADOPT,
+    ACTION_REFRESH,
     ACTION_REPAIR_ORIGIN,
     ACTION_SKIP,
     DESTINATION_ACTIVE,
@@ -115,8 +116,12 @@ def _plan_external_pr_import_python(
             if not (
                 marker_names_owned and (owned.reserved or not owned.pr_url.strip())
             ):
+                needs_refresh = owned.pr_origin == PR_ORIGIN_EXTERNAL and (
+                    owned.status != status
+                    or owned.archived != (destination == DESTINATION_ARCHIVE)
+                )
                 return ExternalPrImportPlanWire(
-                    action=ACTION_SKIP,
+                    action=ACTION_REFRESH if needs_refresh else ACTION_SKIP,
                     reason=REASON_ALREADY_OWNED,
                     patch_name=owned.name,
                     name_base=None,
