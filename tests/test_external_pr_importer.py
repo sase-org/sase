@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.patch.importer import apply_external_pr_plan, project_patch_files
+from sase.ace.patch.importer import external_pr_import_batch, project_patch_files
 from sase.ace.patch.parser import parse_project_file
 from sase.axe.patch_filtering import filter_axe_candidate_patches
 from sase.core.external_pr_wire import (
@@ -56,6 +56,11 @@ def _write_project(project: str, content: str) -> tuple[str, str]:
     return active_file, archive_file
 
 
+def _apply_plan(project: str, plan: ExternalPrImportPlanWire):
+    with external_pr_import_batch(project) as batch:
+        return batch.apply(plan)
+
+
 def test_crash_window_repairs_reserved_patch_and_second_pass_skips() -> None:
     active_file, _ = _write_project(
         "proj",
@@ -69,7 +74,7 @@ def test_crash_window_repairs_reserved_patch_and_second_pass_skips() -> None:
         pr_origin=PR_ORIGIN_SASE,
     )
 
-    outcome = apply_external_pr_plan("proj", plan)
+    outcome = _apply_plan("proj", plan)
     assert outcome.action_taken == "repaired"
     patches = parse_project_file(active_file)
     assert [patch.name for patch in patches] == ["proj_feature_1"]
@@ -77,7 +82,7 @@ def test_crash_window_repairs_reserved_patch_and_second_pass_skips() -> None:
     assert patches[0].pr_origin == "sase"
     assert patches[0].status == "Mailed"
 
-    second = apply_external_pr_plan("proj", plan)
+    second = _apply_plan("proj", plan)
     assert second.action_taken == "skipped"
     assert [patch.name for patch in parse_project_file(active_file)] == [
         "proj_feature_1"
@@ -86,7 +91,7 @@ def test_crash_window_repairs_reserved_patch_and_second_pass_skips() -> None:
 
 def test_merged_pr_is_written_directly_to_archive() -> None:
     active_file, archive_file = _write_project("proj", "")
-    outcome = apply_external_pr_plan(
+    outcome = _apply_plan(
         "proj",
         _plan(
             name_base="merged_pr",
@@ -107,7 +112,7 @@ def test_repaired_merged_marker_patch_moves_to_archive() -> None:
         "NAME: proj_feature_1\nSTATUS: Reserved\n",
     )
 
-    outcome = apply_external_pr_plan(
+    outcome = _apply_plan(
         "proj",
         _plan(
             action=ACTION_REPAIR_ORIGIN,
@@ -137,7 +142,7 @@ def test_name_uniqueness_spans_active_and_archive_files() -> None:
         "NAME: feature_2\nSTATUS: Archived\n", encoding="utf-8"
     )
 
-    outcome = apply_external_pr_plan("proj", _plan(name_base="feature"))
+    outcome = _apply_plan("proj", _plan(name_base="feature"))
 
     assert outcome.patch_name == "feature_3"
 
@@ -150,7 +155,7 @@ def test_url_variant_idempotency_does_not_duplicate() -> None:
         "STATUS: Mailed\n",
     )
 
-    outcome = apply_external_pr_plan("proj", _plan(name_base="feature"))
+    outcome = _apply_plan("proj", _plan(name_base="feature"))
 
     assert outcome.action_taken == "skipped"
     assert [patch.name for patch in parse_project_file(active_file)] == ["owned"]
@@ -158,7 +163,7 @@ def test_url_variant_idempotency_does_not_duplicate() -> None:
 
 def test_external_adoption_is_excluded_from_axe_candidates() -> None:
     active_file, _ = _write_project("proj", "")
-    apply_external_pr_plan("proj", _plan(name_base="feature"))
+    _apply_plan("proj", _plan(name_base="feature"))
 
     patches = parse_project_file(active_file)
     assert [patch.pr_origin for patch in patches] == ["external"]
@@ -175,8 +180,8 @@ def test_external_adoption_with_blank_run_is_idempotent() -> None:
         )
     )
 
-    first = apply_external_pr_plan("proj", plan)
-    second = apply_external_pr_plan("proj", plan)
+    first = _apply_plan("proj", plan)
+    second = _apply_plan("proj", plan)
 
     assert first.action_taken == "created"
     assert second.action_taken == "skipped"
@@ -189,7 +194,7 @@ def test_external_adoption_with_blank_run_is_idempotent() -> None:
 
 def test_marker_orphan_uses_marker_name_verbatim() -> None:
     active_file, _ = _write_project("proj", "")
-    outcome = apply_external_pr_plan(
+    outcome = _apply_plan(
         "proj",
         _plan(
             reason=REASON_MARKER_ORPHAN,
@@ -228,7 +233,7 @@ def _external_owned_patch(status: str) -> str:
 def test_refresh_moves_merged_external_patch_from_active_to_archive() -> None:
     active_file, archive_file = _write_project("proj", _external_owned_patch("Mailed"))
 
-    outcome = apply_external_pr_plan(
+    outcome = _apply_plan(
         "proj",
         _refresh_plan(status="Submitted", destination=DESTINATION_ARCHIVE),
     )
@@ -246,7 +251,7 @@ def test_refresh_moves_merged_external_patch_from_active_to_archive() -> None:
 def test_refresh_maps_closed_unmerged_patch_to_archived() -> None:
     active_file, archive_file = _write_project("proj", _external_owned_patch("Mailed"))
 
-    outcome = apply_external_pr_plan(
+    outcome = _apply_plan(
         "proj",
         _refresh_plan(status="Archived", destination=DESTINATION_ARCHIVE),
     )
@@ -265,7 +270,7 @@ def test_refresh_guards_against_raced_ownership_change() -> None:
         "PR_ORIGIN: sase\nSTATUS: Mailed\n",
     )
 
-    outcome = apply_external_pr_plan(
+    outcome = _apply_plan(
         "proj",
         _refresh_plan(status="Submitted", destination=DESTINATION_ARCHIVE),
     )

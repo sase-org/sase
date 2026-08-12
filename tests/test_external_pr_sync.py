@@ -60,10 +60,11 @@ def _pr(
     merged: bool = False,
     author: str = "",
     head_ref: str = "",
+    title: str | None = None,
 ) -> PullRequestWire:
     return PullRequestWire(
         number=number,
-        title=f"Feature {number}",
+        title=title or f"Feature {number}",
         state="closed" if merged else "open",
         provider_id=f"PR_{number}",
         url=f"https://github.com/acme/widget/pull/{number}",
@@ -109,6 +110,20 @@ def _write_owned_patch(project: str, *, pr_origin: str = "external") -> str:
     return active_file
 
 
+def _spy_patch_writes(monkeypatch) -> list[str]:
+    import sase.ace.patch.importer as importer_mod
+
+    real_write_patch_atomic = importer_mod.write_patch_atomic
+    writes: list[str] = []
+
+    def spy(project_file: str, content: str, message: str = "") -> None:
+        writes.append(project_file)
+        real_write_patch_atomic(project_file, content, message)
+
+    monkeypatch.setattr(importer_mod, "write_patch_atomic", spy)
+    return writes
+
+
 def test_budget_exhaustion_defers_without_advancing_cursor(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
@@ -133,6 +148,35 @@ def test_budget_exhaustion_defers_without_advancing_cursor(monkeypatch, tmp_path
     assert report.created == 1
     assert report.budget_exhausted == 1
     assert read_mirror_cursor(tmp_path, KIND, "proj") == MirrorCursor()
+
+
+def test_batch_adoptions_update_index_and_flush_active_once(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    _workspace_project("proj")
+    writes = _spy_patch_writes(monkeypatch)
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider(
+            [
+                _pr(1, "2026-08-02T00:00:00Z", title="Same feature"),
+                _pr(2, "2026-08-02T00:01:00Z", title="Same feature"),
+            ]
+        ),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    active_file, _ = project_patch_files("proj")
+    assert report.created == 2
+    assert writes == [active_file]
+    assert [patch.name for patch in parse_project_file(active_file)] == [
+        "same_feature_1",
+        "same_feature_2",
+    ]
 
 
 def test_malformed_provider_pr_defers_cursor_and_writes_nothing(monkeypatch, tmp_path):
@@ -447,6 +491,43 @@ def test_open_external_patch_becomes_submitted_and_archived_on_merge(
     archived = parse_project_file(archive_file)
     assert [patch.status for patch in archived] == ["Submitted"]
     assert archived[0].pr_origin == "external"
+
+
+def test_batch_refreshes_flush_archive_then_active_once(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "sase.external_mirror.pr_sync.supports_pull_requests", lambda _: True
+    )
+    active_file, archive_file = project_patch_files("proj")
+    Path(active_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(active_file).write_text(
+        _OWNED_PATCH_FIXTURE.format(pr_origin="external")
+        + "\n"
+        + "NAME: proj_pr_2\nDESCRIPTION:\n  Feature 2\n"
+        "PR: https://github.com/acme/widget/pull/2\n"
+        "PR_ORIGIN: external\nSTATUS: Mailed\n",
+        encoding="utf-8",
+    )
+    writes = _spy_patch_writes(monkeypatch)
+
+    report = sync_external_pull_requests(
+        project_key="proj",
+        workspace_dir="/repo",
+        state_dir=tmp_path,
+        provider=_Provider(
+            [
+                _pr(1, "2026-08-02T00:00:00Z", merged=True),
+                _pr(2, "2026-08-02T00:01:00Z", merged=True),
+            ]
+        ),
+        now=datetime(2026, 8, 3, tzinfo=UTC),
+    )
+
+    assert report.refreshed == 2
+    assert writes == [archive_file, active_file]
+    assert parse_project_file(active_file) == []
+    archived = parse_project_file(archive_file)
+    assert [patch.name for patch in archived] == ["proj_pr_1", "proj_pr_2"]
+    assert [patch.status for patch in archived] == ["Submitted", "Submitted"]
 
 
 def test_closed_unmerged_pr_maps_local_patch_to_archived(monkeypatch, tmp_path):

@@ -19,7 +19,7 @@ import time
 from typing import Protocol
 
 from sase.ace.patch.importer import (
-    apply_external_pr_plan,
+    external_pr_import_batch,
     project_patch_files,
     read_project_patch_index,
 )
@@ -126,11 +126,10 @@ def sync_external_pull_requests(
             unmirrored=report.unmirrored,
             now=now,
         )
-    active_file, archive_file = project_patch_files(project_key)
-    index = read_project_patch_index(active_file, archive_file)
     clean_pass = True
     mutations = 0
     latest_seen: tuple[datetime, str] | None = None
+    candidates: list[tuple[PullRequestWire, str]] = []
 
     for remote in _sorted_remotes(remotes):
         report.seen += 1
@@ -140,59 +139,93 @@ def sync_external_pull_requests(
             continue
         if updated_at is not None:
             latest_seen = _max_checkpoint(latest_seen, updated_at, provider_id)
+        candidates.append((remote, provider_id))
 
-        local_patches = tuple(index.by_name.values())
-        try:
-            plan = plan_external_pr_import(
-                ExternalPrImportRequestWire(
-                    schema_version=EXTERNAL_PR_WIRE_SCHEMA_VERSION,
-                    remote=_remote_to_wire(remote),
-                    local_patches=local_patches,
+    if dry_run:
+        active_file, archive_file = project_patch_files(project_key)
+        index = read_project_patch_index(active_file, archive_file)
+        for remote, provider_id in candidates:
+            try:
+                plan = plan_external_pr_import(
+                    ExternalPrImportRequestWire(
+                        schema_version=EXTERNAL_PR_WIRE_SCHEMA_VERSION,
+                        remote=_remote_to_wire(remote),
+                        local_patches=tuple(index.by_name.values()),
+                    )
                 )
-            )
-        except Exception as exc:  # noqa: BLE001 - malformed records defer cursor.
-            clean_pass = False
-            report.errors += 1
-            report.error_details.append(f"{provider_id}: {exc}")
-            continue
+            except Exception as exc:  # noqa: BLE001 - malformed records defer cursor.
+                clean_pass = False
+                report.errors += 1
+                report.error_details.append(f"{provider_id}: {exc}")
+                continue
 
-        if plan.canonical_pr_url is None:
-            clean_pass = False
-            report.errors += 1
-            report.error_details.append(f"{provider_id}: invalid_pull_request_url")
-            continue
+            if plan.canonical_pr_url is None:
+                clean_pass = False
+                report.errors += 1
+                report.error_details.append(f"{provider_id}: invalid_pull_request_url")
+                continue
 
-        would_mutate = plan.action != ACTION_SKIP
-        if would_mutate and (mutations >= create_budget or _deadline_passed(deadline)):
-            clean_pass = False
-            report.budget_exhausted += 1
-            continue
+            would_mutate = plan.action != ACTION_SKIP
+            if would_mutate and (
+                mutations >= create_budget or _deadline_passed(deadline)
+            ):
+                clean_pass = False
+                report.budget_exhausted += 1
+                continue
 
-        if dry_run:
             _count_dry_run(report, plan.action)
             if would_mutate:
                 mutations += 1
-            continue
-
-        outcome = apply_external_pr_plan(project_key, plan)
-        if outcome.action_taken == "created":
-            report.created += 1
-            mutations += 1
-        elif outcome.action_taken == "repaired":
-            report.repaired += 1
-            mutations += 1
-        elif outcome.action_taken == "refreshed":
-            report.refreshed += 1
-            mutations += 1
-        elif outcome.action_taken == "skipped":
-            report.skipped += 1
-        else:
-            clean_pass = False
-            report.conflicts += 1
-        index = read_project_patch_index(active_file, archive_file)
-
-    if dry_run:
         return report
+
+    if candidates:
+        with external_pr_import_batch(project_key) as batch:
+            for remote, provider_id in candidates:
+                try:
+                    plan = plan_external_pr_import(
+                        ExternalPrImportRequestWire(
+                            schema_version=EXTERNAL_PR_WIRE_SCHEMA_VERSION,
+                            remote=_remote_to_wire(remote),
+                            local_patches=batch.local_patches(),
+                        )
+                    )
+                except Exception as exc:  # noqa: BLE001 - malformed records defer cursor.
+                    clean_pass = False
+                    report.errors += 1
+                    report.error_details.append(f"{provider_id}: {exc}")
+                    continue
+
+                if plan.canonical_pr_url is None:
+                    clean_pass = False
+                    report.errors += 1
+                    report.error_details.append(
+                        f"{provider_id}: invalid_pull_request_url"
+                    )
+                    continue
+
+                would_mutate = plan.action != ACTION_SKIP
+                if would_mutate and (
+                    mutations >= create_budget or _deadline_passed(deadline)
+                ):
+                    clean_pass = False
+                    report.budget_exhausted += 1
+                    continue
+
+                outcome = batch.apply(plan)
+                if outcome.action_taken == "created":
+                    report.created += 1
+                    mutations += 1
+                elif outcome.action_taken == "repaired":
+                    report.repaired += 1
+                    mutations += 1
+                elif outcome.action_taken == "refreshed":
+                    report.refreshed += 1
+                    mutations += 1
+                elif outcome.action_taken == "skipped":
+                    report.skipped += 1
+                else:
+                    clean_pass = False
+                    report.conflicts += 1
 
     if clean_pass and not report.budget_exhausted and not report.errors:
         cursor = _advanced_cursor(cursor, latest_seen, full, now, filters_fingerprint)

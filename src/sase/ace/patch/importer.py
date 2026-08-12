@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 import os
 from pathlib import Path
@@ -48,6 +49,302 @@ class _ImportOutcome:
     reason: str
 
 
+class _ExternalPrImportBatch:
+    """Locked, in-memory ProjectSpec batch for external PR mirror mutations."""
+
+    def __init__(self, active_file: str, archive_file: str) -> None:
+        self.active_file = active_file
+        self.archive_file = archive_file
+        self.index = read_project_patch_index(active_file, archive_file)
+        self._contents = {
+            active_file: _read_text(active_file),
+            archive_file: _read_text(archive_file),
+        }
+        self._changed: set[str] = set()
+
+    def local_patches(self) -> tuple[LocalPatchWire, ...]:
+        return tuple(self.index.by_name.values())
+
+    def apply(self, plan: ExternalPrImportPlanWire) -> _ImportOutcome:
+        if plan.action == ACTION_SKIP:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=plan.patch_name,
+                destination_file=None,
+                reason=plan.reason,
+            )
+
+        if plan.action == ACTION_REFRESH:
+            return self._refresh_existing_patch(plan)
+
+        pr_key = _canonical_pr_key(plan.canonical_pr_url or "")
+        if pr_key is not None and pr_key in self.index.by_pr_key:
+            owned = self.index.by_pr_key[pr_key]
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=owned.name,
+                destination_file=None,
+                reason=REASON_RACED_ALREADY_OWNED,
+            )
+
+        if plan.action == ACTION_REPAIR_ORIGIN:
+            return self._repair_existing_patch(plan)
+        if plan.action == ACTION_ADOPT:
+            return self._create_patch(plan)
+
+        return _ImportOutcome(
+            action_taken="skipped",
+            patch_name=plan.patch_name,
+            destination_file=None,
+            reason=f"unsupported_action:{plan.action}",
+        )
+
+    def commit(self) -> None:
+        for file_path in (self.archive_file, self.active_file):
+            if file_path in self._changed:
+                Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+                write_patch_atomic(
+                    file_path,
+                    self._contents[file_path],
+                    "Apply external PR mirror batch",
+                )
+
+    def _create_patch(self, plan: ExternalPrImportPlanWire) -> _ImportOutcome:
+        patch_name = _resolve_patch_name(self.index, plan)
+        if patch_name in self.index.names:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=patch_name,
+                destination_file=None,
+                reason="raced_name_exists",
+            )
+
+        destination_file = (
+            self.archive_file
+            if plan.destination == DESTINATION_ARCHIVE
+            else self.active_file
+        )
+        block = format_patch_block(
+            name=patch_name,
+            description=plan.description,
+            pr_url=plan.canonical_pr_url,
+            pr_origin=plan.pr_origin,
+            status=plan.status,
+        )
+        self._append_patch_block(destination_file, block)
+        _index_replace_patch(
+            self.index,
+            _local_patch_from_plan(
+                patch_name,
+                plan,
+                archived=destination_file == self.archive_file,
+            ),
+        )
+        return _ImportOutcome(
+            action_taken="created",
+            patch_name=patch_name,
+            destination_file=destination_file,
+            reason=plan.reason,
+        )
+
+    def _refresh_existing_patch(self, plan: ExternalPrImportPlanWire) -> _ImportOutcome:
+        patch_name = plan.patch_name
+        if not patch_name:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=None,
+                destination_file=None,
+                reason="missing_patch_name",
+            )
+
+        current = self.index.by_name.get(patch_name)
+        pr_key = _canonical_pr_key(plan.canonical_pr_url or "")
+        still_owned = (
+            current is not None
+            and current.pr_origin == PR_ORIGIN_EXTERNAL
+            and pr_key is not None
+            and _canonical_pr_key(current.pr_url) == pr_key
+        )
+        if not still_owned or current is None:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=patch_name,
+                destination_file=None,
+                reason=REASON_RACED_ALREADY_OWNED,
+            )
+
+        source_file = self._file_containing_patch(patch_name, current)
+        if source_file is None:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=patch_name,
+                destination_file=None,
+                reason="marker_target_missing",
+            )
+
+        self._rewrite_patch_status(source_file, patch_name, plan.status)
+        destination_file = source_file
+        if source_file == self.active_file and plan.destination == DESTINATION_ARCHIVE:
+            if self._move_patch_to_archive(patch_name):
+                destination_file = self.archive_file
+
+        _index_replace_patch(
+            self.index,
+            LocalPatchWire(
+                name=current.name,
+                pr_url=current.pr_url,
+                pr_origin=current.pr_origin,
+                status=plan.status,
+                archived=destination_file == self.archive_file,
+                reserved=plan.status == "Reserved",
+            ),
+        )
+        return _ImportOutcome(
+            action_taken="refreshed",
+            patch_name=patch_name,
+            destination_file=destination_file,
+            reason=plan.reason,
+        )
+
+    def _repair_existing_patch(self, plan: ExternalPrImportPlanWire) -> _ImportOutcome:
+        patch_name = plan.patch_name
+        if not patch_name:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=None,
+                destination_file=None,
+                reason="missing_patch_name",
+            )
+
+        current = self.index.by_name.get(patch_name)
+        source_file = self._file_containing_patch(patch_name, current)
+        if source_file is None:
+            return _ImportOutcome(
+                action_taken="skipped",
+                patch_name=patch_name,
+                destination_file=None,
+                reason="marker_target_missing",
+            )
+
+        self._rewrite_patch_fields(source_file, patch_name, plan)
+        destination_file = source_file
+        if source_file == self.active_file and plan.destination == DESTINATION_ARCHIVE:
+            if self._move_patch_to_archive(patch_name):
+                destination_file = self.archive_file
+
+        status = plan.status if current is None or current.reserved else current.status
+        _index_replace_patch(
+            self.index,
+            LocalPatchWire(
+                name=patch_name,
+                pr_url=plan.canonical_pr_url or (current.pr_url if current else ""),
+                pr_origin="sase",
+                status=status,
+                archived=destination_file == self.archive_file,
+                reserved=status == "Reserved",
+            ),
+        )
+        return _ImportOutcome(
+            action_taken="repaired",
+            patch_name=patch_name,
+            destination_file=destination_file,
+            reason=plan.reason,
+        )
+
+    def _append_patch_block(self, destination_file: str, block: str) -> None:
+        self._set_content(
+            destination_file, f"{self._contents[destination_file]}{block}"
+        )
+
+    def _file_containing_patch(
+        self,
+        patch_name: str,
+        current: LocalPatchWire | None,
+    ) -> str | None:
+        preferred = (
+            self.archive_file
+            if current is not None and current.archived
+            else self.active_file
+        )
+        for file_path in (preferred, self.active_file, self.archive_file):
+            lines = self._contents[file_path].splitlines(True)
+            block, _ = extract_patch_block(lines, patch_name)
+            if block is not None:
+                return file_path
+        return None
+
+    def _rewrite_patch_status(
+        self,
+        file_path: str,
+        patch_name: str,
+        status: str,
+    ) -> None:
+        lines = self._contents[file_path].splitlines(True)
+        bounds = _patch_line_bounds(lines, patch_name)
+        if bounds is None:
+            return
+        start, end = bounds
+        block = list(lines[start:end])
+        idx = _find_line(block, lambda value: value.startswith("STATUS: "))
+        if idx is not None:
+            block[idx] = f"STATUS: {status}\n"
+        lines[start:end] = block
+        self._set_content(file_path, "".join(lines))
+
+    def _rewrite_patch_fields(
+        self,
+        file_path: str,
+        patch_name: str,
+        plan: ExternalPrImportPlanWire,
+    ) -> None:
+        lines = self._contents[file_path].splitlines(True)
+        bounds = _patch_line_bounds(lines, patch_name)
+        if bounds is None:
+            return
+        start, end = bounds
+        block = list(lines[start:end])
+        if _is_reserved_stub(block):
+            replacement = format_patch_block(
+                name=patch_name,
+                description=plan.description,
+                pr_url=plan.canonical_pr_url,
+                pr_origin="sase",
+                status=plan.status,
+            ).splitlines(True)
+            lines[start:end] = replacement
+        else:
+            block = _ensure_description(block, plan.description)
+            block = _ensure_pr_url(block, plan.canonical_pr_url)
+            block = _set_pr_origin(block, "sase")
+            block = _replace_reserved_status(block, plan.status)
+            lines[start:end] = block
+        self._set_content(file_path, "".join(lines))
+
+    def _move_patch_to_archive(self, patch_name: str) -> bool:
+        source_lines = self._contents[self.active_file].splitlines(True)
+        extracted, remaining = extract_patch_block(source_lines, patch_name)
+        if extracted is None:
+            return False
+
+        archive_content = self._contents[self.archive_file]
+        if archive_content and not archive_content.endswith("\n\n"):
+            if not archive_content.endswith("\n"):
+                archive_content += "\n"
+            archive_content += "\n"
+        archive_content += "".join(extracted)
+        if not archive_content.endswith("\n"):
+            archive_content += "\n"
+
+        self._set_content(self.archive_file, archive_content)
+        self._set_content(self.active_file, "".join(remaining))
+        return True
+
+    def _set_content(self, file_path: str, content: str) -> None:
+        if self._contents[file_path] != content:
+            self._contents[file_path] = content
+            self._changed.add(file_path)
+
+
 def read_project_patch_index(active_file: str, archive_file: str) -> _ProjectPatchIndex:
     """Read active and archive ProjectSpec files into a PR/name index."""
     by_pr_key: dict[str, LocalPatchWire] = {}
@@ -75,55 +372,20 @@ def read_project_patch_index(active_file: str, archive_file: str) -> _ProjectPat
     return _ProjectPatchIndex(by_pr_key=by_pr_key, names=names, by_name=by_name)
 
 
-def apply_external_pr_plan(
+@contextmanager
+def external_pr_import_batch(
     project_key: str,
-    plan: ExternalPrImportPlanWire,
     *,
     timeout: float = 30.0,
-) -> _ImportOutcome:
-    """Apply an external-PR import plan with active-before-archive locking."""
+) -> Iterator[_ExternalPrImportBatch]:
+    """Yield one locked external-PR import batch for *project_key*."""
     active_file, archive_file = _project_files(project_key)
-    if plan.action == ACTION_SKIP:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=plan.patch_name,
-            destination_file=None,
-            reason=plan.reason,
-        )
-
     Path(active_file).parent.mkdir(parents=True, exist_ok=True)
     with patch_lock(active_file, timeout=timeout):
         with patch_lock(archive_file, timeout=timeout):
-            index = read_project_patch_index(active_file, archive_file)
-
-            if plan.action == ACTION_REFRESH:
-                return _refresh_existing_patch(active_file, archive_file, index, plan)
-
-            pr_key = _canonical_pr_key(plan.canonical_pr_url or "")
-            if pr_key is not None and pr_key in index.by_pr_key:
-                owned = index.by_pr_key[pr_key]
-                return _ImportOutcome(
-                    action_taken="skipped",
-                    patch_name=owned.name,
-                    destination_file=None,
-                    reason=REASON_RACED_ALREADY_OWNED,
-                )
-
-            if plan.action == ACTION_REPAIR_ORIGIN:
-                return _repair_existing_patch(
-                    active_file,
-                    archive_file,
-                    plan,
-                )
-            if plan.action == ACTION_ADOPT:
-                return _create_patch(active_file, archive_file, index, plan)
-
-    return _ImportOutcome(
-        action_taken="skipped",
-        patch_name=plan.patch_name,
-        destination_file=None,
-        reason=f"unsupported_action:{plan.action}",
-    )
+            batch = _ExternalPrImportBatch(active_file, archive_file)
+            yield batch
+            batch.commit()
 
 
 def _project_files(project_key: str) -> tuple[str, str]:
@@ -147,38 +409,48 @@ def _canonical_pr_key(pr_url: str) -> str | None:
     return canonical.key if canonical is not None else None
 
 
-def _create_patch(
-    active_file: str,
-    archive_file: str,
-    index: _ProjectPatchIndex,
-    plan: ExternalPrImportPlanWire,
-) -> _ImportOutcome:
-    patch_name = _resolve_patch_name(index, plan)
-    if patch_name in index.names:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=patch_name,
-            destination_file=None,
-            reason="raced_name_exists",
-        )
+def _read_text(file_path: str) -> str:
+    try:
+        return Path(file_path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
 
-    destination_file = (
-        archive_file if plan.destination == DESTINATION_ARCHIVE else active_file
-    )
-    block = format_patch_block(
+
+def _local_patch_from_plan(
+    patch_name: str,
+    plan: ExternalPrImportPlanWire,
+    *,
+    archived: bool,
+) -> LocalPatchWire:
+    return LocalPatchWire(
         name=patch_name,
-        description=plan.description,
-        pr_url=plan.canonical_pr_url,
+        pr_url=plan.canonical_pr_url or "",
         pr_origin=plan.pr_origin,
         status=plan.status,
+        archived=archived,
+        reserved=plan.status == "Reserved",
     )
-    _append_patch_block(destination_file, block, patch_name)
-    return _ImportOutcome(
-        action_taken="created",
-        patch_name=patch_name,
-        destination_file=destination_file,
-        reason=plan.reason,
-    )
+
+
+def _index_replace_patch(
+    index: _ProjectPatchIndex,
+    local: LocalPatchWire,
+) -> None:
+    previous = index.by_name.get(local.name)
+    if previous is not None:
+        previous_key = _canonical_pr_key(previous.pr_url)
+        if (
+            previous_key is not None
+            and index.by_pr_key.get(previous_key) is not None
+            and index.by_pr_key[previous_key].name == local.name
+        ):
+            del index.by_pr_key[previous_key]
+
+    index.names.add(local.name)
+    index.by_name[local.name] = local
+    pr_key = _canonical_pr_key(local.pr_url)
+    if pr_key is not None:
+        index.by_pr_key[pr_key] = local
 
 
 def _resolve_patch_name(
@@ -192,201 +464,6 @@ def _resolve_patch_name(
     base = plan.name_base or plan.patch_name or "external_pr"
     suffix = get_next_suffix_number(base, index.names)
     return f"{base}_{suffix}"
-
-
-def _append_patch_block(destination_file: str, block: str, patch_name: str) -> None:
-    destination = Path(destination_file)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        content = destination.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        content = ""
-    write_patch_atomic(destination_file, f"{content}{block}", f"Import PR {patch_name}")
-
-
-def _refresh_existing_patch(
-    active_file: str,
-    archive_file: str,
-    index: _ProjectPatchIndex,
-    plan: ExternalPrImportPlanWire,
-) -> _ImportOutcome:
-    patch_name = plan.patch_name
-    if not patch_name:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=None,
-            destination_file=None,
-            reason="missing_patch_name",
-        )
-
-    current = index.by_name.get(patch_name)
-    pr_key = _canonical_pr_key(plan.canonical_pr_url or "")
-    still_owned = (
-        current is not None
-        and current.pr_origin == PR_ORIGIN_EXTERNAL
-        and pr_key is not None
-        and _canonical_pr_key(current.pr_url) == pr_key
-    )
-    if not still_owned:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=patch_name,
-            destination_file=None,
-            reason=REASON_RACED_ALREADY_OWNED,
-        )
-
-    source_file = _file_containing_patch(active_file, archive_file, patch_name)
-    if source_file is None:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=patch_name,
-            destination_file=None,
-            reason="marker_target_missing",
-        )
-
-    _rewrite_patch_status(source_file, patch_name, plan.status)
-    destination_file = source_file
-    if source_file == active_file and plan.destination == DESTINATION_ARCHIVE:
-        if _move_patch_to_archive_locked(active_file, archive_file, patch_name):
-            destination_file = archive_file
-
-    return _ImportOutcome(
-        action_taken="refreshed",
-        patch_name=patch_name,
-        destination_file=destination_file,
-        reason=plan.reason,
-    )
-
-
-def _rewrite_patch_status(file_path: str, patch_name: str, status: str) -> None:
-    path = Path(file_path)
-    lines = path.read_text(encoding="utf-8").splitlines(True)
-    bounds = _patch_line_bounds(lines, patch_name)
-    if bounds is None:
-        return
-    start, end = bounds
-    block = list(lines[start:end])
-    idx = _find_line(block, lambda value: value.startswith("STATUS: "))
-    if idx is not None:
-        block[idx] = f"STATUS: {status}\n"
-    lines[start:end] = block
-    write_patch_atomic(file_path, "".join(lines), f"Refresh PR status {patch_name}")
-
-
-def _repair_existing_patch(
-    active_file: str,
-    archive_file: str,
-    plan: ExternalPrImportPlanWire,
-) -> _ImportOutcome:
-    patch_name = plan.patch_name
-    if not patch_name:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=None,
-            destination_file=None,
-            reason="missing_patch_name",
-        )
-
-    source_file = _file_containing_patch(active_file, archive_file, patch_name)
-    if source_file is None:
-        return _ImportOutcome(
-            action_taken="skipped",
-            patch_name=patch_name,
-            destination_file=None,
-            reason="marker_target_missing",
-        )
-
-    _rewrite_patch_fields(source_file, patch_name, plan)
-    destination_file = source_file
-    if source_file == active_file and plan.destination == DESTINATION_ARCHIVE:
-        if _move_patch_to_archive_locked(active_file, archive_file, patch_name):
-            destination_file = archive_file
-
-    return _ImportOutcome(
-        action_taken="repaired",
-        patch_name=patch_name,
-        destination_file=destination_file,
-        reason=plan.reason,
-    )
-
-
-def _file_containing_patch(
-    active_file: str,
-    archive_file: str,
-    patch_name: str,
-) -> str | None:
-    for file_path in (active_file, archive_file):
-        if not os.path.isfile(file_path):
-            continue
-        lines = Path(file_path).read_text(encoding="utf-8").splitlines(True)
-        block, _ = extract_patch_block(lines, patch_name)
-        if block is not None:
-            return file_path
-    return None
-
-
-def _move_patch_to_archive_locked(
-    active_file: str,
-    archive_file: str,
-    patch_name: str,
-) -> bool:
-    active_path = Path(active_file)
-    if not active_path.is_file():
-        return False
-    source_lines = active_path.read_text(encoding="utf-8").splitlines(True)
-    extracted, remaining = extract_patch_block(source_lines, patch_name)
-    if extracted is None:
-        return False
-
-    archive_path = Path(archive_file)
-    try:
-        archive_content = archive_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        archive_content = ""
-    if archive_content and not archive_content.endswith("\n\n"):
-        if not archive_content.endswith("\n"):
-            archive_content += "\n"
-        archive_content += "\n"
-    archive_content += "".join(extracted)
-    if not archive_content.endswith("\n"):
-        archive_content += "\n"
-
-    archive_path.parent.mkdir(parents=True, exist_ok=True)
-    write_patch_atomic(archive_file, archive_content, f"Archive PR {patch_name}")
-    write_patch_atomic(
-        active_file, "".join(remaining), f"Remove archived PR {patch_name}"
-    )
-    return True
-
-
-def _rewrite_patch_fields(
-    file_path: str,
-    patch_name: str,
-    plan: ExternalPrImportPlanWire,
-) -> None:
-    path = Path(file_path)
-    lines = path.read_text(encoding="utf-8").splitlines(True)
-    bounds = _patch_line_bounds(lines, patch_name)
-    if bounds is None:
-        return
-    start, end = bounds
-    block = list(lines[start:end])
-    if _is_reserved_stub(block):
-        replacement = format_patch_block(
-            name=patch_name,
-            description=plan.description,
-            pr_url=plan.canonical_pr_url,
-            pr_origin="sase",
-            status=plan.status,
-        ).splitlines(True)
-        lines[start:end] = replacement
-    else:
-        block = _ensure_description(block, plan.description)
-        block = _ensure_pr_url(block, plan.canonical_pr_url)
-        block = _set_pr_origin(block, "sase")
-        block = _replace_reserved_status(block, plan.status)
-        lines[start:end] = block
-    write_patch_atomic(file_path, "".join(lines), f"Repair PR origin {patch_name}")
 
 
 def _patch_line_bounds(
@@ -526,7 +603,7 @@ def _find_line(
 
 
 __all__ = [
-    "apply_external_pr_plan",
+    "external_pr_import_batch",
     "project_patch_files",
     "read_project_patch_index",
 ]
