@@ -223,5 +223,14 @@ def count_hook_and_agent_runners_global() -> tuple[int, int]:
 
 
 def count_all_runners_global() -> int:
-    """Count all running hook processes and agents globally."""
-    return count_hook_runners_global() + count_agent_runners_global()
+    """Count all running hook processes and agents globally.
+
+    Both counts come from one shared cached Patch load rather than two
+    independent full-archive parses. Runner-pool admission control calls this
+    per tick, some of it while holding the shared counter's exclusive lock, so
+    the second parse was pure latency inside that critical section. Counting
+    both from the same snapshot also removes a torn read: the two separate
+    parses could observe different on-disk states.
+    """
+    hook_runners, agent_runners = count_hook_and_agent_runners_global()
+    return hook_runners + agent_runners
