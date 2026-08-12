@@ -1006,6 +1006,19 @@ dashboard views:
 - **Background command output** — the existing live output stream for the focused `!!`
   row.
 
+A chop whose run blocked its lumberjack's tick for at least the lumberjack's `interval`
+is marked **overrun** — amber `⚠` with a `2.4×`-style ratio of blocking time to
+interval. The newest sampled run being over is level `over` (bold); an older sampled run
+in the cached history being over while the newest is not is level `intermittent` (dim),
+so a chop that alternates does not flap its mark on and off across refreshes. The
+sidebar chop chip and its parent lumberjack's roll-up chip always show the **worst**
+ratio in the cached window, so a collapsed-then-expanded tree tells the same story every
+time; the lumberjack overview's `PACE` column and the chop detail header instead
+describe the **latest** run specifically, matching the rest of those views. A chop that
+launches agents is measured on its script's own wall-clock time, not on how long the
+launched agents ran — the tick never waited for them, so their lifetime is excluded from
+the measurement.
+
 `Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newer /
 older). The viewer pins to the run you selected so that a fresh tick prepending a new
 run does not bump you forward; the pin is cleared automatically if the pinned run is

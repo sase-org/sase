@@ -12,6 +12,7 @@ from ..util.axe_log_renderer import SourceType, render_axe_output
 from ._axe_chop_result_card import render_cached_chop_card_and_report
 from ._axe_dashboard_render import (
     LJ_NAME_STYLE as _LJ_NAME_STYLE,
+    format_overrun_ratio as _format_overrun_ratio,
     format_relative_time as _format_relative_time,
     render_compact_chop_list as _render_compact_chop_list,
     render_compact_summary_row as _render_compact_summary_row,
@@ -20,7 +21,7 @@ from ._axe_dashboard_render import (
 )
 
 if TYPE_CHECKING:
-    from ..actions.axe_display._data import LumberjackSnapshot
+    from ..actions.axe_display._data import ChopSnapshot, LumberjackSnapshot
     from sase.axe.state import ChopRunEntry
 
 # Type alias for lumberjack summary tuple: (name, status, chops_executed)
@@ -35,6 +36,96 @@ _NARROW_SUMMARY_WIDTH = 70
 # Lumberjack log-tail footer in the overview view — capped so the chop table
 # is never crowded out. Counted in lines from the tail.
 _OVERVIEW_LOG_TAIL_LINES = 6
+
+
+def _render_overrun_advisory(text: Text, chops: list["ChopSnapshot"]) -> None:
+    """Append the overrun advisory line(s) below the chops table.
+
+    Renders only when at least one chop is marked (level ``"over"`` or
+    ``"intermittent"``). One over chop names it directly; several collapse
+    to a count naming the worst by window ratio. A second dim line names
+    the worst intermittent chop, if any. A trailing remediation line always
+    follows when anything above rendered.
+    """
+    over_chops = [
+        chop
+        for chop in chops
+        if chop.overrun is not None and chop.overrun.level == "over"
+    ]
+    intermittent_chops = [
+        chop
+        for chop in chops
+        if chop.overrun is not None and chop.overrun.level == "intermittent"
+    ]
+    if not over_chops and not intermittent_chops:
+        return
+
+    interval_seconds: int | None = None
+    interval_source: str | None = None
+    for chop in chops:
+        if chop.interval_seconds is not None:
+            interval_seconds = chop.interval_seconds
+            interval_source = chop.interval_source
+            break
+
+    text.append("\n")
+    if over_chops:
+        text.append("  ")
+        if len(over_chops) == 1:
+            chop = over_chops[0]
+            overrun = chop.overrun
+            ratio = (
+                _format_overrun_ratio(overrun.latest_ratio)
+                if overrun is not None and overrun.latest_ratio is not None
+                else "—"
+            )
+            text.append(
+                f"⚠ {chop.chop_name} reached {ratio} this lumberjack's "
+                f"{interval_seconds}s interval on its last run.",
+                style="bold #FFAF5F",
+            )
+        else:
+            worst = max(
+                over_chops,
+                key=lambda c: (c.overrun.worst_ratio or 0.0) if c.overrun else 0.0,
+            )
+            worst_overrun = worst.overrun
+            worst_ratio = (
+                _format_overrun_ratio(worst_overrun.worst_ratio)
+                if worst_overrun is not None and worst_overrun.worst_ratio is not None
+                else "—"
+            )
+            text.append(
+                f"⚠ {len(over_chops)} chops reached this lumberjack's "
+                f"{interval_seconds}s interval (worst {worst_ratio}: {worst.chop_name}).",
+                style="bold #FFAF5F",
+            )
+        if interval_source == "config":
+            text.append(" (configured interval — lumberjack not running)", style="dim")
+        text.append("\n")
+
+    if intermittent_chops:
+        worst_intermittent = max(
+            intermittent_chops,
+            key=lambda c: c.overrun.over_runs if c.overrun else 0,
+        )
+        overrun = worst_intermittent.overrun
+        over_runs = overrun.over_runs if overrun is not None else 0
+        sampled_runs = overrun.sampled_runs if overrun is not None else 0
+        text.append("  ")
+        text.append(
+            f"{worst_intermittent.chop_name} exceeded the interval on "
+            f"{over_runs} of its last {sampled_runs} runs.",
+            style="dim #FFAF5F",
+        )
+        if not over_chops and interval_source == "config":
+            text.append(" (configured interval — lumberjack not running)", style="dim")
+        text.append("\n")
+
+    text.append(
+        "  Raise `interval` or move the chop into its own lumberjack.\n",
+        style="dim",
+    )
 
 
 class AxeOutputSection(Static):
@@ -177,6 +268,8 @@ class AxeOutputSection(Static):
             _render_compact_chop_list(text, chops)
         else:
             _render_wide_chop_table(text, chops)
+
+        _render_overrun_advisory(text, chops)
 
         # Optional log-tail footer. Only added when the cache has a tail so
         # quiet lumberjacks don't get a stray empty section. The semantic

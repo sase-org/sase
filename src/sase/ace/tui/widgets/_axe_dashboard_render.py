@@ -11,6 +11,7 @@ from sase.core.time import get_timezone
 
 if TYPE_CHECKING:
     from ..actions.axe_display._data import ChopSnapshot
+    from sase.axe.chop_overrun import ChopOverrun
 
 # Sidebar-coherent palette echoed in the dashboard. Lumberjack names use the
 # top-level gold accent, chop names use the dim-copper child hue, and bgcmd
@@ -18,6 +19,40 @@ if TYPE_CHECKING:
 # on the existing blue so the right panel does not turn into one dominant hue.
 LJ_NAME_STYLE = "bold #FFD700"
 CHOP_NAME_STYLE = "#D7AF87"
+
+# Overrun severity palette. Amber, not red — an overrunning chop is
+# frequently a `success`; red is spoken for by failure. Severity is carried
+# by weight (bold vs dim), not hue.
+OVERRUN_STYLES: dict[str, str] = {
+    "over": "bold #FFAF5F",
+    "intermittent": "dim #FFAF5F",
+}
+
+
+def format_overrun_ratio(ratio: float) -> str:
+    """Format a blocking/interval ratio using the shared width-bounded ladder.
+
+    ``< 10`` keeps one decimal (``2.4×``); ``< 100`` rounds to an integer
+    (``23×``); anything larger clamps to ``99×+`` so a chop that ran 400× its
+    interval cannot widen a column.
+    """
+    if ratio < 10:
+        return f"{ratio:.1f}×"
+    if ratio < 100:
+        return f"{int(ratio)}×"
+    return "99×+"
+
+
+def overrun_chip(overrun: "ChopOverrun | None") -> tuple[str, str] | None:
+    """Return a ``(label, style)`` chip for a chop's worst-in-window ratio.
+
+    Returns ``None`` when there is nothing to show: no verdict, level
+    ``"none"``, or no sampled ratio.
+    """
+    if overrun is None or overrun.level == "none" or overrun.worst_ratio is None:
+        return None
+    style = OVERRUN_STYLES[overrun.level]
+    return f"⚠ {format_overrun_ratio(overrun.worst_ratio)}", style
 
 
 def chop_status_label(status: str) -> tuple[str, str]:
@@ -189,13 +224,14 @@ def tail_lines(text: str, max_lines: int) -> str:
 
 
 def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
-    """Append the standard four-column chop table to ``text``."""
+    """Append the standard five-column chop table to ``text``."""
     text.append("  " + "─" * 68 + "\n", style="dim")
     text.append("  ")
     text.append(f"{'NAME':<20}", style="bold #87D7FF")
     text.append(f"{'LAST RUN':<14}", style="bold #87D7FF")
-    text.append(f"{'WHEN':<14}", style="bold #87D7FF")
+    text.append(f"{'WHEN':<12}", style="bold #87D7FF")
     text.append(f"{'DURATION':>10}", style="bold #87D7FF")
+    text.append(f"{'PACE':>10}", style="bold #87D7FF")
     text.append("\n")
     text.append("  " + "─" * 68 + "\n", style="dim")
 
@@ -211,7 +247,8 @@ def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
         text.append(f"{name:<20}", style=CHOP_NAME_STYLE)
         if not chop.enabled:
             text.append(f"{'disabled':<14}", style="dim #AFAF87")
-            text.append(f"{'—':<14}", style="dim")
+            text.append(f"{'—':<12}", style="dim")
+            text.append(f"{'—':>10}", style="dim")
             text.append(f"{'—':>10}", style="dim")
             text.append("\n")
             continue
@@ -220,7 +257,7 @@ def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
             status_label, status_style = chop_status_label(latest.status)
             text.append(f"{status_label:<14}", style=status_style)
             text.append(
-                f"{format_relative_time(latest.started_at):<14}",
+                f"{format_relative_time(latest.started_at):<12}",
                 style="#87D7FF",
             )
             if latest.status in {"running", "launched"}:
@@ -235,11 +272,28 @@ def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
                     f"{format_duration_ms(latest.duration_ms):>10}",
                     style="#00D7AF",
                 )
+            pace_label, pace_style = _pace_cell(chop.overrun)
+            text.append(f"{pace_label:>10}", style=pace_style)
         else:
             text.append(f"{'—':<14}", style="dim")
-            text.append(f"{'never':<14}", style="dim")
+            text.append(f"{'never':<12}", style="dim")
+            text.append(f"{'—':>10}", style="dim")
             text.append(f"{'—':>10}", style="dim")
         text.append("\n")
+
+
+def _pace_cell(overrun: "ChopOverrun | None") -> tuple[str, str]:
+    """Return ``(label, style)`` for the PACE column of a chop's latest run.
+
+    Amber ``⚠``-prefixed ratio when the latest sampled run was itself over,
+    a dim plain ratio when it was sampled but not over, dim ``—`` when
+    nothing about the latest run is sampleable.
+    """
+    if overrun is None or overrun.latest_ratio is None:
+        return "—", "dim"
+    if overrun.level == "over":
+        return f"⚠ {format_overrun_ratio(overrun.latest_ratio)}", "bold #FFAF5F"
+    return format_overrun_ratio(overrun.latest_ratio), "dim"
 
 
 def render_compact_chop_list(text: Text, chops: list["ChopSnapshot"]) -> None:
@@ -275,6 +329,10 @@ def render_compact_chop_list(text: Text, chops: list["ChopSnapshot"]) -> None:
                 text.append(format_runtime(latest.started_at), style="#00D7AF")
             else:
                 text.append(format_duration_ms(latest.duration_ms), style="#00D7AF")
+            pace_label, pace_style = _pace_cell(chop.overrun)
+            if pace_label != "—":
+                text.append(" · ", style="dim")
+                text.append(pace_label, style=pace_style)
         else:
             text.append("never run", style="dim")
         text.append("\n")

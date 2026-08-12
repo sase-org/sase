@@ -12,9 +12,23 @@ from sase.ace.tui.actions.axe_display._data import (
 from sase.ace.tui.util import axe_log_renderer
 from sase.ace.tui.widgets import axe_dashboard
 from sase.ace.tui.widgets.axe_dashboard import AxeDashboard
+from sase.axe.chop_overrun import ChopOverrun
 from sase.axe.state import LumberjackMetrics, LumberjackStatus
 
 from ._axe_dashboard_helpers import _entry
+
+
+def _overrun(
+    level: str, *, worst_ratio: float | None, latest_ratio: float | None
+) -> ChopOverrun:
+    return ChopOverrun(
+        level=level,  # type: ignore[arg-type]
+        sampled_runs=8,
+        over_runs=2 if level != "none" else 0,
+        worst_ratio=worst_ratio,
+        worst_blocking_ms=None,
+        latest_ratio=latest_ratio,
+    )
 
 
 def _overview_snapshot(
@@ -380,3 +394,175 @@ def test_lumberjack_overview_renders_when_snapshot_has_no_metrics() -> None:
     assert "Status:" in plain
     # No chops means the placeholder message; no traceback.
     assert "No chops configured" in plain
+
+
+# --- tab_indicator: PACE column, compact chip, advisory line ---
+
+
+def _chop_with_overrun(
+    name: str,
+    *,
+    status: str = "success",
+    duration_ms: int = 240_000,
+    interval_seconds: int | None = 60,
+    interval_source: str = "runtime",
+    overrun: ChopOverrun | None = None,
+) -> ChopSnapshot:
+    return ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name=name,
+        description="",
+        runs=[
+            ChopRunSnapshot(
+                entry=_entry("a", status=status, duration_ms=duration_ms),
+                output_tail="",
+            )
+        ],
+        interval_seconds=interval_seconds,
+        interval_source=interval_source,  # type: ignore[arg-type]
+        overrun=overrun,
+    )
+
+
+def test_wide_chop_table_pace_column_header_and_over_ratio() -> None:
+    """PACE header appears and an over chop's row shows the bold amber ratio."""
+    chop = _chop_with_overrun(
+        "mentor_sweep",
+        overrun=_overrun("over", worst_ratio=4.0, latest_ratio=4.0),
+    )
+    snap = _overview_snapshot(chops=[chop])
+    text = _capture_overview(snap, width=120)
+    plain = text.plain
+    assert "PACE" in plain
+    assert "⚠ 4.0×" in plain
+    pace_spans = [
+        str(span.style)
+        for span in text.spans
+        if "⚠ 4.0×" in plain[span.start : span.end]
+    ]
+    assert pace_spans and all("bold #FFAF5F" in style for style in pace_spans)
+
+
+def test_wide_chop_table_pace_column_dim_ratio_when_not_over() -> None:
+    """A sampled-but-not-over latest run shows a dim plain ratio, no ⚠."""
+    chop = _chop_with_overrun(
+        "steady",
+        overrun=_overrun("intermittent", worst_ratio=1.2, latest_ratio=0.4),
+    )
+    snap = _overview_snapshot(chops=[chop])
+    plain = _capture_overview(snap, width=120).plain
+    assert "0.4×" in plain
+    assert "⚠ 0.4×" not in plain
+
+
+def test_wide_chop_table_pace_column_dash_when_unsampleable() -> None:
+    """No overrun verdict renders the PACE dash, matching other empty cells."""
+    chop = _chop_with_overrun("never_sampled", overrun=None)
+    snap = _overview_snapshot(chops=[chop])
+    plain = _capture_overview(snap, width=120).plain
+    lines = [ln for ln in plain.splitlines() if "never_sampled" in ln]
+    assert lines
+    assert lines[0].rstrip().endswith("—")
+
+
+def test_wide_chop_table_row_width_matches_68_cell_rule() -> None:
+    """The re-spaced NAME/LAST RUN/WHEN/DURATION/PACE header stays at 68 cells."""
+    chop = _chop_with_overrun(
+        "mentor_sweep",
+        overrun=_overrun("over", worst_ratio=4.0, latest_ratio=4.0),
+    )
+    snap = _overview_snapshot(chops=[chop])
+    plain = _capture_overview(snap, width=120).plain
+    lines = plain.splitlines()
+    header_line = next(ln for ln in lines if ln.strip().startswith("NAME"))
+    data_line = next(ln for ln in lines if "mentor_sweep" in ln)
+    assert len(header_line) == 68
+    assert len(data_line) == 68
+
+
+def test_compact_chop_list_appends_ratio_chip() -> None:
+    """The narrow compact list appends ` · ⚠ 4.0×` for an over chop."""
+    chop = _chop_with_overrun(
+        "mentor_sweep",
+        overrun=_overrun("over", worst_ratio=4.0, latest_ratio=4.0),
+    )
+    snap = _overview_snapshot(chops=[chop])
+    plain = _capture_overview(snap, width=40).plain
+    assert " · ⚠ 4.0×" in plain
+
+
+def test_advisory_line_single_over_chop() -> None:
+    """One over chop names itself directly with its ratio and the interval."""
+    chop = _chop_with_overrun(
+        "mentor_sweep",
+        overrun=_overrun("over", worst_ratio=4.0, latest_ratio=4.0),
+    )
+    snap = _overview_snapshot(chops=[chop], interval=60)
+    plain = _capture_overview(snap, width=120).plain
+    assert (
+        "⚠ mentor_sweep reached 4.0× this lumberjack's 60s interval on its last run."
+        in plain
+    )
+    assert "Raise `interval` or move the chop into its own lumberjack." in plain
+
+
+def test_advisory_line_multiple_over_chops_collapse_to_worst() -> None:
+    """Several over chops collapse to a count naming the worst by ratio."""
+    worse = _chop_with_overrun(
+        "mentor_sweep",
+        overrun=_overrun("over", worst_ratio=6.0, latest_ratio=6.0),
+    )
+    milder = _chop_with_overrun(
+        "bead_triage",
+        overrun=_overrun("over", worst_ratio=2.0, latest_ratio=2.0),
+    )
+    snap = _overview_snapshot(chops=[worse, milder], interval=60)
+    plain = _capture_overview(snap, width=120).plain
+    assert "⚠ 2 chops reached this lumberjack's 60s interval" in plain
+    assert "worst 6.0×: mentor_sweep" in plain
+
+
+def test_advisory_line_intermittent_gets_second_dim_line() -> None:
+    """An intermittent chop is named on its own dim line below the primary one."""
+    over_chop = _chop_with_overrun(
+        "mentor_sweep",
+        overrun=_overrun("over", worst_ratio=4.0, latest_ratio=4.0),
+    )
+    intermittent_chop = _chop_with_overrun(
+        "bead_triage",
+        overrun=ChopOverrun(
+            level="intermittent",
+            sampled_runs=8,
+            over_runs=2,
+            worst_ratio=1.5,
+            worst_blocking_ms=None,
+            latest_ratio=0.5,
+        ),
+    )
+    snap = _overview_snapshot(chops=[over_chop, intermittent_chop], interval=60)
+    plain = _capture_overview(snap, width=120).plain
+    assert "bead_triage exceeded the interval on 2 of its last 8 runs." in plain
+
+
+def test_advisory_line_absent_when_no_chop_marked() -> None:
+    """No advisory renders when every chop is at overrun level none."""
+    healthy = _chop_with_overrun(
+        "fix_hooks",
+        overrun=_overrun("none", worst_ratio=None, latest_ratio=None),
+    )
+    snap = _overview_snapshot(chops=[healthy], interval=60)
+    plain = _capture_overview(snap, width=120).plain
+    assert "⚠" not in plain
+    assert "Raise `interval`" not in plain
+
+
+def test_advisory_line_appends_configured_interval_suffix() -> None:
+    """A config-sourced interval (lumberjack not running) gets a dim suffix."""
+    chop = _chop_with_overrun(
+        "mentor_sweep",
+        interval_source="config",
+        overrun=_overrun("over", worst_ratio=4.0, latest_ratio=4.0),
+    )
+    snap = _overview_snapshot(chops=[chop], interval=60)
+    plain = _capture_overview(snap, width=120).plain
+    assert "(configured interval — lumberjack not running)" in plain

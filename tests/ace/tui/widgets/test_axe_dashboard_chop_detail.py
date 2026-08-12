@@ -141,6 +141,7 @@ def test_update_chop_run_display_clamps_out_of_range_idx() -> None:
             run_idx: int,
             run_total: int,
             countdown: int,
+            **_: object,
         ) -> None:
             selected.append(run)  # type: ignore[arg-type]
             assert run_idx == 0  # clamped
@@ -192,6 +193,70 @@ def test_chop_status_running_label_style() -> None:
     label, style = axe_dashboard._chop_status_label("running")
     assert "running" in label.lower()
     assert "green" in style
+
+
+def test_format_overrun_ratio_ladder() -> None:
+    """The shared ratio ladder stays width-bounded at every magnitude."""
+    from sase.ace.tui.widgets._axe_dashboard_render import format_overrun_ratio
+
+    assert format_overrun_ratio(2.4) == "2.4×"
+    assert format_overrun_ratio(9.99) == "10.0×"
+    assert format_overrun_ratio(10.0) == "10×"
+    assert format_overrun_ratio(23.0) == "23×"
+    assert format_overrun_ratio(99.9) == "99×"
+    assert format_overrun_ratio(100.0) == "99×+"
+    assert format_overrun_ratio(400.0) == "99×+"
+
+
+def test_overrun_chip_none_for_healthy_or_unsampled() -> None:
+    """No chip renders for level ``none`` or a verdict-less chop."""
+    from sase.ace.tui.widgets._axe_dashboard_render import overrun_chip
+    from sase.axe.chop_overrun import ChopOverrun
+
+    assert overrun_chip(None) is None
+    assert (
+        overrun_chip(
+            ChopOverrun(
+                level="none",
+                sampled_runs=3,
+                over_runs=0,
+                worst_ratio=None,
+                worst_blocking_ms=None,
+                latest_ratio=None,
+            )
+        )
+        is None
+    )
+
+
+def test_overrun_chip_styles_by_level() -> None:
+    """The chip uses bold amber for ``over`` and dim amber for ``intermittent``."""
+    from sase.ace.tui.widgets._axe_dashboard_render import overrun_chip
+    from sase.axe.chop_overrun import ChopOverrun
+
+    over_chip = overrun_chip(
+        ChopOverrun(
+            level="over",
+            sampled_runs=5,
+            over_runs=2,
+            worst_ratio=4.0,
+            worst_blocking_ms=240_000,
+            latest_ratio=4.0,
+        )
+    )
+    assert over_chip == ("⚠ 4.0×", "bold #FFAF5F")
+
+    intermittent_chip = overrun_chip(
+        ChopOverrun(
+            level="intermittent",
+            sampled_runs=8,
+            over_runs=2,
+            worst_ratio=1.2,
+            worst_blocking_ms=72_000,
+            latest_ratio=0.5,
+        )
+    )
+    assert intermittent_chip == ("⚠ 1.2×", "dim #FFAF5F")
 
 
 def test_update_chop_run_display_passes_script_output_to_composed_renderer() -> None:

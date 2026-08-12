@@ -333,6 +333,8 @@ class AxeDashboard(Static):
                 display_idx,
                 run_total,
                 countdown,
+                overrun=snapshot.overrun,
+                interval_seconds=snapshot.interval_seconds,
             )
 
             if run is None:

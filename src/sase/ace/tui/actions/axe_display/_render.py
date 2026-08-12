@@ -266,6 +266,10 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                 bgcmd_running_cache = {
                     slot: snap.running for slot, snap in self._axe_bgcmd_details.items()
                 }
+                lumberjack_overruns = {
+                    name: snap.overrun_chop_count
+                    for name, snap in self._axe_lumberjack_snapshots.items()
+                }
                 bgcmd_list.update_list(
                     items=self._axe_items,
                     current_idx=self.current_idx,
@@ -280,6 +284,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     lumberjack_statuses=self._axe_lumberjack_statuses,
                     bgcmd_running=bgcmd_running_cache,
                     chop_snapshots=self._axe_chop_snapshots,
+                    lumberjack_overruns=lumberjack_overruns,
                 )
             except Exception:
                 pass

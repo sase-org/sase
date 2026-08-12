@@ -12,6 +12,7 @@ import pytest
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_axe_png_snapshot_fixtures import (
     axe_bgcmd_data,
+    axe_chop_overrun_data,
     axe_disabled_chop_data,
     axe_lumberjack_tree_data,
 )
@@ -107,4 +108,48 @@ async def test_axe_empty_png_snapshot(
             page,
             "axe_empty_120x40",
             title="ACE axe empty",
+        )
+
+
+async def test_axe_chop_overrun_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sidebar chips, roll-up chip, PACE column, and advisory line together."""
+    patch_startup_loaders(monkeypatch, axe_data=axe_chop_overrun_data())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_overrun_120x40",
+            title="ACE axe chop overrun",
+        )
+
+
+async def test_axe_chop_overrun_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The overrun indicators degrade sanely in the narrow compact layout."""
+    patch_startup_loaders(monkeypatch, axe_data=axe_chop_overrun_data())
+
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 36)) as page:
+        await wait_for_startup(page)
+        await page.press("tab")
+        await page.expect_state("tab", "axe")
+        # The lumberjack overview's wide/compact choice is width-gated; force
+        # a render pass now that layout has settled to the narrow width
+        # instead of the pre-layout wide-mode content from initial mount.
+        page.app._refresh_axe_display()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "axe_chop_overrun_narrow_70x36",
+            title="ACE axe chop overrun narrow",
         )

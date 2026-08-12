@@ -13,6 +13,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from ..bgcmd import BackgroundCommandInfo, is_slot_running
+from ._axe_dashboard_render import overrun_chip as _overrun_chip
 
 if TYPE_CHECKING:
     from ..actions.axe_display._data import ChopSnapshot
@@ -123,6 +124,7 @@ class BgCmdList(OptionList):
         lumberjack_statuses: "dict[str, LumberjackStatus | None] | None" = None,
         bgcmd_running: dict[int, bool] | None = None,
         chop_snapshots: "dict[tuple[str, str], ChopSnapshot] | None" = None,
+        lumberjack_overruns: dict[str, int] | None = None,
     ) -> None:
         """Update the list with current AXE items.
 
@@ -140,6 +142,9 @@ class BgCmdList(OptionList):
                 back to a synchronous process check.
             chop_snapshots: Cached per-chop snapshots, keyed by
                 ``(lumberjack_name, chop_name)``.
+            lumberjack_overruns: Cached count of chops at overrun level
+                ``"over"``, keyed by lumberjack name. ``None`` or a missing
+                key renders no roll-up chip.
         """
         del axe_running, lumberjack_names  # accepted for callers; not rendered
         self._programmatic_update = True
@@ -168,11 +173,17 @@ class BgCmdList(OptionList):
                         from sase.axe.state import read_lumberjack_status
 
                         lumberjack_status = read_lumberjack_status(name)
+                    overrun_count = (
+                        lumberjack_overruns.get(name, 0)
+                        if lumberjack_overruns is not None
+                        else 0
+                    )
                     option = self._format_lumberjack_option(
                         name=name,
                         status=lumberjack_status,
                         is_selected=is_selected,
                         hint_char=hint_char,
+                        overrun_count=overrun_count,
                     )
                 case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
                     snap = (
@@ -230,6 +241,7 @@ class BgCmdList(OptionList):
         status: Any,
         is_selected: bool,
         hint_char: str | None = None,
+        overrun_count: int = 0,
     ) -> Option:
         """Format a top-level lumberjack option for display."""
         text = Text(no_wrap=True, overflow="ellipsis")
@@ -259,6 +271,14 @@ class BgCmdList(OptionList):
         # Name
         label_style = _LJ_NAME_SELECTED_STYLE if is_selected else _LJ_NAME_STYLE
         text.append(name, style=label_style)
+
+        # Overrun roll-up chip: counts only chops at level "over" so a
+        # collapsed fold still tells the operator something under this
+        # lumberjack needs attention. Placed before the cycles/errors chip
+        # per the design's ordering.
+        if overrun_count > 0:
+            text.append("  ")
+            text.append(f"⚠{overrun_count}", style="bold #FFAF5F")
 
         # Optional compact status chip: cycles run / errors when known.
         # Keeps the row a single line — the chip is appended at the end
@@ -315,6 +335,16 @@ class BgCmdList(OptionList):
             text.append("  disabled", style="dim #AFAF87")
         elif snapshot is not None and snapshot.generated:
             text.append("  instance", style="dim #B87333")
+
+        # Overrun chip — the chop's worst sampled ratio in the cached
+        # window, so a collapsed-then-expanded tree tells the same story
+        # every time. Disabled chops never run, so they never get one.
+        if snapshot is not None and snapshot.enabled:
+            chip = _overrun_chip(snapshot.overrun)
+            if chip is not None:
+                chip_label, chip_style = chip
+                text.append("  ")
+                text.append(chip_label, style=chip_style)
 
         return Option(text, id=f"chop-{lumberjack_name}-{chop_name}")
 

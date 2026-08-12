@@ -13,6 +13,7 @@ from ._axe_dashboard_render import (
     chop_status_label as _chop_status_label,
     format_duration_ms as _format_duration_ms,
     format_elapsed as _format_elapsed,
+    format_overrun_ratio as _format_overrun_ratio,
     format_runtime as _format_runtime,
     format_time_with_relative as _format_time_with_relative,
 )
@@ -20,6 +21,7 @@ from ._axe_dashboard_render import (
 if TYPE_CHECKING:
     from ..actions.axe_display._data import AxeStatusDegradation, ChopRunSnapshot
     from ..bgcmd import BackgroundCommandInfo
+    from sase.axe.chop_overrun import ChopOverrun
 
 
 class AxeStatusSection(Static):
@@ -50,6 +52,8 @@ class AxeStatusSection(Static):
         self._chop_run: ChopRunSnapshot | None = None
         self._chop_run_idx: int = 0
         self._chop_run_total: int = 0
+        self._chop_overrun: ChopOverrun | None = None
+        self._chop_interval_seconds: int | None = None
         # Shared state
         self._countdown = 0
 
@@ -134,6 +138,8 @@ class AxeStatusSection(Static):
         run_idx: int,
         run_total: int,
         countdown: int = 0,
+        overrun: "ChopOverrun | None" = None,
+        interval_seconds: int | None = None,
     ) -> None:
         """Update the status section header for a chop's selected run.
 
@@ -145,6 +151,12 @@ class AxeStatusSection(Static):
                 (0 = newest).
             run_total: Total number of runs in cached history.
             countdown: Seconds until next auto-refresh.
+            overrun: Cached window-level overrun verdict for this chop.
+                The header segment only ever describes the newest sampled
+                run, so it renders when ``run_idx`` is 0 and ``overrun``'s
+                level is ``"over"``.
+            interval_seconds: The lumberjack's effective interval, for the
+                ``of {interval}s interval`` phrase.
         """
         self._chop_mode = True
         self._lumberjack_mode = False
@@ -154,6 +166,8 @@ class AxeStatusSection(Static):
         self._chop_run = run
         self._chop_run_idx = run_idx
         self._chop_run_total = run_total
+        self._chop_overrun = overrun
+        self._chop_interval_seconds = interval_seconds
         self._countdown = countdown
         self._refresh_display()
 
@@ -325,6 +339,25 @@ class AxeStatusSection(Static):
             else:
                 text.append("Took: ", style="bold #87D7FF")
                 text.append(_format_duration_ms(entry.duration_ms), style="#00D7AF")
+
+            # Overrun segment — the displayed run's own ratio, not the
+            # window. Only the newest sampled run's ratio is known
+            # (`overrun.latest_ratio`), so this only ever renders while
+            # viewing that run (run_idx 0); paging to an older run hides it.
+            overrun = self._chop_overrun
+            if (
+                self._chop_run_idx == 0
+                and overrun is not None
+                and overrun.level == "over"
+                and overrun.latest_ratio is not None
+                and self._chop_interval_seconds is not None
+            ):
+                text.append("  │  ", style="dim")
+                text.append(
+                    f"⚠ {_format_overrun_ratio(overrun.latest_ratio)} of "
+                    f"{self._chop_interval_seconds}s interval",
+                    style="bold #FFAF5F",
+                )
 
             # Exit code when present (non-agent, non-running runs)
             if entry.exit_code is not None and not is_active:

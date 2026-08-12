@@ -11,9 +11,11 @@ from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.actions.axe_display._data import (
     AxeStatusDegradation,
     ChopRunSnapshot,
+    ChopSnapshot,
 )
 from sase.ace.tui.widgets import axe_dashboard
 from sase.ace.tui.widgets.axe_dashboard import AxeDashboard
+from sase.axe.chop_overrun import ChopOverrun
 from sase.axe.state import LumberjackStatus
 
 from ._axe_dashboard_helpers import _entry, _snapshot_with_runs
@@ -298,3 +300,100 @@ def test_chop_status_header_colors_names_with_sidebar_taxonomy() -> None:
     assert any(
         "D7AF87" in str(style) and "fast" in fragment for style, fragment in spans
     )
+
+
+def _run_display_plain(snap: ChopSnapshot, *, run_idx: int = 0) -> str:
+    rendered: dict[str, object] = {}
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    section.update = lambda content: rendered.__setitem__("content", content)  # type: ignore[assignment]
+
+    class _OutputSection:
+        def update_chop_run(self, *_a: object, **_kw: object) -> None:
+            pass
+
+        def update(self, *_a: object, **_kw: object) -> None:
+            pass
+
+    dashboard = AxeDashboard.__new__(AxeDashboard)
+    dashboard.query_one = lambda sel, _cls: (  # type: ignore[assignment]
+        section if "status" in sel else _OutputSection()
+    )
+    dashboard.update_chop_run_display(snapshot=snap, run_idx=run_idx, countdown=0)
+    content = rendered["content"]
+    assert isinstance(content, Text)
+    return content.plain
+
+
+def test_chop_detail_header_shows_overrun_segment_for_over_newest_run() -> None:
+    """The newest run being over shows the ``⚠ {ratio} of {interval}s interval``
+    segment right after Took:."""
+    over_run = ChopRunSnapshot(
+        entry=_entry("a", status="success", duration_ms=240_000),
+        output_tail="",
+    )
+    snap = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="mentor_sweep",
+        description="",
+        runs=[over_run],
+        interval_seconds=60,
+        interval_source="runtime",
+        overrun=ChopOverrun(
+            level="over",
+            sampled_runs=5,
+            over_runs=3,
+            worst_ratio=4.0,
+            worst_blocking_ms=240_000,
+            latest_ratio=4.0,
+        ),
+    )
+    plain = _run_display_plain(snap, run_idx=0)
+    assert "Took:" in plain
+    assert "⚠ 4.0× of 60s interval" in plain
+    assert plain.index("Took:") < plain.index("⚠ 4.0× of 60s interval")
+
+
+def test_chop_detail_header_omits_segment_for_fast_run() -> None:
+    """A fast (non-over) newest run shows no overrun segment at all."""
+    fast_run = ChopRunSnapshot(
+        entry=_entry("a", status="success", duration_ms=250),
+        output_tail="",
+    )
+    snap = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="",
+        runs=[fast_run],
+        interval_seconds=60,
+        interval_source="runtime",
+        overrun=ChopOverrun(
+            level="none",
+            sampled_runs=5,
+            over_runs=0,
+            worst_ratio=0.1,
+            worst_blocking_ms=250,
+            latest_ratio=0.1,
+        ),
+    )
+    plain = _run_display_plain(snap, run_idx=0)
+    assert "⚠" not in plain
+
+
+def test_chop_detail_header_omits_segment_without_overrun_verdict() -> None:
+    """A missing/degraded overrun verdict never raises and shows no segment."""
+    run = ChopRunSnapshot(
+        entry=_entry("a", status="success", duration_ms=250),
+        output_tail="",
+    )
+    snap = ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="",
+        runs=[run],
+        interval_seconds=None,
+        interval_source=None,
+        overrun=None,
+    )
+    plain = _run_display_plain(snap, run_idx=0)
+    assert "⚠" not in plain

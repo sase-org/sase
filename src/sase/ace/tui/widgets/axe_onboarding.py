@@ -182,6 +182,13 @@ class AxeOnboarding(VerticalScroll):
             "Run history keeps each chop's status, duration, and captured output.",
             style="dim",
         )
+        text.append("\n")
+        text.append("⚠ 2.4×", style="bold #FFAF5F")
+        text.append(
+            " marks a chop that ran as long as its lumberjack's interval; "
+            "raise the interval or give it its own lumberjack.",
+            style="dim",
+        )
         return text
 
     @staticmethod

@@ -20,6 +20,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.actions.axe_display._data import ChopSnapshot
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.widgets.bgcmd_list import (
     AxeItem,
@@ -29,6 +30,7 @@ from sase.ace.tui.widgets.bgcmd_list import (
     LumberjackItem,
     _DIVIDER_LABEL,
 )
+from sase.axe.chop_overrun import ChopOverrun
 from sase.axe.state import LumberjackStatus
 
 
@@ -60,6 +62,32 @@ def _make_status(name: str, status: str = "running") -> LumberjackStatus:
 class _Host(App):
     def compose(self) -> ComposeResult:
         yield BgCmdList(id="bgcmd-list")
+
+
+def _overrun(
+    level: str, *, worst_ratio: float | None = 2.4, latest_ratio: float | None = 2.4
+) -> ChopOverrun:
+    return ChopOverrun(
+        level=level,  # type: ignore[arg-type]
+        sampled_runs=5,
+        over_runs=1 if level != "none" else 0,
+        worst_ratio=worst_ratio,
+        worst_blocking_ms=None,
+        latest_ratio=latest_ratio,
+    )
+
+
+def _chop_snapshot(
+    *, enabled: bool = True, overrun: ChopOverrun | None = None
+) -> ChopSnapshot:
+    return ChopSnapshot(
+        lumberjack_name="hooks",
+        chop_name="fast_lint",
+        description="",
+        runs=[],
+        enabled=enabled,
+        overrun=overrun,
+    )
 
 
 def _option_text(option: Option) -> Text:
@@ -423,3 +451,168 @@ async def test_each_row_type_uses_distinct_dominant_hue() -> None:
     assert all("#FFD700" not in style for style in cmd_span_styles), (
         f"bgcmd command label must not use lumberjack gold; got {cmd_span_styles}"
     )
+
+
+async def test_chop_row_shows_bold_amber_chip_when_over() -> None:
+    """An ``over`` chop shows a bold-amber worst-ratio chip after its name."""
+    items: list[AxeItem] = [
+        LumberjackItem(name="hooks"),
+        ChopItem(lumberjack_name="hooks", chop_name="fast_lint"),
+    ]
+    snap = _chop_snapshot(overrun=_overrun("over", worst_ratio=4.0))
+    app = _Host()
+    async with app.run_test():
+        widget = app.query_one(BgCmdList)
+        widget.update_list(
+            items=items,
+            current_idx=0,
+            axe_running=False,
+            lumberjack_names=["hooks"],
+            bgcmd_infos={},
+            lumberjack_statuses={"hooks": _make_status("hooks")},
+            bgcmd_running={},
+            chop_snapshots={("hooks", "fast_lint"): snap},
+        )
+
+        text = _option_text(widget.get_option_at_index(1))
+
+    assert "⚠ 4.0×" in text.plain
+    over_spans = [
+        str(span.style)
+        for span in text.spans
+        if "⚠ 4.0×" in text.plain[span.start : span.end]
+    ]
+    assert over_spans and all("bold #FFAF5F" in style for style in over_spans)
+
+
+async def test_chop_row_shows_dim_amber_chip_when_intermittent() -> None:
+    """An ``intermittent`` chop shows the same chip but dim, not bold."""
+    items: list[AxeItem] = [
+        LumberjackItem(name="hooks"),
+        ChopItem(lumberjack_name="hooks", chop_name="fast_lint"),
+    ]
+    snap = _chop_snapshot(overrun=_overrun("intermittent", worst_ratio=1.2))
+    app = _Host()
+    async with app.run_test():
+        widget = app.query_one(BgCmdList)
+        widget.update_list(
+            items=items,
+            current_idx=0,
+            axe_running=False,
+            lumberjack_names=["hooks"],
+            bgcmd_infos={},
+            lumberjack_statuses={"hooks": _make_status("hooks")},
+            bgcmd_running={},
+            chop_snapshots={("hooks", "fast_lint"): snap},
+        )
+
+        text = _option_text(widget.get_option_at_index(1))
+
+    assert "⚠ 1.2×" in text.plain
+    chip_spans = [
+        str(span.style)
+        for span in text.spans
+        if "⚠ 1.2×" in text.plain[span.start : span.end]
+    ]
+    assert chip_spans and all("dim #FFAF5F" in style for style in chip_spans)
+
+
+async def test_chop_row_omits_chip_when_level_none() -> None:
+    """A healthy chop (level ``none``) never shows an overrun chip."""
+    items: list[AxeItem] = [
+        LumberjackItem(name="hooks"),
+        ChopItem(lumberjack_name="hooks", chop_name="fast_lint"),
+    ]
+    snap = _chop_snapshot(overrun=_overrun("none", worst_ratio=None, latest_ratio=None))
+    app = _Host()
+    async with app.run_test():
+        widget = app.query_one(BgCmdList)
+        widget.update_list(
+            items=items,
+            current_idx=0,
+            axe_running=False,
+            lumberjack_names=["hooks"],
+            bgcmd_infos={},
+            lumberjack_statuses={"hooks": _make_status("hooks")},
+            bgcmd_running={},
+            chop_snapshots={("hooks", "fast_lint"): snap},
+        )
+
+        text = _option_text(widget.get_option_at_index(1))
+
+    assert "⚠" not in text.plain
+
+
+async def test_disabled_chop_never_shows_overrun_chip() -> None:
+    """A disabled chop never gets a chip even if a stale verdict lingers."""
+    items: list[AxeItem] = [
+        LumberjackItem(name="hooks"),
+        ChopItem(lumberjack_name="hooks", chop_name="fast_lint"),
+    ]
+    snap = _chop_snapshot(enabled=False, overrun=_overrun("over", worst_ratio=4.0))
+    app = _Host()
+    async with app.run_test():
+        widget = app.query_one(BgCmdList)
+        widget.update_list(
+            items=items,
+            current_idx=0,
+            axe_running=False,
+            lumberjack_names=["hooks"],
+            bgcmd_infos={},
+            lumberjack_statuses={"hooks": _make_status("hooks")},
+            bgcmd_running={},
+            chop_snapshots={("hooks", "fast_lint"): snap},
+        )
+
+        text = _option_text(widget.get_option_at_index(1))
+
+    assert "⚠" not in text.plain
+    assert "disabled" in text.plain
+
+
+async def test_lumberjack_rollup_chip_precedes_cycles_chip() -> None:
+    """The ``⚠N`` roll-up chip is placed before the cycles/errors chip."""
+    items: list[AxeItem] = [LumberjackItem(name="hooks")]
+    app = _Host()
+    async with app.run_test():
+        widget = app.query_one(BgCmdList)
+        widget.update_list(
+            items=items,
+            current_idx=0,
+            axe_running=False,
+            lumberjack_names=["hooks"],
+            bgcmd_infos={},
+            lumberjack_statuses={"hooks": _make_status("hooks")},
+            bgcmd_running={},
+            lumberjack_overruns={"hooks": 2},
+        )
+
+        text = _option_text(widget.get_option_at_index(0))
+        plain = text.plain
+
+    assert "⚠2" in plain, f"expected roll-up chip '⚠2': {plain!r}"
+    assert plain.index("⚠2") < plain.index("7c"), (
+        f"roll-up chip must precede cycles chip: {plain!r}"
+    )
+
+
+async def test_lumberjack_rollup_chip_absent_when_zero() -> None:
+    """No roll-up chip renders when the lumberjack has zero over chops."""
+    items: list[AxeItem] = [LumberjackItem(name="hooks")]
+    app = _Host()
+    async with app.run_test():
+        widget = app.query_one(BgCmdList)
+        widget.update_list(
+            items=items,
+            current_idx=0,
+            axe_running=False,
+            lumberjack_names=["hooks"],
+            bgcmd_infos={},
+            lumberjack_statuses={"hooks": _make_status("hooks")},
+            bgcmd_running={},
+            lumberjack_overruns={"hooks": 0},
+        )
+
+        text = _option_text(widget.get_option_at_index(0))
+
+    assert "⚠" not in text.plain
