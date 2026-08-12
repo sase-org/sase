@@ -9,11 +9,14 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from sase.env_contracts import provider_project_dir_from_env
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError, GateGroup
+
+if TYPE_CHECKING:
+    from sase.sdd.plan_validate import PlanValidationResult
 
 PLAN_EDIT_OPERATION_ID = "edit_plan"
 PLAN_RESOURCE_PATH = "plan.md"
@@ -61,7 +64,7 @@ def create_plan_approval_gate(
         validate_plan_auto_argument(typed_tier, auto_argument)
     from sase.plan_approval_actions import require_plan_approval_validation
 
-    require_plan_approval_validation(plan_path, typed_tier)
+    validation = require_plan_approval_validation(plan_path, typed_tier)
     from sase.notification_gates.service import create_gate
 
     return create_gate(
@@ -69,6 +72,7 @@ def create_plan_approval_gate(
             plan_path,
             session_id,
             tier=typed_tier,
+            validation=validation,
             auto_enabled=auto_enabled,
             auto_argument=auto_argument,
             agent_name=agent_name,
@@ -85,6 +89,7 @@ def _build_plan_gate_spec(
     session_id: str,
     *,
     tier: PlanGateTier,
+    validation: PlanValidationResult,
     auto_enabled: bool,
     auto_argument: str | None,
     agent_name: str | None,
@@ -103,6 +108,11 @@ def _build_plan_gate_spec(
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
     )
+    from sase.sdd.plan_summary import encode_plan_counts, plan_counts_summary
+
+    counts_summary = plan_counts_summary(validation, tier=tier)
+    if counts_summary is not None:
+        action_data.update(encode_plan_counts(counts_summary))
     option_ids = plan_gate_option_ids(tier)
     plan_name = plan_file.name
     return {
@@ -134,7 +144,7 @@ def _build_plan_gate_spec(
                 (
                     "Epic ready for review: "
                     if tier == "epic"
-                    else "Plan ready for review: "
+                    else "Tale ready for review: "
                 )
                 + plan_name
             ],

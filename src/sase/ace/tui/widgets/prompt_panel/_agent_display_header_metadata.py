@@ -15,6 +15,7 @@ from sase.agent.status_buckets import (
     status_bucket_for_values,
 )
 from sase.core.wait_dependency_resolution import TribeWaitBinding
+from sase.plan_tier_presentation import PLAN_TIER_PRESENTATIONS
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent
@@ -52,8 +53,10 @@ from ._agent_wait_section import (
 _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
 _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
     "plan": ("\u26a1 PLAN", "bold #5FD7FF"),
-    "tale": ("\u26a1 TALE", "bold #FFD75F"),
-    "epic": ("\u26a1 EPIC", "bold #AF87FF"),
+    **{
+        tier: (f"\u26a1 {tier.upper()}", presentation.rich_style)
+        for tier, presentation in PLAN_TIER_PRESENTATIONS.items()
+    },
 }
 _LEGACY_MEMBER_STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",

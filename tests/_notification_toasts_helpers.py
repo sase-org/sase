@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from textual.content import Content
+
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.actions.agents._notifications import AgentNotificationMixin
 from sase.ace.tui.modals.notification_modal_tags import (
@@ -24,6 +26,11 @@ from sase.core.notification_store_wire import (
 from sase.core.time import get_timezone
 from sase.notifications import is_priority
 from sase.notifications.models import Notification
+
+
+def _plain(message: str) -> str:
+    """Render a toast's Textual markup down to its displayed plain text."""
+    return Content.from_markup(message).plain
 
 
 def _make(

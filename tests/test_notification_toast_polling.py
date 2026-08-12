@@ -22,6 +22,7 @@ from tests._notification_toasts_helpers import (
     _FakeApp,
     _make,
     _patch_snapshot,
+    _plain,
     _snapshot,
 )
 
@@ -40,8 +41,13 @@ class TestPollingDelta:
         assert app.notify.call_count == 0
         assert app._bell_rung == 0
 
-    @pytest.mark.parametrize("action", ["PlanApproval", "EpicApproval"])
-    def test_single_new_plan_review_warns_and_rings(self, action: str) -> None:
+    @pytest.mark.parametrize(
+        ("action", "tier_label"),
+        [("PlanApproval", "Tale"), ("EpicApproval", "Epic")],
+    )
+    def test_single_new_plan_review_warns_and_rings(
+        self, action: str, tier_label: str
+    ) -> None:
         app = _FakeApp()
         new_notif = _make(
             action=action,
@@ -59,7 +65,7 @@ class TestPollingDelta:
         call = app.notify.call_args
         message = call.args[0]
         severity = call.kwargs["severity"]
-        assert "Plan ready for @sase-n.4" in message
+        assert f"{tier_label} ready for @sase-n.4" in _plain(message)
         assert severity == "warning"
 
     def test_already_handled_plan_approval_does_not_alert(self) -> None:

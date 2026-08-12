@@ -135,6 +135,40 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert actions == {"PlanApproval", "EpicApproval"}
 
 
+def test_tale_gate_note_and_action_data_are_tier_aware(gate_home: Path) -> None:
+    tale = create_plan_approval_gate(
+        write_plan(gate_home, "tale.md", VALID_TALE_PLAN),
+        "tale-request",
+        agent_name="planner.tale",
+    )
+    request = json.loads(tale.request_path.read_text(encoding="utf-8"))
+
+    assert request["presentation"]["notes"] == ["Tale ready for review: tale.md"]
+    action_data = request["presentation"]["action_data"]
+    assert action_data["plan_tier"] == "tale"
+    assert "plan_phase_count" not in action_data
+    assert "plan_wave_count" not in action_data
+    assert "plan_phase_sizes" not in action_data
+
+
+def test_epic_gate_note_and_action_data_carry_phase_wave_size_counts(
+    gate_home: Path,
+) -> None:
+    epic = create_plan_approval_gate(
+        write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
+        "epic-request",
+        agent_name="planner.epic",
+    )
+    request = json.loads(epic.request_path.read_text(encoding="utf-8"))
+
+    assert request["presentation"]["notes"] == ["Epic ready for review: epic.md"]
+    action_data = request["presentation"]["action_data"]
+    assert action_data["plan_tier"] == "epic"
+    assert action_data["plan_phase_count"] == "1"
+    assert action_data["plan_wave_count"] == "1"
+    assert action_data["plan_phase_sizes"] == "small=1"
+
+
 def test_plan_gate_project_dir_uses_runtime_neutral_env_contract(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
