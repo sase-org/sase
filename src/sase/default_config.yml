@@ -725,35 +725,6 @@ axe:
             bead's status changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts.
             Gates are canceled when their beads leave those states, while answered or missing gates can be regenerated
             safely if work remains. A ready bead with a detached launch still in flight is deferred instead of re-gated.
-        - name: external_issue_mirror
-          script: sase_chop_external_issue_mirror
-          run_every: "10m"
-          timeout: "2m"
-          for_each:
-            source: projects
-            vcs: [git, gh]
-          description: |-
-            Mirror every external tracker issue into an open task bead
-
-            Expands to one instance per enabled project and diffs that project's tracker against local beads on
-            external_ref, creating unsized open task beads for uncovered issues. Upstream state changes append an
-            attributed note and never close a bead. A per-pass creation cap, bounded store-lock waits, and persistent
-            exponential backoff keep one large backlog or one unreachable tracker from stalling the pass.
-        - name: external_pr_mirror
-          script: sase_chop_external_pr_mirror
-          run_every: "10m"
-          timeout: "2m"
-          for_each:
-            source: projects
-            vcs: [git, gh]
-          description: |-
-            Adopt remote pull requests SASE did not create as local Patches
-
-            Runs once per enabled git/gh project and first checks whether its provider can list pull requests. Each
-            pass fetches a bounded PR inventory, writes open PRs to the active ProjectSpec, writes merged or closed PRs
-            directly to the archive, advances a cursor only after clean runs, and performs a daily full repair scan.
-            The SASE_PATCH marker identifies PRs created by SASE's tracked PR workflow; direct gh pr create calls are
-            adopted as external.
         - name: pr_submitted_checks
           script: sase_chop_pr_submitted_checks
           description: |-
@@ -770,6 +741,42 @@ axe:
             Runs the same all-project dead-process reconciliation as the hooks-lane cleanup, including conservative
             handling of pinned claims with agent artifacts. This five-minute placement still frees stale workspace
             claims if the fast hooks lane is disabled, restarting, or repeatedly failing.
+    external_mirror:
+      description: |-
+        Mirror external tracker issues and pull requests on a fifteen-minute cadence
+
+        Runs external_issue_mirror and external_pr_mirror once per enabled project, generously paced so remote
+        polling never overruns its own tick or delays the checks lane's PR-submission and workspace-claim work.
+        A five-minute per-chop timeout bounds one unhealthy pass without stalling later ticks.
+      interval: 900
+      chop_timeout: "5m"
+      chops:
+        - name: external_issue_mirror
+          script: sase_chop_external_issue_mirror
+          for_each:
+            source: projects
+            vcs: [git, gh]
+          description: |-
+            Mirror every external tracker issue into an open task bead
+
+            Expands to one instance per enabled project and diffs that project's tracker against local beads on
+            external_ref, creating unsized open task beads for uncovered issues. Upstream state changes append an
+            attributed note and never close a bead. A per-pass creation cap, bounded store-lock waits, and persistent
+            exponential backoff keep one large backlog or one unreachable tracker from stalling the pass.
+        - name: external_pr_mirror
+          script: sase_chop_external_pr_mirror
+          timeout: "5m"
+          for_each:
+            source: projects
+            vcs: [git, gh]
+          description: |-
+            Adopt remote pull requests SASE did not create as local Patches
+
+            Runs once per enabled git/gh project and first checks whether its provider can list pull requests. Each
+            pass fetches a bounded PR inventory, writes open PRs to the active ProjectSpec, writes merged or closed PRs
+            directly to the archive, advances a cursor only after clean runs, and performs a daily full repair scan.
+            The SASE_PATCH marker identifies PRs created by SASE's tracked PR workflow; direct gh pr create calls are
+            adopted as external.
     comments:
       description: |-
         Start background critique-comment checks for mailed PRs every minute

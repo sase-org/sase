@@ -2902,9 +2902,9 @@ Source: `src/sase/default_config.yml`
 
 Configuration for the external tracker mirror. See
 [External Issue Mirroring](beads.md#external-issue-mirroring) and the
-[`checks` lane](axe.md#checks-5-minute-interval)'s `external_issue_mirror` and
-`external_pr_mirror` chops, the first production use of `for_each: {source: projects}`
-fan-out.
+[`external_mirror` lane](axe.md#external_mirror-15-minute-interval)'s
+`external_issue_mirror` and `external_pr_mirror` chops, the first production use of
+`for_each: {source: projects}` fan-out.
 
 ```yaml
 external_mirror:

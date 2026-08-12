@@ -5,13 +5,16 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sase.axe.state import lumberjack_state_dir
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import effective_project_name
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.external_mirror.pr_sync import KIND
-from sase.external_mirror.state import read_backoff_state, read_mirror_cursor
+from sase.external_mirror.state import (
+    pr_mirror_state_dir,
+    read_backoff_state,
+    read_mirror_cursor,
+)
 from sase.vcs_provider import supports_pull_requests
 
 if TYPE_CHECKING:
@@ -36,7 +39,7 @@ def external_pr_mirror_check_specs(
 
 
 def _check_external_pr_mirror(context: DoctorContext) -> DiagnosticCheck:
-    state_dir = lumberjack_state_dir("checks")
+    state_dir = pr_mirror_state_dir()
     now = datetime.now(UTC)
     backoff = read_backoff_state(state_dir, KIND)
     rows: list[dict[str, object]] = []

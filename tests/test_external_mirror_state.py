@@ -17,6 +17,7 @@ from sase.external_mirror.state import (
     is_backed_off,
     mirror_state_document_path,
     next_backoff,
+    pr_mirror_state_dir,
     read_mirror_state,
     write_mirror_state,
 )
@@ -138,3 +139,38 @@ def test_record_and_read_tracker_probe_round_trips() -> None:
 
 def test_read_tracker_probes_tolerates_missing_file() -> None:
     assert read_tracker_probes() == {}
+
+
+def test_pr_mirror_state_dir_migrates_legacy_checks_lane_files() -> None:
+    from sase.axe.state import lumberjack_state_dir
+
+    legacy_dir = lumberjack_state_dir("checks")
+    legacy_dir.mkdir(parents=True, exist_ok=True)
+    (legacy_dir / "external_pr__sase.json").write_text(
+        '{"last_provider_id": "PR_1"}', encoding="utf-8"
+    )
+    (legacy_dir / "external_pr__backoff.json").write_text("{}", encoding="utf-8")
+
+    new_dir = pr_mirror_state_dir()
+
+    assert (new_dir / "external_pr__sase.json").read_text(
+        encoding="utf-8"
+    ) == '{"last_provider_id": "PR_1"}'
+    assert (new_dir / "external_pr__backoff.json").exists()
+
+
+def test_pr_mirror_state_dir_does_not_overwrite_existing_new_file() -> None:
+    from sase.axe.state import lumberjack_state_dir
+    from sase.core.paths import sase_subdir
+
+    legacy_dir = lumberjack_state_dir("checks")
+    legacy_dir.mkdir(parents=True, exist_ok=True)
+    (legacy_dir / "external_pr__sase.json").write_text("stale", encoding="utf-8")
+
+    new_dir = sase_subdir("external_mirror")
+    new_dir.mkdir(parents=True, exist_ok=True)
+    (new_dir / "external_pr__sase.json").write_text("fresh", encoding="utf-8")
+
+    resolved = pr_mirror_state_dir()
+
+    assert (resolved / "external_pr__sase.json").read_text(encoding="utf-8") == "fresh"

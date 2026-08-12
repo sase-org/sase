@@ -59,8 +59,8 @@ def test_external_pr_mirror_doctor_ok_for_unsupported_provider(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_external_pr_mirror.lumberjack_state_dir",
-        lambda _name: tmp_path,
+        "sase.doctor.checks_external_pr_mirror.pr_mirror_state_dir",
+        lambda: tmp_path,
     )
     monkeypatch.setattr(
         "sase.doctor.checks_external_pr_mirror.list_project_records",
@@ -82,8 +82,8 @@ def test_external_pr_mirror_doctor_warns_on_stale_cursor(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_external_pr_mirror.lumberjack_state_dir",
-        lambda _name: tmp_path,
+        "sase.doctor.checks_external_pr_mirror.pr_mirror_state_dir",
+        lambda: tmp_path,
     )
     monkeypatch.setattr(
         "sase.doctor.checks_external_pr_mirror.list_project_records",
@@ -106,8 +106,8 @@ def test_external_pr_mirror_doctor_errors_on_repeated_backoff_failures(
     monkeypatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_external_pr_mirror.lumberjack_state_dir",
-        lambda _name: tmp_path,
+        "sase.doctor.checks_external_pr_mirror.pr_mirror_state_dir",
+        lambda: tmp_path,
     )
     monkeypatch.setattr(
         "sase.doctor.checks_external_pr_mirror.list_project_records",

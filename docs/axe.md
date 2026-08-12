@@ -245,8 +245,6 @@ Lower-frequency status checks:
 | Chop                    | Description                                        |
 | ----------------------- | -------------------------------------------------- |
 | `bead_task_triage`      | Reconcile the one pending gate each task bead owns |
-| `external_issue_mirror` | Mirror external tracker issues into task beads     |
-| `external_pr_mirror`    | Adopt remote pull requests as local Patches        |
 | `pr_submitted_checks`   | Start PR submission status checks                  |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup                |
 
@@ -296,6 +294,22 @@ See [TaskTriage notifications](notifications.md#command-backed-interaction-gates
 and the [standalone task workflow](beads.md#standalone-task-workflow) for the
 human-facing lifecycle.
 
+### external_mirror (15-minute interval)
+
+Isolated remote-tracker polling:
+
+| Chop                    | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| `external_issue_mirror` | Mirror external tracker issues into task beads |
+| `external_pr_mirror`    | Adopt remote pull requests as local Patches    |
+
+Both chops are the same class of work — one bounded remote poll per project — so they
+share a single generously paced lane instead of two. A healthy full pass is 1–3.5
+seconds, so the 900-second interval leaves wide headroom, and a 5-minute per-chop
+timeout means the worst-case cycle (`interval + chop_timeout`) stays a bounded 20
+minutes without ever delaying the faster `checks` lane's PR-submission and
+workspace-claim work.
+
 `external_issue_mirror` expands to one instance per enabled project via
 `for_each: {source: projects, vcs: [git, gh]}` (`external_issue_mirror[<project>]`), the
 first production use of `for_each`. Each pass diffs that project's tracker against local
@@ -304,10 +318,11 @@ beads for uncovered issues, so no `TaskTriage` gate fires on a first-pass backlo
 issue-listing seam has no page cursor or ordering guarantee, so every pass lists the
 tracker's full inventory (`state="all"`, `limit=0`); the per-pass bound instead caps
 local writes — at most 25 bead creations and 50 notes per pass, within a wall-clock work
-budget derived from the chop's 2-minute timeout. A pass that hits the creation cap does
-not advance its watermark, so a large first backlog converges over several 10-minute
-passes; run `sase bead sync-external` to accelerate it manually. Persistent exponential
-backoff (capped at one hour) keeps one unreachable tracker from stalling every pass.
+budget derived from the lane's configured `chop_timeout`. A pass that hits the creation
+cap does not advance its watermark, so a large first backlog converges over several
+15-minute passes; run `sase bead sync-external` to accelerate it manually. Persistent
+exponential backoff (capped at one hour) keeps one unreachable tracker from stalling
+every pass.
 
 Upstream issue closes, reopens, and disappearances never change a bead's status or
 delete it — reconciliation stays an explicit user action. Each transition appends one
@@ -330,6 +345,9 @@ Run `sase doctor -C axe.external_mirror` to check detached tracker auth: the AXE
 daemon's environment is not the interactive TUI's, and a silent `gh` auth failure there
 would look exactly like "no issues." The check reports the chop's own persisted evidence
 rather than attempting an interactive provider call.
+
+See [Builtin `external_pr_mirror`](#builtin-external_pr_mirror) below for that chop's
+own behavior, including where its cursor and backoff state live.
 
 ### comments (1-minute interval)
 
@@ -844,9 +862,11 @@ provider calls. A structural capability probe skips providers that cannot list P
 Incremental runs fetch a bounded PR inventory because the provider seam exposes a record
 limit, not pagination. The chop records `seen`, `fetched`, `unmirrored`, `created`,
 `repaired`, `skipped`, `conflicts`, `errors`, `budget_exhausted`, and
-`checkpoint_advanced` in its summary. Cursor state lives in the checks lumberjack
-directory with a ten-minute overlap window; the cursor advances only after a clean pass.
-A daily full scan ignores the incremental cursor so missed repairs are eventually found.
+`checkpoint_advanced` in its summary. Cursor and backoff state live at a stable path
+under `~/.sase/external_mirror/`, independent of whichever lumberjack the chop is
+configured in, so `sase patch sync-external` reads and writes the same files. A
+ten-minute overlap window covers incremental passes; the cursor advances only after a
+clean pass, and a daily full scan ignores it so missed repairs are eventually found.
 
 `unmirrored` counts fetched PRs dropped by
 [`external_mirror.pr_authors`](configuration.md#external_mirror), which is empty by

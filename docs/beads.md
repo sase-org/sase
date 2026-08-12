@@ -564,12 +564,13 @@ proposals as `task` beads, marks them `ready`, and records why it declined any o
 ### External Issue Mirroring
 
 The `external_issue_mirror` AXE chop (see
-[checks lane](axe.md#checks-5-minute-interval)) keeps every enabled project's issue
-tracker mirrored into task beads: each pass diffs the tracker against local beads on
-`external_ref` and creates an explicitly `small`, `open` task bead — never `ready` — for
-every uncovered issue, so a first-pass backlog never floods the `TaskTriage` gate queue.
-Run `sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview
-the same pass manually.
+[external_mirror lane](axe.md#external_mirror-15-minute-interval)) keeps every enabled
+project's issue tracker mirrored into task beads: each pass diffs the tracker against
+local beads on `external_ref` and creates an explicitly `small`, `open` task bead —
+never `ready` — for every uncovered issue, so a first-pass backlog never floods the
+`TaskTriage` gate queue. Run
+`sase bead sync-external [--project P] [--dry-run] [--full]` to trigger or preview the
+same pass manually.
 
 A mirrored bead carries `external_ref` (the mirror's idempotency key, project-key
 qualified) and a matching `bug:<display-name>#<n>` entry in `refs` (the human-facing,
@@ -1469,7 +1470,7 @@ included in the next normal project or SDD commit.
 ### `sase bead sync-external`
 
 Run one external tracker mirror pass — the same reconciliation path the
-`external_issue_mirror` AXE chop runs every ten minutes. See
+`external_issue_mirror` AXE chop runs every fifteen minutes. See
 [External Issue Mirroring](#external-issue-mirroring).
 
 | Flag            | Description                                                        |

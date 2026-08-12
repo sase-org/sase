@@ -73,15 +73,6 @@ def test_sync_external_dry_run_reports_selected_project(
         lambda *_args, **_kwargs: [record],
     )
     monkeypatch.setattr(
-        "sase.main.patch_handler.ensure_lumberjack_dirs",
-        lambda _name: tmp_path,
-        raising=False,
-    )
-    monkeypatch.setattr(
-        "sase.axe.state.ensure_lumberjack_dirs",
-        lambda _name: tmp_path,
-    )
-    monkeypatch.setattr(
         "sase.project_aliases.resolve_project_alias_ref",
         lambda value: value,
     )
@@ -120,10 +111,6 @@ def test_sync_external_reports_missing_workspace(
     monkeypatch.setattr(
         "sase.core.project_lifecycle_facade.list_project_records",
         lambda *_args, **_kwargs: [record],
-    )
-    monkeypatch.setattr(
-        "sase.axe.state.ensure_lumberjack_dirs",
-        lambda _name: tmp_path,
     )
 
     exit_code = _handle_sync_external(_args())

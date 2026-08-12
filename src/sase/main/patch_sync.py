@@ -61,7 +61,6 @@ def handle_sync_deltas(
 def handle_sync_external(
     args: argparse.Namespace,
     *,
-    ensure_lumberjack_dirs_fn: Callable[[str], Path],
     get_vcs_provider_fn: Callable[[str], VCSProvider],
     list_project_records_fn: Callable[..., list[ProjectRecordWire]],
     projects_dir_fn: Callable[[], Path],
@@ -104,7 +103,6 @@ def handle_sync_external(
             "[bold yellow]Dry run:[/bold yellow] no Patches will be written."
         )
 
-    state_dir = ensure_lumberjack_dirs_fn("checks")
     table = Table(title="External PR Mirror")
     table.add_column("Project", style="cyan")
     table.add_column("Fetched", justify="right")
@@ -126,7 +124,6 @@ def handle_sync_external(
             report = sync_external_pull_requests_fn(
                 project_key=record.project_name,
                 workspace_dir=record.workspace_dir,
-                state_dir=state_dir,
                 provider=provider,
                 now=datetime.now(UTC),
                 dry_run=bool(args.dry_run),

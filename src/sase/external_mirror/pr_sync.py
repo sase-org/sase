@@ -29,6 +29,7 @@ from sase.external_mirror.report import MirrorReport
 from sase.external_mirror.state import (
     MirrorCursor,
     next_backoff_entry,
+    pr_mirror_state_dir,
     read_backoff_state,
     read_mirror_cursor,
     write_backoff_state,
@@ -58,21 +59,27 @@ def sync_external_pull_requests(
     *,
     project_key: str,
     workspace_dir: str,
-    state_dir: Path,
     provider: _PullRequestLister,
     now: datetime,
+    state_dir: Path | None = None,
     dry_run: bool = False,
     full: bool = False,
     fetch_limit: int = 200,
     create_budget: int = 25,
     deadline: float | None = None,
 ) -> MirrorReport:
-    """Mirror remote PRs into local Patches with bounded mutation work."""
+    """Mirror remote PRs into local Patches with bounded mutation work.
+
+    ``state_dir`` defaults to the lane-independent ``external_mirror`` state
+    root (see ``pr_mirror_state_dir``); tests pass an explicit directory for
+    isolation.
+    """
     report = MirrorReport()
     if not supports_pull_requests(workspace_dir):
         report.noop_reason = "pull_requests_unsupported"
         return report
 
+    state_dir = state_dir if state_dir is not None else pr_mirror_state_dir()
     now = _utc(now)
     cursor = read_mirror_cursor(state_dir, KIND, project_key)
     full = full or _needs_daily_repair_scan(cursor, now)

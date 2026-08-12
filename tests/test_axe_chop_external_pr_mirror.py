@@ -77,10 +77,14 @@ def test_external_pr_mirror_respects_backoff(monkeypatch, tmp_path: Path) -> Non
     from datetime import UTC, datetime, timedelta
 
     from sase.external_mirror.pr_sync import KIND
-    from sase.external_mirror.state import BackoffEntry, write_backoff_state
+    from sase.external_mirror.state import (
+        BackoffEntry,
+        pr_mirror_state_dir,
+        write_backoff_state,
+    )
 
     write_backoff_state(
-        tmp_path,
+        pr_mirror_state_dir(),
         KIND,
         {
             "proj": BackoffEntry(

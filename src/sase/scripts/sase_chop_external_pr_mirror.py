@@ -4,17 +4,19 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 import time
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
+from sase.external_mirror.budget import LANE_CHOP_TIMEOUT_SECONDS
 from sase.external_mirror.pr_sync import KIND, sync_external_pull_requests
-from sase.external_mirror.state import read_backoff_state
+from sase.external_mirror.report import MirrorReport
+from sase.external_mirror.state import pr_mirror_state_dir, read_backoff_state
 from sase.vcs_provider import get_vcs_provider
 
-_CHOP_TIMEOUT_SECONDS = 120.0
-_WORK_BUDGET_SECONDS = 0.90 * _CHOP_TIMEOUT_SECONDS
+#: Derived from ``LANE_CHOP_TIMEOUT_SECONDS``, the ``external_mirror`` lane's
+#: configured ``chop_timeout``, matching this chop's own explicit ``timeout``.
+_WORK_BUDGET_SECONDS = 0.90 * LANE_CHOP_TIMEOUT_SECONDS
 
 
 def _check_error(
@@ -25,17 +27,7 @@ def _check_error(
 ) -> ChopResultBuilder:
     runtime.log.error(detail)
     result = runtime.emit_summary(
-        {
-            "seen": 0,
-            "fetched": 0,
-            "created": 0,
-            "repaired": 0,
-            "skipped": 0,
-            "conflicts": 0,
-            "errors": 1,
-            "budget_exhausted": 0,
-            "checkpoint_advanced": 0,
-        },
+        MirrorReport(errors=1).summary_fields(),
         reason=reason,
     )
     result.status = "check_error"
@@ -63,25 +55,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         )
 
     now = datetime.now(UTC)
-    state_dir = Path(runtime.context.state_dir)
+    state_dir = pr_mirror_state_dir()
     backoff = read_backoff_state(state_dir, KIND)
     entry = backoff.get(project)
     if entry is not None and now < entry.next_attempt_at:
-        result = runtime.emit_summary(
-            {
-                "seen": 0,
-                "fetched": 0,
-                "created": 0,
-                "repaired": 0,
-                "skipped": 0,
-                "conflicts": 0,
-                "errors": 0,
-                "budget_exhausted": 0,
-                "checkpoint_advanced": 0,
-            },
-            reason="backoff",
-        )
-        return result
+        return runtime.emit_summary(MirrorReport().summary_fields(), reason="backoff")
 
     provider = get_vcs_provider(workspace_dir.strip())
     report = sync_external_pull_requests(

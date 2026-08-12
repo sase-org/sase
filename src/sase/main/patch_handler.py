@@ -63,13 +63,6 @@ def list_project_records(*args: Any, **kwargs: Any) -> Any:
     return impl(*args, **kwargs)
 
 
-def ensure_lumberjack_dirs(name: str) -> Path:
-    """Facade injection seam for ``patch sync-external`` state directories."""
-    from sase.axe.state import ensure_lumberjack_dirs as impl
-
-    return impl(name)
-
-
 def sase_projects_dir() -> Path:
     """Facade injection seam for project lifecycle storage lookup."""
     from sase.core.paths import sase_projects_dir as impl
@@ -205,7 +198,6 @@ def _select_sync_external_project(
 def _handle_sync_external(args: argparse.Namespace) -> int:
     return handle_sync_external_impl(
         args,
-        ensure_lumberjack_dirs_fn=ensure_lumberjack_dirs,
         get_vcs_provider_fn=get_vcs_provider,
         list_project_records_fn=list_project_records,
         projects_dir_fn=sase_projects_dir,

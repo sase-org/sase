@@ -2,12 +2,13 @@
 
 ``ChopScriptContext.state_dir`` is the lumberjack directory shared by every
 chop in a lane, not a per-instance directory. Files here are therefore keyed
-as ``<kind>__<project_key>.json`` under the caller-supplied state directory.
+as ``<kind>__<project_key>.json`` under a caller-supplied state directory.
 
-The issue mirror below instead persists its per-project cursor at a stable,
-lane-independent path (``sase_subdir("external_mirror")``), because its
-manual CLI entry point must read and write the same cursor as the AXE chop
-without knowing which lane the chop is configured in.
+Both mirrors persist their per-project cursor at a stable, lane-independent
+path (``sase_subdir("external_mirror")``, see ``pr_mirror_state_dir`` and
+``_mirror_state_dir`` below), because their manual CLI entry points must read
+and write the same cursor as their AXE chop without knowing which lane the
+chop is configured in.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from sase.axe.state import lumberjack_state_dir
 from sase.core.paths import sase_subdir
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
@@ -47,6 +49,39 @@ def mirror_state_path(state_dir: Path, kind: str, project_key: str) -> Path:
 def _backoff_state_path(state_dir: Path, kind: str) -> Path:
     """Return the shared backoff-state path for one mirror kind."""
     return state_dir / f"{kind}__backoff.json"
+
+
+#: Lane the PR mirror's cursor and backoff files used to live under, back
+#: when they were threaded through ``ChopScriptContext.state_dir``.
+_LEGACY_PR_MIRROR_LANE = "checks"
+
+
+def pr_mirror_state_dir() -> Path:
+    """Return the PR mirror's stable, lane-independent state directory.
+
+    Migrates any ``external_pr__*.json`` cursor and backoff files left
+    behind under the old ``checks`` lumberjack directory the first time this
+    is called, so relocating the chop to its own lane does not silently
+    reset a project's backfill.
+    """
+    new_dir = sase_subdir("external_mirror")
+    _migrate_legacy_pr_mirror_state(new_dir)
+    return new_dir
+
+
+def _migrate_legacy_pr_mirror_state(new_dir: Path) -> None:
+    legacy_dir = lumberjack_state_dir(_LEGACY_PR_MIRROR_LANE)
+    if not legacy_dir.is_dir():
+        return
+    for legacy_path in legacy_dir.glob("external_pr__*.json"):
+        destination = new_dir / legacy_path.name
+        if destination.exists():
+            continue
+        try:
+            new_dir.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(legacy_path.read_bytes())
+        except OSError:
+            continue
 
 
 def read_mirror_cursor(state_dir: Path, kind: str, project_key: str) -> MirrorCursor:
@@ -361,6 +396,7 @@ __all__ = [
     "mirror_state_path",
     "next_backoff",
     "next_backoff_entry",
+    "pr_mirror_state_dir",
     "read_backoff_state",
     "read_mirror_cursor",
     "read_mirror_state",

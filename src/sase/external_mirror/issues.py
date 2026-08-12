@@ -49,6 +49,7 @@ from sase.core import bead_read_facade
 from sase.vcs_provider import IssueWire, get_vcs_provider, supports_issue_listing
 
 from .auth import classify_provider_error, record_tracker_probe
+from .budget import LANE_CHOP_TIMEOUT_SECONDS
 from .config import excluded_issue_labels
 from .state import (
     is_backed_off,
@@ -114,8 +115,9 @@ class _MirrorBudget:
     shared lock-wait budget to slice across competing projects in one pass.
     """
 
-    #: Tied to the chop's ``timeout: "2m"`` in ``default_config.yml``.
-    work_seconds: float = 90.0
+    #: Derived from ``LANE_CHOP_TIMEOUT_SECONDS``, the ``external_mirror``
+    #: lane's configured ``chop_timeout``.
+    work_seconds: float = 0.75 * LANE_CHOP_TIMEOUT_SECONDS
     max_creations: int = 25
     max_notes: int = 50
 
