@@ -10,7 +10,10 @@ from sase.ace.tui._agent_completion_candidates import (
     agent_prompt_name,
     visible_clan_completion_groups,
 )
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import (
+    agent_status_bucket,
+    aggregate_agent_group_bucket,
+)
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
 from sase.core.wait_dependency_resolution import (
     TribeMemberRow,
@@ -69,7 +72,6 @@ def collect_agent_wait_status_maps(
     agents: Iterable[Agent],
 ) -> AgentWaitStatusMaps:
     """Return ordinary and tribe wait state from one in-memory snapshot."""
-    from sase.ace.tui.models._agent_clan import aggregate_clan_status
     from sase.ace.tui.models.agent_time import wait_display_agent
 
     all_agents = list(agents)
@@ -79,7 +81,7 @@ def collect_agent_wait_status_maps(
         # their status must come from the real member aggregate below.
         if agent.is_clan_container:
             continue
-        bucket = status_bucket_for_values(agent.status)
+        bucket = agent_status_bucket(agent)
         for name in (
             agent_prompt_name(agent),
             agent.presented_agent_name,
@@ -98,16 +100,16 @@ def collect_agent_wait_status_maps(
         # retain the real agent/family wait-target behavior.
         if group.name in buckets:
             continue
-        aggregate_status = aggregate_clan_status(
-            member.status for member in group.members
+        aggregate_bucket = aggregate_agent_group_bucket(
+            (member.status, agent_status_bucket(member)) for member in group.members
         )
-        if aggregate_status is None:
+        if aggregate_bucket is None:
             continue
-        buckets[group.name] = status_bucket_for_values(aggregate_status)
+        buckets[group.name] = aggregate_bucket
         clan_member_statuses[group.name] = tuple(
             (
                 _clan_wait_member_label(group.name, member),
-                status_bucket_for_values(member.status),
+                agent_status_bucket(member),
             )
             for member in group.members
         )
@@ -164,7 +166,7 @@ def _collect_tribe_member_rows(agents: list[Agent]) -> tuple[TribeMemberRow, ...
             if clan_key is not None
             else set()
         )
-        bucket = status_bucket_for_values(agent.status)
+        bucket = agent_status_bucket(agent)
         name = agent_prompt_name(agent) or agent.agent_name or agent.display_name
         clan_name = clan_key[0] if clan_key is not None else None
         clan_generation = clan_key[1] if clan_key is not None else None

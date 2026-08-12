@@ -9,7 +9,7 @@ from sase.agent.status_buckets import (
     _NEEDS_INPUT_STATUSES,
     _STOPPED_STATUSES,
     _TERMINAL_STATUSES,
-    status_bucket_for_values,
+    agent_status_bucket,
 )
 
 from ..agent import Agent
@@ -171,7 +171,7 @@ def status_bucket_for(agent: Agent) -> str:
     statuses land in ``Waiting``.  Anything not explicitly bucketed lands in
     ``Running`` (the agent is in flight from the user's perspective).
     """
-    return status_bucket_for_values(agent.status, agent.retried_as_timestamp)
+    return agent_status_bucket(agent)
 
 
 def bucket_sort_index(mode: GroupingMode, bucket: str) -> int:

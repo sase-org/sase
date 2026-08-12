@@ -72,6 +72,9 @@ def enrich_agent_from_meta(
         return
     data = canonicalize_agent_tribe_metadata(dict(data))
 
+    raw_status_bucket = data.get("status_bucket")
+    if isinstance(raw_status_bucket, str) and raw_status_bucket:
+        agent.status_bucket = raw_status_bucket
     if data.get("model"):
         agent.model = data["model"]
     if data.get("llm_provider"):

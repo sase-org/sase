@@ -34,7 +34,7 @@ from sase.vcs_provider import (
 )
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
-    status_bucket_for_values,
+    agent_status_bucket,
 )
 from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import parse_workspace_dir
@@ -165,7 +165,7 @@ def diff_badge_uses_live_hint(agent: Agent) -> bool:
     rows follow the status of their resolved active coder source.
     """
     source = _resolve_agent_diff_source(agent)
-    return _status_allows_live_hint(source.status)
+    return agent_status_bucket(source) not in {"Done", "Failed"}
 
 
 def _git_index_signature(workspace_dir: str) -> tuple[int, int] | None:
@@ -270,11 +270,6 @@ def _compute_diff_cache_key(agent: Agent) -> DiffCacheKey | None:
     return (diff_source.identity, workspace_dir, provider_name, fingerprint, ttl_bucket)
 
 
-def _status_allows_live_hint(status: str | None) -> bool:
-    bucket = status_bucket_for_values(status)
-    return bucket not in {"Done", "Failed"}
-
-
 def live_agent_file_change_hint(agent: Agent) -> bool | None:
     """Classify an active agent's live workspace edits for the Agents-tab badge.
 
@@ -289,7 +284,7 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
     :func:`diff_has_real_edits`.
     """
     diff_source = _resolve_agent_diff_source(agent)
-    if not _status_allows_live_hint(diff_source.status):
+    if agent_status_bucket(diff_source) in {"Done", "Failed"}:
         return None
 
     diff_result = _get_agent_diff(agent, unknown_on_probe_failure=True)
@@ -358,7 +353,7 @@ def _get_agent_diff(
 
     # Finalized primary diffs are authoritative for terminal agents. Their
     # workspace may have been released and reused, so never probe it.
-    if not _status_allows_live_hint(diff_source.status):
+    if agent_status_bucket(diff_source) in {"Done", "Failed"}:
         return persisted_diff
 
     key = _compute_diff_cache_key(diff_source)

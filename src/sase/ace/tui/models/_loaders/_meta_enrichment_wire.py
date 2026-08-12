@@ -51,6 +51,8 @@ def enrich_agent_from_meta_wire(
 
     agent.runner_slot_yielded = pending_question is not None
 
+    if meta.status_bucket:
+        agent.status_bucket = meta.status_bucket
     if meta.model:
         agent.model = meta.model
     if meta.llm_provider:

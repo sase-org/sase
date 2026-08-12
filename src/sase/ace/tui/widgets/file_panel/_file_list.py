@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from rich.text import Text
 from textual.worker import Worker
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
 from ...graphics import is_supported_image_path
@@ -424,4 +424,4 @@ class FilePanelFileListMixin:
 
 
 def _is_terminal_agent(agent: Agent) -> bool:
-    return status_bucket_for_values(agent.status) in {"Done", "Failed"}
+    return agent_status_bucket(agent) in {"Done", "Failed"}

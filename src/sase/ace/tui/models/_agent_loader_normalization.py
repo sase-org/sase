@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_by_key, clan_context_for
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 
@@ -120,5 +120,5 @@ def normalize_live_plan_agents(
 
 
 def _agent_is_live_plan_candidate(agent: Agent) -> bool:
-    bucket = status_bucket_for_values(agent.status, agent.retried_as_timestamp)
+    bucket = agent_status_bucket(agent)
     return bucket in _LIVE_PLAN_AGENT_BUCKETS

@@ -16,6 +16,7 @@ from sase.integrations.agent_list_entries import (
     _AgentChildrenSummary,
     _build_agent_list_entry,
 )
+from sase.integrations._agent_list_entry_builder import record_status_bucket
 from tests._agent_list_entries_helpers import agent, record
 
 
@@ -139,6 +140,30 @@ def test_completed_epic_parent_is_terminal_despite_running_bucket() -> None:
     assert entry.status_bucket == "Running"
     assert entry.has_done_marker is True
     assert entry.is_terminal is True
+
+
+def test_entry_uses_agent_status_bucket_override_for_custom_label() -> None:
+    entry = _build_agent_list_entry(
+        agent(status="MONITORED", status_bucket="Done"),
+        record=record(agent_meta=AgentMetaWire()),
+    )
+
+    assert entry.status == "MONITORED"
+    assert entry.status_bucket == "Done"
+    assert entry.status_glyph == "✓"
+    assert entry.is_terminal is True
+
+
+def test_record_status_bucket_uses_marker_override_for_custom_label() -> None:
+    bucket = record_status_bucket(
+        record(
+            agent_meta=AgentMetaWire(status_bucket="Done"),
+            has_done_marker=True,
+            done=DoneMarkerWire(outcome="completed"),
+        )
+    )
+
+    assert bucket == "Done"
 
 
 def test_live_epic_parent_is_not_terminal() -> None:

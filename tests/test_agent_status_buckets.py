@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 
 from sase.ace.tui.models._agent_clan import aggregate_clan_status
@@ -9,13 +11,22 @@ from sase.agent.status_buckets import (
     PENDING_PLAN_REVIEW_STATUSES,
     _BUCKET_REPRESENTATIVE_STATUS,
     aggregate_agent_group_bucket,
+    aggregate_agent_group_effective_status,
     aggregate_agent_group_status,
     agent_is_asking,
+    agent_status_bucket,
     is_pending_plan_review_status,
     pending_plan_status_for_tier,
     runner_slot_display_status,
     status_bucket_for_values,
 )
+
+
+@dataclass
+class _AgentStatusRow:
+    status: str
+    retried_as_timestamp: str | None = None
+    status_bucket: str | None = None
 
 
 @pytest.mark.parametrize(
@@ -36,6 +47,18 @@ def test_pending_plan_review_statuses_share_semantics(status: str) -> None:
 def test_non_pending_status_is_not_pending_plan_review() -> None:
     assert not is_pending_plan_review_status("PLAN APPROVED")
     assert not is_pending_plan_review_status(None)
+
+
+def test_agent_status_bucket_uses_valid_override_for_unknown_status() -> None:
+    row = _AgentStatusRow(status="MONITORED", status_bucket="Done")
+
+    assert agent_status_bucket(row) == "Done"
+
+
+def test_agent_status_bucket_ignores_unknown_override() -> None:
+    row = _AgentStatusRow(status="FAILED", status_bucket="Bogus")
+
+    assert agent_status_bucket(row) == "Failed"
 
 
 @pytest.mark.parametrize("status", ["WAITING", "QUEUED"])
@@ -83,6 +106,10 @@ def test_aggregate_agent_group_bucket_honors_effective_override() -> None:
         aggregate_agent_group_bucket((("TALE APPROVED", "Done"), ("TALE DONE", "Done")))
         == "Done"
     )
+
+
+def test_aggregate_agent_group_effective_status_honors_override() -> None:
+    assert aggregate_agent_group_effective_status((("MONITORED", "Done"),)) == "DONE"
 
 
 @pytest.mark.parametrize(

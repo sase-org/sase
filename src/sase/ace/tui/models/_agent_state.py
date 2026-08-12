@@ -26,6 +26,7 @@ class AgentState:
     project_file: str  # Path to project spec file
     status: str  # "RUNNING", etc.
     start_time: datetime | None  # Parsed from timestamp suffix
+    status_bucket: str | None = None  # Optional explicit display bucket override
     run_start_time: datetime | None = (
         None  # When agent actually started running (after waiting)
     )

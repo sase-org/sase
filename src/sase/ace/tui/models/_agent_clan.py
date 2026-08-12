@@ -11,6 +11,7 @@ from sase.agent.status_buckets import (
     aggregate_agent_group_bucket,
     aggregate_agent_group_status,
     agent_is_asking,
+    agent_status_bucket,
     status_bucket_for_values,
 )
 
@@ -143,7 +144,7 @@ def clan_member_counts(
         projected_statuses = agent_status_projections((member,))
         bucket = aggregate_agent_group_bucket(
             (status.agent.status, status.bucket) for status in projected_statuses
-        ) or status_bucket_for_values(member.status)
+        ) or agent_status_bucket(member)
         is_unread = member.identity in unread_ids
         if is_unread:
             unread += 1
@@ -268,7 +269,7 @@ def _lane_summary_projections(
                 _ProjectedSummaryAgent(
                     status=ConcreteAgentStatus(
                         agent=member,
-                        bucket=status_bucket_for_values(member.status),
+                        bucket=agent_status_bucket(member),
                     ),
                     projected_from_container=True,
                     is_unread=member.identity in unread_ids,
@@ -279,7 +280,7 @@ def _lane_summary_projections(
         _ProjectedSummaryAgent(
             status=ConcreteAgentStatus(
                 agent=agent,
-                bucket=status_bucket_for_values(agent.status),
+                bucket=agent_status_bucket(agent),
             ),
             projected_from_container=projected_from_container,
             is_unread=agent.identity in unread_ids,

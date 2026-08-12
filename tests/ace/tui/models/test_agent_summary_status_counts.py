@@ -27,6 +27,7 @@ def _agent(
     clan: str | None = None,
     parallel: bool = False,
     stop_offset: int | None = None,
+    status_bucket: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -34,6 +35,7 @@ def _agent(
         project_file="/tmp/family.sase",
         status=status,
         start_time=_STARTED,
+        status_bucket=status_bucket,
         stop_time=(
             _STARTED + timedelta(minutes=stop_offset)
             if stop_offset is not None
@@ -217,6 +219,21 @@ def test_family_container_projects_members_and_settled_statuses() -> None:
     assert counts.total == 2
     assert counts.running == 1
     assert counts.done == 1
+
+
+def test_summary_counts_use_custom_agent_status_bucket() -> None:
+    monitor = _agent(
+        "monitor",
+        "MONITORED",
+        role="solo",
+        status_bucket="Done",
+    )
+
+    counts = agent_summary_status_counts((monitor,), ())
+
+    assert counts.total == 1
+    assert counts.done == 1
+    assert counts.running == 0
 
 
 def test_planner_only_approved_family_stays_running() -> None:

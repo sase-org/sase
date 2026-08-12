@@ -119,7 +119,11 @@ def _attach_runner_slot_context(
             entry.status,
             slot_queued=_is_live_slot_waiter(entry),
         )
-        bucket = status_bucket_for_values(status, entry.retry.retried_as_timestamp)
+        bucket = (
+            entry.status_bucket
+            if status == entry.status
+            else status_bucket_for_values(status, entry.retry.retried_as_timestamp)
+        )
         wait = entry.wait
         if wait.slot_requested_at:
             wait = replace(

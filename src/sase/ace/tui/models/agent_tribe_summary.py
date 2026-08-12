@@ -7,12 +7,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import (
+    agent_status_bucket,
+    aggregate_agent_group_bucket,
+    aggregate_agent_group_effective_status,
+)
 from ._agent_clan import (
     agent_lane_status_counts,
     agent_status_projections,
     agent_summary_status_counts,
-    aggregate_clan_status,
 )
 from ._agent_clan_sections import (
     ClanErrorEntry,
@@ -101,6 +104,7 @@ class _TribeUnitSnapshot:
     label: str
     kind: str
     status: str
+    status_bucket: str
     model: str
     duration: str
     status_counts: TribeStatusCounts | None
@@ -140,6 +144,7 @@ class AgentTribeSummarySnapshot:
     label: str
     panel_collapsed: bool
     status: str
+    status_bucket: str
     counts: TribeStatusCounts
     clan_count: int
     family_count: int
@@ -367,6 +372,11 @@ def _unit_snapshot(
         projection.agent.identity: projection.bucket
         for projection in agent_status_projections((unit,))
     }
+    unit_bucket = aggregate_agent_group_bucket(
+        (row.status, bucket)
+        for row in rows
+        if (bucket := effective_bucket_by_identity.get(row.identity)) is not None
+    ) or agent_status_bucket(unit)
     children = tuple(
         _TribeUnitChild(
             identity=row.identity,
@@ -399,6 +409,7 @@ def _unit_snapshot(
         label=_row_name(unit),
         kind=_unit_kind(unit),
         status=unit.display_status,
+        status_bucket=unit_bucket,
         model=_model_label(rows or (unit,)),
         duration=_duration(unit, now=now),
         status_counts=(
@@ -473,15 +484,19 @@ def build_agent_tribe_summary_snapshot(
             unit_identity=unit.identity,
             unit_label=unit.label,
             status=unit.status,
-            status_bucket=status_bucket_for_values(unit.status),
+            status_bucket=unit.status_bucket,
             preview=_attention_preview(
                 tribe_unit_real_rows(root) or (root,), unit.status
             ),
         )
         for root, unit in zip(roots, units, strict=True)
-        if status_bucket_for_values(unit.status) in {"Failed", "Stopped", "Waiting"}
+        if unit.status_bucket in {"Failed", "Stopped", "Waiting"}
     )
-    status = aggregate_clan_status(row.status for row in real_rows) or "EMPTY"
+    aggregate_entries = tuple(
+        (row.status, agent_status_bucket(row)) for row in real_rows
+    )
+    status = aggregate_agent_group_effective_status(aggregate_entries) or "EMPTY"
+    status_bucket = aggregate_agent_group_bucket(aggregate_entries) or "Running"
     family_identities = {
         row.identity for row in real_rows if is_sequential_family_container(row)
     }
@@ -505,6 +520,7 @@ def build_agent_tribe_summary_snapshot(
         label=_panel_label(panel_key),
         panel_collapsed=panel_collapsed,
         status=status,
+        status_bucket=status_bucket,
         counts=lane_counts,
         clan_count=sum(unit.kind == "clan" for unit in units),
         family_count=len(family_identities),

@@ -98,6 +98,7 @@ class DoneMarkerWire:
     retry_error_category: str | None = None
     approve: bool = False
     hidden: bool = False
+    status_bucket: str | None = None
     repeat_stopped: bool = False
     stopped_by: str | None = None
     imported_transaction_key: str | None = None
@@ -190,6 +191,7 @@ class AgentMetaWire:
     retried_as_timestamp: str | None = None
     retry_terminal: bool = False
     retry_error_category: str | None = None
+    status_bucket: str | None = None
     monitor_id: str | None = None
     monitor_command: str | None = None
     monitor_cwd: str | None = None

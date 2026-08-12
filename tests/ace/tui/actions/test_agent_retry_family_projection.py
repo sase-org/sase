@@ -11,7 +11,7 @@ from sase.ace.tui.actions.agents._loading_helpers import (
     load_agents_from_disk_with_state,
 )
 from sase.ace.tui.models.agent import Agent
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 from tests.ace.tui._retry_family_loader_fixture import (
     ROOT_TIMESTAMP,
     RUNNER_PID,
@@ -84,7 +84,7 @@ def test_live_failed_plan_family_projects_retry_immediately(
     assert (root.retry_count, root.max_retries) == (2, 3)
     assert root.retry_next_at_epoch == 1_800_000_000.0
     assert root.retry_wait_seconds == 300
-    assert status_bucket_for_values(root.status) == "Running"
+    assert agent_status_bucket(root) == "Running"
 
     planner = next(agent for agent in agents if agent.agent_family_role == "plan")
     coder = next(agent for agent in agents if agent.agent_family_role == "code")
@@ -112,4 +112,4 @@ def test_failed_plan_family_without_live_retry_remains_terminal(
     assert root.status == "FAILED"
     assert root.retry_status is None
     assert (root.retry_count, root.max_retries) == (0, 0)
-    assert status_bucket_for_values(root.status) == "Failed"
+    assert agent_status_bucket(root) == "Failed"

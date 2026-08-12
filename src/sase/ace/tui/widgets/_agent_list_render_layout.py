@@ -10,7 +10,7 @@ from datetime import datetime
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from sase.agent.status_buckets import agent_is_asking, status_bucket_for_values
+from sase.agent.status_buckets import agent_is_asking, agent_status_bucket
 
 from ..models.agent import (
     Agent,
@@ -60,7 +60,7 @@ def _runtime_suffix_user_paused(agent: Agent, *, is_ticking: bool) -> bool:
 
 
 def _unread_marker(agent: Agent) -> str:
-    if status_bucket_for_values(agent.status) == "Failed":
+    if agent_status_bucket(agent) == "Failed":
         return _RUNTIME_UNREAD_FAILED_MARKER
     return _RUNTIME_UNREAD_DONE_MARKER
 

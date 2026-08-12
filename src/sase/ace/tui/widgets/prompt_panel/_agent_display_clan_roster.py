@@ -5,7 +5,13 @@ from __future__ import annotations
 from copy import copy
 from datetime import datetime
 
-from ...models._agent_clan import aggregate_clan_status, clan_members
+from sase.agent.status_buckets import (
+    agent_status_bucket,
+    aggregate_agent_group_bucket,
+    aggregate_agent_group_effective_status,
+)
+
+from ...models._agent_clan import clan_members
 from ...models._agent_clan_sections import ClanMemberDigest
 from ...models.agent import Agent, AgentType, compute_row_runtime
 from ...models.agent_family_members import family_member_status_buckets
@@ -172,6 +178,7 @@ def clan_roster_entries(
                     label=_hood_suffix(member, clan_name),
                     kind=_member_kind(member),
                     status=member.display_status,
+                    effective_bucket=agent_status_bucket(member),
                     model=_member_model_label(member),
                     duration=duration_label(member, now=now),
                     digest=digest_by_identity.get(member.identity),
@@ -180,10 +187,16 @@ def clan_roster_entries(
             continue
 
         rows = family_rows(member, children)
-        family_status = (
-            aggregate_clan_status(row.status for row in rows) or member.display_status
-        )
         family_buckets = family_member_status_buckets(rows)
+        family_status_entries = tuple(
+            (row.status, bucket)
+            for row, bucket in zip(rows, family_buckets, strict=True)
+        )
+        family_status = (
+            aggregate_agent_group_effective_status(family_status_entries)
+            or member.display_status
+        )
+        family_bucket = aggregate_agent_group_bucket(family_status_entries)
         roster_children = tuple(
             MemberRosterChild(
                 label=_nested_family_suffix(family_member, member, clan_name),
@@ -210,6 +223,7 @@ def clan_roster_entries(
                 label=_family_suffix(member, clan_name),
                 kind="family",
                 status=family_status,
+                effective_bucket=family_bucket,
                 model=_model_label(rows or (member,)),
                 duration=_family_duration_label(member, rows, now=now),
                 digest=digest_by_identity.get(member.identity),

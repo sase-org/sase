@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from sase.agent.status_buckets import (
     agent_is_active,
-    status_bucket_for_values,
+    agent_status_bucket,
 )
 from .agent import Agent, AgentType
 
@@ -127,7 +127,7 @@ def family_roster_container(agent: Agent) -> Agent | None:
 
 def _settled_member_bucket(member: Agent) -> str:
     """Return the effective bucket for one non-final sequential-family member."""
-    bucket = status_bucket_for_values(member.status)
+    bucket = agent_status_bucket(member)
     if bucket not in _IN_FLIGHT_BUCKETS or agent_row_is_in_flight(member):
         return bucket
     return "Done"
@@ -151,7 +151,7 @@ def family_member_status_buckets(members: Sequence[Agent]) -> tuple[str, ...]:
     return tuple(
         _settled_member_bucket(member)
         if index < final_index
-        else status_bucket_for_values(member.status)
+        else agent_status_bucket(member)
         for index, member in enumerate(members)
     )
 
@@ -163,7 +163,7 @@ def concrete_agent_statuses(agent: Agent) -> tuple[ConcreteAgentStatus, ...]:
         buckets = family_member_status_buckets(rows)
     else:
         rows = _concrete_agent_rows(agent)
-        buckets = tuple(status_bucket_for_values(row.status) for row in rows)
+        buckets = tuple(agent_status_bucket(row) for row in rows)
     return tuple(
         ConcreteAgentStatus(agent=row, bucket=bucket)
         for row, bucket in zip(rows, buckets, strict=True)

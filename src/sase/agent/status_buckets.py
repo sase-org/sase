@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Protocol
 
 AGENT_STATUS_BUCKETS: tuple[str, ...] = (
     "Stopped",
@@ -220,6 +221,39 @@ def status_bucket_for_values(
     return "Running"
 
 
+class _AgentStatusBucketRow(Protocol):
+    """Minimal row shape that can carry an explicit status bucket."""
+
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def retried_as_timestamp(self) -> str | None: ...
+
+    @property
+    def status_bucket(self) -> str | None: ...
+
+
+def valid_status_bucket(value: str | None) -> str | None:
+    """Return a recognized status bucket override, if *value* is valid."""
+    if isinstance(value, str) and value in AGENT_STATUS_BUCKETS:
+        return value
+    return None
+
+
+def agent_status_bucket(agent: _AgentStatusBucketRow) -> str:
+    """Return an agent row's effective status bucket.
+
+    Rows may carry arbitrary display statuses, so an explicit bucket wins
+    when it is one of the known buckets. Malformed marker values fall back to
+    the derived status mapping instead of breaking agent-list rendering.
+    """
+    override = valid_status_bucket(agent.status_bucket)
+    if override is not None:
+        return override
+    return status_bucket_for_values(agent.status, agent.retried_as_timestamp)
+
+
 #: Canonical status per bucket, used when a caller supplies an effective
 #: bucket that intentionally overrides a row's raw status.
 _BUCKET_REPRESENTATIVE_STATUS: dict[str, str] = {
@@ -269,11 +303,18 @@ def aggregate_agent_group_bucket(
     approved planner settles to ``Done`` — is substituted with that bucket's
     canonical status so the override survives aggregation.
     """
+    aggregate = aggregate_agent_group_effective_status(entries)
+    return None if aggregate is None else status_bucket_for_values(aggregate)
+
+
+def aggregate_agent_group_effective_status(
+    entries: Iterable[tuple[str, str]],
+) -> str | None:
+    """Return aggregate status after applying row-level effective buckets."""
     resolved = tuple(
         status
         if status_bucket_for_values(status) == bucket
         else _BUCKET_REPRESENTATIVE_STATUS.get(bucket, status)
         for status, bucket in entries
     )
-    aggregate = aggregate_agent_group_status(resolved)
-    return None if aggregate is None else status_bucket_for_values(aggregate)
+    return aggregate_agent_group_status(resolved)

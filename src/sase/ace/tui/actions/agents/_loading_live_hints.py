@@ -22,7 +22,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 
 from ...models._agent_status_overrides import classify_live_file_change_hint
 from ...util.pump_tasks import spawn_pump_free_task
@@ -36,16 +36,11 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _status_allows_live_hint(status: str | None) -> bool:
-    bucket = status_bucket_for_values(status)
-    return bucket not in {"Done", "Failed"}
-
-
 def _agent_allows_live_hint(agent: Agent) -> bool:
     from sase.ace.tui.widgets.file_panel._diff import resolve_agent_diff_source
 
     source = resolve_agent_diff_source(agent)
-    return _status_allows_live_hint(source.status)
+    return agent_status_bucket(source) not in {"Done", "Failed"}
 
 
 def carry_over_live_hints(
@@ -183,7 +178,7 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         candidates: list[Agent] = []
         for agent in self._agents:
             source = resolve_agent_diff_source(agent)
-            if not _status_allows_live_hint(source.status):
+            if agent_status_bucket(source) in {"Done", "Failed"}:
                 continue
             candidates.append(agent)
         return candidates

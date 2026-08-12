@@ -40,9 +40,8 @@ def append_tribe_header(
         style=tribe_identity_style(snapshot.panel_key, bold=True),
     )
     text.append("Status: ", style=FIELD_LABEL_STYLE)
-    from sase.agent.status_buckets import status_bucket_for_values
 
-    bucket = status_bucket_for_values(snapshot.status)
+    bucket = snapshot.status_bucket
     text.append(snapshot.status, style=STATUS_STYLES.get(bucket, "bold"))
     _append_count_chip(text, snapshot.counts)
     text.append("\n")

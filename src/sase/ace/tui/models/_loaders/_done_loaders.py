@@ -291,6 +291,11 @@ def _load_done_agent_for_dir(
             project_file=data.get("project_file", ""),
             status=status,
             start_time=start_time,
+            status_bucket=(
+                data.get("status_bucket")
+                if isinstance(data.get("status_bucket"), str)
+                else None
+            ),
             workflow=workflow_dir_name,
             raw_suffix=timestamp_str,
             response_path=data.get("response_path"),
@@ -484,6 +489,7 @@ def _build_done_agent_from_record(
         project_file=done.project_file or "",
         status=status,
         start_time=start_time,
+        status_bucket=done.status_bucket,
         workflow=record.workflow_dir_name,
         raw_suffix=timestamp_str,
         response_path=done.response_path,

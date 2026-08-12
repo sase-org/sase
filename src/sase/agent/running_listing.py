@@ -6,7 +6,7 @@ from pathlib import Path
 from collections.abc import Mapping
 
 from sase.agent.names import is_process_alive
-from sase.agent.status_buckets import EPIC_APPROVED_STATUS
+from sase.agent.status_buckets import EPIC_APPROVED_STATUS, valid_status_bucket
 from sase.core.agent_clan_context import (
     ClanContextKey,
     clan_context_by_key,
@@ -47,6 +47,7 @@ class RunningAgentInfo:
     approve: bool
     prompt: str | None = None
     status: str = "RUNNING"
+    status_bucket: str | None = None
     started_at: datetime | None = None
     duration_seconds: int | None = None
     artifacts_dir: str | None = None
@@ -247,6 +248,7 @@ def _running_info_from_running_record(
         approve=bool(meta.approve),
         prompt=record.raw_prompt_snippet,
         status=status,
+        status_bucket=valid_status_bucket(meta.status_bucket),
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
@@ -350,6 +352,11 @@ def _done_info_from_record(
     model = (meta.model if meta is not None else None) or done.model
     provider = (meta.llm_provider if meta is not None else None) or done.llm_provider
     approve = bool((meta.approve if meta is not None else False) or done.approve)
+    status_bucket = (
+        valid_status_bucket(meta.status_bucket) if meta is not None else None
+    )
+    if status_bucket is None:
+        status_bucket = valid_status_bucket(done.status_bucket)
     context = clan_context_for(
         clan_contexts,
         agent_clan=meta.agent_clan if meta is not None else None,
@@ -374,6 +381,7 @@ def _done_info_from_record(
         approve=approve,
         prompt=record.raw_prompt_snippet,
         status=status,
+        status_bucket=status_bucket,
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,

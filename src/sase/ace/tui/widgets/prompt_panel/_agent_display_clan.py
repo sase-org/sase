@@ -7,7 +7,7 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 
 from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan import clan_member_counts
@@ -186,7 +186,7 @@ def build_clan_detail_text(
 
     counts = clan_member_counts(agent, unread_ids)
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
-    status_bucket = status_bucket_for_values(agent.status)
+    status_bucket = agent_status_bucket(agent)
     text.append(agent.display_status, style=_MEMBER_STATUS_STYLES[status_bucket])
     chip = format_agent_count_chip(
         stopped=counts.awaiting,

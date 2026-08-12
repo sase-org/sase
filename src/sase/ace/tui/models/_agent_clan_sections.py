@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Literal
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 from sase.core.output_variable_values import VarValue, encode_var_value
 
 from ._agent_clan import clan_members
@@ -332,7 +332,7 @@ def aggregate_agent_errors(
     """Return deterministic error entries for arbitrary loaded agent rows."""
     entries: list[ClanErrorEntry] = []
     for row in rows:
-        failed = status_bucket_for_values(row.status) == "Failed"
+        failed = agent_status_bucket(row) == "Failed"
         if not row.error_message and not failed:
             continue
         message = row.error_message or "Runner failed without error details."

@@ -5,12 +5,14 @@ from datetime import datetime
 
 from sase.agent.status_buckets import (
     FEEDBACK_STATUS,
+    aggregate_agent_group_bucket,
+    aggregate_agent_group_effective_status,
+    agent_status_bucket,
     is_pending_plan_review_status,
 )
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
-from ._agent_clan import aggregate_clan_status
 from ._agent_status_family import (
     active_approved_plan_handoff_status,
     append_unique_timestamps,
@@ -53,6 +55,7 @@ DiffBadgeClassifier = Callable[[list[Agent]], None]
 def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
     """Copy the visible root status/metadata from a selected logical child."""
     parent.status = child.status
+    parent.status_bucket = child.status_bucket
     copy_missing_display_metadata(parent, child)
 
 
@@ -356,11 +359,14 @@ def apply_status_overrides(
 
         parallel_members = [child for child in children if child.agent_family_parallel]
         if parallel_members:
-            aggregate_status = aggregate_clan_status(
-                [parent.status, *(member.status for member in parallel_members)]
+            aggregate_entries = tuple(
+                (member.status, agent_status_bucket(member))
+                for member in (parent, *parallel_members)
             )
+            aggregate_status = aggregate_agent_group_effective_status(aggregate_entries)
             if aggregate_status is not None:
                 parent.status = aggregate_status
+                parent.status_bucket = aggregate_agent_group_bucket(aggregate_entries)
             if parent.status in {"WAITING", "QUEUED"}:
                 waiting_members = [
                     member
@@ -404,6 +410,7 @@ def apply_status_overrides(
             next_waiting = min(waiting, key=child_launch_time)
             if next_waiting is not parent:
                 parent.status = next_waiting.status
+                parent.status_bucket = next_waiting.status_bucket
                 parent.wait_display_source = next_waiting
                 copy_missing_display_metadata(parent, next_waiting)
             continue

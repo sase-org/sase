@@ -28,6 +28,7 @@ def tribe_roster_entries(
                 label=unit.label,
                 kind=unit.kind,
                 status=unit.status,
+                effective_bucket=unit.status_bucket,
                 model=unit.model,
                 duration=unit.duration,
                 digest=unit.digest,

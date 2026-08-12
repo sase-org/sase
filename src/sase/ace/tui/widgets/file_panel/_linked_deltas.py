@@ -9,7 +9,7 @@ from datetime import datetime
 from threading import Lock
 from typing import NamedTuple
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 from sase.ace.patch.models import DeltaEntry
 from sase.core.time import local_now
 from sase.linked_repos import OpenedRepoKind
@@ -58,8 +58,11 @@ _selected_agent_cache_monotonic: dict[tuple[object, ...], float] = {}
 _linked_delta_cache_lock = Lock()
 
 
-def _status_allows_linked_deltas(status: str | None) -> bool:
-    return status_bucket_for_values(status) not in {"Done", "Failed"}
+def _agent_allows_linked_deltas(agent: Agent) -> bool:
+    return agent_status_bucket(resolve_agent_diff_source(agent)) not in {
+        "Done",
+        "Failed",
+    }
 
 
 def _existing_workspace_dir(workspace_dir: str) -> str | None:
@@ -116,7 +119,7 @@ def _has_possible_opened_workspace_markers(agent: Agent) -> bool:
 
 
 def _eligible_static_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...]:
-    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
+    if not _agent_allows_linked_deltas(agent):
         return ()
     return _workspace_linked_repos(agent)
 
@@ -124,7 +127,7 @@ def _eligible_static_linked_repos(agent: Agent) -> tuple[LinkedRepoMetadata, ...
 def _eligible_linked_workspace_candidates(
     agent: Agent,
 ) -> tuple[_LinkedWorkspaceCandidate, ...]:
-    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
+    if not _agent_allows_linked_deltas(agent):
         return ()
 
     candidates: list[_LinkedWorkspaceCandidate] = []
@@ -195,7 +198,7 @@ def should_refresh_linked_delta_groups(agent: Agent) -> bool:
     This is intentionally an in-memory decision so the render path can ask it
     without touching Git or the filesystem.
     """
-    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
+    if not _agent_allows_linked_deltas(agent):
         return False
     has_workspace = any(
         bool(metadata_agent.workspace_dir)
@@ -218,7 +221,7 @@ def should_refresh_linked_delta_groups(agent: Agent) -> bool:
 
 def get_cached_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
     """Return cached linked delta groups for *agent* without doing I/O."""
-    if not _status_allows_linked_deltas(resolve_agent_diff_source(agent).status):
+    if not _agent_allows_linked_deltas(agent):
         return ()
     with _linked_delta_cache_lock:
         return _selected_agent_linked_delta_cache.get(agent.identity, ())

@@ -120,6 +120,8 @@ def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
         parent.workspace_num = child.workspace_num
     if parent.workspace_dir is None and child.workspace_dir is not None:
         parent.workspace_dir = child.workspace_dir
+    if parent.status_bucket is None and child.status_bucket is not None:
+        parent.status_bucket = child.status_bucket
     copy_missing_plan_metadata(parent, child)
 
 
@@ -152,6 +154,7 @@ def ensure_synthetic_planner_children(
             project_file=parent.project_file,
             status=child_status,
             start_time=parent.run_start_time or parent.start_time,
+            status_bucket=parent.status_bucket,
             run_start_time=parent.run_start_time,
             stop_time=freeze_time or parent.stop_time,
             workflow=parent.workflow,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.agent.status_buckets import status_bucket_for_values
+from sase.agent.status_buckets import agent_status_bucket
 from sase.sdd.hosted_links import hosted_link_resolver
 from sase.sdd.store import resolve_sdd_store
 from sase.workspace_provider.utils import parse_workspace_dir
@@ -16,7 +16,7 @@ from ..widgets.prompt_panel._agent_commits import agent_commit_groups
 def agent_publishes_page(agent: Agent) -> bool:
     """Return whether ``agent`` should have a published agents-sidecar page."""
     return bool(
-        status_bucket_for_values(agent.status) == "Done"
+        agent_status_bucket(agent) == "Done"
         and agent_commit_groups(agent)
         and agent.agent_name
         and not agent.is_clan_container

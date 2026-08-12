@@ -7,6 +7,8 @@ from datetime import datetime
 
 from rich.text import Text
 
+from sase.agent.status_buckets import agent_status_bucket
+
 from ...models.agent_hoods import AgentIdentity
 from ...models.agent_lane_neighbors import (
     AgentLaneNeighborProjection,
@@ -68,6 +70,7 @@ def _neighbor_roster_entries(
                 label=_neighbor_label(row),
                 kind=kind,
                 status=agent.display_status,
+                effective_bucket=agent_status_bucket(agent),
                 model=agent.model or "default",
                 duration=agent_roster_duration(agent, now=now),
                 digest=agent_roster_digest(

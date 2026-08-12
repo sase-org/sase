@@ -24,6 +24,7 @@ def _agent(
     start_offset: int = 0,
     stop_offset: int | None = None,
     status: str = "DONE",
+    status_bucket: str | None = None,
     step_type: str = "agent",
 ) -> Agent:
     agent = Agent(
@@ -32,6 +33,7 @@ def _agent(
         project_file="/tmp/family.sase",
         status=status,
         start_time=_STARTED + timedelta(minutes=start_offset),
+        status_bucket=status_bucket,
         stop_time=(
             _STARTED + timedelta(minutes=stop_offset)
             if stop_offset is not None
@@ -237,6 +239,18 @@ def test_approved_final_family_member_keeps_global_running_bucket() -> None:
     )
 
     assert family_member_status_buckets((planner,)) == ("Running",)
+
+
+def test_custom_final_family_member_bucket_override_wins() -> None:
+    monitor = _agent(
+        "alpha--mon",
+        role="monitor",
+        status="MONITORED",
+        status_bucket="Done",
+    )
+
+    assert family_member_status_buckets((monitor,)) == ("Done",)
+    assert concrete_agent_statuses(monitor)[0].bucket == "Done"
 
 
 def test_stopped_non_final_family_member_projects_done() -> None:

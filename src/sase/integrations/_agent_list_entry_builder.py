@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
@@ -15,8 +15,10 @@ from sase.agent.status_buckets import (
     EPIC_APPROVED_STATUS,
     PLAN_APPROVED_STATUS,
     TALE_APPROVED_STATUS,
+    agent_status_bucket,
     pending_plan_status_for_tier,
     status_bucket_for_values,
+    valid_status_bucket,
 )
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -42,6 +44,13 @@ from .provider_badges import provider_emoji_badge
 _ACTIVE_OR_PRE_ACTIVE_STATUSES = ACTIVE_AGENT_STATUSES | {"STARTING", "RUNNING"}
 
 
+@dataclass(frozen=True, slots=True)
+class _AgentListStatusRow:
+    status: str
+    retried_as_timestamp: str | None
+    status_bucket: str | None
+
+
 def record_status_bucket(record: AgentArtifactRecordWire) -> str:
     meta = _record_meta(record)
     status = _derive_status(
@@ -51,7 +60,10 @@ def record_status_bucket(record: AgentArtifactRecordWire) -> str:
         _record_pending_question(record),
     )
     retry = _retry_info(meta, record.done)
-    return status_bucket_for_values(status, retry.retried_as_timestamp)
+    override = valid_status_bucket(meta.status_bucket) if meta is not None else None
+    if override is None and record.done is not None:
+        override = valid_status_bucket(record.done.status_bucket)
+    return override or status_bucket_for_values(status, retry.retried_as_timestamp)
 
 
 def _base_record_status(record: AgentArtifactRecordWire) -> str:
@@ -84,7 +96,18 @@ def build_agent_list_entry(
 
     status = _derive_status(agent.status, meta, waiting, pending_question)
     retry = _retry_info(meta, done)
-    bucket = status_bucket_for_values(status, retry.retried_as_timestamp)
+    status_bucket = valid_status_bucket(agent.status_bucket) or (
+        valid_status_bucket(meta.status_bucket) if meta is not None else None
+    )
+    if status_bucket is None and done is not None:
+        status_bucket = valid_status_bucket(done.status_bucket)
+    bucket = agent_status_bucket(
+        _AgentListStatusRow(
+            status=status,
+            retried_as_timestamp=retry.retried_as_timestamp,
+            status_bucket=status_bucket,
+        )
+    )
 
     model = agent.model or _text(meta, "model") or _text(done, "model")
     provider = (

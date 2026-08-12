@@ -12,7 +12,7 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     QUEUED_STATUS,
     QUEUED_STATUS_COLOR,
-    status_bucket_for_values,
+    agent_status_bucket,
 )
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 from sase.plan_tier_presentation import PLAN_TIER_PRESENTATIONS
@@ -460,7 +460,7 @@ def append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
     for member in members:
         role = member.agent_family_role or "member"
         name = member.presented_agent_name or _UNASSIGNED_AGENT_NAME_DISPLAY
-        bucket = status_bucket_for_values(member.status)
+        bucket = agent_status_bucket(member)
         glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
         status_style = _LEGACY_MEMBER_STATUS_STYLES[bucket]
         model = member.model or "default"

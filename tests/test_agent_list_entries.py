@@ -138,6 +138,36 @@ def test_agent_list_preserves_standalone_tribe_without_clan_context(
     assert entry.clan_tribe is None
 
 
+def test_agent_list_carries_status_bucket_from_snapshot_metadata(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    artifact_record = record(
+        agent_meta=AgentMetaWire(
+            name="monitor",
+            pid=1234,
+            run_started_at="2026-07-19T12:00:00Z",
+            status_bucket="Done",
+        )
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[artifact_record],
+    )
+    monkeypatch.setattr(
+        "sase.agent.running_listing.is_process_alive",
+        lambda *_args: True,
+    )
+
+    (info,) = _running_from_snapshot(snapshot)
+    entry = _build_agent_list_entry(info, record=artifact_record)
+
+    assert info.status_bucket == "Done"
+    assert entry.status_bucket == "Done"
+
+
 def test_agent_list_entries_names_parallel_child_blocking_waiter(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
