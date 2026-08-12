@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.axe.chop_inventory import collect_chop_inventory
-from sase.axe.chop_policy import evaluate_chop_preflight
+from sase.axe.chop_policy import ChopPreflight, evaluate_chop_preflight
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.state import ChopRunEntry, read_chop_run, write_chop_run
@@ -256,3 +256,57 @@ def test_manual_run_bypasses_configured_git_trigger(
         )
 
     assert outcome.status == "success"
+
+
+def test_guard_skip_does_not_advance_run_every_cadence(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "guarded", "echo ran\n")
+    chop = ChopConfig(name="guarded", description="", run_every=3600)
+    preflight = ChopPreflight(
+        outcome="skip",
+        reason="inhibited by active agent clan `toobig-3` member `agent.name`",
+        decision={"provider": "agent_clan"},
+    )
+
+    with patch(
+        "sase.axe.chop_runner_script.evaluate_chop_preflight",
+        return_value=preflight,
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")]),
+            source="scheduled",
+        )
+
+    assert outcome.status == "skipped"
+    assert outcome.advances_cadence is False
+
+
+def test_git_commits_since_trigger_skip_still_advances_run_every_cadence(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "audited", "echo ran\n")
+    chop = ChopConfig(name="audited", description="", run_every=3600)
+    preflight = ChopPreflight(
+        outcome="skip",
+        reason="1 commits observed for `demo`; threshold is 2",
+        decision={"provider": "git.commits_since"},
+    )
+
+    with patch(
+        "sase.axe.chop_runner_script.evaluate_chop_preflight",
+        return_value=preflight,
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")]),
+            source="scheduled",
+        )
+
+    assert outcome.status == "skipped"
+    assert outcome.advances_cadence is True

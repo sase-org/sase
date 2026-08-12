@@ -293,7 +293,9 @@ class Lumberjack:
                 chop_name=chop.name,
                 executed=False,
                 success=True,
-                update_timestamp=chop.run_every is not None,
+                update_timestamp=(
+                    chop.run_every is not None and outcome.advances_cadence
+                ),
                 log_lines=log_lines,
             )
 

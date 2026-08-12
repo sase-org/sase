@@ -825,7 +825,11 @@ provenance line the reader sees.
 
 Policy is runner-owned and evaluated before the script:
 
-- `run_every` limits cadence for each expanded chop instance.
+- `run_every` limits cadence for each expanded chop instance. A guard skip does not
+  consume this cadence, so a guarded chop re-evaluates its guard on the next tick rather
+  than waiting out the full interval; a trigger skip (the condition was evaluated and
+  not met) still advances the clock as before. Guard evaluation is not free — put a
+  guard on a lane whose tick interval matches the cost of re-checking it.
 - `inhibit_if` supports `patch`, `agent_hood`, and `agent_clan` guards. The legacy
   `changespec` guard key remains accepted as an alias. `agent_clan.name_prefix` matches
   canonical clan metadata on active agents only; dotted agent names are not treated as

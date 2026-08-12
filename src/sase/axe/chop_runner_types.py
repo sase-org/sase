@@ -48,6 +48,7 @@ class ChopRunOutcome:
     dry_run: bool = False
     chop_verbose: bool = False
     reason: str | None = None
+    advances_cadence: bool = True
 
 
 class ChopNotFoundError(LookupError):

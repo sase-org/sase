@@ -21,6 +21,13 @@ from .state import (
     write_chop_run,
 )
 
+# Trigger providers evaluate a configured condition and, on skip, mean "the
+# condition was not met" — the chop should still wait out its next
+# `run_every` interval before re-checking. Every other provider name is a
+# guard, whose skip means "the trigger was never evaluated" and should not
+# consume the cadence clock.
+_TRIGGER_PROVIDERS = frozenset({"always", "git.commits_since"})
+
 
 def append_once_per_summary(
     lumberjack_name: str,
@@ -61,6 +68,8 @@ def record_preflight_outcome(
     error = RuntimeError(preflight.reason) if status == "check_error" else None
     label = "Chop skipped" if status == "skipped" else "Chop preflight check error"
     output = f"{label}: {preflight.reason}\n"
+    provider = (preflight.decision or {}).get("provider")
+    advances_cadence = not (status == "skipped" and provider not in _TRIGGER_PROVIDERS)
     try:
         write_chop_run(
             ChopRunEntry(
@@ -90,6 +99,7 @@ def record_preflight_outcome(
         traceback=NO_PYTHON_TRACEBACK if error is not None else None,
         chop_verbose=chop_verbose,
         reason=preflight.reason,
+        advances_cadence=advances_cadence,
     )
 
 
