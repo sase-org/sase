@@ -3,21 +3,14 @@
 from __future__ import annotations
 
 import argparse
-import json
-import re
 import sys
-from collections.abc import Callable, Sequence
-from pathlib import Path
+from collections.abc import Sequence
 
-from rich.cells import cell_len
-
-from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
-from sase.bead.cli_dep_render import ANSI_BOLD_BLUE, resolve_color, styled
+from sase.bead.cli_dep_render import resolve_color
 from sase.bead.cli_detail import (
     artifact_reference_context,
     design_paths_are_relative,
-    issue_to_wire_dict,
     plan_reference_roots,
     render_issue_detail,
     render_issue_detail_json,
@@ -26,42 +19,32 @@ from sase.bead.cli_detail import (
     resolve_issue_detail,
 )
 from sase.bead.cli_detail_style import DetailStyle, resolve_detail_style
+from sase.bead.cli_query_render import (
+    compact_size_column as _compact_size_column,
+    compact_size_column_width as _compact_size_column_width,
+    invalid_search_regex_message as _invalid_search_regex_message,
+    render_list_compact as _render_list_compact,
+    render_list_full as _render_list_full,
+    render_list_json as _render_list_json,
+    render_search_compact as _render_search_compact,
+    render_search_full as _render_search_full,
+    render_search_json as _render_search_json,
+    row_badges as _row_badges,
+    search_field_value as _search_field_value,
+)
 from sase.bead.model import (
-    BeadSearchMatch,
     BeadTier,
     Issue,
     IssueType,
     Status,
 )
-from sase.bead.project import BeadProject
-from sase.bead.plus_one_presentation import (
-    PLUS_ONE_CLI_STYLE,
-    POST_CLOSE_CLI_STYLE,
-    post_close_plus_one_badge,
-    post_close_plus_one_count,
-    plus_one_badge,
-    plus_one_evidence_search_text,
-)
-from sase.bead.reopen_presentation import (
-    REOPEN_CLI_STYLE,
-    close_history_search_text,
-    reopen_badge,
-)
-from sase.bead_status_presentation import bead_status_presentation
 from sase.bead_summary_presentation import (
-    BeadListSummary,
     BeadSummaryRow,
     bead_list_summary_line,
     summarize_bead_rows,
 )
-from sase.bead_type_presentation import (
-    BEAD_TYPE_VALUES,
-    bead_type_cli_cell,
-    bead_type_presentation,
-)
 from sase.main.parser_bead_common import resolve_wrap_width
 from sase.markdown_width import markdown_print_width
-from sase.phase_size_presentation import PHASE_SIZE_TOKEN_WIDTH, phase_size_cli_token
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -358,6 +341,11 @@ def handle_bead_search(args: argparse.Namespace) -> None:
                         args.query,
                         relativize_design=design_paths_are_relative(),
                         plan_roots=plan_reference_roots(),
+                        reference_context=(
+                            artifact_reference_context()
+                            if any(match.issue.refs for match in matches)
+                            else None
+                        ),
                     ),
                     end="",
                 )
@@ -417,287 +405,3 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Phases:      {s.get('phase', 0)}")
         print(f"  Tasks:       {s.get('task', 0)}")
         print(f"  +1 Reports:  {s.get('plus_one', 0)}")
-
-
-def _row_badges(issue: Issue, *, use_color: bool = False) -> str:
-    """Return the shared ``[+N]``/``[↺N]`` suffix for one bead row.
-
-    Every row surface (list, ready, blocked, search) shares this so the two
-    badges cannot appear in different orders or with different spacing.
-    """
-    badges = []
-    if badge := plus_one_badge(issue.plus_one_count):
-        badges.append(styled(f"[{badge}]", PLUS_ONE_CLI_STYLE, use_color))
-    if reopened := reopen_badge(len(issue.close_history)):
-        badges.append(styled(f"[{reopened}]", REOPEN_CLI_STYLE, use_color))
-    if post_close := post_close_plus_one_badge(post_close_plus_one_count(issue)):
-        badges.append(styled(f"[{post_close}]", POST_CLOSE_CLI_STYLE, use_color))
-    return "".join(f" {badge}" for badge in badges)
-
-
-def _compact_size_column_width(issues: list[Issue]) -> int:
-    return (
-        PHASE_SIZE_TOKEN_WIDTH if any(issue.size is not None for issue in issues) else 0
-    )
-
-
-def _compact_size_column(issue: Issue, *, use_color: bool, width: int) -> str:
-    if width == 0:
-        return ""
-    return f"{phase_size_cli_token(issue.size, use_color=use_color, width=width)} "
-
-
-def _render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
-    # Measured (not assumed) so the column stays aligned even though the three
-    # type glyphs may not always share a Unicode width class.
-    type_width = max(
-        cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
-    )
-    size_width = _compact_size_column_width(issues)
-    lines = []
-    for issue in issues:
-        type_cell = bead_type_cli_cell(
-            issue.issue_type, use_color=use_color, width=type_width
-        )
-        status = bead_status_presentation(issue.status)
-        status_glyph = styled(status.glyph, status.cli_style, use_color)
-        issue_id = styled(issue.id, ANSI_BOLD_BLUE, use_color)
-        parent = f" ← {issue.parent_id}" if issue.parent_id else ""
-        lines.append(
-            f"{type_cell} {status_glyph} "
-            f"{_compact_size_column(issue, use_color=use_color, width=size_width)}"
-            f"{issue_id} · {issue.title}"
-            f"{_row_badges(issue, use_color=use_color)}{parent}"
-            f"{created_cell(issue, use_color=use_color)}"
-        )
-    return "\n".join(lines) + "\n"
-
-
-def _render_list_full(
-    view: BeadProject,
-    issues: list[Issue],
-    *,
-    relativize_design: bool,
-    plan_roots: tuple[Path, ...],
-    reference_context: ArtifactRefContext | None = None,
-) -> str:
-    sections = [
-        render_issue_detail(
-            resolve_issue_detail(view, issue),
-            relativize_design=relativize_design,
-            plan_roots=plan_roots,
-            reference_context=reference_context,
-        ).rstrip("\n")
-        for issue in issues
-    ]
-    return f"\n{'-' * 60}\n".join(sections) + "\n"
-
-
-def _render_list_json(
-    issues: list[Issue],
-    *,
-    total: int,
-    statuses: list[Status],
-    implied_status_closed: bool,
-    summary: BeadListSummary,
-) -> str:
-    envelope = {
-        "count": len(issues),
-        "total": total,
-        "statuses": [status.value for status in statuses],
-        "implied_status_closed": implied_status_closed,
-        "by_type": dict(summary.by_type),
-        "by_status": dict(summary.by_status),
-        "results": [issue_to_wire_dict(issue) for issue in issues],
-    }
-    return json.dumps(envelope, indent=2) + "\n"
-
-
-def _render_search_compact(
-    matches: list[BeadSearchMatch],
-    query: str,
-    regex: bool = False,
-    *,
-    use_color: bool,
-) -> str:
-    if not matches:
-        return f'No beads match "{query}".\n'
-
-    type_width = max(
-        cell_len(bead_type_presentation(value).glyph) for value in BEAD_TYPE_VALUES
-    )
-    size_width = _compact_size_column_width([match.issue for match in matches])
-    lines: list[str] = []
-    for match in matches:
-        issue = match.issue
-        type_cell = bead_type_cli_cell(
-            issue.issue_type,
-            use_color=use_color,
-            width=type_width,
-        )
-        lines.append(
-            f"{type_cell} {status_icon(issue.status)} "
-            f"{_compact_size_column(issue, use_color=use_color, width=size_width)}"
-            f"{issue.id} · "
-            f"{issue.title}{_row_badges(issue, use_color=use_color)}"
-            f"{created_cell(issue, use_color=use_color)}"
-        )
-        snippet = _compact_snippet(match, query, regex)
-        if snippet:
-            lines.append(f"  {snippet}")
-    return "\n".join(lines) + "\n"
-
-
-def _compact_snippet(match: BeadSearchMatch, query: str, regex: bool) -> str:
-    issue = match.issue
-    has_title_or_description_match = any(
-        field in {"title", "description"} for field in match.matched_fields
-    )
-    description = _single_line_snippet(issue.description, query, regex=regex)
-    if has_title_or_description_match and description:
-        return description
-
-    for field in match.matched_fields:
-        if field == "title":
-            continue
-        value = _search_field_value(issue, field)
-        snippet = _single_line_snippet(value, query, regex=regex)
-        if snippet:
-            return f'{field}: "{snippet}"'
-    return ""
-
-
-def _single_line_snippet(
-    value: str,
-    query: str,
-    *,
-    regex: bool = False,
-    max_chars: int = 96,
-) -> str:
-    lines = [line.strip() for line in value.splitlines() if line.strip()]
-    if not lines:
-        return ""
-
-    matches_line = _line_matcher(query, regex=regex)
-    line = next(
-        (line for line in lines if matches_line(line)),
-        lines[0],
-    )
-    if len(line) <= max_chars:
-        return line
-
-    index = _line_match_start(line, query, regex=regex)
-    if index < 0:
-        return line[: max_chars - 1].rstrip() + "…"
-    start = max(0, index - max_chars // 2)
-    end = min(len(line), start + max_chars)
-    start = max(0, end - max_chars)
-    prefix = "…" if start > 0 else ""
-    suffix = "…" if end < len(line) else ""
-    return f"{prefix}{line[start:end].strip()}{suffix}"
-
-
-def _line_matcher(query: str, *, regex: bool) -> Callable[[str], bool]:
-    if regex:
-        try:
-            pattern = re.compile(query, re.IGNORECASE)
-        except re.error:
-            return lambda _line: False
-        return lambda line: pattern.search(line) is not None
-
-    lowered_query = query.lower()
-    return lambda line: lowered_query in line.lower()
-
-
-def _line_match_start(line: str, query: str, *, regex: bool) -> int:
-    if regex:
-        try:
-            match = re.search(query, line, re.IGNORECASE)
-        except re.error:
-            return -1
-        return -1 if match is None else match.start()
-
-    return line.lower().find(query.lower())
-
-
-def _invalid_search_regex_message(exc: ValueError) -> str | None:
-    message = str(exc)
-    if message.startswith("validation: "):
-        message = message.removeprefix("validation: ")
-    if "invalid search regex:" in message:
-        return message
-    if "invalid regex:" in message:
-        return message.replace("invalid regex:", "invalid search regex:", 1)
-    return None
-
-
-def _search_field_value(issue: Issue, field: str) -> str:
-    values = {
-        "id": issue.id,
-        "title": issue.title,
-        "description": issue.description,
-        "notes": issue.notes,
-        "design": issue.design,
-        "refs": "\n".join(issue.refs),
-        "plus_one_evidence": plus_one_evidence_search_text(issue.plus_one_evidence),
-        "close_history": close_history_search_text(issue.close_history),
-        "owner": issue.owner,
-        "assignee": issue.assignee,
-        "model": issue.model,
-        "size": issue.size.value if issue.size else "",
-        "changespec_name": issue.changespec_name,
-        "changespec_bug_id": issue.changespec_bug_id,
-        "external_ref": issue.external_ref,
-        "status": issue.status.value,
-        "type": issue.issue_type.value,
-        "tier": issue.tier.value if issue.tier else "",
-    }
-    return values.get(field, "")
-
-
-def _render_search_json(
-    matches: list[BeadSearchMatch],
-    query: str,
-    regex: bool,
-) -> str:
-    envelope = {
-        "query": query,
-        "regex": regex,
-        "count": len(matches),
-        "results": [
-            {
-                "issue": issue_to_wire_dict(match.issue),
-                "matched_fields": match.matched_fields,
-            }
-            for match in matches
-        ],
-    }
-    return json.dumps(envelope, indent=2) + "\n"
-
-
-def _render_search_full(
-    view: BeadProject,
-    matches: list[BeadSearchMatch],
-    query: str,
-    *,
-    relativize_design: bool,
-    plan_roots: tuple[Path, ...],
-) -> str:
-    if not matches:
-        return f'No beads match "{query}".\n'
-
-    reference_context = (
-        artifact_reference_context()
-        if any(match.issue.refs for match in matches)
-        else None
-    )
-    sections = [
-        render_issue_detail(
-            resolve_issue_detail(view, match.issue),
-            relativize_design=relativize_design,
-            plan_roots=plan_roots,
-            reference_context=reference_context,
-        ).rstrip("\n")
-        for match in matches
-    ]
-    return f"\n{'-' * 60}\n".join(sections) + "\n"
