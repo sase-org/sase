@@ -102,6 +102,63 @@ def test_plan_marker_newer_than_sigterm_is_ignored_as_user_kill(
     assert not marker_path.exists()
 
 
+def test_monitor_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    _write_marker(
+        Path(ctx.artifacts_dir),
+        ".sase_monitor_pending",
+        {
+            "monitor_id": "m123",
+            "member_artifacts_dir": "/tmp/member",
+            "member_agent_name": "agent--mon",
+            "timestamp": 99.0,
+        },
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
+        patch(
+            "sase.axe.run_agent_exec.handle_monitor_marker",
+            return_value="monitored",
+        ) as monitor,
+    ):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "monitored"
+    monitor.assert_called_once()
+    marker = monitor.call_args.args[0]
+    assert marker["monitor_id"] == "m123"
+
+
+def test_monitor_marker_newer_than_sigterm_is_ignored_as_user_kill(
+    tmp_path: Path,
+) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    marker_path = Path(ctx.artifacts_dir) / ".sase_monitor_pending"
+    _write_marker(
+        Path(ctx.artifacts_dir),
+        marker_path.name,
+        {
+            "monitor_id": "m123",
+            "member_artifacts_dir": "/tmp/member",
+            "member_agent_name": "agent--mon",
+            "timestamp": 101.0,
+        },
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
+        patch("sase.axe.run_agent_exec.handle_monitor_marker") as monitor,
+    ):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "killed"
+    monitor.assert_not_called()
+    assert not marker_path.exists()
+
+
 def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     state = _state(Path(ctx.artifacts_dir))
@@ -131,3 +188,35 @@ def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
     result = _tool_call_records(artifacts)[-1]
     assert result["event"] == "ToolResult"
     assert result["status"] == "interrupted"
+
+
+def test_user_kill_intent_discards_monitor_marker(tmp_path: Path) -> None:
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    state = _state(Path(ctx.artifacts_dir))
+    artifacts = Path(ctx.artifacts_dir)
+    _write_marker(
+        artifacts,
+        USER_KILL_INTENT_MARKER,
+        {"schema_version": 1, "timestamp": 50.0, "pid": 123, "source": "test"},
+    )
+    _write_marker(
+        artifacts,
+        ".sase_monitor_pending",
+        {
+            "monitor_id": "m123",
+            "member_artifacts_dir": "/tmp/member",
+            "member_agent_name": "agent--mon",
+            "timestamp": 49.0,
+        },
+    )
+
+    with (
+        patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
+        patch("sase.axe.run_agent_exec.handle_monitor_marker") as monitor,
+    ):
+        outcome = _handle_killed_iteration(ctx, state)
+
+    assert outcome == "killed"
+    monitor.assert_not_called()
+    assert (artifacts / USER_KILL_INTENT_MARKER).exists()
+    assert not (artifacts / ".sase_monitor_pending").exists()

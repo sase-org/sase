@@ -236,6 +236,47 @@ def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
     release.assert_called_once_with("/tmp/project.sase", 17, "run", "feature")
 
 
+def test_finalize_does_not_touch_workspace_for_monitored_handoff(
+    tmp_path: Path,
+) -> None:
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=False,
+    )
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=False),
+        all_steps_hidden=MagicMock(return_value=True),
+        write_error_report=MagicMock(),
+        send_completion_notification=MagicMock(),
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with (
+        patch("sase.running_field.hold_workspace_claim") as hold,
+        patch("sase.running_field.release_workspace") as release,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                success=True,
+                exec_outcome="monitored",
+                error_summary=None,
+            ),
+            deps=deps,
+        )
+
+    hold.assert_not_called()
+    release.assert_not_called()
+
+
 def test_finalize_releases_held_prelaunch_bead_claim(tmp_path: Path) -> None:
     output_path = tmp_path / "output.log"
     context = RunnerShutdownContext(

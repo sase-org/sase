@@ -88,6 +88,12 @@ def _save_chat_history(**kwargs: Any) -> str:
     return func(**kwargs)
 
 
+def _last_saved_chat_path(state: LoopState) -> str | None:
+    if not state.saved_chat_paths:
+        return None
+    return state.saved_chat_paths[-1][1]
+
+
 def _build_retry_metadata(tracker: RetryTracker) -> dict[str, Any] | None:
     if tracker.retry_count <= 0 and not tracker.using_fallback:
         return None
@@ -133,6 +139,14 @@ def finalize_loop(
         fallback_model_override,
     )
     execution_llm_provider = _final_execution_provider(state)
+    if state.loop_outcome == "monitored":
+        done_agent_name = (
+            _metadata_str(
+                _read_transcript_agent_meta(state.current_artifacts_dir),
+                "name",
+            )
+            or done_agent_name
+        )
 
     saved_path: str | None = None
     diff_path: str | None = None
@@ -147,24 +161,28 @@ def finalize_loop(
     else:
         response_content = ""
 
-    extra = _format_extra_sections(state.current_artifacts_dir)
-    saved_path = _save_chat_history(
-        prompt=state.current_prompt,
-        response=response_content,
-        workflow="ace-run",
-        agent=done_agent_name,
-        timestamp=ctx.timestamp,
-        extra_sections=extra,
-        branch_or_workspace=ctx.cl_name,
-        metadata_agent=done_agent_name,
-        metadata_model=metadata_model,
-        metadata_llm_provider=metadata_llm_provider,
-        metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
-    )
+    if state.loop_outcome == "monitored":
+        saved_path = _last_saved_chat_path(state)
+    if saved_path is None:
+        extra = _format_extra_sections(state.current_artifacts_dir)
+        saved_path = _save_chat_history(
+            prompt=state.current_prompt,
+            response=response_content,
+            workflow="ace-run",
+            agent=done_agent_name,
+            timestamp=ctx.timestamp,
+            extra_sections=extra,
+            branch_or_workspace=ctx.cl_name,
+            metadata_agent=done_agent_name,
+            metadata_model=metadata_model,
+            metadata_llm_provider=metadata_llm_provider,
+            metadata_multi_agent_prompt=ctx.multi_agent_prompt_file,
+        )
     print(f"\nChat history saved to: {saved_path}")
 
-    if state.loop_outcome == "completed":
-        _link_saved_chats(state, saved_path)
+    if state.loop_outcome in {"completed", "monitored"}:
+        if state.loop_outcome == "completed":
+            _link_saved_chats(state, saved_path)
         plan_path = _read_plan_path(state.current_artifacts_dir)
         step_output, diff_path = _extract_step_output_and_diff_path(
             state.current_artifacts_dir
@@ -178,9 +196,11 @@ def finalize_loop(
         ) = _collect_default_artifacts(ctx, state, saved_path, diff_path, step_output)
         _enforce_artifact_retention()
 
-        completed_outcome = (
-            "noop" if _is_workflow_noop(state.current_artifacts_dir) else "completed"
-        )
+        completed_outcome = "completed"
+        if state.loop_outcome == "completed" and _is_workflow_noop(
+            state.current_artifacts_dir
+        ):
+            completed_outcome = "noop"
         done_marker = build_done_marker(
             ctx.cl_name,
             ctx.project_file,
@@ -256,7 +276,7 @@ def finalize_loop(
         write_done_marker_and_update_index(ctx.artifacts_dir, done_marker)
 
     return AgentExecResult(
-        success=state.loop_outcome in {"completed", "epic_approved"},
+        success=state.loop_outcome in {"completed", "epic_approved", "monitored"},
         outcome=state.loop_outcome,
         saved_path=saved_path,
         diff_path=diff_path,

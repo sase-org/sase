@@ -12,7 +12,13 @@ from .models import (
     monitor_state_bucket,
 )
 from .naming import allocate_monitor_suffix, new_monitor_id
-from .start import StartMonitorRequest, start_monitor
+from .start import (
+    MONITOR_PENDING_MARKER,
+    StartMonitorRequest,
+    maybe_handoff_monitor_from_agent,
+    start_monitor,
+    write_monitor_pending_marker,
+)
 from .store import (
     LaneContext,
     active_monitor_for_lane,
@@ -32,6 +38,7 @@ __all__ = [
     "MonitorLaneError",
     "MonitorRecord",
     "MonitorState",
+    "MONITOR_PENDING_MARKER",
     "StartMonitorRequest",
     "active_monitor_for_lane",
     "allocate_monitor_suffix",
@@ -40,8 +47,10 @@ __all__ = [
     "get_monitor",
     "has_any_monitor",
     "monitor_state_bucket",
+    "maybe_handoff_monitor_from_agent",
     "new_monitor_id",
     "resolve_lane",
     "start_monitor",
     "stop_monitor",
+    "write_monitor_pending_marker",
 ]

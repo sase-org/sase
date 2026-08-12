@@ -12,6 +12,7 @@ from sase.axe.run_agent_exec_markers import (
     publish_phase_env as _publish_phase_env,
     write_done_marker_and_update_index as _write_done_marker_and_update_index,
 )
+from sase.axe.run_agent_exec_monitor import handle_monitor_marker
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import (
     get_embedded_workflow_refs as _get_embedded_workflow_refs,
@@ -136,6 +137,7 @@ def _handle_killed_iteration(
     if has_user_kill_intent(state.current_artifacts_dir):
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
         read_and_delete_marker(state.current_artifacts_dir, ".sase_questions_pending")
+        read_and_delete_marker(state.current_artifacts_dir, ".sase_monitor_pending")
         AGENT_KILLS.labels(reason="user").inc()
         return "killed"
 
@@ -147,11 +149,17 @@ def _handle_killed_iteration(
         state.current_artifacts_dir,
         ".sase_questions_pending",
     )
+    monitor_data = read_and_delete_marker(
+        state.current_artifacts_dir,
+        ".sase_monitor_pending",
+    )
 
     if plan_data and _marker_predates_kill(plan_data, kill_time):
         return handle_plan_marker(plan_data, ctx, state)
     if q_data and _marker_predates_kill(q_data, kill_time):
         return handle_questions_marker(q_data, ctx, state)
+    if monitor_data and _marker_predates_kill(monitor_data, kill_time):
+        return handle_monitor_marker(monitor_data, ctx, state)
 
     AGENT_KILLS.labels(reason="user").inc()
     return "killed"

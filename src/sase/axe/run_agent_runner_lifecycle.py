@@ -172,7 +172,7 @@ def finalize_runner_shutdown(
     workspace_held = False
     killed = deps.was_killed()
     steps_hidden = deps.all_steps_hidden(state.current_artifacts_dir)
-    if not context.is_home_mode:
+    if not context.is_home_mode and state.exec_outcome != "monitored":
         try:
             if _should_hold_workspace(
                 state,

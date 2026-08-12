@@ -2,11 +2,15 @@
 
 from pathlib import Path
 
-PENDING_HANDOFF_MARKERS = (".sase_plan_pending", ".sase_questions_pending")
+PENDING_HANDOFF_MARKERS = (
+    ".sase_plan_pending",
+    ".sase_questions_pending",
+    ".sase_monitor_pending",
+)
 
 
 def has_pending_handoff(artifacts_dir: str | None) -> bool:
-    """Return whether ``artifacts_dir`` contains a plan/question handoff."""
+    """Return whether ``artifacts_dir`` contains a pending runner handoff."""
     if not artifacts_dir:
         return False
 

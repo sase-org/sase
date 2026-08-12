@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,7 @@ MONITOR_WORKSPACE_CLAIM_WORKFLOW = "ace-monitor"
 DEFAULT_START_STATUS = "MONITORING"
 DEFAULT_STOP_STATUS = "MONITORED"
 DEFAULT_TAIL_LINES = 200
+MONITOR_PENDING_MARKER = ".sase_monitor_pending"
 
 
 @dataclass(frozen=True)
@@ -211,6 +213,73 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     )
 
 
+def maybe_handoff_monitor_from_agent(
+    record: MonitorRecord,
+    *,
+    artifacts_dir: str | None = None,
+) -> bool:
+    """Write the in-agent monitor handoff marker and kill this runner.
+
+    ``start_monitor()`` is shared by host-owned monitor starts and future CLI
+    code.  The CLI should call this helper after a record is created; it is a
+    no-op outside an agent process and terminates the current runner when
+    ``SASE_AGENT`` is set.
+    """
+    if not os.environ.get("SASE_AGENT"):
+        return False
+
+    resolved_artifacts_dir = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
+    if not resolved_artifacts_dir:
+        raise MonitorError(
+            "cannot hand monitor to agent runner: SASE_ARTIFACTS_DIR is unset"
+        )
+
+    write_monitor_pending_marker(record, resolved_artifacts_dir)
+
+    from sase.main.utils import kill_agent_runner_group
+
+    kill_agent_runner_group(resolved_artifacts_dir)
+    return True
+
+
+def write_monitor_pending_marker(
+    record: MonitorRecord,
+    artifacts_dir: str,
+    *,
+    timestamp: float | None = None,
+) -> Path:
+    """Persist the pending monitor handoff marker for the runner to adopt."""
+    marker_path = Path(artifacts_dir) / MONITOR_PENDING_MARKER
+    marker_data = {
+        "monitor_id": record.monitor_id,
+        "member_artifacts_dir": record.artifacts_dir,
+        "member_agent_name": record.member_agent_name,
+        "timestamp": time.time() if timestamp is None else timestamp,
+    }
+    try:
+        marker_path.parent.mkdir(parents=True, exist_ok=True)
+        with marker_path.open("w", encoding="utf-8") as f:
+            json.dump(marker_data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError as exc:
+        raise MonitorError(f"could not write monitor handoff marker: {exc}") from exc
+
+    _touch_agent_artifacts_refresh_pulse(artifacts_dir)
+    return marker_path
+
+
+def _touch_agent_artifacts_refresh_pulse(artifacts_dir: str) -> None:
+    try:
+        pulse_path = Path(artifacts_dir).parents[1] / ".ace_refresh_pulse"
+    except IndexError:
+        return
+    try:
+        pulse_path.write_text(str(time.time()), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
     """Mark a half-created monitor member failed rather than phantom-running."""
     meta = _read_meta(artifacts_dir)
@@ -260,7 +329,13 @@ def _read_meta(artifacts_dir: str) -> dict[str, Any]:
 
 
 __all__ = [
+    "DEFAULT_START_STATUS",
+    "DEFAULT_STOP_STATUS",
+    "DEFAULT_TAIL_LINES",
+    "MONITOR_PENDING_MARKER",
     "MONITOR_WORKSPACE_CLAIM_WORKFLOW",
     "StartMonitorRequest",
+    "maybe_handoff_monitor_from_agent",
     "start_monitor",
+    "write_monitor_pending_marker",
 ]
