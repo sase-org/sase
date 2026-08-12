@@ -47,6 +47,7 @@ class CapturedFileEvent:
     sidecar_role: str | None
     rel_path: str
     op: FileHookOp
+    cause: str = "user"
     agent_name: str | None = None
 
     def matching_event(self) -> FileHookEvent:
@@ -57,6 +58,7 @@ class CapturedFileEvent:
             sidecar_role=self.sidecar_role,
             rel_path=self.rel_path,
             op=self.op,
+            cause=self.cause,
             agent_name=self.agent_name,
         )
 
@@ -139,6 +141,7 @@ def _batch_payload(
                 "sidecar_role": captured.sidecar_role,
                 "rel_path": captured.rel_path,
                 "op": captured.op,
+                "cause": captured.cause,
                 "agent_name": captured.agent_name,
             }
         )
@@ -262,6 +265,7 @@ def _derive_commit_file_events(
     repo_kind: RepoKind,
     sidecar_role: str | None,
     agent_name: str | None = None,
+    cause: str = "user",
 ) -> list[CapturedFileEvent]:
     """Derive canonical file operations for one newly created commit."""
     root = Path(repo_root).expanduser().resolve()
@@ -288,6 +292,7 @@ def _derive_commit_file_events(
             sidecar_role=sidecar_role,
             rel_path=Path(rel_path).as_posix(),
             op=op,
+            cause=cause,
             agent_name=agent_name,
         )
         for op, rel_path in entries
@@ -382,6 +387,7 @@ def emit_commit_file_hook_events(
     project_file: str | None = None,
     sidecar_role: str | None = None,
     hooks: Sequence[FileHookConfig] | None = None,
+    cause: str = "user",
 ) -> Path | None:
     """Fail-soft producer seam for a newly created repository commit."""
     configured = list(hooks) if hooks is not None else get_all_file_hooks()
@@ -410,6 +416,7 @@ def emit_commit_file_hook_events(
             repo_kind=repo_kind,
             sidecar_role=effective_sidecar,
             agent_name=_current_agent_name(),
+            cause=cause,
         )
         return emit_file_hook_events(
             events,
@@ -464,6 +471,7 @@ def capture_artifact_file_event(source_path: str | Path) -> CapturedFileEvent:
         sidecar_role=sidecar_role,
         rel_path=rel_path,
         op="ADD",
+        cause="user",
         agent_name=_current_agent_name(),
     )
 
@@ -481,6 +489,7 @@ def emit_artifact_file_hook_event(
         sidecar_role=captured_source.sidecar_role,
         rel_path=captured_source.rel_path,
         op="ADD",
+        cause=captured_source.cause,
         agent_name=captured_source.agent_name,
     )
     return emit_file_hook_events([event])

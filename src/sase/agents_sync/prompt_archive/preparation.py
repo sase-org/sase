@@ -25,6 +25,7 @@ from sase.agents_sync.prompt_archive.render import (
     load_manifest_records,
     render_prompt_document,
 )
+from sase.agents_sync.referenced_by_outbox import ReferencedByOutboxItem
 from sase.core.artifact_file_helpers import hash_file
 from sase.core.rust import require_rust_binding
 from sase.core.prompt_artifact_staging import (
@@ -51,6 +52,7 @@ class PreparedPromptArchive:
     prompt_path: Path
     rendered: RenderedPromptArchive
     copied_artifacts: tuple[Path, ...]
+    referenced_by_requests: tuple[ReferencedByOutboxItem, ...] = ()
 
 
 def prepare_prompt_archive(
@@ -97,27 +99,30 @@ def prepare_prompt_archive(
     )
     records = load_manifest_records(manifest_path, agent_artifacts_dir)
     hosted = hosted_resolver_factory(workspace_root, target, git_runner)
+    repository_roots = repository_roots_factory()
     target_resolver = _ArtifactTargetResolver(
         yyyymm=archive_month,
         repo=repo,
+        project=target.project,
         workspace_root=workspace_root,
         primary_root=commit_cwd,
         primary_revision=primary_revision,
         hosted=hosted,
         git_runner=git_runner,
-        repository_roots=repository_roots_factory(),
+        repository_roots=repository_roots,
     )
     prompt = (
         prompt_content
         if prompt_content is not None
         else (agent_artifacts_dir / "raw_xprompt.md").read_text(encoding="utf-8")
     )
+    agent_target = hosted.agent_url(global_agent) if hosted is not None else None
     rendered = render_prompt_document(
         prompt,
         records,
         artifact_target=target_resolver,
         agent_label=global_agent,
-        agent_target=hosted.agent_url(global_agent) if hosted is not None else None,
+        agent_target=agent_target,
         plan_label=plan_label,
         plan_target=(
             hosted.plan_url(resolved_plan_ref)
@@ -129,10 +134,20 @@ def prepare_prompt_archive(
         rendered.linked_records,
         target_resolver,
     )
+    referenced_by_requests = _plan_referenced_by_requests(
+        target=target,
+        rendered=rendered,
+        agent_artifacts_dir=agent_artifacts_dir,
+        global_agent=global_agent,
+        primary_revision=primary_revision,
+        workspace_root=workspace_root,
+        repository_roots=repository_roots,
+        agent_url=agent_target,
+    )
     _atomic_write_text(prompt_path, rendered.document)
     index_path = month_dir / "README.md"
     _atomic_write_text(index_path, render_prompt_month_index(month_dir))
-    return PreparedPromptArchive(prompt_path, rendered, copied)
+    return PreparedPromptArchive(prompt_path, rendered, copied, referenced_by_requests)
 
 
 class _ArtifactTargetResolver:
@@ -141,6 +156,7 @@ class _ArtifactTargetResolver:
         *,
         yyyymm: str,
         repo: Path,
+        project: str,
         workspace_root: Path,
         primary_root: Path,
         primary_revision: str,
@@ -150,6 +166,7 @@ class _ArtifactTargetResolver:
     ) -> None:
         self.yyyymm = yyyymm
         self.repo = repo
+        self.project = project
         self.workspace_root = workspace_root
         self.primary_root = primary_root.resolve(strict=False)
         self.primary_revision = primary_revision
@@ -170,25 +187,9 @@ class _ArtifactTargetResolver:
                     require_rust_binding("artifact_object_relpath")(digest)
                 )
             )
-        vcs_repo = record.get("vcs_repo")
-        vcs_relpath = record.get("vcs_relpath")
-        if vcs_repo and vcs_relpath and self.hosted is not None:
-            root = self._record_vcs_root(record) or self._repo_roots.get(vcs_repo)
-            if root is None:
-                return None
-            revision = (
-                self.primary_revision
-                if root == self.primary_root
-                else _git_revision(root, self.git_runner)
-            )
-            if not revision:
-                return None
-            return self.hosted.blob_url_for_repository(root, revision, vcs_relpath)
         locator = record.get("locator")
-        if isinstance(locator, str) and locator.startswith(("https://", "http://")):
-            return locator
         kind = record.get("ref_kind")
-        if kind == "commit" and locator and self.hosted is not None:
+        if kind in {"commit", "stitch"} and locator and self.hosted is not None:
             repo_name, separator, sha = locator.rpartition("@")
             root = self._repo_roots.get(repo_name) if separator else None
             return (
@@ -196,6 +197,29 @@ class _ArtifactTargetResolver:
                 if root is not None
                 else None
             )
+        if kind == "bead" and locator and self.hosted is not None:
+            _project, separator, bead_id = locator.rpartition("/")
+            return self.hosted.bead_url(bead_id) if separator else None
+        if kind == "patch" and locator:
+            return _patch_pr_url(locator, self.project)
+        vcs_repo = record.get("vcs_repo")
+        vcs_relpath = record.get("vcs_relpath")
+        if vcs_repo and vcs_relpath and self.hosted is not None:
+            root = self._record_vcs_root(record) or self._repo_roots.get(vcs_repo)
+            if root is None:
+                return None
+            revision = record.get("vcs_revision")
+            if not revision:
+                revision = (
+                    self.primary_revision
+                    if root == self.primary_root
+                    else _git_revision(root, self.git_runner)
+                )
+            if not revision:
+                return None
+            return self.hosted.blob_url_for_repository(root, revision, vcs_relpath)
+        if isinstance(locator, str) and locator.startswith(("https://", "http://")):
+            return locator
         if kind == "bug" and locator:
             project, separator, raw_number = locator.rpartition("#")
             if separator and raw_number.isdigit():
@@ -246,6 +270,91 @@ def _publish_linked_artifacts(
         _copy_content_addressed(source, destination, expected)
         copied.append(destination)
     return tuple(copied)
+
+
+def _plan_referenced_by_requests(
+    *,
+    target: ProjectTarget,
+    rendered: RenderedPromptArchive,
+    agent_artifacts_dir: Path,
+    global_agent: str,
+    primary_revision: str,
+    workspace_root: Path,
+    repository_roots: dict[str, Path],
+    agent_url: str | None,
+) -> tuple[ReferencedByOutboxItem, ...]:
+    try:
+        from sase.agents_sync.referenced_by_planning import (
+            plan_referenced_by_requests,
+        )
+        from sase.sdd.plan_refs import workspace_context_for_plan_resolution
+        from sase.sdd.store import resolve_sdd_store
+
+        workspace, number = workspace_context_for_plan_resolution(workspace_root)
+        store = resolve_sdd_store(workspace, number)
+        return plan_referenced_by_requests(
+            target=target,
+            rendered=rendered,
+            agent_artifacts_dir=agent_artifacts_dir,
+            global_agent=global_agent,
+            primary_revision=primary_revision,
+            store=store,
+            workspace_root=workspace_root,
+            repository_roots=repository_roots,
+            agent_url=agent_url,
+        )
+    except Exception:
+        return ()
+
+
+def _patch_pr_url(locator: str, current_project: str) -> str | None:
+    locator_project, separator, patch_name = locator.partition("/")
+    if not separator or not locator_project or not patch_name:
+        return None
+    try:
+        from sase.core.paths import sase_projects_dir
+        from sase.core.parser_facade import parse_patch_project_file
+        from sase.core.project_lifecycle_facade import list_project_records
+        from sase.core.project_lifecycle_wire import (
+            ProjectRecordWire,
+            effective_project_name,
+        )
+
+        records = list_project_records(
+            sase_projects_dir(),
+            "all",
+            include_home=False,
+            projects_only=True,
+        )
+
+        def matches(record: ProjectRecordWire, value: str) -> bool:
+            folded = value.casefold()
+            return folded in {
+                record.project_name.casefold(),
+                effective_project_name(record).casefold(),
+                *(alias.casefold() for alias in record.aliases),
+            }
+
+        record = next(
+            (
+                candidate
+                for candidate in records
+                if matches(candidate, current_project)
+                and matches(candidate, locator_project)
+            ),
+            None,
+        )
+        if record is None:
+            return None
+        for raw_path in (record.project_file, record.archive_file):
+            if not raw_path:
+                continue
+            for patch in parse_patch_project_file(raw_path):
+                if patch.name == patch_name:
+                    return patch.pr_url
+    except Exception:
+        return None
+    return None
 
 
 def _issue_url_for_number(project: str, number: int) -> str | None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import multiprocessing
 from pathlib import Path
@@ -128,6 +129,78 @@ def test_clean_tracked_file_is_vcs_backed_but_dirty_file_is_pooled(
     assert dirty["vcs_repo"] is None
     assert dirty["pool_relpath"] is not None
     assert len(list((repo / ".sase/artifacts/pool").iterdir())) == 1
+
+
+def test_clean_markdown_vcs_digest_ignores_referenced_by_block_but_dirty_hashes_raw(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    table = {
+        "schema_version": sase_core_rs.referenced_by_wire_schema_version(),
+        "columns": [{"key": "agent", "label": "Agent", "numeric": False}],
+        "rows": [
+            {
+                "values": {"agent": "alice.athena.worker"},
+                "link_targets": {},
+            }
+        ],
+        "omitted": 0,
+    }
+    source = repo / "tracked.md"
+    clean_text = str(sase_core_rs.referenced_by_block_upsert("# Doc\n\nBody\n", table))
+    source.write_text(clean_text, encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.md"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-qm",
+            "initial",
+        ],
+        check=True,
+    )
+    head = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    record = SimpleNamespace(name="primary", path=str(repo), clones=())
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.collect_repo_inventory",
+        lambda: SimpleNamespace(records=(record,)),
+    )
+    artifacts_dir = tmp_path / "run"
+
+    clean = _stage_file(repo, artifacts_dir, source)
+    dirty_table = {**table, "rows": [{"values": {"agent": "bob"}, "link_targets": {}}]}
+    dirty_text = str(
+        sase_core_rs.referenced_by_block_upsert("# Doc\n\nBody\n", dirty_table)
+    )
+    source.write_text(dirty_text, encoding="utf-8")
+    dirty = _stage_file(repo, artifacts_dir, source, raw_ref="@dirty")
+
+    clean_digest = hashlib.sha256(
+        str(sase_core_rs.referenced_by_block_strip(clean_text)).encode("utf-8")
+    ).hexdigest()
+    assert clean["sha256"] == clean_digest
+    assert clean["sha256"] != hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
+    assert clean["vcs_repo"] == "primary"
+    assert clean["vcs_revision"] == head
+    assert clean["pool_relpath"] is None
+
+    assert dirty["sha256"] == hashlib.sha256(dirty_text.encode("utf-8")).hexdigest()
+    assert dirty["vcs_repo"] is None
+    assert dirty["pool_relpath"] is not None
 
 
 def test_oversized_file_is_recorded_without_pool_copy(

@@ -46,6 +46,7 @@ def _hook(
     path_globs: tuple[str, ...] | None = None,
     agent_name_globs: tuple[str, ...] | None = None,
     ops: tuple[str, ...] | None = None,
+    causes: tuple[str, ...] | None = None,
 ) -> FileHookConfig:
     return FileHookConfig(
         name="test-hook",
@@ -58,6 +59,7 @@ def _hook(
             path_globs=path_globs,
             agent_name_globs=agent_name_globs,
             ops=ops,  # type: ignore[arg-type]
+            causes=causes,
         ),
     )
 
@@ -69,6 +71,7 @@ def _event(
     sidecar: str | None = "research",
     op: str = "ADD",
     agent: str | None = None,
+    cause: str = "user",
 ) -> FileHookEvent:
     return FileHookEvent(
         project=project,
@@ -76,6 +79,7 @@ def _event(
         sidecar_role=sidecar,
         rel_path=path,
         op=op,  # type: ignore[arg-type]
+        cause=cause,
         agent_name=agent,
     )
 
@@ -166,6 +170,7 @@ def test_loader_parses_nested_filters(monkeypatch: Any) -> None:
                             "!research.*.cdx",
                         ],
                         "ops": ["ADD"],
+                        "causes": ["referenced_by"],
                     },
                 }
             ],
@@ -186,6 +191,7 @@ def test_loader_parses_nested_filters(monkeypatch: Any) -> None:
     assert filters.path_globs == ("20*/**/*.md", "!20*/*/*__*.md")
     assert filters.agent_name_globs == ("!research.*.cld", "!research.*.cdx")
     assert filters.ops == ("ADD",)
+    assert filters.causes == ("referenced_by",)
 
 
 def test_loader_resolves_file_hook_provider_templates(monkeypatch: Any) -> None:
@@ -421,6 +427,7 @@ def test_path_and_agent_name_filters_are_anded() -> None:
         ("path_globs", ["*.md"]),
         ("agent_name_globs", ["research.*"]),
         ("ops", ["ADD"]),
+        ("causes", ["referenced_by"]),
     ],
 )
 def test_loader_rejects_legacy_top_level_filter_fields(
@@ -546,6 +553,22 @@ def test_project_sidecar_and_op_filters_and_unrestricted_defaults() -> None:
         unrestricted,
         _event("anything.txt", project="other", sidecar=None, op="REMOVE"),
     )
+
+
+def test_non_user_causes_are_opt_in_while_user_still_matches() -> None:
+    unrestricted = _hook()
+    referenced_by = _hook(causes=("referenced_by",))
+
+    assert hook_matches_event(unrestricted, _event("report.md", cause="user"))
+    assert not hook_matches_event(
+        unrestricted,
+        _event("report.md", cause="referenced_by"),
+    )
+    assert hook_matches_event(
+        referenced_by,
+        _event("report.md", cause="referenced_by"),
+    )
+    assert hook_matches_event(referenced_by, _event("report.md", cause="user"))
 
 
 def test_match_events_returns_hook_order_then_event_order() -> None:

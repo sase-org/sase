@@ -68,13 +68,14 @@ def _hook(
     *,
     timeout_seconds: float = 120,
     agent_name_globs: tuple[str, ...] | None = None,
+    causes: tuple[str, ...] | None = None,
 ) -> FileHookConfig:
     return FileHookConfig(
         name=name,
         description=None,
         command=command,
         timeout_seconds=timeout_seconds,
-        filters=FileHookFilters(agent_name_globs=agent_name_globs),
+        filters=FileHookFilters(agent_name_globs=agent_name_globs, causes=causes),
     )
 
 
@@ -83,6 +84,7 @@ def _event(
     path: str = "report.md",
     *,
     agent_name: str | None = None,
+    cause: str = "user",
 ) -> CapturedFileEvent:
     return CapturedFileEvent(
         abs_path=str(repo / path),
@@ -92,6 +94,7 @@ def _event(
         sidecar_role="research",
         rel_path=path,
         op="ADD",
+        cause=cause,
         agent_name=agent_name,
     )
 
@@ -188,6 +191,22 @@ def test_emit_persists_versioned_batch_and_detaches_once_per_commit(
     assert payload["commit_sha"] == "a" * 40
     assert payload["runs"][0]["command"] == "true"
     assert payload["runs"][0]["abs_path"] == str(repo / "report.md")
+    assert payload["runs"][0]["cause"] == "user"
+
+
+def test_emit_records_non_user_cause_in_batch_payload(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+
+    batch_path = emit_file_hook_events(
+        [_event(repo, cause="referenced_by")],
+        hooks=[_hook("render", causes=("referenced_by",))],
+        commit_sha="b" * 40,
+        popen=lambda *args, **kwargs: MagicMock(),
+    )
+
+    assert batch_path is not None
+    payload = json.loads(batch_path.read_text(encoding="utf-8"))
+    assert payload["runs"][0]["cause"] == "referenced_by"
 
 
 def _emitted_agent_names(batch_path: Path) -> list[str | None]:
@@ -453,6 +472,7 @@ def test_sdd_commit_emits_once_with_its_sidecar_role(
         commit_sha=_git(repo, "rev-parse", "HEAD"),
         sidecar_role="research",
         hooks=[hook],
+        cause="user",
     )
 
 

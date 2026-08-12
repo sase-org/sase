@@ -89,13 +89,27 @@ def sync_agents(
                 publication_quarantine_diagnostics,
                 update_agent_publications,
             )
+            from sase.agents_sync.referenced_by_outbox import (
+                clear_quarantined_referenced_by_requests,
+                drop_terminal_referenced_by_requests,
+                referenced_by_quarantine_diagnostics,
+            )
+            from sase.agents_sync.referenced_by_publication import (
+                drain_referenced_by_requests,
+            )
 
             if retry_quarantined:
                 clear_quarantined_agent_publications(target.project_key)
+                clear_quarantined_referenced_by_requests(target.project_key)
             drop_diagnostics: tuple[str, ...] = ()
             if drop_retired:
-                drop_diagnostics = _dropped_publication_diagnostics(
-                    drop_terminal_agent_publications(target.project_key)
+                drop_diagnostics = (
+                    *_dropped_publication_diagnostics(
+                        drop_terminal_agent_publications(target.project_key)
+                    ),
+                    *_dropped_referenced_by_diagnostics(
+                        drop_terminal_referenced_by_requests(target.project_key)
+                    ),
                 )
             pending_publications = list_agent_publications(
                 target.project_key,
@@ -141,9 +155,17 @@ def sync_agents(
                         quarantine_threshold=configured_publication_max_attempts(),
                         terminal_reason=None if prompt_error else error,
                     )
+            referenced_by_diagnostics: tuple[str, ...] = ()
+            if outcome.ok and outcome.skip_reason is None:
+                referenced_by_diagnostics = drain_referenced_by_requests(
+                    target,
+                    git_runner=git_runner,
+                )
             publication_diagnostics = (
                 *drop_diagnostics,
                 *publication_quarantine_diagnostics(target.project_key),
+                *referenced_by_diagnostics,
+                *referenced_by_quarantine_diagnostics(target.project_key),
             )
             if publication_diagnostics:
                 outcome = replace(
@@ -187,6 +209,26 @@ def _dropped_publication_diagnostics(
         *(
             f"dropped retired publication request {item.global_agent}@"
             f"{item.primary_revision[:12]}: "
+            f"{item.terminal_reason or item.last_error or 'unknown reason'}"
+            for item in dropped
+        ),
+    )
+
+
+def _dropped_referenced_by_diagnostics(
+    dropped: Sequence[Any],
+) -> tuple[str, ...]:
+    """Render one line per dropped retired referenced-by request."""
+
+    if not dropped:
+        return ()
+    plural = "" if len(dropped) == 1 else "s"
+    return (
+        f"dropped {len(dropped)} retired referenced-by request{plural}",
+        *(
+            f"dropped retired referenced-by request {item.global_agent}@"
+            f"{item.primary_revision[:12]} -> {item.sidecar_role}:"
+            f"{item.repo_relpath}: "
             f"{item.terminal_reason or item.last_error or 'unknown reason'}"
             for item in dropped
         ),

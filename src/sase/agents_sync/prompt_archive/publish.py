@@ -24,6 +24,7 @@ from sase.agents_sync.publication_outbox import (
     AgentPublicationOutboxItem,
     enqueue_agent_publication,
 )
+from sase.agents_sync.referenced_by_outbox import enqueue_referenced_by_request
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import (
@@ -158,6 +159,7 @@ def _publish_prompt_archive(
         git_sync.agents_git_dir(target.sidecar_path, git_runner)
         / "sase-agents-sync.lock"
     )
+    prompt_outcome: PromptArchivePublicationOutcome | None = None
     with git_sync.bounded_agents_lock(lock_path, timeout) as acquired:
         if not acquired:
             return PromptArchivePublicationOutcome(
@@ -236,7 +238,9 @@ def _publish_prompt_archive(
                 )
             except Exception:
                 log.debug("Could not update artifact ref-files index", exc_info=True)
-            return PromptArchivePublicationOutcome(
+            for request in prepared.referenced_by_requests:
+                enqueue_referenced_by_request(request)
+            prompt_outcome = PromptArchivePublicationOutcome(
                 published=bool(commit_result),
                 queued=True,
                 prompt_path=prepared.prompt_path,
@@ -244,6 +248,24 @@ def _publish_prompt_archive(
         finally:
             # A failed attempt is regenerated from the immutable local pool.
             _clean_prompt_archive_worktree(target.sidecar_path, git_runner)
+    if prompt_outcome is None:
+        return PromptArchivePublicationOutcome(
+            queued=True,
+            error="prompt archive publication did not produce an outcome",
+        )
+    referenced_by_error = _drain_referenced_by_after_prompt_publish(
+        target,
+        git_runner=git_runner,
+    )
+    if referenced_by_error is None:
+        return prompt_outcome
+    return PromptArchivePublicationOutcome(
+        published=prompt_outcome.published,
+        queued=prompt_outcome.queued,
+        prompt_path=prompt_outcome.prompt_path,
+        skip_reason=prompt_outcome.skip_reason,
+        error=referenced_by_error,
+    )
 
 
 def prepare_prompt_archive(
@@ -279,6 +301,24 @@ def prepare_prompt_archive(
         hosted_resolver_factory=_hosted_resolver,
         repository_roots_factory=_repository_roots,
     )
+
+
+def _drain_referenced_by_after_prompt_publish(
+    target: ProjectTarget,
+    *,
+    git_runner: GitRunner,
+) -> str | None:
+    try:
+        from sase.agents_sync.referenced_by_publication import (
+            drain_referenced_by_requests,
+        )
+
+        diagnostics = drain_referenced_by_requests(target, git_runner=git_runner)
+    except Exception as exc:  # noqa: BLE001 - prompt publication already succeeded.
+        return f"referenced-by write-back failed: {exc}"
+    if not diagnostics:
+        return None
+    return "\n".join(diagnostics)
 
 
 def _agent_artifacts_dir(value: Path | str | None) -> Path | None:

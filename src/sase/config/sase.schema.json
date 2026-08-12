@@ -448,6 +448,11 @@
           "type": "array",
           "items": { "type": "string", "enum": ["ADD", "MODIFY", "REMOVE"] },
           "description": "Optional file operations; omitted means all operations."
+        },
+        "causes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional non-user event causes this hook accepts in addition to user commits."
         }
       }
     },

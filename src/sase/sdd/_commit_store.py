@@ -41,6 +41,7 @@ def commit_sdd_files(
     sidecar_role: str | None = None,
     record_commit_marker: bool = True,
     already_locked: bool = False,
+    cause: str = "user",
 ) -> bool:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
@@ -129,6 +130,7 @@ def commit_sdd_files(
     _emit_sdd_file_hooks(
         sdd_dir,
         sidecar_role=sidecar_role,
+        cause=cause,
     )
     return True
 
@@ -137,6 +139,7 @@ def _emit_sdd_file_hooks(
     sdd_dir: Path,
     *,
     sidecar_role: str | None,
+    cause: str = "user",
 ) -> None:
     """Best-effort detached hooks for a newly created SDD commit."""
     try:
@@ -155,6 +158,7 @@ def _emit_sdd_file_hooks(
             commit_sha=sha,
             sidecar_role=sidecar_role,
             hooks=hooks,
+            cause=cause,
         )
     except Exception:
         _logger.debug("failed to emit SDD file hooks", exc_info=True)

@@ -37,6 +37,9 @@ class _HostedLinks:
     def commit_url_for_repository(self, _root: Path, sha: str) -> str:
         return f"https://example.test/commit/{sha}"
 
+    def bead_url(self, bead_id: str) -> str:
+        return f"https://example.test/beads/{bead_id}"
+
 
 def _record(
     *,
@@ -47,6 +50,7 @@ def _record(
     pool_relpath: str | None = None,
     vcs_repo: str | None = None,
     vcs_relpath: str | None = None,
+    vcs_revision: str | None = None,
     ref_kind: str = "file",
     locator: str | None = None,
 ) -> dict[str, object]:
@@ -68,6 +72,7 @@ def _record(
         "pool_relpath": pool_relpath,
         "vcs_repo": vcs_repo,
         "vcs_relpath": vcs_relpath,
+        "vcs_revision": vcs_revision,
         "locator": locator,
         "skipped_reason": None,
         "logical_path": None,
@@ -136,6 +141,7 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
             sha256="b" * 64,
             vcs_repo="primary",
             vcs_relpath="src/demo.py",
+            vcs_revision="b" * 40,
         ),
         _record(
             artifacts_dir=artifacts_dir,
@@ -198,20 +204,22 @@ def test_prepare_prompt_archive_links_and_copies_all_reference_classes(
     assert second.prompt_path == first.prompt_path
     assert second.prompt_path.read_bytes() == first_bytes
     document = first.prompt_path.read_text()
+    artifact_link = sase_core_rs.artifact_object_prompt_link(
+        sase_core_rs.artifact_object_relpath(digest)
+    )
+    assert "[@~/diagram.png][1]" in document and f"[1]: {artifact_link}" in document
     assert (
-        f"[@~/diagram.png]({sase_core_rs.artifact_object_prompt_link(sase_core_rs.artifact_object_relpath(digest))})"
-        in document
+        "[@src/demo.py][2]" in document
+        and f"[2]: https://example.test/blob/{'b' * 40}/src/demo.py" in document
     )
     assert (
-        f"[@src/demo.py](https://example.test/blob/{'a' * 40}/src/demo.py)" in document
-    )
-    assert (
-        f"[@src/#plan.py](https://example.test/blob/{'a' * 40}/src/#plan.py)"
-        in document
+        "[@src/#plan.py][3]" in document
+        and f"[3]: https://example.test/blob/{'a' * 40}/src/#plan.py" in document
     )
     assert ", #plan, and " in document
     assert "sase/xprompts/plan.md" not in document
-    assert "[@bug:proj#7](https://example.test/issues/7)" in document
+    assert "[@bug:proj#7][4]" in document
+    assert "[4]: https://example.test/issues/7" in document
     assert "<!-- sase:section:" not in document
     assert "<details>" not in document
     assert "sent to model" not in document
@@ -234,6 +242,125 @@ def test_render_prompt_document_keeps_body_xprompt_reference_verbatim() -> None:
     assert "Archive body references #plan." in document
     assert "[#plan]" not in document
     assert "<!-- sase:section:" not in document
+
+
+def test_artifact_target_resolver_handles_pinned_and_builtin_destinations(
+    tmp_path: Path,
+) -> None:
+    from sase.agents_sync.prompt_archive.preparation import _ArtifactTargetResolver
+
+    primary = tmp_path / "primary"
+    sidecar = tmp_path / "sidecar"
+    primary.mkdir()
+    sidecar.mkdir()
+
+    def git_runner(*_args: object, **_kwargs: object):
+        raise AssertionError("pinned VCS records must not inspect HEAD")
+
+    resolver = _ArtifactTargetResolver(
+        yyyymm="202608",
+        repo=tmp_path / "agents",
+        project="Project",
+        workspace_root=primary,
+        primary_root=primary,
+        primary_revision="a" * 40,
+        hosted=_HostedLinks(),
+        git_runner=git_runner,  # type: ignore[arg-type]
+        repository_roots={"primary": primary, "sidecar": sidecar},
+    )
+
+    artifacts_dir = tmp_path / "run"
+    assert (
+        resolver(
+            _record(
+                artifacts_dir=artifacts_dir,
+                raw_ref="@doc",
+                label="doc",
+                sha256="b" * 64,
+                vcs_repo="sidecar",
+                vcs_relpath="docs/x.md",
+                vcs_revision="c" * 40,
+            )
+        )
+        == f"https://example.test/blob/{'c' * 40}/docs/x.md"
+    )
+    assert (
+        resolver(
+            _record(
+                artifacts_dir=artifacts_dir,
+                raw_ref="@commit",
+                label="commit",
+                ref_kind="commit",
+                locator="primary@abc123",
+            )
+        )
+        == "https://example.test/commit/abc123"
+    )
+    assert (
+        resolver(
+            _record(
+                artifacts_dir=artifacts_dir,
+                raw_ref="@stitch",
+                label="stitch",
+                ref_kind="stitch",
+                locator="primary@def456",
+            )
+        )
+        == "https://example.test/commit/def456"
+    )
+    assert (
+        resolver(
+            _record(
+                artifacts_dir=artifacts_dir,
+                raw_ref="@bead",
+                label="bead",
+                ref_kind="bead",
+                locator="Project/sase-js.6",
+            )
+        )
+        == "https://example.test/beads/sase-js.6"
+    )
+
+
+def test_patch_locator_resolves_only_current_project_pr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync.prompt_archive.preparation import _patch_pr_url
+    from sase.core.project_lifecycle_wire import ProjectRecordWire
+
+    project_file = tmp_path / "proj.sase"
+    project_file.write_text(
+        "NAME: example\n"
+        "DESCRIPTION:\n"
+        "Patch under test\n"
+        "PR: https://example.test/pull/1\n"
+        "STATUS: WIP\n",
+        encoding="utf-8",
+    )
+    record = ProjectRecordWire(
+        schema_version=3,
+        project_name="proj",
+        project_dir=str(tmp_path),
+        project_file=str(project_file),
+        archive_file=None,
+        workspace_dir=str(tmp_path),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=["alias"],
+        display_name="Project",
+    )
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+    monkeypatch.setattr("sase.core.paths.sase_projects_dir", lambda: tmp_path)
+
+    assert _patch_pr_url("Project/example", "Project") == "https://example.test/pull/1"
+    assert _patch_pr_url("Other/example", "Project") is None
 
 
 def test_prepare_prompt_archive_accepts_expanded_planner_prompt(

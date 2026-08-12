@@ -52,6 +52,7 @@ class PromptArtifactRecord(TypedDict):
     pool_relpath: str | None
     vcs_repo: str | None
     vcs_relpath: str | None
+    vcs_revision: str | None
     locator: str | None
     skipped_reason: str | None
     logical_path: str | None
@@ -107,24 +108,30 @@ def stage_prompt_artifact(
             log.debug("Could not classify prompt artifact %s as a file", raw_ref)
             return None
 
-        size_bytes = source.stat().st_size
-        sha256 = hash_file(source)
         record["source_path"] = str(source)
-        record["sha256"] = sha256
+        size_bytes = source.stat().st_size
         record["size_bytes"] = size_bytes
         record["mime_type"] = artifact_file_mime_type(source)
-        record["object_relpath"] = str(
-            require_rust_binding("artifact_object_relpath")(sha256)
-        )
         record["sidecar_visibility"] = _agents_sidecar_metadata(workspace)[1]
 
         vcs = _clean_vcs_provenance(source)
         if vcs is not None:
+            sha256 = _clean_vcs_prompt_artifact_digest(source)
+            record["sha256"] = sha256
+            record["object_relpath"] = str(
+                require_rust_binding("artifact_object_relpath")(sha256)
+            )
             record["vcs_repo"] = vcs[0]
             record["vcs_relpath"] = vcs[1]
+            record["vcs_revision"] = vcs[2]
             _append_manifest_record(manifest_path, lock_path, record)
             return record
 
+        sha256 = hash_file(source)
+        record["sha256"] = sha256
+        record["object_relpath"] = str(
+            require_rust_binding("artifact_object_relpath")(sha256)
+        )
         if capture_file_exceeds_size_limit(size_bytes):
             record["skipped_reason"] = "too-large"
             _append_manifest_record(manifest_path, lock_path, record)
@@ -322,6 +329,7 @@ def _base_record(
         pool_relpath=None,
         vcs_repo=None,
         vcs_relpath=None,
+        vcs_revision=None,
         locator=locator,
         skipped_reason=None,
         logical_path=None,
@@ -355,7 +363,7 @@ def _resolved_file(value: Path | str | None, workspace: Path) -> Path | None:
     return resolved if resolved.is_file() else None
 
 
-def _clean_vcs_provenance(source: Path) -> tuple[str, str] | None:
+def _clean_vcs_provenance(source: Path) -> tuple[str, str, str] | None:
     toplevel = _VCS_PROBE.repo_toplevel(str(source))
     if toplevel is None:
         return None
@@ -385,8 +393,36 @@ def _clean_vcs_provenance(source: Path) -> tuple[str, str] | None:
             candidates.append((record.name, root, relpath))
     for repo_name, root, relpath in sorted(candidates):
         if _git_path_is_tracked_and_clean(root, relpath):
-            return repo_name, relpath
+            revision = _git_head_revision(root)
+            if revision:
+                return repo_name, relpath, revision
     return None
+
+
+def _git_head_revision(root: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.decode(errors="replace").strip()
+
+
+def _clean_vcs_prompt_artifact_digest(source: Path) -> str:
+    if source.suffix.casefold() not in {".md", ".markdown"}:
+        return hash_file(source)
+    try:
+        text = source.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return hash_file(source)
+    stripped = str(require_rust_binding("referenced_by_block_strip")(text))
+    return hashlib.sha256(stripped.encode("utf-8")).hexdigest()
 
 
 def _git_path_is_tracked_and_clean(root: Path, relpath: str) -> bool:

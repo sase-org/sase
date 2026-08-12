@@ -25,6 +25,7 @@ class RenderedPromptArchive:
 
     document: str
     linked_records: tuple[PromptArtifactRecord, ...]
+    reference_labels: tuple[Mapping[str, str], ...]
 
 
 def load_manifest_records(
@@ -74,6 +75,9 @@ def render_prompt_document(
     linked = tuple(
         cast(Sequence[PromptArtifactRecord], payload.get("linked_records", ()))
     )
+    reference_labels = tuple(
+        cast(Sequence[Mapping[str, str]], payload.get("reference_labels", ()))
+    )
     document = str(payload.get("prompt") or "")
     if plan_label is not None and plan_target is not None:
         from sase.sdd.artifact_links import (
@@ -112,6 +116,7 @@ def render_prompt_document(
     return RenderedPromptArchive(
         document=format_with_prettier(document),
         linked_records=linked,
+        reference_labels=reference_labels,
     )
 
 

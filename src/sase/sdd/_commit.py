@@ -55,6 +55,7 @@ def commit_sdd_store_files(
     push_after_commit: bool | Literal["async"] | None = None,
     artifacts_dir: str | Path | None = None,
     already_locked: bool = False,
+    cause: str = "user",
 ) -> bool:
     """Commit SDD files in their owning repository and push per config.
 
@@ -80,6 +81,7 @@ def commit_sdd_store_files(
             in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS},
             already_locked=already_locked
             and store_write_lock_is_held(target_store.repo_root),
+            cause=cause,
         )
         if committed:
             push_sdd_store_after_commit(

@@ -48,6 +48,7 @@ _FILE_HOOK_FILTER_KEYS = frozenset(
         "path_globs",
         "agent_name_globs",
         "ops",
+        "causes",
     }
 )
 _MISSING = object()
@@ -65,6 +66,7 @@ class FileHookFilters:
     path_globs: tuple[str, ...] | None = None
     agent_name_globs: tuple[str, ...] | None = None
     ops: tuple[FileHookOp, ...] | None = None
+    causes: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         """Validate values supplied directly as well as parsed YAML entries."""
@@ -108,6 +110,7 @@ class FileHookEvent:
     sidecar_role: str | None
     rel_path: str
     op: FileHookOp
+    cause: str = "user"
     #: ``None`` is legitimate for a commit made outside a SASE agent, so this
     #: field is deliberately not validated below.
     agent_name: str | None = None
@@ -115,6 +118,8 @@ class FileHookEvent:
     def __post_init__(self) -> None:
         if self.op not in FILE_HOOK_OPS:
             raise ValueError(f"unknown file-hook operation: {self.op}")
+        if not self.cause:
+            raise ValueError("file-hook event cause must be non-empty")
         if not self.rel_path:
             raise ValueError("file-hook event path must be non-empty")
 
@@ -210,6 +215,10 @@ def _parse_file_hook_filters(
             "filters.agent_name_globs",
         ),
         ops=_optional_ops(raw_filters.get("ops"), "filters.ops"),
+        causes=_optional_string_tuple(
+            raw_filters.get("causes"),
+            "filters.causes",
+        ),
     )
 
 
@@ -431,6 +440,8 @@ def hook_matches_event(hook: FileHookConfig, event: FileHookEvent) -> bool:
     if filters.sidecars is not None and event.sidecar_role not in filters.sidecars:
         return False
     if filters.ops is not None and event.op not in filters.ops:
+        return False
+    if event.cause != "user" and event.cause not in (filters.causes or ()):
         return False
 
     if filters.path_globs:

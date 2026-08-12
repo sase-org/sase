@@ -308,7 +308,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-js(canonical_artifact_ref_kind)" \
         --epic-symbol "sase-js(artifact_ref_expansion_validate)" \
         --epic-symbol "sase-js(ArtifactRefUseRecord)" \
-        --epic-symbol "sase-js(read_artifact_ref_uses)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
