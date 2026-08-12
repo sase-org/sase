@@ -85,6 +85,7 @@ def patch_project(
         lambda _log: [("sase", tmp_path / "beads")],
     )
     monkeypatch.setattr(task_triage, "_gateable_tasks", lambda _path: list(ready))
+    monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
     patch_active_launches(monkeypatch)
 
 

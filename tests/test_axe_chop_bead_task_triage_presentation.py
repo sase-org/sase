@@ -67,6 +67,8 @@ def test_missing_presentation_fingerprint_is_canceled_and_recreated(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
     }
     assert canceled == [(old_request_id, "task_triage_presentation_changed")]
     assert created[0]["request_id"].endswith("-g2")
@@ -118,6 +120,8 @@ def test_current_presentation_fingerprint_remains_pending(
         "skipped": 1,
         "deferred": 0,
         "resnoozed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
     }
 
 
@@ -220,6 +224,8 @@ def test_later_plus_one_refreshes_pending_triage_presentation(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
     }
     assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]
     assert created[1]["plus_one_evidence"] == task.plus_one_evidence
@@ -268,6 +274,8 @@ def test_later_close_history_refreshes_pending_triage_presentation(
         "skipped": 0,
         "deferred": 0,
         "resnoozed": 0,
+        "swept_projects": 0,
+        "untracked_canceled": 0,
     }
     assert canceled == [(created[0]["request_id"], "task_triage_presentation_changed")]
     assert created[1]["close_history"] == task.close_history

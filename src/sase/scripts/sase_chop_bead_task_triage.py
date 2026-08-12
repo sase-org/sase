@@ -10,6 +10,7 @@ into giving a bead two pending gates.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 import hashlib
 import json
@@ -19,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.bead.gate_lookup import find_pending_bead_gates
 from sase.bead.model import Issue, IssueType, SnoozeRecord, Status
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND, create_bead_snooze_gate
 from sase.bead.store_locator import canonical_beads_dir_for_project
@@ -64,6 +66,13 @@ class _ProjectState:
     generations: dict[str, int] = field(default_factory=dict)
     fingerprints: dict[str, str] = field(default_factory=dict)
     kinds: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class _ProjectInventory:
+    stores: tuple[tuple[str, Path], ...]
+    skipped_projects: frozenset[str] = frozenset()
+    sweep_allowed: bool = True
 
 
 def _read_state(path: Path) -> dict[str, _ProjectState]:
@@ -172,14 +181,17 @@ def _write_state(path: Path, projects: dict[str, _ProjectState]) -> None:
         raise
 
 
-def _enabled_project_stores(log: ChopLogger) -> list[tuple[str, Path]]:
-    records = list_project_records(
-        sase_projects_dir(),
-        "enabled",
-        include_home=False,
-        projects_only=True,
+def _enabled_project_stores(log: ChopLogger) -> _ProjectInventory:
+    records = list(
+        list_project_records(
+            sase_projects_dir(),
+            "all",
+            include_home=False,
+            projects_only=True,
+        )
     )
     stores: list[tuple[str, Path]] = []
+    skipped_projects: set[str] = set()
     for record in records:
         if (
             not record.is_project
@@ -191,15 +203,39 @@ def _enabled_project_stores(log: ChopLogger) -> list[tuple[str, Path]]:
         try:
             beads_dir = canonical_beads_dir_for_project(record.project_name)
         except Exception as exc:  # noqa: BLE001 - continue with healthy projects.
+            skipped_projects.add(record.project_name)
             log.warning(
                 f"[bead_task_triage] Failed to locate bead store for "
-                f"{record.project_name}: {exc}"
+                f"{_project_display_name(record.project_name)}: {exc}"
             )
             continue
         if beads_dir is None:
+            skipped_projects.add(record.project_name)
             continue
         stores.append((record.project_name, beads_dir))
-    return stores
+    return _ProjectInventory(
+        stores=tuple(stores),
+        skipped_projects=frozenset(skipped_projects),
+        sweep_allowed=bool(records),
+    )
+
+
+def _coerce_project_inventory(
+    value: _ProjectInventory | Iterable[tuple[str, Path]],
+) -> _ProjectInventory:
+    """Normalize legacy test doubles that still return the old stores list."""
+    if isinstance(value, _ProjectInventory):
+        return value
+    return _ProjectInventory(stores=tuple(value))
+
+
+def _project_display_name(project_name: str) -> str:
+    try:
+        from sase.project_display_names import project_display_name_for
+
+        return project_display_name_for(project_name)
+    except Exception:  # noqa: BLE001 - logging must not perturb reconciliation.
+        return project_name
 
 
 def _gateable_tasks(beads_dir: Path) -> list[Issue]:
@@ -408,6 +444,8 @@ def _summary(
     skipped: int = 0,
     deferred: int = 0,
     resnoozed: int = 0,
+    swept_projects: int = 0,
+    untracked_canceled: int = 0,
     reason: str | None = None,
 ) -> ChopResultBuilder:
     return runtime.emit_summary(
@@ -417,6 +455,8 @@ def _summary(
             "skipped": skipped,
             "deferred": deferred,
             "resnoozed": resnoozed,
+            "swept_projects": swept_projects,
+            "untracked_canceled": untracked_canceled,
         },
         reason=reason,
     )
@@ -455,13 +495,107 @@ def _create_gate(
     create_bead_snooze_gate(snooze=issue.snooze, **common)
 
 
+def _sweep_inactive_state_projects(
+    projects: dict[str, _ProjectState],
+    *,
+    reconciled_projects: set[str],
+    skipped_projects: set[str],
+    log: ChopLogger,
+) -> tuple[int, int, bool]:
+    """Cancel and drop state for projects absent from this healthy inventory pass."""
+    canceled = 0
+    swept_projects = 0
+    state_changed = False
+    inactive_projects = set(projects) - reconciled_projects - skipped_projects
+    for project_name in sorted(inactive_projects):
+        project_state = projects[project_name]
+        failed = False
+        for bead_id, request_id in sorted(project_state.gates.items()):
+            kind = project_state.kinds.get(bead_id, TASK_TRIAGE_KIND)
+            try:
+                gate_state = _gate_state(kind, request_id)
+            except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+                log.warning(
+                    f"[bead_task_triage] Failed to inspect inactive-project "
+                    f"gate {request_id} for "
+                    f"{_project_display_name(project_name)}: {exc}"
+                )
+                failed = True
+                continue
+            if gate_state != "pending":
+                continue
+            try:
+                was_canceled = _cancel_pending_gate(
+                    kind,
+                    request_id,
+                    reason="project_no_longer_enabled",
+                )
+            except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+                log.warning(
+                    f"[bead_task_triage] Failed to cancel inactive-project "
+                    f"gate {request_id} for "
+                    f"{_project_display_name(project_name)}: {exc}"
+                )
+                failed = True
+                continue
+            canceled += int(was_canceled)
+        if failed:
+            continue
+        del projects[project_name]
+        swept_projects += 1
+        state_changed = True
+    return canceled, swept_projects, state_changed
+
+
+def _sweep_untracked_produced_gates(
+    projects: dict[str, _ProjectState],
+    *,
+    skipped_projects: set[str],
+    log: ChopLogger,
+) -> int:
+    """Cancel pending gates this chop produced but no longer records in state."""
+    expected_request_ids = {
+        request_id
+        for project_state in projects.values()
+        for request_id in project_state.gates.values()
+    }
+    try:
+        pending_gates = find_pending_bead_gates(_GATE_KINDS)
+    except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+        log.warning(f"[bead_task_triage] Failed to scan pending bead gates: {exc}")
+        return 0
+
+    canceled = 0
+    for gate in pending_gates:
+        if gate.producer_chop != "bead_task_triage":
+            continue
+        if gate.request_id in expected_request_ids:
+            continue
+        if gate.project in skipped_projects:
+            continue
+        try:
+            was_canceled = _cancel_pending_gate(
+                gate.kind,
+                gate.request_id,
+                reason="gate_no_longer_tracked",
+            )
+        except Exception as exc:  # noqa: BLE001 - retry on the next tick.
+            log.warning(
+                f"[bead_task_triage] Failed to cancel untracked gate "
+                f"{gate.request_id}: {exc}"
+            )
+            continue
+        canceled += int(was_canceled)
+    return canceled
+
+
 def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuilder:
     if runtime.context.dry_run:
         return _summary(runtime, reason="dry_run")
 
     projects = _read_state(state_path)
     try:
-        project_stores = _enabled_project_stores(runtime.log)
+        inventory = _coerce_project_inventory(_enabled_project_stores(runtime.log))
     except Exception as exc:  # noqa: BLE001 - a bad inventory must fail closed.
         runtime.log.warning(
             f"[bead_task_triage] Failed to load enabled projects: {exc}"
@@ -473,7 +607,11 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
     skipped = 0
     deferred = 0
     resnoozed = 0
+    swept_projects = 0
+    untracked_canceled = 0
     state_changed = False
+    reconciled_projects: set[str] = set()
+    skipped_projects = set(inventory.skipped_projects)
     notifications = _NotificationSnoozeIndex()
     try:
         in_flight_launches = active_task_launch_bead_ids()
@@ -483,16 +621,18 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         )
         in_flight_launches = frozenset()
 
-    for project_name, beads_dir in project_stores:
+    for project_name, beads_dir in inventory.stores:
         try:
             live_tasks = {issue.id: issue for issue in _gateable_tasks(beads_dir)}
         except Exception as exc:  # noqa: BLE001 - one store must not stop the chop.
+            skipped_projects.add(project_name)
             runtime.log.warning(
                 f"[bead_task_triage] Failed to read gateable tasks for "
-                f"{project_name}: {exc}"
+                f"{_project_display_name(project_name)}: {exc}"
             )
             continue
 
+        reconciled_projects.add(project_name)
         project_state = projects.setdefault(project_name, _ProjectState())
         for bead_id, request_id in list(project_state.gates.items()):
             kind = project_state.kinds.get(bead_id, TASK_TRIAGE_KIND)
@@ -595,6 +735,26 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
             gated += 1
             state_changed = True
 
+    if inventory.sweep_allowed:
+        (
+            inactive_canceled,
+            swept_projects,
+            inactive_state_changed,
+        ) = _sweep_inactive_state_projects(
+            projects,
+            reconciled_projects=reconciled_projects,
+            skipped_projects=skipped_projects,
+            log=runtime.log,
+        )
+        canceled += inactive_canceled
+        state_changed = state_changed or inactive_state_changed
+        untracked_canceled = _sweep_untracked_produced_gates(
+            projects,
+            skipped_projects=skipped_projects,
+            log=runtime.log,
+        )
+        canceled += untracked_canceled
+
     if state_changed:
         try:
             _write_state(state_path, projects)
@@ -603,7 +763,11 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
                 f"[bead_task_triage] Failed to persist reconciliation state: {exc}"
             )
 
-    reason = None if gated or canceled or resnoozed else "no_triage_changes"
+    reason = (
+        None
+        if gated or canceled or resnoozed or swept_projects or untracked_canceled
+        else "no_triage_changes"
+    )
     return _summary(
         runtime,
         gated=gated,
@@ -611,6 +775,8 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         skipped=skipped,
         deferred=deferred,
         resnoozed=resnoozed,
+        swept_projects=swept_projects,
+        untracked_canceled=untracked_canceled,
         reason=reason,
     )
 
