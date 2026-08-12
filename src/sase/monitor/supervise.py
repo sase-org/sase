@@ -30,6 +30,7 @@ from sase.history.chat import save_chat_history
 from sase.notifications.senders import notify_workflow_complete
 from sase.running_field import release_workspace
 
+from .followup import launch_followup_agent
 from .models import MonitorState
 from .output import OutputCapture
 
@@ -248,10 +249,32 @@ def _finish_monitor(
 
     next_action = meta.get("monitor_next_action")
     if next_action and monitor_state != "stopped":
-        # engine-next (a later, dependent phase) launches the follow-up agent
-        # from here and transfers the workspace claim onward. Until it does,
-        # keep holding the claim rather than releasing a result nobody has
-        # acted on yet.
+        followup_error: str | None = None
+        launched = False
+        if project_name:
+            launched = launch_followup_agent(
+                artifacts_dir,
+                meta,
+                monitor_state=monitor_state,
+                exit_code=exit_code,
+                elapsed_seconds=elapsed_seconds,
+                capture=capture,
+                project_name=project_name,
+            )
+            followup_error = str(meta.get("monitor_followup_error") or "") or None
+        else:
+            followup_error = (
+                "could not resolve the monitor's project from its artifacts path"
+            )
+        if launched:
+            return
+        _release_claim_and_notify(
+            meta,
+            project_name=project_name,
+            monitor_state=monitor_state,
+            stop_status=stop_status,
+            followup_error=followup_error or "follow-up launch failed",
+        )
         return
 
     _release_claim_and_notify(
@@ -268,6 +291,7 @@ def _release_claim_and_notify(
     project_name: str | None,
     monitor_state: MonitorState,
     stop_status: str,
+    followup_error: str | None = None,
 ) -> None:
     workspace_num = meta.get("workspace_num")
     cl_name = meta.get("cl_name")
@@ -280,12 +304,19 @@ def _release_claim_and_notify(
             cl_name=cl_name,
         )
 
-    success = monitor_state in {"completed", "stopped"}
+    success = monitor_state in {"completed", "stopped"} and followup_error is None
+    notes = [f"{stop_status}: {meta.get('monitor_command')}"]
+    if followup_error:
+        monitor_id = meta.get("monitor_id") or ""
+        notes.append(
+            f"follow-up launch failed: {followup_error} "
+            f"(inspect with `sase monitor show {monitor_id} --all-lines`)"
+        )
     notify_workflow_complete(
         "monitor",
         cl_name,
         success,
-        [f"{stop_status}: {meta.get('monitor_command')}"],
+        notes,
         tags=["monitor"],
     )
 

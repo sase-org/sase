@@ -137,19 +137,47 @@ def test_run_supervisor_kills_the_whole_process_group_on_timeout(
     assert not is_process_running(grandchild_pid)
 
 
-def test_run_supervisor_holds_the_claim_when_a_next_action_is_pending(
-    tmp_path: Path,
+def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     artifacts_dir, project_file = _make_member(
         tmp_path, command="true", next_action="Report that it finished."
     )
+    import sase.monitor.supervise as supervise_module
+
+    monkeypatch.setattr(supervise_module, "launch_followup_agent", lambda *a, **k: True)
 
     _run_supervisor(artifacts_dir)
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "completed"
-    # A follow-up (engine-next, a later phase) still needs this claim.
+    # engine-next transfers this claim to the follow-up agent it launches;
+    # the supervisor itself must never release it on success.
     assert len(get_claimed_workspaces(project_file)) == 1
+
+
+def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts_dir, project_file = _make_member(
+        tmp_path, command="true", next_action="Report that it finished."
+    )
+    import sase.monitor.supervise as supervise_module
+
+    def fake_launch_failure(
+        _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
+    ) -> bool:
+        meta["monitor_followup_error"] = "boom"
+        return False
+
+    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_failure)
+
+    _run_supervisor(artifacts_dir)
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "completed"
+    # A failed follow-up launch must not leave the workspace claimed forever.
+    assert get_claimed_workspaces(project_file) == []
 
 
 def test_supervisor_subprocess_stops_cleanly_on_sigterm(tmp_path: Path) -> None:

@@ -31,6 +31,7 @@ def create_monitor_member(
     stop_status: str,
     timeout_seconds: float,
     tail_lines: int,
+    starter_agent: str | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -69,6 +70,8 @@ def create_monitor_member(
     )
     if next_action:
         meta["monitor_next_action"] = next_action
+    if starter_agent:
+        meta["monitor_starter_agent"] = starter_agent
     write_agent_meta_atomic(
         artifacts_dir,
         meta,

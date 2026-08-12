@@ -114,9 +114,12 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     label = request.label or _default_label(request.command)
 
     transfer_from_pid: int | None = None
+    starter_agent: str | None = None
     if cwd_matches_lane and lane_workspace_num is not None and runner_pid is not None:
         resolved_workspace_num = lane_workspace_num
         transfer_from_pid = runner_pid
+        raw_name = raw_meta.get("name")
+        starter_agent = raw_name if isinstance(raw_name, str) and raw_name else None
     else:
         resolved_workspace_num = 0
 
@@ -137,6 +140,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         stop_status=request.stop_status,
         timeout_seconds=request.timeout_seconds,
         tail_lines=request.tail_lines,
+        starter_agent=starter_agent,
     )
 
     try:
