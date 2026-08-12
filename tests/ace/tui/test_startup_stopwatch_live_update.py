@@ -351,6 +351,9 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
         def _start_artifact_watcher(self) -> None:
             pass
 
+        def _mark_startup_first_paint(self) -> None:
+            pass
+
         def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
             del kwargs
             self.tasks.append(asyncio.create_task(fn()))

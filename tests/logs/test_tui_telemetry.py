@@ -23,6 +23,23 @@ def test_agent_load_sink_rotates_under_explicit_byte_override(
     assert json.loads(path.with_name(f"{path.name}.1").read_text()) == {"old": True}
 
 
+def test_startup_sink_writes_record_to_its_own_path(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    path = tmp_path / "tui_startup.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STARTUP_JSONL", str(path))
+
+    tui_telemetry.log_tui_startup(
+        {"event": "tui_startup", "all_surfaces_ready_seconds": 1.5}
+    )
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {
+        "event": "tui_startup",
+        "all_surfaces_ready_seconds": 1.5,
+    }
+
+
 def test_telemetry_write_failure_never_raises(
     tmp_path: Path,
     monkeypatch,

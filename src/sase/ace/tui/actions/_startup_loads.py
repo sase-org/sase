@@ -35,6 +35,7 @@ class StartupLoadsMixin:
 
     def _start_post_mount_background_loads(self: Any) -> None:
         """Launch post-mount startup loads once after first paint."""
+        self._mark_startup_first_paint()
         if self._post_mount_background_loads_started:
             return
         self._post_mount_background_loads_started = True

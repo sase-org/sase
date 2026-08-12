@@ -116,6 +116,9 @@ async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None
         def _start_artifact_watcher(self) -> None:
             self.events.append("watcher-start")
 
+        def _mark_startup_first_paint(self) -> None:
+            pass
+
     harness = _StartupHarness()
     AceApp._start_post_mount_background_loads(harness)  # type: ignore[arg-type]
 

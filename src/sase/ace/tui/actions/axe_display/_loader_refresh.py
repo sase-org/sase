@@ -58,6 +58,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             except Exception:
                 pass
             self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
+            self._mark_startup_axe_ready()  # type: ignore[attr-defined]
 
         self.axe_running = data.axe_running
 

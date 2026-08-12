@@ -411,6 +411,7 @@ def test_tier1_large_index_result_does_not_fan_out_to_source_scan(
     assert load_state.complete_visible_inbox is True
     assert load_state.complete_history is False
     assert load_state.needs_full_history_reconcile is False
+    assert load_state.record_count == 10_000
     mock_query.assert_called_once()
     mock_scan.assert_not_called()
 

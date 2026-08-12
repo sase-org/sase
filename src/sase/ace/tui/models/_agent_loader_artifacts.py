@@ -56,6 +56,7 @@ class AgentLoadState:
     repair_reason: str | None = None
     truncated: bool = False
     deleted_artifact_dirs: frozenset[str] = field(default_factory=frozenset)
+    record_count: int | None = None
 
     @property
     def needs_full_history_reconcile(self) -> bool:
@@ -125,8 +126,9 @@ def query_artifact_index_for_loader(
             options=_TUI_SCAN_OPTIONS,
         )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
+        fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
         return (
-            scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS),
+            fallback_snapshot,
             AgentLoadState(
                 tier="tier1",
                 complete_history=False,
@@ -136,6 +138,7 @@ def query_artifact_index_for_loader(
                 index_error=str(exc),
                 repair_recommended=True,
                 repair_reason="artifact_index_query_failed_bounded_fallback",
+                record_count=len(fallback_snapshot.records),
             ),
         )
 
@@ -147,6 +150,7 @@ def query_artifact_index_for_loader(
             complete_visible_inbox=True,
             artifact_source="artifact_index",
             used_artifact_index=True,
+            record_count=len(snapshot.records),
         ),
     )
 
@@ -161,26 +165,30 @@ def artifact_snapshot_for_tui_load(
     """Return the artifact snapshot for a TUI refresh."""
 
     if full_history:
+        full_snapshot = scan_artifacts()
         return (
-            scan_artifacts(),
+            full_snapshot,
             AgentLoadState(
                 tier="tier2",
                 complete_history=True,
                 complete_visible_inbox=True,
                 artifact_source="source_scan",
                 used_artifact_index=False,
+                record_count=len(full_snapshot.records),
             ),
         )
 
     if not use_artifact_index:
+        unindexed_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
         return (
-            scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS),
+            unindexed_snapshot,
             AgentLoadState(
                 tier="tier1",
                 complete_history=False,
                 complete_visible_inbox=False,
                 artifact_source="source_scan",
                 used_artifact_index=False,
+                record_count=len(unindexed_snapshot.records),
             ),
         )
 
@@ -188,8 +196,9 @@ def artifact_snapshot_for_tui_load(
     if indexed is not None:
         return indexed
 
+    fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
     return (
-        scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS),
+        fallback_snapshot,
         AgentLoadState(
             tier="tier1",
             complete_history=False,
@@ -198,6 +207,7 @@ def artifact_snapshot_for_tui_load(
             used_artifact_index=False,
             repair_recommended=True,
             repair_reason="artifact_index_missing_bounded_fallback",
+            record_count=len(fallback_snapshot.records),
         ),
     )
 
@@ -333,4 +343,5 @@ def artifact_delta_load_state(
         repair_recommended=repair_recommended,
         repair_reason="artifact_delta_scan_incomplete" if repair_recommended else None,
         deleted_artifact_dirs=frozenset(deleted_dir_keys & seen_dirs),
+        record_count=len(snapshot.records),
     )

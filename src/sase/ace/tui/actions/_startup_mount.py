@@ -33,6 +33,8 @@ class StartupMountMixin:
 
         self._mounting = True
         try:
+            self._mark_startup_on_mount()
+
             from ..util.trace import set_trace_context
 
             set_trace_context(current_tab=self.current_tab)

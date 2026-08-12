@@ -244,3 +244,46 @@ async def test_slow_loader_stage_writes_durable_telemetry(
     assert record["slow_stages"] == ["disk"]
     assert record["stages_seconds"]["disk"] == 2.25
     assert record["agents"] == 7
+
+
+@pytest.mark.asyncio
+async def test_slow_loader_stage_threshold_is_env_overridable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_agent_loads.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_AGENT_LOADS_JSONL", str(path))
+    monkeypatch.setenv("SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS", "0.05")
+    app = _CleanupApp()
+
+    app._record_slow_loader_stages(
+        source="test",
+        load_kind="full",
+        stages={"disk": 0.1, "prep": 0.01},
+    )
+    await _drain_cleanup_tasks(app)
+
+    record = json.loads(path.read_text().strip())
+    assert record["threshold_seconds"] == 0.05
+    assert record["slow_stages"] == ["disk"]
+
+
+@pytest.mark.asyncio
+async def test_slow_loader_stage_threshold_ignores_invalid_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_agent_loads.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_AGENT_LOADS_JSONL", str(path))
+    monkeypatch.setenv("SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS", "not-a-number")
+    app = _CleanupApp()
+
+    app._record_slow_loader_stages(
+        source="test",
+        load_kind="full",
+        stages={"disk": 2.25},
+    )
+    await _drain_cleanup_tasks(app)
+
+    record = json.loads(path.read_text().strip())
+    assert record["threshold_seconds"] == 2.0

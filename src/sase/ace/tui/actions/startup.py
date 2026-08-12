@@ -20,6 +20,7 @@ from ._startup_loads import StartupLoadsMixin
 from ._startup_misspellings import StartupMisspellingsMixin
 from ._startup_mount import StartupMountMixin
 from ._startup_prompt_catalog import StartupPromptCatalogMixin
+from ._startup_telemetry import StartupTelemetryMixin
 from ._startup_watchers import StartupWatchersMixin
 from ._state_init import StateInitMixin
 
@@ -49,6 +50,7 @@ class StartupMixin(
     StartupLoadsMixin,
     StartupWatchersMixin,
     StartupMountMixin,
+    StartupTelemetryMixin,
 ):
     """Mixin providing app state initialization and mount-time setup."""
 
@@ -66,6 +68,14 @@ class StartupMixin(
     _agents_first_load_done: bool
     _axe_first_load_done: bool
     _mount_state_loads_done: bool
+    _startup_process_start_mono: float
+    _startup_on_mount_mono: float | None
+    _startup_first_paint_mono: float | None
+    _startup_initial_tab: TabName | None
+    _startup_agents_ready_mono: float | None
+    _startup_axe_ready_mono: float | None
+    _startup_visible_ready_mono: float | None
+    _startup_telemetry_recorded: bool
     _agents_onboarding_launch_targets_available: bool
     _agents_onboarding_launch_targets_refresh_scheduled: bool
     _agents_onboarding_launch_targets_refresh_running: bool

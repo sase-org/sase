@@ -281,11 +281,71 @@ and `SASE_TUI_PUMP_HITCH_DISABLE=1`; the existing stall-tier disable flags remai
 `SASE_TUI_STALL_DISABLE=1` and `SASE_TUI_PUMP_STALL_DISABLE=1`.
 
 The persistent TUI diagnostic JSONL files under `~/.sase/logs/`—stall, git-operation,
-launch-timing, external-tool, and agent-load records—rotate independently before
-appending a record would make a non-empty file exceed 2 MiB. Each keeps one `.1`
+launch-timing, external-tool, agent-load, and startup records—rotate independently
+before appending a record would make a non-empty file exceed 2 MiB. Each keeps one `.1`
 generation. Set `SASE_TUI_TELEMETRY_MAX_BYTES` to another per-file byte limit, or `0`
 for no size rotation. This bound is separate from the opt-in trace files under
 `~/.sase/perf/`.
+
+## Startup telemetry capture
+
+`~/.sase/logs/tui_startup.jsonl` (`sase/logs/tui_telemetry.py:log_tui_startup`) gets one
+durable record per ACE session, written after both the Agents and AXE surfaces finish
+their first load — the same point the visible startup-stopwatch badge stops. It exists
+so every "startup dropped from X to Y" claim in this repo's plans and epics is checkable
+against a real terminal run instead of a modelled component sum
+(`plans/202608/ace_startup_critical_path.md`).
+
+Each record carries two headline metrics, both measured from the App's `on_mount` — the
+same anchor the visible stopwatch badge uses, so the two numbers should visually track
+what you saw on screen:
+
+- `all_surfaces_ready_seconds` — elapsed time until **both** the Agents and AXE tabs'
+  first load finished, regardless of which tab was visible. This is today's stopwatch
+  semantics.
+- `visible_ready_seconds` — elapsed time until the **initially visible** tab's own
+  surface was interactive. Recorded from day one even though nothing currently drives
+  the stopwatch off of it, so a later change to end the stopwatch on the visible surface
+  instead of both surfaces has an honest before/after rather than a redefinition that
+  silently invalidates every prior capture.
+
+The record also carries `process_start_to_on_mount_seconds` and
+`on_mount_to_first_paint_seconds` (the two stages before either surface starts loading),
+`agents_ready_seconds` / `axe_ready_seconds` (each surface's own elapsed time from
+process start), `initial_tab`, `agent_row_count`, `index_row_count` (the Tier-1 index
+query's row count when the load went through the persistent index, `null` otherwise),
+and `source` / `tier` / `artifact_source` from the load's `AgentLoadState`.
+
+To capture a before/after pair:
+
+```bash
+# baseline, before your change
+git stash  # or check out the prior commit in a second workspace
+sase ace   # quit once the tabs finish loading; repeat 3x for a stable read
+git stash pop
+
+# after your change
+sase ace   # quit once the tabs finish loading; repeat 3x
+```
+
+Then compare the two sets of records:
+
+```bash
+jq -c '{timestamp, all_surfaces_ready_seconds, visible_ready_seconds,
+        agents_ready_seconds, axe_ready_seconds, agent_row_count,
+        index_row_count, source, tier, artifact_source}' \
+  ~/.sase/logs/tui_startup.jsonl
+```
+
+`tui_agent_loads.jsonl`'s slow-stage records are censored below
+`_SLOW_LOADER_STAGE_THRESHOLD_SECONDS` (2.0 s by default in
+`src/sase/ace/tui/actions/agents/_loading_disk_support.py`); a capture run against a
+tree that has already dropped under 2 s needs the sub-threshold stages too. Override the
+threshold for the run instead of editing the constant:
+
+```bash
+SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS=0.05 sase ace
+```
 
 ## Synthetic-data benchmark harness
 

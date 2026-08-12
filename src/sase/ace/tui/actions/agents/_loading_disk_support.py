@@ -21,7 +21,21 @@ from ._loading_compute import (
 )
 from ._loading_state import AgentLoadingStateMixin
 
-_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = 2.0
+_DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = 2.0
+_ENV_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = "SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS"
+
+
+def _slow_loader_stage_threshold_seconds() -> float:
+    """Return the slow-stage log threshold, overridable for verification runs."""
+    raw = os.environ.get(_ENV_SLOW_LOADER_STAGE_THRESHOLD_SECONDS)
+    if raw is None:
+        return _DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return _DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS
+    return value if value > 0 else _DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS
+
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -288,10 +302,9 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         """Persist slow-stage timings without putting log I/O on the UI loop."""
         import asyncio
 
+        threshold_seconds = _slow_loader_stage_threshold_seconds()
         slow_stages = sorted(
-            name
-            for name, elapsed in stages.items()
-            if elapsed >= _SLOW_LOADER_STAGE_THRESHOLD_SECONDS
+            name for name, elapsed in stages.items() if elapsed >= threshold_seconds
         )
         if not slow_stages:
             return
@@ -303,7 +316,7 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
             "pid": os.getpid(),
             "source": source,
             "load_kind": load_kind,
-            "threshold_seconds": _SLOW_LOADER_STAGE_THRESHOLD_SECONDS,
+            "threshold_seconds": threshold_seconds,
             "slow_stages": slow_stages,
             "stages_seconds": {
                 name: round(elapsed, 6) for name, elapsed in stages.items()

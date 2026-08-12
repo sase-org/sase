@@ -423,6 +423,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             except Exception:
                 pass
             self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
+            self._mark_startup_agents_ready()  # type: ignore[attr-defined]
         from ...repro.capture import record_agents_tab_app_projection
 
         record_agents_tab_app_projection(

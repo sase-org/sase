@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import signal
 import threading
+import time
 from collections import OrderedDict
 from collections.abc import Callable
 from pathlib import Path
@@ -127,6 +128,19 @@ class StateInitMixin:
         self._agents_first_load_done = False
         self._axe_first_load_done = False
         self._mount_state_loads_done = False
+        # Durable one-record-per-session startup telemetry (StartupTelemetryMixin).
+        # ``_startup_process_start_mono`` is stamped by ``AceApp.__init__`` itself,
+        # the earliest point in the ACE-specific code path; it excludes interpreter
+        # startup and argument parsing, which are shared by every ``sase``
+        # subcommand and already measured separately via ``-X importtime``.
+        self._startup_process_start_mono: float = time.monotonic()
+        self._startup_on_mount_mono: float | None = None
+        self._startup_first_paint_mono: float | None = None
+        self._startup_initial_tab: TabName | None = None
+        self._startup_agents_ready_mono: float | None = None
+        self._startup_axe_ready_mono: float | None = None
+        self._startup_visible_ready_mono: float | None = None
+        self._startup_telemetry_recorded = False
         self._agents_onboarding_launch_targets_available = False
         self._agents_onboarding_launch_targets_refresh_scheduled = False
         self._agents_onboarding_launch_targets_refresh_running = False
@@ -407,6 +421,7 @@ class StateInitMixin:
         self._loader_cleanup_pending: bool = False
         self._loader_cleanup_pending_request: Any | None = None
         self._loader_cleanup_async_tasks: set[asyncio.Task[None]] = set()
+        self._startup_telemetry_async_tasks: set[asyncio.Task[None]] = set()
         self._agents_refresh_debounce_armed: bool = False
         self._agents_refresh_debounce_source: str = "unknown"
         self._artifact_index_maintenance_running: bool = False

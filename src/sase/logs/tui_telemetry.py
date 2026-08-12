@@ -27,12 +27,14 @@ TUI_GIT_OPS_JSONL: str | None = None
 TUI_LAUNCH_TIMING_JSONL: str | None = None
 TUI_EXTERNAL_TOOLS_JSONL: str | None = None
 TUI_AGENT_LOADS_JSONL: str | None = None
+TUI_STARTUP_JSONL: str | None = None
 
 ENV_STALL_PATH = "SASE_TUI_STALL_PATH"
 ENV_GIT_OPS_PATH = "SASE_TUI_GIT_OPS_PATH"
 ENV_LAUNCH_TIMING_PATH = "SASE_TUI_LAUNCH_TIMING_PATH"
 ENV_EXTERNAL_TOOLS_PATH = "SASE_TUI_EXTERNAL_TOOLS_PATH"
 ENV_AGENT_LOADS_PATH = "SASE_TUI_AGENT_LOADS_PATH"
+ENV_STARTUP_PATH = "SASE_TUI_STARTUP_PATH"
 ENV_MAX_BYTES = "SASE_TUI_TELEMETRY_MAX_BYTES"
 
 
@@ -90,6 +92,15 @@ def tui_agent_loads_jsonl_path() -> Path:
     )
 
 
+def tui_startup_jsonl_path() -> Path:
+    """Canonical path of the one-record-per-session ACE startup JSONL log."""
+    return Path(
+        TUI_STARTUP_JSONL
+        or os.environ.get(ENV_STARTUP_PATH)
+        or os.path.join(_logs_dir(), "tui_startup.jsonl")
+    )
+
+
 def log_tui_stall(record: dict[str, Any]) -> None:
     """Append one event-loop stall record."""
     _append_jsonl(tui_stalls_jsonl_path(), record)
@@ -113,6 +124,11 @@ def log_tui_external_tool_wait(record: dict[str, Any]) -> None:
 def log_tui_agent_load(record: dict[str, Any]) -> None:
     """Append one slow Agents-tab loader timing record."""
     _append_jsonl(tui_agent_loads_jsonl_path(), record)
+
+
+def log_tui_startup(record: dict[str, Any]) -> None:
+    """Append one per-session ACE startup timing record."""
+    _append_jsonl(tui_startup_jsonl_path(), record)
 
 
 def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
