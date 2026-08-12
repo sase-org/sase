@@ -73,16 +73,15 @@ Git skill invocation omits `--type` because the xprompt already set
 `SASE_COMMIT_METHOD`:
 
 ```bash
-sase_git_commit -M .sase/commit_message.md -f src/example.py
+sase_git_commit -M .sase/commit_message.md
 ```
 
 The skill writes the message file under `.sase/` because that directory is git-ignored
 in every SASE-managed checkout, so the temporary file can never trip the commit
 finalizer's dirty check.
 
-The low-level equivalent is
-`sase stitch create -M .sase/commit_message.md -f src/example.py -t <method>`. The
-method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the
+The low-level equivalent is `sase stitch create -M .sase/commit_message.md -t <method>`.
+The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If both the
 environment and `-t/--type` are set, they must resolve to the same method unless
 `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
@@ -104,13 +103,13 @@ directory is available, a `commit_finalizer_result.json` artifact.
 | ----- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-m`  | `--message`           | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
 | `-M`  | `--message-file`      | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
-| `-f`  | `--file`              | File to stage (repeatable; omit to stage all)                                                                                                                                                                                                                         |
+| `-x`  | `--exclude`           | Repo-relative file or directory to leave out of the commit (repeatable; everything else, including untracked files, is staged)                                                                                                                                        |
 | `-n`  | `--name`              | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
 | `-b`  | `--bug-id`            | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
 | `-B`  | `--do-not-close-bead` | Do not auto-close the assigned in-progress task bead after commit                                                                                                                                                                                                     |
 | `-c`  | `--checkout-target`   | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
 | `-p`  | `--parent`            | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
-| `-r`  | `--resume`            | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-f` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
+| `-r`  | `--resume`            | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-x` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
 | `-s`  | `--status`            | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
 | `-t`  | `--type`              | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
 
@@ -244,7 +243,7 @@ does **not** accept a positional JSON payload.
 Typical commit or proposal:
 
 ```bash
-sase stitch create -M .sase/commit_message.md -f src/auth.py -f src/login.py -t commit
+sase stitch create -M .sase/commit_message.md -t commit
 ```
 
 Typical PR:
@@ -259,14 +258,16 @@ The internal payload has this shape:
 {
   "message": "Commit message (required for commit/propose)",
   "name": "Branch or PR name (required for PR)",
-  "files": ["optional", "list", "of", "specific", "files"]
+  "exclude": ["optional", "list", "of", "paths", "to", "leave", "out"]
 }
 ```
 
-The CLI maps `-m` / `-M` to `message`, repeated `-f` flags to `files`, `-n` to `name`,
+The CLI maps `-m` / `-M` to `message`, repeated `-x` flags to `exclude`, `-n` to `name`,
 `-b` to `bug_id`, `-B` to `do_not_close_bead`, `-c` to `checkout_target`, `-p` to
-`parent`, and `-s` to `status`. Omitted `-f` means "stage all changes" and is
-represented as an empty `files` list.
+`parent`, and `-s` to `status`. Omitted `-x` means "stage everything" and is represented
+as an empty `exclude` list. The internal allowlist key, `files`, is not reachable from
+the agent-facing CLI — it exists only for the internal `--only-file` flag used by SASE's
+own SDD plan-commit caller.
 
 Bead association is not a user-supplied CLI flag. For new commit attempts,
 `sase stitch create` reads `SASE_BEAD_ID`; when it is set, the CLI adds that bead to the
@@ -389,7 +390,7 @@ Creates an actual git commit on the current branch and pushes it.
 
 **Git operations:**
 
-1. Stage files (`git add -A` or specific files)
+1. Stage files (`git add -A`, honoring `-x/--exclude`, or the internal allowlist)
 2. Stage in-repo SDD bead and plan files when present
 3. Validate staged changes exist
 4. Merge with `origin/<default_branch>` to keep the branch current
@@ -442,7 +443,7 @@ input:
 **Git operations:**
 
 1. `git checkout -b <name>` (create new branch)
-2. Stage files and bead/plan paths
+2. Stage files (honoring `-x/--exclude`, or the internal allowlist) and bead/plan paths
 3. `git commit -m <message>`
 4. `git push -u origin <name>`
 5. (GitHub plugin creates the actual PR via `gh`)

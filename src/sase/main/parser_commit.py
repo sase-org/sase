@@ -1,8 +1,46 @@
 """Argument parser definitions for commit-lifecycle CLI subcommands."""
 
 import argparse
+import sys
+from collections.abc import Sequence
+from typing import Any
 
 from sase.commit_methods import METHOD_ALIASES, VALID_METHODS
+
+_REMOVED_FILE_FLAG_MESSAGE = (
+    "error: `-f/--file` was removed. `sase stitch create` now stages every change in\n"
+    "the repository, including untracked files. Use `-x/--exclude PATH` (repeatable)\n"
+    "to leave a path out of the commit."
+)
+
+
+class _RemovedFileFlagAction(argparse.Action):
+    """Reject the removed ``-f/--file`` flag with an actionable exit-1 message.
+
+    Generated skill copies are deployed to a global chezmoi destination and can
+    lag the in-repo sources, so a stale copy may still pass ``-f``. Exiting 1
+    here (instead of letting argparse's ``unrecognized arguments`` exit 2)
+    avoids being mistaken for a paused-rebase conflict by the commit skill.
+    """
+
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: str,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(option_strings, dest, nargs="?", **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, namespace, values, option_string
+        print(_REMOVED_FILE_FLAG_MESSAGE, file=sys.stderr)
+        sys.exit(1)
 
 
 def add_commit_create_options(parser: argparse.ArgumentParser) -> None:
@@ -25,10 +63,24 @@ def add_commit_create_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-f",
         "--file",
+        action=_RemovedFileFlagAction,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-x",
+        "--exclude",
         action="append",
         default=[],
-        dest="files",
-        help="File to stage (repeat for multiple; omit to stage all changes)",
+        dest="exclude",
+        metavar="PATH",
+        help="Repo-relative file or directory to leave out of the commit (repeatable)",
+    )
+    parser.add_argument(
+        "--only-file",
+        action="append",
+        default=[],
+        dest="only_files",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "-n",
@@ -80,7 +132,7 @@ def add_commit_create_options(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Resume a previously-checkpointed commit after manual conflict "
-            "resolution. When set, -m/-M/-f and other commit args are ignored."
+            "resolution. When set, -m/-M/-x and other commit args are ignored."
         ),
     )
 

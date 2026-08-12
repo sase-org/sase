@@ -75,7 +75,7 @@ def commit_sdd_files_for_exec_plan(
         os.close(msg_fd)
     cmd = ["sase", "stitch", "create", "-M", msg_path]
     for f in files:
-        cmd.extend(["-f", f])
+        cmd.extend(["--only-file", f])
     try:
         result = subprocess_run(
             cmd,

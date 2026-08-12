@@ -429,6 +429,25 @@ def test_vcs_create_pull_request_resuffixes_on_branch_collision(
     assert rename_calls == [["git", "branch", "-m", "feat_3"]]
 
 
+# === Tests for the commit-exclude capability probe ===
+
+
+def test_bare_git_supports_commit_excludes(
+    bare_git_provider: VCSPluginManager,
+) -> None:
+    """BareGitPlugin advertises exclude support for -x/--exclude."""
+    assert bare_git_provider.supports_commit_excludes() is True
+
+
+def test_provider_without_hookimpl_does_not_support_commit_excludes() -> None:
+    """A provider that never implements the hook defaults to unsupported."""
+    pm = pluggy.PluginManager("sase_vcs")
+    pm.add_hookspecs(VCSHookSpec)
+    manager = VCSPluginManager(pm)
+
+    assert manager.supports_commit_excludes() is False
+
+
 # === Test registry integration ===
 
 

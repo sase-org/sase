@@ -517,6 +517,10 @@ class VCSPluginManager(VCSProvider):
     def finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_finalize_commit", payload=payload, cwd=cwd)
 
+    def supports_commit_excludes(self) -> bool:
+        """Probe whether the provider can honor ``-x/--exclude`` on commit dispatch."""
+        return self._has_hookimpls(("vcs_supports_commit_excludes",))
+
     # --- VCS-agnostic methods ---
 
     def abandon_change(

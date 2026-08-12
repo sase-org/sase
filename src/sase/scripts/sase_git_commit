@@ -68,19 +68,19 @@ def _canonical(method: str) -> str:
 
 
 def _parse_args(argv: list[str]) -> tuple[list[str], str, bool]:
-    files: list[str] = []
+    exclude: list[str] = []
     cli_method = ""
     resume = False
     i = 0
     while i < len(argv):
         arg = argv[i]
-        if arg in ("-f", "--file"):
+        if arg in ("-x", "--exclude"):
             if i + 1 < len(argv):
-                files.append(argv[i + 1])
+                exclude.append(argv[i + 1])
                 i += 2
                 continue
-        elif arg.startswith("--file="):
-            files.append(arg.split("=", 1)[1])
+        elif arg.startswith("--exclude="):
+            exclude.append(arg.split("=", 1)[1])
         elif arg in ("-t", "--type"):
             if i + 1 < len(argv):
                 cli_method = argv[i + 1]
@@ -91,12 +91,12 @@ def _parse_args(argv: list[str]) -> tuple[list[str], str, bool]:
         elif arg in ("-r", "--resume"):
             resume = True
         i += 1
-    return files, cli_method, resume
+    return exclude, cli_method, resume
 
 
 artifacts_dir = os.environ["SASE_ARTIFACTS_DIR"]
 argv = sys.argv[1:]
-files, raw_cli_method, resume = _parse_args(argv)
+exclude, raw_cli_method, resume = _parse_args(argv)
 raw_env_method = os.environ.get("SASE_COMMIT_METHOD", "")
 cli_method = _canonical(raw_cli_method) if raw_cli_method else ""
 env_method = _canonical(raw_env_method) if raw_env_method else ""
@@ -122,7 +122,7 @@ marker = {
     "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
     "run_id": run_id,
     "cwd": os.getcwd(),
-    "files": files,
+    "exclude": exclude,
     "method": method,
     "method_source": method_source,
     "cli_method": cli_method,

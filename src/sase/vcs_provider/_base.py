@@ -524,6 +524,17 @@ class VCSProvider(ABC):
             "finalize_commit is not supported by this VCS provider"
         )
 
+    def supports_commit_excludes(self) -> bool:
+        """Return whether this provider can honor ``-x/--exclude`` on commit dispatch.
+
+        The default is ``False`` so every existing and out-of-tree provider
+        defaults to "not supported" without being forced to change. A
+        provider that cannot honor excludes must refuse a commit with a
+        non-empty exclude list rather than silently committing the excluded
+        path.
+        """
+        return False
+
     # --- VCS-agnostic methods (default implementations) ---
 
     def abandon_change(

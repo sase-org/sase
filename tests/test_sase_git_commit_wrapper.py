@@ -46,9 +46,9 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
             str(_get_script_path("sase_git_commit")),
             "-M",
             "commit_message.md",
-            "-f",
+            "-x",
             "src/foo.py",
-            "--file=tests/test_foo.py",
+            "--exclude=tests/test_foo.py",
             "-B",
             "--type",
             "propose",
@@ -64,7 +64,8 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
     marker = json.loads((artifacts_dir / "commit_skill_invoked.json").read_text())
     assert marker["run_id"] == "20260522112233"
     assert marker["cwd"] == str(workdir)
-    assert marker["files"] == ["src/foo.py", "tests/test_foo.py"]
+    assert marker["exclude"] == ["src/foo.py", "tests/test_foo.py"]
+    assert "files" not in marker
     assert marker["method"] == "create_proposal"
     assert marker["method_source"] == "cli"
     assert marker["cli_method"] == "create_proposal"
@@ -77,9 +78,9 @@ def test_wrapper_writes_invocation_marker_before_delegating(tmp_path: Path) -> N
         "create",
         "-M",
         "commit_message.md",
-        "-f",
+        "-x",
         "src/foo.py",
-        "--file=tests/test_foo.py",
+        "--exclude=tests/test_foo.py",
         "-B",
         "--type",
         "propose",

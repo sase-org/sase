@@ -313,6 +313,9 @@ class VCSHookSpec:
         self, payload: dict, cwd: str
     ) -> tuple[bool, str | None]: ...
 
+    @hookspec(firstresult=True)
+    def vcs_supports_commit_excludes(self) -> bool: ...
+
     # --- VCS-agnostic operations ---
 
     @hookspec(firstresult=True)

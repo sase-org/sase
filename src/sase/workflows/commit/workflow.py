@@ -129,6 +129,20 @@ class CommitWorkflow(BaseWorkflow):
 
         cwd = os.getcwd()
 
+        if self._payload.get("exclude"):
+            exclude_provider = get_vcs_provider(cwd)
+            if not exclude_provider.supports_commit_excludes():
+                from sase.vcs_provider._registry import detect_vcs
+
+                provider_name = detect_vcs(cwd) or "unknown"
+                print_status(
+                    f"The '{provider_name}' VCS provider does not support "
+                    "-x/--exclude on commit dispatch.",
+                    "error",
+                )
+                _log_commit_failed(self._method, "other")
+                return RunResult.FAILED
+
         apply_bead_commit_tag(self._payload, cwd=cwd)
 
         # Bead lifecycle and SASE_PLAN: skip for proposals.

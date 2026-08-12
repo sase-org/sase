@@ -60,19 +60,73 @@ class TestCommitCLI:
 
     def test_basic_commit(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "fix: bug")
-        payload, method = _run_handler(["-M", msg_file, "-f", "a.py"])
-        assert payload == {"message": "fix: bug", "files": ["a.py"]}
+        payload, method = _run_handler(["-M", msg_file])
+        assert payload == {"message": "fix: bug", "files": [], "exclude": []}
         assert method == "create_commit"
 
-    def test_multiple_files(self, tmp_path: Path) -> None:
+    def test_only_file_flag(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        payload, _ = _run_handler(["-M", msg_file, "-f", "a.py", "-f", "b.py"])
+        payload, _ = _run_handler(["-M", msg_file, "--only-file", "a.py"])
+        assert payload["files"] == ["a.py"]
+
+    def test_only_file_multiple(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(
+            ["-M", msg_file, "--only-file", "a.py", "--only-file", "b.py"]
+        )
         assert payload["files"] == ["a.py", "b.py"]
+
+    def test_exclude_flag_multiple(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        payload, _ = _run_handler(["-M", msg_file, "-x", "a.py", "-x", "b/"])
+        assert payload["exclude"] == ["a.py", "b"]
+
+    def test_removed_file_flag_exits_1(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_commit_args(["-M", msg_file, "-f", "a.py"])
+        assert exc_info.value.code == 1
+
+    def test_removed_file_flag_bare_exits_1(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_commit_args(["-M", msg_file, "-f"])
+        assert exc_info.value.code == 1
+
+    def test_only_file_and_exclude_mutually_exclusive(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        args = _parse_commit_args(["-M", msg_file, "--only-file", "a.py", "-x", "b.py"])
+        with (
+            patch("sase.main.commit_handler.CommitWorkflow") as cls,
+            patch.dict("os.environ", {"SASE_BEAD_ID": ""}, clear=False),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            from sase.main.commit_handler import handle_commit_command
+
+            handle_commit_command(args)
+        assert exc_info.value.code == 1
+        cls.assert_not_called()
+
+    @pytest.mark.parametrize("bad_path", ["/etc/passwd", "../outside", ":(top)a.py"])
+    def test_invalid_exclude_path_exits_1(self, tmp_path: Path, bad_path: str) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        args = _parse_commit_args(["-M", msg_file, "-x", bad_path])
+        with (
+            patch("sase.main.commit_handler.CommitWorkflow") as cls,
+            patch.dict("os.environ", {"SASE_BEAD_ID": ""}, clear=False),
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            from sase.main.commit_handler import handle_commit_command
+
+            handle_commit_command(args)
+        assert exc_info.value.code == 1
+        cls.assert_not_called()
 
     def test_no_files_stages_all(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         payload, _ = _run_handler(["-M", msg_file])
         assert payload["files"] == []
+        assert payload["exclude"] == []
 
     @pytest.mark.parametrize("flag", ["--bead-id"])
     def test_bead_id_flag_rejected(self, tmp_path: Path, flag: str) -> None:
@@ -211,14 +265,19 @@ class TestCommitCLI:
         assert payload["message"] == content
 
     def test_inline_message(self) -> None:
-        payload, method = _run_handler(["-m", "fix: inline bug", "-f", "a.py"])
-        assert payload == {"message": "fix: inline bug", "files": ["a.py"]}
+        payload, method = _run_handler(["-m", "fix: inline bug", "--only-file", "a.py"])
+        assert payload == {
+            "message": "fix: inline bug",
+            "files": ["a.py"],
+            "exclude": [],
+        }
         assert method == "create_commit"
 
     def test_inline_message_no_files(self) -> None:
         payload, _ = _run_handler(["-m", "chore: cleanup"])
         assert payload["message"] == "chore: cleanup"
         assert payload["files"] == []
+        assert payload["exclude"] == []
 
     @pytest.mark.parametrize(
         "alias,canonical",

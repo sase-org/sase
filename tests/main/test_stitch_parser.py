@@ -299,7 +299,8 @@ class TestStitchCreateParser:
         assert ns.stitch_subcommand == "create"
         assert ns.message is None
         assert ns.message_file is None
-        assert ns.files == []
+        assert ns.exclude == []
+        assert ns.only_files == []
         assert ns.name is None
         assert ns.bug_id == 0
         assert ns.do_not_close_bead is False
@@ -315,10 +316,23 @@ class TestStitchCreateParser:
 
         assert excinfo.value.code == 2
 
-    def test_create_file_is_repeatable(self) -> None:
-        ns = parse_sase_args(["stitch", "create", "-f", "a.py", "--file", "b.py"])
+    def test_create_exclude_is_repeatable(self) -> None:
+        ns = parse_sase_args(["stitch", "create", "-x", "a.py", "--exclude", "b.py"])
 
-        assert ns.files == ["a.py", "b.py"]
+        assert ns.exclude == ["a.py", "b.py"]
+
+    def test_create_only_file_is_repeatable(self) -> None:
+        ns = parse_sase_args(
+            ["stitch", "create", "--only-file", "a.py", "--only-file", "b.py"]
+        )
+
+        assert ns.only_files == ["a.py", "b.py"]
+
+    def test_create_removed_file_flag_exits_1(self) -> None:
+        with pytest.raises(SystemExit) as excinfo:
+            parse_sase_args(["stitch", "create", "-f", "a.py"])
+
+        assert excinfo.value.code == 1
 
     @pytest.mark.parametrize(
         ("value", "expected"),
@@ -378,9 +392,9 @@ class TestStitchCreateParser:
         argv = [
             "-M",
             "msg.txt",
-            "-f",
+            "-x",
             "a.py",
-            "-f",
+            "-x",
             "b.py",
             "-n",
             "feature",
@@ -403,7 +417,8 @@ class TestStitchCreateParser:
         shared_keys = (
             "message",
             "message_file",
-            "files",
+            "exclude",
+            "only_files",
             "name",
             "bug_id",
             "do_not_close_bead",

@@ -17,6 +17,47 @@ def _resolve_env_bead_id() -> str | None:
     return bead_id or None
 
 
+def _normalize_excludes(raw_excludes: list[str]) -> list[str]:
+    """Normalize ``-x/--exclude`` entries to canonical repo-relative POSIX paths.
+
+    Exits 1 with a printed reason on the first entry that is not a safe,
+    literal, repo-relative path — an unmatched or malicious exclude must never
+    reach ``git add``, since git silently ignores a pathspec that matches
+    nothing.
+    """
+    import os
+
+    normalized = []
+    for raw in raw_excludes:
+        path = raw.strip()
+        if path.startswith(":"):
+            print(
+                f"Error: invalid --exclude path {raw!r}: a leading ':' is raw git "
+                "pathspec magic, which is not allowed.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if path.startswith("./"):
+            path = path[2:]
+        path = path.rstrip("/")
+        if not path or os.path.isabs(path):
+            print(
+                f"Error: invalid --exclude path {raw!r}: must be a non-empty, "
+                "repo-relative path.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if any(part == ".." for part in path.split("/")):
+            print(
+                f"Error: invalid --exclude path {raw!r}: '..' components are not "
+                "allowed.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        normalized.append(path)
+    return normalized
+
+
 def handle_commit_command(args: argparse.Namespace) -> NoReturn:
     """Handle the 'commit' command.
 
@@ -84,9 +125,17 @@ def handle_commit_command(args: argparse.Namespace) -> NoReturn:
 
     method = cli_method or env_method or "create_commit"
 
+    if args.only_files and args.exclude:
+        print(
+            "Error: --only-file and -x/--exclude are mutually exclusive.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     payload: dict[str, object] = {
         "message": message,
-        "files": args.files or [],
+        "files": args.only_files or [],
+        "exclude": _normalize_excludes(args.exclude),
     }
     if args.name:
         payload["name"] = args.name

@@ -55,12 +55,12 @@ def test_commit_instruction_requires_completing_commit_within_response() -> None
     )
 
 
-def test_commit_instruction_guides_finalizer_to_use_targeted_file_flags() -> None:
-    """Finalizer-triggered commits should prefer one -f per listed file."""
+def test_commit_instruction_describes_stage_everything_default() -> None:
+    """Finalizer-triggered commits stage everything by default; -x opts out."""
     message = build_commit_instruction_message("/sase_git_commit", "create_commit")
-    assert "include a separate `-f` flag for each listed file" in message
+    assert "stages every change in that repository by default" in message
     assert "including newly created untracked files" in message
-    assert "Omit `-f` only when you intentionally want to stage every change" in message
+    assert "Pass `-x <path>` (repeatable) only when a specific path" in message
     assert "Do not preemptively stash, pull, fast-forward, or hand-sync" in message
 
 

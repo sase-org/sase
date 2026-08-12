@@ -20,7 +20,7 @@ Commit changes via the `sase commit` command.
 3. **Run the commit** — Execute:
 
    ```bash
-   sase commit -M commit_message.md -f file1.py -f file2.py
+   sase commit -M commit_message.md
    ```
 
    Flags:
@@ -28,7 +28,6 @@ Commit changes via the `sase commit` command.
      successful commit. If the command fails, retry with the same `-M` path.
    - `-m`: Inline commit message string (alternative to `-M`). `-m` and `-M` are
      mutually exclusive.
-   - `-f`: File to include (repeat for multiple files). Omit to include all changes.
    - `--name`: PR name (only needed for `create_pull_request` method).
 
    The `$SASE_COMMIT_METHOD` environment variable is read automatically to determine the
@@ -38,7 +37,7 @@ Commit changes via the `sase commit` command.
 ## Example
 
 ```bash
-sase commit -M commit_message.md -f auth.py -f login.py
+sase commit -M commit_message.md
 ```
 
 ## On Merge Conflict

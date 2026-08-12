@@ -70,7 +70,7 @@ def test_commit_sdd_files_passes_f_flag_only_for_plan() -> None:
             assert _commit_sdd_files(ws, "my_plan") is True
 
         cmd = captured_cmd[0]
-        f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "-f"]
+        f_values = [cmd[i + 1] for i, v in enumerate(cmd) if v == "--only-file"]
         assert str(prompt_file) not in f_values
         assert str(plan_file) in f_values
 
@@ -102,7 +102,9 @@ def test_commit_sdd_files_finds_canonical_sdd_paths() -> None:
             assert _commit_sdd_files(ws, "my_epic", plan_tier="epic") is True
 
         f_values = [
-            captured_cmd[0][i + 1] for i, v in enumerate(captured_cmd[0]) if v == "-f"
+            captured_cmd[0][i + 1]
+            for i, v in enumerate(captured_cmd[0])
+            if v == "--only-file"
         ]
         assert str(prompt_file) not in f_values
         assert str(plan_file) in f_values

@@ -147,11 +147,11 @@ def build_commit_instruction_message(
     )
     parts.append(f"The commit method type is `{method}`.")
     parts.append(
-        "When invoking the commit skill, include a separate `-f` flag for each listed file you intend to commit, "
-        "including newly created untracked files."
+        "The commit skill stages every change in that repository by default, including newly "
+        "created untracked files, so you do not list files."
     )
     parts.append(
-        "Omit `-f` only when you intentionally want to stage every change in that repository."
+        "Pass `-x <path>` (repeatable) only when a specific path must be left out of this commit."
     )
     parts.append(
         "Do not preemptively stash, pull, fast-forward, or hand-sync before invoking "

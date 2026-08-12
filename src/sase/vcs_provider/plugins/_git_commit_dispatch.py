@@ -12,6 +12,7 @@ from sase.bead.project import BEADS_DIRNAME
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
+from sase.vcs_provider._types import CommandOutput
 
 _BEAD_REBASE_CONTINUE_LIMIT = 20
 _PUSH_REBASE_RETRY_LIMIT = 3
@@ -75,6 +76,75 @@ class GitCommitDispatchMixin(CommandRunner):
         if check.success:  # exit 0 => nothing staged
             return (False, "No staged changes to commit")
         return (True, None)
+
+    def _changed_files_repo_wide(self, cwd: str) -> list[str]:
+        """Return every changed (modified/untracked/deleted) path in the repo."""
+        out = self._run(
+            [
+                "git",
+                "ls-files",
+                "--modified",
+                "--others",
+                "--deleted",
+                "--exclude-standard",
+                "-z",
+            ],
+            cwd,
+        )
+        if not out.success:
+            return []
+        return [path for path in out.stdout.split("\0") if path]
+
+    def _exclude_covers(self, exclude: str, owned: str) -> bool:
+        """Return True when *exclude* is, contains, or is contained by *owned*."""
+        if exclude == owned:
+            return True
+        exclude_dir = exclude.rstrip("/") + "/"
+        owned_dir = owned.rstrip("/") + "/"
+        return owned.startswith(exclude_dir) or exclude.startswith(owned_dir)
+
+    def _validate_excludes(self, payload: dict, cwd: str) -> tuple[bool, str | None]:
+        """Refuse a commit whose ``exclude`` list is unmatched or workflow-owned.
+
+        Git silently ignores a ``:(exclude)`` pathspec that matches nothing, so
+        an unmatched exclude here would otherwise commit the very path an
+        agent meant to leave out. Excludes that would leave the bead store or
+        the staged plan file dirty are also refused, since those paths are
+        staged unconditionally regardless of ``exclude``.
+        """
+        excludes: list[str] = payload.get("exclude") or []
+        if not excludes:
+            return (True, None)
+
+        plan_path = payload.get("_plan_path", "")
+        changed = self._changed_files_repo_wide(cwd)
+
+        for exclude in excludes:
+            if self._exclude_covers(exclude, BEADS_DIRNAME) or (
+                plan_path and self._exclude_covers(exclude, plan_path)
+            ):
+                return (
+                    False,
+                    f"--exclude '{exclude}' cannot be honored: the commit "
+                    "workflow owns this path and always stages it.",
+                )
+            exclude_dir = exclude.rstrip("/") + "/"
+            if not any(c == exclude or c.startswith(exclude_dir) for c in changed):
+                return (
+                    False,
+                    f"--exclude '{exclude}' matches no changed file; refusing "
+                    "the commit rather than silently including it.",
+                )
+        return (True, None)
+
+    def _stage_all_except(self, exclude: list[str], cwd: str) -> CommandOutput:
+        """Stage every change, honoring ``exclude`` as literal pathspec excludes."""
+        if not exclude:
+            return self._run(["git", "add", "-A"], cwd)
+        return self._run(
+            ["git", "add", "-A", "--", ":/", *(f":(exclude,top){p}" for p in exclude)],
+            cwd,
+        )
 
     def _current_branch(self, cwd: str) -> str | None:
         """Return the checked-out branch, or None for detached HEAD."""
@@ -337,7 +407,10 @@ class GitCommitDispatchMixin(CommandRunner):
         if files:
             out = self._run(["git", "add", "--"] + files, cwd)
         else:
-            out = self._run(["git", "add", "-A"], cwd)
+            ok, err = self._validate_excludes(payload, cwd)
+            if not ok:
+                return (False, err)
+            out = self._stage_all_except(payload.get("exclude") or [], cwd)
         if not out.success:
             return self._to_result(out, "git add")
 
@@ -394,6 +467,11 @@ class GitCommitDispatchMixin(CommandRunner):
         message = payload.get("message", "")
         files = payload.get("files", [])
 
+        if not files:
+            ok, err = self._validate_excludes(payload, cwd)
+            if not ok:
+                return (False, err)
+
         out = self._run(["git", "checkout", "-b", name], cwd)
         if not out.success:
             return self._to_result(out, "git checkout -b")
@@ -401,7 +479,7 @@ class GitCommitDispatchMixin(CommandRunner):
         if files:
             out = self._run(["git", "add", "--"] + files, cwd)
         else:
-            out = self._run(["git", "add", "-A"], cwd)
+            out = self._stage_all_except(payload.get("exclude") or [], cwd)
         if not out.success:
             return self._to_result(out, "git add")
 
@@ -431,6 +509,10 @@ class GitCommitDispatchMixin(CommandRunner):
             if not ok:
                 return (False, err)
         return (True, None)
+
+    @hookimpl
+    def vcs_supports_commit_excludes(self) -> bool:
+        return True
 
     @hookimpl
     def vcs_finalize_commit(self, payload: dict, cwd: str) -> tuple[bool, str | None]:

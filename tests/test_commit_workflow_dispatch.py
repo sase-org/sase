@@ -236,6 +236,18 @@ class TestCommitWorkflowDispatch:
         close_bead.assert_not_called()
 
     @patch(_PROVIDER_TARGET)
+    def test_exclude_refused_when_provider_lacks_support(
+        self, mock_get: MagicMock, mock_provider: MagicMock
+    ) -> None:
+        mock_provider.supports_commit_excludes.return_value = False
+        mock_get.return_value = mock_provider
+        payload = {"message": "fix: bug", "exclude": ["a.py"]}
+        wf = CommitWorkflow(payload, "create_commit")
+
+        assert wf.run() == RunResult.FAILED
+        mock_provider.create_commit.assert_not_called()
+
+    @patch(_PROVIDER_TARGET)
     def test_close_bead_does_not_run_on_conflict(
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
