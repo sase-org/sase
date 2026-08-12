@@ -18,7 +18,7 @@ from pathlib import Path
 import sys
 from typing import cast
 
-from sase.artifact_ref_kinds import parse_artifact_ref_canonical
+from sase.artifact_ref_kinds import CanonicalArtifactRef, parse_artifact_ref_canonical
 from sase.artifact_ref_models import (
     ArtifactRef,
     ArtifactRefContext,
@@ -201,7 +201,9 @@ def _expand_artifact_references(
             failures.append(_ArtifactRefFailure(raw_candidate, "malformed"))
             continue
         try:
-            canonical = parse_artifact_ref_canonical(candidate.reference)
+            canonical: CanonicalArtifactRef = parse_artifact_ref_canonical(
+                candidate.reference
+            )
         except (RuntimeError, ValueError) as exc:
             failures.append(_ArtifactRefFailure(raw_candidate, "malformed", str(exc)))
             continue

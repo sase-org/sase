@@ -222,14 +222,6 @@ def artifact_ref_kind_catalog() -> tuple[Mapping[str, Any], ...]:
     return tuple(raw)
 
 
-def artifact_ref_kind_canonicalize(label: str) -> Mapping[str, Any]:
-    """Resolve one requested kind label against the permanent alias registry."""
-    binding = require_rust_binding("artifact_ref_kind_canonicalize")
-    raw = cast(Mapping[str, Any], binding(label))
-    _check_kind_catalog_record_schema(raw, record="artifact-reference kind alias")
-    return raw
-
-
 def artifact_ref_parse_canonical(value: str) -> Mapping[str, Any]:
     """Parse one reference after rewriting only its kind label to canonical."""
     _require_artifact_ref_schema()
@@ -328,7 +320,6 @@ __all__ = [
     "artifact_ref_entry_wire_schema_version",
     "artifact_ref_expansion_render",
     "artifact_ref_expansion_validate",
-    "artifact_ref_kind_canonicalize",
     "artifact_ref_kind_catalog",
     "artifact_ref_parse_canonical",
     "artifact_ref_use_manifest_parse",

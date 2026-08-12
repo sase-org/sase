@@ -15,7 +15,6 @@ from typing import Any, Literal, cast
 
 from sase.artifact_ref_models import ArtifactRef
 from sase.artifact_ref_operations import (
-    artifact_ref_kind_canonicalize as _artifact_ref_kind_canonicalize,
     artifact_ref_kind_catalog as _artifact_ref_kind_catalog,
     artifact_ref_parse_canonical as _artifact_ref_parse_canonical,
 )
@@ -48,28 +47,6 @@ class _ArtifactRefKindDescriptor:
             argument_summary=str(raw["argument_summary"]),
             offered_in_completion=bool(raw["offered_in_completion"]),
             accepts_fragment=bool(raw["accepts_fragment"]),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class ArtifactRefKindAlias:
-    """The permanent-alias-registry resolution of one requested kind label."""
-
-    requested: str
-    canonical: str
-    alias: bool
-    status: ArtifactRefKindStatus
-    diagnostic: str | None = None
-
-    @classmethod
-    def from_wire(cls, raw: Mapping[str, Any]) -> ArtifactRefKindAlias:
-        diagnostic = raw.get("diagnostic")
-        return cls(
-            requested=str(raw["requested"]),
-            canonical=str(raw["canonical"]),
-            alias=bool(raw["alias"]),
-            status=cast(ArtifactRefKindStatus, str(raw["status"])),
-            diagnostic=None if diagnostic is None else str(diagnostic),
         )
 
 
@@ -115,21 +92,14 @@ def completion_artifact_ref_kinds() -> tuple[str, ...]:
     )
 
 
-def canonical_artifact_ref_kind(label: str) -> ArtifactRefKindAlias:
-    """Resolve one requested kind label against the permanent alias registry."""
-    return ArtifactRefKindAlias.from_wire(_artifact_ref_kind_canonicalize(label))
-
-
 def parse_artifact_ref_canonical(value: str) -> CanonicalArtifactRef:
     """Parse one reference after rewriting only its kind label to canonical."""
     return CanonicalArtifactRef.from_wire(_artifact_ref_parse_canonical(value))
 
 
 __all__ = [
-    "ArtifactRefKindAlias",
     "ArtifactRefKindStatus",
     "CanonicalArtifactRef",
-    "canonical_artifact_ref_kind",
     "completion_artifact_ref_kinds",
     "parsable_artifact_ref_kinds",
     "parse_artifact_ref_canonical",

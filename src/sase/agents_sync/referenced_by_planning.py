@@ -14,6 +14,7 @@ from sase.agents_sync.prompt_archive.render import RenderedPromptArchive
 from sase.agents_sync.referenced_by_outbox_models import ReferencedByOutboxItem
 from sase.core.artifact_ref_uses import (
     ARTIFACT_REF_USE_MANIFEST_NAME,
+    ArtifactRefUseRecord,
     read_artifact_ref_uses,
 )
 from sase.core.prompt_artifact_staging import PromptArtifactRecord
@@ -141,7 +142,7 @@ def _role_roots(
 def _use_counts(agent_artifacts_dir: Path) -> Counter[str]:
     manifest = agent_artifacts_dir / ARTIFACT_REF_USE_MANIFEST_NAME
     try:
-        rows = read_artifact_ref_uses(manifest)
+        rows: list[ArtifactRefUseRecord] = read_artifact_ref_uses(manifest)
     except Exception:
         return Counter()
     return Counter(row.raw_ref for row in rows)
