@@ -16,10 +16,11 @@ ProjectSpec filenames; it does not rewrite Patch blocks or alter review state.
 A ProjectSpec has two parts:
 
 1. Optional project metadata before the first `NAME:` line.
-2. One or more Patch blocks, separated by two blank lines.
+2. One or more Patch blocks, separated by two truly empty lines.
 
 The Patch parser finds blocks by scanning for `NAME:` lines. Project metadata is read by
-narrower helpers and must stay before the first Patch.
+narrower helpers and must stay before the first Patch. Two-space-indented blank lines
+inside `DESCRIPTION` are body content, not Patch separators.
 
 ```text
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
@@ -348,7 +349,8 @@ STATUS: WIP
   terminal history.
 - **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`,
   `PROJECT_NAME`, `PROJECT_ALIASES`, and `RUNNING` before the first `NAME:` line.
-- **Blank lines between Patches**: Separate Patches with exactly two blank lines.
+- **Blank lines between Patches**: Separate Patches with exactly two truly empty lines.
+  Two-space-indented blank lines inside `DESCRIPTION` remain body content.
 - **NAME field**: Prefer SASE-generated names, which use the project prefix and a
   numeric suffix.
 - **PARENT field**: Set it only to another Patch `NAME`; omit it when there is no

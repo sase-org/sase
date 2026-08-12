@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .models import Patch
 
-from .storage import is_patch_heading
+from .storage import is_patch_heading, is_record_separator_line
 
 
 def get_raw_patch_text(patch: Patch) -> str | None:
@@ -58,7 +58,7 @@ def get_raw_patch_text(patch: Patch) -> str | None:
                 break
 
         # Track consecutive blank lines
-        if stripped == "":
+        if is_record_separator_line(line):
             consecutive_blank_lines += 1
             # Two consecutive blank lines end the Patch
             if consecutive_blank_lines >= 2:

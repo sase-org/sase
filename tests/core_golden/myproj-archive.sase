@@ -13,3 +13,16 @@ DESCRIPTION: A reverted spec.
 PARENT:
 PR:
 STATUS: Reverted
+
+
+NAME: release_blank_run_1
+DESCRIPTION:
+  chore(master): release 1.2.3
+  
+  :robot: Body text after an indented blank run.
+  
+  
+  ## [1.2.3](https://example.test/repo/compare/v1.2.2...v1.2.3)
+PR: https://example.test/repo/pull/123
+PR_ORIGIN: external
+STATUS: Submitted

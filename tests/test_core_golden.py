@@ -64,7 +64,11 @@ def test_corpus_parses_to_expected_names() -> None:
         "beta__260102_010101",
         "gamma",
     ]
-    assert [cs.name for cs in archive_specs] == ["archived_one", "reverted_two"]
+    assert [cs.name for cs in archive_specs] == [
+        "archived_one",
+        "reverted_two",
+        "release_blank_run_1",
+    ]
 
 
 def test_patch_wire_json_snapshot() -> None:
@@ -312,6 +316,35 @@ def test_archive_corpus_wire_json_snapshot() -> None:
                 "pr_origin": "unknown",
                 "bug": None,
                 "description": "A reverted spec.",
+                "refs": [],
+                "commits": [],
+                "hooks": [],
+                "comments": [],
+                "mentors": [],
+                "timestamps": [],
+                "deltas": [],
+            },
+            {
+                "schema_version": 5,
+                "name": "release_blank_run_1",
+                "project_basename": "myproj",
+                "project_display_name": None,
+                "file_path": "myproj-archive.sase",
+                "source_span": {
+                    "file_path": "myproj-archive.sase",
+                    "start_line": 18,
+                    "end_line": 18,
+                },
+                "status": "Submitted",
+                "parent": None,
+                "pr_url": "https://example.test/repo/pull/123",
+                "pr_origin": "external",
+                "bug": None,
+                "description": (
+                    "chore(master): release 1.2.3\n\n"
+                    ":robot: Body text after an indented blank run.\n\n\n"
+                    "## [1.2.3](https://example.test/repo/compare/v1.2.2...v1.2.3)"
+                ),
                 "refs": [],
                 "commits": [],
                 "hooks": [],

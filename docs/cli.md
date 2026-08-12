@@ -316,7 +316,7 @@ surface can support plain git, GitHub pull requests, and other provider plugins.
 
 | Command                             | Purpose                                                                                                                                                                                                                   | Details                                                                                                              |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `sase doctor`                       | Run read-only install, config, provider, project, and state diagnostics for support.                                                                                                                                      | [Doctor support reports](#doctor-support-reports)                                                                    |
+| `sase doctor`                       | Run read-only install, config, provider, project, and state diagnostics for support. `-F` previews and applies the opt-in ProjectSpec duplicate-block repair after confirmation.                                          | [Doctor support reports](#doctor-support-reports)                                                                    |
 | `sase config layers`                | Show the configuration merge chain.                                                                                                                                                                                       | [Configuration](configuration.md)                                                                                    |
 | `sase config show`                  | Dump the final merged configuration, optionally filtered by key.                                                                                                                                                          | [Configuration](configuration.md)                                                                                    |
 | `sase config mentor-match`          | Trace mentor profile matching for a Patch.                                                                                                                                                                                | [Mentors](mentors.md)                                                                                                |
@@ -418,6 +418,7 @@ sase doctor -D              # add slower read-only deep checks
 sase doctor -C runtime      # run one group
 sase doctor -C llm.default  # run one check
 sase doctor -C project.junk_directories -C workspace.missing_checkouts
+sase doctor -F              # preview and confirm ProjectSpec duplicate-block repair
 ```
 
 Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped reports
@@ -431,9 +432,13 @@ rather than assuming every nested field is permanent.
 
 `project.junk_directories` reports directories under `~/.sase/projects/` that have no
 canonical ProjectSpec and gives a manual-review cleanup hint.
-`workspace.missing_checkouts` scans enabled and disabled projects through the shared
-inventory, lists registered checkout paths missing from disk, and suggests a per-project
-`sase workspace repair -n` preview. Neither check mutates state.
+`project.duplicate_patch_blocks` reports duplicate raw Patch blocks in active and
+archive ProjectSpec files. `sase doctor -F` / `--fix-duplicate-blocks` previews that
+repair and, after confirmation or `-y` / `--yes`, keeps the newest block per Patch name
+without changing the default read-only doctor behavior. `workspace.missing_checkouts`
+scans enabled and disabled projects through the shared inventory, lists registered
+checkout paths missing from disk, and suggests a per-project `sase workspace repair -n`
+preview. Default doctor checks do not mutate state.
 
 When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j`
 for a machine-readable report.

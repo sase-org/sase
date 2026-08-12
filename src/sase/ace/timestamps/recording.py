@@ -4,6 +4,7 @@ import re
 import sys
 
 from sase.ace.patch.locking import patch_lock, write_patch_atomic
+from sase.ace.patch.storage import is_record_separator_line
 from sase.core.time import generate_timestamp
 
 
@@ -94,8 +95,7 @@ def _find_timestamps_insert_point(lines: list[str], cl_name: str) -> int | None:
             in_target = current_name == cl_name
             consecutive_blanks = 0
         elif in_target:
-            stripped = line.strip()
-            if stripped == "":
+            if is_record_separator_line(line):
                 consecutive_blanks += 1
                 if consecutive_blanks >= 2:
                     patch_end_idx = i - 1  # before the blank lines

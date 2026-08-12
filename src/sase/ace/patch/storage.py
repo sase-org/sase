@@ -23,6 +23,11 @@ def is_patch_heading(line: str) -> bool:
     return bool(_PATCH_HEADING_RE.match(line.strip()))
 
 
+def is_record_separator_line(line: str) -> bool:
+    """Return True when *line* counts toward the record terminator."""
+    return line.rstrip("\r\n") == ""
+
+
 def is_stitch_section_header(line: str) -> bool:
     """Return True for canonical or legacy stitch-history section headers."""
     return line.startswith(STITCH_SECTION_HEADERS)
@@ -53,7 +58,7 @@ def format_patch_block(
     from sase.ace.patch.models import normalize_pr_origin
     from sase.ace.patch.review_field import format_review_url_line
 
-    description_lines = description.strip().split("\n")
+    description_lines = _collapse_description_blank_runs(description)
     formatted_description = "\n".join(f"  {line}" for line in description_lines)
     parent_line = f"PARENT: {parent}\n" if parent else ""
     pr_line = format_review_url_line(pr_url) if pr_url else ""
@@ -73,6 +78,22 @@ DESCRIPTION:
 {commits_block}{hooks_block}{timestamps_block}"""
 
 
+def _collapse_description_blank_runs(description: str) -> list[str]:
+    lines = description.strip().split("\n")
+    collapsed: list[str] = []
+    previous_blank = False
+    for line in lines:
+        is_blank = line.strip() == ""
+        if is_blank:
+            if not previous_blank:
+                collapsed.append("")
+            previous_blank = True
+            continue
+        collapsed.append(line)
+        previous_blank = False
+    return collapsed
+
+
 __all__ = [
     "CANONICAL_PATCH_HEADING",
     "DEFAULT_STITCH_SECTION_HEADER",
@@ -81,6 +102,7 @@ __all__ = [
     "LEGACY_STITCH_SECTION_HEADER",
     "STITCH_SECTION_HEADERS",
     "is_patch_heading",
+    "is_record_separator_line",
     "is_stitch_section_header",
     "stitch_section_header_for",
 ]

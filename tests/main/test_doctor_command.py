@@ -47,12 +47,14 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
             "-D",
             "-s",
             "-L",
+            "-F",
             "-C",
             "runtime",
             "-C",
             "config.sdd",
             "-p",
             "sase",
+            "-y",
         ]
     )
 
@@ -62,8 +64,10 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
     assert args.deep is True
     assert args.strict is True
     assert args.list_checks is True
+    assert args.fix_duplicate_blocks is True
     assert args.check == ["runtime", "config.sdd"]
     assert args.project == "sase"
+    assert args.yes is True
 
     subparser_action = next(
         action
@@ -78,11 +82,14 @@ def test_parser_accepts_doctor_flags_and_help_is_sorted() -> None:
     assert "-j, --json" in help_text
     assert "-v, --verbose" in help_text
     assert "-D, --deep" in help_text
+    assert "-F, --fix-duplicate-blocks" in help_text
     assert "-s, --strict" in help_text
     assert "-L, --list-checks" in help_text
     assert "-C, --check ID_OR_GROUP" in help_text
     assert "-p, --project PROJECT" in help_text
+    assert "-y, --yes" in help_text
     assert "sase doctor -D -j" in help_text
+    assert "sase doctor -F" in help_text
     assert "OK, WARN, and SKIP exit 0" in help_text
 
 
@@ -208,6 +215,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "axe.chops",
         "axe.health",
         "axe.external_mirror",
+        "project.duplicate_patch_blocks",
         "project.current",
         "workspace.registry",
         "state.agent_index",

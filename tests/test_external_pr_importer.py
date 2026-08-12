@@ -30,6 +30,7 @@ def _plan(
     pr_origin: str = PR_ORIGIN_EXTERNAL,
     status: str = "Mailed",
     destination: str = DESTINATION_ACTIVE,
+    description: str = "Feature title\n\nBody",
     pr_url: str = "https://github.com/acme/widget/pull/5",
 ) -> ExternalPrImportPlanWire:
     return ExternalPrImportPlanWire(
@@ -40,7 +41,7 @@ def _plan(
         pr_origin=pr_origin,
         status=status,
         destination=destination,
-        description="Feature title\n\nBody",
+        description=description,
         canonical_pr_url=pr_url,
     )
 
@@ -159,6 +160,28 @@ def test_external_adoption_is_excluded_from_axe_candidates() -> None:
     patches = parse_project_file(active_file)
     assert [patch.pr_origin for patch in patches] == ["external"]
     assert filter_axe_candidate_patches(patches) == []
+
+
+def test_external_adoption_with_blank_run_is_idempotent() -> None:
+    active_file, _ = _write_project("proj", "")
+    plan = _plan(
+        description=(
+            "chore(master): release 1.2.3\n\n"
+            "---\n\n\n"
+            ":robot: Body text after a blank run."
+        )
+    )
+
+    first = apply_external_pr_plan("proj", plan)
+    second = apply_external_pr_plan("proj", plan)
+
+    assert first.action_taken == "created"
+    assert second.action_taken == "skipped"
+    assert Path(active_file).read_text(encoding="utf-8").count("NAME: feature_1") == 1
+    patches = parse_project_file(active_file)
+    assert [patch.pr_url for patch in patches] == [
+        "https://github.com/acme/widget/pull/5"
+    ]
 
 
 def test_marker_orphan_uses_marker_name_verbatim() -> None:

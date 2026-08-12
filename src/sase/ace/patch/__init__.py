@@ -56,6 +56,12 @@ from .discovery import (
     iter_patch_project_file_records,
     iter_patch_project_files,
 )
+from .duplicate_blocks import (
+    DuplicateBlockScan,
+    dedupe_patch_blocks,
+    scan_duplicate_patch_blocks,
+    split_patch_blocks,
+)
 from .parser import parse_patch_project_file, parse_project_file
 from .archive import (
     get_archive_file_path,
@@ -117,6 +123,7 @@ __all__ = [
     "PR_ORIGIN_UNKNOWN",
     "PR_ORIGIN_VALUES",
     "TimestampEntry",
+    "DuplicateBlockScan",
     # Constants
     "ERROR_SUFFIX_MESSAGES",
     # Locking
@@ -153,6 +160,9 @@ __all__ = [
     "get_current_and_proposal_stitch_ids",
     "all_hooks_passed_for_entries",
     "all_hooks_passed_for_stitches",
+    "dedupe_patch_blocks",
+    "scan_duplicate_patch_blocks",
+    "split_patch_blocks",
     "parse_project_file",
     "parse_patch_project_file",
     "ChangeSpecSnapshotCache",  # legacy compatibility alias

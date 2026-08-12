@@ -20,7 +20,11 @@ from .section_parsers import (
     parse_stitches_line,
     parse_timestamps_line,
 )
-from .storage import is_patch_heading, stitch_section_header_for
+from .storage import (
+    is_patch_heading,
+    is_record_separator_line,
+    stitch_section_header_for,
+)
 
 
 class _ParserState:
@@ -282,7 +286,7 @@ def parse_patch_from_lines(
         # Check for end of Patch (next Patch header or 2 blank lines)
         if is_patch_heading(line) and idx > start_idx:
             break
-        if line.strip() == "":
+        if is_record_separator_line(line):
             consecutive_blank_lines += 1
             # 2 blank lines indicate end of Patch
             if consecutive_blank_lines >= 2:
