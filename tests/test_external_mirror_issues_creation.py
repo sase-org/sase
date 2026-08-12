@@ -1,0 +1,158 @@
+"""Tests for external issue mirror bead creation and identity."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from sase.bead.model import IssueType, PhaseSize, Status
+from sase.bead.store_locator import open_bead_project_for_beads_dir
+from sase.vcs_provider.testing import FakeIssueProvider
+
+from tests.external_mirror_issue_helpers import (
+    beads,
+    install_provider,
+    issue,
+    provider,
+    run_mirror,
+)
+
+pytest_plugins = ["tests.external_mirror_issue_fixtures"]
+
+
+def test_uncovered_issue_creates_bead_then_second_pass_is_noop(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vcs_provider = provider(
+        FakeIssueProvider([issue(42, title="Fix the thing", body="Body text.")])
+    )
+    install_provider(monkeypatch, vcs_provider)
+
+    report1 = run_mirror()
+    assert report1.beads_created == 1
+    assert report1.created_refs == ("bug:sase#42",)
+
+    [bead] = beads(bead_store)
+    assert bead.status == Status.OPEN
+    assert bead.issue_type == IssueType.TASK
+    assert bead.size == PhaseSize.SMALL
+    assert bead.external_ref == "bug:sase#42"
+    assert "bug:sase#42" in bead.refs
+    assert bead.title == "Fix the thing"
+
+    report2 = run_mirror()
+    assert report2.beads_created == 0
+
+
+def test_ref_uses_display_name_while_external_ref_uses_stable_key(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vcs_provider = provider(FakeIssueProvider([issue(42)]))
+    install_provider(monkeypatch, vcs_provider)
+
+    run_mirror(project_key="gh_sase-org__sase", display_name="sase")
+
+    [bead] = beads(bead_store)
+    assert bead.external_ref == "bug:gh_sase-org__sase#42"
+    assert bead.refs == ["bug:sase#42"]
+
+
+def test_cross_project_issues_do_not_collide(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vcs_provider = provider(FakeIssueProvider([issue(42)]))
+    install_provider(monkeypatch, vcs_provider)
+
+    report_a = run_mirror(project_key="sase", display_name="sase")
+    report_b = run_mirror(project_key="sase-github", display_name="sase-github")
+
+    assert report_a.beads_created == 1
+    assert report_b.beads_created == 1
+
+    mirrored_beads = beads(bead_store)
+    assert {bead.external_ref for bead in mirrored_beads} == {
+        "bug:sase#42",
+        "bug:sase-github#42",
+    }
+
+
+def test_bead_with_only_bug_ref_is_recognized_as_covering(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with open_bead_project_for_beads_dir(bead_store) as project:
+        project.create(
+            "Manually linked",
+            IssueType.TASK,
+            refs=["bug:sase#42"],
+            size=PhaseSize.SMALL,
+        )
+
+    vcs_provider = provider(FakeIssueProvider([issue(42)]))
+    install_provider(monkeypatch, vcs_provider)
+
+    report = run_mirror()
+
+    assert report.beads_created == 0
+
+
+def test_conflict_created_between_plan_and_apply_is_detected_under_lock(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with open_bead_project_for_beads_dir(bead_store) as project:
+        project.create(
+            "Existing",
+            IssueType.TASK,
+            external_ref="bug:sase#42",
+            size=PhaseSize.SMALL,
+        )
+
+    # Simulate a race: the unlocked planning read (no kwargs, per issues.py's
+    # call shape) sees zero beads, while the live rebuild under the lock
+    # (BeadProject.list_issues always passes statuses/issue_types/tiers)
+    # sees the bead created above.
+    from sase.core import bead_read_facade as rust_beads
+
+    real_list_issues = rust_beads.list_issues
+
+    def fake_list_issues(beads_dir: object, **kwargs: object) -> list:
+        if not kwargs:
+            return []
+        return real_list_issues(beads_dir, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        "sase.external_mirror.issues.bead_read_facade.list_issues",
+        fake_list_issues,
+    )
+    vcs_provider = provider(FakeIssueProvider([issue(42)]))
+    install_provider(monkeypatch, vcs_provider)
+
+    report = run_mirror()
+
+    assert report.beads_created == 0
+    assert report.conflicts == 1
+    assert len(beads(bead_store)) == 1
+
+
+def test_creation_budget_defers_then_converges_next_pass(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    issues = [
+        issue(number, updated_at=f"2026-08-10T00:{number:02d}:00Z")
+        for number in range(1, 41)
+    ]
+    vcs_provider = provider(FakeIssueProvider(issues))
+    install_provider(monkeypatch, vcs_provider)
+
+    # Relies on the module's default budget: max_creations=25.
+    report1 = run_mirror()
+    assert report1.beads_created == 25
+    assert report1.deferred == 15
+    assert report1.checkpoint_advanced is False
+
+    report2 = run_mirror()
+    assert report2.beads_created == 15
+    assert report2.deferred == 0
+    assert report2.checkpoint_advanced is True
+
+    assert len(beads(bead_store)) == 40
