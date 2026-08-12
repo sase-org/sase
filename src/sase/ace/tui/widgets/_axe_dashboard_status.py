@@ -151,10 +151,12 @@ class AxeStatusSection(Static):
                 (0 = newest).
             run_total: Total number of runs in cached history.
             countdown: Seconds until next auto-refresh.
-            overrun: Cached window-level overrun verdict for this chop.
-                The header segment only ever describes the newest sampled
-                run, so it renders when ``run_idx`` is 0 and ``overrun``'s
-                level is ``"over"``.
+            overrun: Cached overrun verdict for this chop, whose
+                ``run_ratios`` is aligned to raw run history (schema v2).
+                The header segment shows the displayed run's own aligned
+                ratio — ``overrun.run_ratios[run_idx]`` — so it renders
+                whichever raw run is currently selected, not only the
+                newest one, whenever that ratio is at least 1.0.
             interval_seconds: The lumberjack's effective interval, for the
                 ``of {interval}s interval`` phrase.
         """
