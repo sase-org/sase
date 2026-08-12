@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from unittest.mock import Mock
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
@@ -14,6 +14,20 @@ if TYPE_CHECKING:
 from ....patch import Patch
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
+
+
+def _is_mock(value: object) -> bool:
+    """Return whether *value* is a ``unittest.mock.Mock``, without importing it.
+
+    ``unittest.mock`` is only ever imported by test code, so if it is absent
+    from ``sys.modules`` nothing in the process can be a ``Mock`` instance —
+    this fast path is correct, not merely a heuristic, and it keeps
+    ``unittest.mock`` off the production Patch-load import path.
+    """
+    mock_module = sys.modules.get("unittest.mock")
+    if mock_module is None:
+        return False
+    return isinstance(value, mock_module.Mock)
 
 
 @dataclass(frozen=True)
@@ -54,9 +68,9 @@ class PatchLoadingMixin:
     ) -> Callable[[], list[Patch]]:
         if getattr(self, "current_tab", None) == "changespecs":  # legacy tab id
             return legacy_loader
-        if isinstance(legacy_loader, Mock):
+        if _is_mock(legacy_loader):
             return legacy_loader
-        if isinstance(canonical_loader, Mock):
+        if _is_mock(canonical_loader):
             return canonical_loader
         return canonical_loader
 
@@ -85,9 +99,7 @@ class PatchLoadingMixin:
                 changespec_module.find_all_changespecs
             )
             canonical_uncached = patch_module.find_all_patches
-            if isinstance(legacy_uncached, Mock) or isinstance(
-                canonical_uncached, Mock
-            ):
+            if _is_mock(legacy_uncached) or _is_mock(canonical_uncached):
                 uncached_loader = self._compat_loader(
                     legacy_uncached,
                     canonical_uncached,
@@ -323,11 +335,11 @@ class PatchLoadingMixin:
         canonical_filter = getattr(self, "_filter_patches", None)
         legacy_filter_fn = legacy_filter if callable(legacy_filter) else None
         canonical_filter_fn = canonical_filter if callable(canonical_filter) else None
-        legacy_filter_patched = isinstance(
-            getattr(type(self), "_filter_changespecs", None), Mock
+        legacy_filter_patched = _is_mock(
+            getattr(type(self), "_filter_changespecs", None)
         )
-        canonical_filter_patched = isinstance(
-            getattr(type(self), "_filter_patches", None), Mock
+        canonical_filter_patched = _is_mock(
+            getattr(type(self), "_filter_patches", None)
         )
         use_legacy_filter = legacy_filter_fn is not None and legacy_filter_patched
         use_canonical_filter = canonical_filter_fn is not None and (

@@ -54,3 +54,25 @@ def test_clipboard_delivery_import_stays_off_clipboard_mixins() -> None:
         assert "sase.ace.tui.actions.clipboard._core" not in sys.modules
         """
     )
+
+
+def test_toast_log_import_stays_off_axe() -> None:
+    _run_probe(
+        """
+        import sys
+        import sase.logs.toast_log
+
+        assert "sase.axe" not in sys.modules
+        """
+    )
+
+
+def test_patch_loading_import_stays_off_unittest_mock() -> None:
+    _run_probe(
+        """
+        import sys
+        import sase.ace.tui.actions.patch._loading
+
+        assert "unittest.mock" not in sys.modules
+        """
+    )

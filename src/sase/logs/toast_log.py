@@ -18,7 +18,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sase.axe.state import read_tail_seek
 from sase.core.paths import sase_subdir
 from sase.logs._bounded import (
     DEFAULT_MAX_BYTES,
@@ -144,6 +143,8 @@ def read_recent_toasts(limit: int = TOAST_HISTORY_LIMIT) -> list[ToastRecord]:
     path = tui_toasts_jsonl_path()
     if not path.exists():
         return []
+    from sase.axe.state import read_tail_seek
+
     raw = read_tail_seek(path, limit)
     records: list[ToastRecord] = []
     for line in raw.splitlines():
