@@ -234,10 +234,14 @@ def _is_compatibility_shim_path(path: str) -> bool:
 def _is_config_schema_legacy_chop_provider_enum(
     repo: str, path: str, line: str
 ) -> bool:
+    legacy_guard_enums = (
+        '"enum": ["patch", "changespec", "agent_hood", "agent_clan"]',
+        '"enum": ["patch", "changespec", "agent_hood", "agent_clan", "agent_runners"]',
+    )
     return (
         repo == "main"
         and path == "src/sase/config/sase.schema.json"
-        and '"enum": ["patch", "changespec", "agent_hood", "agent_clan"]' in line
+        and any(enum in line for enum in legacy_guard_enums)
     )
 
 

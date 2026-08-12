@@ -486,20 +486,20 @@ low threshold can serialize the clan.
 
 #### Chop Fields
 
-| Field         | Type                   | Required  | Description                                                                                              |
-| ------------- | ---------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
-| `name`        | `str`                  | list only | Chop identity in object-list form; map form uses the mapping key                                         |
-| `description` | `str`                  | yes       | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar)) |
-| `script`      | `str \| null`          | no        | Exact executable name; defaults to the chop identity                                                     |
-| `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration                              |
-| `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                                             |
-| `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                                    |
-| `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs                       |
-| `inhibit_if`  | list or map            | no        | `patch` / `agent_hood` / `agent_clan` guards evaluated before the script; `changespec` is a legacy alias |
-| `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts                                |
-| `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                 |
-| `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                    |
-| `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                  |
+| Field         | Type                   | Required  | Description                                                                                                                |
+| ------------- | ---------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `str`                  | list only | Chop identity in object-list form; map form uses the mapping key                                                           |
+| `description` | `str`                  | yes       | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                   |
+| `script`      | `str \| null`          | no        | Exact executable name; defaults to the chop identity                                                                       |
+| `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration                                                |
+| `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                                                               |
+| `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                                                      |
+| `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs                                         |
+| `inhibit_if`  | list or map            | no        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards evaluated before the script; `changespec` is a legacy alias |
+| `trigger`     | string or map          | no        | `always` or `git.commits_since`; scheduled runs fire only when it accepts                                                  |
+| `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                                   |
+| `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                                      |
+| `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                                    |
 
 Map-form chops compose by identity across config layers. A higher-priority layer can
 patch a single field or set `enabled: false` while retaining the rest of a packaged
@@ -830,10 +830,15 @@ Policy is runner-owned and evaluated before the script:
   than waiting out the full interval; a trigger skip (the condition was evaluated and
   not met) still advances the clock as before. Guard evaluation is not free — put a
   guard on a lane whose tick interval matches the cost of re-checking it.
-- `inhibit_if` supports `patch`, `agent_hood`, and `agent_clan` guards. The legacy
-  `changespec` guard key remains accepted as an alias. `agent_clan.name_prefix` matches
-  canonical clan metadata on active agents only; dotted agent names are not treated as
-  clans. A match records a visible `skipped` run naming the clan and member.
+- `inhibit_if` supports `patch`, `agent_hood`, `agent_clan`, and `agent_runners` guards.
+  The legacy `changespec` guard key remains accepted as an alias.
+  `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
+  agent names are not treated as clans. `agent_runners.max` defaults to `0` and inhibits
+  while more than that many agents hold runner slots, matching the population counted by
+  `%wait(runners=N)` and the ACE runner-capacity chip. A `STARTING` agent has not yet
+  been admitted and does not count; an agent parked on a question has yielded its slot
+  and does not count. A match records a visible `skipped` run naming the guard and
+  matching agent.
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository,
   fires when its threshold is met, and owns its checkpoint under the chop's state
   directory. A missing checkpoint fires once so a new chop is not silently inert.
@@ -851,7 +856,8 @@ Policy is runner-owned and evaluated before the script:
   `run_every` and trigger thresholds.
 
 Manual CLI/TUI runs bypass configured triggers because the operator explicitly requested
-a run, but still honor guards. Pass `-f/--force` on the CLI to bypass both for that run.
+a run, but still honor guards. With `agent_runners`, a manual run while agents hold
+runner slots skips unless `-f/--force` is passed to bypass both for that run.
 
 Once-per filtering keeps proposal chains connected. If a surviving proposal's `wait_on`
 points to a duplicate, AXE follows the skipped proposal's own dependency until it

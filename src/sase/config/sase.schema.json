@@ -255,7 +255,7 @@
           "description": "Environment values merged over lumberjack env; accepts literals and env, file, or pass references"
         },
         "inhibit_if": {
-          "description": "Patch, agent-hood, or agent-clan guards evaluated before the script",
+          "description": "Patch, agent-hood, agent-clan, or agent-runners guards evaluated before the script",
           "oneOf": [
             {
               "type": "array",
@@ -264,17 +264,41 @@
                 "required": ["provider"],
                 "additionalProperties": false,
                 "properties": {
-                  "provider": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },
+                  "provider": { "enum": ["patch", "changespec", "agent_hood", "agent_clan", "agent_runners"] },
                   "name_prefix": { "type": "string" },
                   "statuses": { "type": "array", "items": { "type": "string" } },
                   "hood": { "type": "string", "minLength": 1 },
-                  "name": { "type": "string", "minLength": 1 }
+                  "name": { "type": "string", "minLength": 1 },
+                  "max": { "type": "integer", "minimum": 0 }
                 }
               }
             },
             {
               "type": "object",
-              "propertyNames": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },
+              "propertyNames": { "enum": ["patch", "changespec", "agent_hood", "agent_clan", "agent_runners"] },
+              "properties": {
+                "agent_runners": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "max": { "type": "integer", "minimum": 0 }
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "max": { "type": "integer", "minimum": 0 }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
               "additionalProperties": {
                 "oneOf": [
                   { "type": "object" },
@@ -1465,7 +1489,7 @@
                           "description": "Environment values merged over lumberjack env"
                         },
                         "inhibit_if": {
-                          "description": "Runner-evaluated guards that inhibit dispatch when any provider matches",
+                          "description": "Runner-evaluated patch, agent-hood, agent-clan, or agent-runners guards that inhibit dispatch when any provider matches",
                           "oneOf": [
                             {
                               "type": "array",
@@ -1474,21 +1498,45 @@
                                 "required": ["provider"],
                                 "additionalProperties": false,
                                 "properties": {
-                                  "provider": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },
+                                  "provider": { "enum": ["patch", "changespec", "agent_hood", "agent_clan", "agent_runners"] },
                                   "name_prefix": { "type": "string" },
                                   "statuses": {
                                     "type": "array",
                                     "items": { "type": "string" }
                                   },
                                   "hood": { "type": "string", "minLength": 1 },
-                                  "name": { "type": "string", "minLength": 1 }
+                                  "name": { "type": "string", "minLength": 1 },
+                                  "max": { "type": "integer", "minimum": 0 }
                                 }
                               }
                             },
                             {
                               "type": "object",
                               "propertyNames": {
-                                "enum": ["patch", "changespec", "agent_hood", "agent_clan"]
+                                "enum": ["patch", "changespec", "agent_hood", "agent_clan", "agent_runners"]
+                              },
+                              "properties": {
+                                "agent_runners": {
+                                  "oneOf": [
+                                    {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "max": { "type": "integer", "minimum": 0 }
+                                      }
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "object",
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "max": { "type": "integer", "minimum": 0 }
+                                        }
+                                      }
+                                    }
+                                  ]
+                                }
                               },
                               "additionalProperties": {
                                 "oneOf": [

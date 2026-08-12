@@ -2105,20 +2105,20 @@ axe:
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type                    | Required  | Default  | Description                                                                                   |
-| ------------- | ----------------------- | --------- | -------- | --------------------------------------------------------------------------------------------- |
-| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                                                 |
-| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.                                      |
-| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.                                  |
-| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the chop does.                        |
-| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.                              |
-| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.                                 |
-| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.                                  |
-| `inhibit_if`  | list or map             | no        | -        | `patch` / `agent_hood` / `agent_clan` guards before dispatch; `changespec` is a legacy alias. |
-| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.                                        |
-| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                                                     |
-| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                                            |
-| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                                                 |
+| Field         | Type                    | Required  | Default  | Description                                                                                                     |
+| ------------- | ----------------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                                                                   |
+| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.                                                        |
+| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.                                                    |
+| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the chop does.                                          |
+| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.                                                |
+| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.                                                   |
+| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.                                                    |
+| `inhibit_if`  | list or map             | no        | -        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards before dispatch; `changespec` is a legacy alias. |
+| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.                                                          |
+| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                                                                       |
+| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                                                              |
+| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                                                                   |
 
 Both `description` fields use one grammar: a non-blank summary line of at most 100
 characters, then — if anything follows — a blank line, then a free-form body, with the
@@ -2179,18 +2179,23 @@ available in the context JSON under `target` and through `SASE_CHOP_TARGET_KEY` 
 `SASE_CHOP_TARGET_<FIELD>`. Literal target rows may include `overrides:` for per-target
 chop fields such as `run_every` and trigger thresholds.
 
-`inhibit_if` accepts keyed `patch`, `agent_hood`, and `agent_clan` providers. The legacy
-`changespec` key remains accepted as an alias. The clan provider requires a
-case-sensitive `name_prefix` and checks canonical clan metadata for active agents,
-including waiting members; it never infers clans from dotted names. `trigger` accepts
+`inhibit_if` accepts keyed `patch`, `agent_hood`, `agent_clan`, and `agent_runners`
+providers. The legacy `changespec` key remains accepted as an alias. The clan provider
+requires a case-sensitive `name_prefix` and checks canonical clan metadata for active
+agents, including waiting members; it never infers clans from dotted names.
+`agent_runners.max` defaults to `0` and inhibits while more than that many agents hold
+runner slots, the same population counted by `%wait(runners=N)` and the ACE
+runner-capacity chip. A `STARTING` agent has not yet been admitted and does not count;
+an agent parked on a question has yielded its slot and does not count. `trigger` accepts
 `always` or `git.commits_since`; the git provider requires `project` and `threshold`,
 and its checkpoint policy is `on_observation`, `on_action_accepted`, or
 `on_action_success`. Skips are recorded with reasons. Manual runs bypass the trigger but
-honor guards unless `sase axe chop run -f/--force` is used. `once_per` can be a key
-template string or an object with `key` and bounded `capacity`; proposal-supplied
-`dedupe_key` values take precedence. When dedupe removes a proposal from a `wait_on`
-chain, AXE walks through the skipped dependencies to the nearest earlier proposal that
-survives filtering. If none survives, AXE removes the wait. Proposal previews expose the
+honor guards; with `agent_runners`, a manual run while agents hold runner slots skips
+unless `sase axe chop run -f/--force` is used. `once_per` can be a key template string
+or an object with `key` and bounded `capacity`; proposal-supplied `dedupe_key` values
+take precedence. When dedupe removes a proposal from a `wait_on` chain, AXE walks
+through the skipped dependencies to the nearest earlier proposal that survives
+filtering. If none survives, AXE removes the wait. Proposal previews expose the
 resulting `wait_on` value and explain a relink in `dedupe_reason`.
 
 The builtin `sase_chop_refresh_docs` emits an update proposal plus a polish proposal

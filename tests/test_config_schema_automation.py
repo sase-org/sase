@@ -76,6 +76,7 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
                                     },
                                     "agent_hood": {"hood": "audit"},
                                     "agent_clan": {"name_prefix": "toobig-"},
+                                    "agent_runners": {"max": 0},
                                 },
                                 "trigger": {
                                     "git.commits_since": {
@@ -95,6 +96,31 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
             }
         }
     )
+
+
+def test_config_schema_rejects_negative_agent_runners_max() -> None:
+    with pytest.raises(ValidationError):
+        _validate(
+            {
+                "axe": {
+                    "lumberjacks": {
+                        "checks": {
+                            "description": "Run policy schema checks",
+                            "interval": 60,
+                            "chops": [
+                                {
+                                    "name": "audit",
+                                    "description": "Audit configured changes",
+                                    "inhibit_if": {
+                                        "agent_runners": {"max": -1},
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                }
+            }
+        )
 
 
 def test_config_schema_accepts_keyed_chops_secret_refs_and_targets() -> None:

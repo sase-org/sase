@@ -127,9 +127,9 @@ def evaluate_chop_preflight(
             else []
         )
         agents = (
-            _agent_snapshots()
+            _agent_snapshots(chop.inhibit_if)
             if any(
-                guard.get("provider") in {"agent_hood", "agent_clan"}
+                guard.get("provider") in {"agent_hood", "agent_clan", "agent_runners"}
                 for guard in chop.inhibit_if
             )
             else []
@@ -495,17 +495,26 @@ def _patch_snapshots(context_file: str | None) -> list[dict[str, str]]:
     ]
 
 
-def _agent_snapshots() -> list[dict[str, Any]]:
-    return [
-        {
+def _agent_snapshots(guards: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    include_runner_slots = any(
+        guard.get("provider") == "agent_runners" for guard in guards
+    )
+    snapshots: list[dict[str, Any]] = []
+    for agent in list_running_agents():
+        if not agent.name:
+            continue
+        snapshot: dict[str, Any] = {
             "name": str(agent.name),
             "status": str(agent.status),
             "agent_clan": getattr(agent, "agent_clan", None),
             "active": True,
         }
-        for agent in list_running_agents()
-        if agent.name
-    ]
+        if include_runner_slots:
+            snapshot["holds_runner_slot"] = bool(
+                getattr(agent, "holds_runner_slot", None)
+            )
+        snapshots.append(snapshot)
+    return snapshots
 
 
 def _proposal_once_per_key(chop: ChopConfig, proposal: _Proposal) -> str | None:

@@ -7,11 +7,25 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from sase.agent.running_listing import _running_from_snapshot
 from sase.axe.chop_inventory import collect_chop_inventory
-from sase.axe.chop_policy import ChopPreflight, evaluate_chop_preflight
+from sase.axe.chop_policy import (
+    ChopPreflight,
+    _agent_snapshots,
+    evaluate_chop_preflight,
+)
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.state import ChopRunEntry, read_chop_run, write_chop_run
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+    PendingQuestionMarkerWire,
+)
+from sase.core.runner_slots import running_root_agent_count
 
 from tests.axe_chop_runner_helpers import make_script
 
@@ -30,6 +44,53 @@ def _context_with_patches(
         encoding="utf-8",
     )
     return context
+
+
+def _agent_record(
+    tmp_path: Path,
+    timestamp: str,
+    name: str,
+    *,
+    run_started: bool = False,
+    parent_timestamp: str | None = None,
+    agent_family_parallel: bool = False,
+    pending_question: bool = False,
+    done: bool = False,
+) -> AgentArtifactRecordWire:
+    return AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir=str(tmp_path / "proj"),
+        project_file=str(tmp_path / "proj" / "proj.sase"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "proj" / "artifacts" / "ace-run" / timestamp),
+        timestamp=timestamp,
+        agent_meta=AgentMetaWire(
+            name=name,
+            pid=100,
+            parent_timestamp=parent_timestamp,
+            agent_family_parallel=agent_family_parallel,
+            run_started_at=("2026-08-12T12:00:00-04:00" if run_started else None),
+        ),
+        pending_question=(
+            PendingQuestionMarkerWire(session_id="question")
+            if pending_question
+            else None
+        ),
+        has_done_marker=done,
+    )
+
+
+def _agent_snapshot(
+    tmp_path: Path,
+    records: list[AgentArtifactRecordWire],
+) -> AgentArtifactScanWire:
+    return AgentArtifactScanWire(
+        schema_version=1,
+        projects_root=str(tmp_path),
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=records,
+    )
 
 
 def test_patch_guard_skips_scheduled_run_and_force_bypasses_it(
@@ -96,6 +157,160 @@ def test_patch_guard_skips_scheduled_run_and_force_bypasses_it(
     )
     assert forced.status == "success"
     assert marker.exists()
+
+
+def test_agent_runners_guard_skips_scheduled_run_and_records_reason(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "executed"
+    make_script(tmp_path, "idle_only", f"touch '{marker}'\n")
+    chop = ChopConfig(
+        name="idle_only",
+        description="",
+        inhibit_if=[{"provider": "agent_runners", "max": 0}],
+    )
+    config = AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
+    active = SimpleNamespace(
+        name="slot.user.agent",
+        status="RUNNING",
+        agent_clan=None,
+        holds_runner_slot=True,
+    )
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+        skipped = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=config,
+            source="scheduled",
+        )
+
+    assert skipped.status == "skipped"
+    assert skipped.reason is not None
+    assert skipped.reason == (
+        "inhibited by 1 agent holding runner slots (e.g. `slot.user.agent`); max is 0"
+    )
+    assert marker.exists() is False
+    assert skipped.run_id is not None
+    entry = read_chop_run("checks", "idle_only", skipped.run_id)
+    assert entry is not None
+    assert entry.reason == skipped.reason
+
+
+def test_agent_runners_guard_fires_at_or_below_max_and_force_bypasses(
+    temp_state_dir: Path,
+) -> None:
+    slot_holder = SimpleNamespace(
+        name="slot.user.agent",
+        status="RUNNING",
+        agent_clan=None,
+        holds_runner_slot=True,
+    )
+    parked = SimpleNamespace(
+        name="question.user.agent",
+        status="QUESTION",
+        agent_clan=None,
+        holds_runner_slot=False,
+    )
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=[parked]):
+        below_max = evaluate_chop_preflight(
+            lumberjack_name="checks",
+            chop=ChopConfig(
+                name="idle_only",
+                description="",
+                inhibit_if=[{"provider": "agent_runners", "max": 0}],
+            ),
+            context_file=None,
+            scheduled=True,
+        )
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=[slot_holder]):
+        at_max = evaluate_chop_preflight(
+            lumberjack_name="checks",
+            chop=ChopConfig(
+                name="idle_only",
+                description="",
+                inhibit_if=[{"provider": "agent_runners", "max": 1}],
+            ),
+            context_file=None,
+            scheduled=True,
+        )
+        forced = evaluate_chop_preflight(
+            lumberjack_name="checks",
+            chop=ChopConfig(
+                name="idle_only",
+                description="",
+                inhibit_if=[{"provider": "agent_runners", "max": 0}],
+            ),
+            context_file=None,
+            scheduled=False,
+            force=True,
+        )
+
+    assert below_max.outcome == "fire"
+    assert at_max.outcome == "fire"
+    assert forced.outcome == "fire"
+
+
+def test_agent_snapshots_only_emit_runner_slot_for_agent_runners_guard() -> None:
+    active = SimpleNamespace(
+        name="slot.user.agent",
+        status="RUNNING",
+        agent_clan="audit",
+        holds_runner_slot=True,
+    )
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=[active]):
+        clan_rows = _agent_snapshots([{"provider": "agent_clan"}])
+        runner_rows = _agent_snapshots([{"provider": "agent_runners"}])
+
+    assert "holds_runner_slot" not in clan_rows[0]
+    assert runner_rows[0]["holds_runner_slot"] is True
+
+
+def test_agent_runner_snapshot_count_matches_admission_count(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    root_timestamp = "20260812120000"
+    records = [
+        _agent_record(tmp_path, root_timestamp, "root", run_started=True),
+        _agent_record(
+            tmp_path,
+            "20260812120001",
+            "parallel",
+            run_started=True,
+            parent_timestamp=root_timestamp,
+            agent_family_parallel=True,
+        ),
+        _agent_record(
+            tmp_path,
+            "20260812120002",
+            "serial",
+            run_started=True,
+            parent_timestamp=root_timestamp,
+        ),
+        _agent_record(
+            tmp_path,
+            "20260812120003",
+            "question",
+            run_started=True,
+            pending_question=True,
+        ),
+        _agent_record(tmp_path, "20260812120004", "starting"),
+        _agent_record(tmp_path, "20260812120005", "done", run_started=True, done=True),
+    ]
+    with patch("sase.agent.running_listing.is_process_alive", return_value=True):
+        listed = _running_from_snapshot(_agent_snapshot(tmp_path, records))
+
+    with patch("sase.axe.chop_policy.list_running_agents", return_value=listed):
+        rows = _agent_snapshots([{"provider": "agent_runners"}])
+
+    assert sum(bool(row["holds_runner_slot"]) for row in rows) == (
+        running_root_agent_count(records, lambda _record: True)
+    )
 
 
 def test_agent_clan_guard_uses_canonical_active_metadata_and_force_bypasses(

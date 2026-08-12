@@ -76,7 +76,7 @@ def test_classifier_accepts_config_schema_legacy_chop_provider_enum() -> None:
     classification, rule, _reason = _classify_candidate(
         "main",
         "src/sase/config/sase.schema.json",
-        '              "propertyNames": { "enum": ["patch", "changespec", "agent_hood", "agent_clan"] },',
+        '              "propertyNames": { "enum": ["patch", "changespec", "agent_hood", "agent_clan", "agent_runners"] },',
         "changespec",
     )
 
