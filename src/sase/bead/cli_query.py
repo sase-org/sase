@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from rich.cells import cell_len
@@ -48,6 +48,12 @@ from sase.bead.reopen_presentation import (
     reopen_badge,
 )
 from sase.bead_status_presentation import bead_status_presentation
+from sase.bead_summary_presentation import (
+    BeadListSummary,
+    BeadSummaryRow,
+    bead_list_summary_line,
+    summarize_bead_rows,
+)
 from sase.bead_type_presentation import (
     BEAD_TYPE_VALUES,
     bead_type_cli_cell,
@@ -104,11 +110,20 @@ def handle_bead_list(args: argparse.Namespace) -> None:
             implicit_closed = bool(issues)
         total = len(issues)
         closed_in_scope = implicit_closed or Status.CLOSED in statuses
+        explicit_limit = getattr(args, "limit", None) is not None
         limit = getattr(args, "limit", None)
         if limit is None and closed_in_scope and window == (None, None):
             limit = DEFAULT_CLOSED_LIST_LIMIT
         if limit:
             issues = issues[-limit:]
+        summary_rows: Sequence[BeadSummaryRow] = issues
+        summary = summarize_bead_rows(summary_rows, matched=total)
+        implicit_limit = not explicit_limit
+        summary_line = bead_list_summary_line(
+            summary,
+            use_color=use_color,
+            implicit_limit=implicit_limit,
+        )
 
         match args.format:
             case "compact":
@@ -118,6 +133,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                 if implicit_closed:
                     print("No open beads to show — defaulting to --status closed.")
                 print(_render_list_compact(issues, use_color=use_color), end="")
+                print(f"\n{summary_line}")
             case "json":
                 print(
                     _render_list_json(
@@ -125,6 +141,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                         total=total,
                         statuses=statuses,
                         implied_status_closed=implicit_closed,
+                        summary=summary,
                     ),
                     end="",
                 )
@@ -148,6 +165,7 @@ def handle_bead_list(args: argparse.Namespace) -> None:
                     ),
                     end="",
                 )
+                print(f"\n{summary_line}")
             case _:
                 raise AssertionError(f"unknown list format: {args.format}")
 
@@ -481,12 +499,15 @@ def _render_list_json(
     total: int,
     statuses: list[Status],
     implied_status_closed: bool,
+    summary: BeadListSummary,
 ) -> str:
     envelope = {
         "count": len(issues),
         "total": total,
         "statuses": [status.value for status in statuses],
         "implied_status_closed": implied_status_closed,
+        "by_type": dict(summary.by_type),
+        "by_status": dict(summary.by_status),
         "results": [issue_to_wire_dict(issue) for issue in issues],
     }
     return json.dumps(envelope, indent=2) + "\n"

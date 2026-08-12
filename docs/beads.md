@@ -1218,6 +1218,35 @@ remains visible through `--tier`, `--format full`, and `--format json`.
 | `L`        | `large`     |
 | `XL`       | `xlarge`    |
 
+#### Summary line
+
+Non-empty `compact` and `full` listings end with a blank line and one summary line:
+
+```
+{shown}[ {status-adjective}] {type-noun}[ · {type counts}][ · {status counts}][ · {hidden}]
+```
+
+Every count in the summary describes the rows printed above it, except the explicit
+`hidden` clause, which counts matching beads not printed because a limit was active. If
+all printed rows share one type, the head folds that type into `plan`/`plans`,
+`phase`/`phases`, or `task`/`tasks` and omits the type-count group. If all printed rows
+share one status, the head folds that status into `open`, `claimed`, `ready`, `snoozed`,
+`in-progress`, or `closed` and omits the status-count group. Mixed listings use the
+neutral `bead`/`beads` noun and include the needed groups:
+
+```
+6 beads · ▸ 3  ↳ 3 · ○ 5  ◐ 1
+2 open beads · ▸ 1  ↳ 1 · 4 hidden
+20 closed plans · 5 hidden (--limit 0 shows all)
+```
+
+The hidden clause is `N hidden` when `--limit` was explicit. When SASE applied the
+default closed-list limit, it is `N hidden (--limit 0 shows all)`. With color enabled,
+summary glyphs reuse the row type/status accents, folded type and status words use their
+matching accents, counts stay plain, and the hidden clause is dim. `--format json` does
+not print the prose line; its envelope carries the same printed-row counts in `by_type`
+and `by_status`, including zero buckets for every known type and status.
+
 | Flag           | Values                                                                | Description                                                                           |
 | -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `-c, --color`  | `auto`, `always`, `never`                                             | Color mode for compact output                                                         |
@@ -1225,7 +1254,7 @@ remains visible through `--tier`, `--format full`, and `--format json`.
 | `-n, --limit`  | integer                                                               | Maximum beads to print; closed listings default to the newest 20, `0` means unlimited |
 | `-S, --since`  | `DATE`                                                                | Only beads created at or after `DATE`                                                 |
 | `-s, --status` | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                                         |
-| `--tier`       | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
+| `-r, --tier`   | `plan`, `epic`                                                        | Filter by plan-bead tier                                                              |
 | `-t, --type`   | `plan`, `phase`, `task`                                               | Filter by type (repeatable)                                                           |
 | `-u, --until`  | `DATE`                                                                | Only beads created at or before `DATE`                                                |
 

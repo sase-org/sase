@@ -254,14 +254,25 @@ def test_handle_bead_list_json_outputs_envelope(
     args = parse_sase_args(["bead", "list", "-f", "json"])
     bead_cli.handle_bead_list(args)
 
-    payload = json.loads(capsys.readouterr().out)
+    output = capsys.readouterr().out
+    payload = json.loads(output)
     assert payload["count"] == 1
     assert payload["total"] == 1
     assert payload["statuses"] == ["open", "claimed", "ready", "snoozed", "in_progress"]
     assert payload["implied_status_closed"] is False
+    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0}
+    assert payload["by_status"] == {
+        "open": 1,
+        "claimed": 0,
+        "ready": 0,
+        "snoozed": 0,
+        "in_progress": 0,
+        "closed": 0,
+    }
     assert payload["results"][0]["id"] == issue.id
     assert payload["results"][0]["resolution"] is None
     assert payload["results"][0]["size"] is None
+    assert "\n1 open plan\n" not in output
 
 
 def test_handle_bead_list_json_always_emits_size(
@@ -311,6 +322,15 @@ def test_handle_bead_list_json_empty_store_is_valid_envelope(
     assert payload["count"] == 0
     assert payload["total"] == 0
     assert payload["implied_status_closed"] is False
+    assert payload["by_type"] == {"plan": 0, "phase": 0, "task": 0}
+    assert payload["by_status"] == {
+        "open": 0,
+        "claimed": 0,
+        "ready": 0,
+        "snoozed": 0,
+        "in_progress": 0,
+        "closed": 0,
+    }
     assert payload["results"] == []
     assert "No issues found." not in output
 
@@ -349,6 +369,59 @@ def test_handle_bead_list_json_limit_preserves_total(
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] == 1
     assert payload["total"] == 2
+    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0}
+    assert payload["by_status"] == {
+        "open": 1,
+        "claimed": 0,
+        "ready": 0,
+        "snoozed": 0,
+        "in_progress": 0,
+        "closed": 0,
+    }
+
+
+def test_handle_bead_list_compact_summary_counts_printed_limited_rows(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with BeadProject(project_dir) as proj:
+        plan = proj.create("Plan Bead", IssueType.PLAN)
+        phase = proj.create("Phase Bead", IssueType.PHASE, parent_id=plan.id)
+        task = proj.create("Task Bead", IssueType.TASK, size="small")
+
+    args = parse_sase_args(["bead", "list", "--limit", "2", "--color", "never"])
+    bead_cli.handle_bead_list(args)
+
+    output = capsys.readouterr().out
+    assert output.endswith("\n\n2 open beads · ↳ 1  ◆ 1 · 1 hidden\n")
+    row_lines = _compact_row_lines(output)
+    assert len(row_lines) == 2
+    assert phase.id in row_lines[0]
+    assert task.id in row_lines[1]
+
+
+def test_handle_bead_list_implicit_closed_summary_hint_respects_explicit_limit(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli_query, "DEFAULT_CLOSED_LIST_LIMIT", 1)
+    with BeadProject(project_dir) as proj:
+        first = proj.create("First Closed", IssueType.PLAN)
+        second = proj.create("Second Closed", IssueType.PLAN)
+        proj.close([first.id], reason="done")
+        proj.close([second.id], reason="done")
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
+    implicit = capsys.readouterr().out
+    assert implicit.endswith("\n\n1 closed plan · 1 hidden (--limit 0 shows all)\n")
+
+    bead_cli.handle_bead_list(
+        parse_sase_args(["bead", "list", "--limit", "1", "--color", "never"])
+    )
+    explicit = capsys.readouterr().out
+    assert explicit.endswith("\n\n1 closed plan · 1 hidden\n")
+    assert "--limit 0 shows all" not in explicit
 
 
 def test_handle_bead_list_full_reuses_show_rendering(
@@ -369,7 +442,7 @@ def test_handle_bead_list_full_reuses_show_rendering(
     bead_cli.handle_bead_show(parse_sase_args(["bead", "show", issue.id]))
     show_out = capsys.readouterr().out
 
-    assert list_out == show_out
+    assert list_out == f"{show_out}\n1 open plan\n"
 
 
 def test_handle_bead_list_explicit_compact_matches_default(
@@ -418,6 +491,11 @@ def test_list_compact_renders_type_glyph_only_per_type(
 
 
 _STATUS_GLYPHS = "○◎◇◐✓"
+_TYPE_GLYPHS = "▸↳◆"
+
+
+def _compact_row_lines(output: str) -> list[str]:
+    return [line for line in output.splitlines() if line and line[0] in _TYPE_GLYPHS]
 
 
 def test_list_compact_type_cells_share_equal_cell_width(
@@ -427,7 +505,7 @@ def test_list_compact_type_cells_share_equal_cell_width(
     _seed_one_of_each_type(project_dir)
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
-    lines = capsys.readouterr().out.splitlines()
+    lines = _compact_row_lines(capsys.readouterr().out)
 
     # Everything up to the status glyph is the type column plus separator; its
     # rendered cell width matches across rows locks in Decision 4's alignment
@@ -450,7 +528,7 @@ def test_list_compact_renders_size_tokens_for_every_stored_size(
         }
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
-    lines = capsys.readouterr().out.splitlines()
+    lines = _compact_row_lines(capsys.readouterr().out)
 
     for value, issue_id in ids.items():
         line = next(line for line in lines if issue_id in line)
@@ -474,7 +552,9 @@ def test_list_compact_collapses_size_column_when_no_rows_are_sized(
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
 
-    assert capsys.readouterr().out == f"▸ ○ {issue.id} · Plan Only  ⧖ now\n"
+    assert (
+        capsys.readouterr().out == f"▸ ○ {issue.id} · Plan Only  ⧖ now\n\n1 open plan\n"
+    )
 
 
 def test_list_compact_pads_unsized_rows_when_any_row_is_sized(
@@ -486,7 +566,7 @@ def test_list_compact_pads_unsized_rows_when_any_row_is_sized(
         task = proj.create("Large Task", IssueType.TASK, size="large")
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
-    lines = capsys.readouterr().out.splitlines()
+    lines = _compact_row_lines(capsys.readouterr().out)
     plan_line = next(line for line in lines if plan.id in line)
     task_line = next(line for line in lines if task.id in line)
 
@@ -576,7 +656,7 @@ def test_list_compact_preserves_parent_suffix_and_separator(
     ids = _seed_one_of_each_type(project_dir)
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list"]))
-    lines = capsys.readouterr().out.splitlines()
+    lines = _compact_row_lines(capsys.readouterr().out)
 
     phase_line = next(line for line in lines if ids["phase"] in line)
     assert f"· Phase Bead ← {ids['plan']}" in phase_line
@@ -594,7 +674,11 @@ def test_list_compact_created_cell_carries_the_shared_glyph_and_accent(
     _seed_one_of_each_type(project_dir)
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "always"]))
-    lines = capsys.readouterr().out.splitlines()
+    lines = [
+        line
+        for line in capsys.readouterr().out.splitlines()
+        if BEAD_CREATED_GLYPH in line
+    ]
 
     assert lines
     for line in lines:
