@@ -1,5 +1,9 @@
 INHERIT: mkdocs.yml
 
+theme:
+  # The PDF build must not depend on Material's remote Google Fonts URLs.
+  font: false
+
 extra:
   pdf_handbook:
     build_date: !ENV [SASE_PDF_BUILD_DATE, ""]

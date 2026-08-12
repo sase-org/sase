@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
@@ -522,3 +524,23 @@ def test_render_svg_to_png_uses_visual_renderer() -> None:
     )
 
     assert png.startswith(b"\x89PNG")
+
+
+def test_render_svg_to_png_loads_bundled_fonts_in_explicit_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    renderer = ModuleType("resvg_py")
+    svg_to_bytes = MagicMock(return_value=b"png")
+    renderer.svg_to_bytes = svg_to_bytes  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "resvg_py", renderer)
+
+    assert render_svg_to_png("<svg/>") == b"png"
+
+    kwargs = svg_to_bytes.call_args.kwargs
+    assert [Path(path).name for path in kwargs["font_files"]] == [
+        "FiraCode-Regular.ttf",
+        "FiraCode-Bold.ttf",
+        "NotoEmoji-Regular.ttf",
+        "DejaVuSans.ttf",
+    ]
+    assert "font_dirs" not in kwargs

@@ -369,11 +369,58 @@ def test_cost_budget_check_uses_wider_ci_tolerance() -> None:
     assert check_cost_budgets(record, budgets, ci=True) == []
 
 
+def test_cost_budget_check_uses_ci_specific_limits() -> None:
+    record = {
+        "summary": {
+            "collection_seconds": 15.0,
+            "causes": {"parser_create": {"count": 1, "seconds": 1.5}},
+        }
+    }
+    budgets = {
+        "schema": 1,
+        "tolerance": {"local": 0.0, "ci": 0.0},
+        "summary": {"collection_seconds": {"limit": 10.0, "ci_limit": 20.0}},
+        "causes": {"parser_create": {"limit": 1.0, "ci_limit": 2.0}},
+    }
+
+    assert [failure.metric for failure in check_cost_budgets(record, budgets)] == [
+        "collection_seconds",
+        "causes.parser_create",
+    ]
+    assert check_cost_budgets(record, budgets, ci=True) == []
+
+
 def test_committed_cost_budgets_are_valid() -> None:
     budgets = load_cost_budgets(Path("tests/perf/baselines/test_cost_budgets.json"))
 
     assert budgets["summary"]["collection_seconds"]["limit"] == 60.0
     assert budgets["summary"]["collection_seconds"]["per_worker"] is True
+    assert budgets["summary"]["collection_cpu_seconds"]["ci_limit"] == 50.0
+    assert budgets["causes"]["ace_page_enter"]["ci_limit"] == 530.0
+
+
+def test_committed_cost_budgets_cover_calibration_ci_run() -> None:
+    budgets = load_cost_budgets(Path("tests/perf/baselines/test_cost_budgets.json"))
+    # Worst values from default-branch GitHub Actions run 31547797017.
+    record = {
+        "worker_count": 4,
+        "summary": {
+            "collection_cpu_seconds": 58.283 * 4,
+            "causes": {
+                "ace_page_enter": {"count": 1, "seconds": 630.583},
+                "pilot_pause_delay": {"count": 1, "seconds": 301.363},
+                "textual_app_run_test_enter": {"count": 1, "seconds": 501.528},
+            },
+        },
+    }
+
+    assert check_cost_budgets(record, budgets, ci=True) == []
+    assert [failure.metric for failure in check_cost_budgets(record, budgets)] == [
+        "collection_cpu_seconds (per worker)",
+        "causes.ace_page_enter",
+        "causes.pilot_pause_delay",
+        "causes.textual_app_run_test_enter",
+    ]
 
 
 def test_cost_recorder_attributes_causes_to_current_file(tmp_path: Path) -> None:

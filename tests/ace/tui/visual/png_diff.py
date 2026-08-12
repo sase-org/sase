@@ -32,6 +32,16 @@ from tests.ace.tui.visual._png_diff_tolerance import (
 )
 
 _FONTS_DIR = Path(__file__).parent / "fonts"
+_FONT_FILES = tuple(
+    _FONTS_DIR / name
+    for name in (
+        "FiraCode-Regular.ttf",
+        "FiraCode-Bold.ttf",
+        "NotoEmoji-Regular.ttf",
+        # resvg gives the later fallback priority for shared glyphs.
+        "DejaVuSans.ttf",
+    )
+)
 
 __all__ = [
     "DEFAULT_MATERIAL_DIFF_THRESHOLD",
@@ -147,7 +157,8 @@ def render_svg_to_png(svg: str) -> bytes:
     """Render SVG text to PNG bytes using the pinned hermetic renderer.
 
     Rendering goes through resvg (a pure-Rust SVG rasterizer with its own font
-    database) restricted to the fonts bundled in ``fonts/``.
+    database) restricted to an explicitly ordered list of fonts bundled in
+    ``fonts/``.
     ``skip_system_fonts`` keeps every platform text and graphics stack out of
     the render. Naming Fira Code for every generic family gives it every glyph
     it carries; resvg falls back within the bundled database only for a
@@ -169,7 +180,7 @@ def render_svg_to_png(svg: str) -> bytes:
         resvg_py.svg_to_bytes(
             svg_string=svg,
             skip_system_fonts=True,
-            font_dirs=[str(_FONTS_DIR)],
+            font_files=[str(path) for path in _FONT_FILES],
             font_family="Fira Code",
             monospace_family="Fira Code",
             sans_serif_family="Fira Code",

@@ -1,6 +1,7 @@
 {
   "causes": {
     "ace_page_enter": {
+      "ci_limit": 530.0,
       "limit": 400.0
     },
     "ace_settle_pilot": {
@@ -10,12 +11,14 @@
       "limit": 35.0
     },
     "pilot_pause_delay": {
+      "ci_limit": 260.0,
       "limit": 190.0
     },
     "subprocess_run": {
       "limit": 320.0
     },
     "textual_app_run_test_enter": {
+      "ci_limit": 420.0,
       "limit": 350.0
     },
     "yaml_load": {
@@ -23,15 +26,17 @@
     }
   },
   "notes": [
-    "Limits are derived as ceil(worst recorded value / (1 + local tolerance)), rounded up to a round number; run `tools/check_test_cost_budgets --suggest` against fresh recordings and paste its output (including provenance) rather than hand-picking a number.",
+    "Local limits are derived as ceil(worst recorded value / (1 + local tolerance)), rounded up to a round number; run `tools/check_test_cost_budgets --suggest` against fresh recordings and paste its output (including provenance) rather than hand-picking a number.",
     "Sample: 8 recordings from host athena, 2026-08-10 15:21Z-17:46Z, 4-14 workers, 28,380-28,470 nodes.",
+    "CI-only limits are derived the same way from default-branch GitHub Actions runs 31547797017 and 31575953995, 2026-08-11, 4 workers, 29,010 nodes; metrics without `ci_limit` use their local limit with CI tolerance.",
     "`collection_seconds` and `collection_cpu_seconds` are per-worker limits (each xdist worker collects the whole suite, so the recorded summary sum is divided by the worker count before comparison); every other summary and cause entry is a suite-wide total.",
     "`peak_worker_rss_kib` is the peak of a worker's RSS curve sampled across the run, not the curve's post-collection reading (~520 MiB), which is stable and much lower.",
-    "Raising a limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output \u2014 do not raise a limit to hide a one-off regression."
+    "Raising a local limit requires a fresh `just test-cost` recording plus `tools/check_test_cost_budgets --suggest` output; raising a CI-only limit requires a captured CI cost report with run provenance \u2014 do not raise a limit to hide a one-off regression."
   ],
   "schema": 1,
   "summary": {
     "collection_cpu_seconds": {
+      "ci_limit": 50.0,
       "limit": 20.0,
       "per_worker": true
     },

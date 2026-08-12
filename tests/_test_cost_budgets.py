@@ -55,10 +55,12 @@ def _budget_tolerance(budgets: Mapping[str, Any], *, ci: bool) -> float:
     return max(tolerance, 0.0)
 
 
-def _budget_limit(raw_budget: object) -> float | None:
-    raw_limit: Any = (
-        raw_budget.get("limit") if isinstance(raw_budget, Mapping) else raw_budget
-    )
+def _budget_limit(raw_budget: object, *, ci: bool) -> float | None:
+    raw_limit: Any = raw_budget
+    if isinstance(raw_budget, Mapping):
+        raw_limit = raw_budget.get("ci_limit") if ci else None
+        if raw_limit is None:
+            raw_limit = raw_budget.get("limit")
     try:
         return float(raw_limit)
     except (TypeError, ValueError):
@@ -98,7 +100,7 @@ def check_cost_budgets(
     summary_budgets = budgets.get("summary")
     if isinstance(summary_budgets, Mapping):
         for metric, raw_budget in sorted(summary_budgets.items()):
-            limit = _budget_limit(raw_budget)
+            limit = _budget_limit(raw_budget, ci=ci)
             actual = _summary_value(record, str(metric))
             if limit is None or actual is None:
                 continue
@@ -113,7 +115,7 @@ def check_cost_budgets(
     cause_budgets = budgets.get("causes")
     if isinstance(cause_budgets, Mapping):
         for cause, raw_budget in sorted(cause_budgets.items()):
-            limit = _budget_limit(raw_budget)
+            limit = _budget_limit(raw_budget, ci=ci)
             if limit is None:
                 continue
             actual = _cause_seconds(record, str(cause)) or 0.0

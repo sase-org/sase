@@ -1,11 +1,12 @@
 # Bundled fonts for ACE visual snapshot tests
 
 The PNG snapshot suite renders SVG through resvg (`resvg_py`), a pure-Rust rasterizer
-with its own font database. It is pointed at this directory via `font_dirs` with
-`skip_system_fonts=True`, so only these files participate in rendering — no platform
-font stack is consulted. Comparison is byte-exact by default; explicit area and
-alpha-aware color-intensity overrides are available for bounded non-canonical-platform
-drift. See the Visual Snapshot Workflow in `docs/development.md` for the comparison and
+with its own font database. Each file is passed in the explicit `_FONT_FILES` order via
+`font_files` with `skip_system_fonts=True`, so only these files participate in rendering
+and fallback order does not depend on directory traversal — no platform font stack is
+consulted. Comparison is byte-exact by default; explicit area and alpha-aware
+color-intensity overrides are available for bounded non-canonical-platform drift. See
+the Visual Snapshot Workflow in `docs/development.md` for the comparison and
 regeneration contract.
 
 `tests/ace/tui/visual/png_diff.py::render_svg_to_png` maps every generic family
