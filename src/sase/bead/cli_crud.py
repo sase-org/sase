@@ -604,6 +604,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         )
         if commit_message is not None:
             mutation.commit(commit_message)
+    _settle_close_task_gates(closed, closed_ids, cascade_closed_ids)
     _print_close_results(
         closed,
         closed_ids=closed_ids,
@@ -611,6 +612,32 @@ def handle_bead_close(args: argparse.Namespace) -> None:
         noted_ids=noted_ids,
         cascade_closed_ids=cascade_closed_ids,
     )
+
+
+def _settle_close_task_gates(
+    issues: list[Issue],
+    closed_ids: list[str],
+    cascade_closed_ids: list[str],
+) -> None:
+    """Cancel each just-closed task bead's pending gate, skipping non-tasks.
+
+    Every plan/phase close and every already-closed no-op has no task ids
+    here, so it costs nothing beyond building and checking this set.
+    """
+    candidate_ids = set(closed_ids) | set(cascade_closed_ids)
+    if not candidate_ids:
+        return
+    task_ids = {
+        issue.id
+        for issue in issues
+        if issue.id in candidate_ids and issue.issue_type is IssueType.TASK
+    }
+    if not task_ids:
+        return
+    from sase.bead.close_gate_settle import settle_closed_task_bead_gates
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    settle_closed_task_bead_gates(infer_project_name_from_cwd(), task_ids)
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:
