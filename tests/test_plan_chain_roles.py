@@ -4,6 +4,7 @@ import pytest
 
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
+    PLAN_CHAIN_MONITOR_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     PLAN_CHAIN_QUESTION_SUFFIX,
     agent_family_base,
@@ -154,6 +155,31 @@ def test_legacy_suffixes_canonicalize_to_double_dash_suffixes() -> None:
     assert canonical_plan_chain_suffix("-2") == "--2"
     assert plan_chain_feedback_round("--10") == 10
     assert plan_chain_feedback_round("-10") == 10
+
+
+def test_monitor_suffix_classifies_as_monitor_phase() -> None:
+    assert canonical_plan_chain_suffix(PLAN_CHAIN_MONITOR_SUFFIX) == "--mon"
+    assert agent_family_role_for_suffix("--mon") == "monitor"
+    info = _parse_plan_chain_suffix("--mon")
+    assert info is not None
+    assert info.role == "monitor"
+    assert info.kind == "phase"
+    assert plan_chain_agent_name("agent", "--mon") == "agent--mon"
+
+
+def test_monitor_sequence_suffixes_classify_as_monitor_phase() -> None:
+    assert canonical_plan_chain_suffix("--mon-0") == "--mon-0"
+    assert canonical_plan_chain_suffix("--mon-3") == "--mon-3"
+    assert agent_family_role_for_suffix("--mon-0") == "monitor"
+
+    info = _parse_plan_chain_suffix("--mon-0")
+    assert info is not None
+    assert info.role == "monitor"
+    assert info.kind == "phase"
+    assert info.token == "0"
+    assert not info.is_feedback
+
+    assert plan_chain_agent_name("agent", "--mon-0") == "agent--mon-0"
 
 
 def test_agent_family_helpers_parse_only_known_suffixes() -> None:

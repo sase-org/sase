@@ -1,0 +1,111 @@
+"""Tests for :mod:`sase.monitor.models`."""
+
+from __future__ import annotations
+
+import pytest
+
+from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
+from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
+from sase.monitor.models import MonitorRecord, monitor_state_bucket
+
+
+def _record(
+    *,
+    agent_meta: AgentMetaWire | None,
+    done: DoneMarkerWire | None = None,
+) -> AgentArtifactRecordWire:
+    return AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir="/home/proj",
+        project_file="/home/proj/proj.gp",
+        workflow_dir_name="ace-run",
+        artifact_dir="/home/proj/artifacts/ace-run/20260812120000",
+        timestamp="20260812120000",
+        agent_meta=agent_meta,
+        done=done,
+    )
+
+
+@pytest.mark.parametrize(
+    ("state", "bucket"),
+    [
+        ("running", "Running"),
+        ("completed", "Done"),
+        ("failed", "Failed"),
+        ("timeout", "Failed"),
+        ("stopped", "Done"),
+        (None, "Running"),
+        ("bogus", "Running"),
+    ],
+)
+def test_monitor_state_bucket_maps_every_terminal_state(
+    state: str | None, bucket: str
+) -> None:
+    assert monitor_state_bucket(state) == bucket
+
+
+def test_from_record_rejects_non_monitor_rows() -> None:
+    with pytest.raises(ValueError):
+        MonitorRecord.from_record(_record(agent_meta=None))
+
+    with pytest.raises(ValueError):
+        MonitorRecord.from_record(_record(agent_meta=AgentMetaWire(name="agent--0")))
+
+
+def test_from_record_prefers_running_meta_fields() -> None:
+    meta = AgentMetaWire(
+        name="acme--mon",
+        agent_family="acme",
+        monitor_id="abc123",
+        monitor_command="sleep 60",
+        monitor_cwd="/work",
+        monitor_reason="verify",
+        monitor_label="sleep",
+        monitor_start_status="MONITORING",
+        monitor_stop_status="MONITORED",
+        monitor_timeout_seconds=60.0,
+        monitor_tail_lines=200,
+        monitor_state="running",
+        pid=4242,
+    )
+    record = MonitorRecord.from_record(_record(agent_meta=meta))
+
+    assert record.monitor_id == "abc123"
+    assert record.member_agent_name == "acme--mon"
+    assert record.lane == "acme"
+    assert record.monitor_state == "running"
+    assert record.status_bucket == "Running"
+    assert not record.is_terminal
+    assert record.pid == 4242
+    assert record.exit_code is None
+
+
+def test_from_record_prefers_done_marker_over_running_meta() -> None:
+    meta = AgentMetaWire(
+        name="acme--mon",
+        agent_family="acme",
+        monitor_id="abc123",
+        monitor_command="sh -c 'exit 3'",
+        monitor_state="running",
+    )
+    done = DoneMarkerWire(monitor_state="failed", monitor_exit_code=3)
+    record = MonitorRecord.from_record(_record(agent_meta=meta, done=done))
+
+    assert record.monitor_state == "failed"
+    assert record.exit_code == 3
+    assert record.status_bucket == "Failed"
+    assert record.is_terminal
+
+
+def test_from_record_preserves_a_zero_exit_code() -> None:
+    meta = AgentMetaWire(
+        name="acme--mon",
+        agent_family="acme",
+        monitor_id="abc123",
+        monitor_command="true",
+        monitor_state="running",
+        monitor_exit_code=0,
+    )
+    record = MonitorRecord.from_record(_record(agent_meta=meta))
+
+    assert record.exit_code == 0

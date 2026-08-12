@@ -1,0 +1,189 @@
+"""Tests for :mod:`sase.monitor.supervise`."""
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+
+from sase.ace.hooks.processes import is_process_running
+from sase.monitor.supervise import _run_supervisor
+from sase.running_field import WorkspaceClaim, get_claimed_workspaces
+
+from ._fixtures import make_starter_agent, write_project_file
+
+_STOP_POLL_TIMEOUT = 60.0
+_STOP_POLL_INTERVAL = 0.1
+
+
+@pytest.fixture(autouse=True)
+def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+
+@pytest.fixture(autouse=True)
+def _restore_signal_handlers() -> Iterator[None]:
+    """``_run_supervisor`` installs process-wide SIGTERM/SIGINT handlers.
+
+    Called directly (not via a subprocess) it would otherwise leak that
+    installation into the rest of the test session.
+    """
+    original_term = signal.getsignal(signal.SIGTERM)
+    original_int = signal.getsignal(signal.SIGINT)
+    yield
+    signal.signal(signal.SIGTERM, original_term)
+    signal.signal(signal.SIGINT, original_int)
+
+
+def _make_member(
+    tmp_path: Path,
+    *,
+    command: str,
+    timeout_seconds: float = 60.0,
+    next_action: str | None = None,
+    workspace_num: int = 1,
+) -> tuple[str, str]:
+    project_file = write_project_file(
+        "proj",
+        running_claims=[
+            WorkspaceClaim(workspace_num, "ace-monitor", "acme", pid=os.getpid())
+        ],
+    )
+    artifacts_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="abc123def456",
+        monitor_command=command,
+        monitor_cwd=str(tmp_path),
+        monitor_reason="test",
+        monitor_start_status="MONITORING",
+        monitor_stop_status="MONITORED",
+        monitor_timeout_seconds=timeout_seconds,
+        monitor_next_action=next_action,
+        monitor_state="running",
+        cl_name="acme",
+        workspace_dir=str(tmp_path),
+        workspace_num=workspace_num,
+    )
+    return artifacts_dir, project_file
+
+
+def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, project_file = _make_member(tmp_path, command="echo hello world")
+
+    exit_status = _run_supervisor(artifacts_dir)
+
+    assert exit_status == 0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "completed"
+    assert meta["monitor_exit_code"] == 0
+    assert meta["monitor_output_truncated"] is False
+
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["outcome"] == "monitored"
+    assert done["monitor_state"] == "completed"
+    assert done["monitor_exit_code"] == 0
+    assert done["status_label"] == "MONITORED"
+    assert done["response_path"]
+
+    live_reply = (Path(artifacts_dir) / "live_reply.md").read_text()
+    assert "hello world" in live_reply
+
+    # No next action: the claim taken in _make_member is released.
+    assert get_claimed_workspaces(project_file) == []
+
+
+def test_run_supervisor_records_a_non_zero_exit_as_failed(tmp_path: Path) -> None:
+    artifacts_dir, _ = _make_member(tmp_path, command="sh -c 'echo boom >&2; exit 3'")
+
+    exit_status = _run_supervisor(artifacts_dir)
+
+    assert exit_status == 1
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "failed"
+    assert meta["monitor_exit_code"] == 3
+    assert "boom" in (Path(artifacts_dir) / "live_reply.md").read_text()
+
+
+def test_run_supervisor_kills_the_whole_process_group_on_timeout(
+    tmp_path: Path,
+) -> None:
+    pidfile = tmp_path / "grandchild.pid"
+    command = f"sh -c 'sleep 30 & echo $! > {pidfile}; wait'"
+    artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=0.3)
+
+    started = time.monotonic()
+    exit_status = _run_supervisor(artifacts_dir)
+    elapsed = time.monotonic() - started
+
+    assert exit_status == 1
+    assert elapsed < 5.0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+
+    grandchild_pid = int(pidfile.read_text().strip())
+    assert not is_process_running(grandchild_pid)
+
+
+def test_run_supervisor_holds_the_claim_when_a_next_action_is_pending(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, project_file = _make_member(
+        tmp_path, command="true", next_action="Report that it finished."
+    )
+
+    _run_supervisor(artifacts_dir)
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "completed"
+    # A follow-up (engine-next, a later phase) still needs this claim.
+    assert len(get_claimed_workspaces(project_file)) == 1
+
+
+def test_supervisor_subprocess_stops_cleanly_on_sigterm(tmp_path: Path) -> None:
+    ready_file = tmp_path / "ready"
+    artifacts_dir, project_file = _make_member(
+        tmp_path, command=f"touch {ready_file} && sleep 30", timeout_seconds=120.0
+    )
+
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "sase.monitor.supervise",
+            "--artifacts-dir",
+            artifacts_dir,
+        ],
+        env=os.environ.copy(),
+    )
+    try:
+        deadline = time.monotonic() + _STOP_POLL_TIMEOUT
+        while not ready_file.exists() and time.monotonic() < deadline:
+            time.sleep(_STOP_POLL_INTERVAL)
+        assert ready_file.exists(), "monitored command never started"
+
+        process.send_signal(signal.SIGTERM)
+        process.wait(timeout=_STOP_POLL_TIMEOUT)
+
+        meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+        assert meta["monitor_state"] == "stopped"
+        done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+        assert done["monitor_state"] == "stopped"
+        # A stopped monitor releases the claim -- no follow-up is launched.
+        assert get_claimed_workspaces(project_file) == []
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()

@@ -89,6 +89,22 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "terminal projections without mutating artifact markers."
         ),
     ),
+    "src/sase/monitor/start.py:_read_meta": PathPassingReview(
+        exemption=(
+            "Read-only monitor-start helper: agent_meta.json is read only to "
+            "recover the lane's newest member metadata (or, on teardown, the "
+            "half-created monitor member's own metadata) before any mutation "
+            "goes through write_agent_meta_atomic separately."
+        ),
+    ),
+    "src/sase/monitor/supervise.py:_read_meta": PathPassingReview(
+        exemption=(
+            "Read-only supervisor bootstrap: agent_meta.json is read only to "
+            "recover the monitored command's configuration before running it; "
+            "the terminal marker write goes through write_agent_meta_atomic "
+            "separately."
+        ),
+    ),
 }
 
 
