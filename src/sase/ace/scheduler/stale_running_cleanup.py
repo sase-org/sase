@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from sase.core.paths import sase_projects_dir
-from sase.running_field import get_claimed_workspaces, release_workspace
+from sase.running_field import WorkspaceClaim, get_claimed_workspaces, release_workspace
 
 from ..hooks.processes import is_process_running
 
@@ -27,8 +27,38 @@ def _held_agent_artifacts_exist(project_file: str, artifacts_timestamp: str) -> 
         return True
 
 
+def _monitor_claim_is_releasable(project_file: str, claim: WorkspaceClaim) -> bool:
+    """Return whether a dead-pid monitor workspace claim is safe to release.
+
+    A monitor owns its workspace for the length of its command, and a dead
+    supervisor pid alone is exactly the state a not-yet-reconciled monitor is
+    in. Only release once the owning monitor member's own markers say it is
+    terminal; any failure to read that state fails closed (not releasable),
+    matching the conservative pinned-artifacts check above.
+    """
+    if not claim.artifacts_timestamp:
+        return True
+    try:
+        from sase.core.agent_artifact_paths import (
+            ACE_RUN_WORKFLOW_DIR,
+            resolve_agent_artifact_timestamp_path,
+        )
+        from sase.monitor.store import read_monitor_marker
+
+        project_name = Path(project_file).parent.name
+        artifacts_dir = resolve_agent_artifact_timestamp_path(
+            project_name, ACE_RUN_WORKFLOW_DIR, claim.artifacts_timestamp
+        )
+        record = read_monitor_marker(project_name, str(artifacts_dir))
+    except Exception:
+        return False
+    return record is None or record.is_terminal
+
+
 def cleanup_stale_running_entries(
     log_fn: Callable[[str, str | None], None] | None = None,
+    *,
+    skip_monitor_claims: bool = False,
 ) -> int:
     """Release workspace claims for processes that are no longer running.
 
@@ -39,16 +69,28 @@ def cleanup_stale_running_entries(
 
     Args:
         log_fn: Optional logging function (message, style).
+        skip_monitor_claims: When True, leave every monitor-workflow claim
+            (``MONITOR_WORKSPACE_CLAIM_WORKFLOW``) untouched this sweep,
+            regardless of pid or terminal state. Set by the caller when it
+            could not reconcile dead monitor supervisors first, so a live
+            lane's workspace is never handed to another agent on the strength
+            of stale reconciliation state.
 
     Returns:
         Number of stale workspace claims released.
     """
+    from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
     released_count = 0
 
     for project_file in _get_all_project_files():
         claims = get_claimed_workspaces(project_file)
 
         for claim in claims:
+            is_monitor_claim = claim.workflow == MONITOR_WORKSPACE_CLAIM_WORKFLOW
+            if is_monitor_claim and skip_monitor_claims:
+                continue
+
             if claim.pinned:
                 if not claim.artifacts_timestamp:
                     continue
@@ -57,6 +99,10 @@ def cleanup_stale_running_entries(
                 if _held_agent_artifacts_exist(project_file, claim.artifacts_timestamp):
                     continue
             elif is_process_running(claim.pid):
+                continue
+            elif is_monitor_claim and not _monitor_claim_is_releasable(
+                project_file, claim
+            ):
                 continue
 
             release_workspace(

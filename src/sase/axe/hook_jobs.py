@@ -374,8 +374,17 @@ class HookJobRunner:
 
     def run_stale_running_cleanup(self) -> None:
         """Clean up stale RUNNING entries for dead processes."""
-        monitors_reconciled = self._reconcile_dead_monitor_supervisors()
-        released = cleanup_stale_running_entries(self._log)
+        reconciled = self._reconcile_dead_monitor_supervisors()
+        released = cleanup_stale_running_entries(
+            self._log, skip_monitor_claims=reconciled is None
+        )
+        monitors_reconciled = reconciled or 0
+        if reconciled is None:
+            self._log(
+                "monitor reconciliation failed; leaving ace-monitor claims "
+                "untouched this sweep",
+                "yellow",
+            )
         if released > 0:
             self.metrics.stale_running_cleaned += released
             self.metrics.total_updates += released
@@ -389,11 +398,12 @@ class HookJobRunner:
             summary += " reason=no_dead_running_process_claims"
         self._log(summary, "green" if released or monitors_reconciled else None)
 
-    def _reconcile_dead_monitor_supervisors(self) -> int:
+    def _reconcile_dead_monitor_supervisors(self) -> int | None:
+        """Reconcile dead monitor supervisors, or ``None`` on failure."""
         try:
             from sase.monitor import reconcile_dead_supervisors
 
             return len(reconcile_dead_supervisors())
         except Exception as exc:
             self._log(f"monitor reconciliation failed: {exc}", "yellow")
-            return 0
+            return None

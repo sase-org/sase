@@ -250,6 +250,122 @@ def test_cleanup_keeps_held_workspace_while_artifacts_exist() -> None:
     release.assert_not_called()
 
 
+def test_cleanup_keeps_dead_monitor_claim_when_member_not_terminal() -> None:
+    """A dead-pid ace-monitor claim is not released until the member is terminal."""
+    claim = WorkspaceClaim(
+        workspace_num=10,
+        workflow="ace-monitor",
+        cl_name="feature",
+        pid=33333,
+        artifacts_timestamp="20260813125344",
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+            return_value=Path("/tmp/artifacts/20260813125344"),
+        ),
+        patch(
+            "sase.monitor.store.read_monitor_marker",
+            return_value=MagicMock(is_terminal=False),
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        assert cleanup_stale_running_entries() == 0
+    release.assert_not_called()
+
+
+def test_cleanup_releases_dead_monitor_claim_once_member_is_terminal() -> None:
+    """A dead-pid ace-monitor claim releases once the member's own record settles."""
+    claim = WorkspaceClaim(
+        workspace_num=10,
+        workflow="ace-monitor",
+        cl_name="feature",
+        pid=33333,
+        artifacts_timestamp="20260813125344",
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.core.agent_artifact_paths.resolve_agent_artifact_timestamp_path",
+            return_value=Path("/tmp/artifacts/20260813125344"),
+        ),
+        patch(
+            "sase.monitor.store.read_monitor_marker",
+            return_value=MagicMock(is_terminal=True),
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        assert cleanup_stale_running_entries() == 1
+    release.assert_called_once_with(project_file, 10, "ace-monitor", "feature")
+
+
+def test_cleanup_skip_monitor_claims_leaves_ace_monitor_claims_untouched() -> None:
+    """skip_monitor_claims=True never releases ace-monitor claims this sweep."""
+    monitor_claim = WorkspaceClaim(
+        workspace_num=10,
+        workflow="ace-monitor",
+        cl_name="feature",
+        pid=33333,
+        artifacts_timestamp="20260813125344",
+    )
+    other_claim = WorkspaceClaim(
+        workspace_num=11,
+        workflow="run",
+        cl_name="other",
+        pid=44444,
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[monitor_claim, other_claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.monitor.store.read_monitor_marker",
+            return_value=MagicMock(is_terminal=True),
+        ) as read_marker,
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        released = cleanup_stale_running_entries(skip_monitor_claims=True)
+
+    assert released == 1
+    release.assert_called_once_with(project_file, 11, "run", "other")
+    read_marker.assert_not_called()
+
+
 def test_cleanup_releases_held_workspace_after_artifacts_are_deleted() -> None:
     claim = WorkspaceClaim(
         workspace_num=17,
