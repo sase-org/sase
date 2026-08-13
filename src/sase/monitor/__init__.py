@@ -24,6 +24,7 @@ from .start import (
     StartMonitorRequest,
     maybe_handoff_monitor_from_agent,
     start_monitor,
+    will_handoff_monitor_to_agent_runner,
     write_monitor_pending_marker,
 )
 from .store import (
@@ -34,6 +35,7 @@ from .store import (
     get_monitor,
     has_any_monitor,
     list_monitors,
+    read_monitor_marker,
     resolve_lane,
     resolve_monitor_ref,
     stop_monitor,
@@ -64,10 +66,12 @@ __all__ = [
     "monitor_state_bucket",
     "maybe_handoff_monitor_from_agent",
     "new_monitor_id",
+    "read_monitor_marker",
     "resolve_lane",
     "resolve_monitor_ref",
     "short_monitor_id",
     "start_monitor",
     "stop_monitor",
+    "will_handoff_monitor_to_agent_runner",
     "write_monitor_pending_marker",
 ]

@@ -17,6 +17,7 @@ from sase.monitor.store import (
     get_monitor,
     has_any_monitor,
     list_monitors,
+    read_monitor_marker,
     resolve_lane,
     resolve_monitor_ref,
     stop_monitor,
@@ -310,6 +311,65 @@ def test_get_monitor_returns_none_for_an_unknown_artifacts_dir(
 ) -> None:
     patch_project_records(monkeypatch, [])
     assert get_monitor("proj", "/nowhere") is None
+
+
+def test_read_monitor_marker_returns_none_for_a_missing_artifacts_dir(
+    tmp_path: Path,
+) -> None:
+    assert read_monitor_marker("proj", str(tmp_path / "nowhere")) is None
+
+
+def test_read_monitor_marker_does_not_query_the_artifact_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+        monitor_command="sleep 60",
+        monitor_stop_status="MONITORED",
+    )
+
+    def _fail(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("read_monitor_marker must not query the artifact index")
+
+    monkeypatch.setattr("sase.monitor.store._project_records", _fail)
+
+    record = read_monitor_marker("proj", monitor_dir)
+
+    assert record is not None
+    assert record.monitor_id == "aaa"
+    assert record.monitor_state == "running"
+    assert record.command == "sleep 60"
+
+
+def test_read_monitor_marker_reflects_a_settled_done_marker() -> None:
+    monitor_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="completed",
+        monitor_settled=True,
+        monitor_command="true",
+    )
+    done_path = Path(monitor_dir) / "done.json"
+    done_path.write_text(
+        json.dumps({"outcome": "monitored", "monitor_state": "completed"}),
+        encoding="utf-8",
+    )
+
+    record = read_monitor_marker("proj", monitor_dir)
+
+    assert record is not None
+    assert record.monitor_state == "completed"
+    assert record.is_terminal is True
 
 
 def test_list_monitors_defaults_to_every_project_newest_first(

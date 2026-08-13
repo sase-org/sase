@@ -297,6 +297,18 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
     )
 
 
+def will_handoff_monitor_to_agent_runner() -> bool:
+    """Return whether ``maybe_handoff_monitor_from_agent`` will kill this runner.
+
+    ``kill_agent_runner_group()`` is ``NoReturn``, so any output a caller
+    wants to show (a start summary, a ``--json`` envelope) must be emitted
+    *before* calling ``maybe_handoff_monitor_from_agent`` -- not after, and
+    not conditioned on its return value, which the process never lives to
+    observe when this is true.
+    """
+    return bool(os.environ.get("SASE_AGENT"))
+
+
 def maybe_handoff_monitor_from_agent(
     record: MonitorRecord,
     *,
@@ -556,5 +568,6 @@ __all__ = [
     "StartMonitorRequest",
     "maybe_handoff_monitor_from_agent",
     "start_monitor",
+    "will_handoff_monitor_to_agent_runner",
     "write_monitor_pending_marker",
 ]

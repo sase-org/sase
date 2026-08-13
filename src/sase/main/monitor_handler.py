@@ -21,14 +21,15 @@ from sase.monitor import (
     StartMonitorRequest,
     active_monitor_for_lane,
     default_lane,
-    get_monitor,
     list_monitors,
     maybe_handoff_monitor_from_agent,
+    read_monitor_marker,
     resolve_lane,
     resolve_monitor_ref,
     short_monitor_id,
     start_monitor,
     stop_monitor,
+    will_handoff_monitor_to_agent_runner,
 )
 from sase.monitor.start import (
     DEFAULT_NEXT_OUTPUT,
@@ -244,27 +245,32 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 1
 
-    handed_off = maybe_handoff_monitor_from_agent(record)
+    # kill_agent_runner_group() (invoked below, once handed off) never
+    # returns, so every line of output must print before it -- including
+    # the --json envelope, whose handed_off flag is decided the same way.
+    handed_off = will_handoff_monitor_to_agent_runner()
 
     if bool(getattr(args, "json", False)):
         json.dump(
             monitor_start_json(record, handed_off=handed_off), sys.stdout, indent=2
         )
         sys.stdout.write("\n")
-        return 0
+    else:
+        short_id = short_monitor_id(record.monitor_id)
+        print(f"Started monitor {short_id} ({record.monitor_id})")
+        print(f"  member: {record.member_agent_name}")
+        print(f"  timeout: {timeout_label}")
+        if idle_timeout_label is not None:
+            print(f"  idle timeout: {idle_timeout_label}")
+        print(f"  sase monitor show {short_id} --follow")
+        if handed_off:
+            print(
+                "\nThis is the last output before the agent runner is killed; "
+                "the monitor keeps running."
+            )
+    sys.stdout.flush()
 
-    short_id = short_monitor_id(record.monitor_id)
-    print(f"Started monitor {short_id} ({record.monitor_id})")
-    print(f"  member: {record.member_agent_name}")
-    print(f"  timeout: {timeout_label}")
-    if idle_timeout_label is not None:
-        print(f"  idle timeout: {idle_timeout_label}")
-    print(f"  sase monitor show {short_id} --follow")
-    if handed_off:
-        print(
-            "\nThis is the last output before the agent runner is killed; "
-            "the monitor keeps running."
-        )
+    maybe_handoff_monitor_from_agent(record)
     return 0
 
 
@@ -315,7 +321,7 @@ def _follow_output(record: MonitorRecord, args: argparse.Namespace) -> int:
         offset = 0
 
     while True:
-        current = get_monitor(record.project_name, record.artifacts_dir)
+        current = read_monitor_marker(record.project_name, record.artifacts_dir)
         if current is None:
             print("sase monitor show: monitor record disappeared", file=sys.stderr)
             return 1
@@ -331,7 +337,7 @@ def _follow_output(record: MonitorRecord, args: argparse.Namespace) -> int:
 def _wait_for_monitor(record: MonitorRecord) -> MonitorRecord:
     """Poll silently until *record*'s monitor reaches a terminal state."""
     while True:
-        current = get_monitor(record.project_name, record.artifacts_dir)
+        current = read_monitor_marker(record.project_name, record.artifacts_dir)
         if current is None:
             return record
         if current.is_terminal:
@@ -389,6 +395,9 @@ def _infer_project_name(cwd: str) -> str | None:
 
 
 def _output_path(record: MonitorRecord) -> Path:
+    if record.output_path:
+        return Path(record.output_path)
+
     from sase.monitor.logs import monitor_log_path
 
     return monitor_log_path(record.artifacts_dir)

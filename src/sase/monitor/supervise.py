@@ -131,6 +131,12 @@ def run_supervisor(artifacts_dir: str) -> int:
     signal.signal(signal.SIGINT, termination.request)
 
     output_path = monitor_log_path(artifacts_dir)
+    meta["monitor_output_path"] = str(output_path)
+    write_agent_meta_atomic(
+        artifacts_dir,
+        meta,
+        index_updater=update_agent_artifact_index_for_marker_mutation,
+    )
     capture = OutputCapture()
     activity = _OutputActivity(capture)
     started = time.monotonic()
@@ -181,6 +187,9 @@ def run_supervisor(artifacts_dir: str) -> int:
                 # outlive this recorder: start_new_session=True makes the pgid
                 # equal the child's own pid.
                 meta["monitor_pgid"] = child.pid
+                # Recorded here (not at member creation) so displayed runtime
+                # excludes member-creation and supervisor-spawn latency.
+                meta["run_started_at"] = _utc_now_iso()
                 write_agent_meta_atomic(
                     artifacts_dir,
                     meta,

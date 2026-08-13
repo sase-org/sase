@@ -142,11 +142,11 @@ def test_show_follow_streams_new_output_until_terminal(
     patch_project_records(monkeypatch, [artifacts_dir])
 
     from sase.main import monitor_handler as handler_module
-    from sase.monitor.store import get_monitor as real_get_monitor
+    from sase.monitor.store import read_monitor_marker as real_read_monitor_marker
 
     calls = {"count": 0}
 
-    def fake_get_monitor(project_name: str, dir_: str):
+    def fake_read_monitor_marker(project_name: str, dir_: str):
         calls["count"] += 1
         if calls["count"] == 2:
             output_path.write_text(
@@ -154,9 +154,9 @@ def test_show_follow_streams_new_output_until_terminal(
                 encoding="utf-8",
             )
             _set_monitor_state(artifacts_dir, "completed")
-        return real_get_monitor(project_name, dir_)
+        return real_read_monitor_marker(project_name, dir_)
 
-    monkeypatch.setattr(handler_module, "get_monitor", fake_get_monitor)
+    monkeypatch.setattr(handler_module, "read_monitor_marker", fake_read_monitor_marker)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
 
     assert dispatch(["monitor", "show", "aaabbbcccddd", "--follow"]) == 0

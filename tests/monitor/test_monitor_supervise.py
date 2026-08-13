@@ -100,6 +100,8 @@ def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
     assert meta["monitor_state"] == "completed"
     assert meta["monitor_exit_code"] == 0
     assert meta["monitor_output_truncated"] is False
+    assert meta["monitor_output_path"] == str(Path(artifacts_dir) / "live_reply.md")
+    assert meta["run_started_at"]
 
     done = json.loads((Path(artifacts_dir) / "done.json").read_text())
     assert done["outcome"] == "monitored"
@@ -149,6 +151,10 @@ def test_run_supervisor_fails_without_the_launch_barrier(
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "failed"
     assert meta["monitor_settled"] is True
+    # Written as soon as the log is opened, before the barrier wait -- unlike
+    # run_started_at, which only appears once the command actually spawns.
+    assert meta["monitor_output_path"] == str(Path(artifacts_dir) / "live_reply.md")
+    assert "run_started_at" not in meta
     done = json.loads((Path(artifacts_dir) / "done.json").read_text())
     assert done["monitor_state"] == "failed"
     assert "command was not run" in done["error"]

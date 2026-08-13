@@ -238,6 +238,123 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
     assert "sase monitor show" in out
 
 
+def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``kill_agent_runner_group`` never returns, so output must precede it.
+
+    Regression test for a bug where every line printed after the handoff
+    call -- including the whole non-JSON summary and the ``--json``
+    envelope -- was unreachable inside a real agent process.
+    """
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    _pin_project(monkeypatch)
+
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
+
+    killed: list[str] = []
+
+    def fake_kill(artifacts_dir: str) -> int:
+        killed.append(artifacts_dir)
+        raise SystemExit(0)
+
+    monkeypatch.setattr("sase.main.utils.kill_agent_runner_group", fake_kill)
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify",
+            "-t",
+            "30s",
+            "-l",
+            "acme",
+            "-C",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert killed == [starter_dir]
+    out = capsys.readouterr().out
+    assert "Started monitor" in out
+    assert "member: acme--mon" in out
+    assert "This is the last output before the agent runner is killed" in out
+
+
+def test_start_json_envelope_reports_handed_off_before_the_kill(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The ``--json`` envelope's ``handed_off`` flag prints before the kill too."""
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    _pin_project(monkeypatch)
+
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", starter_dir)
+    monkeypatch.setattr(
+        "sase.main.utils.kill_agent_runner_group",
+        lambda _artifacts_dir: (_ for _ in ()).throw(SystemExit(0)),
+    )
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify",
+            "-t",
+            "30s",
+            "-l",
+            "acme",
+            "-C",
+            str(tmp_path),
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["handed_off"] is True
+
+
 def test_start_json_envelope_is_stable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

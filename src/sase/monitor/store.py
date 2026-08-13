@@ -14,6 +14,7 @@ import signal
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
@@ -30,7 +31,9 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
+from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
+from sase.core.wire import known_field_kwargs
 from sase.plan_chain import agent_family_base
 
 from .identity import supervisor_is_alive
@@ -130,7 +133,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
 
     deadline = time.monotonic() + _STOP_WAIT_SECONDS
     while time.monotonic() < deadline:
-        current = get_monitor(record.project_name, record.artifacts_dir)
+        current = read_monitor_marker(record.project_name, record.artifacts_dir)
         if current is None or current.monitor_state != "running":
             return current if current is not None else record
         if not supervisor_is_alive(pid, record.supervisor_identity):
@@ -177,6 +180,51 @@ def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
         if record.artifact_dir == artifacts_dir:
             return MonitorRecord.from_record(record)
     return None
+
+
+def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
+    """Read one monitor member's own markers directly, without an index query.
+
+    ``get_monitor()`` runs a full-history, unlimited, hidden-inclusive index
+    query (or a full filesystem scan when the index is unavailable) to find
+    one record it already knows the path to. Tight polling loops that
+    already hold the member's ``artifacts_dir`` -- ``--follow``,
+    ``stop_monitor()``'s wait loop, and callers waiting for a monitor to go
+    terminal -- should read that member's own ``agent_meta.json`` and
+    ``done.json`` directly instead.
+    """
+    raw_meta = _read_json_object(os.path.join(artifacts_dir, "agent_meta.json"))
+    if raw_meta is None:
+        return None
+    raw_done = _read_json_object(os.path.join(artifacts_dir, "done.json"))
+
+    record = AgentArtifactRecordWire(
+        project_name=project_name,
+        project_dir="",
+        project_file="",
+        workflow_dir_name="",
+        artifact_dir=artifacts_dir,
+        timestamp=os.path.basename(artifacts_dir.rstrip("/")),
+        agent_meta=AgentMetaWire(**known_field_kwargs(AgentMetaWire, raw_meta)),
+        done=(
+            DoneMarkerWire(**known_field_kwargs(DoneMarkerWire, raw_done))
+            if raw_done is not None
+            else None
+        ),
+    )
+    try:
+        return MonitorRecord.from_record(record)
+    except ValueError:
+        return None
+
+
+def _read_json_object(path: str) -> dict[str, Any] | None:
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
@@ -291,6 +339,7 @@ __all__ = [
     "get_monitor",
     "has_any_monitor",
     "list_monitors",
+    "read_monitor_marker",
     "resolve_lane",
     "resolve_monitor_ref",
     "stop_monitor",
