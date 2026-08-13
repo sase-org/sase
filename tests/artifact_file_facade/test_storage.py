@@ -1,8 +1,12 @@
 import json
 import hashlib
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
+from sase.core import artifact_file_explicit as explicit_module
 from sase.core.artifact_file_facade import (
     list_artifact_files,
     list_explicit_artifact_files,
@@ -10,6 +14,11 @@ from sase.core.artifact_file_facade import (
     store_default_artifact_file,
     store_explicit_artifact_file,
 )
+from sase.core.artifact_file_explicit import (
+    list_indexed_artifact_files,
+    write_artifact_file_index_unlocked,
+)
+from sase.core.artifact_file_types import ArtifactFile
 
 from .helpers import agent_dir, write_json
 
@@ -119,6 +128,110 @@ def test_store_explicit_artifact_creates_index_and_dedupes_display_order(
         ("markdown", "Report"),
         ("image", "image.png"),
     ]
+
+
+def test_read_artifact_file_index_reuses_parse_until_stat_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_a = agent_dir(tmp_path)
+    artifacts_b = artifacts_a.parent / "20260507123500"
+    artifacts_b.mkdir(parents=True)
+    root = tmp_path / ".sase" / "artifacts"
+    index_path = root / "index.jsonl"
+    source_a = tmp_path / "alpha.md"
+    source_b = tmp_path / "beta.md"
+    source_a.write_text("# Alpha\n", encoding="utf-8")
+    source_b.write_text("# Beta\n", encoding="utf-8")
+    row_a = store_explicit_artifact_file(
+        source_a,
+        artifacts_a,
+        label="Alpha",
+        artifact_files_root=root,
+    )
+    row_b = store_explicit_artifact_file(
+        source_b,
+        artifacts_b,
+        label="Beta",
+        artifact_files_root=root,
+    )
+    explicit_module._artifact_file_index_cache.clear()
+    parse_count = 0
+    real_reader = explicit_module.read_artifact_file_index_document_unlocked
+
+    def counting_reader(path: Path) -> tuple[list[ArtifactFile], list[str]]:
+        nonlocal parse_count
+        parse_count += 1
+        return real_reader(path)
+
+    monkeypatch.setattr(
+        explicit_module,
+        "read_artifact_file_index_document_unlocked",
+        counting_reader,
+    )
+
+    assert list_indexed_artifact_files(artifacts_a, index_path=index_path) == [row_a]
+    assert list_indexed_artifact_files(artifacts_b, index_path=index_path) == [row_b]
+    assert parse_count == 1
+
+    future_mtime_ns = index_path.stat().st_mtime_ns + 10_000_000_000
+    import os as _os
+
+    _os.utime(index_path, ns=(future_mtime_ns, future_mtime_ns))
+    assert list_indexed_artifact_files(artifacts_a, index_path=index_path) == [row_a]
+    assert list_indexed_artifact_files(artifacts_b, index_path=index_path) == [row_b]
+    assert parse_count == 2
+
+
+def test_read_artifact_file_index_returns_defensive_list(tmp_path: Path) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    root = tmp_path / ".sase" / "artifacts"
+    index_path = root / "index.jsonl"
+    source = tmp_path / "report.md"
+    source.write_text("# Report\n", encoding="utf-8")
+    stored = store_explicit_artifact_file(
+        source,
+        artifacts_dir,
+        label="Report",
+        artifact_files_root=root,
+    )
+    explicit_module._artifact_file_index_cache.clear()
+
+    first = read_artifact_file_index(index_path)
+    first.clear()
+
+    assert read_artifact_file_index(index_path) == [stored]
+
+
+def test_artifact_file_index_write_invalidates_cache_when_stat_is_unchanged(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    root = tmp_path / ".sase" / "artifacts"
+    index_path = root / "index.jsonl"
+    source = tmp_path / "report.md"
+    source.write_text("# Report\n", encoding="utf-8")
+    stored = store_explicit_artifact_file(
+        source,
+        artifacts_dir,
+        label="Alpha",
+        artifact_files_root=root,
+    )
+    explicit_module._artifact_file_index_cache.clear()
+    assert read_artifact_file_index(index_path) == [stored]
+
+    cached_stat = index_path.stat()
+    replacement = replace(stored, label="Bravo")
+    write_artifact_file_index_unlocked(index_path, [replacement])
+    assert index_path.stat().st_size == cached_stat.st_size
+    import os as _os
+
+    _os.utime(
+        index_path,
+        ns=(cached_stat.st_atime_ns, cached_stat.st_mtime_ns),
+    )
+
+    assert read_artifact_file_index(index_path) == [replacement]
 
 
 def test_store_explicit_artifact_file_preserves_jsonl_wire_format(

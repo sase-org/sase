@@ -7,6 +7,8 @@ import json
 import os
 import shutil
 import tempfile
+import threading
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,6 +39,14 @@ from sase.core.artifact_file_types import (
     default_artifact_files_index_path,
     default_artifact_files_root,
     infer_artifact_file_kind,
+)
+
+_INDEX_CACHE_MAX_PATHS = 32
+_IndexStat = tuple[int, int]
+_IndexCacheKey = tuple[Path, _IndexStat]
+_artifact_file_index_cache_lock = threading.RLock()
+_artifact_file_index_cache: OrderedDict[_IndexCacheKey, tuple[ArtifactFile, ...]] = (
+    OrderedDict()
 )
 
 
@@ -195,17 +205,32 @@ def store_default_artifact_file(
 def read_artifact_file_index(
     index_path: Path | str | None = None,
 ) -> list[ArtifactFile]:
-    """Read all artifact-file rows from the persistent index."""
+    """Read all artifact-file rows from the persistent index.
 
-    idx = (
-        Path(index_path).expanduser()
-        if index_path
-        else default_artifact_files_index_path()
-    )
+    The parsed rows are cached process-wide by resolved path, mtime, and size so
+    repeated readers share one parse until the file changes. Same-process
+    writers also invalidate explicitly, which keeps write-then-read correct on
+    filesystems whose timestamp granularity does not distinguish the writes.
+    """
+
+    idx = _normalize_index_path(index_path)
     if not idx.exists():
         return []
+    stat = _artifact_file_index_stat(idx)
+    cached = _get_cached_artifact_file_index(idx, stat)
+    if cached is not None:
+        return cached
+
     with artifact_file_index_lock(idx, exclusive=False):
-        return _read_index_unlocked(idx)
+        stat = _artifact_file_index_stat(idx)
+        cached = _get_cached_artifact_file_index(idx, stat)
+        if cached is not None:
+            return cached
+        rows = _read_index_unlocked(idx)
+        _cache_artifact_file_index(idx, stat, rows)
+        # ArtifactFile rows are frozen and treated as immutable; return a new
+        # list so callers cannot corrupt the shared snapshot.
+        return list(rows)
 
 
 def list_indexed_artifact_files(
@@ -371,9 +396,61 @@ def write_artifact_file_index_unlocked(
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp_name, index_path)
+        _invalidate_artifact_file_index_cache(index_path)
     except Exception:
         Path(tmp_name).unlink(missing_ok=True)
         raise
+
+
+def _normalize_index_path(index_path: Path | str | None) -> Path:
+    idx = (
+        Path(index_path).expanduser()
+        if index_path
+        else default_artifact_files_index_path()
+    )
+    return idx.resolve(strict=False)
+
+
+def _artifact_file_index_stat(index_path: Path) -> _IndexStat:
+    try:
+        stat = index_path.stat()
+    except OSError:
+        return (0, 0)
+    return (stat.st_mtime_ns, stat.st_size)
+
+
+def _get_cached_artifact_file_index(
+    index_path: Path,
+    stat: _IndexStat,
+) -> list[ArtifactFile] | None:
+    key = (index_path, stat)
+    with _artifact_file_index_cache_lock:
+        rows = _artifact_file_index_cache.get(key)
+        if rows is None:
+            return None
+        _artifact_file_index_cache.move_to_end(key)
+        return list(rows)
+
+
+def _cache_artifact_file_index(
+    index_path: Path,
+    stat: _IndexStat,
+    rows: list[ArtifactFile],
+) -> None:
+    key = (index_path, stat)
+    with _artifact_file_index_cache_lock:
+        _artifact_file_index_cache[key] = tuple(rows)
+        _artifact_file_index_cache.move_to_end(key)
+        while len(_artifact_file_index_cache) > _INDEX_CACHE_MAX_PATHS:
+            _artifact_file_index_cache.popitem(last=False)
+
+
+def _invalidate_artifact_file_index_cache(index_path: Path) -> None:
+    resolved = index_path.expanduser().resolve(strict=False)
+    with _artifact_file_index_cache_lock:
+        for key in tuple(_artifact_file_index_cache):
+            if key[0] == resolved:
+                del _artifact_file_index_cache[key]
 
 
 @contextmanager

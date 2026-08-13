@@ -86,6 +86,7 @@ def _write_jsonl(path: Path, events: list[SkillUseEvent]) -> None:
 def _clear_cache() -> None:
     skill_uses_module._skill_uses_cache.clear()
     skill_uses_module._skill_uses_context_cache.clear()
+    skill_uses_module._skill_uses_snapshot_cache.clear()
 
 
 @pytest.fixture
@@ -274,14 +275,116 @@ def test_cache_invalidates_on_mtime_change(fake_project: Path, tmp_path: Path) -
 
     _os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
 
-    for entry in skill_uses_module._skill_uses_cache.values():
-        entry.last_read_monotonic = 0.0
+    for cache in (
+        skill_uses_module._skill_uses_cache,
+        skill_uses_module._skill_uses_snapshot_cache,
+    ):
+        for entry in cache.values():
+            entry.last_read_monotonic = 0.0
 
     second = _load_skill_uses_for_agent(agent)
     assert [event.skill_name for event in second] == [
         "sase_questions",
         "sase_plan",
     ]
+
+
+def test_snapshot_cache_parses_once_for_distinct_agents_and_revalidates(
+    fake_project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_a = tmp_path / "artifacts" / "agent_a"
+    artifacts_b = tmp_path / "artifacts" / "agent_b"
+    artifacts_a.mkdir(parents=True)
+    artifacts_b.mkdir(parents=True)
+    log_path = skill_use_log_path("skill-uses-test")
+
+    events = [
+        _make_event(
+            skill_name="sase_plan",
+            timestamp="2026-06-14T10:00:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_a),
+            use_id="alpha-use",
+        ),
+        _make_event(
+            skill_name="sase_questions",
+            timestamp="2026-06-14T10:01:00+00:00",
+            agent_name="beta",
+            artifacts_dir=str(artifacts_b),
+            use_id="beta-use",
+        ),
+    ]
+    _write_jsonl(log_path, events)
+    parsed_events = list(events)
+    parse_count = 0
+
+    def fake_read_skill_use_events(
+        *,
+        project: str | None = None,
+        log_path: Path | None = None,
+    ) -> tuple[SkillUseEvent, ...]:
+        nonlocal parse_count
+        assert project == "skill-uses-test"
+        assert log_path is None
+        parse_count += 1
+        return tuple(parsed_events)
+
+    monkeypatch.setattr(
+        skill_uses_module,
+        "read_skill_use_events",
+        fake_read_skill_use_events,
+    )
+
+    agent_a = _make_agent(
+        artifacts_dir=artifacts_a,
+        agent_name="alpha",
+        workspace_dir=fake_project,
+    )
+    agent_b = _make_agent(
+        artifacts_dir=artifacts_b,
+        agent_name="beta",
+        workspace_dir=fake_project,
+        raw_suffix="20260614-100001",
+    )
+
+    assert [
+        item.event.skill_name for item in load_skill_uses_for_agent_context(agent_a)
+    ] == ["sase_plan"]
+    assert [
+        item.event.skill_name for item in load_skill_uses_for_agent_context(agent_b)
+    ] == ["sase_questions"]
+    assert parse_count == 1
+
+    parsed_events.append(
+        _make_event(
+            skill_name="sase_memory_read",
+            timestamp="2026-06-14T10:10:00+00:00",
+            agent_name="alpha",
+            artifacts_dir=str(artifacts_a),
+            use_id="alpha-new-use",
+        )
+    )
+    _write_jsonl(log_path, parsed_events)
+    future_mtime_ns = log_path.stat().st_mtime_ns + 10_000_000_000
+    import os as _os
+
+    _os.utime(log_path, ns=(future_mtime_ns, future_mtime_ns))
+    for cache in (
+        skill_uses_module._skill_uses_cache,
+        skill_uses_module._skill_uses_snapshot_cache,
+    ):
+        for entry in cache.values():
+            entry.last_read_monotonic = 0.0
+
+    assert [
+        item.event.skill_name for item in load_skill_uses_for_agent_context(agent_a)
+    ] == ["sase_memory_read", "sase_plan"]
+    assert [
+        item.event.skill_name for item in load_skill_uses_for_agent_context(agent_b)
+    ] == ["sase_questions"]
+    assert parse_count == 2
 
 
 def test_context_single_agent_has_no_labels(fake_project: Path, tmp_path: Path) -> None:

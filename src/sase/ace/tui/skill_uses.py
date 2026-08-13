@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from sase.skills.use_log import (
 
 MAX_KEPT_SKILL_USES = 50
 _MIN_REREAD_INTERVAL_S = 0.5
+_MAX_SNAPSHOT_CACHE_PROJECTS = 8
+_LogStat = tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,7 @@ class SkillUseDisplayEvent:
 class _SkillUsesCacheEntry:
     events: tuple[SkillUseEvent, ...]
     log_mtime_ns: int
+    log_size: int
     last_read_monotonic: float
 
 
@@ -43,6 +47,15 @@ class _SkillUsesCacheEntry:
 class _SkillUsesContextCacheEntry:
     events: tuple[SkillUseDisplayEvent, ...]
     log_mtime_ns: int
+    log_size: int
+    last_read_monotonic: float
+
+
+@dataclass
+class _SkillUsesSnapshotCacheEntry:
+    events: tuple[SkillUseEvent, ...]
+    log_mtime_ns: int
+    log_size: int
     last_read_monotonic: float
 
 
@@ -50,6 +63,9 @@ _skill_uses_cache: dict[tuple[str, str], _SkillUsesCacheEntry] = {}
 _skill_uses_context_cache: dict[
     tuple[str, tuple[str, ...]], _SkillUsesContextCacheEntry
 ] = {}
+_skill_uses_snapshot_cache: OrderedDict[str, _SkillUsesSnapshotCacheEntry] = (
+    OrderedDict()
+)
 
 
 def _project_name_for_agent(agent: Agent) -> str | None:
@@ -111,6 +127,52 @@ def _stat_mtime_ns(path: Path) -> int:
         return 0
 
 
+def _stat_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _log_stat(path: Path) -> _LogStat:
+    return (_stat_mtime_ns(path), _stat_size(path))
+
+
+def _cache_entry_stat(
+    entry: _SkillUsesCacheEntry | _SkillUsesContextCacheEntry,
+) -> _LogStat:
+    return (entry.log_mtime_ns, entry.log_size)
+
+
+def _load_skill_use_events_snapshot(
+    project: str,
+    *,
+    log_path: Path,
+    now: float,
+    current_stat: _LogStat,
+) -> tuple[tuple[SkillUseEvent, ...], _LogStat]:
+    cached = _skill_uses_snapshot_cache.get(project)
+    if cached is not None:
+        cached_stat = (cached.log_mtime_ns, cached.log_size)
+        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
+        if recent or current_stat == cached_stat:
+            _skill_uses_snapshot_cache.move_to_end(project)
+            return cached.events, cached_stat
+
+    events = read_skill_use_events(project=project)
+    entry = _SkillUsesSnapshotCacheEntry(
+        events=events,
+        log_mtime_ns=current_stat[0],
+        log_size=current_stat[1],
+        last_read_monotonic=now,
+    )
+    _skill_uses_snapshot_cache[project] = entry
+    _skill_uses_snapshot_cache.move_to_end(project)
+    while len(_skill_uses_snapshot_cache) > _MAX_SNAPSHOT_CACHE_PROJECTS:
+        _skill_uses_snapshot_cache.popitem(last=False)
+    return events, current_stat
+
+
 def _load_skill_uses_for_agent(
     agent: Agent, *, limit: int = MAX_KEPT_SKILL_USES
 ) -> tuple[SkillUseEvent, ...]:
@@ -127,20 +189,26 @@ def _load_skill_uses_for_agent(
     now = time.monotonic()
     key = _cache_key(project, agent)
     cached = _skill_uses_cache.get(key)
-    current_mtime = _stat_mtime_ns(log_path)
+    current_stat = _log_stat(log_path)
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_mtime == cached.log_mtime_ns:
+        if recent or current_stat == _cache_entry_stat(cached):
             return cached.events[:limit]
 
-    all_events = read_skill_use_events(project=project)
+    all_events, snapshot_stat = _load_skill_use_events_snapshot(
+        project,
+        log_path=log_path,
+        now=now,
+        current_stat=current_stat,
+    )
     filtered = _filter_events_for_agent(all_events, agent)
     ordered = tuple(sorted(filtered, key=lambda event: event.timestamp, reverse=True))
     capped = ordered[:MAX_KEPT_SKILL_USES]
     _skill_uses_cache[key] = _SkillUsesCacheEntry(
         events=capped,
-        log_mtime_ns=current_mtime,
+        log_mtime_ns=snapshot_stat[0],
+        log_size=snapshot_stat[1],
         last_read_monotonic=now,
     )
     return capped[:limit]
@@ -177,14 +245,19 @@ def load_skill_uses_for_agent_context(
     now = time.monotonic()
     key = (project, context_cache_key(members))
     cached = _skill_uses_context_cache.get(key)
-    current_mtime = _stat_mtime_ns(log_path)
+    current_stat = _log_stat(log_path)
 
     if cached is not None:
         recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
-        if recent or current_mtime == cached.log_mtime_ns:
+        if recent or current_stat == _cache_entry_stat(cached):
             return cached.events[:limit]
 
-    all_events = read_skill_use_events(project=project)
+    all_events, snapshot_stat = _load_skill_use_events_snapshot(
+        project,
+        log_path=log_path,
+        now=now,
+        current_stat=current_stat,
+    )
     matched: list[SkillUseDisplayEvent] = []
     seen_ids: set[str] = set()
     for event in all_events:
@@ -206,7 +279,8 @@ def load_skill_uses_for_agent_context(
     capped = ordered[:MAX_KEPT_SKILL_USES]
     _skill_uses_context_cache[key] = _SkillUsesContextCacheEntry(
         events=capped,
-        log_mtime_ns=current_mtime,
+        log_mtime_ns=snapshot_stat[0],
+        log_size=snapshot_stat[1],
         last_read_monotonic=now,
     )
     return capped[:limit]
