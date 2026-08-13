@@ -70,6 +70,32 @@ def test_memory_loader_creates_namespaced_no_arg_xprompt(
     assert glossary.source_path == str(project / "sase" / "memory" / "glossary.md")
 
 
+def test_memory_loader_collapses_block_description(
+    tmp_path: Path,
+    home_root: Path,
+) -> None:
+    project = tmp_path / "repo"
+    _write(
+        project / "sase" / "memory" / "glossary.md",
+        "---\n"
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: |-\n"
+        "  Lead.\n"
+        "\n"
+        "  - One\n"
+        "\n"
+        "  Trailer.\n"
+        "---\n"
+        "\n"
+        "# Glossary\n",
+    )
+
+    xprompts = load_memory_xprompts(project_root=project, home_root=home_root)
+
+    assert xprompts["memory/glossary"].description == "Lead. - One Trailer."
+
+
 def test_project_memory_shadows_home_memory(
     tmp_path: Path,
     home_root: Path,

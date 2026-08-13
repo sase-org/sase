@@ -17,6 +17,7 @@ from sase.memory.notes import (
     GeneratedLongMemoryNote,
     MemoryNote,
     apply_memory_frontmatter,
+    collapse_description,
     discover_memory_notes,
     parse_memory_note_text,
 )
@@ -294,7 +295,7 @@ def _discover_memory_readme_notes(
 
 
 def _note_description(note: MemoryNote) -> str:
-    return note.description or "No description set."
+    return collapse_description(note.description) or "No description set."
 
 
 def _note_type(note: MemoryNote) -> str:

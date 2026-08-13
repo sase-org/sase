@@ -7,6 +7,8 @@ import subprocess
 
 import pytest
 
+from sase.amd._agents_doc import parse_amd_agents_document
+from sase.amd._memory import _existing_agents_long_descriptions
 from sase.amd.constants import PROVIDER_SHIM_FILES
 from tests.main.init_memory_handler_helpers import (
     long_note,
@@ -230,6 +232,82 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
     plan = plan_memory()
     assert plan.blockers == ()
     assert plan.actions == ()
+
+
+def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "block.md",
+        "---\n"
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: |-\n"
+        "  Lead paragraph.\n"
+        "\n"
+        "  - One\n"
+        "  - Two\n"
+        "\n"
+        "  Trailer.\n"
+        "---\n"
+        "# Block\n",
+    )
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert (
+        "**`sase/memory/block.md`**  \nLead paragraph.\n\n- One\n- Two\n\nTrailer.\n"
+    ) in agents
+    parsed = parse_amd_agents_document(agents)
+    block_entry = next(
+        entry
+        for entry in parsed.long_memory_entries
+        if entry.path == "sase/memory/block.md"
+    )
+    assert block_entry.description == "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
+    assert plan_memory().actions == ()
+
+
+def test_existing_agents_long_descriptions_preserves_legacy_block_descriptions(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write(
+        root / "AGENTS.md",
+        "# Legacy\n\n"
+        "**`memory/block.md`**  \n"
+        "Lead paragraph.\n"
+        "\n"
+        "- One\n"
+        "\n"
+        "Trailer. _Read when touching block memory._\n"
+        "\n"
+        "**`memory/next.md`**  \n"
+        "Next description.\n",
+    )
+
+    assert _existing_agents_long_descriptions(root) == {
+        "sase/memory/block.md": "Lead paragraph.\n\n- One\n\nTrailer.",
+        "sase/memory/next.md": "Next description.",
+    }
 
 
 def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempotent(

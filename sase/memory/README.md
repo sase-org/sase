@@ -26,7 +26,9 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - `parent`: `AGENTS.md` for top-level notes, or `sase/memory/<note>.md` when a long note
   belongs under another long note.
 - `description`: required for long notes and used in generated agent instructions and
-  this README.
+  this README. Long-note descriptions may be Markdown blocks authored as YAML literal
+  block scalars; Tier 2 entries render those blocks verbatim, while single-line surfaces
+  collapse them.
 
 ### Linking
 
@@ -103,16 +105,16 @@ always-loaded notes from detailed reference notes that agents read only when rel
 
 - Type: `long`
 - Description: Read this note before relying on any of these SASE glossary terms and
-  aliases - Agent Clan; Agent Family; Agent Hood (aka hood, agent neighborhood); Agent
-  Lane; Agent Instruction File (aka agents.md file); Agent Neighbor; Agent Tribe;
-  Artifact Reference (aka ref); Patch; Sase Project (aka project); Sase Repo (aka repo);
-  Sase Workspace (aka workspace); Stitch; Xprompt; Xprompt Memory (aka memory file);
-  Xprompt Part; Xprompt Swarm; Xprompt Workflow. Read it with
+  aliases: - Agent Clan - Agent Family - Agent Hood (aka hood, agent neighborhood) -
+  Agent Lane - Agent Instruction File (aka agents.md file) - Agent Neighbor - Agent
+  Tribe - Artifact Reference (aka ref) - Patch - Sase Project (aka project) - Sase Repo
+  (aka repo) - Sase Workspace (aka workspace) - Stitch - Xprompt - Xprompt Memory (aka
+  memory file) - Xprompt Part - Xprompt Swarm - Xprompt Workflow Read it with
   `sase memory read glossary.md` whenever one of those terms or aliases appears in a
   prompt, bead, plan, or code comment and you are not certain what it means in SASE.
 - Parent: `AGENTS.md`
-- Lines: 162
-- Approx. tokens: 1796
+- Lines: 176
+- Approx. tokens: 1808
 
 ### `sase/memory/sase_beads.md`
 
@@ -167,8 +169,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 12
 - Short notes: 4
 - Long notes: 8
-- Total lines: 914
-- Total approx. tokens: 11488
+- Total lines: 928
+- Total approx. tokens: 11500
 
 ## Commands
 

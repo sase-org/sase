@@ -22,7 +22,9 @@ reference notes that agents read only when relevant.
 
 - `type`: `short` for always-loaded notes or `long` for read-on-demand reference notes.
 - `parent`: `AGENTS.md` for top-level notes, or `sase/memory/<note>.md` when a long note belongs under another long note.
-- `description`: required for long notes and used in generated agent instructions and this README.
+- `description`: required for long notes and used in generated agent instructions and this README. Long-note
+  descriptions may be Markdown blocks authored as YAML literal block scalars; Tier 2 entries render those blocks
+  verbatim, while single-line surfaces collapse them.
 
 ### Linking
 

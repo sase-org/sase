@@ -6,7 +6,9 @@ from sase.memory.notes import (
     AGENTS_PARENT,
     MemoryNote,
     _children_of,
+    _prettier_stable_frontmatter,
     apply_memory_frontmatter,
+    collapse_description,
     discover_memory_notes,
     parse_memory_note_text,
     render_children_section,
@@ -70,8 +72,63 @@ def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None
     assert note.type_source == "frontmatter"
     assert note.parent == "sase/memory/hub.md"
     assert note.parent_source == "frontmatter"
-    assert note.description == "Child note details."
+    assert note.description == "Child note\ndetails."
     assert note.body == "# Child\n"
+
+
+def test_multiline_description_round_trips_as_literal_block() -> None:
+    description = "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
+
+    content = apply_memory_frontmatter(
+        "# Body\n",
+        note_type="long",
+        parent=AGENTS_PARENT,
+        description=description,
+    )
+
+    assert (
+        "description: |-\n  Lead paragraph.\n\n  - One\n  - Two\n\n  Trailer.\n"
+    ) in content
+    note = parse_memory_note_text(content, "sase/memory/block.md")
+    assert note.description == description
+    assert (
+        apply_memory_frontmatter(
+            content,
+            note_type="long",
+            parent=AGENTS_PARENT,
+            description=note.description,
+        )
+        == content
+    )
+
+
+def test_multiline_description_with_frontmatter_marker_collapses_safely() -> None:
+    content = apply_memory_frontmatter(
+        "# Body\n",
+        note_type="long",
+        parent=AGENTS_PARENT,
+        description="Lead.\n---\nTrailer.",
+    )
+
+    assert "description: Lead. --- Trailer.\n" in content
+    assert "description: |" not in content
+    note = parse_memory_note_text(content, "sase/memory/unsafe.md")
+    assert note.description == "Lead. --- Trailer."
+
+
+def test_collapse_description_flattens_block_to_one_line() -> None:
+    assert (
+        collapse_description("Lead.\n\n- One\n  wrapped\n\nTrailer.")
+        == "Lead. - One wrapped Trailer."
+    )
+    assert collapse_description(None) is None
+    assert collapse_description(" \n\t ") is None
+
+
+def test_prettier_stable_frontmatter_leaves_literal_block_scalar_untouched() -> None:
+    dumped = "type: long\nparent: AGENTS.md\ndescription: |-\n  Lead.\n\n  - One\n"
+
+    assert _prettier_stable_frontmatter(dumped) == dumped.rstrip("\n")
 
 
 def test_apply_memory_frontmatter_drops_keywords_and_preserves_other_extra() -> None:

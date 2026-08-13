@@ -8,7 +8,7 @@ import pytest
 
 from sase.amd.constants import PROVIDER_SHIM_FILES
 from sase.main.init_memory.formatting import format_generated_memory_markdown
-from sase.memory.notes import parse_memory_note_text
+from sase.memory.notes import apply_memory_frontmatter, parse_memory_note_text
 from tests.main.init_memory_handler_helpers import (
     patch_standard_paths,
     plan_memory,
@@ -183,14 +183,30 @@ memory:
     glossary_note = parse_memory_note_text(glossary_text, "sase/memory/glossary.md")
     description = glossary_note.description
     assert description is not None
-    assert "Agent Clan (aka hood, agent neighborhood)" in description
-    assert "Artifact Reference (aka ref)" in description
+    lead = (
+        "Read this note before relying on any of these SASE glossary terms and aliases:"
+    )
+    trailer = (
+        "Read it with `sase memory read glossary.md` whenever one of those terms "
+        "or aliases appears in a prompt, bead, plan, or code comment and you are "
+        "not certain what it means in SASE."
+    )
+    assert description.startswith(f"{lead}\n\n")
+    assert "\n- Agent Clan (aka hood, agent neighborhood)\n" in description
+    assert "\n- Artifact Reference (aka ref)\n" in description
     assert "artifact references" not in description
-    assert "`sase memory read glossary.md`" in description
-    assert ": " not in description
-    assert "#" not in description
+    assert description.endswith(trailer)
     assert "\t" not in description
     assert format_generated_memory_markdown(glossary_text) == glossary_text
+    assert (
+        apply_memory_frontmatter(
+            glossary_text,
+            note_type="long",
+            parent=glossary_note.parent,
+            description=description,
+        )
+        == glossary_text
+    )
 
 
 def test_memory_apply_generates_glossary_idempotently_and_copies_provider_shims(

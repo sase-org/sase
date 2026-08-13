@@ -12,6 +12,7 @@ from sase.content_layout import (
     memory_reference_name,
     resolve_memory_file_sources,
 )
+from sase.memory.notes import collapse_description
 
 from .discovery_order import RANK_MEMORY_BASE, merge_by_discovery_order, source_rank
 from .load_issues import record_load_issue
@@ -118,7 +119,7 @@ def _memory_note_to_xprompt(
         content=note.body,
         inputs=[],
         source_path=str(source_path),
-        description=note.description,
+        description=collapse_description(note.description),
         memory_type=memory_type,
     )
 

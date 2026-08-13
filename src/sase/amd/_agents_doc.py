@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 import re
 
@@ -31,6 +32,7 @@ _SHORT_MEMORY_HEADER_RE = re.compile(r"^### (?:.* )?\((?P<name>[A-Za-z0-9_.-]+)\
 _LONG_MEMORY_ENTRY_RE = re.compile(
     r"^\*\*`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
 )
+_LEGACY_READ_WHEN_SUFFIX_RE = re.compile(r"\s+_Read when\b.*?_$")
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,40 @@ class _AmdAgentsDocument:
 
 def _normalized_line(line: str) -> str:
     return " ".join(line.strip().split())
+
+
+def _normalized_description_lines(lines: Iterable[str]) -> str:
+    normalized_lines = [_normalized_line(line) for line in lines]
+    while normalized_lines and not normalized_lines[0]:
+        normalized_lines.pop(0)
+    while normalized_lines and not normalized_lines[-1]:
+        normalized_lines.pop()
+    if not normalized_lines:
+        return ""
+
+    collapsed_lines: list[str] = []
+    previous_blank = False
+    for line in normalized_lines:
+        if not line:
+            if previous_blank:
+                continue
+            previous_blank = True
+        else:
+            previous_blank = False
+        collapsed_lines.append(line)
+    return "\n".join(collapsed_lines)
+
+
+def normalize_long_memory_description_lines(lines: Iterable[str]) -> str:
+    """Normalize an AGENTS.md long-memory description without flattening it."""
+    normalized = _normalized_description_lines(lines)
+    if not normalized:
+        return ""
+    description_lines = normalized.splitlines()
+    description_lines[-1] = _LEGACY_READ_WHEN_SUFFIX_RE.sub(
+        "", description_lines[-1]
+    ).strip()
+    return _normalized_description_lines(description_lines)
 
 
 def _is_legacy_amd_comment(line: str) -> bool:
@@ -105,9 +141,7 @@ def _short_memory_paths(
 
 
 def _description_text(lines: list[str]) -> str:
-    body = " ".join(line.strip() for line in lines)
-    body = " ".join(body.split())
-    return re.sub(r"\s+_Read when\b.*?_$", "", body).strip()
+    return normalize_long_memory_description_lines(lines)
 
 
 def _long_memory_entries(
@@ -141,8 +175,6 @@ def _long_memory_entries(
             if _is_legacy_amd_comment(candidate):
                 index += 1
                 continue
-            if not candidate.strip():
-                break
             if _LONG_MEMORY_ENTRY_RE.match(candidate.strip()) is not None:
                 break
             description_lines.append(candidate)
@@ -179,5 +211,6 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
 
 
 __all__ = [
+    "normalize_long_memory_description_lines",
     "parse_amd_agents_document",
 ]

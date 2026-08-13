@@ -34,6 +34,10 @@ _NON_EXTENSION_FRONTMATTER_KEYS = (
 _YAML_WIDTH = 1_000_000
 
 
+class _MemoryFrontmatterDumper(yaml.SafeDumper):
+    """YAML dumper for canonical memory-note frontmatter."""
+
+
 @dataclass(frozen=True)
 class MemoryNote:
     """One markdown memory note rooted under a repository or home directory."""
@@ -120,11 +124,43 @@ def _normalized_scalar(value: Any) -> str | None:
     return normalized or None
 
 
+def _normalized_description(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+
+    normalized_lines = [" ".join(line.split()) for line in value.splitlines()]
+    while normalized_lines and not normalized_lines[0]:
+        normalized_lines.pop(0)
+    while normalized_lines and not normalized_lines[-1]:
+        normalized_lines.pop()
+    if not normalized_lines:
+        return None
+
+    collapsed_lines: list[str] = []
+    previous_blank = False
+    for line in normalized_lines:
+        if not line:
+            if previous_blank:
+                continue
+            previous_blank = True
+        else:
+            previous_blank = False
+        collapsed_lines.append(line)
+    return "\n".join(collapsed_lines)
+
+
 def _normalized_path_scalar(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
     normalized = value.strip().replace("\\", "/")
     return normalized or None
+
+
+def collapse_description(description: str | None) -> str | None:
+    """Return a one-line description for compact display surfaces."""
+    if description is None:
+        return None
+    return _normalized_scalar(description)
 
 
 def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
@@ -155,7 +191,7 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
         parent = AGENTS_PARENT
         parent_source = "missing"
 
-    description = _normalized_scalar(frontmatter.get("description"))
+    description = _normalized_description(frontmatter.get("description"))
 
     return MemoryNote(
         path=relative_path,
@@ -230,7 +266,13 @@ def _render_memory_frontmatter(
         "parent": parent.strip().replace("\\", "/"),
     }
     if description is not None:
-        data["description"] = " ".join(description.split())
+        normalized_description = _normalized_description(description)
+        if normalized_description is not None:
+            if "\n" in normalized_description and not _block_safe_literal_scalar(
+                normalized_description
+            ):
+                normalized_description = collapse_description(normalized_description)
+            data["description"] = normalized_description
     if extra is not None:
         for key, value in extra.items():
             if key not in _NON_EXTENSION_FRONTMATTER_KEYS:
@@ -238,8 +280,9 @@ def _render_memory_frontmatter(
 
     dumped = cast(
         str,
-        yaml.safe_dump(
+        yaml.dump(
             data,
+            Dumper=_MemoryFrontmatterDumper,
             allow_unicode=True,
             default_flow_style=False,
             sort_keys=False,
@@ -256,6 +299,9 @@ def _prettier_stable_frontmatter(dumped: str) -> str:
     # prose width, so wrapped `description:` frontmatter survives
     # `fmt-md-check`. Resolved here rather than at import time so the value
     # follows `markdown.print_width`.
+    # Literal block scalars pass through untouched: the `description: |-`
+    # header is short enough to skip wrapping, and indented block-body lines
+    # are not treated as YAML sequence items.
     frontmatter_wrap_width = markdown_print_width()
     lines: list[str] = []
     in_sequence = False
@@ -288,6 +334,26 @@ def _prettier_stable_frontmatter(dumped: str) -> str:
 
 def _can_wrap_plain_description(value: str) -> bool:
     return ": " not in value and "#" not in value and "\t" not in value
+
+
+def _block_safe_literal_scalar(value: str) -> bool:
+    for line in value.splitlines():
+        if line != line.rstrip():
+            return False
+        if line.strip() in {"---", "..."}:
+            return False
+    return True
+
+
+def _memory_frontmatter_str_representer(
+    dumper: _MemoryFrontmatterDumper,
+    value: str,
+) -> yaml.nodes.ScalarNode:
+    style = "|" if "\n" in value and _block_safe_literal_scalar(value) else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
+
+
+_MemoryFrontmatterDumper.add_representer(str, _memory_frontmatter_str_representer)
 
 
 def apply_memory_frontmatter(
@@ -393,6 +459,7 @@ __all__ = [
     "MemoryNoteTypeSource",
     "README_FILENAME",
     "apply_memory_frontmatter",
+    "collapse_description",
     "discover_memory_notes",
     "parse_memory_note_text",
     "render_children_section",

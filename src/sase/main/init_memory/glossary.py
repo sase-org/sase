@@ -179,21 +179,26 @@ def _render_glossary_memory(catalog: GlossaryCatalog) -> GeneratedGlossaryMemory
 
 
 def _glossary_memory_description(catalog: GlossaryCatalog) -> str:
-    items: list[str] = []
+    lines = [
+        "Read this note before relying on any of these SASE glossary terms and aliases:",
+        "",
+    ]
     for entry in catalog.entries:
         term = md_escape(entry.term)
-        if not entry.display_aliases:
-            items.append(term)
-            continue
-        aliases = ", ".join(md_escape(alias) for alias in entry.display_aliases)
-        items.append(f"{term} (aka {aliases})")
-    indexed_terms = "; ".join(items)
-    return (
-        "Read this note before relying on any of these SASE glossary terms and "
-        f"aliases - {indexed_terms}. Read it with `sase memory read glossary.md` "
-        "whenever one of those terms or aliases appears in a prompt, bead, plan, "
-        "or code comment and you are not certain what it means in SASE."
+        suffix = ""
+        if entry.display_aliases:
+            aliases = ", ".join(md_escape(alias) for alias in entry.display_aliases)
+            suffix = f" (aka {aliases})"
+        lines.append(f"- {term}{suffix}")
+    lines.extend(
+        [
+            "",
+            "Read it with `sase memory read glossary.md` whenever one of those terms "
+            "or aliases appears in a prompt, bead, plan, or code comment and you are "
+            "not certain what it means in SASE.",
+        ]
     )
+    return "\n".join(lines)
 
 
 def _path_component(value: Any) -> str:

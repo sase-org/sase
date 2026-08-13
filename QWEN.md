@@ -189,14 +189,30 @@ source templates in the `src/sase/xprompts/skills/` and deployed to managed loca
 (my chezmoi repo, for example).
 
 **`sase/memory/glossary.md`**  
-Read this note before relying on any of these SASE glossary terms and aliases - Agent
-Clan; Agent Family; Agent Hood (aka hood, agent neighborhood); Agent Lane; Agent
-Instruction File (aka agents.md file); Agent Neighbor; Agent Tribe; Artifact Reference
-(aka ref); Patch; Sase Project (aka project); Sase Repo (aka repo); Sase Workspace (aka
-workspace); Stitch; Xprompt; Xprompt Memory (aka memory file); Xprompt Part; Xprompt
-Swarm; Xprompt Workflow. Read it with `sase memory read glossary.md` whenever one of
-those terms or aliases appears in a prompt, bead, plan, or code comment and you are not
-certain what it means in SASE.
+Read this note before relying on any of these SASE glossary terms and aliases:
+
+- Agent Clan
+- Agent Family
+- Agent Hood (aka hood, agent neighborhood)
+- Agent Lane
+- Agent Instruction File (aka agents.md file)
+- Agent Neighbor
+- Agent Tribe
+- Artifact Reference (aka ref)
+- Patch
+- Sase Project (aka project)
+- Sase Repo (aka repo)
+- Sase Workspace (aka workspace)
+- Stitch
+- Xprompt
+- Xprompt Memory (aka memory file)
+- Xprompt Part
+- Xprompt Swarm
+- Xprompt Workflow
+
+Read it with `sase memory read glossary.md` whenever one of those terms or aliases
+appears in a prompt, bead, plan, or code comment and you are not certain what it means
+in SASE.
 
 **`sase/memory/sase_beads.md`**  
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,

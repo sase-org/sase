@@ -7,7 +7,10 @@ from dataclasses import replace
 from pathlib import Path
 import re
 
-from ._agents_doc import parse_amd_agents_document
+from ._agents_doc import (
+    normalize_long_memory_description_lines,
+    parse_amd_agents_document,
+)
 from ._config import resolve_amd_h1_title
 from ._shared import (
     AmdLongMemoryDescriptionUpdate,
@@ -31,7 +34,8 @@ from sase.memory.paths import (
 )
 
 _AGENTS_LONG_MEMORY_RE = re.compile(
-    r"^\*\*`(?P<path>(?:sase/)?memory/[^`]+\.md)`\*\*[ \t]*\n(?P<body>.*?)(?=\n\n|\Z)",
+    r"^\*\*`(?P<path>(?:sase/)?memory/[^`]+\.md)`\*\*[ \t]*\n"
+    r"(?P<body>.*?)(?=^\*\*`(?:sase/)?memory/[^`]+\.md`\*\*|^##\s+|\Z)",
     re.MULTILINE | re.DOTALL,
 )
 
@@ -53,9 +57,7 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
 
     descriptions: dict[str, str] = {}
     for match in _AGENTS_LONG_MEMORY_RE.finditer(text):
-        body = " ".join(line.strip() for line in match.group("body").splitlines())
-        body = " ".join(body.split())
-        body = re.sub(r"\s+_Read when\b.*?_$", "", body).strip()
+        body = normalize_long_memory_description_lines(match.group("body").splitlines())
         if body:
             descriptions[canonical_memory_reference(match.group("path")).as_posix()] = (
                 body

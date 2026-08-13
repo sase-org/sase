@@ -33,6 +33,35 @@ def test_amd_parser_normalizes_legacy_memory_references() -> None:
     )
 
 
+def test_amd_parser_preserves_block_long_memory_descriptions() -> None:
+    parsed = parse_amd_agents_document(
+        "## Tier 1 (short-term) Memory\n\n"
+        "### 1. SASE (sase)\n\n"
+        "## Tier 2 (long-term) Memory\n\n"
+        "**`sase/memory/block.md`**  \n"
+        "Lead paragraph.\n"
+        "\n"
+        "- One\n"
+        "- Two\n"
+        "\n"
+        "Trailer. _Read when touching block memory._\n"
+        "\n"
+        "**`sase/memory/next.md`**  \n"
+        "Next description.\n"
+        "\n"
+        "## Other\n"
+    )
+
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/block.md",
+        "sase/memory/next.md",
+    )
+    assert parsed.long_memory_entries[0].description == (
+        "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
+    )
+    assert parsed.long_memory_entries[1].description == "Next description."
+
+
 def _managed_template(marker: str) -> str:
     return f"""# {{{{ title }}}}
 
