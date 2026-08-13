@@ -27,6 +27,7 @@ from ._artifact_state import (
     artifact_succeeded_for_identity,
     done_outcome_from_data,
     family_base_from_meta,
+    monitor_followup_handoff_agent,
 )
 from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
@@ -268,6 +269,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             archived_completion=archived_completion,
             outcome=outcome,
             has_done_marker=has_done_marker,
+            monitor_followup_agent=monitor_followup_handoff_agent(meta, done_data),
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact

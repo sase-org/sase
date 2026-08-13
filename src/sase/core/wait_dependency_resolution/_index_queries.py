@@ -88,22 +88,38 @@ class WaitDependencyIndexQueries:
         if roots:
             root = max(roots, key=lambda candidate: candidate.timestamp)
             generation = tuple(self._family_generation(family_agents, root))
+            effective_generation = self._family_members_after_monitor_handoffs(
+                generation
+            )
+            handoffs_present = self._family_monitor_handoffs_have_successors(generation)
             newest_timestamp = max(
                 (candidate.timestamp for candidate in generation),
                 default=root.timestamp,
             )
             return _WaitEntity(
                 timestamp=newest_timestamp,
-                is_resolved=all(candidate.is_resolved for candidate in generation),
-                is_done=any(candidate.is_done for candidate in generation),
-                members=generation,
+                is_resolved=(
+                    handoffs_present
+                    and all(candidate.is_resolved for candidate in effective_generation)
+                ),
+                is_done=any(candidate.is_done for candidate in effective_generation),
+                members=effective_generation,
             )
 
+        effective_family_agents = self._family_members_after_monitor_handoffs(
+            tuple(family_agents)
+        )
+        handoffs_present = self._family_monitor_handoffs_have_successors(
+            tuple(family_agents)
+        )
         return _WaitEntity(
             timestamp=max(candidate.timestamp for candidate in family_agents),
-            is_resolved=all(candidate.is_resolved for candidate in family_agents),
-            is_done=any(candidate.is_done for candidate in family_agents),
-            members=tuple(family_agents),
+            is_resolved=(
+                handoffs_present
+                and all(candidate.is_resolved for candidate in effective_family_agents)
+            ),
+            is_done=any(candidate.is_done for candidate in effective_family_agents),
+            members=effective_family_agents,
         )
 
     def _workflow_entity(
@@ -318,15 +334,24 @@ class WaitDependencyIndexQueries:
         generation = self._family_generation(family_agents, root)
         if not generation:
             return None
+        effective_generation = self._family_members_after_monitor_handoffs(
+            tuple(generation)
+        )
+        handoffs_present = self._family_monitor_handoffs_have_successors(
+            tuple(generation)
+        )
         newest_timestamp = max(candidate.timestamp for candidate in generation)
         return FamilyCandidate(
             timestamp=newest_timestamp,
-            is_resolved=all(candidate.is_resolved for candidate in generation),
-            is_done=any(candidate.is_done for candidate in generation),
-            is_identity_success=any(
-                candidate.is_identity_success for candidate in generation
+            is_resolved=(
+                handoffs_present
+                and all(candidate.is_resolved for candidate in effective_generation)
             ),
-            is_failed=any(candidate.is_failed for candidate in generation),
+            is_done=any(candidate.is_done for candidate in effective_generation),
+            is_identity_success=any(
+                candidate.is_identity_success for candidate in effective_generation
+            ),
+            is_failed=any(candidate.is_failed for candidate in effective_generation),
         )
 
     def workflow_candidate(
@@ -370,6 +395,28 @@ class WaitDependencyIndexQueries:
                 candidate for candidate in remaining if candidate not in attached
             ]
         return generation
+
+    @staticmethod
+    def _family_members_after_monitor_handoffs(
+        candidates: tuple[ArtifactCandidate, ...],
+    ) -> tuple[ArtifactCandidate, ...]:
+        names_in_generation = {candidate.name for candidate in candidates}
+        return tuple(
+            candidate
+            for candidate in candidates
+            if candidate.monitor_followup_agent not in names_in_generation
+        )
+
+    @staticmethod
+    def _family_monitor_handoffs_have_successors(
+        candidates: tuple[ArtifactCandidate, ...],
+    ) -> bool:
+        names_in_generation = {candidate.name for candidate in candidates}
+        return all(
+            candidate.monitor_followup_agent is None
+            or candidate.monitor_followup_agent in names_in_generation
+            for candidate in candidates
+        )
 
     @staticmethod
     def _aggregate_candidates(

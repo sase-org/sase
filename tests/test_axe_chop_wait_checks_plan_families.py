@@ -41,6 +41,83 @@ def _write_waiting_marker(
     )
 
 
+def _write_monitor_handoff(
+    artifact_dir: Path,
+    *,
+    followup_outcome: str = "launched",
+    followup_agent: str = "monitor-lane--1",
+) -> None:
+    meta_path = artifact_dir / "agent_meta.json"
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    meta.update(
+        {
+            "monitor_state": "timeout",
+            "monitor_followup_outcome": followup_outcome,
+            "monitor_followup_agent": followup_agent,
+        }
+    )
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    (artifact_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "outcome": "monitored",
+                "monitor_state": "timeout",
+                "monitor_followup_outcome": followup_outcome,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _monitor_handoff_wait_fixture(
+    tmp_path: Path,
+    *,
+    followup_outcome: str = "launched",
+    successor_outcome: str | None | bool = "completed",
+) -> Path:
+    waiter_dir = make_waiting_agent(tmp_path, "monitor-lane")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813085800",
+        "monitor-lane--plan",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090000",
+        "monitor-lane--mon",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--mon",
+        parent_timestamp=root_dir.name,
+    )
+    _write_monitor_handoff(
+        monitor_dir,
+        followup_outcome=followup_outcome,
+        followup_agent="monitor-lane--1",
+    )
+    if successor_outcome is not None:
+        make_agent(
+            tmp_path,
+            "proj",
+            "20260813090100",
+            "monitor-lane--1",
+            workflow_name="monitor-lane",
+            agent_family="monitor-lane",
+            role_suffix="--1",
+            parent_timestamp=root_dir.name,
+            done=isinstance(successor_outcome, str),
+            outcome=successor_outcome if isinstance(successor_outcome, str) else None,
+        )
+    return waiter_dir
+
+
 def test_successful_plan_family_dependency_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -149,6 +226,39 @@ def test_running_monitor_member_keeps_plan_family_waiting(
         agent_family="monitor-lane",
         role_suffix="--mon",
         parent_timestamp=root_dir.name,
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
+@pytest.mark.parametrize("followup_outcome", ["launched", "launched-degraded"])
+def test_wait_checks_monitor_handoff_successor_releases_plan_family(
+    tmp_path: Path,
+    monkeypatch,
+    followup_outcome: str,
+) -> None:
+    waiter_dir = _monitor_handoff_wait_fixture(
+        tmp_path,
+        followup_outcome=followup_outcome,
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["monitor-lane"]}
+
+
+@pytest.mark.parametrize("successor_outcome", [None, False, "failed"])
+def test_wait_checks_monitor_handoff_waits_for_unresolved_successor(
+    tmp_path: Path,
+    monkeypatch,
+    successor_outcome: str | None | bool,
+) -> None:
+    waiter_dir = _monitor_handoff_wait_fixture(
+        tmp_path,
+        successor_outcome=successor_outcome,
     )
 
     run_wait_checks(tmp_path, monkeypatch)

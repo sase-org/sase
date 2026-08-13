@@ -19,7 +19,12 @@ from ._types import (
     HANDOFF_TERMINAL_STEP_STATUSES,
     IDENTITY_SUCCESS_OUTCOMES,
     SUCCESS_OUTCOME,
+    SUCCESSFUL_MONITOR_FOLLOWUP_OUTCOMES,
     WAIT_SUCCESS_OUTCOMES,
+)
+
+_TERMINAL_MONITOR_STATES = frozenset(
+    {"completed", "failed", "timeout", "stopped", "lost"}
 )
 
 
@@ -32,6 +37,35 @@ def done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     if done_data is None:
         return None
     return effective_done_outcome(done_data)
+
+
+def monitor_followup_handoff_agent(
+    meta: Mapping[str, Any],
+    done_data: Mapping[str, Any] | None,
+) -> str | None:
+    if done_data is None or done_data.get("outcome") != "monitored":
+        return None
+
+    monitor_state = done_data.get("monitor_state") or meta.get("monitor_state")
+    if (
+        not isinstance(monitor_state, str)
+        or monitor_state not in _TERMINAL_MONITOR_STATES
+    ):
+        return None
+
+    followup_outcome = done_data.get("monitor_followup_outcome") or meta.get(
+        "monitor_followup_outcome"
+    )
+    if followup_outcome not in SUCCESSFUL_MONITOR_FOLLOWUP_OUTCOMES:
+        return None
+
+    followup_agent = done_data.get("monitor_followup_agent") or meta.get(
+        "monitor_followup_agent"
+    )
+    if not isinstance(followup_agent, str):
+        return None
+    followup_agent = followup_agent.strip()
+    return followup_agent or None
 
 
 def artifact_failed_for_identity(done_data: Mapping[str, Any] | None) -> bool:
