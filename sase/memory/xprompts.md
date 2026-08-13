@@ -36,16 +36,19 @@ grammar.
 | ------------------------ | ------ | ------------------------------------------------------------------------------------- |
 | `%model:<m>`             | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")` |
 | `%effort:<lvl>`          | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                              |
-| `%name:<n>`              | `%n`   | Agent name; bare auto-name; `%n(parent, suffix)` plan-family child                    |
+| `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(parent, suffix)` plan-family child                     |
 | `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                    |
 | `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                  |
 | `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                      |
 | `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                |
-| `%tribe:<name>`          | `%t`   | User-managed tribe, displayed with an `@` prefix                                      |
 | `%hide`                  | `%h`   | Hidden row                                                                            |
 | `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                |
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
+
+Assign a tribe with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named agent,
+`%id(<id>, tribe=<tribe>)` for an explicitly named agent, or
+`%clan(<clan>, tribe=<tribe>)` for a clan.
 
 ## Define
 

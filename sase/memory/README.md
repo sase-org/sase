@@ -111,8 +111,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
   `sase memory read glossary.md` whenever one of those terms or aliases appears in a
   prompt, bead, plan, or code comment and you are not certain what it means in SASE.
 - Parent: `AGENTS.md`
-- Lines: 160
-- Approx. tokens: 1751
+- Lines: 162
+- Approx. tokens: 1796
 
 ### `sase/memory/sase_beads.md`
 
@@ -159,16 +159,16 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
 - Parent: `AGENTS.md`
-- Lines: 95
-- Approx. tokens: 1393
+- Lines: 98
+- Approx. tokens: 1409
 
 ## Statistics
 
 - Total notes: 12
 - Short notes: 4
 - Long notes: 8
-- Total lines: 909
-- Total approx. tokens: 11427
+- Total lines: 914
+- Total approx. tokens: 11488
 
 ## Commands
 

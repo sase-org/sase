@@ -24,9 +24,9 @@ the clan name is reserved and is never itself an agent.
 ## Agent Family
 
 An agent family is a strictly sequential chain whose members use `<family>--<suffix>`
-names. The first `%n(parent, suffix)` attachment renames the original agent with its own
-suffix and reserves the bare family name as a pure container, so a family always has at
-least two members.
+names. The first `%id(parent, suffix)` attachment renames the original agent with its
+own suffix and reserves the bare family name as a pure container, so a family always has
+at least two members.
 
 ## Agent Hood
 
@@ -70,8 +70,10 @@ because they are all in the same `foo` agent hood.
 ## Agent Tribe
 
 An agent tribe is a user-facing label for related agents across clans and families.
-Tribes are assigned with `%tribe:<name>` (alias `%t`), managed with `sase agent tribe`,
-and displayed with an `@` prefix.
+Assign a tribe at launch with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named
+agent, `%id(<id>, tribe=<tribe>)` for an explicitly named agent, or
+`%clan(<clan>, tribe=<tribe>)` for a clan. Tribes can also be managed after launch with
+`sase agent tribe` and are displayed with an `@` prefix.
 
 ## Artifact Reference
 
