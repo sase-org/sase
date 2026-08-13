@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from textual import events
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import Input, Label, OptionList, Static
 
@@ -42,9 +43,22 @@ class WaitModal(WaitModalCompletionScreen):
         ("up", "prev_candidate", "Previous"),
         ("ctrl+n", "next_candidate", "Next"),
         ("ctrl+p", "prev_candidate", "Previous"),
+        Binding("ctrl+j", "next_field", "Next Field", priority=True),
+        Binding("ctrl+k", "prev_field", "Prev Field", priority=True),
     ]
 
     _TIME_CLASSES = ("wait-time-neutral", "wait-time-valid", "wait-time-error")
+    _FIELD_INPUT_IDS = (
+        "agents-input",
+        "beads-input",
+        "time-input",
+        "runners-input",
+        "priority-input",
+    )
+    _COMPLETION_OWNER_IDS = {
+        "agent-completion": "agents-input",
+        "bead-completion": "beads-input",
+    }
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -217,10 +231,42 @@ class WaitModal(WaitModalCompletionScreen):
         if option_list.option_count:
             option_list.action_cursor_up()
 
+    def action_next_field(self) -> None:
+        """Focus the next wait form field."""
+        self._focus_field_by_offset(1)
+
+    def action_prev_field(self) -> None:
+        """Focus the previous wait form field."""
+        self._focus_field_by_offset(-1)
+
+    def _focus_field_by_offset(self, offset: int) -> None:
+        """Focus a wait field by offset from the currently focused field."""
+        focused_index = self._focused_field_index()
+        if focused_index is None:
+            target_index = 0 if offset > 0 else len(self._FIELD_INPUT_IDS) - 1
+        else:
+            target_index = (focused_index + offset) % len(self._FIELD_INPUT_IDS)
+        target_input = self.query_one(
+            f"#{self._FIELD_INPUT_IDS[target_index]}",
+            WaitInput,
+        )
+        target_input.focus()
+        target_input.cursor_position = len(target_input.value)
+
+    def _focused_field_index(self) -> int | None:
+        """Return the field-ring index for the currently focused widget."""
+        focused = self.focused
+        focused_id = focused.id if focused is not None else None
+        if focused_id in self._COMPLETION_OWNER_IDS:
+            focused_id = self._COMPLETION_OWNER_IDS[focused_id]
+        if focused_id in self._FIELD_INPUT_IDS:
+            return self._FIELD_INPUT_IDS.index(focused_id)
+        return None
+
     def _footer_text(self) -> str:
         if self._bead_guard_armed:
             return "enter again to wait on unverified beads | esc cancel"
-        footer = "enter apply | tab complete | ^r run now | esc cancel"
+        footer = "enter apply | tab complete | ^j/^k field | ^r run now | esc cancel"
         if self._is_running:
             footer = f"{footer} | active agents restart"
         return footer

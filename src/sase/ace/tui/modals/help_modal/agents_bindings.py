@@ -364,6 +364,16 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Wait Modal",
+            [
+                ("Ctrl-J / Ctrl-K", "Next / prev field, wraps"),
+                ("Ctrl-N / Ctrl-P", "Next / prev completion row"),
+                ("Tab", "Accept completion / next field"),
+                ("Ctrl-R", "Run now"),
+                ("Enter", "Apply wait spec"),
+            ],
+        ),
+        (
             "Agent Query Syntax",
             [
                 ("status:VAL", "Substring on status (e.g. queued)"),

@@ -356,3 +356,103 @@ async def test_modal_tab_falls_through_to_focus_next_without_highlight() -> None
         await pilot.pause()
 
         assert not agents_input.has_focus
+
+
+async def test_modal_ctrl_j_moves_from_agents_to_beads_input() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = WaitModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        agents_input = modal.query_one("#agents-input", Input)
+        beads_input = modal.query_one("#beads-input", Input)
+        assert agents_input.has_focus
+
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+
+        assert beads_input.has_focus
+
+
+async def test_modal_ctrl_j_wraps_from_priority_to_agents_input() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = WaitModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        agents_input = modal.query_one("#agents-input", Input)
+        priority_input = modal.query_one("#priority-input", Input)
+        priority_input.focus()
+        await pilot.pause()
+
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+
+        assert agents_input.has_focus
+
+
+async def test_modal_ctrl_k_wraps_from_agents_to_priority_input() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = WaitModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        priority_input = modal.query_one("#priority-input", Input)
+        assert modal.query_one("#agents-input", Input).has_focus
+
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+
+        assert priority_input.has_focus
+
+
+async def test_modal_ctrl_k_does_not_delete_focused_input_text() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = WaitModal()
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        agents_input = modal.query_one("#agents-input", Input)
+        priority_input = modal.query_one("#priority-input", Input)
+        agents_input.value = "planner"
+        agents_input.cursor_position = 3
+        await pilot.pause()
+
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+
+        assert priority_input.has_focus
+        assert agents_input.value == "planner"
+
+
+async def test_modal_ctrl_j_from_agent_completion_moves_to_beads_input() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = WaitModal(candidates=[_candidate("planner")])
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-completion", OptionList)
+        beads_input = modal.query_one("#beads-input", Input)
+        option_list.focus()
+        await pilot.pause()
+
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+
+        assert beads_input.has_focus
+
+
+async def test_modal_field_navigation_places_cursor_at_end() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = WaitModal(current_wait_priority=20)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        priority_input = modal.query_one("#priority-input", Input)
+        assert priority_input.value == "20"
+
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+
+        assert priority_input.has_focus
+        assert priority_input.cursor_position == len(priority_input.value)
