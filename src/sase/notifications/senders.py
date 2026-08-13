@@ -69,39 +69,6 @@ def notify_workflow_complete(
     append_notification(n)
 
 
-def notify_monitor_followup_dropped(
-    cl_name: str | None,
-    monitor_id: str,
-    followup_error: str,
-) -> str:
-    """Send a durable alarm when a monitor's ``--next`` action did not launch.
-
-    A dropped follow-up strands a lane — the composed instruction (which may
-    be an entire remaining plan) is not running anywhere. This is raised as
-    its own alarm-tagged notification, separate from the routine
-    workflow-complete note, so it survives being read past as "just another
-    finished monitor".
-    """
-    notification_id = str(uuid4())
-    headline = "Monitor follow-up did not launch"
-    if cl_name:
-        headline = f"{headline} ({humanize_cl_name(cl_name)})"
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="monitor",
-        icon="⚠",
-        notes=[
-            headline,
-            followup_error,
-            f"inspect with `sase monitor show {monitor_id} --all-lines`",
-        ],
-        tags=normalize_notification_tags(["monitor", "error"]),
-    )
-    append_notification(n)
-    return notification_id
-
-
 def notify_sync_result(
     status: str,
     cl_name: str,

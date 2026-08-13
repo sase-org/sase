@@ -27,7 +27,6 @@ from .models import MonitorRecord, MonitorState
 from .output import OutputCapture
 from .settlement import (
     finalize_monitor_workflow_state,
-    notify_monitor_complete,
     settle_claim_and_followup,
     touch_monitor_refresh_pulse,
 )
@@ -193,12 +192,6 @@ def _reconcile_dead_supervisor_locked(
     write_done_marker_and_update_index(record.artifacts_dir, done_marker)
     finalize_monitor_workflow_state(record.artifacts_dir)
     touch_monitor_refresh_pulse(record.project_name)
-    notify_monitor_complete(
-        meta,
-        monitor_state=monitor_state,
-        stop_status=stop_status,
-        followup_error=followup_error,
-    )
     current = get_monitor(record.project_name, record.artifacts_dir)
     return current if current is not None else record
 

@@ -26,6 +26,7 @@ from sase.monitor.store import (
     resolve_monitor_ref,
     stop_monitor,
 )
+from sase.notifications.store import load_notifications
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import (
@@ -376,6 +377,9 @@ def test_dead_supervisor_reconciliation_kills_tree_releases_claim_and_settles(
         log_text = (Path(monitor_dir) / "live_reply.md").read_text()
         assert "before crash" in log_text
         assert "monitor supervisor died without reporting" in log_text
+        # Dead-supervisor reconciliation is notification-neutral: the
+        # failure is discoverable via done.json/agent_meta.json above only.
+        assert load_notifications() == []
         child.wait(timeout=5)
         _wait_for_process_group_gone(child.pid)
     finally:
@@ -563,6 +567,9 @@ def test_pre_reboot_monitor_reconciles_to_lost_without_followup_or_signal(
     assert done["monitor_state"] == "lost"
     assert done["monitor_followup_error"] == LOST_FOLLOWUP_ERROR
     assert get_claimed_workspaces(project_file) == []
+    # A pre-reboot dropped follow-up remains diagnosable via done.json
+    # above -- reconciliation must not also raise an alarm notification.
+    assert load_notifications() == []
 
 
 def test_list_monitors_reconciles_dead_supervisors(

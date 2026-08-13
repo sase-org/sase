@@ -37,7 +37,6 @@ from .models import MonitorState
 from .output import OutputCapture
 from .settlement import (
     finalize_monitor_workflow_state,
-    notify_monitor_complete,
     project_name_from_artifacts_dir,
     settle_claim_and_followup,
     touch_monitor_refresh_pulse,
@@ -466,12 +465,6 @@ def _finish_monitor(
     finalize_monitor_workflow_state(artifacts_dir)
 
     touch_monitor_refresh_pulse(project_name)
-    notify_monitor_complete(
-        meta,
-        monitor_state=monitor_state,
-        stop_status=stop_status,
-        followup_error=followup_error,
-    )
 
 
 def _read_meta(artifacts_dir: str) -> dict[str, Any]:

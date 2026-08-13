@@ -17,6 +17,7 @@ from sase.ace.hooks.processes import is_process_running
 from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.supervise import run_supervisor
 from sase.monitor.transaction import MONITOR_GO_MARKER
+from sase.notifications.store import load_notifications
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -119,6 +120,9 @@ def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
 
     # No next action: the claim taken in _make_member is released.
     assert get_claimed_workspaces(project_file) == []
+    # Monitor settlement is notification-neutral: terminal state lives in
+    # agent_meta.json/done.json only, not as a routine notification row.
+    assert load_notifications() == []
 
 
 def test_run_supervisor_records_project_file_and_finalizes_workflow_state(
@@ -318,6 +322,9 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
     assert done["monitor_followup_error"] == "boom"
     # A failed follow-up launch must not leave the workspace claimed forever.
     assert get_claimed_workspaces(project_file) == []
+    # A dropped follow-up remains diagnosable via done.json/agent_meta.json
+    # fields above -- it must not also raise an alarm notification.
+    assert load_notifications() == []
 
 
 def test_run_supervisor_release_matches_only_monitor_workflow(tmp_path: Path) -> None:

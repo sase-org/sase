@@ -268,7 +268,7 @@ def send_completion_notification(
     from sase.agent.bead_display import format_agent_bead_display_for_name
     from sase.llm_provider.registry import format_provider_model_label
 
-    if outcome == "plan_rejected":
+    if outcome in {"plan_rejected", "monitored"}:
         return
 
     extra_files = [p for p in [saved_path, diff_path] if p]
