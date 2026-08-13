@@ -828,9 +828,9 @@ axe:
 
 llm_provider:
   # Registered provider to use. One of: claude, codex, qwen, opencode, agy,
-  # muse, fakey. Empty auto-detects by plugin-declared priority; `muse`
-  # declares no priority and is only ever selected by naming it here, by
-  # %model:muse/<model>, or via SASE_MUSE_PATH.
+  # grok, muse, fakey. Empty auto-detects by plugin-declared priority; `grok`
+  # and `muse` declare no priority and are only ever selected by naming them
+  # here, by %model:<provider>/<model>, or via SASE_<PROVIDER>_PATH.
   provider: ""
   # Default reasoning-effort level for agent launches that don't request one
   # via %effort or a %model:<model>@<effort> suffix. Empty means no override.

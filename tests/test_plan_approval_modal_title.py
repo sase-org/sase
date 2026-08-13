@@ -42,6 +42,13 @@ def test_badge_markup_agy_uses_antigravity_indigo() -> None:
     assert "#6E5DE7" in markup
 
 
+def test_badge_markup_grok_uses_cyan_theme() -> None:
+    markup = _provider_badge_markup("grok", "grok-4.6")
+    assert "GROK" in markup
+    assert "grok-4.6" in markup
+    assert "#00C8D7" in markup
+
+
 def test_badge_markup_unknown_provider_falls_back_to_plain_label() -> None:
     markup = _provider_badge_markup("mystery", "x1")
     assert "MYSTERY" in markup

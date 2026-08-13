@@ -140,6 +140,13 @@ class TestAgentListProviderEmojiBadges:
 
         assert left.plain.startswith("[a] [✓] [agent] 🐼 qwen-agent")
 
+    def test_root_row_renders_grok_provider_emoji_before_name(self) -> None:
+        agent = make_agent(cl_name="grok-agent", llm_provider="grok")
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "🛰️ grok-agent (RUNNING)" in left.plain
+
     def test_workflow_child_row_renders_codex_provider_emoji_before_name(self) -> None:
         agent = make_agent(
             cl_name="child-agent",

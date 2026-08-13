@@ -14,10 +14,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.tui.provider_styles import provider_emoji_badge
 from sase.ace.tui.thinking.parser import read_codex_thinking
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.grok import GrokProvider
-from sase.llm_provider.registry import resolve_model_provider
+from sase.llm_provider.registry import (
+    provider_cli_status_color_map,
+    resolve_model_provider,
+)
 from sase.llm_provider.types import LLMInvocationError, LLMInvocationOptions
 
 GROK_STREAM_FIXTURES = Path(__file__).parents[1] / "fixtures" / "grok_stream"
@@ -150,6 +154,12 @@ def test_grok_provider_metadata_hooks() -> None:
         "credential_paths": ["~/.grok/auth.json"],
         "api_key_env_vars": ["XAI_API_KEY"],
     }
+
+
+def test_grok_provider_surface_metadata_is_registered() -> None:
+    assert provider_cli_status_color_map()["grok"] == "#00C8D7"
+    assert provider_emoji_badge("grok") == "🛰️"
+    assert provider_emoji_badge("xai") == "🛰️"
 
 
 def test_grok_provider_has_no_autodetect_priority() -> None:

@@ -52,10 +52,16 @@ def test_provider_style_uses_plugin_primary_with_builtin_accents() -> None:
     """Provider palettes should be deterministic and provider-specific."""
     codex = _provider_style_for("codex")
     claude = _provider_style_for("claude")
+    grok = _provider_style_for("grok")
+    xai = _provider_style_for("xai")
     assert codex.name_style == "bold #10A37F"
     assert codex.model_style == "#63D9B6"
     assert claude.name_style == "bold #D97757"
     assert claude.model_style == "#FFAF00"
+    assert grok.name_style == "bold #00C8D7"
+    assert grok.model_style == "#5FE3EF"
+    assert xai.name_style == "bold #00C8D7"
+    assert xai.model_style == "#5FE3EF"
     assert _provider_style_for("mystery").name_style == "bold #AF87D7"
 
 
@@ -71,6 +77,20 @@ def test_model_picker_provider_headers_include_count_and_style() -> None:
     assert "CLAUDE" in claude_header.prompt.plain
     assert "models" in claude_header.prompt.plain
     assert any(span.style == "bold #D97757" for span in claude_header.prompt.spans)
+
+
+def test_model_picker_includes_grok_model_with_cyan_style() -> None:
+    """Grok should render as a first-class provider in the picker."""
+    rows = build_model_rows()
+    row = next(row for row in rows if row.option_id == "grok-4.6")
+    option = rows_to_options([row])[0]
+
+    assert row.provider == "grok"
+    assert row.model_id == "grok-4.6"
+    assert option is not None
+    assert isinstance(option.prompt, Text)
+    assert "grok-4.6" in option.prompt.plain
+    assert any(span.style == "#5FE3EF" for span in option.prompt.spans)
 
 
 def test_model_picker_model_rows_include_alias_as_dim_secondary_text() -> None:

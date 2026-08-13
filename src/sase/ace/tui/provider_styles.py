@@ -59,6 +59,13 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
         secondary_style="#D74F93",
         dim_style="dim #E78FBB",
     ),
+    "grok": _ProviderStyle(
+        name_style="bold #00C8D7",
+        delimiter_style="#00A0AD",
+        model_style="#5FE3EF",
+        secondary_style="#00A0AD",
+        dim_style="dim #7FD4DD",
+    ),
     "openai": _ProviderStyle(
         name_style="bold #10A37F",
         delimiter_style="#0E8F70",
@@ -100,6 +107,13 @@ _PROVIDER_FALLBACK_STYLES: dict[str, _ProviderStyle] = {
         model_style="#4A9DFF",
         secondary_style="#1877F2",
         dim_style="dim #4A9DFF",
+    ),
+    "xai": _ProviderStyle(
+        name_style="bold #00C8D7",
+        delimiter_style="#00A0AD",
+        model_style="#5FE3EF",
+        secondary_style="#00A0AD",
+        dim_style="dim #7FD4DD",
     ),
 }
 
