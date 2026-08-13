@@ -31,6 +31,7 @@ def create_monitor_member(
     stop_status: str,
     timeout_seconds: float,
     tail_lines: int,
+    next_output: str,
     idle_timeout_seconds: float = 0.0,
     starter_agent: str | None = None,
 ) -> str:
@@ -66,6 +67,7 @@ def create_monitor_member(
             "monitor_stop_status": stop_status,
             "monitor_timeout_seconds": timeout_seconds,
             "monitor_tail_lines": tail_lines,
+            "monitor_next_output": next_output,
             "monitor_state": "running",
         }
     )

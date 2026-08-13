@@ -22,6 +22,7 @@ from sase.plan_chain import agent_family_base
 from sase.running_field import claim_workspace, transfer_workspace_claim
 
 from . import naming, store
+from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
 from .member import create_monitor_member
 from .models import (
     MonitorAlreadyRunningError,
@@ -62,6 +63,7 @@ class StartMonitorRequest:
     stop_status: str = DEFAULT_STOP_STATUS
     tail_lines: int = DEFAULT_TAIL_LINES
     idle_timeout_seconds: float = 0.0
+    next_output: str = DEFAULT_NEXT_OUTPUT
     inherit_lane_workspace_claim: bool = True
 
 
@@ -146,6 +148,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         timeout_seconds=request.timeout_seconds,
         tail_lines=request.tail_lines,
         idle_timeout_seconds=request.idle_timeout_seconds,
+        next_output=request.next_output,
         starter_agent=starter_agent,
     )
 
@@ -220,6 +223,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         timeout_seconds=request.timeout_seconds,
         tail_lines=request.tail_lines,
         idle_timeout_seconds=request.idle_timeout_seconds,
+        next_output=request.next_output,
         monitor_state="running",
         next_action=request.next_action or None,
         pid=process.pid,
@@ -342,11 +346,13 @@ def _read_meta(artifacts_dir: str) -> dict[str, Any]:
 
 
 __all__ = [
+    "DEFAULT_NEXT_OUTPUT",
     "DEFAULT_START_STATUS",
     "DEFAULT_STOP_STATUS",
     "DEFAULT_TAIL_LINES",
     "MONITOR_PENDING_MARKER",
     "MONITOR_WORKSPACE_CLAIM_WORKFLOW",
+    "NEXT_OUTPUT_CHOICES",
     "StartMonitorRequest",
     "maybe_handoff_monitor_from_agent",
     "start_monitor",

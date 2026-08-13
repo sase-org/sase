@@ -8,6 +8,10 @@ import argparse
 # building the parser never imports the monitor engine package.
 MONITOR_STATE_CHOICES = ("running", "completed", "failed", "timeout", "stopped")
 
+# Mirrors ``sase.monitor.followup_prompt.NEXT_OUTPUT_CHOICES``, spelled out
+# here for the same reason.
+NEXT_OUTPUT_CHOICES = ("none", "tail", "file")
+
 
 def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register long-running-command monitor family members."""
@@ -236,6 +240,18 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Next action for the follow-up agent; omit for no follow-up",
     )
     start_parser.add_argument(
+        "--next-output",
+        choices=NEXT_OUTPUT_CHOICES,
+        default=None,
+        help=(
+            "How much retained output to hand the follow-up agent: 'tail' "
+            "(default) embeds the last --tail-lines lines fenced as "
+            "untrusted data, 'file' points at the on-disk log path instead, "
+            "'none' gives only the outcome summary and a `sase monitor "
+            "show --all-lines` pointer"
+        ),
+    )
+    start_parser.add_argument(
         "-r",
         "--reason",
         required=True,
@@ -310,4 +326,4 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     supervise_parser.add_argument("--artifacts-dir", required=True)
 
 
-__all__ = ["MONITOR_STATE_CHOICES", "register_monitor_parser"]
+__all__ = ["MONITOR_STATE_CHOICES", "NEXT_OUTPUT_CHOICES", "register_monitor_parser"]

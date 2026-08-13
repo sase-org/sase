@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Literal
 
 from sase.monitor_state import monitor_state_bucket
 
+from .followup_prompt import DEFAULT_NEXT_OUTPUT
+
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
@@ -69,6 +71,7 @@ class MonitorRecord:
     monitor_state: MonitorState
     idle_timeout_seconds: float = 0.0
     next_action: str | None = None
+    next_output: str = DEFAULT_NEXT_OUTPUT
     pid: int | None = None
     exit_code: int | None = None
     elapsed_seconds: float | None = None
@@ -130,6 +133,7 @@ class MonitorRecord:
             monitor_state=monitor_state,
             idle_timeout_seconds=meta.monitor_idle_timeout_seconds or 0.0,
             next_action=meta.monitor_next_action or None,
+            next_output=meta.monitor_next_output or DEFAULT_NEXT_OUTPUT,
             pid=meta.pid,
             exit_code=exit_code,
             elapsed_seconds=elapsed_seconds,

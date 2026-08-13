@@ -31,6 +31,7 @@ from sase.monitor import (
     stop_monitor,
 )
 from sase.monitor.start import (
+    DEFAULT_NEXT_OUTPUT,
     DEFAULT_START_STATUS,
     DEFAULT_STOP_STATUS,
     DEFAULT_TAIL_LINES,
@@ -234,6 +235,7 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         stop_status=stop_status,
         tail_lines=getattr(args, "tail_lines", None) or DEFAULT_TAIL_LINES,
         idle_timeout_seconds=idle_timeout_seconds,
+        next_output=getattr(args, "next_output", None) or DEFAULT_NEXT_OUTPUT,
     )
 
     try:

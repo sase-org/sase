@@ -150,7 +150,11 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     assert captured["workspace_dir"] == str(tmp_path)
     assert captured["workspace_num"] == 3
     assert captured["retry_transfer_from_pid"] == os.getpid()
-    assert captured["prompt"].startswith("#fork:acme--0\n\n")
+    # The starter's routing (set by `make_starter_agent()` above) is carried
+    # onto the follow-up as %model:/%effort: prefix directives.
+    assert captured["prompt"].startswith(
+        "#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n"
+    )
 
     env = captured["extra_env"]
     assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
@@ -196,7 +200,9 @@ def test_launch_followup_agent_omits_the_fork_prefix_when_the_starter_never_sett
 
     assert result is True
     assert "#fork:" not in captured["prompt"]
-    assert captured["prompt"].startswith("# Monitored command finished")
+    # No #fork prefix, but the starter's routing still carries over.
+    assert captured["prompt"].startswith("%model:claude-sonnet-5\n%effort:high\n\n")
+    assert "# Monitored command finished" in captured["prompt"]
 
 
 def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(

@@ -30,7 +30,8 @@ from sase.core.agent_artifact_paths import canonical_agent_artifact_path
 from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 from sase.workflows.utils import get_project_file_path
 
-from .followup_prompt import compose_followup_prompt
+from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
+from .logs import monitor_log_path
 from .output import OutputCapture
 
 #: How long to wait for the starter's own ``done.json`` before composing the
@@ -90,6 +91,10 @@ def launch_followup_agent(
         total_bytes=capture.total_bytes,
         output_truncated=capture.truncated,
         next_action=next_action,
+        next_output=str(meta.get("monitor_next_output") or DEFAULT_NEXT_OUTPUT),
+        output_log_path=str(monitor_log_path(artifacts_dir)),
+        model=_clean_str(meta.get("model")),
+        reasoning_effort=_clean_str(meta.get("reasoning_effort")),
     )
 
     try:
@@ -127,6 +132,10 @@ def launch_followup_agent(
     meta["monitor_followup_agent"] = plan.agent_name
     update_meta_field(artifacts_dir, "monitor_followup_agent", plan.agent_name)
     return True
+
+
+def _clean_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _starter_artifacts_dir(project_name: str, parent_timestamp: object) -> str | None:

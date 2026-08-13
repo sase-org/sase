@@ -112,6 +112,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "timeout_seconds": record.timeout_seconds,
         "idle_timeout_seconds": record.idle_timeout_seconds,
         "tail_lines": record.tail_lines,
+        "next_output": record.next_output,
         "monitor_state": record.monitor_state,
         "status_bucket": monitor_state_bucket(record.monitor_state),
         "is_terminal": record.is_terminal,
