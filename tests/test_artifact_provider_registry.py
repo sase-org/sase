@@ -18,7 +18,7 @@ from sase.artifact_providers.registry import (
 
 @dataclass
 class _Dist:
-    name: str = "sase-research"
+    name: str = "sase-research-artifacts"
     version: str = "1.2.3"
 
     @property
@@ -126,7 +126,7 @@ def test_registry_discovers_ref_providers_with_provenance() -> None:
 
     record = registry.ref_providers_by_id["research"]
     assert record.kind == "research"
-    assert record.provenance.package == "sase-research"
+    assert record.provenance.package == "sase-research-artifacts"
     assert record.provenance.version == "1.2.3"
 
 

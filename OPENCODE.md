@@ -129,12 +129,11 @@ Configured linked and sidecar repositories for this context:
   notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor
   support.
-- `sase-research`: Installable artifact-reference plugin that provides the `@research`
-  document provider, `research-highlights` file-hook template, and `#research*`
-  xprompts; it is not the `sase--research` content sidecar.
-- `sase--research`: Durable SASE research reports and generated media; this is the
-  `sase--research` content sidecar consumed by the `sase-research` plugin, not the
-  plugin repository.
+- `sase-research-artifacts`: Installable artifact-reference plugin that provides the
+  `@research` document provider, `research-highlights` file-hook template, and
+  `#research*` xprompts.
+- `sase--research`: Durable SASE research reports and generated media used by research
+  workflows.
 
 When you need to read or modify files in any repository other than your own workspace
 checkout, agents MUST use your `/sase_repo` skill first. This includes configured linked

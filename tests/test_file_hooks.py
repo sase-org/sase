@@ -88,7 +88,7 @@ def _registry_with_file_hook_provider() -> ArtifactProviderRegistry:
     provenance = ArtifactProviderProvenance(
         group="sase_file_hooks",
         name="research",
-        package="sase-research",
+        package="sase-research-artifacts",
         version="1.0.0",
     )
     return ArtifactProviderRegistry(

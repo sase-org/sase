@@ -44,9 +44,9 @@ Canonical live categories are:
 | `@<document-kind>:<repo-path>` | Document in a configured artifact sidecar, such as `plan` or `research` |
 
 The built-in plans sidecar exposes `@plan:<path>` through `ref: {use: plan}`. The
-`sase-research` plugin exposes `@research:<path>` for the research content sidecar.
-Other artifact sidecars can add their own document kind with an inline `ref:` spec or
-with `ref.use` from an installed provider plugin.
+`sase-research-artifacts` plugin exposes `@research:<path>` for the research content
+sidecar. Other artifact sidecars can add their own document kind with an inline `ref:`
+spec or with `ref.use` from an installed provider plugin.
 
 Compatibility readers preserve older persisted references. `@commit:` canonicalizes to
 `@stitch:` permanently. `@plans:` parses with migration guidance to `@plan:`. Historical

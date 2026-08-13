@@ -162,12 +162,11 @@ repos:
     - name: sase-nvim
       path: ../sase-nvim
       description: Neovim integration plugin for SASE syntax, completion, and editor support.
-    - name: sase-research
-      path: ../sase-research
+    - name: sase-research-artifacts
+      path: ../sase-research-artifacts
       description: >-
         Installable artifact-reference plugin that provides the `@research` document
-        provider, `research-highlights` file-hook template, and `#research*` xprompts;
-        it is not the `sase--research` content sidecar.
+        provider, `research-highlights` file-hook template, and `#research*` xprompts.
   sidecar:
     builtin:
       plans:
@@ -181,8 +180,6 @@ repos:
     custom:
       research:
         description: >-
-          Durable SASE research reports and generated media; this is the
-          `sase--research` content sidecar consumed by the `sase-research` plugin, not
-          the plugin repository.
+          Durable SASE research reports and generated media used by research workflows.
         ref:
           use: research
