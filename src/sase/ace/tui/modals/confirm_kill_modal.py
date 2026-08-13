@@ -47,6 +47,27 @@ class ConfirmKillModal(ConfirmDialog):
         )
 
 
+class ConfirmStopMonitorModal(ConfirmDialog):
+    """Modal for confirming a monitor's supervised command should be stopped."""
+
+    def __init__(self, monitor_description: str) -> None:
+        """Initialize the confirm stop-monitor modal.
+
+        Args:
+            monitor_description: Description of the monitor to stop.
+        """
+        self.monitor_description = monitor_description
+        super().__init__(
+            "Stop Monitor",
+            "Stop this monitored command? No follow-up agent will launch.",
+            subject=monitor_description,
+            kind=ConfirmKind.DANGER,
+            confirm_label="Stop",
+            cancel_label="Keep running",
+            default="cancel",
+        )
+
+
 class ConfirmKillAllModal(ConfirmDialog):
     """Modal for confirming kill & dismiss of all agents (double-confirmation)."""
 
@@ -78,4 +99,9 @@ class ConfirmKillAllModal(ConfirmDialog):
             self.dismiss(True)
 
 
-__all__ = ["ConfirmDismissAllModal", "ConfirmKillAllModal", "ConfirmKillModal"]
+__all__ = [
+    "ConfirmDismissAllModal",
+    "ConfirmKillAllModal",
+    "ConfirmKillModal",
+    "ConfirmStopMonitorModal",
+]

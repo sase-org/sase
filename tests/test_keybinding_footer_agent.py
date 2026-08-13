@@ -409,6 +409,48 @@ def test_keybinding_footer_tmux_choices_label_with_cached_choices() -> None:
     assert "tmux (primary)" in labels
 
 
+def _monitor_agent(*, monitor_state: str = "running") -> Agent:
+    agent = _make_agent(status="MONITORING")
+    agent.agent_family_role = "monitor"
+    agent.role_suffix = "--mon"
+    agent.monitor_id = "m123"
+    agent.monitor_state = monitor_state
+    agent.monitor_command = "just check-full"
+    agent.monitor_label = "just check"
+    assert agent.is_monitor is True
+    return agent
+
+
+def test_keybinding_footer_running_monitor_advertises_stop_monitor() -> None:
+    footer = KeybindingFooter()
+    agent = _monitor_agent(monitor_state="running")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "stop monitor") in bindings
+
+
+def test_keybinding_footer_terminal_monitor_omits_stop_monitor() -> None:
+    footer = KeybindingFooter()
+    agent = _monitor_agent(monitor_state="completed")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert not any(key == "x" for key, _label in bindings)
+
+
+def test_keybinding_footer_running_monitor_omits_agent_only_bindings() -> None:
+    """A monitor has no LLM process, so agent-only actions must not leak in."""
+    footer = KeybindingFooter()
+    agent = _monitor_agent(monitor_state="running")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    labels = [label for _key, label in bindings]
+    assert "retry" not in labels
+    assert "name" not in labels
+
+
 def test_keybinding_footer_artifact_file_viewer_active_advertises_focus_key() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")

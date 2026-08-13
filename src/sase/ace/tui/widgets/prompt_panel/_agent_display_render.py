@@ -274,6 +274,18 @@ class AgentDisplayRenderMixin(
             )
             return
 
+        # A monitor member's work is one supervised OS command, not an LLM
+        # turn — it has no prompt file and its output is not prose.
+        if agent.is_monitor:
+            self._update_monitor_display(
+                agent,
+                header_text,
+                error_tb_syntax,
+                panel_level=lane_fold_level,
+                section_fold_overrides=lane_fold_overrides,
+            )
+            return
+
         # Check if this is a bash/python workflow step - display differently
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
             self._update_bash_python_display(agent, header_text, error_tb_syntax)

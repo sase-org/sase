@@ -87,6 +87,7 @@ from .confirm_rerun_modal import ConfirmRerunModal as ConfirmRerunModal
 from .confirm_revert_agent_modal import (
     ConfirmRevertAgentModal as ConfirmRevertAgentModal,
 )
+from .confirm_kill_modal import ConfirmStopMonitorModal as ConfirmStopMonitorModal
 from .copy_as_types import CopyAsContext as CopyAsContext
 from .copy_as_modal import CopyAsModal as CopyAsModal
 from .copy_as_types import CopyAsRow as CopyAsRow

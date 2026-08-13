@@ -63,6 +63,10 @@ class AgentKillActionFlowMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        if agent.is_monitor:
+            self._handle_monitor_stop_action(agent)  # type: ignore[attr-defined]
+            return
+
         if agent.is_clan_container:
             from ._clan_cleanup import clan_members_for_container
 

@@ -385,6 +385,11 @@ def enrich_agent_from_meta(
         monitor_label=data.get("monitor_label"),
         monitor_start_status=data.get("monitor_start_status"),
         monitor_exit_code=data.get("monitor_exit_code"),
+        monitor_cwd=data.get("monitor_cwd"),
+        monitor_reason=data.get("monitor_reason"),
+        monitor_next_action=data.get("monitor_next_action"),
+        monitor_timeout_seconds=data.get("monitor_timeout_seconds"),
+        monitor_output_truncated=data.get("monitor_output_truncated"),
     )
 
     agent.refresh_raw_presented_agent_name()

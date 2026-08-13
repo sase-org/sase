@@ -38,6 +38,11 @@ def apply_monitor_meta(
     monitor_label: object,
     monitor_start_status: object,
     monitor_exit_code: object,
+    monitor_cwd: object = None,
+    monitor_reason: object = None,
+    monitor_next_action: object = None,
+    monitor_timeout_seconds: object = None,
+    monitor_output_truncated: object = None,
 ) -> None:
     """Apply monitor fields from ``agent_meta.json`` to one row."""
     if not isinstance(monitor_id, str) or not monitor_id:
@@ -51,6 +56,16 @@ def apply_monitor_meta(
     agent.monitor_label = monitor_label if isinstance(monitor_label, str) else None
     if type(monitor_exit_code) is int:
         agent.monitor_exit_code = monitor_exit_code
+    agent.monitor_cwd = monitor_cwd if isinstance(monitor_cwd, str) else None
+    agent.monitor_reason = monitor_reason if isinstance(monitor_reason, str) else None
+    agent.monitor_next_action = (
+        monitor_next_action if isinstance(monitor_next_action, str) else None
+    )
+    if isinstance(monitor_timeout_seconds, (int, float)) and not isinstance(
+        monitor_timeout_seconds, bool
+    ):
+        agent.monitor_timeout_seconds = float(monitor_timeout_seconds)
+    agent.monitor_output_truncated = bool(monitor_output_truncated)
     agent.status_bucket = monitor_state_bucket(state)
     if state == "running" and agent.status != "STARTING":
         agent.status = (

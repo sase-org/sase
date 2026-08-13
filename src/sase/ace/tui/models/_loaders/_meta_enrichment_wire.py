@@ -259,6 +259,11 @@ def enrich_agent_from_meta_wire(
         monitor_label=meta.monitor_label,
         monitor_start_status=meta.monitor_start_status,
         monitor_exit_code=meta.monitor_exit_code,
+        monitor_cwd=meta.monitor_cwd,
+        monitor_reason=meta.monitor_reason,
+        monitor_next_action=meta.monitor_next_action,
+        monitor_timeout_seconds=meta.monitor_timeout_seconds,
+        monitor_output_truncated=meta.monitor_output_truncated,
     )
 
     agent.refresh_raw_presented_agent_name()

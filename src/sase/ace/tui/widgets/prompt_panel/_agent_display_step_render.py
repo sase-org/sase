@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from rich.console import Group
@@ -9,8 +10,11 @@ from rich.syntax import Syntax
 from rich.text import Text
 
 from ...models.agent import Agent
+from ...models.fold_state import FoldLevel
 from ...util.lazy_syntax import lazy_renderable
+from ...util.axe_log_renderer import render_axe_output
 from ._agent_display_header import AgentHeader
+from ._agent_monitor_section import MONITOR_SECTION_ID, build_monitor_section
 from ._helpers import append_section_heading, format_output
 
 
@@ -79,5 +83,52 @@ class AgentStepDisplayMixin:
             renderables.append(output_syntax)
         else:
             renderables.append(Text("No output available.\n", style="dim italic"))
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    def _update_monitor_display(
+        self,
+        agent: Agent,
+        header_text: AgentHeader,
+        error_tb_syntax: Syntax | None = None,
+        *,
+        panel_level: FoldLevel = FoldLevel.COLLAPSED,
+        section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    ) -> None:
+        """Display a monitor member's command detail and captured output.
+
+        ``live_reply.md`` holds a monitored command's raw merged stdout/stderr,
+        not prose, so it is rendered as an ANSI-aware log block instead of the
+        markdown path every other agent reply uses.
+        """
+        overrides = section_fold_overrides or {}
+        section_level = overrides.get(MONITOR_SECTION_ID, panel_level)
+
+        renderables: list[Any] = [header_text]
+        if error_tb_syntax:
+            renderables.append(error_tb_syntax)
+        renderables.extend(build_monitor_section(agent, panel_level=section_level))
+
+        output_header = Text()
+        output_header.append("\n")
+        output_header.append("─" * 50 + "\n", style="dim")
+        output_header.append("\n")
+        append_section_heading(output_header, "OUTPUT")
+
+        output = agent.get_live_reply_content()
+        if output:
+            renderables.append(output_header)
+            if agent.monitor_output_truncated:
+                renderables.append(
+                    Text(
+                        "… output truncated (head + tail retained) …\n",
+                        style="yellow",
+                    )
+                )
+            source_id = f"monitor:{agent.monitor_id or agent.identity}"
+            renderables.append(render_axe_output(source_id, output, "ansi"))
+        else:
+            output_header.append("No output yet.\n", style="dim italic")
+            renderables.append(output_header)
 
         self.update(Group(*renderables))  # type: ignore[attr-defined]

@@ -162,6 +162,11 @@ class AgentState:
     monitor_command: str | None = None
     monitor_label: str | None = None
     monitor_exit_code: int | None = None
+    monitor_cwd: str | None = None
+    monitor_reason: str | None = None
+    monitor_next_action: str | None = None
+    monitor_timeout_seconds: float | None = None
+    monitor_output_truncated: bool = False
 
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None
