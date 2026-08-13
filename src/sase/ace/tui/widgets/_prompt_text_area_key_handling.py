@@ -130,6 +130,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         def _show_insert_g_prefix_hints(self) -> None: ...
         def _show_normal_g_prefix_hints(self) -> None: ...
         def _try_advance_tabstop(self) -> bool: ...
+        def _try_retreat_tabstop(self) -> bool: ...
         def _try_auto_placeholder_completion(self) -> bool: ...
         def _try_expand_snippet(self) -> bool: ...
         def _try_auto_prompt_reference_completion(self) -> bool: ...
@@ -397,9 +398,11 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
 
         # Tab / Shift+Tab in INSERT mode shift a list item while the cursor is
         # in its marker region: ordered items nest to their parent's content
-        # column and renumber, hyphen bullets shift by one indent unit. A queued
-        # snippet tabstop still wins; elsewhere Tab keeps its snippet behavior
-        # and Shift+Tab is a consumed no-op.
+        # column and renumber, hyphen bullets shift by one indent unit. An
+        # active snippet session still wins over dedent; elsewhere Tab keeps
+        # its snippet behavior (expand, else advance) and Shift+Tab retreats
+        # through visited tabstops, staying a consumed no-op with no active
+        # session or at the first stop.
         if event.key in {"tab", "shift+tab"}:
             event.stop()
             event.prevent_default()
@@ -425,6 +428,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                         )
                         return
             if event.key == "shift+tab":
+                self._try_retreat_tabstop()
                 return
             if self._try_expand_snippet():
                 return

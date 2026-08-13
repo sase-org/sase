@@ -452,3 +452,138 @@ class TestTabstopExpansion:
             assert ta.cursor_location == (0, 8)
             assert ta._try_advance_tabstop() is True
             assert ta.cursor_location == (0, 13)
+
+
+class TestBackwardTabstopNavigation:
+    async def test_shift_tab_dispatch_retreats_through_key_handling(self) -> None:
+        """Shift+Tab through the real key-handling path retreats a live session."""
+        app = _SnippetTestApp({"fn": "def $1($2):$0"})
+        async with app.run_test() as pilot:
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fn")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _self: app),
+            ):
+                await pilot.press("tab")
+            assert ta.text == "def ():"
+            assert ta.cursor_location == (0, 4)
+            await pilot.press("tab")
+            assert ta.cursor_location == (0, 5)
+
+            await pilot.press("shift+tab")
+            assert ta.cursor_location == (0, 4)
+            assert ta.snippet_session_active is True
+
+    async def test_retreat_lands_at_end_of_typed_text(self) -> None:
+        """Retreat to an earlier stop lands at the end of what was typed there,
+        per sticky-right anchoring.
+        """
+        app = _SnippetTestApp({"fn": "def $1($2):$0"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fn")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.cursor_location == (0, 4)
+            # Type "main" at $1 through the real edit funnel.
+            ta._replace_via_keyboard("main", (0, 4), (0, 4))
+            assert ta.text == "def main():"
+            assert ta.cursor_location == (0, 8)
+
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 9)
+
+            assert ta._try_retreat_tabstop() is True
+            # Lands at the end of "main", not in front of it.
+            assert ta.cursor_location == (0, 8)
+            assert ta.snippet_session_active is True
+
+    async def test_retreat_crosses_nesting_boundary(self) -> None:
+        """Retreating from an inner snippet's first stop lands on the outer
+        stop that was nested into, remapped by the inner expansion's own
+        edit (sticky-right, same as test_retreat_lands_at_end_of_typed_text),
+        and a following advance returns forward into the inner stops.
+        """
+        app = _SnippetTestApp(
+            {
+                "outer": "foo $1 bar $2 baz $3 buz",
+                "inner": "inner $1 done",
+            }
+        )
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("outer")
+            ta.cursor_location = (0, 5)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "foo  bar  baz  buz"
+            assert ta.cursor_location == (0, 4)
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location == (0, 9)
+
+            ta._replace_via_keyboard("inner", (0, 9), (0, 9))
+            # Typing at the stop pushes it forward with what was typed
+            # (sticky-right), so it now sits at the end of "inner".
+            assert ta.cursor_location == (0, 14)
+            text_before_inner_expand = ta.text
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.text == "foo  bar inner  done baz  buz"
+            inner_expand_delta = len(ta.text) - len(text_before_inner_expand)
+            # The outer stop sat exactly at the inner expansion's edit
+            # boundary, so it shifts by that same sticky-right delta.
+            outer_stop_after_nesting = (0, 14 + inner_expand_delta)
+
+            # Retreating from the inner snippet's first (and only) stop
+            # resumes the outer session at the stop that was nested into.
+            assert ta._try_retreat_tabstop() is True
+            assert ta.cursor_location == outer_stop_after_nesting
+
+            # A following advance returns forward into the inner stops.
+            assert ta._try_advance_tabstop() is True
+            assert ta.cursor_location != outer_stop_after_nesting
+            assert ta.snippet_session_active is True
+
+    async def test_retreat_at_first_stop_is_a_no_op(self) -> None:
+        """Shift+Tab at the first stop stays a consumed no-op."""
+        app = _SnippetTestApp({"fn": "def $1($2):$0"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fn")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+            assert ta.cursor_location == (0, 4)
+            assert ta._try_retreat_tabstop() is False
+            assert ta.cursor_location == (0, 4)
+            assert ta.snippet_session_active is True
+
+    async def test_no_retreat_without_active_session(self) -> None:
+        """_try_retreat_tabstop returns False when no session is active."""
+        ta, expanded = await _setup(
+            snippets={"hello": "Hello World"},
+            text="hello",
+            cursor=(0, 5),
+        )
+        assert expanded is True
+        assert ta._try_retreat_tabstop() is False

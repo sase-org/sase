@@ -13,6 +13,7 @@ from sase.core.snippet_session_facade import (
     empty_snippet_session,
     expand_snippet_session,
     plan_snippet_expansion,
+    retreat_snippet_session,
 )
 
 if TYPE_CHECKING:
@@ -186,6 +187,20 @@ class SnippetExpansionMixin(_MixinBase):
             return False
 
         transition = advance_snippet_session(self._snippet_session)
+        self._snippet_session = transition.state
+        if transition.cursor_offset is None:
+            return False
+
+        self.cursor_location = self._location_from_absolute(transition.cursor_offset)
+        self._try_auto_placeholder_completion()
+        return True
+
+    def _try_retreat_tabstop(self) -> bool:
+        """Retreat to the previous snippet tabstop. Returns True if retreated."""
+        if not self._snippet_session.is_active:
+            return False
+
+        transition = retreat_snippet_session(self._snippet_session)
         self._snippet_session = transition.state
         if transition.cursor_offset is None:
             return False
