@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +25,7 @@ from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     AgentOwnerIdentity,
 )
+from sase.core.time import local_now
 
 
 class _FakeAgentList:
@@ -69,7 +69,7 @@ def _agent(tmp_path: Path, **overrides: Any) -> Agent:
         "cl_name": "sase",
         "project_file": "/tmp/projects/sase/sase.sase",
         "status": "RUNNING",
-        "start_time": datetime(2026, 6, 24, 12, 0, 0),
+        "start_time": local_now(),
         "raw_suffix": "260624_120000",
         "agent_name": "coder",
         "artifacts_dir": artifacts_dir,

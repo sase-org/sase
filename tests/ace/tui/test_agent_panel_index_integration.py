@@ -12,6 +12,7 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panel_index import AgentPanelIndex
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.core.time import local_now
 
 
 def _agent(
@@ -31,7 +32,7 @@ def _agent(
         cl_name="cl",
         project_file="/r/p/p.sase",
         status=status,
-        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        start_time=local_now(),
         agent_name="alpha",
         tribe=tribe,
         raw_suffix=suffix,

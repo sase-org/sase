@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from datetime import datetime
+
+from sase.core.time import local_now
 
 from .agent import Agent
 from ._agent_tree import agent_is_tree_child
@@ -81,8 +84,16 @@ def build_agent_panel_index(
     *,
     dismissable_statuses: Iterable[str],
     merge_tribe_panels: bool = False,
+    now: datetime | None = None,
 ) -> AgentPanelIndex:
-    """Build an :class:`AgentPanelIndex` for ``agents``."""
+    """Build an :class:`AgentPanelIndex` for ``agents``.
+
+    ``now`` is the reference time for the STARTING-row hide grace window
+    (see :func:`agent_is_rendered_in_agents_panel`); it defaults to
+    :func:`~sase.core.time.local_now` and is only overridden by tests that
+    need a deterministic clock.
+    """
+    reference = now if now is not None else local_now()
     keys_per_agent = panel_key_per_agent(agents, merge_tribe_panels=merge_tribe_panels)
     panels: dict[PanelKey, _PanelSlice] = {}
     non_child_indices: list[int] = []
@@ -91,7 +102,7 @@ def build_agent_panel_index(
     completed_identities: set[tuple[object, str, str | None]] = set()
     for i, agent in enumerate(agents):
         key = keys_per_agent[i]
-        if not agent_is_rendered_in_agents_panel(agent):
+        if not agent_is_rendered_in_agents_panel(agent, now=reference):
             if not agent_is_tree_child(agent):
                 hidden_starting_indices.append(i)
             continue

@@ -15,6 +15,7 @@ from sase.ace.tui.models._loaders._workflow_snapshot_loaders import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
+from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.artifact_files import get_artifacts_dir
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -27,6 +28,8 @@ from sase.core.agent_scan_wire import (
     WorkflowStateWire,
 )
 from sase.core.paths import sase_projects_dir
+from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+from tests._agent_loader_helpers import _mock_agent_loader_sources
 
 
 def test_running_monitor_meta_projects_start_label_and_bucket() -> None:
@@ -345,3 +348,88 @@ def test_load_all_agents_settled_monitor_projects_one_resolvable_row() -> None:
     assert agent.status == "MONITORED"
     assert agent.status_bucket == "Done"
     assert get_artifacts_dir(agent) == str(artifact_dir)
+
+
+def test_monitor_claim_workflow_resolves_to_ace_run_artifacts_dir() -> None:
+    """A monitor's workspace-claim row resolves to its member's ace-run dir.
+
+    Regression coverage for the permanent ``1 starting`` phantom: the claim
+    is written with a distinct workflow label
+    (``MONITOR_WORKSPACE_CLAIM_WORKFLOW``) so the starter's runner-exit
+    cleanup cannot release it, but its artifacts live under ``ace-run/``
+    alongside the monitor member it launched. This references the shared
+    constant (not a hardcoded ``"ace-monitor"`` literal) so the loader's
+    mapping and the constant's value can never drift apart.
+    """
+    projects_root = sase_projects_dir()
+    artifact_dir = projects_root / "sase" / "artifacts" / "ace-run" / "20260813153749"
+    artifact_dir.mkdir(parents=True)
+    project_file = str(projects_root / "sase" / "sase.sase")
+
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-row",
+        project_file=project_file,
+        status="STARTING",
+        start_time=datetime(2026, 8, 13, 15, 37, 49),
+        workflow=MONITOR_WORKSPACE_CLAIM_WORKFLOW,
+        raw_suffix="20260813153749",
+    )
+
+    assert get_artifacts_dir(agent) == str(artifact_dir)
+
+
+def test_monitor_workspace_claim_workflow_constant_is_reexported_unchanged() -> None:
+    """``sase.monitor.start`` re-exports the leaf constant, not a copy."""
+    from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW as reexported
+
+    assert reexported is MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+
+def test_load_all_agents_live_monitor_claim_produces_no_phantom_row() -> None:
+    """A live monitor's claim merges into its member row — no second row.
+
+    Before the fix, ``get_artifacts_dir()`` could not resolve the claim's
+    ``ace-monitor`` workflow, so ``enrich_agent_from_meta`` never promoted it
+    off ``STARTING`` and the dedup allow-list never merged it into the
+    member row. That produced a permanently hidden, unkillable extra
+    top-level row that only showed up as a phantom ``1 starting`` count.
+    """
+    project_file = "/tmp/.sase/projects/sase/sase.sase"
+    suffix = "20260813153749"
+
+    claim_row = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="unknown",
+        project_file=project_file,
+        status="STARTING",
+        start_time=None,
+        workflow=MONITOR_WORKSPACE_CLAIM_WORKFLOW,
+        pid=2211985,
+        raw_suffix=suffix,
+    )
+    member_row = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase-l3.1--mon",
+        project_file=project_file,
+        status="MONITORING",
+        start_time=None,
+        raw_suffix=suffix,
+        appears_as_agent=True,
+        pid=1122334,
+    )
+
+    with _mock_agent_loader_sources(
+        running_agents=[claim_row],
+        workflow_agents=[member_row],
+        process_is_running=True,
+    ):
+        agents = load_all_agents()
+
+    assert len(agents) == 1
+    (agent,) = agents
+    assert agent.status == "MONITORING"
+
+    index = build_agent_panel_index(agents, dismissable_statuses={"DONE", "FAILED"})
+    assert index.hidden_starting_indices == []
+    assert index.top_level_total == 1

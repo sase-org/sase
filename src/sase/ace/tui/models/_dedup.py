@@ -33,6 +33,16 @@ def _is_workspace_claim_workflow(workflow: str | None) -> bool:
     return any(workflow.startswith(f"{name}-") for name in get_workflow_names())
 
 
+def _is_monitor_claim_workflow(workflow: str | None) -> bool:
+    """Return whether *workflow* is a monitor's workspace-claim label."""
+    if not workflow:
+        return False
+
+    from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+    return workflow == MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+
 def _have_distinct_artifact_suffixes(first: Agent, second: Agent) -> bool:
     """Return whether both rows identify present, different artifact suffixes."""
     return bool(
@@ -320,6 +330,7 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 agent.workflow.startswith("ace(run)")
                 or agent.workflow == "ace-run"
                 or agent.workflow == "run"
+                or _is_monitor_claim_workflow(agent.workflow)
             )
             and agent.raw_suffix
             and (agent.project_file, agent.raw_suffix) in workflow_by_suffix
@@ -369,8 +380,15 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
             elif matched.status == "FAILED" and agent.status == "RUNNING":
                 matched.status = "RUNNING"
             # Otherwise prefer semantic non-RUNNING statuses (e.g. PLAN,
-            # PLAN APPROVED, WORKING PLAN) over the raw live-process row.
-            elif matched.status == "RUNNING" and agent.status != "RUNNING":
+            # PLAN APPROVED, WORKING PLAN) over the raw live-process row. A
+            # claim row's STARTING is a placeholder meaning "no information
+            # yet", not an observation, so it must never downgrade a status
+            # the artifact record has already observed.
+            elif (
+                matched.status == "RUNNING"
+                and agent.status != "RUNNING"
+                and agent.status != "STARTING"
+            ):
                 matched.status = agent.status
             continue  # Drop the RUNNING entry
         deduped_agents.append(agent)

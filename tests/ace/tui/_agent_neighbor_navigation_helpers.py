@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -15,6 +14,7 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.fold_state import FoldStateManager
+from sase.core.time import local_now
 
 
 class _Debouncer:
@@ -209,7 +209,7 @@ def make_agent(
         cl_name=cl,
         project_file=f"/r/{project}/proj.sase",
         status=status,
-        start_time=datetime(2026, 5, 23, 12, 0, 0),
+        start_time=local_now(),
         raw_suffix=name,
         agent_name=name,
         tribe=tribe,

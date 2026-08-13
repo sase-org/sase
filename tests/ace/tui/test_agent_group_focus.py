@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from types import SimpleNamespace
 
 from sase.ace.tui.actions.agents._group_focus import get_focused_agent_group
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.core.time import local_now
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -17,7 +17,7 @@ def _make_agent(**overrides: object) -> Agent:
         "cl_name": "shared-change",
         "project_file": "/tmp/projects/proj_a/proj_a.sase",
         "status": "RUNNING",
-        "start_time": datetime(2026, 7, 13, 10, 0, 0),
+        "start_time": local_now(),
         "raw_suffix": "20260713100000",
         "pid": 4242,
     }

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from rich.text import Text
@@ -15,6 +14,7 @@ from sase.ace.tui.actions.agents._display_panels import (
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.core.time import local_now
 
 
 class _ListWidget:
@@ -105,7 +105,7 @@ def _agent(
         cl_name="cl",
         project_file="/r/p/p.sase",
         status=status,
-        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        start_time=local_now(),
         agent_name=name,
         tribe=tribe,
         raw_suffix=suffix,

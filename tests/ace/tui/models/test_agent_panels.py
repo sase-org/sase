@@ -12,6 +12,7 @@ from sase.ace.tui.models.agent_panels import (
     effective_tribe_per_agent,
     panel_key_per_agent,
 )
+from sase.core.time import local_now
 
 
 def _agent(
@@ -22,13 +23,14 @@ def _agent(
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
     parent_workflow: str | None = None,
+    start_time: datetime | None = datetime(2026, 4, 25, 12, 0, 0),
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
         project_file="/r/p/p.sase",
         status=status,
-        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        start_time=start_time,
         agent_name=name,
         tribe=tribe,
         raw_suffix=suffix,
@@ -177,9 +179,10 @@ def test_empty_agents_keep_no_tribe_fallback_panel() -> None:
 
 
 def test_starting_only_tribe_assigned_agents_do_not_create_tribe_panels() -> None:
+    now = local_now()
     agents = [
-        _agent(suffix="a", tribe="alpha", status="STARTING"),
-        _agent(suffix="b", tribe="beta", status="STARTING"),
+        _agent(suffix="a", tribe="alpha", status="STARTING", start_time=now),
+        _agent(suffix="b", tribe="beta", status="STARTING", start_time=now),
     ]
 
     group = AgentPanelGroup.from_agents(agents)
@@ -192,7 +195,7 @@ def test_tribe_assigned_rendered_row_with_starting_row_shows_only_tribe_assigned
     None
 ):
     agents = [
-        _agent(suffix="a", tribe="alpha", status="STARTING"),
+        _agent(suffix="a", tribe="alpha", status="STARTING", start_time=local_now()),
         _agent(suffix="b", tribe="beta", status="RUNNING"),
     ]
 
@@ -204,7 +207,7 @@ def test_tribe_assigned_rendered_row_with_starting_row_shows_only_tribe_assigned
 
 def test_rendered_no_tribe_row_with_starting_row_shows_no_tribe_panel() -> None:
     agents = [
-        _agent(suffix="a", tribe="alpha", status="STARTING"),
+        _agent(suffix="a", tribe="alpha", status="STARTING", start_time=local_now()),
         _agent(suffix="b", status="RUNNING"),
     ]
 

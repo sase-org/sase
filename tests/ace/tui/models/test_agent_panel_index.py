@@ -20,6 +20,10 @@ _DISMISSABLE = {
     "EPIC CREATED",
 }
 
+#: A reference time well inside STARTING_ROW_HIDE_GRACE_SECONDS of every
+#: fixture's fixed start_time, so STARTING rows hide deterministically.
+_WITHIN_GRACE_WINDOW = datetime(2026, 4, 25, 12, 0, 30)
+
 
 def _agent(
     *,
@@ -30,13 +34,14 @@ def _agent(
     status: str = "RUNNING",
     raw_suffix: str | None = "20260425143000",
     parent_timestamp: str | None = None,
+    start_time: datetime | None = datetime(2026, 4, 25, 12, 0, 0),
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
         project_file=project_file,
         status=status,
-        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        start_time=start_time,
         agent_name=agent_name,
         tribe=tribe,
         raw_suffix=raw_suffix,
@@ -81,7 +86,11 @@ def test_starting_agents_keep_keys_but_are_hidden_from_panel_slices() -> None:
     a1 = _agent(raw_suffix="B", tribe="alpha")
     a2 = _agent(raw_suffix="C", tribe="alpha", status="STARTING")
     a3 = _agent(raw_suffix="D", tribe="beta")
-    index = build_agent_panel_index([a0, a1, a2, a3], dismissable_statuses=_DISMISSABLE)
+    index = build_agent_panel_index(
+        [a0, a1, a2, a3],
+        dismissable_statuses=_DISMISSABLE,
+        now=_WITHIN_GRACE_WINDOW,
+    )
 
     assert index.keys_per_agent == [None, "alpha", "alpha", "beta"]
     assert index.hidden_starting_indices == [0, 2]
@@ -109,7 +118,9 @@ def test_top_level_total_includes_hidden_starting_but_not_children() -> None:
         raw_suffix=None, status="STARTING", parent_timestamp="parent"
     )
     agents = [parent, starting, child, starting_child]
-    index = build_agent_panel_index(agents, dismissable_statuses=_DISMISSABLE)
+    index = build_agent_panel_index(
+        agents, dismissable_statuses=_DISMISSABLE, now=_WITHIN_GRACE_WINDOW
+    )
 
     assert index.non_child_indices == [0]
     assert index.hidden_starting_indices == [1]
@@ -185,3 +196,38 @@ def test_slice_for_unknown_key_returns_empty_slice() -> None:
     assert empty.agents == []
     assert empty.global_indices == []
     assert empty.global_to_local == {}
+
+
+def test_starting_row_past_grace_window_renders_instead_of_hiding() -> None:
+    """A STARTING row outlives the grace window and must stop being a phantom.
+
+    Regression test for the permanent-``1 starting`` bug: a claim row whose
+    artifacts dir never resolves stays STARTING forever, and unconditionally
+    hiding STARTING rows turned that into an invisible headline count. Once
+    a STARTING row is older than STARTING_ROW_HIDE_GRACE_SECONDS it must
+    render as a normal, selectable row instead — and the headline total
+    (top_level_total) must not change just because the row moved from the
+    hidden bucket to the rendered one.
+    """
+    start = datetime(2026, 4, 25, 12, 0, 0)
+    within_window = _agent(raw_suffix="fresh", status="STARTING", start_time=start)
+    past_window = _agent(raw_suffix="stale", status="STARTING", start_time=start)
+    agents = [within_window, past_window]
+
+    hidden_index = build_agent_panel_index(
+        agents,
+        dismissable_statuses=_DISMISSABLE,
+        now=datetime(2026, 4, 25, 12, 0, 30),
+    )
+    assert hidden_index.hidden_starting_indices == [0, 1]
+    assert hidden_index.non_child_indices == []
+    assert hidden_index.top_level_total == 2
+
+    rendered_index = build_agent_panel_index(
+        agents,
+        dismissable_statuses=_DISMISSABLE,
+        now=datetime(2026, 4, 25, 12, 2, 30),
+    )
+    assert rendered_index.hidden_starting_indices == []
+    assert rendered_index.non_child_indices == [0, 1]
+    assert rendered_index.top_level_total == 2

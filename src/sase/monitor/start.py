@@ -34,6 +34,7 @@ from sase.running_field import (
 from sase.workflows.utils import get_project_file_path
 
 from . import naming, store
+from .claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
 from .identity import process_identity, supervisor_is_alive
 from .member import create_monitor_member
@@ -52,11 +53,6 @@ from .transaction import (
     monitor_started_path,
     write_json_marker_atomic,
 )
-
-#: RUNNING-field workflow label used for a monitor's workspace claim, distinct
-#: from ``"ace-run"`` so the starter's own runner-exit cleanup no longer
-#: matches (and therefore cannot release) the claim once it is transferred.
-MONITOR_WORKSPACE_CLAIM_WORKFLOW = "ace-monitor"
 
 DEFAULT_START_STATUS = "MONITORING"
 DEFAULT_STOP_STATUS = DEFAULT_MONITOR_STOP_STATUS

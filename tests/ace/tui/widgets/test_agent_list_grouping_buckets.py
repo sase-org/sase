@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.core.time import local_now
 from sase.ace.tui.widgets._agent_list_styling import (
     _PATCH_BANNER_BAR_STYLE,
     _PATCH_BANNER_RULE_STYLE,
@@ -130,7 +131,7 @@ def test_by_status_mode_hides_starting_bucket() -> None:
             make_agent(
                 cl_name="starting",
                 status="STARTING",
-                start_time=datetime(2026, 4, 26, 12, 0, 0),
+                start_time=local_now(),
             ),
             make_agent(
                 cl_name="running",
@@ -163,7 +164,9 @@ def test_standard_mode_hides_starting_agent_rows() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="hidden-start", status="STARTING"),
+            make_agent(
+                cl_name="hidden-start", status="STARTING", start_time=local_now()
+            ),
             make_agent(cl_name="visible-run", status="RUNNING"),
         ],
         current_idx=0,

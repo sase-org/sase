@@ -19,6 +19,18 @@ if TYPE_CHECKING:
     from sase.ace.tui.models.agent import Agent
 
 
+def _is_monitor_claim_workflow(workflow: str) -> bool:
+    """Return whether *workflow* is a monitor's workspace-claim label.
+
+    Imported lazily: ``sase.monitor`` initializes the whole monitor
+    supervisor stack, and this module sits on the TUI's hot agent-loader
+    path where most calls never reach this branch.
+    """
+    from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+    return workflow == MONITOR_WORKSPACE_CLAIM_WORKFLOW
+
+
 def get_artifacts_dir(agent: Agent) -> str | None:
     """Get the artifacts directory path for this agent.
 
@@ -63,6 +75,12 @@ def get_artifacts_dir(agent: Agent) -> str | None:
             # VCS workspace claim uses "fix_hook" (from xprompt
             # workflow_label) but artifacts dir is "fix-hook"
             workflow_name = "fix-hook"
+        elif _is_monitor_claim_workflow(workflow):
+            # A monitor's workspace claim uses a distinct workflow label
+            # (see sase.monitor.claims) so the starter's runner-exit cleanup
+            # cannot release it, but its artifacts live alongside the
+            # ordinary ace-run agent it is monitoring.
+            workflow_name = "ace-run"
         else:
             workflow_name = workflow
     elif agent.agent_type == AgentType.WORKFLOW:

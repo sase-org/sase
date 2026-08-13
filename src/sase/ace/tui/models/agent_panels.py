@@ -23,9 +23,11 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
 from sase.core.agent_tribe import RESERVED_DEFAULT_TRIBE
+from sase.core.time import local_now
 
 from .agent import Agent
 from ._agent_tree import (
@@ -39,6 +41,13 @@ if TYPE_CHECKING:
 
 #: Canonical display identity for the reserved fallback tribe.
 DEFAULT_AGENT_TRIBE = RESERVED_DEFAULT_TRIBE
+
+#: How long a claim-sourced STARTING row stays hidden as presumed-transient.
+#: Chosen above the measured p90 launch->run_started_at window (~110s) so
+#: ordinary launches are unaffected; past this, an unresolved STARTING row
+#: is a real defect and must render as a normal, selectable, killable row
+#: instead of a phantom headline count.
+STARTING_ROW_HIDE_GRACE_SECONDS = 120.0
 
 #: Panel key type — ``None`` for ``@default``; a tribe string otherwise.
 PanelKey = str | None
@@ -96,14 +105,29 @@ def _panel_key_for_agent(
     return normalize_panel_key(target.tribe)
 
 
-def _agent_is_starting(agent: Agent) -> bool:
-    """Return whether *agent* is a transient pre-run STARTING row."""
-    return agent.status == "STARTING"
+def _agent_is_starting(agent: Agent, *, now: datetime | None = None) -> bool:
+    """Return whether *agent* is a presumed-transient pre-run STARTING row.
+
+    A claim row seeded with the ``STARTING`` placeholder (see
+    ``_running_loaders.py``) is only presumed transient for
+    ``STARTING_ROW_HIDE_GRACE_SECONDS`` after its ``start_time``. A row with
+    no ``start_time``, or one that has outlived the grace window, is treated
+    as a real (if stuck) row rather than a sub-second transient.
+    """
+    if agent.status != "STARTING":
+        return False
+    if agent.start_time is None:
+        return False
+    reference = now if now is not None else local_now()
+    elapsed = (reference - agent.start_time).total_seconds()
+    return elapsed < STARTING_ROW_HIDE_GRACE_SECONDS
 
 
-def agent_is_rendered_in_agents_panel(agent: Agent) -> bool:
+def agent_is_rendered_in_agents_panel(
+    agent: Agent, *, now: datetime | None = None
+) -> bool:
     """Return whether *agent* should have an Agents-tab row."""
-    return not _agent_is_starting(agent)
+    return not _agent_is_starting(agent, now=now)
 
 
 def panel_keys_for(agents: list[Agent]) -> list[PanelKey]:

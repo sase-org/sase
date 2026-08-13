@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from sase.ace.tui.models._dedup import _merge_agent_fields
+from sase.ace.tui.models._dedup import _merge_agent_fields, dedup_running_vs_workflow
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from tests._agent_loader_helpers import _empty_artifact_snapshot
@@ -472,3 +472,156 @@ def test_mentor_workflow_dedup_with_patch() -> None:
     assert result[0].mentor_profile == "code_quality"
     assert result[0].mentor_name == "quality_mentor"
     assert result[0].hidden is True
+
+
+def test_dedup_running_vs_workflow_starting_claim_never_downgrades_observed_status() -> (
+    None
+):
+    """A claim row's placeholder STARTING must never overwrite an observed status.
+
+    Regression test for the RUNNING/STARTING flap: STARTING on a claim row
+    means "the claim source knows nothing about this agent yet", not an
+    observation, so it must never win over a status the artifact record has
+    already observed. Pre-fix, this merge downgraded the WORKFLOW row's
+    RUNNING status back to STARTING, which also made the row disappear from
+    the panel (STARTING rows are hidden).
+    """
+    project = "/tmp/test.sase"
+    suffix = "20260101120000"
+
+    workflow_running = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_feature",
+        project_file=project,
+        status="RUNNING",
+        start_time=None,
+        raw_suffix=suffix,
+    )
+    claim_starting = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="unknown",
+        project_file=project,
+        status="STARTING",
+        start_time=None,
+        workflow="ace(run)-260101_120000",
+        raw_suffix=suffix,
+    )
+
+    result = dedup_running_vs_workflow([workflow_running, claim_starting])
+
+    assert len(result) == 1
+    assert result[0].status == "RUNNING"
+
+
+def test_dedup_running_vs_workflow_sibling_status_branches_still_work() -> None:
+    """The STARTING-skip must not regress the other status-resolution branches."""
+    project = "/tmp/test.sase"
+
+    # A terminal claim status still wins over a RUNNING workflow row.
+    terminal_workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="a",
+        project_file=project,
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="20260101120001",
+    )
+    terminal_claim = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="a",
+        project_file=project,
+        status="DONE",
+        start_time=None,
+        workflow="ace(run)-260101_120001",
+        raw_suffix="20260101120001",
+    )
+    terminal_result = dedup_running_vs_workflow([terminal_workflow, terminal_claim])
+    assert terminal_result[0].status == "DONE"
+
+    # A FAILED workflow row with a live RUNNING claim still promotes.
+    failed_workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="b",
+        project_file=project,
+        status="FAILED",
+        start_time=None,
+        raw_suffix="20260101120002",
+    )
+    failed_claim = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="b",
+        project_file=project,
+        status="RUNNING",
+        start_time=None,
+        workflow="ace(run)-260101_120002",
+        raw_suffix="20260101120002",
+    )
+    failed_result = dedup_running_vs_workflow([failed_workflow, failed_claim])
+    assert failed_result[0].status == "RUNNING"
+
+    # A semantic status (PLAN) still overrides a bare RUNNING claim.
+    plan_workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="c",
+        project_file=project,
+        status="PLAN",
+        start_time=None,
+        raw_suffix="20260101120003",
+    )
+    plan_claim = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="c",
+        project_file=project,
+        status="RUNNING",
+        start_time=None,
+        workflow="ace(run)-260101_120003",
+        raw_suffix="20260101120003",
+    )
+    plan_result = dedup_running_vs_workflow([plan_workflow, plan_claim])
+    assert plan_result[0].status == "PLAN"
+
+
+def test_dedup_running_vs_workflow_agrees_across_broad_and_delta_shaped_inputs() -> (
+    None
+):
+    """Anti-flap regression: broad load and delta load must agree on status.
+
+    The artifact-delta refresh path never rescans ProjectSpec RUNNING claims
+    (see ``_mark_live_artifact_delta_runners``), so its dedup input never
+    includes a claim row for this agent -- only the observed WORKFLOW row.
+    The broad refresh path always includes a fresh claim row, and until
+    ``run_started_at`` is recorded that claim is STARTING. Pre-fix, that
+    placeholder downgraded the already-observed RUNNING status on every
+    broad refresh, so the row alternated visible (delta refresh) / hidden
+    (broad refresh) — the flap the user saw. Both input shapes must now
+    agree on the resulting status.
+    """
+    project = "/tmp/test.sase"
+    suffix = "20260101130000"
+    observed_running = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_feature",
+        project_file=project,
+        status="RUNNING",
+        start_time=None,
+        raw_suffix=suffix,
+    )
+
+    # Delta-load shape: no claim row rescanned, only the observed row.
+    delta_result = dedup_running_vs_workflow([observed_running])
+    assert delta_result[0].status == "RUNNING"
+
+    # Broad-load shape: a fresh STARTING claim row is always present until
+    # run_started_at is recorded.
+    fresh_claim = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="unknown",
+        project_file=project,
+        status="STARTING",
+        start_time=None,
+        workflow="ace(run)-260101_130000",
+        raw_suffix=suffix,
+    )
+    broad_result = dedup_running_vs_workflow([observed_running, fresh_claim])
+
+    assert broad_result[0].status == delta_result[0].status == "RUNNING"
