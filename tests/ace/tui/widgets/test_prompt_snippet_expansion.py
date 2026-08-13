@@ -587,3 +587,30 @@ class TestBackwardTabstopNavigation:
         )
         assert expanded is True
         assert ta._try_retreat_tabstop() is False
+
+    async def test_no_retreat_after_the_session_ends(self) -> None:
+        """Advancing off the last stop clears the session, so backward
+        navigation is not available afterwards.
+        """
+        app = _SnippetTestApp({"fn": "def $1($2):$0"})
+        async with app.run_test():
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("fn")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda s: app),
+            ):
+                assert ta._try_expand_snippet() is True
+
+            # Walk to the last stop ($0), then off it.
+            assert ta._try_advance_tabstop() is True
+            assert ta._try_advance_tabstop() is True
+            assert ta.snippet_session_active is True
+            assert ta._try_advance_tabstop() is False
+            assert ta.snippet_session_active is False
+
+            ended_at = ta.cursor_location
+            assert ta._try_retreat_tabstop() is False
+            assert ta.cursor_location == ended_at
