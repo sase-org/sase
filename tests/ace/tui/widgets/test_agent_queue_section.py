@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import (
     RunnerCapacitySnapshot,
@@ -123,16 +125,50 @@ def test_ahead_count_uses_selected_index_in_display_order() -> None:
     assert selection.ahead_count == 3
 
 
-def test_queue_field_renders_front_label_and_section_requires_real_position() -> None:
+def test_queue_field_renders_front_label_and_section_requires_real_position(
+    monkeypatch: pytest.MonkeyPatch,
+    tz_divergence: None,
+) -> None:
+    now = datetime(2026, 7, 25, 8, 5, 0)
+    monkeypatch.setattr("sase.ace.tui.models.agent_time.local_now", lambda: now)
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_queue_section.local_now",
+        lambda: now,
+    )
     selected = _agent("selected", position=1, size=1)
+    selected.slot_requested_at = "2026-07-25T12:02:30Z"
     header = _header(selected, (_entry("selected"),))
-    assert "Queue: #1 of 1 · at the front · " in header.plain
-    assert " in queue" in header.plain
+    assert "Queue: #1 of 1 · at the front · 2m30s in queue" in header.plain
     assert "❖ QUEUE · 1 waiting · 10/10 runners" in header.plain
 
     without_position = _agent("selected", position=None, size=None)
     no_queue = _header(without_position, (_entry("selected"),))
     assert "❖ QUEUE" not in no_queue.plain
+
+
+def test_queue_ladder_renders_duration_value(
+    monkeypatch: pytest.MonkeyPatch,
+    tz_divergence: None,
+) -> None:
+    now = datetime(2026, 7, 25, 8, 5, 0)
+    monkeypatch.setattr("sase.ace.tui.models.agent_time.local_now", lambda: now)
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_queue_section.local_now",
+        lambda: now,
+    )
+    selected = _agent("selected", position=2, size=2)
+    selected.slot_requested_at = "2026-07-25T12:00:00Z"
+    header = _header(
+        selected,
+        (
+            _entry("first", requested_at="2026-07-25T12:02:00Z"),
+            _entry("selected", requested_at="2026-07-25T12:03:30Z"),
+        ),
+    )
+
+    queue_text = header.plain.split("❖ QUEUE", 1)[1]
+    assert "5m in queue" in header.plain
+    assert "1m30s" in queue_text
 
 
 def test_explicit_threshold_waiter_gets_the_same_queue_ladder() -> None:

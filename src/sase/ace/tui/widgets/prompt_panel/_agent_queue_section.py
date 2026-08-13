@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -12,11 +12,12 @@ from sase.agent.status_buckets import QUEUED_STATUS_COLOR
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 from sase.core.time import local_now
 
-from ...models.agent import Agent, format_compact_duration, wait_display_agent
+from ...models.agent import Agent, wait_display_agent
 from ...models.agent_runner_slots import (
     RunnerCapacitySnapshot,
     RunnerQueueEntry,
 )
+from ...models.agent_time import queued_for_label
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._helpers import append_section_heading
 
@@ -235,15 +236,4 @@ def _append_queue_entry(
 
 
 def _queue_duration(requested_at: str | None, now: datetime) -> str:
-    if not requested_at:
-        return "?"
-    try:
-        requested = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
-    except ValueError:
-        return "?"
-    if requested.tzinfo is None:
-        requested = requested.replace(tzinfo=UTC)
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=UTC)
-    elapsed = max(0.0, (now - requested.astimezone(now.tzinfo)).total_seconds())
-    return format_compact_duration(elapsed)
+    return queued_for_label(requested_at, now=now) or "?"

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sase.core.time import get_timezone, local_now
+from sase.core.time import get_timezone, local_now, parse_local, to_local
 from sase.core.agent_runtime_facade import aggregate_clan_runtime
 from sase.core.agent_runtime_wire import ClanRuntimeMemberWire
 from sase.agent.status_buckets import (
@@ -99,6 +99,26 @@ def format_compact_duration(seconds: float) -> str:
     if m > 0:
         return f"{m}m{s:02d}s" if s else f"{m}m"
     return f"{s}s"
+
+
+def queued_for_label(
+    requested_at: str | None,
+    now: datetime | None = None,
+) -> str | None:
+    """Return a compact elapsed label for a runner-slot request timestamp.
+
+    ``requested_at`` is a stored ``slot_requested_at`` marker value. Both sides
+    are normalized to the naive configured-tz arithmetic convention before
+    subtracting, matching the rest of the TUI agent time model.
+    """
+    if not requested_at:
+        return None
+    parsed = parse_local(requested_at)
+    if parsed is None:
+        return None
+    reference = local_now() if now is None else now
+    elapsed = max(0.0, (to_local(reference) - to_local(parsed)).total_seconds())
+    return format_compact_duration(elapsed)
 
 
 def wait_display_agent(agent: "Agent") -> "Agent":

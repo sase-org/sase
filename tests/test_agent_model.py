@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent import (
     format_compact_duration,
     format_wait_until,
 )
+from sase.ace.tui.models.agent_time import queued_for_label
 from sase.core.time import local_now
 
 # --- Agent Model Tests ---
@@ -307,6 +308,45 @@ def test_format_compact_duration_negative_clamps_to_zero() -> None:
 def test_format_compact_duration_fractional() -> None:
     """Fractional seconds are truncated to int."""
     assert format_compact_duration(90.7) == "1m30s"
+
+
+def test_queued_for_label_aware_utc_uses_configured_local_arithmetic(
+    tz_divergence: None,
+) -> None:
+    assert (
+        queued_for_label(
+            "2026-08-13T14:17:27.107866+00:00",
+            now=datetime(2026, 8, 13, 10, 40, 21),
+        )
+        == "22m53s"
+    )
+
+
+def test_queued_for_label_sub_offset_duration_is_not_flattened_to_zero(
+    tz_divergence: None,
+) -> None:
+    assert (
+        queued_for_label(
+            "2026-08-13T14:38:51+00:00",
+            now=datetime(2026, 8, 13, 10, 40, 21),
+        )
+        == "1m30s"
+    )
+
+
+def test_queued_for_label_missing_or_unparseable_returns_none() -> None:
+    for requested_at in (None, "", "not-a-time"):
+        assert queued_for_label(requested_at) is None
+
+
+def test_queued_for_label_future_request_clamps_to_zero() -> None:
+    assert (
+        queued_for_label(
+            "2026-08-13T14:41:21+00:00",
+            now=datetime(2026, 8, 13, 10, 40, 21),
+        )
+        == "0s"
+    )
 
 
 # --- wait_duration field Tests ---

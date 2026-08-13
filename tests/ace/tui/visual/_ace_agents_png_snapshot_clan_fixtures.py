@@ -211,7 +211,7 @@ def queued_clan_agents() -> list[Agent]:
             pid=4200 + minute,
             wait_runners=threshold,
             wait_runners_explicit=explicit,
-            slot_requested_at=f"2026-07-24T12:{minute:02d}:00Z",
+            slot_requested_at=f"2026-07-24T16:{minute:02d}:00Z",
             llm_provider="codex",
             model="gpt-5",
         )

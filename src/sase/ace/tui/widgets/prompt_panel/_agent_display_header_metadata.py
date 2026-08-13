@@ -24,6 +24,7 @@ from .._agent_list_styling import (
     _FAMILY_NAME_STYLE,
 )
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
+from ...models.agent_time import queued_for_label
 from ._agent_page_section import (
     AGENT_PAGE_SECTION_ID,
     ResponsiveAgentPageSection,
@@ -77,28 +78,6 @@ class _AgentMetadataFields:
     page_section: ResponsiveAgentPageSection | None
     wait_section: ResponsiveWaitSection | None
     model_section: ResponsiveModelSection | None
-
-
-def _queued_for_label(requested_at: str | None) -> str | None:
-    """Return a compact elapsed label for a runner-slot request timestamp."""
-    if not requested_at:
-        return None
-    from datetime import UTC, datetime
-
-    from sase.ace.tui.models.agent import format_compact_duration
-    from sase.core.time import local_now
-
-    try:
-        requested = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if requested.tzinfo is None:
-        requested = requested.replace(tzinfo=UTC)
-    now = local_now()
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=UTC)
-    elapsed = max(0.0, (now - requested.astimezone(now.tzinfo)).total_seconds())
-    return format_compact_duration(elapsed)
 
 
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
@@ -248,7 +227,7 @@ def _append_wait_field(
                 )
             else:
                 text.append("at the front", style=QUEUED_STATUS_COLOR)
-        queued_for = _queued_for_label(wait_agent.slot_requested_at)
+        queued_for = queued_for_label(wait_agent.slot_requested_at)
         if queued_for is not None:
             text.append(" · ", style="dim")
             text.append(f"{queued_for} in queue", style=QUEUED_STATUS_COLOR)
