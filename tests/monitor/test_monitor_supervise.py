@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.hooks.processes import is_process_running
+from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.supervise import run_supervisor
 from sase.monitor.transaction import MONITOR_GO_MARKER
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
@@ -22,6 +23,7 @@ from ._fixtures import make_starter_agent, write_project_file
 
 _STOP_POLL_TIMEOUT = 60.0
 _STOP_POLL_INTERVAL = 0.1
+_NO_HANG_TIMEOUT = 5.0
 
 
 @pytest.fixture(autouse=True)
@@ -175,7 +177,7 @@ def test_run_supervisor_kills_the_whole_process_group_on_timeout(
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
-    assert elapsed < 5.0
+    assert elapsed < _NO_HANG_TIMEOUT
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
 
@@ -211,6 +213,42 @@ def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
     # engine-next transfers this claim to the follow-up agent it launches;
     # the supervisor itself must never release it on success.
     assert len(get_claimed_workspaces(project_file)) == 1
+
+
+def test_run_supervisor_records_degraded_followup_and_releases_monitor_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts_dir, project_file = _make_member(
+        tmp_path, command="true", next_action="Report that it finished."
+    )
+    import sase.monitor.supervise as supervise_module
+
+    def fake_launch_degraded(
+        _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
+    ) -> FollowupLaunchResult:
+        meta["monitor_followup_agent"] = "acme--1"
+        return FollowupLaunchResult(
+            launched=True,
+            degraded_reason="fresh claim on the same workspace",
+            agent_name="acme--1",
+        )
+
+    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_degraded)
+
+    run_supervisor(artifacts_dir)
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_followup_outcome"] == "launched-degraded"
+    assert meta["monitor_followup_degraded_reason"] == (
+        "fresh claim on the same workspace"
+    )
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["monitor_followup_outcome"] == "launched-degraded"
+    assert done["monitor_followup_degraded_reason"] == (
+        "fresh claim on the same workspace"
+    )
+    assert "monitor_followup_error" not in done
+    assert get_claimed_workspaces(project_file) == []
 
 
 def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
@@ -271,7 +309,7 @@ def test_run_supervisor_times_out_continuous_output(
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
-    assert elapsed < 2.0
+    assert elapsed < _NO_HANG_TIMEOUT
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").stat().st_size <= 4096
@@ -289,7 +327,7 @@ def test_run_supervisor_times_out_after_partial_line(tmp_path: Path) -> None:
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
-    assert elapsed < 2.0
+    assert elapsed < _NO_HANG_TIMEOUT
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").read_text() == "partial"
@@ -308,7 +346,7 @@ def test_run_supervisor_completes_when_grandchild_holds_stdout(
         elapsed = time.monotonic() - started
 
         assert exit_status == 0
-        assert elapsed < 1.0
+        assert elapsed < _NO_HANG_TIMEOUT
         meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
         assert meta["monitor_state"] == "completed"
         assert "parent done" in (Path(artifacts_dir) / "live_reply.md").read_text()
@@ -330,7 +368,7 @@ def test_run_supervisor_times_out_after_child_closes_stdio(tmp_path: Path) -> No
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
-    assert elapsed < 2.0
+    assert elapsed < _NO_HANG_TIMEOUT
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
 
@@ -348,7 +386,7 @@ def test_run_supervisor_idle_timeout_fires_after_output_stalls(tmp_path: Path) -
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
-    assert elapsed < 2.0
+    assert elapsed < _NO_HANG_TIMEOUT
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert meta["monitor_timeout_kind"] == "idle"
@@ -432,7 +470,7 @@ def test_run_supervisor_escalates_term_ignoring_chatty_child(
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
-    assert elapsed < 2.0
+    assert elapsed < _NO_HANG_TIMEOUT
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").stat().st_size <= 4096

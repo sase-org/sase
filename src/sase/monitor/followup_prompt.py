@@ -170,6 +170,7 @@ def compose_followup_prompt(
     output_log_path: str | None = None,
     model: str | None = None,
     reasoning_effort: str | None = None,
+    workspace_degraded_reason: str | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -225,6 +226,15 @@ def compose_followup_prompt(
     ]
     if next_output == "tail":
         sections.extend(_tail_section(output_text, tail_lines))
+    if workspace_degraded_reason:
+        sections.extend(
+            [
+                "## Follow-up workspace",
+                "",
+                workspace_degraded_reason,
+                "",
+            ]
+        )
     sections.extend(
         [
             "## Your next action",

@@ -179,6 +179,13 @@ def _reconcile_dead_supervisor_locked(
     }
     if followup_error:
         done_marker["monitor_followup_error"] = followup_error
+    for key in (
+        "monitor_followup_outcome",
+        "monitor_followup_degraded_reason",
+        "monitor_followup_prompt_path",
+    ):
+        if meta.get(key):
+            done_marker[key] = meta[key]
     write_done_marker_and_update_index(record.artifacts_dir, done_marker)
     touch_monitor_refresh_pulse(record.project_name)
     notify_monitor_complete(

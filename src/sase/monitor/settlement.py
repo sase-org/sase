@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -12,7 +11,7 @@ from sase.core.paths import sase_projects_dir
 from sase.notifications.senders import notify_workflow_complete
 from sase.running_field import release_workspace
 
-from .followup import launch_followup_agent
+from .followup import FollowupLaunchResult, launch_followup_agent
 from .models import MonitorState
 from .output import OutputCapture
 
@@ -20,7 +19,7 @@ LOST_FOLLOWUP_ERROR = (
     "follow-up not launched because the monitor was marked lost after a reboot"
 )
 
-FollowupLauncher = Callable[..., bool]
+FollowupLauncher = Callable[..., bool | FollowupLaunchResult]
 
 
 def settle_claim_and_followup(
@@ -39,36 +38,87 @@ def settle_claim_and_followup(
     """Launch/record follow-up disposition and dispose of the monitor claim."""
     next_action = meta.get("monitor_next_action")
     if next_action and monitor_state == "lost":
+        _record_followup_outcome(artifacts_dir, meta, "not-launchable")
         _record_followup_error(artifacts_dir, meta, LOST_FOLLOWUP_ERROR)
         release_error = _release_monitor_claim(meta, project_name=project_name)
         return release_error or LOST_FOLLOWUP_ERROR
 
     if next_action and monitor_state != "stopped":
-        launched = False
+        launch_result = FollowupLaunchResult(launched=False)
         if project_name:
             launcher = launch_followup or launch_followup_agent
-            launched = launcher(
-                artifacts_dir,
+            launch_result = _coerce_followup_result(
+                launcher(
+                    artifacts_dir,
+                    meta,
+                    monitor_state=monitor_state,
+                    exit_code=exit_code,
+                    elapsed_seconds=elapsed_seconds,
+                    capture=capture,
+                    timeout_kind=timeout_kind,
+                    project_name=project_name,
+                    transfer_from_pid=transfer_from_pid,
+                ),
                 meta,
-                monitor_state=monitor_state,
-                exit_code=exit_code,
-                elapsed_seconds=elapsed_seconds,
-                capture=capture,
-                timeout_kind=timeout_kind,
-                project_name=project_name,
-                transfer_from_pid=transfer_from_pid,
             )
-            followup_error = str(meta.get("monitor_followup_error") or "") or None
         else:
-            followup_error = (
-                "could not resolve the monitor's project from its artifacts path"
+            launch_result = FollowupLaunchResult(
+                launched=False,
+                error="could not resolve the monitor's project from its artifacts path",
             )
-        if launched:
+        if launch_result.launched:
+            if launch_result.degraded_reason:
+                _record_followup_outcome(
+                    artifacts_dir,
+                    meta,
+                    "launched-degraded",
+                    degraded_reason=launch_result.degraded_reason,
+                )
+                release_error = _release_monitor_claim(meta, project_name=project_name)
+                return release_error
+            _record_followup_outcome(artifacts_dir, meta, "launched")
             return None
+        _record_followup_outcome(
+            artifacts_dir,
+            meta,
+            "not-launchable",
+            prompt_path=launch_result.prompt_path,
+        )
         release_error = _release_monitor_claim(meta, project_name=project_name)
-        return release_error or followup_error or "follow-up launch failed"
+        followup_error = (
+            launch_result.error
+            or str(meta.get("monitor_followup_error") or "")
+            or "follow-up launch failed"
+        )
+        return release_error or followup_error
 
     return _release_monitor_claim(meta, project_name=project_name)
+
+
+def _coerce_followup_result(
+    raw: bool | FollowupLaunchResult,
+    meta: dict[str, Any],
+) -> FollowupLaunchResult:
+    if isinstance(raw, FollowupLaunchResult):
+        return raw
+    if raw:
+        return FollowupLaunchResult(
+            launched=True,
+            agent_name=(
+                str(meta["monitor_followup_agent"])
+                if meta.get("monitor_followup_agent")
+                else None
+            ),
+        )
+    return FollowupLaunchResult(
+        launched=False,
+        error=str(meta.get("monitor_followup_error") or "") or None,
+        prompt_path=(
+            str(meta["monitor_followup_prompt_path"])
+            if meta.get("monitor_followup_prompt_path")
+            else None
+        ),
+    )
 
 
 def _release_monitor_claim(
@@ -154,6 +204,30 @@ def _record_followup_error(
 
     meta["monitor_followup_error"] = message
     update_meta_field(artifacts_dir, "monitor_followup_error", message)
+
+
+def _record_followup_outcome(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    outcome: str,
+    *,
+    degraded_reason: str | None = None,
+    prompt_path: str | None = None,
+) -> None:
+    from sase.axe.run_agent_helpers_artifacts import update_meta_field
+
+    meta["monitor_followup_outcome"] = outcome
+    update_meta_field(artifacts_dir, "monitor_followup_outcome", outcome)
+    if degraded_reason:
+        meta["monitor_followup_degraded_reason"] = degraded_reason
+        update_meta_field(
+            artifacts_dir,
+            "monitor_followup_degraded_reason",
+            degraded_reason,
+        )
+    if prompt_path:
+        meta["monitor_followup_prompt_path"] = prompt_path
+        update_meta_field(artifacts_dir, "monitor_followup_prompt_path", prompt_path)
 
 
 __all__ = [

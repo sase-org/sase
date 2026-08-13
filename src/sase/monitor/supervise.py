@@ -419,6 +419,13 @@ def _finish_monitor(
         done_marker["error"] = error
     if followup_error:
         done_marker["monitor_followup_error"] = followup_error
+    for key in (
+        "monitor_followup_outcome",
+        "monitor_followup_degraded_reason",
+        "monitor_followup_prompt_path",
+    ):
+        if meta.get(key):
+            done_marker[key] = meta[key]
     if timeout_kind is not None:
         done_marker["monitor_timeout_kind"] = timeout_kind
         if timeout_message:

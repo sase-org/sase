@@ -12,9 +12,10 @@ import pytest
 import sase.monitor.followup as followup_module
 import sase.monitor.start as start_module
 from sase.agent.launch_types import AgentLaunchResult
+from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.monitor.output import OutputCapture
 from sase.monitor.start import StartMonitorRequest, start_monitor
-from sase.running_field import WorkspaceClaim
+from sase.running_field import WorkspaceClaim, WorkspaceClaimError
 
 from ._fixtures import make_starter_agent, write_project_file
 
@@ -126,7 +127,7 @@ def test_launch_followup_agent_returns_false_without_a_next_action(
         project_name="proj",
     )
 
-    assert result is False
+    assert result.launched is False
 
 
 def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
@@ -158,7 +159,7 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
         settle_timeout_seconds=_SETTLE_TIMEOUT,
     )
 
-    assert result is True
+    assert result.launched is True
     assert meta["monitor_followup_agent"] == "acme--1"
     assert "monitor_followup_error" not in meta
 
@@ -184,6 +185,110 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     # Persisted to disk too, not just the in-memory dict.
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_agent"] == "acme--1"
+
+
+def test_launch_followup_agent_falls_back_to_fresh_claim_after_transfer_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    calls: list[dict[str, Any]] = []
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise WorkspaceClaimError(
+                "workspace #3 with pid 4242424 was not found",
+                workspace_num=3,
+            )
+        return _fake_result(agent_name="acme--1")
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+        transfer_from_pid=4_242_424,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is not None
+    assert "fresh claim on the same workspace" in result.degraded_reason
+    assert len(calls) == 2
+    assert calls[0]["retry_transfer_from_pid"] == 4_242_424
+    assert calls[1]["retry_transfer_from_pid"] is None
+    assert calls[1]["workspace_num"] == 3
+    assert "## Follow-up workspace" in calls[1]["prompt"]
+    assert "fresh claim on the same workspace" in calls[1]["prompt"]
+    on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert on_disk["monitor_followup_degraded_reason"] == result.degraded_reason
+
+
+def test_launch_followup_agent_falls_back_to_workspace_zero_when_workspace_taken(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    calls: list[dict[str, Any]] = []
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        calls.append(kwargs)
+        if len(calls) < 3:
+            raise WorkspaceClaimError(
+                "workspace #3 is already claimed",
+                workspace_num=3,
+            )
+        return _fake_result(
+            agent_name="acme--1",
+            workspace_num=kwargs["workspace_num"],
+            workspace_dir=kwargs["workspace_dir"],
+        )
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+    monkeypatch.setattr(
+        followup_module,
+        "_workspace_dir_for_num",
+        lambda project_name, workspace_num: str(primary),
+    )
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+        transfer_from_pid=4_242_424,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is not None
+    assert "workspace #0" in result.degraded_reason
+    assert [call["workspace_num"] for call in calls] == [3, 3, 0]
+    assert calls[2]["workspace_dir"] == str(primary)
+    assert calls[2]["retry_transfer_from_pid"] is None
+    assert "workspace #0" in calls[2]["prompt"]
+    assert "Do not assume" in calls[2]["prompt"]
+    env = calls[2]["extra_env"]
+    plan = json.loads(env["SASE_AGENT_FAMILY_ATTACH"])
+    assert plan["parent_workspace_num"] == 0
+    assert plan["parent_workspace_dir"] == str(primary)
 
 
 def test_launch_followup_agent_omits_the_fork_prefix_when_the_starter_never_settles(
@@ -213,7 +318,7 @@ def test_launch_followup_agent_omits_the_fork_prefix_when_the_starter_never_sett
         settle_timeout_seconds=0.2,
     )
 
-    assert result is True
+    assert result.launched is True
     assert "#fork:" not in captured["prompt"]
     # No #fork prefix, but the starter's routing still carries over.
     assert captured["prompt"].startswith("%model:claude-sonnet-5\n%effort:high\n\n")
@@ -249,7 +354,16 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
         settle_timeout_seconds=0.2,
     )
 
-    assert result is False
+    assert result.launched is False
     assert meta["monitor_followup_error"]
+    assert "follow-up prompt saved to" in meta["monitor_followup_error"]
+    prompt_path = Path(result.prompt_path or "")
+    assert prompt_path.name == "monitor_followup_prompt.md"
+    assert prompt_path.read_text(encoding="utf-8").endswith("Report that it finished.")
+    artifacts = list_explicit_artifact_files(Path(monitor_dir))
+    assert [artifact.label for artifact in artifacts] == [
+        "Unlaunched monitor follow-up prompt"
+    ]
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_error"] == meta["monitor_followup_error"]
+    assert on_disk["monitor_followup_prompt_path"] == str(prompt_path)
