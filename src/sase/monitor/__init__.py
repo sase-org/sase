@@ -8,10 +8,16 @@ from .models import (
     MonitorError,
     MonitorLaneError,
     MonitorRecord,
+    MonitorRefError,
     MonitorState,
     monitor_state_bucket,
 )
-from .naming import allocate_monitor_suffix, new_monitor_id
+from .naming import (
+    SHORT_MONITOR_ID_LENGTH,
+    allocate_monitor_suffix,
+    new_monitor_id,
+    short_monitor_id,
+)
 from .start import (
     MONITOR_PENDING_MARKER,
     StartMonitorRequest,
@@ -20,23 +26,29 @@ from .start import (
     write_monitor_pending_marker,
 )
 from .store import (
+    MIN_MONITOR_REF_LENGTH,
     LaneContext,
     active_monitor_for_lane,
     default_lane,
     get_monitor,
     has_any_monitor,
+    list_monitors,
     resolve_lane,
+    resolve_monitor_ref,
     stop_monitor,
 )
 
 __all__ = [
+    "MIN_MONITOR_REF_LENGTH",
     "MONITOR_STATES",
+    "SHORT_MONITOR_ID_LENGTH",
     "TERMINAL_MONITOR_STATES",
     "LaneContext",
     "MonitorAlreadyRunningError",
     "MonitorError",
     "MonitorLaneError",
     "MonitorRecord",
+    "MonitorRefError",
     "MonitorState",
     "MONITOR_PENDING_MARKER",
     "StartMonitorRequest",
@@ -46,10 +58,13 @@ __all__ = [
     "default_lane",
     "get_monitor",
     "has_any_monitor",
+    "list_monitors",
     "monitor_state_bucket",
     "maybe_handoff_monitor_from_agent",
     "new_monitor_id",
     "resolve_lane",
+    "resolve_monitor_ref",
+    "short_monitor_id",
     "start_monitor",
     "stop_monitor",
     "write_monitor_pending_marker",

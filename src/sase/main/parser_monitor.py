@@ -1,0 +1,303 @@
+"""Argument parser definition for the ``sase monitor`` CLI command."""
+
+from __future__ import annotations
+
+import argparse
+
+# Mirrors ``sase.monitor.models.MONITOR_STATES``, spelled out here so
+# building the parser never imports the monitor engine package.
+MONITOR_STATE_CHOICES = ("running", "completed", "failed", "timeout", "stopped")
+
+
+def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Register long-running-command monitor family members."""
+
+    monitor_parser = subparsers.add_parser(
+        "monitor",
+        help="Start, stop, list, and inspect monitored long-running commands",
+        description=(
+            "Hand a slow command off to a detached supervisor that runs as a "
+            "real agent-family member, with streaming output, a timeout, and "
+            "an optional follow-up agent. Running `sase monitor` defaults to "
+            "`sase monitor list`."
+        ),
+    )
+    monitor_sub = monitor_parser.add_subparsers(
+        dest="monitor_subcommand",
+        help="Monitor subcommands",
+        metavar="{list,show,start,stop}",
+    )
+
+    list_parser = monitor_sub.add_parser(
+        "list",
+        help="List monitors (rich table by default, -j/--json for JSON)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "List monitor family members, newest first. By default this "
+            "shows only active (running) monitors; pass --all to include "
+            "finished ones too."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase monitor list\n"
+            "  sase monitor list --all --lane acme\n"
+            "  sase monitor list --status failed --status timeout\n"
+            "  sase monitor list --format markdown\n"
+            "  sase monitor list --json"
+        ),
+    )
+    list_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Include finished monitors, not just running ones",
+    )
+    list_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("table", "markdown", "json"),
+        default="table",
+        help="Output format: 'table' (default), 'markdown', or 'json'",
+    )
+    list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON envelope (shorthand for --format json)",
+    )
+    list_parser.add_argument(
+        "-l",
+        "--lane",
+        default=None,
+        metavar="NAME",
+        help="Only monitors belonging to this agent lane",
+    )
+    list_parser.add_argument(
+        "-n",
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Show at most N monitors",
+    )
+    list_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        metavar="NAME",
+        help="Only monitors from this project (default: every project)",
+    )
+    list_parser.add_argument(
+        "-s",
+        "--status",
+        action="append",
+        choices=MONITOR_STATE_CHOICES,
+        default=None,
+        metavar="STATE",
+        help=(
+            "Only monitors in this state; repeat to add more "
+            f"({', '.join(MONITOR_STATE_CHOICES)})"
+        ),
+    )
+
+    show_parser = monitor_sub.add_parser(
+        "show",
+        help="Show one monitor and its captured output",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Show one monitor by id (or unique id prefix), member agent "
+            "name, or lane name, followed by the tail of its captured "
+            "output. `--follow` streams new output until the monitor "
+            "reaches a terminal state, exactly like `sase task show "
+            "--follow`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase monitor show a1b2c3\n"
+            "  sase monitor show acme --follow\n"
+            "  sase monitor show acme--mon --all-lines --output-only\n"
+            "  sase monitor show a1b2c3 --format json"
+        ),
+    )
+    show_parser.add_argument(
+        "monitor_id",
+        metavar="ID",
+        help="Monitor id (or unique prefix), member agent name, or lane name",
+    )
+    show_parser.add_argument(
+        "-A",
+        "--all-lines",
+        action="store_true",
+        help="Print the whole retained output instead of a tail",
+    )
+    show_parser.add_argument(
+        "-f",
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="Output format: 'markdown' (default) or 'json'",
+    )
+    show_parser.add_argument(
+        "-F",
+        "--follow",
+        action="store_true",
+        help="Stream new output until the monitor reaches a terminal state",
+    )
+    show_parser.add_argument(
+        "-l",
+        "--log-lines",
+        type=int,
+        default=200,
+        metavar="N",
+        help="Output lines to show (default: 200)",
+    )
+    show_parser.add_argument(
+        "-o",
+        "--output-only",
+        action="store_true",
+        help="Print only the captured output, with no surrounding detail",
+    )
+
+    start_parser = monitor_sub.add_parser(
+        "start",
+        help="Start a command as a monitor family member",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Start a command under a detached supervisor and return. The "
+            "supervisor owns the command's process group and streams its "
+            "combined output, so the command outlives this process. When run "
+            "inside an agent, this is the last output the agent produces "
+            "before it is killed — the runner adopts the handoff and the "
+            "monitor keeps running in the same lane and workspace."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase monitor start -c 'just check-full' -r 'verify the fix' "
+            "-t 20m\n"
+            "  sase monitor start -c './deploy.sh' -r 'ship it' -t 10m "
+            "-n 'confirm the deploy succeeded'\n"
+            "  sase monitor start -c 'just check-full' -r 'verify' -t 20m "
+            "--json"
+        ),
+    )
+    start_parser.add_argument(
+        "-c",
+        "--command",
+        # ``dest="monitor_command"`` rather than the default ``command``: the
+        # top-level subparsers own the ``command`` destination for command
+        # routing, and this flag would silently overwrite it.
+        dest="monitor_command",
+        required=True,
+        metavar="CMD",
+        help="The full command to run and monitor",
+    )
+    start_parser.add_argument(
+        "-C",
+        "--cwd",
+        default=None,
+        metavar="DIR",
+        help="Working directory (default: the lane's workspace, else $PWD)",
+    )
+    start_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit the started monitor as a JSON envelope",
+    )
+    start_parser.add_argument(
+        "-L",
+        "--label",
+        default=None,
+        metavar="TEXT",
+        help="Short row label (default: derived from the command)",
+    )
+    start_parser.add_argument(
+        "-l",
+        "--lane",
+        default=None,
+        metavar="NAME",
+        help="Target agent lane (default: the calling agent's lane)",
+    )
+    start_parser.add_argument(
+        "-n",
+        "--next",
+        default=None,
+        metavar="TEXT",
+        help="Next action for the follow-up agent; omit for no follow-up",
+    )
+    start_parser.add_argument(
+        "-r",
+        "--reason",
+        required=True,
+        metavar="TEXT",
+        help="Why this command is being monitored",
+    )
+    start_parser.add_argument(
+        "-s",
+        "--start-status",
+        default=None,
+        metavar="TEXT",
+        help="Status while running (default: MONITORING)",
+    )
+    start_parser.add_argument(
+        "-S",
+        "--stop-status",
+        default=None,
+        metavar="TEXT",
+        help="Status when finished (default: MONITORED)",
+    )
+    start_parser.add_argument(
+        "-T",
+        "--tail-lines",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Output tail handed to the follow-up (default: 200)",
+    )
+    start_parser.add_argument(
+        "-t",
+        "--timeout",
+        required=True,
+        metavar="DURATION",
+        help="Timeout: bare seconds or a duration like 90s / 45m / 2h",
+    )
+
+    stop_parser = monitor_sub.add_parser(
+        "stop",
+        help="Stop a running monitor",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Stop a running monitor by id (or unique id prefix), member "
+            "agent name, or lane name; omitted, targets the calling agent's "
+            "lane's active monitor. No follow-up agent is launched, even "
+            "when a next action was recorded."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase monitor stop\n"
+            "  sase monitor stop a1b2c3\n"
+            "  sase monitor stop acme --json"
+        ),
+    )
+    stop_parser.add_argument(
+        "monitor_id",
+        nargs="?",
+        default=None,
+        metavar="ID",
+        help="Monitor id (or unique prefix), member agent name, or lane name",
+    )
+    stop_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON result",
+    )
+
+    supervise_parser = monitor_sub.add_parser(
+        "_supervise",
+        help=argparse.SUPPRESS,
+    )
+    supervise_parser.add_argument("--artifacts-dir", required=True)
+
+
+__all__ = ["MONITOR_STATE_CHOICES", "register_monitor_parser"]

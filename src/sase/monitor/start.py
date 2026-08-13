@@ -148,7 +148,9 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
             [
                 sys.executable,
                 "-m",
-                "sase.monitor.supervise",
+                "sase",
+                "monitor",
+                "_supervise",
                 "--artifacts-dir",
                 artifacts_dir,
             ],

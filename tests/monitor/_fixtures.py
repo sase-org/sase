@@ -100,13 +100,13 @@ def patch_project_records(
     from sase.monitor import store as store_module
 
     def fake(
-        project_name: str, *, only_monitors: bool = False
+        project_name: str | None, *, only_monitors: bool = False
     ) -> list[AgentArtifactRecordWire]:
         del only_monitors
         return [
             record
             for record in (record_from_disk(d) for d in artifacts_dirs)
-            if record.project_name == project_name
+            if project_name is None or record.project_name == project_name
         ]
 
     monkeypatch.setattr(store_module, "_project_records", fake)

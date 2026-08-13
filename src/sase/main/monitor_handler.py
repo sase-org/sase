@@ -1,0 +1,448 @@
+"""Handler for the 'sase monitor' CLI subcommand."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+import time
+from pathlib import Path
+from typing import NoReturn
+
+from rich.console import Console
+
+from sase.monitor import (
+    MonitorAlreadyRunningError,
+    MonitorError,
+    MonitorLaneError,
+    MonitorRecord,
+    MonitorRefError,
+    StartMonitorRequest,
+    active_monitor_for_lane,
+    default_lane,
+    get_monitor,
+    list_monitors,
+    maybe_handoff_monitor_from_agent,
+    resolve_lane,
+    resolve_monitor_ref,
+    short_monitor_id,
+    start_monitor,
+    stop_monitor,
+)
+from sase.monitor.start import (
+    DEFAULT_START_STATUS,
+    DEFAULT_STOP_STATUS,
+    DEFAULT_TAIL_LINES,
+)
+
+from .monitor_render import (
+    empty_monitor_panel,
+    monitor_detail,
+    monitor_list_json,
+    monitor_list_markdown,
+    monitor_show_json,
+    monitor_start_json,
+    monitor_stop_json,
+    monitor_table,
+)
+
+# Large enough to mean "every retained line" for a size-bounded monitor log.
+_ALL_OUTPUT_LINES = 1_000_000
+_STATUS_LABEL_MAX_CHARS = 48
+_KILLED_EXIT_CODE = 130
+_FOLLOW_POLL_SECONDS = 0.5
+
+_TIMEOUT_RE = re.compile(r"^(\d+(?:\.\d+)?)([smh]?)$")
+_TIMEOUT_UNIT_SECONDS = {"s": 1.0, "m": 60.0, "h": 3600.0}
+
+
+def handle_monitor_command(args: argparse.Namespace) -> NoReturn:
+    """Dispatch monitor subcommands."""
+    subcommand = getattr(args, "monitor_subcommand", None)
+    if subcommand in (None, "list"):
+        sys.exit(_handle_monitor_list(args))
+    if subcommand == "show":
+        sys.exit(_handle_monitor_show(args))
+    if subcommand == "start":
+        sys.exit(_handle_monitor_start(args))
+    if subcommand == "stop":
+        sys.exit(_handle_monitor_stop(args))
+    if subcommand == "_supervise":
+        sys.exit(_handle_monitor_supervise(args))
+    print("Usage: sase monitor {list,show,start,stop}", file=sys.stderr)
+    sys.exit(1)
+
+
+def _handle_monitor_list(args: argparse.Namespace) -> int:
+    """Render monitor family members as a table, markdown, or JSON."""
+    project = getattr(args, "project", None)
+    lane = getattr(args, "lane", None)
+    statuses = set(getattr(args, "status", None) or ())
+    include_all = bool(getattr(args, "all", False))
+    limit = getattr(args, "limit", None)
+    fmt = (
+        "json"
+        if bool(getattr(args, "json", False))
+        else getattr(args, "format", "table")
+    )
+
+    try:
+        records = list_monitors(project=project)
+    except Exception as exc:
+        print(f"sase monitor list: cannot read monitors: {exc}", file=sys.stderr)
+        return 1
+
+    if lane:
+        records = [record for record in records if record.lane == lane]
+    if statuses:
+        records = [record for record in records if record.monitor_state in statuses]
+    elif not include_all:
+        records = [record for record in records if record.monitor_state == "running"]
+    if limit is not None:
+        records = records[: max(0, limit)]
+
+    if fmt == "json":
+        scope = {
+            "all": include_all,
+            "project": project,
+            "lane": lane,
+            "status": sorted(statuses) or None,
+        }
+        json.dump(monitor_list_json(records, scope=scope), sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+    if fmt == "markdown":
+        sys.stdout.write(monitor_list_markdown(records))
+        return 0
+
+    console = Console()
+    title = f"Monitors · {_scope_label(project=project, lane=lane, include_all=include_all)} ({len(records)})"
+    if records:
+        console.print(monitor_table(records, title=title))
+    else:
+        hint = (
+            None
+            if include_all
+            else "No active monitors; pass -a/--all to include finished ones."
+        )
+        console.print(empty_monitor_panel(title, hint=hint))
+    return 0
+
+
+def _handle_monitor_show(args: argparse.Namespace) -> int:
+    """Show one monitor's detail panel and captured output."""
+    try:
+        record = _resolve_ref(getattr(args, "monitor_id", ""))
+    except MonitorRefError as exc:
+        print(f"sase monitor show: {exc}", file=sys.stderr)
+        return 2
+
+    output_only = bool(getattr(args, "output_only", False))
+    follow = bool(getattr(args, "follow", False))
+
+    if getattr(args, "format", "markdown") == "json":
+        # JSON is a snapshot, so following means "wait, then report the result".
+        if follow and not record.is_terminal:
+            try:
+                record = _wait_for_monitor(record)
+            except KeyboardInterrupt:
+                return _KILLED_EXIT_CODE
+        payload = monitor_show_json(record, output=_output_text(record, args))
+        json.dump(payload, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    if not output_only:
+        Console().print(monitor_detail(record))
+
+    if follow:
+        try:
+            return _follow_output(record, args)
+        except KeyboardInterrupt:
+            return _KILLED_EXIT_CODE
+
+    output = _output_text(record, args)
+    if output:
+        sys.stdout.write(output if output.endswith("\n") else f"{output}\n")
+    elif not output_only:
+        print("(no output captured yet)")
+    return 0
+
+
+def _handle_monitor_start(args: argparse.Namespace) -> int:
+    """Start a command as a monitor family member."""
+    command = (getattr(args, "monitor_command", None) or "").strip()
+    if not command:
+        print("sase monitor start: -c/--command must not be empty", file=sys.stderr)
+        return 2
+    reason = (getattr(args, "reason", None) or "").strip()
+    if not reason:
+        print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
+        return 2
+
+    try:
+        timeout_seconds, timeout_label = _parse_timeout(getattr(args, "timeout", ""))
+        start_status = _validate_status_label(
+            getattr(args, "start_status", None) or DEFAULT_START_STATUS,
+            flag="-s/--start-status",
+        )
+        stop_status = _validate_status_label(
+            getattr(args, "stop_status", None) or DEFAULT_STOP_STATUS,
+            flag="-S/--stop-status",
+        )
+    except ValueError as exc:
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        return 2
+
+    lane = getattr(args, "lane", None) or default_lane()
+    if not lane:
+        print(
+            "sase monitor start: no lane given and SASE_AGENT_NAME is unset; "
+            "pass -l/--lane explicitly",
+            file=sys.stderr,
+        )
+        return 2
+
+    cwd = _resolve_cwd(getattr(args, "cwd", None), lane)
+    project_name = _infer_project_name(str(cwd))
+    if not project_name:
+        print(
+            f"sase monitor start: could not infer a project from cwd {cwd}",
+            file=sys.stderr,
+        )
+        return 2
+
+    request = StartMonitorRequest(
+        command=command,
+        reason=reason,
+        timeout_seconds=timeout_seconds,
+        cwd=str(cwd),
+        project_name=project_name,
+        lane=lane,
+        label=getattr(args, "label", None),
+        next_action=getattr(args, "next", None),
+        start_status=start_status,
+        stop_status=stop_status,
+        tail_lines=getattr(args, "tail_lines", None) or DEFAULT_TAIL_LINES,
+    )
+
+    try:
+        record = start_monitor(request)
+    except (MonitorAlreadyRunningError, MonitorError) as exc:
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        return 1
+
+    handed_off = maybe_handoff_monitor_from_agent(record)
+
+    if bool(getattr(args, "json", False)):
+        json.dump(
+            monitor_start_json(record, handed_off=handed_off), sys.stdout, indent=2
+        )
+        sys.stdout.write("\n")
+        return 0
+
+    short_id = short_monitor_id(record.monitor_id)
+    print(f"Started monitor {short_id} ({record.monitor_id})")
+    print(f"  member: {record.member_agent_name}")
+    print(f"  timeout: {timeout_label}")
+    print(f"  sase monitor show {short_id} --follow")
+    if handed_off:
+        print(
+            "\nThis is the last output before the agent runner is killed; "
+            "the monitor keeps running."
+        )
+    return 0
+
+
+def _handle_monitor_stop(args: argparse.Namespace) -> int:
+    """Stop one running monitor, resolving the same refs as ``monitor show``."""
+    try:
+        record = _resolve_ref_or_active(getattr(args, "monitor_id", None))
+    except MonitorRefError as exc:
+        print(f"sase monitor stop: {exc}", file=sys.stderr)
+        return 2
+
+    was_active = record.monitor_state == "running"
+    result = stop_monitor(record)
+    changed = was_active and result.monitor_state != "running"
+
+    if bool(getattr(args, "json", False)):
+        json.dump(monitor_stop_json(result, changed=changed), sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    short_id = short_monitor_id(result.monitor_id)
+    if changed:
+        print(f"Stopped monitor {short_id}.")
+        if result.next_action:
+            print("No follow-up agent was launched (stopped, not finished).")
+    else:
+        print(f"Monitor {short_id} is already {result.monitor_state}; nothing to do.")
+    return 0
+
+
+def _handle_monitor_supervise(args: argparse.Namespace) -> int:
+    """Run the detached monitor supervisor for one artifacts dir."""
+    from sase.monitor.supervise import run_supervisor
+
+    return run_supervisor(args.artifacts_dir)
+
+
+def _follow_output(record: MonitorRecord, args: argparse.Namespace) -> int:
+    """Print the retained output, then stream new lines until terminal."""
+    path = _output_path(record)
+    retained = _output_text(record, args)
+    if retained:
+        sys.stdout.write(retained if retained.endswith("\n") else f"{retained}\n")
+
+    try:
+        offset = path.stat().st_size
+    except OSError:
+        offset = 0
+
+    while True:
+        current = get_monitor(record.project_name, record.artifacts_dir)
+        if current is None:
+            print("sase monitor show: monitor record disappeared", file=sys.stderr)
+            return 1
+        new_text, offset = _read_new_text(path, offset)
+        if new_text:
+            sys.stdout.write(new_text)
+            sys.stdout.flush()
+        if current.is_terminal:
+            return 0
+        time.sleep(_FOLLOW_POLL_SECONDS)
+
+
+def _wait_for_monitor(record: MonitorRecord) -> MonitorRecord:
+    """Poll silently until *record*'s monitor reaches a terminal state."""
+    while True:
+        current = get_monitor(record.project_name, record.artifacts_dir)
+        if current is None:
+            return record
+        if current.is_terminal:
+            return current
+        time.sleep(_FOLLOW_POLL_SECONDS)
+
+
+def _resolve_ref(raw_ref: str) -> MonitorRecord:
+    records = list_monitors(project=None)
+    return resolve_monitor_ref(raw_ref, records)
+
+
+def _resolve_ref_or_active(raw_ref: str | None) -> MonitorRecord:
+    if raw_ref:
+        return _resolve_ref(raw_ref)
+    lane = default_lane()
+    if not lane:
+        raise MonitorRefError(
+            "no monitor id given and SASE_AGENT_NAME is unset; pass an explicit id"
+        )
+    project_name = _infer_project_name(str(Path.cwd()))
+    active = active_monitor_for_lane(project_name, lane) if project_name else None
+    if active is None:
+        raise MonitorRefError(f"lane {lane!r} has no active monitor")
+    return MonitorRecord.from_record(active)
+
+
+def _resolve_cwd(explicit_cwd: str | None, lane: str) -> Path:
+    if explicit_cwd:
+        return Path(explicit_cwd).expanduser().resolve(strict=False)
+    workspace = _lane_workspace_dir(lane)
+    if workspace is not None:
+        return workspace
+    return Path.cwd()
+
+
+def _lane_workspace_dir(lane: str) -> Path | None:
+    guess_project = _infer_project_name(str(Path.cwd()))
+    if not guess_project:
+        return None
+    try:
+        ctx = resolve_lane(guess_project, lane)
+    except MonitorLaneError:
+        return None
+    meta = ctx.record.agent_meta
+    if meta is None or not meta.workspace_dir:
+        return None
+    return Path(meta.workspace_dir).expanduser()
+
+
+def _infer_project_name(cwd: str) -> str | None:
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    return infer_project_name_from_cwd(cwd)
+
+
+def _output_path(record: MonitorRecord) -> Path:
+    return Path(record.artifacts_dir) / "live_reply.md"
+
+
+def _output_text(record: MonitorRecord, args: argparse.Namespace) -> str:
+    from sase.axe.state import read_tail_seek
+
+    return read_tail_seek(_output_path(record), _log_lines(args))
+
+
+def _read_new_text(path: Path, offset: int) -> tuple[str, int]:
+    try:
+        with open(path, "rb") as f:
+            f.seek(offset)
+            chunk = f.read()
+    except OSError:
+        return "", offset
+    if not chunk:
+        return "", offset
+    return chunk.decode("utf-8", errors="replace"), offset + len(chunk)
+
+
+def _log_lines(args: argparse.Namespace) -> int:
+    if bool(getattr(args, "all_lines", False)):
+        return _ALL_OUTPUT_LINES
+    return max(0, getattr(args, "log_lines", 200))
+
+
+def _scope_label(*, project: str | None, lane: str | None, include_all: bool) -> str:
+    parts = ["all projects" if project is None else f"project {project}"]
+    if lane:
+        parts.append(f"lane {lane}")
+    parts.append("all" if include_all else "active")
+    return ", ".join(parts)
+
+
+def _parse_timeout(raw: str) -> tuple[float, str]:
+    text = (raw or "").strip()
+    match = _TIMEOUT_RE.match(text)
+    if not match:
+        raise ValueError(
+            f"invalid -t/--timeout value {raw!r}; use e.g. 90, 90s, 45m, 2h"
+        )
+    value = float(match.group(1))
+    unit = match.group(2) or "s"
+    seconds = value * _TIMEOUT_UNIT_SECONDS[unit]
+    if seconds <= 0:
+        raise ValueError("-t/--timeout must be greater than zero")
+    return seconds, f"{text} ({_format_seconds(seconds)})"
+
+
+def _format_seconds(seconds: float) -> str:
+    if seconds == int(seconds):
+        return f"{int(seconds)}s"
+    return f"{seconds}s"
+
+
+def _validate_status_label(value: str, *, flag: str) -> str:
+    if "\n" in value or "\r" in value:
+        raise ValueError(f"{flag} must not contain newlines")
+    label = value.strip()
+    if not label:
+        raise ValueError(f"{flag} must not be empty")
+    if len(label) > _STATUS_LABEL_MAX_CHARS:
+        raise ValueError(f"{flag} must be at most {_STATUS_LABEL_MAX_CHARS} characters")
+    return label
+
+
+__all__ = [
+    "handle_monitor_command",
+]

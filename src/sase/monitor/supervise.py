@@ -81,7 +81,7 @@ def _signal_group(pgid: int, signum: int) -> None:
         pass
 
 
-def _run_supervisor(artifacts_dir: str) -> int:
+def run_supervisor(artifacts_dir: str) -> int:
     """Own one monitor member from command spawn through terminal marker."""
     meta = _read_meta(artifacts_dir)
     if meta.get("monitor_state") != "running":
@@ -364,7 +364,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _main() -> int:
-    return _run_supervisor(_parser().parse_args().artifacts_dir)
+    return run_supervisor(_parser().parse_args().artifacts_dir)
 
 
 if __name__ == "__main__":

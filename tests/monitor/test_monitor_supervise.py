@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.hooks.processes import is_process_running
-from sase.monitor.supervise import _run_supervisor
+from sase.monitor.supervise import run_supervisor
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -30,7 +30,7 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _restore_signal_handlers() -> Iterator[None]:
-    """``_run_supervisor`` installs process-wide SIGTERM/SIGINT handlers.
+    """``run_supervisor`` installs process-wide SIGTERM/SIGINT handlers.
 
     Called directly (not via a subprocess) it would otherwise leak that
     installation into the rest of the test session.
@@ -83,7 +83,7 @@ def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
 ) -> None:
     artifacts_dir, project_file = _make_member(tmp_path, command="echo hello world")
 
-    exit_status = _run_supervisor(artifacts_dir)
+    exit_status = run_supervisor(artifacts_dir)
 
     assert exit_status == 0
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
@@ -108,7 +108,7 @@ def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
 def test_run_supervisor_records_a_non_zero_exit_as_failed(tmp_path: Path) -> None:
     artifacts_dir, _ = _make_member(tmp_path, command="sh -c 'echo boom >&2; exit 3'")
 
-    exit_status = _run_supervisor(artifacts_dir)
+    exit_status = run_supervisor(artifacts_dir)
 
     assert exit_status == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
@@ -125,7 +125,7 @@ def test_run_supervisor_kills_the_whole_process_group_on_timeout(
     artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=0.3)
 
     started = time.monotonic()
-    exit_status = _run_supervisor(artifacts_dir)
+    exit_status = run_supervisor(artifacts_dir)
     elapsed = time.monotonic() - started
 
     assert exit_status == 1
@@ -147,7 +147,7 @@ def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
 
     monkeypatch.setattr(supervise_module, "launch_followup_agent", lambda *a, **k: True)
 
-    _run_supervisor(artifacts_dir)
+    run_supervisor(artifacts_dir)
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "completed"
@@ -172,7 +172,7 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
 
     monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_failure)
 
-    _run_supervisor(artifacts_dir)
+    run_supervisor(artifacts_dir)
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "completed"

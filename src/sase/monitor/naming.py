@@ -18,12 +18,20 @@ MONITOR_SEQUENCE_SUFFIX_TEMPLATE = f"{PLAN_CHAIN_MONITOR_SUFFIX}-@"
 _MONITOR_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 _MONITOR_ID_LENGTH = 12
 
+#: Mirrors :data:`sase.tasks.ids.SHORT_TASK_ID_LENGTH` for display.
+SHORT_MONITOR_ID_LENGTH = 6
+
 
 def new_monitor_id() -> str:
     """Mint a 12-character lowercase unambiguous base32 monitor id."""
     return "".join(
         secrets.choice(_MONITOR_ID_ALPHABET) for _ in range(_MONITOR_ID_LENGTH)
     )
+
+
+def short_monitor_id(monitor_id: str) -> str:
+    """Return the standard six-character monitor-id display prefix."""
+    return monitor_id[:SHORT_MONITOR_ID_LENGTH]
 
 
 def allocate_monitor_suffix(lane: str, *, has_existing_monitor: bool) -> str:
@@ -41,6 +49,8 @@ def allocate_monitor_suffix(lane: str, *, has_existing_monitor: bool) -> str:
 
 __all__ = [
     "MONITOR_SEQUENCE_SUFFIX_TEMPLATE",
+    "SHORT_MONITOR_ID_LENGTH",
     "allocate_monitor_suffix",
     "new_monitor_id",
+    "short_monitor_id",
 ]

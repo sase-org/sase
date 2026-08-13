@@ -12,7 +12,7 @@ import json
 import os
 import signal
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from sase.ace.hooks.processes import is_process_running
@@ -34,13 +34,17 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_projects_dir
 from sase.plan_chain import agent_family_base
 
-from .models import MonitorLaneError, MonitorRecord
+from .models import MonitorLaneError, MonitorRecord, MonitorRefError
+from .naming import short_monitor_id
 
 _DEAD_SUPERVISOR_ERROR = "monitor supervisor died without reporting"
 
 #: How long ``stop_monitor`` waits for the supervisor to leave ``running``.
 _STOP_WAIT_SECONDS = 10.0
 _STOP_POLL_SECONDS = 0.1
+
+#: Mirrors :data:`sase.tasks.ids.MIN_TASK_REF_LENGTH` for monitor id prefixes.
+MIN_MONITOR_REF_LENGTH = 3
 
 
 @dataclass(frozen=True)
@@ -167,6 +171,62 @@ def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
     return None
 
 
+def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
+    """Return every monitor record, newest first.
+
+    *project* scopes the scan to one project; ``None`` (the default) scans
+    every project, mirroring how ``sase agent list`` scans across projects
+    when no ``--project`` filter is given.
+    """
+    records = [
+        MonitorRecord.from_record(record) for record in _monitor_records(project)
+    ]
+    records.sort(key=lambda record: record.timestamp, reverse=True)
+    return records
+
+
+def resolve_monitor_ref(ref: str, records: Sequence[MonitorRecord]) -> MonitorRecord:
+    """Resolve *ref* against *records* by id prefix, member name, or lane.
+
+    A member agent name or lane name must match exactly; a lane name with
+    more than one monitor resolves to its active monitor, else its newest.
+    Anything else is tried as a monitor-id prefix of at least
+    :data:`MIN_MONITOR_REF_LENGTH` characters.
+    """
+    query = ref.strip()
+    if not query:
+        raise MonitorRefError("monitor reference must not be empty")
+
+    by_name = [record for record in records if record.member_agent_name == query]
+    if len(by_name) == 1:
+        return by_name[0]
+
+    by_lane = [record for record in records if record.lane == query]
+    if by_lane:
+        active = [record for record in by_lane if record.monitor_state == "running"]
+        if active:
+            return max(active, key=lambda record: record.timestamp)
+        return max(by_lane, key=lambda record: record.timestamp)
+
+    lowered = query.lower()
+    if len(lowered) < MIN_MONITOR_REF_LENGTH:
+        raise MonitorRefError(
+            f"no monitor matches reference {ref!r}; a bare id reference must "
+            f"be at least {MIN_MONITOR_REF_LENGTH} characters"
+        )
+    by_id = [record for record in records if record.monitor_id.startswith(lowered)]
+    if len(by_id) == 1:
+        return by_id[0]
+    if not by_id:
+        raise MonitorRefError(f"no monitor matches reference {ref!r}")
+    candidates = ", ".join(
+        f"{short_monitor_id(record.monitor_id)} ({record.label})" for record in by_id
+    )
+    raise MonitorRefError(
+        f"monitor reference {ref!r} is ambiguous; candidates: {candidates}"
+    )
+
+
 def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:
     meta = record.agent_meta
     if meta is None:
@@ -176,7 +236,7 @@ def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:
     return meta.name == lane or agent_family_base(meta.name) == lane
 
 
-def _monitor_records(project_name: str) -> list[AgentArtifactRecordWire]:
+def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     return [
         record
         for record in _project_records(project_name, only_monitors=True)
@@ -186,14 +246,14 @@ def _monitor_records(project_name: str) -> list[AgentArtifactRecordWire]:
 
 
 def _project_records(
-    project_name: str, *, only_monitors: bool = False
+    project_name: str | None, *, only_monitors: bool = False
 ) -> list[AgentArtifactRecordWire]:
     projects_root = sase_projects_dir()
     options = AgentArtifactScanOptionsWire(
         only_workflow_dirs=("ace-run",),
         include_prompt_step_markers=False,
         include_raw_prompt_snippets=False,
-        only_projects=(project_name,),
+        only_projects=(project_name,) if project_name else (),
     )
     query = AgentArtifactIndexQueryWire(
         include_active=True,
@@ -216,11 +276,14 @@ def _project_records(
 
 
 __all__ = [
+    "MIN_MONITOR_REF_LENGTH",
     "LaneContext",
     "active_monitor_for_lane",
     "default_lane",
     "get_monitor",
     "has_any_monitor",
+    "list_monitors",
     "resolve_lane",
+    "resolve_monitor_ref",
     "stop_monitor",
 ]

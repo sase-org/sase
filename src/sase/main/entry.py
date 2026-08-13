@@ -301,6 +301,12 @@ def main() -> NoReturn:
 
         handle_mobile_command(args)
 
+    # --- monitor ---
+    if args.command == "monitor":
+        from .monitor_handler import handle_monitor_command
+
+        handle_monitor_command(args)
+
     # --- notify ---
     if args.command == "notify":
         from .notify_handler import handle_notify_command

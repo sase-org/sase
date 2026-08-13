@@ -44,6 +44,10 @@ class MonitorAlreadyRunningError(MonitorError):
     """The lane already has an active monitor."""
 
 
+class MonitorRefError(ValueError):
+    """A monitor reference was empty, unknown, or ambiguous."""
+
+
 @dataclass(frozen=True)
 class MonitorRecord:
     """Projection of one monitor family member's durable record."""
@@ -66,6 +70,7 @@ class MonitorRecord:
     next_action: str | None = None
     pid: int | None = None
     exit_code: int | None = None
+    elapsed_seconds: float | None = None
     output_path: str | None = None
     output_truncated: bool = False
     starter_agent: str | None = None
@@ -102,6 +107,10 @@ class MonitorRecord:
         elif meta.monitor_exit_code is not None:
             exit_code = meta.monitor_exit_code
 
+        elapsed_seconds: float | None = None
+        if done is not None and done.monitor_elapsed_seconds is not None:
+            elapsed_seconds = done.monitor_elapsed_seconds
+
         return cls(
             monitor_id=meta.monitor_id,
             member_agent_name=meta.name or "",
@@ -121,6 +130,7 @@ class MonitorRecord:
             next_action=meta.monitor_next_action or None,
             pid=meta.pid,
             exit_code=exit_code,
+            elapsed_seconds=elapsed_seconds,
             output_path=meta.monitor_output_path,
             output_truncated=meta.monitor_output_truncated,
             starter_agent=meta.monitor_starter_agent,
@@ -135,6 +145,7 @@ __all__ = [
     "MonitorError",
     "MonitorLaneError",
     "MonitorRecord",
+    "MonitorRefError",
     "MonitorState",
     "monitor_state_bucket",
 ]

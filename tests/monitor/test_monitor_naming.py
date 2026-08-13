@@ -9,8 +9,10 @@ import pytest
 from sase.monitor.naming import (
     _MONITOR_ID_ALPHABET,
     _MONITOR_ID_LENGTH,
+    SHORT_MONITOR_ID_LENGTH,
     allocate_monitor_suffix,
     new_monitor_id,
+    short_monitor_id,
 )
 
 
@@ -36,3 +38,10 @@ def test_new_monitor_id_is_unique_lowercase_and_matches_task_id_shape() -> None:
     for monitor_id in ids:
         assert len(monitor_id) == _MONITOR_ID_LENGTH
         assert all(char in _MONITOR_ID_ALPHABET for char in monitor_id)
+
+
+def test_short_monitor_id_truncates_to_the_display_prefix() -> None:
+    monitor_id = new_monitor_id()
+
+    assert short_monitor_id(monitor_id) == monitor_id[:SHORT_MONITOR_ID_LENGTH]
+    assert len(short_monitor_id(monitor_id)) == SHORT_MONITOR_ID_LENGTH

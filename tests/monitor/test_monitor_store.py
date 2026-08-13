@@ -11,12 +11,14 @@ from pathlib import Path
 import pytest
 
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
-from sase.monitor.models import MonitorLaneError, MonitorRecord
+from sase.monitor.models import MonitorLaneError, MonitorRecord, MonitorRefError
 from sase.monitor.store import (
     active_monitor_for_lane,
     get_monitor,
     has_any_monitor,
+    list_monitors,
     resolve_lane,
+    resolve_monitor_ref,
     stop_monitor,
 )
 
@@ -229,6 +231,151 @@ def test_get_monitor_returns_none_for_an_unknown_artifacts_dir(
 ) -> None:
     patch_project_records(monkeypatch, [])
     assert get_monitor("proj", "/nowhere") is None
+
+
+def test_list_monitors_defaults_to_every_project_newest_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    older = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+    )
+    newer = make_starter_agent(
+        "other",
+        "20260812130000",
+        "beta--mon",
+        agent_family="beta",
+        agent_family_role="monitor",
+        monitor_id="bbb",
+        monitor_state="completed",
+    )
+    patch_project_records(monkeypatch, [older, newer])
+
+    records = list_monitors()
+
+    assert [record.monitor_id for record in records] == ["bbb", "aaa"]
+
+
+def test_list_monitors_scopes_to_one_project(monkeypatch: pytest.MonkeyPatch) -> None:
+    in_scope = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+    )
+    out_of_scope = make_starter_agent(
+        "other",
+        "20260812130000",
+        "beta--mon",
+        agent_family="beta",
+        agent_family_role="monitor",
+        monitor_id="bbb",
+        monitor_state="running",
+    )
+    patch_project_records(monkeypatch, [in_scope, out_of_scope])
+
+    records = list_monitors(project="proj")
+
+    assert [record.monitor_id for record in records] == ["aaa"]
+
+
+def test_resolve_monitor_ref_matches_a_unique_id_prefix() -> None:
+    records = [_fake_record(monitor_id="aaabbbcccddd", lane="acme")]
+
+    resolved = resolve_monitor_ref("aaab", records)
+
+    assert resolved.monitor_id == "aaabbbcccddd"
+
+
+def test_resolve_monitor_ref_matches_the_exact_member_agent_name() -> None:
+    records = [
+        _fake_record(monitor_id="aaa", lane="acme", member_agent_name="acme--mon"),
+        _fake_record(monitor_id="bbb", lane="beta", member_agent_name="beta--mon"),
+    ]
+
+    resolved = resolve_monitor_ref("acme--mon", records)
+
+    assert resolved.monitor_id == "aaa"
+
+
+def test_resolve_monitor_ref_prefers_the_active_monitor_for_a_lane() -> None:
+    finished = _fake_record(
+        monitor_id="aaa", lane="acme", timestamp="20260812120000", state="completed"
+    )
+    active = _fake_record(
+        monitor_id="bbb", lane="acme", timestamp="20260812110000", state="running"
+    )
+    records = [finished, active]
+
+    resolved = resolve_monitor_ref("acme", records)
+
+    assert resolved.monitor_id == "bbb"
+
+
+def test_resolve_monitor_ref_falls_back_to_the_newest_when_a_lane_has_no_active_one() -> (
+    None
+):
+    older = _fake_record(monitor_id="aaa", lane="acme", timestamp="20260812110000")
+    newer = _fake_record(monitor_id="bbb", lane="acme", timestamp="20260812120000")
+
+    resolved = resolve_monitor_ref("acme", [older, newer])
+
+    assert resolved.monitor_id == "bbb"
+
+
+def test_resolve_monitor_ref_rejects_an_empty_reference() -> None:
+    with pytest.raises(MonitorRefError):
+        resolve_monitor_ref("  ", [_fake_record(monitor_id="aaa", lane="acme")])
+
+
+def test_resolve_monitor_ref_rejects_a_short_unknown_id_prefix() -> None:
+    with pytest.raises(MonitorRefError):
+        resolve_monitor_ref("zz", [_fake_record(monitor_id="aaa", lane="acme")])
+
+
+def test_resolve_monitor_ref_reports_an_ambiguous_id_prefix() -> None:
+    records = [
+        _fake_record(monitor_id="aaabbb111111", lane="acme"),
+        _fake_record(monitor_id="aaabbb222222", lane="beta"),
+    ]
+
+    with pytest.raises(MonitorRefError):
+        resolve_monitor_ref("aaabbb", records)
+
+
+def _fake_record(
+    *,
+    monitor_id: str,
+    lane: str,
+    member_agent_name: str | None = None,
+    timestamp: str = "20260812120000",
+    state: str = "running",
+) -> MonitorRecord:
+    return MonitorRecord(
+        monitor_id=monitor_id,
+        member_agent_name=member_agent_name or f"{lane}--mon",
+        lane=lane,
+        project_name="proj",
+        artifacts_dir=f"/irrelevant/{monitor_id}",
+        timestamp=timestamp,
+        command="sleep 60",
+        cwd="/work",
+        reason="test",
+        label="sleep",
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        timeout_seconds=60.0,
+        tail_lines=200,
+        monitor_state=state,  # type: ignore[arg-type]
+    )
 
 
 def _with_meta_state(artifacts_dir: str, monitor_state: str) -> AgentArtifactRecordWire:
