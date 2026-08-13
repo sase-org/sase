@@ -4,15 +4,56 @@ from __future__ import annotations
 
 from typing import Literal
 
+import pytest
 from rich.cells import cell_len
 from rich.text import Text
 
+from sase.ace.tui import artifact_tabs
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.tab_quickstart import (
     _CARD_CONTENT_WIDTH,
     _KEY_DESCRIPTION_GAP,
     TabQuickStart,
 )
+
+
+def _fixed_only_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
+    return artifact_tabs._assign_artifacts_digit_shortcuts(
+        (
+            artifact_tabs._fixed_descriptor("stitches"),
+            artifact_tabs._fixed_descriptor("patches"),
+            artifact_tabs._fixed_descriptor("beads"),
+            artifact_tabs._fixed_descriptor("files"),
+        )
+    )
+
+
+def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
+    return artifact_tabs._assign_artifacts_digit_shortcuts(
+        (
+            artifact_tabs._fixed_descriptor("stitches"),
+            artifact_tabs._fixed_descriptor("patches"),
+            artifact_tabs._fixed_descriptor("beads"),
+            artifact_tabs.ArtifactsTabDescriptor(
+                id="ref:plan",
+                label="Plans",
+                accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
+                pane_id="artifacts-plans-pane",
+                provider_kind="plan",
+                provider_spec={},
+            ),
+            artifact_tabs._fixed_descriptor("files"),
+        )
+    )
+
+
+@pytest.fixture(autouse=True)
+def _stub_artifacts_subtabs(monkeypatch: pytest.MonkeyPatch) -> None:
+    # render_content() is exercised without AcePage here, so without a stub
+    # it would hit real provider discovery and be host-dependent.
+    monkeypatch.setattr(
+        artifact_tabs, "resolve_artifacts_subtabs", _fixed_only_descriptors
+    )
 
 
 def _section_plain(sections: dict[str, Text], selector: str) -> str:
@@ -75,7 +116,9 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
     assert "tool calls, and artifact files" in hero
 
 
-def test_artifacts_quickstart_advertises_every_subtab() -> None:
+def test_artifacts_quickstart_advertises_every_subtab(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     registry = load_keymap_registry({})
 
     agents = TabQuickStart.render_content(registry, tab="agents")
@@ -92,6 +135,17 @@ def test_artifacts_quickstart_advertises_every_subtab() -> None:
     )
     assert _section_plain(agents, "#agent-quickstart-footer") != _section_plain(
         patches, "#patch-quickstart-footer"
+    )
+
+    monkeypatch.setattr(
+        artifact_tabs, "resolve_artifacts_subtabs", _one_provider_descriptors
+    )
+    provider_patches = TabQuickStart.render_content(registry, tab="patches")
+    provider_card = _section_plain(provider_patches, "#patch-quickstart-card")
+
+    assert "Jump: Stitches · Patches · Beads · Plans · Files." in provider_card
+    assert (
+        "Cycle Artifacts: Stitches · Patches · Beads · Plans · Files." in provider_card
     )
 
 

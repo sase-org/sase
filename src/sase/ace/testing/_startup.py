@@ -41,20 +41,21 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
     """Expose a deterministic plan document provider in fast TUI tests."""
     from sase.ace.tui import artifact_tabs
 
-    return (
-        artifact_tabs._fixed_descriptor("stitches"),
-        artifact_tabs._fixed_descriptor("patches"),
-        artifact_tabs._fixed_descriptor("beads"),
-        artifact_tabs.ArtifactsTabDescriptor(
-            id="ref:plan",
-            label="Plans",
-            accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
-            pane_id="artifacts-plans-pane",
-            provider_kind="plan",
-            provider_spec={},
-            digit_shortcut="5",
-        ),
-        artifact_tabs._fixed_descriptor("files"),
+    return artifact_tabs._assign_artifacts_digit_shortcuts(
+        (
+            artifact_tabs._fixed_descriptor("stitches"),
+            artifact_tabs._fixed_descriptor("patches"),
+            artifact_tabs._fixed_descriptor("beads"),
+            artifact_tabs.ArtifactsTabDescriptor(
+                id="ref:plan",
+                label="Plans",
+                accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
+                pane_id="artifacts-plans-pane",
+                provider_kind="plan",
+                provider_spec={},
+            ),
+            artifact_tabs._fixed_descriptor("files"),
+        )
     )
 
 

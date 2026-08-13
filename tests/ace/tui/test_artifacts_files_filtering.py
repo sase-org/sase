@@ -176,7 +176,7 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("4", "(")
+        await page.press(page.artifacts_digit("files"), "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is not None)
         assert pane.select_entry_target(("file", logical_file(rows[1]).logical_id))

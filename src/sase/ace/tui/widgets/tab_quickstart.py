@@ -238,25 +238,42 @@ class TabQuickStart(VerticalScroll):
             ),
         ]
         if tab == "artifacts":
+            from ..artifact_tabs import resolve_artifacts_subtabs
+
+            descriptors = resolve_artifacts_subtabs()
+            jump_keys: list[str] = []
+            jump_labels: list[str] = []
+            for descriptor in descriptors:
+                if descriptor.digit_shortcut is None:
+                    continue
+                jump_keys.append(descriptor.digit_shortcut)
+                jump_labels.append(descriptor.label)
+
+            insert_at = 3
+            if jump_keys:
+                rows.insert(
+                    insert_at,
+                    (
+                        tuple(jump_keys),
+                        "Jump: " + " · ".join(jump_labels) + ".",
+                    ),
+                )
+                insert_at += 1
             rows.insert(
-                3,
-                (
-                    ("1", "2", "3", "4"),
-                    "Jump: Stitches · Patches · Beads · Files.",
-                ),
-            )
-            rows.insert(
-                4,
+                insert_at,
                 (
                     (
                         key_display_name(app.cycle_artifacts_subtab_reverse),
                         key_display_name(app.cycle_artifacts_subtab),
                     ),
-                    "Cycle Artifacts: Stitches · Patches · Beads · Files.",
+                    "Cycle Artifacts: "
+                    + " · ".join(descriptor.label for descriptor in descriptors)
+                    + ".",
                 ),
             )
+            insert_at += 1
             rows.insert(
-                5,
+                insert_at,
                 (
                     (
                         key_display_name(app.files_prev_version),

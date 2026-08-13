@@ -7,8 +7,8 @@ callers that need to switch Artifacts panes without importing the widget tree.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 import re
 from typing import Any
@@ -30,12 +30,6 @@ FIXED_ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "beads",
     "files",
 )
-FIXED_ARTIFACTS_DIGITS: dict[ArtifactsSubTab, str] = {
-    "stitches": "1",
-    "patches": "2",
-    "beads": "3",
-    "files": "4",
-}
 FIXED_ARTIFACTS_PANE_IDS: dict[ArtifactsSubTab, str] = {
     "patches": "artifacts-patches-pane",
     "stitches": "artifacts-stitches-pane",
@@ -74,6 +68,8 @@ _PROVIDER_ACCENTS: tuple[str, ...] = (
     "#87D7FF",
     "#D7AF5F",
 )
+
+_ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 10))
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +126,58 @@ def reset_artifacts_subtabs_cache() -> None:
     _PROVIDER_ROOTS_CACHE.clear()
 
 
+def _assign_artifacts_digit_shortcuts(
+    descriptors: Sequence[ArtifactsTabDescriptor],
+) -> tuple[ArtifactsTabDescriptor, ...]:
+    """Number Artifacts panes by visual position, Files highest.
+
+    ``descriptors`` must arrive in visual (left-to-right) order, with the
+    Files pane last. The Files descriptor (``id == "files"``) always
+    receives a digit shortcut, and it is always the highest digit assigned:
+    its 1-based position clamped to the last available digit. Every other
+    descriptor receives its own 1-based positional digit as long as that
+    digit is strictly lower than the Files digit; any pane beyond that
+    (only reachable with more than nine panes) receives
+    ``digit_shortcut=None``. If no descriptor has ``id == "files"``
+    (defensive; not reachable from :func:`resolve_artifacts_subtabs`), this
+    falls back to plain positional numbering with ``None`` past the ninth
+    pane.
+    """
+
+    files_index = next(
+        (
+            index
+            for index, descriptor in enumerate(descriptors)
+            if descriptor.id == "files"
+        ),
+        None,
+    )
+    if files_index is None:
+        return tuple(
+            replace(
+                descriptor,
+                digit_shortcut=(
+                    _ARTIFACTS_DIGIT_KEYS[index]
+                    if index < len(_ARTIFACTS_DIGIT_KEYS)
+                    else None
+                ),
+            )
+            for index, descriptor in enumerate(descriptors)
+        )
+
+    files_digit_index = min(len(descriptors), len(_ARTIFACTS_DIGIT_KEYS)) - 1
+    result: list[ArtifactsTabDescriptor] = []
+    for index, descriptor in enumerate(descriptors):
+        if index == files_index:
+            digit = _ARTIFACTS_DIGIT_KEYS[files_digit_index]
+        elif index < files_digit_index:
+            digit = _ARTIFACTS_DIGIT_KEYS[index]
+        else:
+            digit = None
+        result.append(replace(descriptor, digit_shortcut=digit))
+    return tuple(result)
+
+
 def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
     """Return fixed and configured provider tabs in visual order."""
 
@@ -140,12 +188,14 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
 
     provider_records = _load_project_provider_records(project=None)
     providers = _provider_descriptors(provider_records)
-    descriptors = (
-        _fixed_descriptor("stitches"),
-        _fixed_descriptor("patches"),
-        _fixed_descriptor("beads"),
-        *providers,
-        _fixed_descriptor("files"),
+    descriptors = _assign_artifacts_digit_shortcuts(
+        (
+            _fixed_descriptor("stitches"),
+            _fixed_descriptor("patches"),
+            _fixed_descriptor("beads"),
+            *providers,
+            _fixed_descriptor("files"),
+        )
     )
     _ARTIFACTS_TAB_CACHE = (token, descriptors)
     return descriptors
@@ -245,7 +295,6 @@ def _fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
         label=labels[subtab],
         accent=ARTIFACTS_ACCENTS[subtab],
         pane_id=FIXED_ARTIFACTS_PANE_IDS[subtab],
-        digit_shortcut=FIXED_ARTIFACTS_DIGITS[subtab],
     )
 
 
@@ -257,14 +306,14 @@ def _provider_descriptors(
         by_kind.setdefault(record.policy.ref_kind, []).append(record)
 
     descriptors: list[ArtifactsTabDescriptor] = []
-    for offset, kind in enumerate(sorted(by_kind, key=_natural_label_key), start=5):
+    for index, kind in enumerate(sorted(by_kind, key=_natural_label_key)):
         records = by_kind[kind]
         policy = records[0].policy
         spec = policy.spec or {}
         tab_id = f"ref:{kind}"
         accent = (
             ARTIFACTS_ACCENTS.get(tab_id)
-            or _PROVIDER_ACCENTS[(offset - 5) % len(_PROVIDER_ACCENTS)]
+            or _PROVIDER_ACCENTS[index % len(_PROVIDER_ACCENTS)]
         )
         digest = "|".join(
             sorted(
@@ -288,7 +337,6 @@ def _provider_descriptors(
                 provider_kind=kind,
                 provider_spec_digest=digest or policy.digest,
                 provider_spec=spec,
-                digit_shortcut=str(offset) if offset <= 9 else None,
             )
         )
         ARTIFACTS_ACCENTS.setdefault(tab_id, accent)
@@ -507,7 +555,6 @@ __all__ = [
     "EXTERNAL_ACCENT",
     "FILES_PANE_IDS",
     "FILES_SUBTAB_ORDER",
-    "FIXED_ARTIFACTS_DIGITS",
     "FIXED_ARTIFACTS_PANE_IDS",
     "FIXED_ARTIFACTS_SUBTAB_ORDER",
     "LEGACY_ARTIFACTS_SUBTABS",

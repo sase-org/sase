@@ -50,8 +50,8 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
                 ("stitches", None, "stitches", True),
                 ("patches", "2", "patches", True),
                 ("beads", "3", "beads", True),
-                ("plans", "5", "ref:plan", True),
-                ("files", "4", "files", True),
+                ("plans", page.artifacts_digit("ref:plan"), "ref:plan", True),
+                ("files", page.artifacts_digit("files"), "files", True),
             ):
                 if subtab_key is not None:
                     await page.press(subtab_key)

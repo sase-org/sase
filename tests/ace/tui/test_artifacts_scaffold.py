@@ -39,7 +39,6 @@ from sase.ace.tui.widgets.artifacts import (
     FILES_PANE_IDS,
     FILES_SUBTAB_ORDER,
     ArtifactsView,
-    resolve_artifacts_subtabs,
 )
 from sase.ace.tui.widgets.artifacts import ARTIFACTS_ACCENTS
 import sase.ace.tui.widgets.artifacts.commits as commits_module
@@ -67,6 +66,12 @@ def _strip_plain(view: ArtifactsView, active_tab: str) -> str:
         )
         parts.append(f" {shortcut} {label} ")
     return " │ ".join(parts)
+
+
+def _digit_for(view: ArtifactsView, subtab: str) -> str:
+    descriptor = next(d for d in view.descriptors if d.id == subtab)
+    assert descriptor.digit_shortcut is not None
+    return descriptor.digit_shortcut
 
 
 async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
@@ -155,7 +160,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
         await page.press("3")
         await page.expect_state("artifacts_subtab", "beads")
-        await page.press("4")
+        await page.press(_digit_for(view, "files"))
         await page.expect_state("artifacts_subtab", "files")
         await page.press("R")
         assert files.refresh_request_count == 2
@@ -163,6 +168,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
 async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
     async with AcePage(initial_tab="patches") as page:
+        view = page.query_one_widget("#artifacts-view", ArtifactsView)
         calls: list[str] = []
 
         def record_repeat_agent() -> None:
@@ -171,11 +177,8 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
         page.app.action_start_agent_from_patch = record_repeat_agent  # type: ignore[method-assign]
 
         expected = ("stitches", "patches", "beads", "files")
-        for index, (key, subtab) in enumerate(
-            zip(("1", "2", "3", "4"), expected, strict=True),
-            start=1,
-        ):
-            await page.press(key)
+        for index, subtab in enumerate(expected, start=1):
+            await page.press(_digit_for(view, subtab))
             await page.expect_state("artifacts_subtab", subtab)
             assert page.app.check_action("start_agent_from_patch", ()) is True
 
@@ -189,32 +192,30 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
         expected = ("stitches", "patches", "beads", "files")
 
-        for start_key in ("1", "2", "3", "4"):
-            await page.press(start_key)
-            await page.expect_state("artifacts_subtab", expected[int(start_key) - 1])
-            for key, subtab in zip(("1", "2", "3", "4"), expected, strict=True):
-                await page.press(key)
+        for start_subtab in expected:
+            await page.press(_digit_for(view, start_subtab))
+            await page.expect_state("artifacts_subtab", start_subtab)
+            for subtab in expected:
+                await page.press(_digit_for(view, subtab))
                 await page.expect_state("artifacts_subtab", subtab)
                 assert switcher.current == ARTIFACTS_PANE_IDS[subtab]
 
-        await page.press("1")
+        await page.press(_digit_for(view, "stitches"))
         await page.expect_state("artifacts_subtab", "stitches")
-        provider_five = next(
-            (
-                descriptor
-                for descriptor in view.descriptors
-                if descriptor.digit_shortcut == "5"
-            ),
+        provider = next(
+            (descriptor for descriptor in view.descriptors if descriptor.is_provider),
             None,
         )
-        await page.press("5")
-        await page.pause()
-        if provider_five is None:
+        if provider is None or provider.digit_shortcut is None:
+            await page.press("5")
+            await page.pause()
             assert page.app.current_artifacts_subtab == "stitches"
         else:
-            assert page.app.current_artifacts_subtab == provider_five.id
-            assert switcher.current == provider_five.pane_id
-            await page.press("1")
+            await page.press(provider.digit_shortcut)
+            await page.pause()
+            assert page.app.current_artifacts_subtab == provider.id
+            assert switcher.current == provider.pane_id
+            await page.press(_digit_for(view, "stitches"))
             await page.expect_state("artifacts_subtab", "stitches")
 
         await page.press("shift+tab")
@@ -460,9 +461,10 @@ async def test_startup_scope_keeps_unresolvable_ref_unchanged(
 
 async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
     async with AcePage(initial_tab="agents") as page:
+        view = page.query_one_widget("#artifacts-view", ArtifactsView)
         catalog = build_command_catalog(page.app._keymap_registry)
         by_id = {spec.id: spec for spec in catalog}
-        descriptors = resolve_artifacts_subtabs()
+        descriptors = view.descriptors
         expected = {f"artifacts.{descriptor.id}" for descriptor in descriptors}
         assert expected <= by_id.keys()
         assert {f"app.{action}" for action in FILES_ARTIFACT_ACTIONS} <= by_id.keys()
@@ -547,11 +549,20 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     assert descriptor_ids[:3] == ("stitches", "patches", "beads")
     assert descriptor_ids[-1:] == ("files",)
     assert all(identifier.startswith("ref:") for identifier in descriptor_ids[3:-1])
-    assert {
-        descriptor.id: descriptor.digit_shortcut
+    assert [descriptor.digit_shortcut for descriptor in view.descriptors[:3]] == [
+        "1",
+        "2",
+        "3",
+    ]
+    assert view.descriptors[-1].id == "files"
+    assigned_digits = [
+        int(descriptor.digit_shortcut)
         for descriptor in view.descriptors
-        if descriptor.id in {"stitches", "patches", "beads", "files"}
-    } == {"stitches": "1", "patches": "2", "beads": "3", "files": "4"}
+        if descriptor.digit_shortcut is not None
+    ]
+    files_digit = view.descriptors[-1].digit_shortcut
+    assert files_digit is not None
+    assert int(files_digit) == max(assigned_digits)
     assert view.current_subtab == "stitches"
 
 

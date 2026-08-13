@@ -83,7 +83,7 @@ async def test_first_page_paints_before_full_extension(
 
     try:
         async with AcePage(initial_tab="patches") as page:
-            await page.press("4", "(")
+            await page.press(page.artifacts_digit("files"), "(")
             pane = page.query_one_widget(
                 "#artifacts-files-pane",
                 ArtifactsFilesPane,
@@ -137,7 +137,7 @@ async def test_error_snapshot_renders_status_without_crashing(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("4", "(")
+        await page.press(page.artifacts_digit("files"), "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(
             lambda _state: (
@@ -170,7 +170,7 @@ async def test_cursor_survives_refresh_and_jk_has_no_highlight_echoes(
     monkeypatch.setattr(files_pane, "load_files_snapshot", load)
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("4", "(")
+        await page.press(page.artifacts_digit("files"), "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(
             lambda _state: (

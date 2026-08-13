@@ -94,10 +94,12 @@ more" links into the published docs. An empty Beads pane points agents to
 `/sase_new_task`, calls out sized draft tasks, and explains how ready tasks enter
 TaskTriage.
 
-Within Artifacts, the fixed tab keys are **1 Stitches · 2 Patches · 3 Beads · 4 Files**.
-Configured document-provider tabs such as Plans and Research appear between Beads and
-Files; use `[` / `]` to cycle through the complete runtime strip. The fixed number keys
-keep their meaning even when provider tabs are present. These keys act only while
+Within Artifacts, number keys follow the visible left-to-right order of the strip:
+Stitches, Patches, and Beads are always **1**, **2**, **3**; configured
+document-provider tabs such as Plans and Research take the next digits; and Files, which
+always renders last, always carries the highest digit — **4** with no provider tabs
+configured, **6** with two. Digits stop at `9`, and Files keeps its digit even then. Use
+`[` / `]` to cycle through the complete runtime strip. These keys act only while
 Artifacts is visible. Press `p` in Stitches, Beads, provider document panes, or Files to
 change the shared project scope, or use the command palette to jump directly to a
 top-level view. Patches remains query-scoped and retains the existing Patch workflow.

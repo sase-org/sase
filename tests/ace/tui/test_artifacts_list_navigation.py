@@ -254,7 +254,7 @@ async def test_plans_fast_navigation_skips_document_section_headings(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("5")
+        await page.press(page.artifacts_digit("ref:plan"))
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await _assert_distance_navigation(page, pane, expected_count=52)
@@ -315,7 +315,7 @@ async def test_files_implements_shared_stable_target_navigation(
     )
 
     async with AcePage(initial_tab="patches") as page:
-        await page.press("4", "(")
+        await page.press(page.artifacts_digit("files"), "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         targets = pane.entry_targets()
