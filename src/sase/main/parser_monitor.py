@@ -6,7 +6,14 @@ import argparse
 
 # Mirrors ``sase.monitor.models.MONITOR_STATES``, spelled out here so
 # building the parser never imports the monitor engine package.
-MONITOR_STATE_CHOICES = ("running", "completed", "failed", "timeout", "stopped")
+MONITOR_STATE_CHOICES = (
+    "running",
+    "completed",
+    "failed",
+    "timeout",
+    "stopped",
+    "lost",
+)
 
 # Mirrors ``sase.monitor.followup_prompt.NEXT_OUTPUT_CHOICES``, spelled out
 # here for the same reason.

@@ -63,7 +63,7 @@ class DoneMarkerWire:
         imported_transaction_key: Project-scoped journal key used to keep
             transactional imports hidden until their whole hood is complete.
         monitor_state: Terminal monitor outcome (``completed`` / ``failed`` /
-            ``timeout`` / ``stopped``), mirroring the running member's
+            ``timeout`` / ``stopped`` / ``lost``), mirroring the running member's
             ``agent_meta.json::monitor_state``.
         monitor_exit_code: The monitored command's exit code, when recorded.
         monitor_elapsed_seconds: Wall-clock seconds the monitored command ran.

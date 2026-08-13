@@ -20,7 +20,6 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.core.paths import sase_projects_dir
 from sase.logs._bounded import log_file_lock
 from sase.monitor_state import DEFAULT_MONITOR_STOP_STATUS
 from sase.plan_chain import agent_family_base
@@ -40,7 +39,7 @@ from .models import (
     MonitorLaneError,
     MonitorRecord,
 )
-from .transaction import MONITOR_GO_MARKER, monitor_go_path
+from .transaction import MONITOR_GO_MARKER, monitor_go_path, monitor_lane_lock_path
 
 #: RUNNING-field workflow label used for a monitor's workspace claim, distinct
 #: from ``"ace-run"`` so the starter's own runner-exit cleanup no longer
@@ -87,7 +86,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
             "no lane given and SASE_AGENT_NAME is unset; pass an explicit lane"
         )
 
-    with log_file_lock(_lane_start_lock_path(request.project_name, lane)):
+    with log_file_lock(monitor_lane_lock_path(request.project_name, lane)):
         return _start_monitor_locked(request, lane)
 
 
@@ -100,19 +99,27 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
         label=label,
     )
 
-    existing = store.active_monitor_for_lane(request.project_name, lane)
-    if existing is not None:
-        existing_record = MonitorRecord.from_record(existing)
-        if existing_record.request_fingerprint == request_fingerprint:
+    existing_record = store.monitor_blocking_start_for_lane(request.project_name, lane)
+    if existing_record is not None:
+        if existing_record.monitor_state == "lost":
+            if existing_record.request_fingerprint == request_fingerprint:
+                short_id = naming.short_monitor_id(existing_record.monitor_id)
+                raise MonitorAlreadyRunningError(
+                    f"lane {lane!r} has lost monitor {existing_record.monitor_id}; "
+                    f"inspect it with `sase monitor show {short_id} --all-lines` "
+                    "before replaying the same monitor request"
+                )
+        elif existing_record.request_fingerprint == request_fingerprint:
             return existing_record
-        raise MonitorAlreadyRunningError(
-            _active_monitor_message(
-                lane,
-                existing_record,
-                requested_fingerprint=request_fingerprint,
-                requested_command=request.command,
+        else:
+            raise MonitorAlreadyRunningError(
+                _active_monitor_message(
+                    lane,
+                    existing_record,
+                    requested_fingerprint=request_fingerprint,
+                    requested_command=request.command,
+                )
             )
-        )
 
     lane_ctx = store.resolve_lane(request.project_name, lane)
     newest = lane_ctx.record
@@ -374,17 +381,6 @@ def _touch_agent_artifacts_refresh_pulse(artifacts_dir: str) -> None:
         pulse_path.write_text(str(time.time()), encoding="utf-8")
     except OSError:
         pass
-
-
-def _lane_start_lock_path(project_name: str, lane: str) -> Path:
-    key = sha256(f"{project_name}\0{lane}".encode()).hexdigest()[:32]
-    return (
-        sase_projects_dir()
-        / project_name
-        / "artifacts"
-        / "ace-run"
-        / f".monitor-start-{key}"
-    )
 
 
 def _monitor_request_fingerprint(

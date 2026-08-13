@@ -10,6 +10,7 @@ MONITOR_STATE_BUCKETS: dict[str, str] = {
     "failed": "Failed",
     "timeout": "Failed",
     "stopped": "Done",
+    "lost": "Failed",
 }
 
 

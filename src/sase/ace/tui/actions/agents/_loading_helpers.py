@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,6 +30,7 @@ from ._refresh_trace import classify_agents_data_cost
 
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "axe"]
+log = logging.getLogger(__name__)
 
 # Loaded statuses that mean the agent has resumed past an asking/answered
 # pause: it is executing again or a plan-action milestone landed. An in-memory
@@ -426,6 +428,7 @@ def _load_agents_from_disk_impl(
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
+    _reconcile_dead_monitor_supervisors_for_tui()
     all_agents, load_state = load_tiered_agents(
         patch_snapshot=patch_snapshot,
         full_history=full_history,
@@ -438,6 +441,15 @@ def _load_agents_from_disk_impl(
         dismissed_bundle_identities,
         load_state,
     )
+
+
+def _reconcile_dead_monitor_supervisors_for_tui() -> None:
+    try:
+        from sase.monitor import reconcile_dead_supervisors
+
+        reconcile_dead_supervisors()
+    except Exception:
+        log.debug("Failed to reconcile dead monitor supervisors", exc_info=True)
 
 
 def _load_agent_artifact_delta_from_disk_impl(

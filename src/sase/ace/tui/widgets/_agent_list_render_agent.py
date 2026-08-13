@@ -274,7 +274,7 @@ def format_agent_option(
         text.append(display_status, style=_MONITOR_GLYPH_STYLE)
     elif agent.is_monitor and agent.monitor_state in {"completed", "stopped"}:
         text.append(display_status, style="bold #5FD75F")
-    elif agent.is_monitor and agent.monitor_state in {"failed", "timeout"}:
+    elif agent.is_monitor and agent.monitor_state in {"failed", "timeout", "lost"}:
         text.append(display_status, style="bold #FF5F5F")
     elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
         text.append(display_status, style="bold #5FD75F")  # Green
@@ -398,10 +398,10 @@ def format_agent_option(
         text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
     else:
         text.append(display_status, style="dim")
-    if agent.is_monitor and agent.monitor_state in {"failed", "timeout"}:
+    if agent.is_monitor and agent.monitor_state in {"failed", "timeout", "lost"}:
         if agent.monitor_state == "timeout":
             text.append(" ⧖", style="bold #FFAF5F")
-        elif agent.monitor_exit_code is not None:
+        elif agent.monitor_state == "failed" and agent.monitor_exit_code is not None:
             text.append(f" ✗ {agent.monitor_exit_code}", style="bold #FF5F5F")
     text.append(")", style="dim")
 

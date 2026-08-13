@@ -18,7 +18,7 @@ from .followup_prompt import DEFAULT_NEXT_OUTPUT
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
-MonitorState = Literal["running", "completed", "failed", "timeout", "stopped"]
+MonitorState = Literal["running", "completed", "failed", "timeout", "stopped", "lost"]
 
 MONITOR_STATES: tuple[MonitorState, ...] = (
     "running",
@@ -26,11 +26,12 @@ MONITOR_STATES: tuple[MonitorState, ...] = (
     "failed",
     "timeout",
     "stopped",
+    "lost",
 )
 
 #: Every state but ``running`` -- the command has stopped producing output.
 TERMINAL_MONITOR_STATES: frozenset[str] = frozenset(
-    {"completed", "failed", "timeout", "stopped"}
+    {"completed", "failed", "timeout", "stopped", "lost"}
 )
 
 

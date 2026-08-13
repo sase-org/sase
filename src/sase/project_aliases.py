@@ -20,10 +20,6 @@ from sase.project_alias_mutations import (
     set_project_aliases_locked as _set_project_aliases_locked,
     set_project_name_locked as _set_project_name_locked_impl,
 )
-from sase.project_alias_prompts import (
-    canonicalize_project_aliases_in_prompt as _canonicalize_prompt,
-    humanize_project_refs_in_prompt as _humanize_prompt,
-)
 from sase.project_alias_records import (
     allocate_project_name,
     filtered_project_records,
@@ -279,6 +275,10 @@ def canonicalize_project_aliases_in_prompt(prompt: str) -> str:
     pattern = _project_alias_ref_pattern()
     if pattern is None:
         return prompt
+    from sase.project_alias_prompts import (
+        canonicalize_project_aliases_in_prompt as _canonicalize_prompt,
+    )
+
     return _canonicalize_prompt(
         prompt,
         pattern=pattern,
@@ -298,6 +298,10 @@ def humanize_project_refs_in_prompt(
     pattern = _project_alias_ref_pattern()
     if pattern is None:
         return prompt
+    from sase.project_alias_prompts import (
+        humanize_project_refs_in_prompt as _humanize_prompt,
+    )
+
     return _humanize_prompt(
         prompt,
         display_name_by_project,

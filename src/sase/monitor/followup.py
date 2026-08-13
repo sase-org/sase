@@ -52,6 +52,7 @@ def launch_followup_agent(
     project_name: str,
     timeout_kind: str | None = None,
     settle_timeout_seconds: float = DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
+    transfer_from_pid: int | None = None,
 ) -> bool:
     """Launch the agent named by ``monitor_next_action`` into the same lane.
 
@@ -122,7 +123,9 @@ def launch_followup_agent(
             timestamp=timestamp,
             project_name=project_name,
             extra_env=env,
-            retry_transfer_from_pid=os.getpid(),
+            retry_transfer_from_pid=(
+                os.getpid() if transfer_from_pid is None else transfer_from_pid
+            ),
         )
     except (FamilyAttachError, RuntimeError, OSError, ValueError) as exc:
         meta["monitor_followup_error"] = str(exc)

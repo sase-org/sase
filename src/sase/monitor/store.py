@@ -16,11 +16,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sase.axe.agent_meta import write_agent_meta_atomic
-from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
-)
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
@@ -39,8 +34,11 @@ from sase.plan_chain import agent_family_base
 from .identity import supervisor_is_alive
 from .models import MonitorLaneError, MonitorRecord, MonitorRefError
 from .naming import short_monitor_id
-
-_DEAD_SUPERVISOR_ERROR = "monitor supervisor died without reporting"
+from .reconcile import (
+    reconcile_dead_supervisor,
+    reconcile_dead_supervisors_for_records,
+    should_reconcile_dead_supervisor,
+)
 
 #: How long ``stop_monitor`` waits for the supervisor to leave ``running``.
 _STOP_WAIT_SECONDS = 10.0
@@ -96,8 +94,40 @@ def active_monitor_for_lane(
             monitor = MonitorRecord.from_record(record)
         except ValueError:
             continue
+        if should_reconcile_dead_supervisor(monitor):
+            monitor = reconcile_dead_supervisor(monitor, get_monitor=get_monitor)
         if not monitor.is_terminal:
             candidates.append(record)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda record: record.timestamp)
+
+
+def monitor_blocking_start_for_lane(
+    project_name: str,
+    lane: str,
+) -> MonitorRecord | None:
+    """Return the monitor that prevents starting a new one in *lane*.
+
+    Same-boot dead supervisors are reconciled to terminal ``failed`` records
+    and do not block replacement. Pre-reboot monitors reconcile to ``lost``
+    and do block replacement because the command's effect is unknown.
+    """
+    candidates: list[MonitorRecord] = []
+    for record in _monitor_records(project_name):
+        meta = record.agent_meta
+        if meta is None or meta.agent_family != lane:
+            continue
+        try:
+            monitor = MonitorRecord.from_record(record)
+        except ValueError:
+            continue
+        if monitor.is_terminal:
+            continue
+        if should_reconcile_dead_supervisor(monitor):
+            monitor = reconcile_dead_supervisor(monitor, get_monitor=get_monitor)
+        if monitor.monitor_state == "lost" or not monitor.is_terminal:
+            candidates.append(monitor)
     if not candidates:
         return None
     return max(candidates, key=lambda record: record.timestamp)
@@ -121,7 +151,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
         return record
     pid = record.pid
     if pid is None or not supervisor_is_alive(pid, record.supervisor_identity):
-        return _reconcile_dead_supervisor(record)
+        return reconcile_dead_supervisor(record, get_monitor=get_monitor)
 
     # The supervisor's own SIGTERM handler forwards to the monitored
     # command's process group; signal the supervisor pid directly rather
@@ -129,7 +159,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     try:
         os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
-        return _reconcile_dead_supervisor(record)
+        return reconcile_dead_supervisor(record, get_monitor=get_monitor)
 
     deadline = time.monotonic() + _STOP_WAIT_SECONDS
     while time.monotonic() < deadline:
@@ -137,41 +167,10 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
         if current is None or current.monitor_state != "running":
             return current if current is not None else record
         if not supervisor_is_alive(pid, record.supervisor_identity):
-            return _reconcile_dead_supervisor(record)
+            return reconcile_dead_supervisor(record, get_monitor=get_monitor)
         time.sleep(_STOP_POLL_SECONDS)
 
     return record
-
-
-def _reconcile_dead_supervisor(record: MonitorRecord) -> MonitorRecord:
-    """Mark a monitor failed after its supervisor died without reporting."""
-    meta_path = os.path.join(record.artifacts_dir, "agent_meta.json")
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return record
-    if meta.get("monitor_state") != "running":
-        current = get_monitor(record.project_name, record.artifacts_dir)
-        return current if current is not None else record
-
-    meta["monitor_state"] = "failed"
-    write_agent_meta_atomic(
-        record.artifacts_dir,
-        meta,
-        index_updater=update_agent_artifact_index_for_marker_mutation,
-    )
-    write_done_marker_and_update_index(
-        record.artifacts_dir,
-        {
-            "outcome": "monitored",
-            "monitor_state": "failed",
-            "error": _DEAD_SUPERVISOR_ERROR,
-            "status_label": meta.get("monitor_stop_status") or "MONITORED",
-        },
-    )
-    current = get_monitor(record.project_name, record.artifacts_dir)
-    return current if current is not None else record
 
 
 def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
@@ -234,11 +233,20 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     every project, mirroring how ``sase agent list`` scans across projects
     when no ``--project`` filter is given.
     """
+    reconcile_dead_supervisors(project=project)
     records = [
         MonitorRecord.from_record(record) for record in _monitor_records(project)
     ]
     records.sort(key=lambda record: record.timestamp, reverse=True)
     return records
+
+
+def reconcile_dead_supervisors(*, project: str | None = None) -> list[MonitorRecord]:
+    """Reconcile all running monitors whose supervisors are no longer alive."""
+    return reconcile_dead_supervisors_for_records(
+        _monitor_records(project),
+        get_monitor=get_monitor,
+    )
 
 
 def resolve_monitor_ref(ref: str, records: Sequence[MonitorRecord]) -> MonitorRecord:
@@ -339,7 +347,9 @@ __all__ = [
     "get_monitor",
     "has_any_monitor",
     "list_monitors",
+    "monitor_blocking_start_for_lane",
     "read_monitor_marker",
+    "reconcile_dead_supervisors",
     "resolve_lane",
     "resolve_monitor_ref",
     "stop_monitor",

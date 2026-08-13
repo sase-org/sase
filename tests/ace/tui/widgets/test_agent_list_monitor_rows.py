@@ -17,7 +17,7 @@ def _monitor(
     started = datetime(2026, 8, 12, 9, 0, 0)
     stop_time = (
         started + timedelta(minutes=3)
-        if monitor_state in {"completed", "failed", "timeout", "stopped"}
+        if monitor_state in {"completed", "failed", "timeout", "stopped", "lost"}
         else None
     )
     return Agent(
@@ -29,7 +29,7 @@ def _monitor(
             "Running"
             if monitor_state == "running"
             else "Failed"
-            if monitor_state in {"failed", "timeout"}
+            if monitor_state in {"failed", "timeout", "lost"}
             else "Done"
         ),
         start_time=started,
@@ -80,3 +80,14 @@ def test_timeout_monitor_row_renders_timeout_badge() -> None:
     )
 
     assert "⧖" in left.plain
+
+
+def test_lost_monitor_row_renders_as_failed_without_exit_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORED", monitor_state="lost", exit_code=1),
+        0,
+        is_selected=False,
+    )
+
+    assert "MONITORED" in left.plain
+    assert "✗ 1" not in left.plain

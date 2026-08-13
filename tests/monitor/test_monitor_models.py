@@ -34,6 +34,7 @@ def _record(
         ("failed", "Failed"),
         ("timeout", "Failed"),
         ("stopped", "Done"),
+        ("lost", "Failed"),
         (None, "Running"),
         ("bogus", "Running"),
     ],

@@ -360,14 +360,11 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
         request_fingerprint="sha256:match",
     )
 
-    def fake_active(project_name: str, lane: str) -> object:
+    def fake_blocking(project_name: str, lane: str) -> MonitorRecord:
         del project_name, lane
-        return object()  # sentinel; MonitorRecord.from_record is patched below too
+        return existing
 
-    monkeypatch.setattr(store_module, "active_monitor_for_lane", fake_active)
-    monkeypatch.setattr(
-        MonitorRecord, "from_record", staticmethod(lambda record: existing)
-    )
+    monkeypatch.setattr(store_module, "monitor_blocking_start_for_lane", fake_blocking)
     monkeypatch.setattr(
         start_module,
         "_monitor_request_fingerprint",
@@ -414,10 +411,9 @@ def test_start_monitor_rejects_same_command_with_changed_request(
     )
 
     monkeypatch.setattr(
-        store_module, "active_monitor_for_lane", lambda project_name, lane: object()
-    )
-    monkeypatch.setattr(
-        MonitorRecord, "from_record", staticmethod(lambda record: existing)
+        store_module,
+        "monitor_blocking_start_for_lane",
+        lambda project_name, lane: existing,
     )
     monkeypatch.setattr(
         start_module,
@@ -436,6 +432,56 @@ def test_start_monitor_rejects_same_command_with_changed_request(
     )
 
     with pytest.raises(MonitorAlreadyRunningError, match="same command"):
+        start_monitor(request)
+
+
+def test_start_monitor_rejects_identical_replay_of_lost_monitor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.monitor import store as store_module
+    import sase.monitor.start as start_module
+
+    existing = MonitorRecord(
+        monitor_id="aaabbbcccddd",
+        member_agent_name="acme--mon",
+        lane="acme",
+        project_name="proj",
+        artifacts_dir="/some/dir",
+        timestamp="20260812120000",
+        command="just check-full",
+        cwd=str(tmp_path),
+        reason="verify",
+        label="just check-full",
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        timeout_seconds=2700.0,
+        tail_lines=200,
+        monitor_state="lost",
+        request_fingerprint="sha256:match",
+        settled=True,
+    )
+
+    monkeypatch.setattr(
+        store_module,
+        "monitor_blocking_start_for_lane",
+        lambda project_name, lane: existing,
+    )
+    monkeypatch.setattr(
+        start_module,
+        "_monitor_request_fingerprint",
+        lambda request, *, lane, label: "sha256:match",
+    )
+
+    request = StartMonitorRequest(
+        command="just check-full",
+        reason="verify",
+        timeout_seconds=2700.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        lane="acme",
+    )
+
+    with pytest.raises(MonitorAlreadyRunningError, match="lost monitor"):
         start_monitor(request)
 
 
@@ -465,10 +511,9 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
     )
 
     monkeypatch.setattr(
-        store_module, "active_monitor_for_lane", lambda project_name, lane: object()
-    )
-    monkeypatch.setattr(
-        MonitorRecord, "from_record", staticmethod(lambda record: existing)
+        store_module,
+        "monitor_blocking_start_for_lane",
+        lambda project_name, lane: existing,
     )
     monkeypatch.setattr(
         start_module,

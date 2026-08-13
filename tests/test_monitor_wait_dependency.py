@@ -69,7 +69,9 @@ def test_successful_monitor_resolves_family_and_clan(
     assert index.terminal_blocking_artifacts_for_name("monitor-lane") == ()
 
 
-@pytest.mark.parametrize("monitor_state", ["failed", "timeout", "unknown", None])
+@pytest.mark.parametrize(
+    "monitor_state", ["failed", "timeout", "lost", "unknown", None]
+)
 def test_unsuccessful_monitor_blocks_and_is_reported_as_terminal(
     tmp_path: Path,
     monitor_state: str | None,

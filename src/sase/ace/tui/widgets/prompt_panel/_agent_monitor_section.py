@@ -25,6 +25,7 @@ _STATE_DISPLAY: dict[str, tuple[str, str]] = {
     "failed": ("✗", "bold red"),
     "timeout": ("⏱", "bold red"),
     "stopped": ("⊘", "bold magenta"),
+    "lost": ("?", "bold red"),
 }
 
 

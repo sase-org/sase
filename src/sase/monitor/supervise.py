@@ -26,16 +26,19 @@ from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.core.paths import sase_projects_dir
 from sase.history.chat import save_chat_history
 from sase.logs.pipe import BoundedLogPipe
-from sase.notifications.senders import notify_workflow_complete
-from sase.running_field import release_workspace
 
 from .followup import launch_followup_agent
 from .logs import append_monitor_log_bytes, monitor_log_max_bytes, monitor_log_path
 from .models import MonitorState
 from .output import OutputCapture
+from .settlement import (
+    notify_monitor_complete,
+    project_name_from_artifacts_dir,
+    settle_claim_and_followup,
+    touch_monitor_refresh_pulse,
+)
 from .transaction import MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS, monitor_go_path
 
 _POLL_SECONDS = 0.05
@@ -366,8 +369,8 @@ def _finish_monitor(
         metadata_llm_provider=meta.get("llm_provider"),
     )
 
-    project_name = _project_name_from_artifacts_dir(artifacts_dir)
-    followup_error = _settle_claim_and_followup(
+    project_name = project_name_from_artifacts_dir(artifacts_dir)
+    followup_error = settle_claim_and_followup(
         artifacts_dir,
         meta,
         monitor_state=monitor_state,
@@ -376,6 +379,7 @@ def _finish_monitor(
         capture=capture,
         timeout_kind=timeout_kind,
         project_name=project_name,
+        launch_followup=launch_followup_agent,
     )
 
     meta["monitor_settled"] = True
@@ -407,125 +411,13 @@ def _finish_monitor(
             done_marker["monitor_timeout_message"] = timeout_message
     write_done_marker_and_update_index(artifacts_dir, done_marker)
 
-    _touch_refresh_pulse(project_name)
-    _notify_monitor_complete(
+    touch_monitor_refresh_pulse(project_name)
+    notify_monitor_complete(
         meta,
         monitor_state=monitor_state,
         stop_status=stop_status,
         followup_error=followup_error,
     )
-
-
-def _settle_claim_and_followup(
-    artifacts_dir: str,
-    meta: dict[str, Any],
-    *,
-    monitor_state: MonitorState,
-    exit_code: int | None,
-    elapsed_seconds: float,
-    capture: OutputCapture,
-    timeout_kind: _TimeoutKind | None,
-    project_name: str | None,
-) -> str | None:
-    """Launch/record follow-up disposition and dispose of the monitor claim."""
-    next_action = meta.get("monitor_next_action")
-    if next_action and monitor_state != "stopped":
-        launched = False
-        if project_name:
-            launched = launch_followup_agent(
-                artifacts_dir,
-                meta,
-                monitor_state=monitor_state,
-                exit_code=exit_code,
-                elapsed_seconds=elapsed_seconds,
-                capture=capture,
-                timeout_kind=timeout_kind,
-                project_name=project_name,
-            )
-            followup_error = str(meta.get("monitor_followup_error") or "") or None
-        else:
-            followup_error = (
-                "could not resolve the monitor's project from its artifacts path"
-            )
-        if launched:
-            return None
-        release_error = _release_claim(
-            meta,
-            project_name=project_name,
-        )
-        return release_error or followup_error or "follow-up launch failed"
-
-    return _release_claim(meta, project_name=project_name)
-
-
-def _release_claim(
-    meta: dict[str, Any],
-    *,
-    project_name: str | None,
-) -> str | None:
-    workspace_num = meta.get("workspace_num")
-    cl_name = meta.get("cl_name")
-    if project_name and workspace_num is not None:
-        from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
-        from sase.workflows.utils import get_project_file_path
-
-        result = release_workspace(
-            get_project_file_path(project_name),
-            int(workspace_num),
-            MONITOR_WORKSPACE_CLAIM_WORKFLOW,
-            cl_name=cl_name,
-        )
-        if not result.success:
-            return result.error or "workspace release failed"
-    return None
-
-
-def _notify_monitor_complete(
-    meta: dict[str, Any],
-    *,
-    monitor_state: MonitorState,
-    stop_status: str,
-    followup_error: str | None = None,
-) -> None:
-    cl_name = meta.get("cl_name")
-    success = monitor_state in {"completed", "stopped"} and followup_error is None
-    notes = [f"{stop_status}: {meta.get('monitor_command')}"]
-    if followup_error:
-        monitor_id = meta.get("monitor_id") or ""
-        notes.append(
-            f"follow-up launch failed: {followup_error} "
-            f"(inspect with `sase monitor show {monitor_id} --all-lines`)"
-        )
-    notify_workflow_complete(
-        "monitor",
-        cl_name,
-        success,
-        notes,
-        tags=["monitor"],
-    )
-
-
-def _touch_refresh_pulse(project_name: str | None) -> None:
-    if project_name is None:
-        return
-    pulse_path = sase_projects_dir() / project_name / "artifacts" / ".ace_refresh_pulse"
-    try:
-        pulse_path.write_text(str(time.time()), encoding="utf-8")
-    except OSError:
-        pass
-
-
-def _project_name_from_artifacts_dir(artifacts_dir: str) -> str | None:
-    try:
-        relative = (
-            Path(artifacts_dir)
-            .expanduser()
-            .resolve()
-            .relative_to(sase_projects_dir().resolve())
-        )
-    except ValueError:
-        return None
-    return relative.parts[0] if relative.parts else None
 
 
 def _read_meta(artifacts_dir: str) -> dict[str, Any]:
