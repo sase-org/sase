@@ -130,6 +130,9 @@ Timed spans currently wired (by file):
   `widget.ancestors_children.update_relationships_from_index`
 - `widgets/prompt_panel/_agent_display.py` — `widget.prompt_panel.update_display`,
   `widget.prompt_panel.update_header_only`
+- `widgets/prompt_panel/_agent_display_header_summary.py` —
+  `widget.prompt_panel.build_detail_header_summary` and one child span per resolver (see
+  "SASE CONTEXT enrichment" below)
 - `widgets/file_panel/__init__.py` — `widget.file_panel.update_display`
 - `widgets/thinking_panel.py` — `widget.thinking_panel.update_display`
 - `widgets/axe_dashboard.py` — `widget.axe_dashboard.update_display`
@@ -201,6 +204,64 @@ Trace events currently wired include:
 - `widget.patch_list.watch_highlighted` and `.suppressed`
 - `widget.agent_list.watch_highlighted` and `.suppressed`
 - `widget.bgcmd_list.watch_highlighted` and `.suppressed`
+
+### SASE CONTEXT enrichment (detail-header summary)
+
+`build_detail_header_summary` (`widgets/prompt_panel/_agent_display_header_summary.py`)
+is the worker that resolves the `PLAN`, `BEAD`, `ARTIFACTS`, `MEMORY`, `SKILLS`, and
+`WORKSPACES` lanes of the SASE CONTEXT section (bead `sase-l6.1`,
+`plans/202608/sase_context_incremental.md`). It emits one parent span,
+`widget.prompt_panel.build_detail_header_summary`, plus one child span per resolver, all
+sharing that dotted prefix:
+
+```text
+widget.prompt_panel.build_detail_header_summary                 (parent)
+  .xprompts_used
+  .bead_display
+  .plan_enrichment
+  .slow_tool_sources
+  .agent_page_url
+  .linked_delta_groups
+  .artifact_file_paths        the one resolver with no cache — usually the
+                               most expensive lane before phase `stores` lands
+  .memory_reads
+  .skill_uses
+  .opened_workspaces
+  .delta_entries
+  .wait_bead_statuses
+```
+
+The parent span carries `agent` (the agent's `cl_name`) and `cache_state` (`"cold"` on
+the first time this process has resolved that agent identity, `"warm"` after). This
+marker is process-local and best-effort — it tracks whether _this worker_ has touched
+the identity before, independent of and coarser than each resolver's own on-disk cache —
+so it exists to make a raw capture readable without cross-referencing every resolver's
+cache state.
+
+Slice one selection's enrichment out of a capture with:
+
+```bash
+jq -c 'select(.span | startswith("widget.prompt_panel.build_detail_header_summary"))
+       | {span, duration_ms, agent, cache_state}' \
+   ~/.sase/perf/tui_trace.jsonl | tail -20
+```
+
+Reproduce the baseline table (per-resolver cold/warm cost, plus where
+`artifact_file_paths` spends its time inside `list_artifact_files`) with the committed
+benchmark, which drives the exact same spans read above rather than re-timing the
+resolvers by hand:
+
+```bash
+pytest -s -m slow tests/perf/bench_detail_header_summary.py
+
+python -m tests.perf.bench_detail_header_summary --include-home \
+    --count 20 --output ~/.sase/perf/detail_header_summary_baseline.json
+```
+
+`--include-home` is required to measure real `~/.sase` agents; without it the script
+only exercises a tiny hermetic in-memory fixture, so it stays safe to run in CI.
+`--count` controls how many non-clan agents from
+`load_tiered_agents(full_history=False)` are sampled.
 
 ## Quick capture
 
