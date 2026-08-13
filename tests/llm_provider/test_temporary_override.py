@@ -8,12 +8,12 @@ import time
 import pytest
 
 from sase.llm_provider.temporary_override import (
-    _state_path,
     clear_temporary_override,
     get_active_temporary_override,
     parse_override_duration,
     set_temporary_override,
 )
+from sase.llm_provider.temporary_override_state import state_path
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +136,7 @@ def test_clear_when_none_returns_false() -> None:
 
 def test_expired_override_returns_none_and_deletes_file() -> None:
     set_temporary_override("opus", 60.0, source="ace")
-    path = _state_path()
+    path = state_path()
     assert path.exists()
 
     future = time.time() + 3600
@@ -165,7 +165,7 @@ def test_until_cleared_never_expires() -> None:
 
 
 def test_malformed_json_returns_none_and_deletes() -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("not json{{{", encoding="utf-8")
 
@@ -174,7 +174,7 @@ def test_malformed_json_returns_none_and_deletes() -> None:
 
 
 def test_missing_required_fields_returns_none_and_deletes() -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"provider": "claude"}), encoding="utf-8")
 
@@ -183,7 +183,7 @@ def test_missing_required_fields_returns_none_and_deletes() -> None:
 
 
 def test_wrong_field_types_returns_none_and_deletes() -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -204,7 +204,7 @@ def test_wrong_field_types_returns_none_and_deletes() -> None:
 
 
 def test_top_level_list_returns_none_and_deletes() -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
 
@@ -242,7 +242,7 @@ def test_set_empty_source_raises() -> None:
 def test_state_file_uses_v2_keyed_schema() -> None:
     """The default override is written under the v2 ``overrides.default`` key."""
     set_temporary_override("codex/o3", 3600.0, source="ace")
-    raw = _state_path().read_text(encoding="utf-8")
+    raw = state_path().read_text(encoding="utf-8")
     data = json.loads(raw)
 
     assert data["version"] == 2
@@ -257,8 +257,8 @@ def test_state_file_uses_v2_keyed_schema() -> None:
 
 def test_state_file_lives_under_sase_home() -> None:
     set_temporary_override("opus", 60.0, source="ace")
-    assert _state_path().name == "llm_override.json"
-    assert _state_path().exists()
+    assert state_path().name == "llm_override.json"
+    assert state_path().exists()
 
 
 def test_legacy_state_file_with_pre_override_keys_still_loads() -> None:
@@ -268,7 +268,7 @@ def test_legacy_state_file_with_pre_override_keys_still_loads() -> None:
     now-removed ``@other`` alias). The retired keys must be tolerated/ignored so
     a stale state file does not break a fresh launch.
     """
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     legacy = {
         "provider": "codex",

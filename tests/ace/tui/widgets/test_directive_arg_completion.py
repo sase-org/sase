@@ -322,7 +322,7 @@ def test_model_completion_keystroke_path_never_uses_override_lock() -> None:
             side_effect=AssertionError("authoritative override load reached"),
         ),
         patch(
-            "sase.llm_provider.temporary_override._locked_state",
+            "sase.llm_provider.temporary_override_state._locked_state",
             side_effect=AssertionError("override lock reached"),
         ),
     ):

@@ -16,7 +16,6 @@ import time
 import pytest
 
 from sase.llm_provider.temporary_override import (
-    _state_path,
     clear_alias_override,
     get_active_alias_override,
     get_active_alias_overrides,
@@ -24,14 +23,15 @@ from sase.llm_provider.temporary_override import (
     set_alias_override,
     set_alias_override_until,
 )
+from sase.llm_provider.temporary_override_state import state_path
 
 
 def _read_state() -> dict:
-    return json.loads(_state_path().read_text(encoding="utf-8"))
+    return json.loads(state_path().read_text(encoding="utf-8"))
 
 
 def _write_state(data: dict) -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data), encoding="utf-8")
 
@@ -202,11 +202,11 @@ def test_concurrent_alias_writers_preserve_every_update(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The process-shared state serializes the full read/modify/write cycle."""
-    import sase.llm_provider.temporary_override as override_store
+    import sase.llm_provider.temporary_override_state as override_state
 
     writer_count = 8
     first_write_barrier = threading.Barrier(writer_count)
-    real_atomic_write = override_store._atomic_write_json
+    real_atomic_write = override_state._atomic_write_json
 
     def synchronized_first_write(path: object, data: dict) -> None:
         try:
@@ -215,7 +215,7 @@ def test_concurrent_alias_writers_preserve_every_update(
             pass
         real_atomic_write(path, data)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(override_store, "_atomic_write_json", synchronized_first_write)
+    monkeypatch.setattr(override_state, "_atomic_write_json", synchronized_first_write)
 
     aliases = [f"alias_{index}" for index in range(writer_count)]
     with ThreadPoolExecutor(max_workers=writer_count) as executor:
@@ -257,14 +257,14 @@ def test_clear_one_alias_keeps_others() -> None:
 
     active = get_active_alias_overrides()
     assert set(active) == {"worker"}
-    assert _state_path().exists()
+    assert state_path().exists()
 
 
 def test_clear_last_alias_deletes_file() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
     assert clear_alias_override("coder") is True
     assert get_active_alias_overrides() == {}
-    assert not _state_path().exists()
+    assert not state_path().exists()
 
 
 def test_clear_unknown_alias_returns_false() -> None:
@@ -292,7 +292,7 @@ def test_clear_present_but_expired_alias_returns_true() -> None:
     _write_state(data)
 
     assert clear_alias_override("coder") is True
-    assert not _state_path().exists()
+    assert not state_path().exists()
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +312,7 @@ def test_expired_entry_pruned_active_entry_kept() -> None:
     assert set(active) == {"coder"}
 
     # The state file was rewritten without the expired entry (and still exists).
-    assert _state_path().exists()
+    assert state_path().exists()
     assert set(_read_state()["overrides"]) == {"coder"}
 
 
@@ -327,7 +327,7 @@ def test_all_entries_expired_deletes_file() -> None:
     _write_state(data)
 
     assert get_active_alias_overrides() == {}
-    assert not _state_path().exists()
+    assert not state_path().exists()
 
 
 def test_expiry_boundary_is_expired() -> None:
@@ -352,12 +352,12 @@ def test_get_all_prunes_only_expired_entry() -> None:
 
 def test_steady_state_read_does_not_rewrite_file() -> None:
     set_alias_override("coder", "codex/o3", None, source="panel")
-    before = _state_path().read_text(encoding="utf-8")
+    before = state_path().read_text(encoding="utf-8")
 
     get_active_alias_overrides()
     get_active_alias_override("coder")
 
-    assert _state_path().read_text(encoding="utf-8") == before
+    assert state_path().read_text(encoding="utf-8") == before
 
 
 # ---------------------------------------------------------------------------
@@ -450,7 +450,7 @@ def test_expired_v1_flat_state_deletes_file() -> None:
     )
 
     assert get_active_alias_overrides() == {}
-    assert not _state_path().exists()
+    assert not state_path().exists()
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +461,7 @@ def test_expired_v1_flat_state_deletes_file() -> None:
 def test_overrides_not_a_dict_deletes_file() -> None:
     _write_state({"version": 2, "overrides": ["not", "a", "map"]})
     assert get_active_alias_overrides() == {}
-    assert not _state_path().exists()
+    assert not state_path().exists()
 
 
 def test_one_malformed_entry_pruned_valid_kept() -> None:
@@ -495,7 +495,7 @@ def test_invalid_persisted_effort_is_pruned(effort: object) -> None:
     _write_state(data)
 
     assert get_active_alias_overrides() == {}
-    assert not _state_path().exists()
+    assert not state_path().exists()
 
 
 @pytest.mark.parametrize(
@@ -535,7 +535,7 @@ def test_non_finite_persisted_timestamp_is_pruned(
 
 
 def test_top_level_list_returns_empty_and_deletes() -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
 
@@ -544,7 +544,7 @@ def test_top_level_list_returns_empty_and_deletes() -> None:
 
 
 def test_malformed_json_returns_empty_and_deletes() -> None:
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("not json{{{", encoding="utf-8")
 

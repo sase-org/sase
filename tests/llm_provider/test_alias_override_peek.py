@@ -8,13 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from sase.llm_provider import temporary_override as override_store
+from sase.llm_provider import temporary_override_peek as override_store
+from sase.llm_provider import temporary_override_state as override_state
 
 
 @pytest.fixture(autouse=True)
 def reset_peek_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "llm_override.json"
-    monkeypatch.setattr(override_store, "_state_path", lambda: path)
+    monkeypatch.setattr(override_state, "sase_home", lambda: tmp_path)
     monkeypatch.setattr(override_store, "_peek_cache_path", None)
     monkeypatch.setattr(override_store, "_peek_cache_token", None)
     monkeypatch.setattr(override_store, "_peek_cache_entries", {})

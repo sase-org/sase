@@ -52,7 +52,7 @@ def test_get_default_provider_name_ignores_expired_override(
     import json
     import time
 
-    from sase.llm_provider.temporary_override import _state_path
+    from sase.llm_provider.temporary_override_state import state_path
 
     monkeypatch.setattr(
         "sase.llm_provider.registry.get_llm_provider_config",
@@ -60,7 +60,7 @@ def test_get_default_provider_name_ignores_expired_override(
     )
 
     set_temporary_override("codex/o3", 60.0, source="test")
-    path = _state_path()
+    path = state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
     data["overrides"]["default"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -235,7 +235,7 @@ def test_invoke_agent_expired_override_ignored(
 
     from sase.llm_provider import config as llm_config
     from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
-    from sase.llm_provider.temporary_override import _state_path
+    from sase.llm_provider.temporary_override_state import state_path
     from tests._model_alias_defaults_fixture import (
         frozen_selector_provider_model_effort,
     )
@@ -259,7 +259,7 @@ def test_invoke_agent_expired_override_ignored(
     mock_get_provider.return_value = mock_provider
 
     set_temporary_override("codex/o3", 60.0, source="test")
-    path = _state_path()
+    path = state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
     data["overrides"]["default"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")

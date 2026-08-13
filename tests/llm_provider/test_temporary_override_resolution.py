@@ -6,10 +6,10 @@ import json
 import time
 
 from sase.llm_provider.temporary_override import (
-    _state_path,
     resolve_effective_default_provider_model,
     set_temporary_override,
 )
+from sase.llm_provider.temporary_override_state import state_path
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ def test_resolve_effective_default_with_override() -> None:
 def test_resolve_effective_default_ignores_expired_override() -> None:
     set_temporary_override("codex/o3", 60.0, source="ace")
     # Force the override to be in the past by rewriting the v2 state entry.
-    path = _state_path()
+    path = state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
     data["overrides"]["default"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")

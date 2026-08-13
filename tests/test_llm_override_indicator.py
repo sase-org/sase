@@ -11,10 +11,8 @@ from rich.text import Text
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets._override_pill import format_remaining_until
 from sase.ace.tui.widgets.llm_override_indicator import LLMOverrideIndicator
-from sase.llm_provider.temporary_override import (
-    TemporaryLLMOverride,
-    _state_path,
-)
+from sase.llm_provider.temporary_override import TemporaryLLMOverride
+from sase.llm_provider.temporary_override_state import state_path
 
 
 def _override(
@@ -110,7 +108,7 @@ def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> No
         "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
         lambda: ("claude", "sonnet"),
     )
-    path = _state_path()
+    path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
