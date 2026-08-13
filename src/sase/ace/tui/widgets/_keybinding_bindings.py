@@ -273,15 +273,10 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
-        if getattr(agent, "is_monitor", False):
+        if getattr(agent, "is_monitor", False) and agent.monitor_state == "running":
             # A monitor has no LLM process to kill; ``x`` only does anything
             # while its supervised command is still running.
-            if (
-                marked_count == 0
-                and not panel_focused
-                and not group_focused
-                and agent.monitor_state == "running"
-            ):
+            if marked_count == 0 and not panel_focused and not group_focused:
                 bindings.append((x, "stop monitor"))
             return bindings
 

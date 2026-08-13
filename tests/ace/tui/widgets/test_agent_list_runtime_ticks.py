@@ -66,6 +66,8 @@ def test_runtime_suffix_ticks_linked_followup_workflow_ticks() -> None:
 
 def test_runtime_suffix_ticks_live_monitor_custom_status() -> None:
     result = agent(status="MONITORING")
+    result.agent_family_role = "monitor"
+    result.role_suffix = "--mon"
     result.monitor_id = "m123"
     result.monitor_state = "running"
 

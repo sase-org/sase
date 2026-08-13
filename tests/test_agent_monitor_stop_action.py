@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from tests._agent_kill_single_helpers import cleanup_plan
 
 
 class _ActionApp(AgentsMixin):
@@ -57,6 +58,25 @@ def _monitor_agent(*, artifacts_dir: str, monitor_state: str = "running") -> Age
     return agent
 
 
+def _monitor_starter_agent(*, artifacts_dir: str) -> Agent:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="starter-row",
+        project_file="/tmp/project/monitor.sase",
+        status="DONE",
+        start_time=None,
+        artifacts_dir=artifacts_dir,
+        raw_suffix="starter-12345",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+        monitor_id="m123",
+    )
+    assert agent.is_monitor is False
+    return agent
+
+
 def test_action_kill_agent_on_running_monitor_pushes_confirm_modal(
     tmp_path: Path,
 ) -> None:
@@ -69,16 +89,40 @@ def test_action_kill_agent_on_running_monitor_pushes_confirm_modal(
     assert app.submitted == []
 
 
-def test_action_kill_agent_on_terminal_monitor_notifies_and_skips_confirm(
+def test_action_kill_agent_on_terminal_monitor_uses_cleanup_path(
     tmp_path: Path,
 ) -> None:
     agent = _monitor_agent(artifacts_dir=str(tmp_path), monitor_state="completed")
     app = _ActionApp(agent)
+    plan = cleanup_plan(agent, action="dismiss")
 
-    app.action_kill_agent()
+    with (
+        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
+        patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
+    ):
+        app.action_kill_agent()
 
+    mock_dismiss.assert_called_once_with(agent, plan)
     assert app.pushed == []
-    assert app._notifications == [("Monitor has already finished", "warning")]
+    assert app._notifications == []
+
+
+def test_action_kill_agent_on_done_monitor_starter_uses_cleanup_path(
+    tmp_path: Path,
+) -> None:
+    agent = _monitor_starter_agent(artifacts_dir=str(tmp_path))
+    app = _ActionApp(agent)
+    plan = cleanup_plan(agent, action="dismiss")
+
+    with (
+        patch("sase.core.agent_cleanup_facade.plan_agent_cleanup", return_value=plan),
+        patch.object(app, "_dismiss_planned_agent") as mock_dismiss,
+    ):
+        app.action_kill_agent()
+
+    mock_dismiss.assert_called_once_with(agent, plan)
+    assert app.pushed == []
+    assert ("Monitor has already finished", "warning") not in app._notifications
 
 
 def test_confirming_stop_submits_background_task(tmp_path: Path) -> None:

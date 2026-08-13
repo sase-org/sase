@@ -8,6 +8,7 @@ from typing import Any
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, present_agent_name
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
+from sase.monitor_state import is_monitor_member_role
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
@@ -248,8 +249,8 @@ class Agent(AgentState):
 
     @property
     def is_monitor(self) -> bool:
-        """Whether this row represents a supervised monitor command."""
-        return bool(self.monitor_id) or self.agent_family_role == "monitor"
+        """Whether this row is the monitor member, not the starter back-reference."""
+        return is_monitor_member_role(self.agent_family_role, self.role_suffix)
 
     @property
     def start_time_display(self) -> str:

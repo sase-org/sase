@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.models._loaders._meta_enrichment_filesystem import (
+    enrich_agent_from_meta,
+)
 from sase.ace.tui.models._loaders._done_loaders import load_done_agents_from_snapshot
 from sase.ace.tui.models._loaders._meta_enrichment_wire import (
     enrich_agent_from_meta_wire,
@@ -17,6 +22,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import load_all_agents
 from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.artifact_files import get_artifacts_dir
+from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
     AgentArtifactRecordWire,
@@ -107,6 +113,71 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
     assert agent.monitor_timeout_seconds == 2700.0
     assert agent.monitor_idle_timeout_seconds == 600.0
     assert agent.monitor_output_truncated is True
+
+
+def test_wire_monitor_starter_keeps_reference_without_monitor_row_semantics() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="starter-row",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        start_time=datetime(2026, 8, 12, 9, 0, 0),
+        raw_suffix="20260812090000",
+    )
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            name="alpha--0",
+            monitor_id="m123",
+            agent_family="alpha",
+            agent_family_role="root",
+            role_suffix="--0",
+            stopped_at="2026-08-12T13:03:00Z",
+        ),
+        waiting=None,
+    )
+
+    assert agent.monitor_id == "m123"
+    assert agent.is_monitor is False
+    assert agent.status == "DONE"
+    assert agent.status_bucket != "Running"
+    assert agent_status_bucket(agent) == "Done"
+
+
+def test_filesystem_monitor_starter_keeps_reference_without_monitor_row_semantics(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "alpha--0",
+                "monitor_id": "m123",
+                "monitor_member_agent_name": "alpha--mon",
+                "agent_family": "alpha",
+                "agent_family_role": "root",
+                "role_suffix": "--0",
+                "stopped_at": "2026-08-12T13:03:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="starter-row",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        start_time=datetime(2026, 8, 12, 9, 0, 0),
+        raw_suffix="20260812090000",
+    )
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.monitor_id == "m123"
+    assert agent.is_monitor is False
+    assert agent.status == "DONE"
+    assert agent.status_bucket != "Running"
+    assert agent_status_bucket(agent) == "Done"
 
 
 def test_terminal_monitor_done_projects_stop_label_and_exit_code() -> None:

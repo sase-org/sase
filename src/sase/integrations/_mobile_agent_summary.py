@@ -169,7 +169,7 @@ def agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
         "duration_seconds": optional_uint(agent.duration_seconds),
         "prompt_snippet": prompt,
         "has_artifact_dir": has_artifact_dir,
-        "is_monitor": bool(agent.monitor_id),
+        "is_monitor": agent.is_monitor,
         "monitor": {
             "id": agent.monitor_id,
             "state": agent.monitor_state,

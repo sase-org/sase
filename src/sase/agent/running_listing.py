@@ -26,7 +26,7 @@ from sase.core.runner_slots import (
     is_runner_slot_user_agent_record,
 )
 from sase.core.time import get_timezone
-from sase.monitor_state import monitor_state_bucket
+from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
 
 
 @dataclass
@@ -63,11 +63,19 @@ class RunningAgentInfo:
     # Effective presentation-neutral tribe. Clan declarations/context take
     # precedence; standalone assignments remain unchanged for non-clan rows.
     tribe: str | None = None
+    agent_family: str | None = None
+    agent_family_role: str | None = None
+    role_suffix: str | None = None
     monitor_id: str | None = None
     monitor_state: str | None = None
     monitor_label: str | None = None
     monitor_command: str | None = None
     monitor_exit_code: int | None = None
+
+    @property
+    def is_monitor(self) -> bool:
+        """Whether this row is a monitor member rather than its starter."""
+        return is_monitor_member_role(self.agent_family_role, self.role_suffix)
 
 
 class _RunningAgentListing(list[RunningAgentInfo]):
@@ -143,6 +151,16 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return parsed
 
 
+def _is_monitor_member_meta(meta: object | None) -> bool:
+    return bool(
+        meta is not None
+        and is_monitor_member_role(
+            getattr(meta, "agent_family_role", None),
+            getattr(meta, "role_suffix", None),
+        )
+    )
+
+
 def active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if record.waiting is not None:
         return "WAITING"
@@ -157,7 +175,7 @@ def active_status_for_record(record: AgentArtifactRecordWire) -> str:
                 pass
         return "QUESTION"
     meta = record.agent_meta
-    if meta is not None and meta.monitor_id:
+    if meta is not None and _is_monitor_member_meta(meta):
         if meta.run_started_at or meta.wait_completed_at:
             return meta.monitor_start_status or "MONITORING"
         return "STARTING"
@@ -273,7 +291,7 @@ def _running_info_from_running_record(
         artifacts_dir=record.artifact_dir,
         holds_runner_slot=(
             False
-            if meta.monitor_id
+            if _is_monitor_member_meta(meta)
             else bool(meta.run_started_at) and record.pending_question is None
         ),
         agent_clan=meta.agent_clan,
@@ -284,6 +302,9 @@ def _running_info_from_running_record(
             declared_clan_tribe=meta.clan_tribe,
             context=context,
         ),
+        agent_family=meta.agent_family,
+        agent_family_role=meta.agent_family_role,
+        role_suffix=meta.role_suffix,
         monitor_id=meta.monitor_id,
         monitor_state=meta.monitor_state,
         monitor_label=meta.monitor_label,
@@ -343,7 +364,7 @@ def _is_visible_monitor_record(record: AgentArtifactRecordWire) -> bool:
         record.workflow_dir_name == "ace-run"
         and meta is not None
         and meta.monitor_id
-        and meta.agent_family_role == "monitor"
+        and _is_monitor_member_meta(meta)
         and not record.has_done_marker
     )
 
@@ -351,7 +372,10 @@ def _is_visible_monitor_record(record: AgentArtifactRecordWire) -> bool:
 def _record_is_running_monitor(record: AgentArtifactRecordWire) -> bool:
     meta = record.agent_meta
     return bool(
-        meta is not None and meta.monitor_id and meta.monitor_state == "running"
+        meta is not None
+        and meta.monitor_id
+        and _is_monitor_member_meta(meta)
+        and meta.monitor_state == "running"
     )
 
 
@@ -363,8 +387,7 @@ def _record_status_bucket(
     monitor_state = getattr(done, "monitor_state", None) or getattr(
         meta, "monitor_state", None
     )
-    monitor_id = getattr(meta, "monitor_id", None)
-    if monitor_id or monitor_state:
+    if _is_monitor_member_meta(meta):
         return monitor_state_bucket(monitor_state)
     return valid_status_bucket(raw_bucket)
 
@@ -383,7 +406,7 @@ def _done_info_from_record(
 
     meta = record.agent_meta
 
-    if meta is not None and meta.parent_timestamp and not meta.monitor_id:
+    if meta is not None and meta.parent_timestamp and not _is_monitor_member_meta(meta):
         return None
 
     wf_state = record.workflow_state
@@ -467,6 +490,9 @@ def _done_info_from_record(
             declared_clan_tribe=(meta.clan_tribe if meta is not None else None),
             context=context,
         ),
+        agent_family=meta.agent_family if meta is not None else None,
+        agent_family_role=meta.agent_family_role if meta is not None else None,
+        role_suffix=meta.role_suffix if meta is not None else None,
         monitor_id=meta.monitor_id if meta is not None else None,
         monitor_state=done.monitor_state or (meta.monitor_state if meta else None),
         monitor_label=meta.monitor_label if meta is not None else None,

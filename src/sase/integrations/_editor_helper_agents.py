@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.agent.status_buckets import aggregate_agent_group_status
+from sase.monitor_state import is_monitor_member_role
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                 "name": name,
                 "status": agent.status,
                 "project": project,
-                "kind": "monitor" if getattr(agent, "monitor_id", None) else "agent",
+                "kind": "monitor" if getattr(agent, "is_monitor", False) else "agent",
                 "member_count": 1,
                 "detail": detail,
             }
@@ -156,7 +157,10 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 clan_tribe=clan_tribe,
                 tribe=persisted_tribe or ((meta.tribe or "").strip() or None),
                 status=statuses.get(record.artifact_dir) or _record_status(record),
-                is_monitor=bool(meta.monitor_id),
+                is_monitor=is_monitor_member_role(
+                    meta.agent_family_role,
+                    meta.role_suffix,
+                ),
             )
         )
     return members

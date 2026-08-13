@@ -137,6 +137,7 @@ _TERMINAL_STATUSES: frozenset[str] = frozenset(
         "PLAN REJECTED",
         "EPIC CREATED",
         "STOPPED",
+        "MONITORED",
         FEEDBACK_STATUS,
     }
 )

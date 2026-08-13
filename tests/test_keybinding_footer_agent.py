@@ -410,7 +410,8 @@ def test_keybinding_footer_tmux_choices_label_with_cached_choices() -> None:
 
 
 def _monitor_agent(*, monitor_state: str = "running") -> Agent:
-    agent = _make_agent(status="MONITORING")
+    status = "MONITORING" if monitor_state == "running" else "MONITORED"
+    agent = _make_agent(status=status)
     agent.agent_family_role = "monitor"
     agent.role_suffix = "--mon"
     agent.monitor_id = "m123"
@@ -418,6 +419,16 @@ def _monitor_agent(*, monitor_state: str = "running") -> Agent:
     agent.monitor_command = "just check-full"
     agent.monitor_label = "just check"
     assert agent.is_monitor is True
+    return agent
+
+
+def _monitor_starter_agent() -> Agent:
+    agent = _make_agent(status="DONE")
+    agent.agent_family_role = "root"
+    agent.role_suffix = "--0"
+    agent.monitor_id = "m123"
+    agent.monitor_state = None
+    assert agent.is_monitor is False
     return agent
 
 
@@ -436,7 +447,23 @@ def test_keybinding_footer_terminal_monitor_omits_stop_monitor() -> None:
 
     bindings = footer._compute_agent_bindings(agent)
 
-    assert not any(key == "x" for key, _label in bindings)
+    assert ("x", "dismiss") in bindings
+    assert ("x", "stop monitor") not in bindings
+    labels = [label for _key, label in bindings]
+    assert "retry" in labels
+    assert "name" in labels
+
+
+def test_keybinding_footer_monitor_starter_advertises_normal_agent_bindings() -> None:
+    footer = KeybindingFooter()
+    agent = _monitor_starter_agent()
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "dismiss") in bindings
+    assert ("x", "stop monitor") not in bindings
+    labels = [label for _key, label in bindings]
+    assert "retry" in labels
 
 
 def test_keybinding_footer_running_monitor_omits_agent_only_bindings() -> None:

@@ -31,7 +31,7 @@ from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
-from sase.monitor_state import monitor_state_bucket
+from sase.monitor_state import is_monitor_member_role, monitor_state_bucket
 
 from ._agent_list_entry_models import (
     AgentChildrenSummary,
@@ -198,6 +198,7 @@ def build_agent_list_entry(
         ),
         agent_family=_text(meta, "agent_family"),
         agent_family_role=_text(meta, "agent_family_role"),
+        role_suffix=_text(meta, "role_suffix"),
         parent_agent_name=_text(meta, "parent_agent_name"),
         plan=bool(_bool(meta, "plan")),
         plan_approved=bool(_bool(meta, "plan_approved")),
@@ -292,10 +293,12 @@ def _derive_status(
 
 
 def _is_monitor(meta: AgentMetaWire | None, done: DoneMarkerWire | None) -> bool:
-    return bool(
-        (meta is not None and meta.monitor_id)
-        or (done is not None and done.outcome == "monitored")
-    )
+    if meta is None or not is_monitor_member_role(
+        meta.agent_family_role,
+        meta.role_suffix,
+    ):
+        return False
+    return bool(meta.monitor_id or (done is not None and done.outcome == "monitored"))
 
 
 def _plan_status(meta: AgentMetaWire) -> str | None:

@@ -257,6 +257,67 @@ def test_agent_list_includes_terminal_monitor_family_child() -> None:
     assert entry.is_monitor is True
 
 
+def test_agent_list_monitor_starter_with_monitor_id_buckets_by_done_status() -> None:
+    artifact_record = record(
+        agent_meta=AgentMetaWire(
+            name="alpha--0",
+            agent_family="alpha",
+            agent_family_role="root",
+            role_suffix="--0",
+            monitor_id="m123",
+        ),
+        has_done_marker=True,
+        done=DoneMarkerWire(outcome="completed"),
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[artifact_record],
+    )
+
+    (info,) = _done_from_snapshot(snapshot, cap_per_project=10)
+    entry = _build_agent_list_entry(info, record=artifact_record)
+    payload = _agent_to_json(entry)
+
+    assert info.status == "DONE"
+    assert info.monitor_id == "m123"
+    assert entry.is_monitor is False
+    assert entry.status_bucket == "Done"
+    assert payload["is_monitor"] is False
+    assert payload["monitor_id"] == "m123"
+
+
+def test_agent_list_monitored_outcome_starter_buckets_as_terminal_agent() -> None:
+    artifact_record = record(
+        agent_meta=AgentMetaWire(
+            name="alpha--0",
+            agent_family="alpha",
+            agent_family_role="root",
+            role_suffix="--0",
+            monitor_id="m123",
+        ),
+        has_done_marker=True,
+        done=DoneMarkerWire(outcome="monitored"),
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[artifact_record],
+    )
+
+    (info,) = _done_from_snapshot(snapshot, cap_per_project=10)
+    entry = _build_agent_list_entry(info, record=artifact_record)
+
+    assert info.status == "MONITORED"
+    assert entry.status == "MONITORED"
+    assert entry.is_monitor is False
+    assert entry.status_bucket == "Done"
+
+
 def test_agent_list_entries_names_parallel_child_blocking_waiter(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:

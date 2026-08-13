@@ -63,7 +63,7 @@ class AgentKillActionFlowMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if agent.is_monitor:
+        if agent.is_monitor and agent.monitor_state == "running":
             self._handle_monitor_stop_action(agent)  # type: ignore[attr-defined]
             return
 

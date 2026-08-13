@@ -270,6 +270,26 @@ def test_monitor_family_member_rows_do_not_count_as_agents() -> None:
     assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
+def test_monitor_starter_root_still_counts_as_concrete_agent() -> None:
+    root = _agent("alpha--0", role="root", status="DONE", status_bucket="Done")
+    root.role_suffix = "--0"
+    root.monitor_id = "m123"
+    monitor = _agent(
+        "alpha--mon",
+        role="monitor",
+        parent_timestamp=root.raw_suffix,
+        status="MONITORED",
+        status_bucket="Done",
+    )
+    monitor.monitor_id = "m123"
+    monitor.monitor_state = "completed"
+    root.followup_agents = [monitor]
+
+    assert root.is_monitor is False
+    assert concrete_family_member_rows(root) == (root, monitor)
+    assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
+
+
 def test_stopped_non_final_family_member_projects_done() -> None:
     planner = _agent(
         "alpha--plan",

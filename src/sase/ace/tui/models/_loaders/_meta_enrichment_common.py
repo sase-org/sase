@@ -46,6 +46,7 @@ def apply_monitor_meta(
     monitor_output_truncated: object = None,
     monitor_followup_outcome: object = None,
     monitor_followup_error: object = None,
+    monitor_member: bool,
 ) -> None:
     """Apply monitor fields from ``agent_meta.json`` to one row."""
     if not isinstance(monitor_id, str) or not monitor_id:
@@ -79,6 +80,8 @@ def apply_monitor_meta(
     agent.monitor_followup_error = (
         monitor_followup_error if isinstance(monitor_followup_error, str) else None
     )
+    if not monitor_member:
+        return
     agent.status_bucket = monitor_state_bucket(state)
     if state == "running" and agent.status != "STARTING":
         agent.status = (

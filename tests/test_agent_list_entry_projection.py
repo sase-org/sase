@@ -175,6 +175,8 @@ def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
             monitor_command="sleep 60",
             monitor_stop_status="SLEPT",
             status_bucket="Running",
+            agent_family_role="monitor",
+            role_suffix="--mon",
         ),
         has_done_marker=True,
         done=DoneMarkerWire(

@@ -100,6 +100,63 @@ def test_editor_helper_bridge_agent_catalog_is_fresh_and_deduplicated(
     assert calls == 2
 
 
+def test_editor_helper_bridge_agent_catalog_uses_monitor_member_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.running_listing import RunningAgentInfo
+
+    monkeypatch.setattr(
+        "sase.agent.running_listing.list_all_agents",
+        lambda: [
+            RunningAgentInfo(
+                name="alpha--0",
+                project="sase",
+                pid=None,
+                model=None,
+                provider=None,
+                workspace_num=None,
+                duration="2m",
+                approve=False,
+                status="DONE",
+                agent_family="alpha",
+                agent_family_role="root",
+                role_suffix="--0",
+                monitor_id="m123",
+            ),
+            RunningAgentInfo(
+                name="alpha--mon",
+                project="sase",
+                pid=None,
+                model=None,
+                provider=None,
+                workspace_num=None,
+                duration="2m",
+                approve=False,
+                status="MONITORED",
+                agent_family="alpha",
+                agent_family_role="monitor",
+                role_suffix="--mon",
+                monitor_id="m123",
+            ),
+        ],
+    )
+
+    stdout = io.StringIO()
+    code = handle_editor_helper_bridge(
+        argparse.Namespace(editor_helper_bridge_subcommand="agent-catalog"),
+        stdin=io.StringIO(json.dumps({"schema_version": 1})),
+        stdout=stdout,
+        stderr=io.StringIO(),
+    )
+
+    assert code == 0
+    entries = json.loads(stdout.getvalue())["entries"]
+    assert [(entry["kind"], entry["name"]) for entry in entries] == [
+        ("agent", "alpha--0"),
+        ("monitor", "alpha--mon"),
+    ]
+
+
 def test_editor_helper_bridge_agent_catalog_derives_groups_from_one_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

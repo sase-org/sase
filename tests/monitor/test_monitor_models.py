@@ -7,6 +7,7 @@ import pytest
 from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.monitor.models import MonitorRecord, monitor_state_bucket
+from sase.monitor_state import is_monitor_member_role
 
 
 def _record(
@@ -43,6 +44,24 @@ def test_monitor_state_bucket_maps_every_terminal_state(
     state: str | None, bucket: str
 ) -> None:
     assert monitor_state_bucket(state) == bucket
+
+
+@pytest.mark.parametrize(
+    ("agent_family_role", "role_suffix", "expected"),
+    [
+        ("monitor", None, True),
+        ("root", "--0", False),
+        ("root", "--mon", False),
+        (None, "--mon", True),
+        (None, "--mon-0", True),
+    ],
+)
+def test_is_monitor_member_role_uses_role_then_suffix_fallback(
+    agent_family_role: str | None,
+    role_suffix: str | None,
+    expected: bool,
+) -> None:
+    assert is_monitor_member_role(agent_family_role, role_suffix) is expected
 
 
 def test_from_record_rejects_non_monitor_rows() -> None:

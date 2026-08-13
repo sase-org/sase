@@ -122,6 +122,9 @@ def test_list_mobile_agents_projects_monitor_metadata(
     tmp_path: Path,
 ) -> None:
     monitor = _agent(tmp_path, name="alpha--mon", status="MONITORING")
+    monitor.agent_family = "alpha"
+    monitor.agent_family_role = "monitor"
+    monitor.role_suffix = "--mon"
     monitor.monitor_id = "m123"
     monitor.monitor_state = "running"
     monitor.monitor_label = "just check"
@@ -144,3 +147,25 @@ def test_list_mobile_agents_projects_monitor_metadata(
         "exit_code": None,
     }
     assert agent["actions"]["can_kill"] is True
+
+
+def test_list_mobile_agents_monitor_starter_is_not_monitor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    starter = _agent(tmp_path, name="alpha--0", status="DONE")
+    starter.agent_family = "alpha"
+    starter.agent_family_role = "root"
+    starter.role_suffix = "--0"
+    starter.monitor_id = "m123"
+    monkeypatch.setattr(
+        mobile_agents,
+        "list_running_agents",
+        lambda: [starter],
+    )
+
+    payload = _list_mobile_agents({"schema_version": 1})
+    agent = payload["agents"][0]
+
+    assert agent["is_monitor"] is False
+    assert agent["monitor"]["id"] == "m123"

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
+from sase.ace.tui.widgets._agent_list_styling import _MONITOR_ROW_STYLE
 
 
 def _monitor(
@@ -51,6 +52,27 @@ def _monitor(
     )
 
 
+def _monitor_starter() -> Agent:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="starter-row",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        status_bucket="Done",
+        start_time=started,
+        stop_time=started + timedelta(minutes=3),
+        raw_suffix="20260812090000",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+        monitor_id="m123",
+        monitor_label="just check",
+        monitor_command="just check-full",
+    )
+
+
 def test_monitor_row_uses_glyph_and_label_without_the_command() -> None:
     left, _suffix, _option_id = format_agent_option(
         _monitor(status="MONITORING", monitor_state="running"),
@@ -62,6 +84,19 @@ def test_monitor_row_uses_glyph_and_label_without_the_command() -> None:
     assert "just check" in left.plain
     assert "just check-full" not in left.plain
     assert "MONITORING" in left.plain
+
+
+def test_monitor_starter_row_uses_agent_rendering_not_monitor_rendering() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor_starter(),
+        0,
+        is_selected=False,
+    )
+
+    assert "⏱" not in left.plain
+    assert "starter-row" in left.plain
+    assert "just check" not in left.plain
+    assert not any(str(span.style) == _MONITOR_ROW_STYLE for span in left.spans)
 
 
 def test_failed_monitor_row_renders_exit_badge() -> None:

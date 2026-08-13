@@ -8,6 +8,7 @@ from pathlib import Path
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.output_variable_values import coerce_var_map
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
+from sase.monitor_state import is_monitor_member_role
 from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._json_cache import load_json_cached
@@ -393,6 +394,10 @@ def enrich_agent_from_meta(
         monitor_output_truncated=data.get("monitor_output_truncated"),
         monitor_followup_outcome=data.get("monitor_followup_outcome"),
         monitor_followup_error=data.get("monitor_followup_error"),
+        monitor_member=is_monitor_member_role(
+            agent.agent_family_role,
+            agent.role_suffix,
+        ),
     )
 
     agent.refresh_raw_presented_agent_name()

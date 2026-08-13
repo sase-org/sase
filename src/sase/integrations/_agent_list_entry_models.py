@@ -8,6 +8,7 @@ from datetime import datetime
 
 from sase.agent.status_buckets import agent_is_asking
 from sase.core.output_variable_values import VarValue
+from sase.monitor_state import is_monitor_member_role
 
 
 _TERMINAL_BUCKETS = {"Done", "Failed"}
@@ -117,6 +118,7 @@ class AgentListEntry:
     workflow_name: str | None = None
     agent_family: str | None = None
     agent_family_role: str | None = None
+    role_suffix: str | None = None
     parent_agent_name: str | None = None
     plan: bool = False
     plan_approved: bool = False
@@ -143,7 +145,7 @@ class AgentListEntry:
 
     @property
     def is_monitor(self) -> bool:
-        return bool(self.monitor_id)
+        return is_monitor_member_role(self.agent_family_role, self.role_suffix)
 
     @property
     def is_terminal(self) -> bool:
