@@ -65,12 +65,31 @@
     height: 100%;
 }
 
-#artifacts-subtabs {
+#artifacts-header {
     width: 100%;
+    height: 1;
+    background: $surface;
+}
+
+#artifacts-subtabs {
+    width: 1fr;
     height: 1;
     text-align: center;
     text-wrap: nowrap;
     text-overflow: clip;
+    background: $surface;
+}
+
+/* Equal widths keep the centered tab strip optically centered. */
+#artifacts-split-spacer,
+#artifacts-split-badge {
+    width: 8;
+    height: 1;
+}
+
+#artifacts-split-badge {
+    padding: 0 1;
+    text-align: center;
     background: $surface;
 }
 
@@ -256,8 +275,8 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
 }
 
 #stitches-list-container {
-    width: 58%;
-    min-width: 48;
+    width: 50%;
+    min-width: 44;
     height: 100%;
 }
 
@@ -382,15 +401,15 @@ FileFilterBar .filter-bar-completion > .option-list--option-highlighted {
 }
 
 #plans-list-panel {
-    width: 55%;
-    min-width: 56;
+    width: 50%;
+    min-width: 44;
     height: 100%;
     border: round #AF87FF;
 }
 
 #beads-list-panel {
-    width: 55%;
-    min-width: 56;
+    width: 50%;
+    min-width: 44;
     height: 100%;
     border: round #D787FF;
 }
@@ -514,10 +533,71 @@ MarkdownBlock > .code_inline {
 }
 
 #files-list-panel {
-    width: 55%;
-    min-width: 56;
+    width: 50%;
+    min-width: 44;
     height: 100%;
     border: round #FFAF5F;
+}
+
+/* Shared Artifacts split modes. Floors intentionally use min-width only. */
+ArtifactsView.-split-narrow #stitches-list-container {
+    width: 30%;
+    min-width: 34;
+}
+
+ArtifactsView.-split-even #stitches-list-container {
+    width: 50%;
+    min-width: 44;
+}
+
+ArtifactsView.-split-wide #stitches-list-container {
+    width: 70%;
+    min-width: 48;
+}
+
+ArtifactsView.-split-narrow #plans-list-panel {
+    width: 30%;
+    min-width: 34;
+}
+
+ArtifactsView.-split-even #plans-list-panel {
+    width: 50%;
+    min-width: 44;
+}
+
+ArtifactsView.-split-wide #plans-list-panel {
+    width: 70%;
+    min-width: 56;
+}
+
+ArtifactsView.-split-narrow #beads-list-panel {
+    width: 30%;
+    min-width: 34;
+}
+
+ArtifactsView.-split-even #beads-list-panel {
+    width: 50%;
+    min-width: 44;
+}
+
+ArtifactsView.-split-wide #beads-list-panel {
+    width: 70%;
+    min-width: 56;
+}
+
+ArtifactsView.-split-narrow #files-list-panel {
+    width: 30%;
+    min-width: 34;
+}
+
+ArtifactsView.-split-even #files-list-panel {
+    width: 50%;
+    min-width: 44;
+}
+
+ArtifactsView.-split-wide #files-list-panel {
+    width: 70%;
+    min-width: 56;
 }
 
 #files-status {

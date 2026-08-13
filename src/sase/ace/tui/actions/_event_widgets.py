@@ -13,6 +13,7 @@ class EventWidgetHandlersMixin(EventHandlersBase):
     """Mixin providing list, tab, and resize message handlers."""
 
     _current_group_key: tuple[str, ...] | None
+    _patch_list_content_width: int
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Treat mouse focus on a collapsed AgentList as whole-panel focus."""
@@ -240,15 +241,38 @@ class EventWidgetHandlersMixin(EventHandlersBase):
 
     def on_patch_list_width_changed(self, event: PatchList.WidthChanged) -> None:
         """Handle width change from the list widget."""
+        self._patch_list_content_width = event.width
+        self._apply_patch_list_width()
+
+    def _apply_patch_list_width(self) -> None:
+        """Clamp the content-sized Patch list to the shared split mode."""
         from textual.css.query import NoMatches
 
         from .._app_layout import MAX_LIST_WIDTH, MIN_LIST_WIDTH
+        from ..artifacts_split import artifacts_split_left_cap
+        from ..widgets import ArtifactsView
 
-        width = max(MIN_LIST_WIDTH, min(MAX_LIST_WIDTH, event.width))
         try:
             list_container = self.query_one("#list-container")  # type: ignore[attr-defined]
         except NoMatches:
             return
+        available_width = 0
+        try:
+            artifacts_view = self.query_one(  # type: ignore[attr-defined]
+                "#artifacts-view", ArtifactsView
+            )
+            available_width = int(artifacts_view.size.width)
+        except Exception:
+            pass
+        if available_width <= 0:
+            available_width = int(getattr(getattr(self, "size", None), "width", 0) or 0)
+        width = artifacts_split_left_cap(
+            getattr(self, "artifacts_split_mode", "even"),
+            available_width,
+            minimum=MIN_LIST_WIDTH,
+            maximum=MAX_LIST_WIDTH,
+        )
+        width = min(width, max(MIN_LIST_WIDTH, self._patch_list_content_width))
         list_container.styles.width = width
 
     def on_agent_list_width_changed(self, event: AgentList.WidthChanged) -> None:
@@ -283,6 +307,7 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         container's available height; the panel-sizing decision is
         height-dependent, so recompute without rebuilding options.
         """
+        self._apply_patch_list_width()
         if not hasattr(self, "_panel_group"):
             return
         reapply = getattr(self, "_reapply_panel_heights", None)

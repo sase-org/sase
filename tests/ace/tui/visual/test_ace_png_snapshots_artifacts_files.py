@@ -180,7 +180,9 @@ async def test_artifacts_files_populated_png_snapshot(
             assert_page_svg_contains(page, chip)
         for token in ("Today", "Yesterday", "[Alpha]", "[Beta]", "live", "Source:"):
             assert_page_svg_contains(page, token)
-        for token in ("release_notes.md", "8.2 KiB", "build-log", "walkthrough"):
+        # The even split intentionally ellipsizes long labels; stable row identity
+        # prefixes remain visible while full labels stay covered by ``snapshot.rows``.
+        for token in ("release_notes.md", "8.2 KiB", "alpha.3", "beta.1"):
             assert_page_svg_contains(page, token)
         svg = page.export_svg(title="ACE Artifacts Files populated assertion")
         for color in FILE_VIEW_MODE_COLORS.values():

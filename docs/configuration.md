@@ -962,6 +962,11 @@ See `src/sase/default_config.yml` for the full list of configurable actions and 
 defaults. Rebinding `open_config_center` also changes the Admin Center's home-page
 resume key; it does not add a second keymap action or setting.
 
+The Artifacts split actions are remappable as `cycle_artifacts_split` and
+`cycle_artifacts_split_reverse`. Their defaults use `right_curly_bracket` (`}`) and
+`left_curly_bracket` (`{`); both curly-bracket key names are accepted anywhere an ACE
+keybinding is configured.
+
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`,
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
 mode has:

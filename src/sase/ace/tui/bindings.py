@@ -88,6 +88,18 @@ DEFAULT_BINDINGS: list[BindingType] = [
         show=False,
     ),
     Binding(
+        "right_curly_bracket",
+        "cycle_artifacts_split",
+        "Wider Artifact List",
+        show=False,
+    ),
+    Binding(
+        "left_curly_bracket",
+        "cycle_artifacts_split_reverse",
+        "Narrower Artifact List",
+        show=False,
+    ),
+    Binding(
         "right_parenthesis",
         "files_next_version",
         "Next File Version",

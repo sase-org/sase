@@ -13,6 +13,8 @@ _KEY_DISPLAY: dict[str, str] = {
     "number_sign": "#",
     "right_square_bracket": "]",
     "left_square_bracket": "[",
+    "right_curly_bracket": "}",
+    "left_curly_bracket": "{",
     "right_parenthesis": ")",
     "left_parenthesis": "(",
     "equals_sign": "=",

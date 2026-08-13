@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 def init_navigation_state(self: Any) -> None:
     """Initialize interaction modes, jump maps, and patch navigation state."""
+    from .._app_layout import MIN_LIST_WIDTH
+
+    self._patch_list_content_width = MIN_LIST_WIDTH
+
     # Hint mode state
     self._hint_mode_active = False
     self._hint_mode_hints_for = None  # None/"all" or "hooks_latest_only"

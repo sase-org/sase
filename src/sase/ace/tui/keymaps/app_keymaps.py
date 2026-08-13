@@ -32,6 +32,9 @@ class AppKeymaps:
     prev_tab: str
     cycle_artifacts_subtab: str
     cycle_artifacts_subtab_reverse: str
+    # Artifacts split
+    cycle_artifacts_split: str
+    cycle_artifacts_split_reverse: str
     files_next_version: str
     files_prev_version: str
     pick_artifacts_project: str

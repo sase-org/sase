@@ -105,6 +105,26 @@ is visible. Press `p` in Stitch, Bead, provider document panes, or File to chang
 shared project scope, or use the command palette to jump directly to a top-level view.
 Patches remains query-scoped and retains the existing Patch workflow.
 
+### Split Modes in Artifacts Panes
+
+Every Artifacts pane starts with an even left-list/right-detail split. Press `}` to grow
+the list panel or `{` to shrink it. The mode is shared by every Artifacts sub-tab and
+cycles with wraparound in either direction:
+
+| Mode     | Left panel | Right panel |
+| -------- | ---------- | ----------- |
+| `narrow` | 30%        | 70%         |
+| `even`   | 50%        | 50%         |
+| `wide`   | 70%        | 30%         |
+
+The `{████}` badge at the right of the sub-tab strip shows the current mode in the
+active pane's accent color: one filled cell is narrow, two is even, and three is wide.
+Clicking the badge cycles forward, like `}`.
+
+The Patch pane remains content-sized instead of reserving empty list space. Its mode
+sets the maximum list width for the available terminal width, while the existing 43-cell
+readability floor and 80-cell upper bound still apply.
+
 ### Navigation in Stitches, Beads, Provider Documents, and Files
 
 The non-Patches panes share fast navigation over their selectable left-panel entries.
@@ -586,6 +606,7 @@ launch routing uses the same `@small_worker` fallback.
 | `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
 | `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
 | `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
+| `{` / `}`                 | Narrow / widen the shared Artifacts list panel (with wraparound)                             |
 
 > **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the
 > Agents tab and the Patches sub-tab (each surface keeps its own in-session mode). On

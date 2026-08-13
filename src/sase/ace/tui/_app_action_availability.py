@@ -108,6 +108,8 @@ def check_app_action(
     if action in {
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
+        "cycle_artifacts_split",
+        "cycle_artifacts_split_reverse",
     }:
         if app.current_tab != ARTIFACTS_TAB:
             return False

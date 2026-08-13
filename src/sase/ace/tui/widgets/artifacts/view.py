@@ -6,9 +6,16 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll
-from textual.widgets import ContentSwitcher
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import ContentSwitcher, Static
 
+from ...artifacts_split import (
+    ARTIFACTS_SPLIT_CLASSES,
+    DEFAULT_ARTIFACTS_SPLIT_MODE,
+    ArtifactsSplitMode,
+    cycle_artifacts_split_mode,
+    normalize_artifacts_split_mode,
+)
 from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
@@ -19,6 +26,7 @@ from .files_pane import ArtifactsFilesPane
 from .lifecycle import ArtifactsPaneLifecycle
 from .panes import ArtifactPlaceholderPane, ArtifactsPatchesPane
 from .plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
+from .split_badge import ArtifactsSplitBadge
 from .types import (
     ArtifactsPaneKey,
     ArtifactsSubTab,
@@ -60,17 +68,21 @@ class ArtifactsView(Vertical):
         self._current_subtab: ArtifactsSubTab = normalize_artifacts_subtab(
             DEFAULT_ARTIFACTS_SUBTAB
         )
+        self._split_mode: ArtifactsSplitMode = DEFAULT_ARTIFACTS_SPLIT_MODE
         self._commits_default_filter = commits_default_filter
 
     def compose(self) -> ComposeResult:
-        yield PanelTabStrip(
-            self._panel_tabs(),
-            self._current_subtab,
-            show_numbers=True,
-            uppercase_active=True,
-            reflow_to_fit=True,
-            id="artifacts-subtabs",
-        )
+        with Horizontal(id="artifacts-header"):
+            yield Static(id="artifacts-split-spacer")
+            yield PanelTabStrip(
+                self._panel_tabs(),
+                self._current_subtab,
+                show_numbers=True,
+                uppercase_active=True,
+                reflow_to_fit=True,
+                id="artifacts-subtabs",
+            )
+            yield ArtifactsSplitBadge(id="artifacts-split-badge")
         with ContentSwitcher(
             initial=self._pane_id(self._current_subtab),
             id="artifacts-content-switcher",
@@ -79,6 +91,7 @@ class ArtifactsView(Vertical):
                 yield from self._compose_pane(descriptor)
 
     def on_mount(self) -> None:
+        self.apply_split_mode(cast("AceApp", self.app).artifacts_split_mode)
         if getattr(self.app, "current_tab", None) == ARTIFACTS_TAB:
             self._pane(self._current_subtab).activate()
 
@@ -89,6 +102,26 @@ class ArtifactsView(Vertical):
     @property
     def descriptors(self) -> tuple[ArtifactsTabDescriptor, ...]:
         return self._descriptors
+
+    @property
+    def split_mode(self) -> ArtifactsSplitMode:
+        return self._split_mode
+
+    def apply_split_mode(self, mode: object) -> None:
+        """Apply exactly one shared split class and refresh its badge."""
+
+        normalized = normalize_artifacts_split_mode(mode)
+        for candidate, class_name in ARTIFACTS_SPLIT_CLASSES.items():
+            self.set_class(candidate == normalized, class_name)
+        self._split_mode = normalized
+        self._refresh_split_badge()
+
+    def _refresh_split_badge(self) -> None:
+        descriptor = self._descriptor_by_id[self._current_subtab]
+        self.query_one("#artifacts-split-badge", ArtifactsSplitBadge).set_state(
+            self._split_mode,
+            descriptor.accent,
+        )
 
     def _panel_tabs(self) -> tuple[PanelTab, ...]:
         return tuple(
@@ -189,6 +222,7 @@ class ArtifactsView(Vertical):
             ContentSwitcher,
         ).current = self._pane_id(subtab)
         self.query_one("#artifacts-subtabs", PanelTabStrip).set_active_tab(subtab)
+        self._refresh_split_badge()
         if artifacts_visible:
             self._pane(subtab).activate()
 
@@ -268,6 +302,15 @@ class ArtifactsView(Vertical):
         event.stop()
         cast("AceApp", self.app).current_artifacts_subtab = normalize_artifacts_subtab(
             event.tab_id
+        )
+
+    @on(ArtifactsSplitBadge.Clicked)
+    def _on_split_badge_clicked(self, event: ArtifactsSplitBadge.Clicked) -> None:
+        event.stop()
+        app = cast("AceApp", self.app)
+        app.artifacts_split_mode = cycle_artifacts_split_mode(
+            app.artifacts_split_mode,
+            1,
         )
 
 

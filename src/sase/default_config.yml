@@ -276,6 +276,9 @@ ace:
       prev_tab: "shift+tab"
       cycle_artifacts_subtab: "right_square_bracket"
       cycle_artifacts_subtab_reverse: "left_square_bracket"
+      # Artifacts split
+      cycle_artifacts_split: "right_curly_bracket"
+      cycle_artifacts_split_reverse: "left_curly_bracket"
       files_next_version: "right_parenthesis"
       files_prev_version: "left_parenthesis"
       pick_artifacts_project: "p"

@@ -57,6 +57,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("prev_tab", "Prev Tab", True),
     ("cycle_artifacts_subtab", "Next Artifact", False),
     ("cycle_artifacts_subtab_reverse", "Previous Artifact", False),
+    ("cycle_artifacts_split", "Wider Artifact List", False),
+    ("cycle_artifacts_split_reverse", "Narrower Artifact List", False),
     ("files_next_version", "Next File Version", False),
     ("files_prev_version", "Previous File Version", False),
     ("pick_artifacts_project", "Project Scope", False),

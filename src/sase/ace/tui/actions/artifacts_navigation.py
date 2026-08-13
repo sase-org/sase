@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from ..artifacts_split import (
+    ArtifactsSplitMode,
+    cycle_artifacts_split_mode,
+)
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import (
     ArtifactEntryNavigator,
@@ -23,6 +27,7 @@ class ArtifactsNavigationActionsMixin:
 
     current_tab: Any
     current_artifacts_subtab: str
+    artifacts_split_mode: ArtifactsSplitMode
     current_files_subtab: FilesSubTab
     _artifacts_jump_mode_subtab: ArtifactsPaneKey | None
     _artifacts_jump_pending_prefix: str
@@ -385,6 +390,22 @@ class ArtifactsNavigationActionsMixin:
     def action_cycle_artifacts_subtab_reverse(self) -> None:
         """Move to the previous Artifacts sub-tab with wraparound."""
         self._cycle_artifacts_subtab(-1)
+
+    def _cycle_artifacts_split(self, direction: int) -> None:
+        self.artifacts_split_mode = cycle_artifacts_split_mode(
+            self.artifacts_split_mode,
+            direction,
+        )
+
+    def action_cycle_artifacts_split(self) -> None:
+        """Make the Artifacts list panel wider, with wraparound."""
+
+        self._cycle_artifacts_split(1)
+
+    def action_cycle_artifacts_split_reverse(self) -> None:
+        """Make the Artifacts list panel narrower, with wraparound."""
+
+        self._cycle_artifacts_split(-1)
 
     def action_cycle_files_subtab(self) -> None:
         """Retired nested Files pane cycle action."""

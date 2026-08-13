@@ -43,6 +43,8 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "clear_marks",
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
+        "cycle_artifacts_split",
+        "cycle_artifacts_split_reverse",
         "files_next_version",
         "files_prev_version",
         *{f"show_artifacts_{subtab}" for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER},

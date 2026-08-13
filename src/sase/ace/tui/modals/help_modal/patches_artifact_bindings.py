@@ -41,6 +41,10 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     "Cycle top-level views",
                 ),
                 (
+                    f"{d(a.cycle_artifacts_split_reverse)} / {d(a.cycle_artifacts_split)}",
+                    "Narrow / widen the list panel",
+                ),
+                (
                     d(a.pick_artifacts_project),
                     "Pick; Stitches rewrites project:",
                 ),

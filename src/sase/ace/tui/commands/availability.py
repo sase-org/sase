@@ -85,6 +85,8 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     {
         "app.cycle_artifacts_subtab",
         "app.cycle_artifacts_subtab_reverse",
+        "app.cycle_artifacts_split",
+        "app.cycle_artifacts_split_reverse",
         "app.pick_artifacts_project",
         "app.files_next_version",
         "app.files_prev_version",

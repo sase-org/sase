@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from .artifact_tabs import ArtifactsSubTab, FilesSubTab
+from .artifacts_split import ArtifactsSplitMode
 from .tab_order import ARTIFACTS_TAB, TabName
 from .widgets import ArtifactsView, TabBar
 
@@ -171,6 +172,22 @@ class AppWatchersMixin:
         if self.current_tab != ARTIFACTS_TAB:
             return
         self._sync_active_artifacts_entry_state()
+
+    def watch_artifacts_split_mode(
+        self: Any,
+        old_mode: ArtifactsSplitMode,
+        new_mode: ArtifactsSplitMode,
+    ) -> None:
+        """Apply the shared Artifacts split and refresh the Patch width cap."""
+
+        if old_mode == new_mode:
+            return
+        try:
+            view = self.query_one("#artifacts-view", ArtifactsView)
+        except Exception:
+            return
+        view.apply_split_mode(new_mode)
+        self._apply_patch_list_width()
 
     def watch_current_files_subtab(
         self: Any,

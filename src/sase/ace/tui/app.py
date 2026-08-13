@@ -76,6 +76,10 @@ from .artifact_tabs import (
     FilesSubTab,
     artifacts_pane_key,
 )
+from .artifacts_split import (
+    DEFAULT_ARTIFACTS_SPLIT_MODE,
+    ArtifactsSplitMode,
+)
 from .bindings import DEFAULT_BINDINGS
 from .exit_action import AceExitAction
 from .models.fold_state import FoldLevel
@@ -155,6 +159,9 @@ class AceApp(
     current_tab: reactive[TabName] = reactive("artifacts", recompose=False)
     current_artifacts_subtab: reactive[ArtifactsSubTab] = reactive(
         DEFAULT_ARTIFACTS_SUBTAB, recompose=False
+    )
+    artifacts_split_mode: reactive[ArtifactsSplitMode] = reactive(
+        DEFAULT_ARTIFACTS_SPLIT_MODE, recompose=False
     )
     current_files_subtab: reactive[FilesSubTab] = reactive(
         DEFAULT_FILES_SUBTAB, recompose=False
