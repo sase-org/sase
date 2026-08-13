@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 from rich.cells import cell_len
 
-from sase.ace.tui.models.agent_tribe_summary import build_agent_tribe_summary_snapshot
 from sase.ace.tui.models.fold_state import FoldLevel
 import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
@@ -14,7 +13,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
 from sase.ace.tui.widgets.prompt_panel._helpers import PROMPT_PANEL_LINE_CELL_LIMIT
 from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from tests.ace.tui.widgets._agent_display_tribe_helpers import (
-    NOW,
     make_tribe_snapshot,
 )
 
@@ -125,7 +123,7 @@ def test_tribe_long_description_wraps_with_a_hanging_indent(
         assert not line.startswith(" ")
 
 
-def test_tribe_missing_description_hint_names_the_config_key(
+def test_tribe_omits_the_description_row_when_none_is_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -142,22 +140,24 @@ def test_tribe_missing_description_hint_names_the_config_key(
 
     detail = build_tribe_detail_text(make_tribe_snapshot())
     plain = detail.plain
-    hint = "not set · add ace.tribes.epic.description"
-    hint_start = plain.index(hint)
-    not_set_start = plain.index("not set", hint_start)
-    key_start = plain.index("ace.tribes.epic.description", hint_start)
-
-    assert any(
-        span.start <= not_set_start < span.end and str(span.style) == "italic #8A8A8A"
-        for span in detail.spans
-    )
-    assert any(
-        span.start <= key_start < span.end and str(span.style) == "bold #D7AF87"
-        for span in detail.spans
+    lines = plain.splitlines()
+    fold_line_index = next(
+        index for index, line in enumerate(lines) if line.startswith("Fold: ")
     )
 
+    assert "not set" not in plain
+    assert "ace.tribes." not in plain
+    assert lines[fold_line_index + 1] == ""
+    assert lines[fold_line_index + 2].startswith("─" * 50)
 
-def test_tribe_description_row_renders_for_unconfigured_tribes(
+    cheap = build_tribe_detail_text(make_tribe_snapshot(), cheap=True).plain
+    assert cheap.endswith("Fold: 1/4\n")
+    assert not cheap.endswith("Fold: 1/4\n\n")
+    assert "not set" not in cheap
+    assert "ace.tribes." not in cheap
+
+
+def test_tribe_ad_hoc_panel_renders_no_description_hint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -174,30 +174,8 @@ def test_tribe_description_row_renders_for_unconfigured_tribes(
 
     detail = build_tribe_detail_text(make_tribe_snapshot())
 
-    assert "not set · add ace.tribes.epic.description" in detail.plain
-
-
-def test_tribe_missing_description_hint_maps_none_panel_to_default(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        tribe_display,
-        "load_merged_config",
-        lambda: {"ace": {"tribes": {"default": {"icon": "⌂"}}}},
-    )
-    monkeypatch.setattr(
-        tribe_display,
-        "current_config_token",
-        lambda: ("tribe-description-missing-default",),
-    )
-    tribe_display._tribe_displays_for_token.cache_clear()
-
-    snapshot = build_agent_tribe_summary_snapshot(
-        None, [], panel_collapsed=True, now=NOW
-    )
-    detail = build_tribe_detail_text(snapshot)
-
-    assert "not set · add ace.tribes.default.description" in detail.plain
+    assert "not set" not in detail.plain
+    assert "ace.tribes." not in detail.plain
 
 
 def test_tribe_description_renders_in_cheap_mode() -> None:

@@ -1356,14 +1356,13 @@ separated by a one-row gap. When the panels fit, the first panel grows to absorb
 leftover vertical space while later panels stay pinned to their natural height; when the
 panels overflow, space is weighted by each panel's rendered row count.
 
-A selected tribe panel's `TRIBE` header always ends with an unlabeled description row,
-set off from the field stack (`Name`, `Status`, `Composition`, `Runtime`, `Fold`) by a
-blank line and wrapped at a fixed 80-cell measure (no hanging indent — there is no label
-to indent past). It shows the tribe's configured
-[`description`](configuration.md#acetribes) when set. Otherwise it shows
-`not set · add ace.tribes.<name>.description`, so the fix is visible at the point of use
-— including for unconfigured ad-hoc tribes (for example epic-bead tribes with no
-`ace.tribes` entry).
+A selected tribe panel's `TRIBE` header ends with an unlabeled description row only when
+the tribe has a configured [`description`](configuration.md#acetribes). That row is set
+off from the field stack (`Name`, `Status`, `Composition`, `Runtime`, `Fold`) by a blank
+line and wrapped at a fixed 80-cell measure (no hanging indent — there is no label to
+indent past). A tribe with no configured description renders no row there at all,
+including unconfigured ad-hoc tribes with no `ace.tribes` entry. To find configured
+tribes that are missing a description, run `sase doctor -C config.tribes`.
 
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or
 last selectable row in the destination; collapsed panels are skipped entirely, and the
