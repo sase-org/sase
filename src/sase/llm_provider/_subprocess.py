@@ -9,6 +9,7 @@ from . import _subprocess_muse as _muse
 from . import _subprocess_opencode as _opencode
 from . import _subprocess_plain as _plain
 from . import _subprocess_qwen as _qwen
+from ._subprocess_claude import stream_and_parse_messages_json_output
 from ._subprocess_artifacts import (
     append_stream_text,
     initial_usage_totals,
