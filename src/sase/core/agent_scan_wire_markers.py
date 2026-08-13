@@ -208,6 +208,12 @@ class AgentMetaWire:
     monitor_starter_agent: str | None = None
     monitor_followup_agent: str | None = None
     monitor_tail_lines: int | None = None
+    monitor_pgid: int | None = None
+    monitor_supervisor_identity: str | None = None
+    monitor_settled: bool = False
+    monitor_idle_timeout_seconds: float | None = None
+    monitor_next_output: str | None = None
+    monitor_request_fingerprint: str | None = None
 
 
 @dataclass(frozen=True)

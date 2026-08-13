@@ -27,7 +27,7 @@ from .agent_scan_golden import (
 
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
-    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 5
+    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 6
     assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 19
 
 
@@ -542,6 +542,12 @@ def test_monitor_marker_fields_round_trip() -> None:
                         "monitor_starter_agent": "acme--0",
                         "monitor_followup_agent": None,
                         "monitor_tail_lines": 200,
+                        "monitor_pgid": 4242,
+                        "monitor_supervisor_identity": "boot-abc123:98765",
+                        "monitor_settled": True,
+                        "monitor_idle_timeout_seconds": 600.0,
+                        "monitor_next_output": "tail",
+                        "monitor_request_fingerprint": "sha256:deadbeef",
                     },
                     done={
                         "outcome": "monitored",
@@ -562,6 +568,12 @@ def test_monitor_marker_fields_round_trip() -> None:
     assert record.agent_meta.monitor_state == "running"
     assert record.agent_meta.monitor_output_truncated is True
     assert record.agent_meta.monitor_tail_lines == 200
+    assert record.agent_meta.monitor_pgid == 4242
+    assert record.agent_meta.monitor_supervisor_identity == "boot-abc123:98765"
+    assert record.agent_meta.monitor_settled is True
+    assert record.agent_meta.monitor_idle_timeout_seconds == 600.0
+    assert record.agent_meta.monitor_next_output == "tail"
+    assert record.agent_meta.monitor_request_fingerprint == "sha256:deadbeef"
     assert record.done is not None
     assert record.done.monitor_state == "completed"
     assert record.done.monitor_exit_code == 0
@@ -572,6 +584,12 @@ def test_monitor_marker_fields_round_trip() -> None:
     meta_payload = payload["records"][0]["agent_meta"]
     assert meta_payload["monitor_id"] == "m4kq"
     assert meta_payload["monitor_state"] == "running"
+    assert meta_payload["monitor_pgid"] == 4242
+    assert meta_payload["monitor_supervisor_identity"] == "boot-abc123:98765"
+    assert meta_payload["monitor_settled"] is True
+    assert meta_payload["monitor_idle_timeout_seconds"] == 600.0
+    assert meta_payload["monitor_next_output"] == "tail"
+    assert meta_payload["monitor_request_fingerprint"] == "sha256:deadbeef"
     done_payload = payload["records"][0]["done"]
     assert done_payload["monitor_state"] == "completed"
     assert done_payload["status_label"] == "MONITORED"
@@ -599,6 +617,12 @@ def test_monitor_marker_fields_default_for_older_records() -> None:
     assert record.agent_meta.monitor_id is None
     assert record.agent_meta.monitor_state is None
     assert record.agent_meta.monitor_output_truncated is False
+    assert record.agent_meta.monitor_pgid is None
+    assert record.agent_meta.monitor_supervisor_identity is None
+    assert record.agent_meta.monitor_settled is False
+    assert record.agent_meta.monitor_idle_timeout_seconds is None
+    assert record.agent_meta.monitor_next_output is None
+    assert record.agent_meta.monitor_request_fingerprint is None
     assert record.done is not None
     assert record.done.monitor_state is None
     assert record.done.monitor_exit_code is None
