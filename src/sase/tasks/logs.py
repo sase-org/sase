@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import io
-import os
-import threading
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -15,11 +13,11 @@ from sase.logs._bounded import (
     log_file_lock,
     max_bytes_from_env,
 )
+from sase.logs.pipe import BoundedLogPipe
 
 from .paths import task_logs_dir
 
 ENV_MAX_BYTES = "SASE_TASK_LOG_MAX_BYTES"
-_READ_CHUNK_BYTES = 64 * 1024
 
 
 def task_log_path(task_id: str) -> Path:
@@ -35,7 +33,7 @@ def open_task_log(task_id: str) -> io.TextIOBase:
     The returned object has a real ``fileno()``, so it can be passed directly
     as ``stdout`` with ``stderr=subprocess.STDOUT``.
     """
-    return _BoundedTaskLogPipe(task_log_path(task_id), _task_log_max_bytes())
+    return BoundedLogPipe(task_log_path(task_id), _task_log_max_bytes())
 
 
 def append_task_log_text(task_id: str, text: str) -> None:
@@ -98,78 +96,6 @@ def _validate_task_id_for_path(task_id: str) -> None:
         or "\x00" in task_id
     ):
         raise ValueError(f"invalid task id for log path: {task_id!r}")
-
-
-class _BoundedTaskLogPipe(io.TextIOBase):
-    def __init__(self, path: Path, max_bytes: int) -> None:
-        super().__init__()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._path = path
-        self._max_bytes = max_bytes
-        with log_file_lock(path):
-            fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
-            os.close(fd)
-        self._read_fd, self._write_fd = os.pipe()
-        self._write_error: OSError | None = None
-        self._thread = threading.Thread(
-            target=self._drain,
-            name=f"sase-task-log-{path.stem}",
-            daemon=True,
-        )
-        self._thread.start()
-
-    def writable(self) -> bool:
-        return True
-
-    def fileno(self) -> int:
-        self._check_closed()
-        return self._write_fd
-
-    def write(self, value: str) -> int:
-        self._check_closed()
-        encoded = value.encode("utf-8")
-        remaining = memoryview(encoded)
-        while remaining:
-            written = os.write(self._write_fd, remaining)
-            remaining = remaining[written:]
-        return len(value)
-
-    def flush(self) -> None:
-        self._check_closed()
-
-    def close(self) -> None:
-        if self.closed:
-            return
-        try:
-            os.close(self._write_fd)
-        except OSError:
-            pass
-        self._thread.join(timeout=5)
-        super().close()
-        if self._write_error is not None:
-            raise self._write_error
-
-    def _drain(self) -> None:
-        try:
-            while chunk := os.read(self._read_fd, _READ_CHUNK_BYTES):
-                with log_file_lock(self._path):
-                    append_bytes_locked(
-                        self._path,
-                        chunk,
-                        max_bytes=self._max_bytes,
-                        truncate_oversized=True,
-                    )
-        except OSError as exc:
-            self._write_error = exc
-        finally:
-            try:
-                os.close(self._read_fd)
-            except OSError:
-                pass
-
-    def _check_closed(self) -> None:
-        if self.closed:
-            raise ValueError("I/O operation on closed task log")
 
 
 __all__ = [

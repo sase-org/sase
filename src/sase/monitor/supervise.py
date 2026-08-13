@@ -12,13 +12,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import select
 import signal
 import subprocess
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
@@ -27,14 +26,16 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.history.chat import save_chat_history
+from sase.logs.pipe import BoundedLogPipe
 from sase.notifications.senders import notify_workflow_complete
 from sase.running_field import release_workspace
 
 from .followup import launch_followup_agent
+from .logs import append_monitor_log_bytes, monitor_log_max_bytes, monitor_log_path
 from .models import MonitorState
 from .output import OutputCapture
 
-_POLL_SECONDS = 0.5
+_POLL_SECONDS = 0.05
 _KILL_GRACE_SECONDS = 5.0
 
 
@@ -43,7 +44,7 @@ class _Termination:
 
     def __init__(self) -> None:
         self.requested = False
-        self.child: subprocess.Popen[str] | None = None
+        self.child: subprocess.Popen[bytes] | None = None
         self.kill_deadline: float | None = None
 
     def request(self, _signum: int, _frame: object) -> None:
@@ -53,7 +54,7 @@ class _Termination:
     def trigger_timeout(self) -> None:
         self._signal_child()
 
-    def attach(self, child: subprocess.Popen[str]) -> None:
+    def attach(self, child: subprocess.Popen[bytes]) -> None:
         self.child = child
         if self.requested:
             self._signal_child()
@@ -72,6 +73,17 @@ class _Termination:
         if self.child is not None and self.child.poll() is None:
             _signal_group(self.child.pid, signal.SIGTERM)
             self.kill_deadline = time.monotonic() + _KILL_GRACE_SECONDS
+
+    def terminate_after_failure(self) -> None:
+        """Best-effort TERM->KILL cleanup for an internally failing supervisor."""
+        if self.child is None or self.child.poll() is not None:
+            return
+        _signal_group(self.child.pid, signal.SIGTERM)
+        try:
+            self.child.wait(timeout=_KILL_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            _signal_group(self.child.pid, signal.SIGKILL)
+            self.child.wait()
 
 
 def _signal_group(pgid: int, signum: int) -> None:
@@ -95,97 +107,118 @@ def run_supervisor(artifacts_dir: str) -> int:
     signal.signal(signal.SIGTERM, termination.request)
     signal.signal(signal.SIGINT, termination.request)
 
-    output_path = os.path.join(artifacts_dir, "live_reply.md")
-    capture = OutputCapture(output_path)
+    output_path = monitor_log_path(artifacts_dir)
+    capture = OutputCapture()
     started = time.monotonic()
-    monitor_state: MonitorState
+    monitor_state: MonitorState = "failed"
     exit_code: int | None = None
     error: str | None = None
+    output_pipe: BoundedLogPipe | None = None
 
     try:
-        child = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=cwd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            close_fds=True,
-            text=True,
+        output_pipe = BoundedLogPipe(
+            output_path,
+            monitor_log_max_bytes(),
+            on_chunk=capture.append_bytes,
+            close_drain_seconds=0.5,
         )
-    except (OSError, ValueError) as exc:
-        capture.append(f"could not start command: {exc}\n")
-        capture.close()
-        monitor_state = "failed"
-        error = str(exc)
+        try:
+            child = subprocess.Popen(
+                command,
+                shell=True,
+                cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=cast(Any, output_pipe),
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                close_fds=True,
+                text=False,
+            )
+        except (OSError, ValueError) as exc:
+            error = f"could not start command: {_one_line(exc)}"
+            _append_supervisor_line(output_path, output_pipe, capture, error)
+        else:
+            termination.attach(child)
+            timed_out = _wait_for_child(child, termination, timeout_seconds)
+
+            if termination.requested:
+                monitor_state = "stopped"
+            elif timed_out:
+                monitor_state = "timeout"
+            elif child.returncode == 0:
+                monitor_state = "completed"
+            else:
+                monitor_state = "failed"
+            exit_code = child.returncode
+    except BaseException as exc:
+        termination.terminate_after_failure()
+        error = f"supervisor error: {_one_line(exc)}"
+        _append_supervisor_line(output_path, output_pipe, capture, error)
+    finally:
+        close_error = _close_output_pipe(output_pipe)
+        if close_error is not None:
+            error = error or f"supervisor error: {_one_line(close_error)}"
+            monitor_state = "failed"
+            _append_supervisor_line(output_path, None, capture, error)
         _finish_monitor(
             artifacts_dir,
             meta,
             monitor_state=monitor_state,
-            exit_code=None,
+            exit_code=exit_code,
             elapsed_seconds=time.monotonic() - started,
             capture=capture,
             error=error,
         )
-        return 1
-
-    termination.attach(child)
-    timed_out = _stream_output(child, capture, termination, timeout_seconds)
-    capture.close()
-
-    if termination.requested:
-        monitor_state = "stopped"
-    elif timed_out:
-        monitor_state = "timeout"
-    elif child.returncode == 0:
-        monitor_state = "completed"
-    else:
-        monitor_state = "failed"
-    exit_code = child.returncode
-
-    _finish_monitor(
-        artifacts_dir,
-        meta,
-        monitor_state=monitor_state,
-        exit_code=exit_code,
-        elapsed_seconds=time.monotonic() - started,
-        capture=capture,
-        error=error,
-    )
     return 0 if monitor_state in {"completed", "stopped"} else 1
 
 
-def _stream_output(
-    child: subprocess.Popen[str],
-    capture: OutputCapture,
+def _wait_for_child(
+    child: subprocess.Popen[bytes],
     termination: _Termination,
     timeout_seconds: float,
 ) -> bool:
-    """Stream merged output until the child exits; return whether it timed out."""
-    assert child.stdout is not None
-    stdout = child.stdout
+    """Wait for process exit; return whether the runtime deadline fired."""
     deadline = time.monotonic() + timeout_seconds if timeout_seconds > 0 else None
     timed_out = False
     while True:
-        ready, _, _ = select.select([stdout], [], [], _POLL_SECONDS)
-        if ready:
-            line = stdout.readline()
-            if line:
-                capture.append(line)
-                continue
-            break  # EOF
         if child.poll() is not None:
-            break
+            return timed_out
         if deadline is not None and not timed_out and time.monotonic() >= deadline:
             timed_out = True
             termination.trigger_timeout()
         termination.maybe_escalate()
+        time.sleep(_POLL_SECONDS)
 
-    for line in stdout:
-        capture.append(line)
-    child.wait()
-    return timed_out
+
+def _close_output_pipe(output_pipe: BoundedLogPipe | None) -> BaseException | None:
+    if output_pipe is None or output_pipe.closed:
+        return None
+    try:
+        output_pipe.close()
+    except BaseException as exc:
+        return exc
+    return None
+
+
+def _append_supervisor_line(
+    output_path: Path,
+    output_pipe: BoundedLogPipe | None,
+    capture: OutputCapture,
+    message: str,
+) -> None:
+    line = f"{message.rstrip()}\n"
+    if output_pipe is not None and not output_pipe.closed:
+        try:
+            output_pipe.write(line)
+            return
+        except (OSError, ValueError):
+            pass
+    encoded = line.encode("utf-8", errors="replace")
+    capture.append_bytes(encoded)
+    try:
+        append_monitor_log_bytes(output_path, encoded)
+    except OSError:
+        pass
 
 
 def _finish_monitor(
@@ -296,11 +329,13 @@ def _release_claim_and_notify(
     workspace_num = meta.get("workspace_num")
     cl_name = meta.get("cl_name")
     if project_name and workspace_num is not None:
+        from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
         from sase.workflows.utils import get_project_file_path
 
         release_workspace(
             get_project_file_path(project_name),
             int(workspace_num),
+            MONITOR_WORKSPACE_CLAIM_WORKFLOW,
             cl_name=cl_name,
         )
 
@@ -351,6 +386,10 @@ def _read_meta(artifacts_dir: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"agent_meta.json at {artifacts_dir!r} is not an object")
     return data
+
+
+def _one_line(exc: BaseException) -> str:
+    return " ".join(str(exc).splitlines()) or exc.__class__.__name__
 
 
 def _utc_now_iso() -> str:

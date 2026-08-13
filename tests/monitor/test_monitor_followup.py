@@ -77,9 +77,9 @@ def _promote_and_start_monitor(
 
 
 def _capture_with_output(monitor_dir: str, text: str) -> OutputCapture:
-    capture = OutputCapture(str(Path(monitor_dir) / "live_reply.md"))
-    capture.append(text)
-    capture.close()
+    del monitor_dir
+    capture = OutputCapture()
+    capture.append_bytes(text.encode())
     return capture
 
 

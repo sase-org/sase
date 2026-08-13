@@ -49,11 +49,12 @@ def _make_member(
     timeout_seconds: float = 60.0,
     next_action: str | None = None,
     workspace_num: int = 1,
+    claim_workflow: str = "ace-monitor",
 ) -> tuple[str, str]:
     project_file = write_project_file(
         "proj",
         running_claims=[
-            WorkspaceClaim(workspace_num, "ace-monitor", "acme", pid=os.getpid())
+            WorkspaceClaim(workspace_num, claim_workflow, "acme", pid=os.getpid())
         ],
     )
     artifacts_dir = make_starter_agent(
@@ -180,6 +181,140 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
     assert get_claimed_workspaces(project_file) == []
 
 
+def test_run_supervisor_release_matches_only_monitor_workflow(tmp_path: Path) -> None:
+    artifacts_dir, project_file = _make_member(
+        tmp_path, command="true", claim_workflow="ace-run"
+    )
+
+    run_supervisor(artifacts_dir)
+
+    claims = get_claimed_workspaces(project_file)
+    assert [(claim.workspace_num, claim.workflow) for claim in claims] == [
+        (1, "ace-run")
+    ]
+
+
+def test_run_supervisor_times_out_continuous_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_MONITOR_LOG_MAX_BYTES", "4096")
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sh -c 'while :; do echo chatty; done'",
+        timeout_seconds=0.2,
+    )
+
+    started = time.monotonic()
+    exit_status = run_supervisor(artifacts_dir)
+    elapsed = time.monotonic() - started
+
+    assert exit_status == 1
+    assert elapsed < 2.0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+    assert (Path(artifacts_dir) / "live_reply.md").stat().st_size <= 4096
+
+
+def test_run_supervisor_times_out_after_partial_line(tmp_path: Path) -> None:
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sh -c 'printf partial; sleep 30'",
+        timeout_seconds=0.2,
+    )
+
+    started = time.monotonic()
+    exit_status = run_supervisor(artifacts_dir)
+    elapsed = time.monotonic() - started
+
+    assert exit_status == 1
+    assert elapsed < 2.0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+    assert (Path(artifacts_dir) / "live_reply.md").read_text() == "partial"
+
+
+def test_run_supervisor_completes_when_grandchild_holds_stdout(
+    tmp_path: Path,
+) -> None:
+    pidfile = tmp_path / "grandchild.pid"
+    command = f"sh -c 'sleep 30 & echo $! > {pidfile}; echo parent done'"
+    artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=30.0)
+
+    started = time.monotonic()
+    try:
+        exit_status = run_supervisor(artifacts_dir)
+        elapsed = time.monotonic() - started
+
+        assert exit_status == 0
+        assert elapsed < 1.0
+        meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+        assert meta["monitor_state"] == "completed"
+        assert "parent done" in (Path(artifacts_dir) / "live_reply.md").read_text()
+    finally:
+        if pidfile.exists():
+            grandchild_pid = int(pidfile.read_text().strip())
+            _terminate_pid(grandchild_pid)
+
+
+def test_run_supervisor_times_out_after_child_closes_stdio(tmp_path: Path) -> None:
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sh -c 'exec >/dev/null 2>&1; sleep 30'",
+        timeout_seconds=0.2,
+    )
+
+    started = time.monotonic()
+    exit_status = run_supervisor(artifacts_dir)
+    elapsed = time.monotonic() - started
+
+    assert exit_status == 1
+    assert elapsed < 2.0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+
+
+def test_run_supervisor_survives_invalid_utf8_output(tmp_path: Path) -> None:
+    command = (
+        f'{sys.executable} -c "import sys, time; '
+        "sys.stdout.buffer.write(b'bad\\\\xff\\\\n'); "
+        'sys.stdout.flush(); time.sleep(30)"'
+    )
+    artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=0.2)
+
+    exit_status = run_supervisor(artifacts_dir)
+
+    assert exit_status == 1
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+    assert (Path(artifacts_dir) / "live_reply.md").read_bytes().startswith(b"bad\xff")
+
+
+def test_run_supervisor_escalates_term_ignoring_chatty_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.monitor.supervise as supervise_module
+
+    monkeypatch.setattr(supervise_module, "_KILL_GRACE_SECONDS", 0.2)
+    monkeypatch.setenv("SASE_MONITOR_LOG_MAX_BYTES", "4096")
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sh -c 'trap \"\" TERM; while :; do echo stubborn; done'",
+        timeout_seconds=0.2,
+    )
+
+    started = time.monotonic()
+    exit_status = run_supervisor(artifacts_dir)
+    elapsed = time.monotonic() - started
+
+    assert exit_status == 1
+    assert elapsed < 2.0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+    assert (Path(artifacts_dir) / "live_reply.md").stat().st_size <= 4096
+
+
 def test_supervisor_subprocess_stops_cleanly_on_sigterm(tmp_path: Path) -> None:
     ready_file = tmp_path / "ready"
     artifacts_dir, project_file = _make_member(
@@ -215,3 +350,20 @@ def test_supervisor_subprocess_stops_cleanly_on_sigterm(tmp_path: Path) -> None:
         if process.poll() is None:
             process.kill()
             process.wait()
+
+
+def _terminate_pid(pid: int) -> None:
+    if not is_process_running(pid):
+        return
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + 2.0
+    while is_process_running(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)  # sase-test-wait: poll orphaned grandchild cleanup
+    if is_process_running(pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass

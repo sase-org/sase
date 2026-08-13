@@ -88,6 +88,22 @@ def test_show_output_only_suppresses_the_detail_panel(
     assert out == "hello\n"
 
 
+def test_show_output_reads_rotated_and_active_logs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    artifacts_dir = make_monitor(
+        "proj", "20260812120000", "acme--mon", lane="acme", monitor_id="aaabbbcccddd"
+    )
+    path = Path(artifacts_dir) / "live_reply.md"
+    path.with_name("live_reply.md.1").write_text("old\n", encoding="utf-8")
+    path.write_text("new\n", encoding="utf-8")
+    patch_project_records(monkeypatch, [artifacts_dir])
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd", "--output-only"]) == 0
+
+    assert capsys.readouterr().out == "old\nnew\n"
+
+
 def test_show_json_envelope_is_stable(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -148,6 +164,24 @@ def test_show_follow_streams_new_output_until_terminal(
     out = capsys.readouterr().out
     assert "first line" in out
     assert "and this" in out
+
+
+def test_read_new_text_resets_after_active_log_rotation(tmp_path: Path) -> None:
+    from sase.main.monitor_handler import _read_new_text
+
+    path = tmp_path / "live_reply.md"
+    path.write_text("old current with more bytes\n", encoding="utf-8")
+
+    os_offset = path.stat().st_size
+    path.with_name("live_reply.md.1").write_text(
+        path.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    path.write_text("new current\n", encoding="utf-8")
+
+    text, offset = _read_new_text(path, os_offset)
+
+    assert text == "new current\n"
+    assert offset == len("new current\n")
 
 
 def _set_monitor_state(artifacts_dir: str, state: str) -> None:

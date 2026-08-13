@@ -194,6 +194,20 @@ def test_tail_cache_resets_on_shrink(tmp_path: Path) -> None:
     assert tail.offset == 3
 
 
+def test_tail_cache_resets_when_monitor_log_rotates(tmp_path: Path) -> None:
+    f = tmp_path / "live_reply.md"
+    f.write_text("old current with more bytes\n", encoding="utf-8")
+    tail = TailCache(path=str(f))
+    assert tail.read() == "old current with more bytes\n"
+
+    os.replace(f, f.with_name("live_reply.md.1"))
+    f.write_text("new current\n", encoding="utf-8")
+
+    assert tail.read() == "new current\n"
+    assert tail.size == len("new current\n")
+    assert tail.offset == len("new current\n")
+
+
 def test_read_live_reply_uses_tail_cache(tmp_path: Path) -> None:
     cache = ArtifactFileCache()
     f = tmp_path / "live_reply.md"

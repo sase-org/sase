@@ -9,20 +9,16 @@ _ELISION_TEMPLATE = "\n… {elided} bytes elided …\n"
 
 
 class OutputCapture:
-    """Stream a monitored command's merged output into a log file.
+    """Retain a bounded in-memory view of a monitored command's bytes.
 
-    Every chunk is written to *output_path* (and flushed) immediately, so the
-    TUI's ``get_live_reply_content()`` shows output live with no new
-    plumbing -- the file on disk is never truncated. The *retained* in-memory
-    view (what the terminal marker and a later follow-up prompt draw from)
-    is capped at ``max_bytes``: once exceeded, the middle collapses to a
-    head + tail split with an explicit elision marker so a chatty command
-    cannot fill the artifacts store or blow up a follow-up prompt.
+    The full live log is written separately through the monitor's bounded log
+    pipe. This accumulator keeps the head + tail view used by terminal
+    markers and follow-up prompts, decoding only when the retained text is
+    requested.
     """
 
     def __init__(
         self,
-        output_path: str,
         *,
         max_bytes: int = MONITOR_MAX_OUTPUT_BYTES,
     ) -> None:
@@ -33,28 +29,22 @@ class OutputCapture:
         self._tail = bytearray()
         self._truncated = False
         self._total_bytes = 0
-        self._file = open(output_path, "ab", buffering=0)
 
-    def append(self, text: str) -> None:
-        """Append *text* to the log file and the retained output view."""
-        encoded = text.encode("utf-8", errors="replace")
-        self._file.write(encoded)
-        self._total_bytes += len(encoded)
+    def append_bytes(self, chunk: bytes) -> None:
+        """Append *chunk* to the retained output view."""
+        self._total_bytes += len(chunk)
         if not self._truncated:
-            self._buffer += encoded
+            self._buffer += chunk
             if len(self._buffer) > self._max_bytes:
                 self._truncated = True
                 self._head = bytes(self._buffer[: self._half])
                 self._tail = bytearray(self._buffer[-self._half :])
                 self._buffer = bytearray()
         else:
-            self._tail += encoded
+            self._tail += chunk
             overflow = len(self._tail) - self._half
             if overflow > 0:
                 del self._tail[:overflow]
-
-    def close(self) -> None:
-        self._file.close()
 
     @property
     def truncated(self) -> bool:

@@ -376,16 +376,24 @@ def _infer_project_name(cwd: str) -> str | None:
 
 
 def _output_path(record: MonitorRecord) -> Path:
-    return Path(record.artifacts_dir) / "live_reply.md"
+    from sase.monitor.logs import monitor_log_path
+
+    return monitor_log_path(record.artifacts_dir)
 
 
 def _output_text(record: MonitorRecord, args: argparse.Namespace) -> str:
-    from sase.axe.state import read_tail_seek
+    from sase.monitor.logs import read_monitor_log_tail
 
-    return read_tail_seek(_output_path(record), _log_lines(args))
+    return read_monitor_log_tail(_output_path(record), _log_lines(args))
 
 
 def _read_new_text(path: Path, offset: int) -> tuple[str, int]:
+    try:
+        current_size = path.stat().st_size
+    except OSError:
+        return "", offset
+    if current_size < offset:
+        offset = 0
     try:
         with open(path, "rb") as f:
             f.seek(offset)
