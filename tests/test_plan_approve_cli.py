@@ -177,8 +177,8 @@ def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> No
             return_value=workspace,
         ),
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
-            return_value=SimpleNamespace(task_id="task-omitted"),
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            return_value=SimpleNamespace(monitor_id="mon-omitted"),
         ),
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind=None)
@@ -189,10 +189,10 @@ def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> No
         "run_coder": True,
         "epic_launch_owner": "host",
     }
-    assert result.epic_launch_task_id == "task-omitted"
+    assert result.epic_launch_monitor_id == "mon-omitted"
 
 
-def test_cli_epic_approval_submits_detached_after_claiming_ownership(
+def test_cli_epic_approval_starts_monitor_after_claiming_ownership(
     tmp_path: Path,
 ) -> None:
     response_dir = _response_dir(tmp_path)
@@ -208,10 +208,10 @@ def test_cli_epic_approval_submits_detached_after_claiming_ownership(
         agent_project_file=agent_project_file,
     )
 
-    def submit_detached(*_args: object, **_kwargs: object) -> object:
+    def start_monitor(*_args: object, **_kwargs: object) -> object:
         response = json.loads((response_dir / "plan_response.json").read_text())
         assert response["epic_launch_owner"] == "host"
-        return SimpleNamespace(task_id="task-cli")
+        return SimpleNamespace(monitor_id="mon-cli")
 
     with (
         patch(
@@ -219,14 +219,14 @@ def test_cli_epic_approval_submits_detached_after_claiming_ownership(
             return_value=workspace,
         ) as resolve_cwd,
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
-            side_effect=submit_detached,
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            side_effect=start_monitor,
         ) as launch,
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
 
     assert result.response_json["epic_launch_owner"] == "host"
-    assert result.epic_launch_task_id == "task-cli"
+    assert result.epic_launch_monitor_id == "mon-cli"
     assert resolve_cwd.call_count == 2
     resolve_cwd.assert_called_with(
         str(workspace),
@@ -270,8 +270,8 @@ def test_failed_epic_gate_leaves_proposal_pending_and_retryable(
             return_value=workspace,
         ),
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
-            return_value=SimpleNamespace(task_id="task-retry"),
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            return_value=SimpleNamespace(monitor_id="mon-retry"),
         ),
     ):
         result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
@@ -308,7 +308,7 @@ def test_plan_approve_cli_renders_validation_schema_and_exits_one(
     assert not (response_dir / "plan_response.json").exists()
 
 
-def test_plan_approve_cli_prints_detached_task_follow_hint(
+def test_plan_approve_cli_prints_monitor_follow_hint(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -324,7 +324,7 @@ def test_plan_approve_cli_prints_detached_task_follow_hint(
         response_path=tmp_path / "plan_response.json",
         response_json={"action": "epic"},
         message="Epic approved",
-        epic_launch_task_id="task-123",
+        epic_launch_monitor_id="mon-123",
     )
 
     with (
@@ -338,8 +338,8 @@ def test_plan_approve_cli_prints_detached_task_follow_hint(
 
     assert exc_info.value.code == 0
     output = capsys.readouterr().out
-    assert "Detached task task-123" in output
-    assert "sase task show task-123 --follow" in output
+    assert "Monitor mon-123" in output
+    assert "sase monitor show mon-123 --follow" in output
 
 
 def test_epic_authored_plan_can_be_downgraded_to_tale(tmp_path: Path) -> None:

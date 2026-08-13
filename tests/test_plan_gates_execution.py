@@ -67,7 +67,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(
         patch("sase.plan_approval_actions.run_plan_side_effects"),
         patch(
             "sase.plan_approval_actions.prepare_epic_launch",
-            return_value=SimpleNamespace(task_id="task-durable"),
+            return_value=SimpleNamespace(monitor_id="mon-durable"),
         ) as prepare,
     ):
         adapter_for_kind("epic_plan").apply_side_effects(
@@ -78,7 +78,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(
     assert prepare.call_args.args[1] == plan
     assert prepare.call_args.kwargs["mode"] == "detached"
     assert prepare.call_args.kwargs["origin"] == expected_origin
-    assert response["epic_launch_task_id"] == "task-durable"
+    assert response["epic_launch_monitor_id"] == "mon-durable"
 
 
 def test_epic_gate_unresolvable_launch_raises_with_resume_hint(
@@ -126,7 +126,7 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
     with (
         patch(
             "sase.plan_approval_actions.prepare_epic_launch",
-            return_value=SimpleNamespace(task_id="task-auto"),
+            return_value=SimpleNamespace(monitor_id="mon-auto"),
         ),
         # This fixture's action data names no project, so archiving cannot
         # run; its failure report is out of scope for the notification

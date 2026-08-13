@@ -172,7 +172,7 @@ def test_tui_epic_submission_failure_is_loud_and_keeps_host_owner(
             side_effect=PlanApprovalActionError(
                 "epic_launch_failed",
                 str(notification.files[0]),
-                "could not submit; resume with `sase bead work plan.md --yes-to-all`",
+                "could not start; resume with `sase bead work plan.md --yes-to-all`",
             ),
         ),
     ):
@@ -185,7 +185,7 @@ def test_tui_epic_submission_failure_is_loud_and_keeps_host_owner(
     )
     assert response["epic_launch_owner"] == "host"
     app.notify.assert_any_call(
-        "could not submit; resume with `sase bead work plan.md --yes-to-all`",
+        "could not start; resume with `sase bead work plan.md --yes-to-all`",
         title="Epic launch failed",
         severity="error",
         timeout=15,

@@ -196,7 +196,7 @@ class GateAdapter:
                 )
 
                 try:
-                    task = prepare_epic_launch(
+                    launch = prepare_epic_launch(
                         context,
                         launch_plan,
                         mode="detached",
@@ -211,10 +211,15 @@ class GateAdapter:
                     )
                 except PlanApprovalActionError as exc:
                     raise GateError(exc.code, exc.target, str(exc)) from exc
-                if task is not None and isinstance(response, dict):
+                if launch is not None and isinstance(response, dict):
                     from sase.notification_gates.durability import atomic_write_json
 
-                    response["epic_launch_task_id"] = task.task_id
+                    monitor_id = getattr(launch, "monitor_id", None)
+                    task_id = getattr(launch, "task_id", None)
+                    if monitor_id:
+                        response["epic_launch_monitor_id"] = str(monitor_id)
+                    elif task_id:
+                        response["epic_launch_task_id"] = str(task_id)
                     atomic_write_json(bundle_path / "response.json", response)
 
     def validate_edited_resource(self, *, path: Path) -> None:

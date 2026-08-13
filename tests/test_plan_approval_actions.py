@@ -337,11 +337,11 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
     context, response_dir, workspace = _epic_context(tmp_path)
     order: list[str] = []
 
-    def submit(*_args: object, **_kwargs: object) -> object:
+    def start(*_args: object, **_kwargs: object) -> object:
         response = json.loads((response_dir / "plan_response.json").read_text())
         assert response["epic_launch_owner"] == "host"
-        order.append("submit")
-        return SimpleNamespace(task_id="tsk1")
+        order.append("start")
+        return SimpleNamespace(monitor_id="mon1")
 
     with (
         patch(
@@ -349,23 +349,24 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
             return_value=workspace,
         ) as resolve_cwd,
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
-            side_effect=submit,
-        ) as submit_launch,
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            side_effect=start,
+        ) as start_launch,
     ):
         result = execute_plan_approval_response(context, "epic", **execute_kwargs)
 
     assert result.response_json["epic_launch_owner"] == "host"
-    assert result.epic_launch_task_id == "tsk1"
-    assert order == ["submit"]
+    assert result.epic_launch_monitor_id == "mon1"
+    assert result.epic_launch_task_id is None
+    assert order == ["start"]
     assert resolve_cwd.call_count == 2
     resolve_cwd.assert_called_with(
         str(workspace),
         agent_project_file=str(tmp_path / "projects" / "canonical" / "canonical.sase"),
     )
-    submit_launch.assert_called_once()
-    assert submit_launch.call_args.kwargs["cwd"] == workspace
-    assert submit_launch.call_args.kwargs["origin"] == expected_origin
+    start_launch.assert_called_once()
+    assert start_launch.call_args.kwargs["cwd"] == workspace
+    assert start_launch.call_args.kwargs["origin"] == expected_origin
 
 
 def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
@@ -406,17 +407,17 @@ def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
                 ),
             ),
             patch(
-                "sase.bead.epic_launch.submit_epic_launch_task",
-                return_value=SimpleNamespace(task_id="task-contended"),
-            ) as submit_launch,
+                "sase.bead.epic_launch.start_epic_launch_monitor",
+                return_value=SimpleNamespace(monitor_id="mon-contended"),
+            ) as start_launch,
         ):
             result = execute_plan_approval_response(context, "epic")
     finally:
         release_holder.set()
         process.join(timeout=2.0)
 
-    assert result.epic_launch_task_id == "task-contended"
-    submit_launch.assert_called_once()
+    assert result.epic_launch_monitor_id == "mon-contended"
+    start_launch.assert_called_once()
     assert process.exitcode == 0
 
 
@@ -464,10 +465,10 @@ def test_headless_epic_submit_failure_keeps_durable_host_claim(
             return_value=workspace,
         ),
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
+            "sase.bead.epic_launch.start_epic_launch_monitor",
             side_effect=OSError("no process"),
         ),
-        pytest.raises(PlanApprovalActionError, match="could not submit"),
+        pytest.raises(PlanApprovalActionError, match="could not start"),
     ):
         execute_plan_approval_response(context, "epic")
 
@@ -488,12 +489,12 @@ def test_headless_epic_refuses_unusable_store_before_task_submit(
             "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
             side_effect=SddRepositoryHealthError("plans store is mid-rebase"),
         ),
-        patch("sase.bead.epic_launch.submit_epic_launch_task") as submit_launch,
+        patch("sase.bead.epic_launch.start_epic_launch_monitor") as start_launch,
         pytest.raises(PlanApprovalActionError, match="resume with"),
     ):
         execute_plan_approval_response(context, "epic")
 
-    submit_launch.assert_not_called()
+    start_launch.assert_not_called()
     response = json.loads((response_dir / "plan_response.json").read_text())
     assert response["epic_launch_owner"] == "host"
 
@@ -508,8 +509,8 @@ def test_headless_epic_resolution_failure_is_loud_with_resume_hint(
             side_effect=ValueError("invalid project identity"),
         ),
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
-        ) as submit_launch,
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+        ) as start_launch,
         pytest.raises(PlanApprovalActionError) as exc_info,
     ):
         execute_plan_approval_response(context, "epic")
@@ -518,4 +519,4 @@ def test_headless_epic_resolution_failure_is_loud_with_resume_hint(
     assert "sase bead work" in str(exc_info.value)
     assert "--yes-to-all" in str(exc_info.value)
     assert not (response_dir / "plan_response.json").exists()
-    submit_launch.assert_not_called()
+    start_launch.assert_not_called()

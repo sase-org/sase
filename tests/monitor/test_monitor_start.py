@@ -17,6 +17,7 @@ from sase.monitor.start import (
     start_monitor,
     write_monitor_pending_marker,
 )
+from sase.core.paths import sase_projects_dir
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import make_starter_agent, patch_project_records, write_project_file
@@ -217,8 +218,12 @@ def test_start_monitor_tears_down_the_member_when_the_supervisor_cannot_spawn(
         start_monitor(request)
 
     # The half-created member is marked failed, not left phantom-running.
-    monitor_dirs = list(Path(starter_dir).parent.glob("*"))
-    member_dirs = [d for d in monitor_dirs if d.name != Path(starter_dir).name]
+    artifacts_root = sase_projects_dir() / "proj" / "artifacts" / "ace-run"
+    member_dirs = [
+        p.parent
+        for p in artifacts_root.glob("*/*/*/agent_meta.json")
+        if p.parent != Path(starter_dir)
+    ]
     assert len(member_dirs) == 1
     meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "failed"

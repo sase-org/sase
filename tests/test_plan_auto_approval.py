@@ -59,7 +59,7 @@ def test_handle_plan_approval_auto_epic_skips_notification(
         ),
         patch(
             "sase.plan_approval_actions.prepare_epic_launch",
-            return_value=SimpleNamespace(task_id="task-auto-epic"),
+            return_value=SimpleNamespace(monitor_id="mon-auto-epic"),
         ) as prepare_launch,
     ):
         result = handle_plan_approval(str(plan), "session-123")
@@ -133,7 +133,7 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
         patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
         patch(
             "sase.plan_approval_actions.prepare_epic_launch",
-            return_value=SimpleNamespace(task_id="task-waiting-auto"),
+            return_value=SimpleNamespace(monitor_id="mon-waiting-auto"),
         ),
         # This fixture's action data names no project, so archiving cannot
         # run; its failure report is out of scope for the notification

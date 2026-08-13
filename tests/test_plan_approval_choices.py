@@ -49,12 +49,13 @@ def test_run_choice_is_first_class_no_commit_approval() -> None:
     assert record.cli_kind_name is None
 
 
-def test_epic_choice_delegates_archive_and_launch_to_bead_work() -> None:
+def test_epic_choice_delegates_archive_and_launch_to_monitor() -> None:
     record = require_plan_approval_choice("epic")
 
     assert record.archive_side_effect is False
-    assert "`sase bead work`" in record.consequence_text
-    assert "background task" in record.consequence_text
+    assert "`sase monitor`" in record.consequence_text
+    assert "`sase monitor list`" in record.consequence_text
+    assert "planner's family row" in record.consequence_text
 
 
 def test_selected_option_sets_drive_protocol_fields() -> None:

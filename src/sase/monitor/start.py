@@ -46,10 +46,8 @@ class StartMonitorRequest:
     """Fully-resolved request to start one monitor.
 
     ``project_name`` and ``cwd`` are resolved by the caller (the CLI or the
-    host epic-launch path) exactly like :func:`sase.bead.epic_launch.
-    submit_epic_launch_task` resolves them today; only the lane is optionally
-    left for :func:`start_monitor` to default from the calling agent's own
-    environment.
+    host epic-launch path); only the lane is optionally left for
+    :func:`start_monitor` to default from the calling agent's own environment.
     """
 
     command: str
@@ -63,6 +61,7 @@ class StartMonitorRequest:
     start_status: str = DEFAULT_START_STATUS
     stop_status: str = DEFAULT_STOP_STATUS
     tail_lines: int = DEFAULT_TAIL_LINES
+    inherit_lane_workspace_claim: bool = True
 
 
 def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
@@ -115,7 +114,12 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
 
     transfer_from_pid: int | None = None
     starter_agent: str | None = None
-    if cwd_matches_lane and lane_workspace_num is not None and runner_pid is not None:
+    if (
+        request.inherit_lane_workspace_claim
+        and cwd_matches_lane
+        and lane_workspace_num is not None
+        and runner_pid is not None
+    ):
         resolved_workspace_num = lane_workspace_num
         transfer_from_pid = runner_pid
         raw_name = raw_meta.get("name")

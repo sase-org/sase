@@ -42,6 +42,7 @@ class PlanApprovalActionResult:
     response_path: Path
     response_json: dict[str, Any]
     message: str
+    epic_launch_monitor_id: str | None = None
     epic_launch_task_id: str | None = None
 
 

@@ -62,7 +62,7 @@ from sase.plan_approval_choices import (
 )
 
 if TYPE_CHECKING:
-    from sase.bead.epic_launch import EpicLaunchOrigin
+    from sase.bead.epic_launch import EpicLaunchOrigin, EpicLaunchSubmission
 
 _logger = logging.getLogger(__name__)
 
@@ -169,9 +169,10 @@ def _execute_legacy_plan_approval_response(
     _write_json_once(response_path, response_json, notification.id)
 
     run_plan_side_effects(notification, choice, response_path, response_json)
+    epic_launch_monitor_id: str | None = None
     epic_launch_task_id: str | None = None
     if choice == "epic" and epic_launch_mode != "skip":
-        task = prepare_epic_launch(
+        launch = prepare_epic_launch(
             notification,
             Path(notification.host_files[0]),
             mode=epic_launch_mode,
@@ -179,13 +180,16 @@ def _execute_legacy_plan_approval_response(
             resolved_cwd=epic_launch_cwd,
             origin=epic_launch_origin,
         )
-        epic_launch_task_id = task.task_id if task is not None else None
+        epic_launch_monitor_id, epic_launch_task_id = _epic_launch_submission_ids(
+            launch
+        )
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file="plan_response.json",
         response_path=response_path,
         response_json=response_json,
         message=message,
+        epic_launch_monitor_id=epic_launch_monitor_id,
         epic_launch_task_id=epic_launch_task_id,
     )
 
@@ -300,12 +304,31 @@ def _execute_neutral_plan_approval_response(
         response_path=bundle_path / RESPONSE_FILENAME,
         response_json=execution.response,
         message=message,
+        epic_launch_monitor_id=(
+            str(execution.response["epic_launch_monitor_id"])
+            if execution.response.get("epic_launch_monitor_id")
+            else None
+        ),
         epic_launch_task_id=(
             str(execution.response["epic_launch_task_id"])
             if execution.response.get("epic_launch_task_id")
             else None
         ),
     )
+
+
+def _epic_launch_submission_ids(
+    launch: EpicLaunchSubmission | None,
+) -> tuple[str | None, str | None]:
+    if launch is None:
+        return None, None
+    monitor_id = getattr(launch, "monitor_id", None)
+    if monitor_id:
+        return str(monitor_id), None
+    task_id = getattr(launch, "task_id", None)
+    if task_id:
+        return None, str(task_id)
+    return None, None
 
 
 def _write_json_once(

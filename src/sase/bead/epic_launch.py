@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shlex
 from datetime import UTC, datetime
@@ -10,16 +11,21 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+from sase.plan_chain import agent_family_base
 
 
 if TYPE_CHECKING:
     from sase.tasks.models import BackgroundTask
+    from sase.monitor.models import MonitorRecord
 
 
 _EPIC_LAUNCH_TAGS = ("epic", "launch")
 _EPIC_LAUNCH_SUBMIT_LOCK = "epic-launch-submit"
+_EPIC_LAUNCH_TIMEOUT_SECONDS = 4 * 60 * 60
+_logger = logging.getLogger(__name__)
 
 type EpicLaunchOrigin = Literal["ace", "telegram", "cli", "axe", "api"]
+type EpicLaunchSubmission = MonitorRecord | BackgroundTask
 
 _GATE_SOURCE_TO_EPIC_LAUNCH_ORIGIN: dict[str, EpicLaunchOrigin] = {
     "tui": "ace",
@@ -101,24 +107,27 @@ def resolve_epic_launch_cwd(
     return primary
 
 
-def submit_epic_launch_task(
+def start_epic_launch_monitor(
     plan_file: str | Path,
     *,
     cwd: str | Path,
+    host_action_data: dict[str, str] | None = None,
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
     origin: EpicLaunchOrigin = "api",
-) -> BackgroundTask:
-    """Submit one globally visible task for an approved epic plan.
+) -> EpicLaunchSubmission:
+    """Start one monitor member for an approved epic plan.
+
+    If the planner's lane is no longer resolvable, fall back to the legacy
+    detached-task submission so the approved epic still launches.
 
     Raises:
-        TaskSubmitError: The task could not be recorded or its supervisor
-            could not be started.
+        MonitorError: The monitor could not be started after lane resolution.
+        TaskSubmitError: The fallback task could not be recorded or started.
     """
     from sase.bead.project_name import infer_project_name_from_cwd
     from sase.logs._bounded import log_file_lock
     from sase.tasks import tasks_dir
-    from sase.tasks.runner import submit_detached_task
 
     resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
     resolved_plan = _resolved_plan_path(plan_file, cwd=resolved_cwd)
@@ -127,19 +136,129 @@ def submit_epic_launch_task(
         artifacts_dir=artifacts_dir,
         cl_name=cl_name,
     )
-    project = infer_project_name_from_cwd(str(resolved_cwd))
+    project = infer_project_name_from_cwd(str(resolved_cwd)) or (
+        _epic_launch_project(host_action_data or {})
+    )
+    if project is None:
+        raise ValueError(f"could not infer SASE project for epic launch cwd {cwd}")
+    command = shlex.join(argv)
+    label = f"Epic launch · {Path(plan_file).stem}"
     with log_file_lock(tasks_dir() / _EPIC_LAUNCH_SUBMIT_LOCK):
-        if existing := _active_epic_launch_for_plan(resolved_plan):
-            return existing
-        return submit_detached_task(
-            argv,
-            label=f"Epic launch · {Path(plan_file).stem}",
+        lane = _epic_launch_lane(host_action_data or {}, artifacts_dir=artifacts_dir)
+        if lane:
+            try:
+                from sase.monitor.models import MonitorLaneError
+                from sase.monitor.start import StartMonitorRequest, start_monitor
+
+                return start_monitor(
+                    StartMonitorRequest(
+                        command=command,
+                        reason=f"Launch the approved epic from {Path(plan_file).name}",
+                        timeout_seconds=_EPIC_LAUNCH_TIMEOUT_SECONDS,
+                        cwd=str(resolved_cwd),
+                        project_name=project,
+                        lane=lane,
+                        label=label,
+                        next_action=None,
+                        start_status="EPIC APPROVED",
+                        stop_status="EPIC CREATED",
+                        inherit_lane_workspace_claim=False,
+                    )
+                )
+            except MonitorLaneError:
+                _logger.warning(
+                    "Falling back to detached epic launch task for %s: "
+                    "planner lane %r is not resolvable",
+                    resolved_plan,
+                    lane,
+                    exc_info=True,
+                )
+        else:
+            _logger.warning(
+                "Falling back to detached epic launch task for %s: planner lane "
+                "is unavailable",
+                resolved_plan,
+            )
+        return _submit_epic_launch_task(
+            plan_file,
             cwd=resolved_cwd,
+            artifacts_dir=artifacts_dir,
+            cl_name=cl_name,
             origin=origin,
             project=project,
-            tags=_EPIC_LAUNCH_TAGS,
-            cl_name=cl_name,
+            label=label,
+            resolved_plan=resolved_plan,
         )
+
+
+def _epic_launch_lane(
+    host_action_data: dict[str, str],
+    *,
+    artifacts_dir: str | Path | None,
+) -> str | None:
+    meta = _read_agent_meta_best_effort(artifacts_dir)
+    raw_family = meta.get("agent_family")
+    if isinstance(raw_family, str) and raw_family.strip():
+        return raw_family.strip()
+    raw_name = meta.get("name")
+    if isinstance(raw_name, str) and raw_name.strip():
+        return agent_family_base(raw_name) or raw_name.strip()
+
+    raw_action_name = host_action_data.get("agent_name")
+    if raw_action_name:
+        return agent_family_base(raw_action_name) or raw_action_name
+    return None
+
+
+def _epic_launch_project(host_action_data: dict[str, str]) -> str | None:
+    try:
+        from sase._plan_approval_artifacts import resolve_plan_action_project_name
+
+        return resolve_plan_action_project_name(host_action_data)
+    except Exception:
+        return None
+
+
+def _read_agent_meta_best_effort(artifacts_dir: str | Path | None) -> dict[str, Any]:
+    if artifacts_dir is None:
+        return {}
+    meta_path = Path(artifacts_dir).expanduser() / "agent_meta.json"
+    try:
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _submit_epic_launch_task(
+    plan_file: str | Path,
+    *,
+    cwd: Path,
+    artifacts_dir: str | Path | None,
+    cl_name: str | None,
+    origin: EpicLaunchOrigin,
+    project: str,
+    label: str,
+    resolved_plan: Path,
+) -> BackgroundTask:
+    """Submit the legacy detached task fallback for an approved epic plan."""
+    from sase.tasks.runner import submit_detached_task
+
+    if existing := _active_epic_launch_for_plan(resolved_plan):
+        return existing
+    return submit_detached_task(
+        build_epic_launch_argv(
+            plan_file,
+            artifacts_dir=artifacts_dir,
+            cl_name=cl_name,
+        ),
+        label=label,
+        cwd=cwd,
+        origin=origin,
+        project=project,
+        tags=_EPIC_LAUNCH_TAGS,
+        cl_name=cl_name,
+    )
 
 
 def _active_epic_launch_for_plan(plan_file: Path) -> BackgroundTask | None:
@@ -304,9 +423,10 @@ def finish_epic_launch(
 
 __all__ = [
     "EpicLaunchOrigin",
+    "EpicLaunchSubmission",
     "build_epic_launch_argv",
     "epic_launch_origin_from_gate_source",
     "finish_epic_launch",
     "resolve_epic_launch_cwd",
-    "submit_epic_launch_task",
+    "start_epic_launch_monitor",
 ]

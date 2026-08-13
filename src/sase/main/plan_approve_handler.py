@@ -141,7 +141,13 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
         f"[green]{result.message}[/green] "
         f"[dim]{result.notification_id[:8]} -> {result.response_path}[/dim]"
     )
-    if result.epic_launch_task_id is not None:
+    if result.epic_launch_monitor_id is not None:
+        monitor_id = result.epic_launch_monitor_id
+        Console().print(
+            f"[cyan]Monitor {monitor_id}[/cyan] "
+            f"[dim]Follow with `sase monitor show {monitor_id} --follow`.[/dim]"
+        )
+    elif result.epic_launch_task_id is not None:
         task_id = result.epic_launch_task_id
         Console().print(
             f"[cyan]Detached task {task_id}[/cyan] "

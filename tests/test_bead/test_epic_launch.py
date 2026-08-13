@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,7 +17,7 @@ from sase.bead.epic_launch import (
     epic_launch_origin_from_gate_source,
     finish_epic_launch,
     resolve_epic_launch_cwd,
-    submit_epic_launch_task,
+    start_epic_launch_monitor,
 )
 
 
@@ -178,7 +179,53 @@ def test_resolve_epic_launch_cwd_rejects_invalid_project_file_identity(
     get_workspace_directory.assert_not_called()
 
 
-def test_submit_epic_launch_task_submits_literal_detached_command(
+def test_start_epic_launch_monitor_starts_literal_monitor_command(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "auth rewrite.md"
+    monitor = SimpleNamespace(monitor_id="m7k2xyz")
+    with (
+        patch("sase.tasks.tasks_dir", return_value=tmp_path / "tasks"),
+        patch(
+            "sase.bead.project_name.infer_project_name_from_cwd",
+            return_value="sase",
+        ),
+        patch(
+            "sase.monitor.start.start_monitor",
+            return_value=monitor,
+        ) as start_monitor,
+    ):
+        submitted = start_epic_launch_monitor(
+            plan,
+            cwd=tmp_path,
+            host_action_data={"agent_name": "planner"},
+            artifacts_dir=tmp_path / "artifacts",
+            cl_name="demo",
+            origin="telegram",
+        )
+
+    assert submitted is monitor
+    request = start_monitor.call_args.args[0]
+    assert request.command == (
+        "sase bead work "
+        f"{shlex.quote(str(plan))} "
+        "--yes-to-all --artifacts-dir "
+        f"{shlex.quote(str(tmp_path / 'artifacts'))} "
+        "--cl-name demo --expect-prompt-snapshot"
+    )
+    assert request.cwd == str(tmp_path.resolve())
+    assert request.project_name == "sase"
+    assert request.lane == "planner"
+    assert request.label == "Epic launch · auth rewrite"
+    assert request.reason == "Launch the approved epic from auth rewrite.md"
+    assert request.next_action is None
+    assert request.start_status == "EPIC APPROVED"
+    assert request.stop_status == "EPIC CREATED"
+    assert request.timeout_seconds == 4 * 60 * 60
+    assert request.inherit_lane_workspace_claim is False
+
+
+def test_start_epic_launch_monitor_falls_back_to_detached_task_when_lane_missing(
     tmp_path: Path,
 ) -> None:
     plan = tmp_path / "auth rewrite.md"
@@ -199,7 +246,7 @@ def test_submit_epic_launch_task_submits_literal_detached_command(
             return_value=task,
         ) as submit_task,
     ):
-        submitted = submit_epic_launch_task(
+        submitted = start_epic_launch_monitor(
             plan,
             cwd=tmp_path,
             artifacts_dir=tmp_path / "artifacts",
@@ -222,7 +269,7 @@ def test_submit_epic_launch_task_submits_literal_detached_command(
     ]
     kwargs = submit_task.call_args.kwargs
     assert kwargs["label"] == "Epic launch · auth rewrite"
-    assert kwargs["cwd"] == tmp_path
+    assert kwargs["cwd"] == tmp_path.resolve()
     assert kwargs["origin"] == "telegram"
     assert kwargs["project"] == "sase"
     assert kwargs["cl_name"] == "demo"
@@ -230,7 +277,7 @@ def test_submit_epic_launch_task_submits_literal_detached_command(
     assert "session_id" not in kwargs
 
 
-def test_submit_epic_launch_task_deduplicates_active_resolved_plan(
+def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
     tmp_path: Path,
 ) -> None:
     plan = tmp_path / "plans" / "epic.md"
@@ -249,7 +296,7 @@ def test_submit_epic_launch_task_deduplicates_active_resolved_plan(
         ),
         patch("sase.tasks.runner.submit_detached_task") as submit_task,
     ):
-        submitted = submit_epic_launch_task(plan, cwd=tmp_path)
+        submitted = start_epic_launch_monitor(plan, cwd=tmp_path)
 
     assert submitted is existing
     read_tasks.assert_called_once()

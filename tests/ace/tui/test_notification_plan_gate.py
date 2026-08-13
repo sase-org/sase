@@ -331,13 +331,13 @@ def test_neutral_epic_submission_records_ace_origin(
             "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
         ),
         patch(
-            "sase.bead.epic_launch.submit_epic_launch_task",
-            return_value=SimpleNamespace(task_id="task-ace"),
-        ) as submit_launch,
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            return_value=SimpleNamespace(monitor_id="mon-ace"),
+        ) as start_launch,
     ):
         submitted = submit_neutral_plan_response(app, notification, None, result)
 
     assert submitted is True
     assert getattr(app.completion, "success", False) is True
-    submit_launch.assert_called_once()
-    assert submit_launch.call_args.kwargs["origin"] == "ace"
+    start_launch.assert_called_once()
+    assert start_launch.call_args.kwargs["origin"] == "ace"
