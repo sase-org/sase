@@ -28,6 +28,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.history.chat import save_chat_history
 from sase.logs.pipe import BoundedLogPipe
+from sase.workflows.utils import get_project_file_path
 
 from .followup import launch_followup_agent
 from .identity import process_identity
@@ -35,6 +36,7 @@ from .logs import append_monitor_log_bytes, monitor_log_max_bytes, monitor_log_p
 from .models import MonitorState
 from .output import OutputCapture
 from .settlement import (
+    finalize_monitor_workflow_state,
     notify_monitor_complete,
     project_name_from_artifacts_dir,
     settle_claim_and_followup,
@@ -443,6 +445,8 @@ def _finish_monitor(
         "status_label": stop_status,
         "response_path": response_path,
     }
+    if project_name:
+        done_marker["project_file"] = get_project_file_path(project_name)
     if error:
         done_marker["error"] = error
     if followup_error:
@@ -459,6 +463,7 @@ def _finish_monitor(
         if timeout_message:
             done_marker["monitor_timeout_message"] = timeout_message
     write_done_marker_and_update_index(artifacts_dir, done_marker)
+    finalize_monitor_workflow_state(artifacts_dir)
 
     touch_monitor_refresh_pulse(project_name)
     notify_monitor_complete(

@@ -19,12 +19,14 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.history.chat import save_chat_history
 from sase.logs._bounded import log_file_lock
+from sase.workflows.utils import get_project_file_path
 
 from .identity import supervisor_is_alive
 from .logs import append_monitor_log_bytes, monitor_log_path
 from .models import MonitorRecord, MonitorState
 from .output import OutputCapture
 from .settlement import (
+    finalize_monitor_workflow_state,
     notify_monitor_complete,
     settle_claim_and_followup,
     touch_monitor_refresh_pulse,
@@ -177,6 +179,8 @@ def _reconcile_dead_supervisor_locked(
         "response_path": response_path,
         "error": error,
     }
+    if record.project_name:
+        done_marker["project_file"] = get_project_file_path(record.project_name)
     if followup_error:
         done_marker["monitor_followup_error"] = followup_error
     for key in (
@@ -187,6 +191,7 @@ def _reconcile_dead_supervisor_locked(
         if meta.get(key):
             done_marker[key] = meta[key]
     write_done_marker_and_update_index(record.artifacts_dir, done_marker)
+    finalize_monitor_workflow_state(record.artifacts_dir)
     touch_monitor_refresh_pulse(record.project_name)
     notify_monitor_complete(
         meta,

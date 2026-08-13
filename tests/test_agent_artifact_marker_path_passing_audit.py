@@ -53,6 +53,16 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
+    (
+        "src/sase/ace/tui/models/_loaders/_workflow_loaders.py:"
+        "_has_monitored_done_marker"
+    ): PathPassingReview(
+        exemption=(
+            "Read-only settled-monitor check: done.json is inspected only to "
+            "test whether its outcome is 'monitored' so the workflow-state "
+            "projection can skip the vestigial launch-scaffolding row."
+        ),
+    ),
     "src/sase/axe/chop_lifecycle.py:_agent_completion": PathPassingReview(
         exemption=(
             "Read-only chop action finalization: done.json is inspected only "

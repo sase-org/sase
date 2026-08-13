@@ -446,6 +446,68 @@ def test_dead_supervisor_reconciliation_launches_recorded_followup(
     ]
 
 
+def test_dead_supervisor_reconciliation_records_project_file_and_finalizes_workflow_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_file = write_project_file(
+        "proj",
+        running_claims=[
+            WorkspaceClaim(
+                workspace_num=0,
+                workflow=MONITOR_WORKSPACE_CLAIM_WORKFLOW,
+                cl_name="acme",
+                pid=DEAD_PID,
+                artifacts_timestamp="20260812120000",
+            )
+        ],
+    )
+    monitor_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+        monitor_command="sleep 60",
+        monitor_stop_status="MONITORED",
+        monitor_pgid=DEAD_PID,
+        pid=DEAD_PID,
+        workspace_num=0,
+        workspace_dir="/work",
+        cl_name="acme",
+    )
+    workflow_state_path = Path(monitor_dir) / "workflow_state.json"
+    workflow_state_path.write_text(
+        json.dumps(
+            {
+                "workflow_name": "run",
+                "status": "running",
+                "current_step_index": 0,
+                "steps": [],
+                "context": {"cl_name": "acme"},
+                "artifacts_dir": monitor_dir,
+                "pid": os.getpid(),
+                "appears_as_agent": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    patch_project_records(monkeypatch, [monitor_dir])
+
+    record = MonitorRecord.from_record(record_from_disk(monitor_dir))
+    result = stop_monitor(record)
+
+    assert result.monitor_state == "failed"
+    on_disk_done = json.loads((Path(monitor_dir) / "done.json").read_text())
+    assert on_disk_done["project_file"] == project_file
+
+    workflow_state = json.loads(workflow_state_path.read_text())
+    assert workflow_state["status"] == "completed"
+    assert workflow_state["appears_as_agent"] is True
+    assert workflow_state["context"] == {"cl_name": "acme"}
+
+
 def test_pre_reboot_monitor_reconciles_to_lost_without_followup_or_signal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

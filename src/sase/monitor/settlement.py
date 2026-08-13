@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_artifact_index_lifecycle import (
+    update_agent_artifact_index_for_marker_mutation,
+)
 from sase.core.paths import sase_projects_dir
 from sase.notifications.senders import (
     notify_monitor_followup_dropped,
@@ -183,6 +187,35 @@ def touch_monitor_refresh_pulse(project_name: str | None) -> None:
         pass
 
 
+def finalize_monitor_workflow_state(artifacts_dir: str) -> None:
+    """Rewrite a settled monitor member's workflow_state.json to a terminal status.
+
+    ``create_followup_artifacts()`` seeds the member's workflow_state.json
+    with ``status: "running"`` and a starter-process PID that is never
+    rewritten while the monitor runs -- settlement happens entirely through
+    ``done.json`` and ``agent_meta.json`` instead. Left at ``"running"`` it
+    trips other workflow_state.json consumers once the supervisor is gone, so
+    settlement finalizes it here, preserving every other field. Skips
+    silently when the file is absent or unreadable -- settlement must never
+    fail because of it.
+    """
+    state_path = Path(artifacts_dir) / "workflow_state.json"
+    try:
+        with state_path.open(encoding="utf-8") as f:
+            state_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+    if not isinstance(state_data, dict):
+        return
+    state_data["status"] = "completed"
+    try:
+        with state_path.open("w", encoding="utf-8") as f:
+            json.dump(state_data, f, indent=2)
+    except OSError:
+        return
+    update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+
+
 def project_name_from_artifacts_dir(artifacts_dir: str) -> str | None:
     """Return the project containing a monitor artifacts directory."""
     try:
@@ -234,6 +267,7 @@ def _record_followup_outcome(
 
 __all__ = [
     "LOST_FOLLOWUP_ERROR",
+    "finalize_monitor_workflow_state",
     "notify_monitor_complete",
     "project_name_from_artifacts_dir",
     "settle_claim_and_followup",

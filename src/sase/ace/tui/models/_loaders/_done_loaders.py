@@ -14,7 +14,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from sase.ace.patch.project_spec_path import preferred_project_spec_path
 from sase.agent.status_buckets import EPIC_APPROVED_STATUS
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.agent_scan_wire import (
     DONE_WORKFLOW_DIR_NAMES,
     DONE_WORKFLOW_DIR_PREFIXES,
@@ -228,12 +230,24 @@ def _load_done_agent_for_dir(
 
     try:
         data = load_json_cached(done_file)
-        project_key = artifact_dir.parents[2].name
+        parsed_path = parse_agent_artifact_path(artifact_dir)
+        project_key = (
+            parsed_path.project_name
+            if parsed_path is not None
+            else artifact_dir.parents[2].name
+        )
         if not _import_transaction_is_visible(
             project_key,
             data.get("imported_transaction_key"),
         ):
             return None
+
+        project_file = data.get("project_file")
+        if not project_file and parsed_path is not None:
+            project_file = preferred_project_spec_path(
+                str(sase_projects_dir() / parsed_path.project_name),
+                parsed_path.project_name,
+            )
 
         # Parse timestamp from artifact dir name (YYYYmmddHHMMSS)
         timestamp_str = artifact_dir.name
@@ -300,7 +314,7 @@ def _load_done_agent_for_dir(
         agent = Agent(
             agent_type=AgentType.RUNNING,
             cl_name=cl_name,
-            project_file=data.get("project_file", ""),
+            project_file=project_file or "",
             status=status,
             start_time=start_time,
             status_bucket=(
@@ -511,7 +525,7 @@ def _build_done_agent_from_record(
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=cl_name,
-        project_file=done.project_file or "",
+        project_file=done.project_file or record.project_file,
         status=status,
         start_time=start_time,
         status_bucket=done.status_bucket,

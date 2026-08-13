@@ -256,6 +256,15 @@ def load_workflow_states(
     return entries
 
 
+def _has_monitored_done_marker(artifacts_dir: Path) -> bool:
+    """Return True iff *artifacts_dir* has a done.json with outcome "monitored"."""
+    try:
+        data = load_json_cached(artifacts_dir / "done.json")
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    return isinstance(data, dict) and data.get("outcome") == "monitored"
+
+
 def load_workflow_agents(
     *,
     step_meta_by_parent: dict[str, dict[str, str]] | None = None,
@@ -287,6 +296,13 @@ def load_workflow_agents(
         raw_suffix = None
         if entry.artifacts_dir:
             raw_suffix = Path(entry.artifacts_dir).name
+
+        if entry.artifacts_dir and _has_monitored_done_marker(
+            Path(entry.artifacts_dir)
+        ):
+            # A settled monitor member's workflow_state.json is vestigial
+            # launch scaffolding; the done-marker loader owns the terminal row.
+            continue
 
         # Extract step_output from last completed step so that
         # appears_as_agent workflows expose meta_* fields in the TUI.

@@ -121,6 +121,46 @@ def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
     assert get_claimed_workspaces(project_file) == []
 
 
+def test_run_supervisor_records_project_file_and_finalizes_workflow_state(
+    tmp_path: Path,
+) -> None:
+    """Settling writes done.json::project_file and finalizes workflow_state.json.
+
+    The member's workflow_state.json is launch scaffolding seeded by
+    create_followup_artifacts() with status="running"; nothing else ever
+    rewrites it, so settlement must finalize it to a terminal status while
+    preserving fields other workflow_state.json consumers rely on.
+    """
+    artifacts_dir, project_file = _make_member(tmp_path, command="true")
+    workflow_state_path = Path(artifacts_dir) / "workflow_state.json"
+    workflow_state_path.write_text(
+        json.dumps(
+            {
+                "workflow_name": "run",
+                "status": "running",
+                "current_step_index": 0,
+                "steps": [],
+                "context": {"cl_name": "acme"},
+                "artifacts_dir": artifacts_dir,
+                "pid": os.getpid(),
+                "appears_as_agent": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_status = run_supervisor(artifacts_dir)
+
+    assert exit_status == 0
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["project_file"] == project_file
+
+    workflow_state = json.loads(workflow_state_path.read_text())
+    assert workflow_state["status"] == "completed"
+    assert workflow_state["appears_as_agent"] is True
+    assert workflow_state["context"] == {"cl_name": "acme"}
+
+
 def test_run_supervisor_records_a_non_zero_exit_as_failed(tmp_path: Path) -> None:
     artifacts_dir, _ = _make_member(tmp_path, command="sh -c 'echo boom >&2; exit 3'")
 

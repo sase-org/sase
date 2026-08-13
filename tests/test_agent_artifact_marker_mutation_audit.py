@@ -251,6 +251,10 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/monitor/settlement.py:finalize_monitor_workflow_state": Review(
+        mutation_calls=("dump",),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     "src/sase/plan_approval_actions.py:_persist_plan_approved_metadata": Review(
         mutation_calls=("write_text",),
         lifecycle_calls=(_UPDATE_INDEX,),

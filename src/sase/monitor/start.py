@@ -31,6 +31,7 @@ from sase.running_field import (
     release_workspace,
     transfer_workspace_claim,
 )
+from sase.workflows.utils import get_project_file_path
 
 from . import naming, store
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
@@ -42,6 +43,7 @@ from .models import (
     MonitorLaneError,
     MonitorRecord,
 )
+from .settlement import finalize_monitor_workflow_state, project_name_from_artifacts_dir
 from .transaction import (
     MONITOR_GO_MARKER,
     MONITOR_START_ACK_TIMEOUT_SECONDS,
@@ -589,15 +591,17 @@ def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
         meta,
         index_updater=update_agent_artifact_index_for_marker_mutation,
     )
-    write_done_marker_and_update_index(
-        artifacts_dir,
-        {
-            "outcome": "monitored",
-            "monitor_state": "failed",
-            "error": error,
-            "status_label": meta.get("monitor_stop_status") or DEFAULT_STOP_STATUS,
-        },
-    )
+    done_marker: dict[str, Any] = {
+        "outcome": "monitored",
+        "monitor_state": "failed",
+        "error": error,
+        "status_label": meta.get("monitor_stop_status") or DEFAULT_STOP_STATUS,
+    }
+    project_name = project_name_from_artifacts_dir(artifacts_dir)
+    if project_name:
+        done_marker["project_file"] = get_project_file_path(project_name)
+    write_done_marker_and_update_index(artifacts_dir, done_marker)
+    finalize_monitor_workflow_state(artifacts_dir)
 
 
 def _spawn_detached_supervisor(

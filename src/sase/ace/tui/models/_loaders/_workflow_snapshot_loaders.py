@@ -189,6 +189,16 @@ def load_workflow_agents_from_snapshot(
     for entry in entries:
         raw_suffix = Path(entry.artifacts_dir).name if entry.artifacts_dir else None
 
+        record = record_by_dir.get(entry.artifacts_dir or "")
+        if (
+            record is not None
+            and record.done is not None
+            and record.done.outcome == "monitored"
+        ):
+            # A settled monitor member's workflow_state.json is vestigial
+            # launch scaffolding; the done marker owns the terminal row.
+            continue
+
         step_output: dict[str, Any] | None = None
         if entry.steps:
             for step in reversed(entry.steps):
@@ -214,7 +224,6 @@ def load_workflow_agents_from_snapshot(
 
         extra_files: list[str] = []
         plan_path: str | None = None
-        record = record_by_dir.get(entry.artifacts_dir or "")
         if record is not None and record.plan_path is not None:
             plan_path = record.plan_path.plan_path
             if plan_path:

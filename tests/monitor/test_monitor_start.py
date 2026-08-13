@@ -808,6 +808,14 @@ def test_start_monitor_tears_down_the_member_when_the_supervisor_cannot_spawn(
     assert meta["monitor_state"] == "failed"
     done = json.loads((member_dirs[0] / "done.json").read_text())
     assert done["monitor_state"] == "failed"
+    assert done["project_file"] == str(sase_projects_dir() / "proj" / "proj.sase")
+
+    # create_followup_artifacts() seeded workflow_state.json with
+    # status="running" and appears_as_agent=True; teardown must finalize it
+    # rather than leave it permanently non-terminal.
+    workflow_state = json.loads((member_dirs[0] / "workflow_state.json").read_text())
+    assert workflow_state["status"] == "completed"
+    assert workflow_state["appears_as_agent"] is True
 
 
 def test_start_monitor_claim_failure_does_not_run_the_command(

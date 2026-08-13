@@ -8,6 +8,7 @@ from sase.ace.tui.models._loaders._done_loaders import (
     _load_done_agent_for_dir,
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire, DoneMarkerWire
+from sase.core.paths import sase_projects_dir
 
 
 def test_done_agent_loader_backfills_commit_cwd_from_commit_result(
@@ -356,3 +357,24 @@ def test_done_agent_snapshot_loader_backfills_commit_cwd(
     assert agent.step_output["meta_commits"] == [
         {"message": "fix: linked", "sha": "def456", "cwd": "/linked"}
     ]
+
+
+def test_done_agent_loader_derives_project_file_from_artifact_path() -> None:
+    """A done.json omitting project_file falls back to the artifact path.
+
+    Mirrors what the real monitor writers emit before ``build_done_marker()``
+    parity was restored: no ``project_file`` key in ``done.json`` at all.
+    """
+    artifact_dir = (
+        sase_projects_dir() / "sase" / "artifacts" / "ace-run" / "20260624120300"
+    )
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "done.json").write_text(
+        json.dumps({"cl_name": "sase-test", "outcome": "completed"}),
+        encoding="utf-8",
+    )
+
+    agent = _load_done_agent_for_dir(artifact_dir, "ace-run", {}, {})
+
+    assert agent is not None
+    assert agent.project_file == str(sase_projects_dir() / "sase" / "sase.sase")
