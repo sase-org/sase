@@ -12,6 +12,11 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     XPromptInputHint,
 )
+from sase.core.snippet_session_facade import (
+    SnippetSessionState,
+    SnippetSpan,
+    SnippetStop,
+)
 
 from ._completion_helpers import CompletionTestApp
 
@@ -205,7 +210,13 @@ async def test_typed_hint_detection_skips_active_snippet_tabstops() -> None:
         ta = app.query_one(PromptTextArea)
         ta.load_text("#review:")
         ta.cursor_location = (0, len("#review:"))
-        ta._snippet_tabstops = [len("#review:")]
+        stop = len("#review:")
+        ta._snippet_session = SnippetSessionState(
+            stops=(SnippetStop(offset=stop, session=0),),
+            index=0,
+            sessions=(SnippetSpan(id=0, start=0, end=stop),),
+            next_session_id=1,
+        )
         _seed_entries(ta, entries)
         ta._refresh_xprompt_arg_hint_from_cursor()
 

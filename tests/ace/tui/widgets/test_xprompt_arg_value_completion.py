@@ -526,7 +526,7 @@ async def test_named_arg_completion_does_not_interfere_with_snippet_tab() -> Non
         ta = app.query_one(PromptTextArea)
         assert ta._expand_snippet_template_at_range("x=$1 y=$0", (0, 0), (0, 0))
         assert ta.text == "x= y="
-        assert ta._snippet_tabstops
+        assert ta.snippet_session_active
 
         _seed_entries(ta, [_entry()])
         await pilot.press("tab")

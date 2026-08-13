@@ -39,12 +39,14 @@ class XPromptArgHintMixin(_MixinBase):
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
         _file_completion_active: bool
-        _snippet_tabstops: list[int]
         _xprompt_arg_assist_entries_by_project: dict[
             str | None, list[XPromptAssistEntry]
         ]
         _xprompt_arg_assist_warming_projects: set[str | None]
         _xprompt_arg_assist_worker_projects: dict[str, str | None]
+
+        @property
+        def snippet_session_active(self) -> bool: ...
 
         def _find_prompt_bar(self) -> Any: ...
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
@@ -94,7 +96,7 @@ class XPromptArgHintMixin(_MixinBase):
 
     def _refresh_xprompt_arg_hint_from_cursor(self) -> None:
         """Refresh typed xprompt arg hints and dismiss stale accepted hints."""
-        if self._file_completion_active or self._snippet_tabstops:
+        if self._file_completion_active or self.snippet_session_active:
             return
 
         detected = self._detect_xprompt_arg_hint_from_cursor()

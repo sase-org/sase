@@ -84,8 +84,6 @@ class PromptFormatMixin(_MixinBase):
         _dot_insert_capture_offset: int | None
         _mutation_key_buffer: list[str]
         _pending_xprompt_completion_spacer: object | None
-        _snippet_end_from_doc_end: int
-        _snippet_tabstops: list[int]
         _vcs_mru_index: int | None
         _vim_mode: str
         _visual_anchor: tuple[int, int] | None
@@ -106,6 +104,7 @@ class PromptFormatMixin(_MixinBase):
             cancel_timer: bool = False,
         ) -> None: ...
         def _clear_xprompt_arg_hint(self) -> None: ...
+        def _clear_snippet_session(self) -> None: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _replace_via_keyboard(
             self,
@@ -133,8 +132,7 @@ class PromptFormatMixin(_MixinBase):
         self._clear_soft_completion(cancel_timer=True)
         self._clear_xprompt_arg_hint()
         self._clear_prompt_search(clear_highlights=True)
-        self._snippet_tabstops = []
-        self._snippet_end_from_doc_end = 0
+        self._clear_snippet_session()
         self._pending_xprompt_completion_spacer = None
         self._vcs_mru_index = None
         # ``gf`` is an explicit editor command, not a repeatable Vim mutation.

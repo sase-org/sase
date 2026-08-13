@@ -29,9 +29,9 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
     """PromptTextArea action handlers and prompt-bar integration."""
 
     if TYPE_CHECKING:
-        _snippet_tabstops: list[int]
         _vcs_mru_index: int | None
 
+        def _clear_snippet_session(self) -> None: ...
         def _clear_file_completion(
             self,
             *,
@@ -54,7 +54,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
     def action_submit_prompt(self) -> None:
         """Submit the prompt text (only the selected pane in a stack)."""
         self._clear_insert_g_prefix()
-        self._snippet_tabstops = []
+        self._clear_snippet_session()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
@@ -66,7 +66,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
     def action_submit_prompt_stack(self) -> None:
         """Submit the whole prompt stack as one multi-prompt via the chooser."""
         self._clear_insert_g_prefix()
-        self._snippet_tabstops = []
+        self._clear_snippet_session()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
@@ -84,7 +84,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             return
 
         self._clear_insert_g_prefix()
-        self._snippet_tabstops = []
+        self._clear_snippet_session()
         self._clear_soft_completion(cancel_timer=True)
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
@@ -238,7 +238,7 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         self._clear_xprompt_arg_hint()
         self._vcs_mru_index = None
         self._clear_soft_completion(cancel_timer=True)
-        self._snippet_tabstops = []
+        self._clear_snippet_session()
 
     def _enter_insert_mode(self) -> None:
         """Switch to vim INSERT mode, clearing the prompt prefix / search UI."""

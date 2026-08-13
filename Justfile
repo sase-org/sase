@@ -304,17 +304,11 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-kz.5(SnippetExpansionPlan)' \
-        --epic-symbol 'sase-kz.5(SnippetSessionState)' \
         --epic-symbol 'sase-kz.5(SnippetSessionTransition)' \
         --epic-symbol 'sase-kz.5(SnippetSpan)' \
         --epic-symbol 'sase-kz.5(SnippetStop)' \
-        --epic-symbol 'sase-kz.5(advance_snippet_session)' \
-        --epic-symbol 'sase-kz.5(apply_snippet_session_edit)' \
         --epic-symbol 'sase-kz.5(apply_snippet_session_event)' \
         --epic-symbol 'sase-kz.5(clear_snippet_session)' \
-        --epic-symbol 'sase-kz.5(empty_snippet_session)' \
-        --epic-symbol 'sase-kz.5(expand_snippet_session)' \
-        --epic-symbol 'sase-kz.5(plan_snippet_expansion)' \
         --epic-symbol 'sase-kz.5(retreat_snippet_session)' \
         {{ args }}
 

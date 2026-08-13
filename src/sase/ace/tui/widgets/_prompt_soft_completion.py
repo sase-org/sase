@@ -40,9 +40,11 @@ class PromptSoftCompletionMixin(_MixinBase):
         _file_completion_active: bool
         _prompt_completion_generation: int
         _prompt_completion_timer: Any | None
-        _snippet_tabstops: list[int]
         _soft_completion: PromptSoftCompletion | None
         _vim_mode: str
+
+        @property
+        def snippet_session_active(self) -> bool: ...
 
         def _find_prompt_bar(self) -> Any: ...
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
@@ -167,7 +169,7 @@ class PromptSoftCompletionMixin(_MixinBase):
     def _soft_completion_blocked(self) -> bool:
         if self._vim_mode != "insert":
             return True
-        if self._file_completion_active or self._snippet_tabstops:
+        if self._file_completion_active or self.snippet_session_active:
             return True
         bar = self._find_prompt_bar()
         if bar and getattr(bar, "_completion_panel_kind", None) == "jinja":

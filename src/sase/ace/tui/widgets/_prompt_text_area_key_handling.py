@@ -66,7 +66,6 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _completion_selection_moved: bool
         _dot_insert_capture_offset: int | None
         _file_completion_active: bool
-        _snippet_tabstops: list[int]
         _count_prefix: str
         _insert_g_prefix_pending: bool
         _normal_g_prefix_pending: bool
@@ -74,6 +73,9 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _pending_operator: str
         _vcs_mru_index: int | None
         _vim_mode: str
+
+        @property
+        def snippet_session_active(self) -> bool: ...
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
@@ -402,7 +404,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.stop()
             event.prevent_default()
             self._clear_soft_completion(cancel_timer=True)
-            if not self._snippet_tabstops:
+            if not self.snippet_session_active:
                 start, end = self.selection
                 if start == end:
                     offset = self._absolute_offset(self.cursor_location)

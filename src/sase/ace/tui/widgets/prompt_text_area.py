@@ -31,6 +31,10 @@ from sase.ace.tui.widgets._prompt_format import PromptFormatMixin
 from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
 from sase.ace.tui.widgets._todo_highlight import TodoHighlightMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
+from sase.core.snippet_session_facade import (
+    SnippetSessionState,
+    empty_snippet_session,
+)
 from sase.ace.tui.widgets._vcs_mru_cycling import (
     VcsMruCyclingMixin,
 )
@@ -122,8 +126,7 @@ class PromptTextArea(
         super().__init__(*args, **kwargs)
         self._insert_g_prefix_pending: bool = False
         self._normal_g_prefix_pending: bool = False
-        self._snippet_tabstops: list[int] = []
-        self._snippet_end_from_doc_end: int = 0
+        self._snippet_session: SnippetSessionState = empty_snippet_session()
         self._file_completion_candidates: list[CompletionCandidate] = []
         self._file_completion_index: int = 0
         self._file_completion_active: bool = False
