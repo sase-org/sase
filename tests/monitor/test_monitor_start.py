@@ -68,6 +68,7 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
         command="true",
         reason="verify",
         timeout_seconds=30.0,
+        idle_timeout_seconds=10.0,
         cwd=str(tmp_path),
         project_name="proj",
         lane="acme",
@@ -78,6 +79,7 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
     assert record.monitor_state == "running"
     assert record.member_agent_name == "acme--mon"
     assert record.lane == "acme"
+    assert record.idle_timeout_seconds == 10.0
 
     # The starter is now a promoted family root.
     starter_meta = json.loads((Path(starter_dir) / "agent_meta.json").read_text())
@@ -173,6 +175,7 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
         command="just check-full",
         reason="verify",
         timeout_seconds=2700.0,
+        idle_timeout_seconds=600.0,
         cwd=str(tmp_path),
         project_name="proj",
         lane="acme",

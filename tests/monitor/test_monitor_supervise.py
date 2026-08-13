@@ -47,10 +47,14 @@ def _make_member(
     *,
     command: str,
     timeout_seconds: float = 60.0,
+    idle_timeout_seconds: float = 0.0,
     next_action: str | None = None,
     workspace_num: int = 1,
     claim_workflow: str = "ace-monitor",
 ) -> tuple[str, str]:
+    extra_meta = {}
+    if idle_timeout_seconds > 0:
+        extra_meta["monitor_idle_timeout_seconds"] = idle_timeout_seconds
     project_file = write_project_file(
         "proj",
         running_claims=[
@@ -75,6 +79,7 @@ def _make_member(
         cl_name="acme",
         workspace_dir=str(tmp_path),
         workspace_num=workspace_num,
+        **extra_meta,
     )
     return artifacts_dir, project_file
 
@@ -272,6 +277,68 @@ def test_run_supervisor_times_out_after_child_closes_stdio(tmp_path: Path) -> No
     assert elapsed < 2.0
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
+
+
+def test_run_supervisor_idle_timeout_fires_after_output_stalls(tmp_path: Path) -> None:
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sh -c 'echo started; sleep 30'",
+        timeout_seconds=30.0,
+        idle_timeout_seconds=0.2,
+    )
+
+    started = time.monotonic()
+    exit_status = run_supervisor(artifacts_dir)
+    elapsed = time.monotonic() - started
+
+    assert exit_status == 1
+    assert elapsed < 2.0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "timeout"
+    assert meta["monitor_timeout_kind"] == "idle"
+    assert meta["monitor_timeout_message"] == "no output for 0.2s"
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["monitor_timeout_kind"] == "idle"
+    assert done["monitor_timeout_message"] == "no output for 0.2s"
+
+
+def test_run_supervisor_chatty_command_does_not_hit_idle_timeout(
+    tmp_path: Path,
+) -> None:
+    command = (
+        f'{sys.executable} -u -c "import sys, time; '
+        "[(sys.stdout.write('tick\\\\n'), sys.stdout.flush(), time.sleep(0.05)) "
+        'for _ in range(4)]"'
+    )
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command=command,
+        timeout_seconds=5.0,
+        idle_timeout_seconds=0.2,
+    )
+
+    exit_status = run_supervisor(artifacts_dir)
+
+    assert exit_status == 0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "completed"
+    assert "monitor_timeout_kind" not in meta
+
+
+def test_run_supervisor_quiet_command_without_idle_timeout_completes(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, _ = _make_member(
+        tmp_path,
+        command="sleep 0.2",
+        timeout_seconds=5.0,
+    )
+
+    exit_status = run_supervisor(artifacts_dir)
+
+    assert exit_status == 0
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "completed"
 
 
 def test_run_supervisor_survives_invalid_utf8_output(tmp_path: Path) -> None:

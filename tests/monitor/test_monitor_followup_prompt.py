@@ -62,6 +62,21 @@ def test_compose_followup_prompt_timeout_says_it_did_not_finish() -> None:
     assert "TIMED OUT — did not finish after 2m 0s of a 2m 0s budget" in prompt
 
 
+def test_compose_followup_prompt_idle_timeout_names_the_idle_budget() -> None:
+    prompt = compose_followup_prompt(
+        starter_name="acme--0",
+        monitor_state="timeout",
+        exit_code=None,
+        elapsed_seconds=620.0,
+        timeout_seconds=2700.0,
+        idle_timeout_seconds=600.0,
+        timeout_kind="idle",
+        **_COMMON,
+    )
+
+    assert "TIMED OUT — no output for 10m 0s" in prompt
+
+
 def test_compose_followup_prompt_omits_fork_prefix_when_starter_did_not_settle() -> (
     None
 ):

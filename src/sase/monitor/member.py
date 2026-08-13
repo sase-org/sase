@@ -31,6 +31,7 @@ def create_monitor_member(
     stop_status: str,
     timeout_seconds: float,
     tail_lines: int,
+    idle_timeout_seconds: float = 0.0,
     starter_agent: str | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
@@ -68,6 +69,8 @@ def create_monitor_member(
             "monitor_state": "running",
         }
     )
+    if idle_timeout_seconds > 0:
+        meta["monitor_idle_timeout_seconds"] = idle_timeout_seconds
     if next_action:
         meta["monitor_next_action"] = next_action
     if starter_agent:

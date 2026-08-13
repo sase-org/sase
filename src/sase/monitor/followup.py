@@ -49,6 +49,7 @@ def launch_followup_agent(
     elapsed_seconds: float,
     capture: OutputCapture,
     project_name: str,
+    timeout_kind: str | None = None,
     settle_timeout_seconds: float = DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
 ) -> bool:
     """Launch the agent named by ``monitor_next_action`` into the same lane.
@@ -81,6 +82,8 @@ def launch_followup_agent(
         stopped_at=meta.get("stopped_at"),
         elapsed_seconds=elapsed_seconds,
         timeout_seconds=float(meta.get("monitor_timeout_seconds") or 0.0),
+        idle_timeout_seconds=float(meta.get("monitor_idle_timeout_seconds") or 0.0),
+        timeout_kind=timeout_kind or meta.get("monitor_timeout_kind"),
         monitor_id=str(meta.get("monitor_id") or ""),
         output_text=capture.retained_text(),
         tail_lines=int(meta.get("monitor_tail_lines") or 200),

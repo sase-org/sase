@@ -42,6 +42,7 @@ def test_monitor_start_help_documents_required_flags_and_examples() -> None:
 
     assert "usage: sase monitor start" in start_help
     assert "-c, --command CMD" in start_help
+    assert "-i, --idle-timeout DURATION" in start_help
     assert "-r, --reason TEXT" in start_help
     assert "-t, --timeout DURATION" in start_help
     assert "-n, --next TEXT" in start_help
@@ -136,6 +137,7 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
     for short, long in (
         ("-c", "--command"),
         ("-C", "--cwd"),
+        ("-i", "--idle-timeout"),
         ("-L", "--label"),
         ("-l", "--lane"),
         ("-n", "--next"),

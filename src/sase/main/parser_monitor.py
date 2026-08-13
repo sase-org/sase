@@ -199,6 +199,16 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Working directory (default: the lane's workspace, else $PWD)",
     )
     start_parser.add_argument(
+        "-i",
+        "--idle-timeout",
+        default=None,
+        metavar="DURATION",
+        help=(
+            "Optional no-output timeout; kills commands that stop producing "
+            "bytes for this long, while quiet commands remain supported when omitted"
+        ),
+    )
+    start_parser.add_argument(
         "-j",
         "--json",
         action="store_true",

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 def _format_duration(seconds: float) -> str:
     """Render *seconds* as a compact ``1h 2m 3s``-style duration."""
+    if 0 < seconds < 1:
+        return f"{seconds:g}s"
     total = max(0, int(seconds))
     hours, remainder = divmod(total, 3600)
     minutes, secs = divmod(remainder, 60)
@@ -33,6 +35,8 @@ def _outcome_line(
     exit_code: int | None,
     elapsed_seconds: float,
     timeout_seconds: float,
+    idle_timeout_seconds: float,
+    timeout_kind: object,
 ) -> str:
     if monitor_state == "completed":
         return f"COMPLETED — exit {exit_code if exit_code is not None else 0}"
@@ -40,6 +44,8 @@ def _outcome_line(
         code = exit_code if exit_code is not None else "unknown"
         return f"FAILED — exit {code}"
     if monitor_state == "timeout":
+        if timeout_kind == "idle":
+            return f"TIMED OUT — no output for {_format_duration(idle_timeout_seconds)}"
         budget = _elapsed_with_budget(elapsed_seconds, timeout_seconds)
         return f"TIMED OUT — did not finish after {budget}"
     return monitor_state.upper()
@@ -87,6 +93,8 @@ def compose_followup_prompt(
     total_bytes: int,
     output_truncated: bool,
     next_action: str,
+    idle_timeout_seconds: float = 0.0,
+    timeout_kind: object = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -99,7 +107,14 @@ def compose_followup_prompt(
         ("Directory", f"`{cwd}`"),
         (
             "Outcome",
-            _outcome_line(monitor_state, exit_code, elapsed_seconds, timeout_seconds),
+            _outcome_line(
+                monitor_state,
+                exit_code,
+                elapsed_seconds,
+                timeout_seconds,
+                idle_timeout_seconds,
+                timeout_kind,
+            ),
         ),
         ("Started", started_at or "unknown"),
         ("Finished", stopped_at or "unknown"),

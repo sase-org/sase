@@ -263,6 +263,7 @@ def enrich_agent_from_meta_wire(
         monitor_reason=meta.monitor_reason,
         monitor_next_action=meta.monitor_next_action,
         monitor_timeout_seconds=meta.monitor_timeout_seconds,
+        monitor_idle_timeout_seconds=meta.monitor_idle_timeout_seconds,
         monitor_output_truncated=meta.monitor_output_truncated,
     )
 

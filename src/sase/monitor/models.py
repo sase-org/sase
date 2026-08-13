@@ -67,6 +67,7 @@ class MonitorRecord:
     timeout_seconds: float
     tail_lines: int
     monitor_state: MonitorState
+    idle_timeout_seconds: float = 0.0
     next_action: str | None = None
     pid: int | None = None
     exit_code: int | None = None
@@ -127,6 +128,7 @@ class MonitorRecord:
             timeout_seconds=meta.monitor_timeout_seconds or 0.0,
             tail_lines=meta.monitor_tail_lines or 200,
             monitor_state=monitor_state,
+            idle_timeout_seconds=meta.monitor_idle_timeout_seconds or 0.0,
             next_action=meta.monitor_next_action or None,
             pid=meta.pid,
             exit_code=exit_code,

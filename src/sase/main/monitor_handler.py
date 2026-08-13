@@ -183,6 +183,14 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
 
     try:
         timeout_seconds, timeout_label = _parse_timeout(getattr(args, "timeout", ""))
+        idle_timeout_seconds = 0.0
+        idle_timeout_label: str | None = None
+        raw_idle_timeout = getattr(args, "idle_timeout", None)
+        if raw_idle_timeout:
+            idle_timeout_seconds, idle_timeout_label = _parse_timeout(
+                raw_idle_timeout,
+                flag="-i/--idle-timeout",
+            )
         start_status = _validate_status_label(
             getattr(args, "start_status", None) or DEFAULT_START_STATUS,
             flag="-s/--start-status",
@@ -225,6 +233,7 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         start_status=start_status,
         stop_status=stop_status,
         tail_lines=getattr(args, "tail_lines", None) or DEFAULT_TAIL_LINES,
+        idle_timeout_seconds=idle_timeout_seconds,
     )
 
     try:
@@ -246,6 +255,8 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
     print(f"Started monitor {short_id} ({record.monitor_id})")
     print(f"  member: {record.member_agent_name}")
     print(f"  timeout: {timeout_label}")
+    if idle_timeout_label is not None:
+        print(f"  idle timeout: {idle_timeout_label}")
     print(f"  sase monitor show {short_id} --follow")
     if handed_off:
         print(
@@ -419,18 +430,16 @@ def _scope_label(*, project: str | None, lane: str | None, include_all: bool) ->
     return ", ".join(parts)
 
 
-def _parse_timeout(raw: str) -> tuple[float, str]:
+def _parse_timeout(raw: str, *, flag: str = "-t/--timeout") -> tuple[float, str]:
     text = (raw or "").strip()
     match = _TIMEOUT_RE.match(text)
     if not match:
-        raise ValueError(
-            f"invalid -t/--timeout value {raw!r}; use e.g. 90, 90s, 45m, 2h"
-        )
+        raise ValueError(f"invalid {flag} value {raw!r}; use e.g. 90, 90s, 45m, 2h")
     value = float(match.group(1))
     unit = match.group(2) or "s"
     seconds = value * _TIMEOUT_UNIT_SECONDS[unit]
     if seconds <= 0:
-        raise ValueError("-t/--timeout must be greater than zero")
+        raise ValueError(f"{flag} must be greater than zero")
     return seconds, f"{text} ({_format_seconds(seconds)})"
 
 

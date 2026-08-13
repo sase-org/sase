@@ -64,6 +64,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
         monitor_start_status="MONITORING",
         monitor_stop_status="MONITORED",
         monitor_timeout_seconds=60.0,
+        monitor_idle_timeout_seconds=10.0,
         monitor_tail_lines=200,
         monitor_state="running",
         pid=4242,
@@ -78,6 +79,7 @@ def test_from_record_prefers_running_meta_fields() -> None:
     assert not record.is_terminal
     assert record.pid == 4242
     assert record.exit_code is None
+    assert record.idle_timeout_seconds == 10.0
 
 
 def test_from_record_prefers_done_marker_over_running_meta() -> None:

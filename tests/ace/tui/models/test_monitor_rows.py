@@ -77,6 +77,7 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
             monitor_reason="Verify the refactor",
             monitor_next_action="Reply to the user.",
             monitor_timeout_seconds=2700.0,
+            monitor_idle_timeout_seconds=600.0,
             monitor_output_truncated=True,
             monitor_start_status="MONITORING",
             monitor_exit_code=None,
@@ -92,6 +93,7 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
     assert agent.monitor_reason == "Verify the refactor"
     assert agent.monitor_next_action == "Reply to the user."
     assert agent.monitor_timeout_seconds == 2700.0
+    assert agent.monitor_idle_timeout_seconds == 600.0
     assert agent.monitor_output_truncated is True
 
 

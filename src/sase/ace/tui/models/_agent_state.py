@@ -166,6 +166,7 @@ class AgentState:
     monitor_reason: str | None = None
     monitor_next_action: str | None = None
     monitor_timeout_seconds: float | None = None
+    monitor_idle_timeout_seconds: float | None = None
     monitor_output_truncated: bool = False
 
     # Runner stdout/stderr output file path (for debugging failed agents)

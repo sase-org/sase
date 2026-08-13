@@ -95,6 +95,10 @@ def build_monitor_section(
     elif elapsed:
         text.append(_field_label("Elapsed:"), style=COLOR_SUMMARY)
         text.append(f"{elapsed}\n", style=COLOR_REASON)
+    if agent.monitor_idle_timeout_seconds is not None:
+        idle_label = format_duration(agent.monitor_idle_timeout_seconds)
+        text.append(_field_label("Idle timeout:"), style=COLOR_SUMMARY)
+        text.append(f"{idle_label} without output\n", style=COLOR_REASON)
 
     if agent.monitor_id:
         text.append(_field_label("Monitor id:"), style=COLOR_SUMMARY)

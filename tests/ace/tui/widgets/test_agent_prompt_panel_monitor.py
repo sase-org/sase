@@ -50,6 +50,7 @@ def _monitor_agent(
         monitor_reason="Verify the refactor before replying",
         monitor_next_action="Reply to the user.",
         monitor_timeout_seconds=2700.0,
+        monitor_idle_timeout_seconds=600.0,
         monitor_exit_code=exit_code,
         monitor_output_truncated=output_truncated,
     )
@@ -75,6 +76,7 @@ def test_monitor_row_renders_monitor_section_fields() -> None:
     assert "Verify the refactor before replying" in text
     assert "Reply to the user." in text
     assert "running" in text
+    assert "10m0s without output" in text
     assert "m123abc456def" in text
     assert "sase monitor show m123ab --follow" in text
     assert "AGENT PROMPT" not in text

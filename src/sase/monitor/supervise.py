@@ -14,10 +14,11 @@ import json
 import os
 import signal
 import subprocess
+import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
@@ -37,6 +38,7 @@ from .output import OutputCapture
 
 _POLL_SECONDS = 0.05
 _KILL_GRACE_SECONDS = 5.0
+_TimeoutKind = Literal["total", "idle"]
 
 
 class _Termination:
@@ -86,6 +88,24 @@ class _Termination:
             self.child.wait()
 
 
+class _OutputActivity:
+    """Track output arrival from the drain thread for idle-timeout checks."""
+
+    def __init__(self, capture: OutputCapture) -> None:
+        self._capture = capture
+        self._lock = threading.Lock()
+        self._last_chunk_at = time.monotonic()
+
+    def append_bytes(self, chunk: bytes) -> None:
+        self._capture.append_bytes(chunk)
+        with self._lock:
+            self._last_chunk_at = time.monotonic()
+
+    def idle_seconds(self) -> float:
+        with self._lock:
+            return time.monotonic() - self._last_chunk_at
+
+
 def _signal_group(pgid: int, signum: int) -> None:
     try:
         os.killpg(pgid, signum)
@@ -102,6 +122,7 @@ def run_supervisor(artifacts_dir: str) -> int:
     command = str(meta["monitor_command"])
     cwd = str(meta["monitor_cwd"])
     timeout_seconds = float(meta.get("monitor_timeout_seconds") or 0.0)
+    idle_timeout_seconds = float(meta.get("monitor_idle_timeout_seconds") or 0.0)
 
     termination = _Termination()
     signal.signal(signal.SIGTERM, termination.request)
@@ -109,17 +130,19 @@ def run_supervisor(artifacts_dir: str) -> int:
 
     output_path = monitor_log_path(artifacts_dir)
     capture = OutputCapture()
+    activity = _OutputActivity(capture)
     started = time.monotonic()
     monitor_state: MonitorState = "failed"
     exit_code: int | None = None
     error: str | None = None
+    timeout_kind: _TimeoutKind | None = None
     output_pipe: BoundedLogPipe | None = None
 
     try:
         output_pipe = BoundedLogPipe(
             output_path,
             monitor_log_max_bytes(),
-            on_chunk=capture.append_bytes,
+            on_chunk=activity.append_bytes,
             close_drain_seconds=0.5,
         )
         try:
@@ -139,11 +162,17 @@ def run_supervisor(artifacts_dir: str) -> int:
             _append_supervisor_line(output_path, output_pipe, capture, error)
         else:
             termination.attach(child)
-            timed_out = _wait_for_child(child, termination, timeout_seconds)
+            timeout_kind = _wait_for_child(
+                child,
+                termination,
+                timeout_seconds,
+                idle_timeout_seconds,
+                activity,
+            )
 
             if termination.requested:
                 monitor_state = "stopped"
-            elif timed_out:
+            elif timeout_kind is not None:
                 monitor_state = "timeout"
             elif child.returncode == 0:
                 monitor_state = "completed"
@@ -168,6 +197,7 @@ def run_supervisor(artifacts_dir: str) -> int:
             elapsed_seconds=time.monotonic() - started,
             capture=capture,
             error=error,
+            timeout_kind=timeout_kind,
         )
     return 0 if monitor_state in {"completed", "stopped"} else 1
 
@@ -176,15 +206,25 @@ def _wait_for_child(
     child: subprocess.Popen[bytes],
     termination: _Termination,
     timeout_seconds: float,
-) -> bool:
-    """Wait for process exit; return whether the runtime deadline fired."""
+    idle_timeout_seconds: float,
+    activity: _OutputActivity,
+) -> _TimeoutKind | None:
+    """Wait for process exit; return which timeout budget fired, if any."""
     deadline = time.monotonic() + timeout_seconds if timeout_seconds > 0 else None
-    timed_out = False
+    timeout_kind: _TimeoutKind | None = None
     while True:
         if child.poll() is not None:
-            return timed_out
-        if deadline is not None and not timed_out and time.monotonic() >= deadline:
-            timed_out = True
+            return timeout_kind
+        now = time.monotonic()
+        if deadline is not None and timeout_kind is None and now >= deadline:
+            timeout_kind = "total"
+            termination.trigger_timeout()
+        if (
+            idle_timeout_seconds > 0
+            and timeout_kind is None
+            and activity.idle_seconds() >= idle_timeout_seconds
+        ):
+            timeout_kind = "idle"
             termination.trigger_timeout()
         termination.maybe_escalate()
         time.sleep(_POLL_SECONDS)
@@ -230,6 +270,7 @@ def _finish_monitor(
     elapsed_seconds: float,
     capture: OutputCapture,
     error: str | None,
+    timeout_kind: _TimeoutKind | None,
 ) -> None:
     """Write the terminal marker, save chat history, and settle the claim."""
     stop_status = str(meta.get("monitor_stop_status") or "MONITORED")
@@ -240,6 +281,16 @@ def _finish_monitor(
         meta["monitor_exit_code"] = exit_code
     meta["monitor_output_truncated"] = capture.truncated
     meta["stopped_at"] = _utc_now_iso()
+    timeout_message = _timeout_message(
+        timeout_kind,
+        total_timeout_seconds=float(meta.get("monitor_timeout_seconds") or 0.0),
+        idle_timeout_seconds=float(meta.get("monitor_idle_timeout_seconds") or 0.0),
+        elapsed_seconds=elapsed_seconds,
+    )
+    if timeout_kind is not None:
+        meta["monitor_timeout_kind"] = timeout_kind
+        if timeout_message:
+            meta["monitor_timeout_message"] = timeout_message
     write_agent_meta_atomic(
         artifacts_dir,
         meta,
@@ -275,6 +326,10 @@ def _finish_monitor(
     }
     if error:
         done_marker["error"] = error
+    if timeout_kind is not None:
+        done_marker["monitor_timeout_kind"] = timeout_kind
+        if timeout_message:
+            done_marker["monitor_timeout_message"] = timeout_message
     write_done_marker_and_update_index(artifacts_dir, done_marker)
 
     project_name = _project_name_from_artifacts_dir(artifacts_dir)
@@ -292,6 +347,7 @@ def _finish_monitor(
                 exit_code=exit_code,
                 elapsed_seconds=elapsed_seconds,
                 capture=capture,
+                timeout_kind=timeout_kind,
                 project_name=project_name,
             )
             followup_error = str(meta.get("monitor_followup_error") or "") or None
@@ -390,6 +446,37 @@ def _read_meta(artifacts_dir: str) -> dict[str, Any]:
 
 def _one_line(exc: BaseException) -> str:
     return " ".join(str(exc).splitlines()) or exc.__class__.__name__
+
+
+def _timeout_message(
+    timeout_kind: _TimeoutKind | None,
+    *,
+    total_timeout_seconds: float,
+    idle_timeout_seconds: float,
+    elapsed_seconds: float,
+) -> str | None:
+    if timeout_kind == "idle":
+        return f"no output for {_format_duration(idle_timeout_seconds)}"
+    if timeout_kind == "total":
+        elapsed = _format_duration(elapsed_seconds)
+        total = _format_duration(total_timeout_seconds)
+        return f"did not finish after {elapsed} of a {total} budget"
+    return None
+
+
+def _format_duration(seconds: float) -> str:
+    if 0 < seconds < 1:
+        return f"{seconds:g}s"
+    total = max(0, int(seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    parts: list[str] = []
+    if hours:
+        parts.append(f"{hours}h")
+    if hours or minutes:
+        parts.append(f"{minutes}m")
+    parts.append(f"{secs}s")
+    return " ".join(parts)
 
 
 def _utc_now_iso() -> str:

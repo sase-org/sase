@@ -110,6 +110,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "start_status": record.start_status,
         "stop_status": record.stop_status,
         "timeout_seconds": record.timeout_seconds,
+        "idle_timeout_seconds": record.idle_timeout_seconds,
         "tail_lines": record.tail_lines,
         "monitor_state": record.monitor_state,
         "status_bucket": monitor_state_bucket(record.monitor_state),
@@ -270,6 +271,13 @@ def monitor_detail(record: MonitorRecord) -> Panel:
             ),
         ]
     )
+    if record.idle_timeout_seconds > 0:
+        rows.append(
+            (
+                "Idle timeout",
+                Text(_duration_label_seconds(record.idle_timeout_seconds)),
+            )
+        )
     if record.exit_code is not None:
         rows.append(("Exit code", _exit_code_text(record)))
     if record.pid is not None:

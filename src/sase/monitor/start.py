@@ -61,6 +61,7 @@ class StartMonitorRequest:
     start_status: str = DEFAULT_START_STATUS
     stop_status: str = DEFAULT_STOP_STATUS
     tail_lines: int = DEFAULT_TAIL_LINES
+    idle_timeout_seconds: float = 0.0
     inherit_lane_workspace_claim: bool = True
 
 
@@ -144,6 +145,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         stop_status=request.stop_status,
         timeout_seconds=request.timeout_seconds,
         tail_lines=request.tail_lines,
+        idle_timeout_seconds=request.idle_timeout_seconds,
         starter_agent=starter_agent,
     )
 
@@ -217,6 +219,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         stop_status=request.stop_status,
         timeout_seconds=request.timeout_seconds,
         tail_lines=request.tail_lines,
+        idle_timeout_seconds=request.idle_timeout_seconds,
         monitor_state="running",
         next_action=request.next_action or None,
         pid=process.pid,

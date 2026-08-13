@@ -96,6 +96,32 @@ def test_start_rejects_an_invalid_timeout(capsys: pytest.CaptureFixture[str]) ->
     assert "invalid -t/--timeout value" in capsys.readouterr().err
 
 
+def test_start_rejects_an_invalid_idle_timeout(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A malformed ``-i/--idle-timeout`` is rejected with a helpful message."""
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-i",
+                "banana",
+                "-l",
+                "acme",
+            ]
+        )
+        == 2
+    )
+    assert "invalid -i/--idle-timeout value" in capsys.readouterr().err
+
+
 def test_start_rejects_an_oversized_status_label(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -194,6 +220,8 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
             "verify the fix",
             "-t",
             "45m",
+            "-i",
+            "10m",
             "-l",
             "acme",
             "-C",
@@ -206,6 +234,7 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
     assert "Started monitor" in out
     assert "member: acme--mon" in out
     assert "45m (2700s)" in out
+    assert "idle timeout: 10m (600s)" in out
     assert "sase monitor show" in out
 
 
@@ -242,6 +271,8 @@ def test_start_json_envelope_is_stable(
             "verify",
             "-t",
             "30",
+            "-i",
+            "5s",
             "-l",
             "acme",
             "-C",
@@ -257,3 +288,4 @@ def test_start_json_envelope_is_stable(
     assert payload["monitor"]["lane"] == "acme"
     assert payload["monitor"]["command"] == "true"
     assert payload["monitor"]["timeout_seconds"] == 30.0
+    assert payload["monitor"]["idle_timeout_seconds"] == 5.0

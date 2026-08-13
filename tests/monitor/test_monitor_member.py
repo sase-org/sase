@@ -44,6 +44,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
         stop_status="MONITORED",
         timeout_seconds=2700.0,
         tail_lines=200,
+        idle_timeout_seconds=600.0,
     )
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
@@ -75,6 +76,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["monitor_stop_status"] == "MONITORED"
     assert meta["monitor_timeout_seconds"] == 2700.0
     assert meta["monitor_tail_lines"] == 200
+    assert meta["monitor_idle_timeout_seconds"] == 600.0
     assert meta["monitor_state"] == "running"
 
 
@@ -102,3 +104,4 @@ def test_create_monitor_member_omits_next_action_when_none() -> None:
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert "monitor_next_action" not in meta
+    assert "monitor_idle_timeout_seconds" not in meta
