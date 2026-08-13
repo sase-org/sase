@@ -13,7 +13,7 @@ import pytest
 from sase.ace.tui.thinking.parser import read_codex_thinking
 from sase.llm_provider._subprocess import (
     _process_json_line,
-    stream_and_parse_messages_json_output,
+    _stream_and_parse_messages_json_output,
 )
 
 
@@ -105,7 +105,7 @@ def test_messages_thinking_sink_reaches_ace_parser(
     )
 
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
-    text, stderr, return_code, usage = stream_and_parse_messages_json_output(
+    text, stderr, return_code, usage = _stream_and_parse_messages_json_output(
         process,
         suppress_output=True,
         runtime="grok",

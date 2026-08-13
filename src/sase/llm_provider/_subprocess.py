@@ -41,13 +41,13 @@ _process_opencode_json_line = _opencode._process_opencode_json_line
 _process_qwen_json_line = _qwen._process_qwen_json_line
 _qwen_assistant_texts = _qwen._qwen_assistant_texts
 _qwen_result_text = _qwen._qwen_result_text
+_stream_and_parse_messages_json_output = _claude._stream_and_parse_messages_json_output
 _strip_ansi = strip_ansi
 _write_codex_thinking = _codex._write_codex_thinking
 _write_usage_artifact = write_usage_artifact
 start_interrupt_monitor = _plain.start_interrupt_monitor
 stream_and_parse_codex_json_output = _codex.stream_and_parse_codex_json_output
 stream_and_parse_json_output = _claude.stream_and_parse_json_output
-stream_and_parse_messages_json_output = _claude.stream_and_parse_messages_json_output
 stream_and_parse_muse_json_output = _muse.stream_and_parse_muse_json_output
 stream_and_parse_opencode_json_output = _opencode.stream_and_parse_opencode_json_output
 stream_and_parse_qwen_json_output = _qwen.stream_and_parse_qwen_json_output
@@ -75,6 +75,7 @@ __all__ = [
     "_process_qwen_json_line",
     "_qwen_assistant_texts",
     "_qwen_result_text",
+    "_stream_and_parse_messages_json_output",
     "_strip_ansi",
     "_write_codex_thinking",
     "_write_usage_artifact",
@@ -83,7 +84,6 @@ __all__ = [
     "start_interrupt_monitor",
     "stream_and_parse_codex_json_output",
     "stream_and_parse_json_output",
-    "stream_and_parse_messages_json_output",
     "stream_and_parse_muse_json_output",
     "stream_and_parse_opencode_json_output",
     "stream_and_parse_qwen_json_output",

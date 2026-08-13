@@ -33,13 +33,13 @@ def stream_and_parse_json_output(
     text content from ``assistant`` events so that the full conversation is
     captured even when stop hooks inject extra turns.
     """
-    return stream_and_parse_messages_json_output(
+    return _stream_and_parse_messages_json_output(
         process,
         suppress_output=suppress_output,
     )
 
 
-def stream_and_parse_messages_json_output(
+def _stream_and_parse_messages_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
     *,
