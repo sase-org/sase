@@ -130,6 +130,39 @@ def test_show_json_envelope_is_stable(
     assert payload["output"] == "boom\n"
 
 
+def test_show_renders_a_dropped_followup_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A dropped ``--next`` action is visible in the detail panel and JSON."""
+    artifacts_dir = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        monitor_state="completed",
+        exit_code=0,
+        monitor_followup_error="workspace #10 with pid 3333672 was not found",
+        monitor_followup_outcome="not-launchable",
+    )
+    patch_project_records(monkeypatch, [artifacts_dir])
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd", "--output-only"]) == 0
+    capsys.readouterr()
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd"]) == 0
+    out = capsys.readouterr().out
+    assert "workspace #10 with pid 3333672 was not found" in out
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["monitor"]["followup_outcome"] == "not-launchable"
+    assert (
+        payload["monitor"]["followup_error"]
+        == "workspace #10 with pid 3333672 was not found"
+    )
+
+
 def test_show_follow_streams_new_output_until_terminal(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_projects_dir
-from sase.notifications.senders import notify_workflow_complete
+from sase.notifications.senders import (
+    notify_monitor_followup_dropped,
+    notify_workflow_complete,
+)
 from sase.running_field import release_workspace
 
 from .followup import FollowupLaunchResult, launch_followup_agent
@@ -155,12 +158,6 @@ def notify_monitor_complete(
     cl_name = meta.get("cl_name")
     success = monitor_state in {"completed", "stopped"} and followup_error is None
     notes = [f"{stop_status}: {meta.get('monitor_command')}"]
-    if followup_error:
-        monitor_id = meta.get("monitor_id") or ""
-        notes.append(
-            f"follow-up launch failed: {followup_error} "
-            f"(inspect with `sase monitor show {monitor_id} --all-lines`)"
-        )
     notify_workflow_complete(
         "monitor",
         cl_name,
@@ -168,6 +165,11 @@ def notify_monitor_complete(
         notes,
         tags=["monitor"],
     )
+    if followup_error:
+        # A dropped `--next` strands a lane and must not be lost inside a
+        # routine completion note: raise it as its own alarm.
+        monitor_id = meta.get("monitor_id") or ""
+        notify_monitor_followup_dropped(cl_name, monitor_id, followup_error)
 
 
 def touch_monitor_refresh_pulse(project_name: str | None) -> None:

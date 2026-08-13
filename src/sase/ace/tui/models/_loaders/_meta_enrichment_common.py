@@ -44,6 +44,8 @@ def apply_monitor_meta(
     monitor_timeout_seconds: object = None,
     monitor_idle_timeout_seconds: object = None,
     monitor_output_truncated: object = None,
+    monitor_followup_outcome: object = None,
+    monitor_followup_error: object = None,
 ) -> None:
     """Apply monitor fields from ``agent_meta.json`` to one row."""
     if not isinstance(monitor_id, str) or not monitor_id:
@@ -71,6 +73,12 @@ def apply_monitor_meta(
     ):
         agent.monitor_idle_timeout_seconds = float(monitor_idle_timeout_seconds)
     agent.monitor_output_truncated = bool(monitor_output_truncated)
+    agent.monitor_followup_outcome = (
+        monitor_followup_outcome if isinstance(monitor_followup_outcome, str) else None
+    )
+    agent.monitor_followup_error = (
+        monitor_followup_error if isinstance(monitor_followup_error, str) else None
+    )
     agent.status_bucket = monitor_state_bucket(state)
     if state == "running" and agent.status != "STARTING":
         agent.status = (
@@ -86,6 +94,8 @@ def apply_monitor_done(
     monitor_state: object,
     monitor_exit_code: object,
     status_label: object,
+    monitor_followup_outcome: object = None,
+    monitor_followup_error: object = None,
 ) -> None:
     """Apply terminal monitor fields from ``done.json`` to one row."""
     state = monitor_state if isinstance(monitor_state, str) else agent.monitor_state
@@ -96,6 +106,10 @@ def apply_monitor_done(
         agent.monitor_exit_code = monitor_exit_code
     if isinstance(status_label, str) and status_label:
         agent.status = status_label
+    if isinstance(monitor_followup_outcome, str) and monitor_followup_outcome:
+        agent.monitor_followup_outcome = monitor_followup_outcome
+    if isinstance(monitor_followup_error, str) and monitor_followup_error:
+        agent.monitor_followup_error = monitor_followup_error
 
 
 def refresh_agent_plan_path(agent: Agent) -> None:

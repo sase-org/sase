@@ -359,6 +359,8 @@ def _load_done_agent_for_dir(
                 monitor_state=data.get("monitor_state"),
                 monitor_exit_code=data.get("monitor_exit_code"),
                 status_label=data.get("status_label"),
+                monitor_followup_outcome=data.get("monitor_followup_outcome"),
+                monitor_followup_error=data.get("monitor_followup_error"),
             )
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
         _enrich_missing_commit_metadata(agent, artifact_dir)
@@ -558,6 +560,8 @@ def _build_done_agent_from_record(
             monitor_state=done.monitor_state,
             monitor_exit_code=done.monitor_exit_code,
             status_label=done.status_label,
+            monitor_followup_outcome=done.monitor_followup_outcome,
+            monitor_followup_error=done.monitor_followup_error,
         )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     _enrich_missing_commit_metadata(agent, record.artifact_dir)

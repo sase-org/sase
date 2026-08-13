@@ -90,6 +90,18 @@ _MONITOR_GLYPH = "⏱"
 _MONITOR_GLYPH_STYLE = "bold #FFAF5F"
 _MONITOR_ROW_STYLE = "#FFAF5F"
 
+# A terminal monitor whose supervisor never reported a real exit code (died
+# on arrival, or belongs to a previous boot): the command's outcome is
+# unknown and the lane needs a human, not merely a finished-looking row.
+_MONITOR_STALLED_GLYPH = "⚠"
+_MONITOR_STALLED_GLYPH_STYLE = "bold #FF5F5F"
+
+# A monitor whose ``--next`` follow-up action did not launch (or launched
+# degraded). Independent of ``_MONITOR_STALLED_GLYPH``: a monitor can finish
+# cleanly and still strand its follow-up.
+_MONITOR_FOLLOWUP_ERROR_GLYPH = "⚑"
+_MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE = "bold #FFAF00"
+
 # Icon for auto-approve agents. Rendered bare for a normal-plan approval and
 # suffixed ``E``/``T`` for epic/tale plan actions in
 # ``_agent_list_render_agent``.

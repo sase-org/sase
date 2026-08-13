@@ -84,6 +84,10 @@ class MonitorRecord:
     supervisor_identity: str | None = None
     settled: bool = False
     request_fingerprint: str | None = None
+    followup_outcome: str | None = None
+    followup_error: str | None = None
+    followup_degraded_reason: str | None = None
+    followup_prompt_path: str | None = None
 
     @property
     def status_bucket(self) -> str:
@@ -124,6 +128,19 @@ class MonitorRecord:
 
         settled = bool(meta.monitor_settled or done is not None)
 
+        followup_outcome = (
+            done.monitor_followup_outcome if done is not None else None
+        ) or meta.monitor_followup_outcome
+        followup_error = (
+            done.monitor_followup_error if done is not None else None
+        ) or meta.monitor_followup_error
+        followup_degraded_reason = (
+            done.monitor_followup_degraded_reason if done is not None else None
+        ) or meta.monitor_followup_degraded_reason
+        followup_prompt_path = (
+            done.monitor_followup_prompt_path if done is not None else None
+        ) or meta.monitor_followup_prompt_path
+
         return cls(
             monitor_id=meta.monitor_id,
             member_agent_name=meta.name or "",
@@ -154,6 +171,10 @@ class MonitorRecord:
             supervisor_identity=meta.monitor_supervisor_identity,
             settled=settled,
             request_fingerprint=meta.monitor_request_fingerprint,
+            followup_outcome=followup_outcome,
+            followup_error=followup_error,
+            followup_degraded_reason=followup_degraded_reason,
+            followup_prompt_path=followup_prompt_path,
         )
 
 

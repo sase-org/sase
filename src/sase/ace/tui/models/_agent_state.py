@@ -169,6 +169,13 @@ class AgentState:
     monitor_idle_timeout_seconds: float | None = None
     monitor_output_truncated: bool = False
 
+    # Follow-up (``--next``) launch disposition, set once the monitor
+    # settles. ``monitor_followup_error`` is the human-readable reason a
+    # ``--next`` action was dropped or degraded; a lane carrying one is
+    # stalled and needs a human, not merely finished.
+    monitor_followup_outcome: str | None = None
+    monitor_followup_error: str | None = None
+
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None
 

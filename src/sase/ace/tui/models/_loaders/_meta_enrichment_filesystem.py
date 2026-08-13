@@ -391,6 +391,8 @@ def enrich_agent_from_meta(
         monitor_timeout_seconds=data.get("monitor_timeout_seconds"),
         monitor_idle_timeout_seconds=data.get("monitor_idle_timeout_seconds"),
         monitor_output_truncated=data.get("monitor_output_truncated"),
+        monitor_followup_outcome=data.get("monitor_followup_outcome"),
+        monitor_followup_error=data.get("monitor_followup_error"),
     )
 
     agent.refresh_raw_presented_agent_name()

@@ -76,9 +76,13 @@ from ._agent_list_styling import (
     _HIDDEN_ICON,
     _MISSING_WAIT_TARGET_GLYPH,
     _MISSING_WAIT_TARGET_GLYPH_STYLE,
+    _MONITOR_FOLLOWUP_ERROR_GLYPH,
+    _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
     _MONITOR_GLYPH,
     _MONITOR_GLYPH_STYLE,
     _MONITOR_ROW_STYLE,
+    _MONITOR_STALLED_GLYPH,
+    _MONITOR_STALLED_GLYPH_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
@@ -403,7 +407,22 @@ def format_agent_option(
             text.append(" ⧖", style="bold #FFAF5F")
         elif agent.monitor_state == "failed" and agent.monitor_exit_code is not None:
             text.append(f" ✗ {agent.monitor_exit_code}", style="bold #FF5F5F")
+    if (
+        agent.is_monitor
+        and agent.monitor_state in {"completed", "failed", "timeout", "stopped", "lost"}
+        and agent.monitor_exit_code is None
+    ):
+        # A terminal monitor whose supervisor never reported a real exit
+        # code (dead on arrival, or a pre-reboot supervisor whose command
+        # outcome is unknown): distinct from the "✗ <code>"/"⧖" badges
+        # above, which mean the command itself ran and reported.
+        text.append(f" {_MONITOR_STALLED_GLYPH}", style=_MONITOR_STALLED_GLYPH_STYLE)
     text.append(")", style="dim")
+    if agent.is_monitor and agent.monitor_followup_error:
+        text.append(
+            f" {_MONITOR_FOLLOWUP_ERROR_GLYPH}",
+            style=_MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
+        )
 
     # Retry/fallback annotations for RUNNING agents that have retried
     if agent.status == "RUNNING" and agent.retry_count > 0:

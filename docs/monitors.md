@@ -104,6 +104,43 @@ The command does not inherit the starter agent's `SASE_AGENT*` identity or
 `SASE_ARTIFACTS_DIR`, so tools run by the command cannot accidentally write artifacts or
 variables into the dead starter's directory.
 
+### Surviving the starter's teardown
+
+`sase monitor start`, run from inside an agent, hands the command to a supervisor and
+then kills the calling agent's runner group as part of the same handoff. The supervisor
+must not be a casualty of that kill: it is spawned through a double-fork bootstrap that
+reparents it to PID 1 _before_ `start_monitor` returns, so a process-tree teardown
+launched after the call cannot reach it by walking PPIDs. The supervisor also sets
+`SIGHUP` to ignored and installs its `SIGTERM`/`SIGINT` handling in the first statements
+it runs, before any expensive import, closing the startup window in which a stray signal
+could kill it silently.
+
+### Startup acknowledgement
+
+`start_monitor` never hands back a `running` record for a supervisor that is not
+provably alive, because its caller's very next act — inside an agent — is to kill
+itself. Once the supervisor has taken ownership (dispositions set, meta read, output log
+opened) it writes a `.monitor_started` marker carrying its real pid, pgid, and identity;
+`start_monitor` blocks on that marker for up to 20 seconds, polling the supervisor's
+liveness too so a pid that is already dead fails fast instead of waiting out the full
+budget. A missing acknowledgement terminates the supervisor, hands the workspace claim
+back to the still-live starter exactly as it held it (never releasing it into the free
+pool), tears the member down as terminal `failed`, and raises `MonitorError` — so the
+starter agent stays alive, `sase monitor start` exits non-zero, and nothing downstream
+ever hands off to a phantom.
+
+### A monitor owns its workspace until it is reconciled
+
+A running monitor's workspace claim is not released just because its supervisor's pid
+looks dead. The stale-claim sweeper reconciles a monitor's own markers first (killing a
+confirmed-dead process group, finalizing the log, disposing the claim, and running or
+recording the follow-up disposition) and only then releases the claim — and if
+reconciliation itself fails, the sweeper leaves that claim in place rather than
+guessing. This closes the window where another agent could be handed a workspace a
+monitor is still using: a not-yet-reconciled dead supervisor is exactly the state a live
+monitor is in from the outside, so a bare dead-pid check is not sufficient evidence to
+release.
+
 ### Status and bucket
 
 The displayed status is always the configured label. Because those labels are arbitrary
@@ -148,6 +185,18 @@ receives:
 
 The follow-up inherits the starter's model, provider, and reasoning effort, so it is the
 same kind of agent that started the monitor.
+
+The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's
+own workspace claim can no longer be transferred to the follow-up (for example, a stale
+sweep already released it), the follow-up still launches — first against a fresh claim
+on the same workspace, then against workspace `0` if that workspace has since been taken
+by another agent. Either fallback is recorded as a **degraded** launch, and the
+follow-up prompt says plainly which happened, because a follow-up in a different
+workspace than the monitor ran in cannot assume the command's artifacts are present.
+Only when a follow-up genuinely cannot be launched at all is it dropped — and even then
+the composed prompt is persisted as a durable artifact so the instruction can be
+replayed by hand instead of surviving only as an error string. See
+[Visibility](#visibility) below for how a dropped or degraded follow-up is surfaced.
 
 When `--next-output tail` is used, retained output is fenced and labeled as untrusted
 program output. The command and cwd fields are also fenced so directive-shaped strings
@@ -198,6 +247,31 @@ next action, state, and timeout budget in a `MONITOR` detail section, with the c
 output rendered as a plain log rather than markdown. See
 [Agent Row Glyphs](ace.md#agent-row-glyphs) and
 [Sequential Agent Families](agent_families.md#sequential-agent-families).
+
+## Visibility
+
+A stalled lane — a supervisor that never reported a real outcome, or a follow-up that
+never launched — is not something a project owner should have to notice by its absence.
+Two independent conditions render distinctly, in the Agents tab, `sase monitor list`,
+and notifications, wherever the plain exit-code/timeout badges above do not already
+cover them:
+
+- **A terminal monitor with no recorded exit code.** A `failed` or `lost` monitor whose
+  supervisor never reported a real exit code (died on arrival, or belongs to a previous
+  boot) renders with a red `⚠` badge in place of the exit-code badge — the command's
+  outcome is unknown, not merely non-zero.
+- **A dropped or degraded follow-up.** A monitor carrying a `--next` action that did not
+  launch, or launched degraded, renders with an amber `⚑` flag independent of the
+  monitor's own state — a monitor can finish cleanly and still strand its follow-up.
+
+`sase monitor list` marks the same lane with the `⚑` flag next to its `STATE` cell (in
+both the table and `--format markdown` output) so a stalled lane is visible without
+`--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line, and both
+commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
+`not-launchable`) and `followup_error`.
+
+A dropped `--next` also raises its own alarm-tagged notification (separate from the
+routine monitor-complete note) so it is not lost inside "just another finished monitor".
 
 ## Example: approved epic launches
 

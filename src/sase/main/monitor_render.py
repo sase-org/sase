@@ -48,6 +48,21 @@ def status_text(monitor_state: str) -> Text:
     return Text(f"{glyph} {monitor_state}", style=style)
 
 
+#: Marks a monitor whose ``--next`` follow-up did not launch (or launched
+#: degraded), so a stalled lane is visible without reading ``done.json`` or
+#: passing ``--json``.
+_FOLLOWUP_ERROR_GLYPH = "⚑"
+_FOLLOWUP_ERROR_STYLE = "bold yellow"
+
+
+def _state_cell(record: MonitorRecord) -> Text:
+    """Return the STATE cell, flagged when the follow-up did not launch."""
+    text = status_text(record.monitor_state)
+    if record.followup_error:
+        text.append(f" {_FOLLOWUP_ERROR_GLYPH}", style=_FOLLOWUP_ERROR_STYLE)
+    return text
+
+
 def _parse_started(timestamp: str) -> datetime | None:
     try:
         return datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(
@@ -125,6 +140,8 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "starter_agent": record.starter_agent,
         "followup_agent": record.followup_agent,
         "request_fingerprint": record.request_fingerprint,
+        "followup_outcome": record.followup_outcome,
+        "followup_error": record.followup_error,
     }
 
 
@@ -189,7 +206,7 @@ def monitor_table(records: Sequence[MonitorRecord], *, title: str) -> Panel:
         terminal = record.is_terminal
         row_style = _TERMINAL_ROW_STYLE if terminal else ""
         table.add_row(
-            status_text(record.monitor_state),
+            _state_cell(record),
             Text(short_monitor_id(record.monitor_id), style=row_style or "bold"),
             Text(record.label, style=row_style),
             Text(f"{record.lane}/{record.member_agent_name}", style=row_style or "dim"),
@@ -230,9 +247,12 @@ def monitor_list_markdown(records: Sequence[MonitorRecord]) -> str:
     rows = [header, divider]
     for record in records:
         exit_code = "—" if record.exit_code is None else str(record.exit_code)
+        state: str = record.monitor_state
+        if record.followup_error:
+            state = f"{state} {_FOLLOWUP_ERROR_GLYPH}"
         rows.append(
             "| {state} | {id} | {label} | {member} | {elapsed} | {exit} | {started} |".format(
-                state=record.monitor_state,
+                state=state,
                 id=short_monitor_id(record.monitor_id),
                 label=record.label,
                 member=f"{record.lane}/{record.member_agent_name}",
@@ -289,6 +309,13 @@ def monitor_detail(record: MonitorRecord) -> Panel:
         rows.append(("Starter", Text(record.starter_agent)))
     if record.followup_agent:
         rows.append(("Follow-up", Text(record.followup_agent)))
+    if record.followup_error:
+        rows.append(
+            (
+                "Follow-up error",
+                Text(record.followup_error, style="bold yellow"),
+            )
+        )
     if record.output_truncated:
         rows.append(
             ("Output", Text("truncated (head + tail retained)", style="yellow"))

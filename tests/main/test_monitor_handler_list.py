@@ -176,6 +176,56 @@ def test_list_json_envelope_is_stable(
     assert monitor["is_terminal"] is False
 
 
+def test_list_flags_a_dropped_followup_in_table_and_markdown(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stalled lane (dropped ``--next``) is visible without ``--json``."""
+    stalled = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        monitor_state="completed",
+        exit_code=0,
+        monitor_followup_error="workspace #10 with pid 3333672 was not found",
+        monitor_followup_outcome="not-launchable",
+    )
+    patch_project_records(monkeypatch, [stalled])
+
+    assert dispatch(["monitor", "list", "--all"]) == 0
+    out = capsys.readouterr().out
+    assert "⚑" in out
+
+    assert dispatch(["monitor", "list", "--all", "--format", "markdown"]) == 0
+    out = capsys.readouterr().out
+    assert "⚑" in out
+
+
+def test_list_json_envelope_carries_followup_disposition(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The JSON envelope surfaces the follow-up outcome/error without ``--all-lines``."""
+    stalled = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        monitor_state="completed",
+        exit_code=0,
+        monitor_followup_error="workspace #10 with pid 3333672 was not found",
+        monitor_followup_outcome="not-launchable",
+    )
+    patch_project_records(monkeypatch, [stalled])
+
+    assert dispatch(["monitor", "list", "--all", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    monitor = payload["monitors"][0]
+    assert monitor["followup_outcome"] == "not-launchable"
+    assert monitor["followup_error"] == "workspace #10 with pid 3333672 was not found"
+
+
 def test_list_markdown_format_renders_a_pipe_table(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -13,6 +13,7 @@ def _monitor(
     status: str,
     monitor_state: str,
     exit_code: int | None = None,
+    followup_error: str | None = None,
 ) -> Agent:
     started = datetime(2026, 8, 12, 9, 0, 0)
     stop_time = (
@@ -46,6 +47,7 @@ def _monitor(
         monitor_label="just check",
         monitor_command="just check-full",
         monitor_exit_code=exit_code,
+        monitor_followup_error=followup_error,
     )
 
 
@@ -91,3 +93,62 @@ def test_lost_monitor_row_renders_as_failed_without_exit_badge() -> None:
 
     assert "MONITORED" in left.plain
     assert "✗ 1" not in left.plain
+
+
+def test_dead_on_arrival_monitor_row_renders_stalled_badge() -> None:
+    """A supervisor that died before reporting an exit code is not a plain FAILED row."""
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORED", monitor_state="failed", exit_code=None),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚠" in left.plain
+    assert "✗" not in left.plain
+
+
+def test_lost_monitor_without_exit_code_renders_stalled_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORED", monitor_state="lost", exit_code=None),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚠" in left.plain
+
+
+def test_completed_monitor_row_has_no_stalled_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORED", monitor_state="completed", exit_code=0),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚠" not in left.plain
+
+
+def test_monitor_row_with_dropped_followup_renders_flag_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(
+            status="MONITORED",
+            monitor_state="completed",
+            exit_code=0,
+            followup_error="workspace #10 with pid 3333672 was not found",
+        ),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚑" in left.plain
+    # A clean completion is not also flagged as dead-on-arrival.
+    assert "⚠" not in left.plain
+
+
+def test_monitor_row_without_followup_error_has_no_flag_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(status="MONITORED", monitor_state="completed", exit_code=0),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚑" not in left.plain

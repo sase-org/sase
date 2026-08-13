@@ -69,6 +69,15 @@ class DoneMarkerWire:
         monitor_elapsed_seconds: Wall-clock seconds the monitored command ran.
         status_label: The configured stop-status label to display
             (e.g. ``MONITORED``), overriding the raw ``outcome``.
+        monitor_followup_outcome: The ``--next`` launch disposition
+            (``launched`` / ``launched-degraded`` / ``not-launchable``), when
+            the monitor carried a follow-up action.
+        monitor_followup_error: Human-readable reason a ``--next`` action was
+            dropped or degraded, mirroring ``agent_meta.json``.
+        monitor_followup_degraded_reason: Why a launched follow-up landed in a
+            degraded workspace (e.g. the original claim could not transfer).
+        monitor_followup_prompt_path: Durable artifact path the composed
+            follow-up prompt was persisted to when it could not be launched.
     """
 
     outcome: str | None = None
@@ -106,6 +115,10 @@ class DoneMarkerWire:
     monitor_exit_code: int | None = None
     monitor_elapsed_seconds: float | None = None
     status_label: str | None = None
+    monitor_followup_outcome: str | None = None
+    monitor_followup_error: str | None = None
+    monitor_followup_degraded_reason: str | None = None
+    monitor_followup_prompt_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -214,6 +227,10 @@ class AgentMetaWire:
     monitor_idle_timeout_seconds: float | None = None
     monitor_next_output: str | None = None
     monitor_request_fingerprint: str | None = None
+    monitor_followup_outcome: str | None = None
+    monitor_followup_error: str | None = None
+    monitor_followup_degraded_reason: str | None = None
+    monitor_followup_prompt_path: str | None = None
 
 
 @dataclass(frozen=True)
