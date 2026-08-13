@@ -459,3 +459,33 @@ async def test_prompt_stack_snippet_dirty_png_snapshot(
             "prompt_stack_snippet_dirty_120x40",
             title="ACE prompt stack — dirty overwrite snippet pane",
         )
+
+
+async def test_prompt_stack_snippet_parked_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, SNIPPET_PANE_PROMPT)
+        await _open_snippet_pane(page, bar, tmp_path)
+
+        bar.focus_item(0)
+        await wait_for_state(
+            page,
+            lambda: bar._stack.selected_index == 0 and bar.active_text_area().has_focus,
+            description="agent pane focused with snippet parked",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_stack_snippet_parked_120x40",
+            title="ACE prompt stack — parked snippet pane",
+        )

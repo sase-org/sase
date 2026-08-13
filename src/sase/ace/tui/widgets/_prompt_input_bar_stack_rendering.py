@@ -301,6 +301,8 @@ class PromptInputBarStackRenderingMixin(
                 if item.is_snippet_pane:
                     classes += " snippet"
                     snippet_info = self._snippet_separator_info(item)
+                    if snippet_info.state == "dirty":
+                        classes += " snippet-dirty"
                 widgets.append(
                     _PromptStackSeparator(
                         label,
@@ -481,6 +483,28 @@ class PromptInputBarStackRenderingMixin(
             separator.set_active(active)
         self.refresh_cursor_readouts()
 
+    def _snippet_frame_state(self) -> str | None:
+        """Return ``"safe"``/``"dirty"`` while the snippet pane holds focus.
+
+        ``None`` off the snippet pane: the bar frame answers "what does
+        ``<enter>`` do right now", so it tracks focus, not mere existence.
+        """
+        if self._mode != "prompt":
+            return None
+        item = self._stack.selected_item
+        if not item.is_snippet_pane or item.snippet_target is None:
+            return None
+        return (
+            "dirty" if self._snippet_separator_info(item).state == "dirty" else "safe"
+        )
+
+    def _refresh_snippet_frame_classes(self) -> None:
+        """Sync the bar-level snippet frame classes with the active pane."""
+        state = self._snippet_frame_state()
+        self.set_class(state is not None, "snippet-mode")
+        self.set_class(state == "safe", "snippet-safe")
+        self.set_class(state == "dirty", "snippet-dirty")
+
     def refresh_cursor_readouts(self) -> None:
         """Sync the active pane's subtitle readout and each parked separator's rule.
 
@@ -489,6 +513,7 @@ class PromptInputBarStackRenderingMixin(
         since the bar is routinely asked to refresh while panes are
         mid-mount or mid-detach.
         """
+        self._refresh_snippet_frame_classes()
         self.border_subtitle = self._render_subtitle(self._subtitle_base)
         if len(self._stack) <= 1:
             return
@@ -500,7 +525,9 @@ class PromptInputBarStackRenderingMixin(
             except Exception:
                 continue
             if item.is_snippet_pane:
-                separator.set_snippet_info(self._snippet_separator_info(item))
+                info = self._snippet_separator_info(item)
+                separator.set_snippet_info(info)
+                separator.set_class(info.state == "dirty", "snippet-dirty")
             if index == self._stack.selected_index:
                 separator.set_position(None)
                 continue
