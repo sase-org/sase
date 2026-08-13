@@ -148,7 +148,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                                          | [XPrompt directives](xprompt.md#plan-directive)                   |
 | `sase plan reject`                           | Reject one pending plan by ID or prefix, then attempt planner cleanup when found.                                  | [XPrompt directives](xprompt.md#plan-directive)                   |
 | `sase plan search`                           | Search resolved-store SDD plans and the machine-local plan archive by literal text and metadata.                   | [SDD](sdd.md#how-sdd-works)                                       |
-| `sase plan show`                             | Resolve a path, `plans:` reference, pending-approval selector, slug, or bead id to one plan and show it.           | [SDD](sdd.md#how-sdd-works)                                       |
+| `sase plan show`                             | Resolve a path, `plan:` reference, pending-approval selector, slug, or bead id to one plan and show it.            | [SDD](sdd.md#how-sdd-works)                                       |
 | `sase plan validate`                         | Validate one explicit plan path using its authored `tale` or `epic` tier, with human or JSON diagnostics.          | [SDD](sdd.md#plan-frontmatter-schema-and-validation)              |
 | `sase launch request`                        | Register a launch gate; agent callers wait for a deterministic terminal JSON outcome.                              | [Agent groups](agent_families.md#agent-initiated-family-launches) |
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                                 | [Agent groups](agent_families.md#agent-initiated-family-launches) |
@@ -228,13 +228,13 @@ agent-friendly output.
 `sase plan show [TARGET]` resolves any way a user can name a plan to exactly one plan
 and renders it. In `-t auto` (the default), TARGET is tried against five rungs in order
 and the first definitive match wins: `path` (an existing file, absolute or
-cwd-relative), `ref` (a `plans:` reference, a legacy marker path, or a month-drifted
+cwd-relative), `ref` (a `plan:` reference, a legacy marker path, or a month-drifted
 reference, Rust resolved), `proposal` (a pending-approval notification id or unique
 prefix), `name` (a corpus slug or `<shard>/<slug>` lookup, with or without `.md`), and
 `bead` (a bead id whose `design` field points at a plan). Pass `-t/--target` to force
 one rung with no fallthrough. Omit TARGET to show the sole visible pending plan
 proposal, exactly as `sase plan approve`/`reject` treat an omitted selector. Every
-ambiguity prints its candidates as re-runnable `plans:` references and every miss prints
+ambiguity prints its candidates as re-runnable `plan:` references and every miss prints
 close-match suggestions; neither guesses. `-f/--format` selects `full` (the default
 section-structured detail view, matching the ACE TUI's PLAN lane), `compact` (the same
 row `sase plan search` prints), `json` (a schema-versioned envelope), or `raw` (the plan

@@ -252,7 +252,7 @@ def _remediation(kind: str) -> str:
         # Deliberately not "bump the window". A checkout ahead of the published
         # window is the normal dev state now that the release-branch reconciler
         # owns the window; telling agents to edit `pyproject.toml` here is the
-        # conscription `plans:202608/core_window_ratchet.md` removed, and the
+        # conscription `@plan:202608/core_window_ratchet.md` removed, and the
         # callers in the Justfile print the opposite advice right after this.
         return (
             "No action is needed: editable installs build from the checkout "

@@ -4,7 +4,7 @@
 pointer) resolve here instead of through the Rust resolver, which
 deliberately returns ``unknown_kind`` for ``Stitch``/``Patch`` payloads and
 leaves ``bead``/``agent`` entry-property enrichment to Python. See
-``plans:202608/artifact_ref_contract.md`` S3.6-S3.7.
+``@plan:202608/artifact_ref_contract.md`` S3.6-S3.7.
 """
 
 from __future__ import annotations

@@ -3,8 +3,8 @@
 Builtin refs (``@stitch``, ``@patch``, short-id ``@bead``, ``@agent``) resolve
 against an explicit :class:`PromptRefContext` derived from the prompt's
 ``#git``/``#gh`` workflow tag, never from ``cwd``. See epic
-``plans:202608/artifact_ref_contract.md`` (S3.6-S3.7) and phase plan
-``plans:202608/builtin_refs_and_prompt_ref_context.md`` (S3.1).
+``@plan:202608/artifact_ref_contract.md`` (S3.6-S3.7) and phase plan
+``@plan:202608/builtin_refs_and_prompt_ref_context.md`` (S3.1).
 
 Every lookup here is best-effort: a failed store, VCS, or registry read
 degrades to a less specific context rather than raising, so a malformed or

@@ -171,7 +171,7 @@ is optional — omit it to browse and filter with `--kind tale|epic|prompt|resea
 or as agent-friendly `json`/`markdown` via `--format`.
 
 Once you know which plan you want, `sase plan show [TARGET]` resolves it — a path, a
-`plans:` reference, a pending-approval selector, a bare slug or `<shard>/<slug>`, or a
+`plan:` reference, a pending-approval selector, a bare slug or `<shard>/<slug>`, or a
 bead id — to exactly one plan and renders it as a colored, section-structured detail
 view matching the ACE TUI's PLAN lane, with `compact`, `json`, and byte-faithful `raw`
 output alongside the default `full` view. See [CLI](cli.md#work-tracking-and-planning)

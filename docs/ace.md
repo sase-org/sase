@@ -1008,7 +1008,7 @@ clan summary, member-attributed `ERRORS`, variable, `REPLIES`, and `PROMPTS` bod
 per-entry `SASE CONTEXT` rows, `SLOW TOOL CALLS` rows, and the `COMMITS` lane; each path
 resolves against the workspace of the member that produced it, and summary paths that
 name a plan, artifact, or delta resolve through an index computed during clan enrichment
-rather than a blind workspace join. A logical `plans:` reference is marked and resolved
+rather than a blind workspace join. A logical `plan:` reference is marked and resolved
 as one token including the prefix, and an archived `prompts/<YYYYMM>/<name>.md`
 reference resolves into the project's agents sidecar checkout rather than the agent
 workspace. Hints exist only where text is actually visible, so availability follows the

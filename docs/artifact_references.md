@@ -49,9 +49,13 @@ sidecar. Other artifact sidecars can add their own document kind with an inline 
 spec or with `ref.use` from an installed provider plugin.
 
 Compatibility readers preserve older persisted references. `@commit:` canonicalizes to
-`@stitch:` permanently. `@plans:` parses with migration guidance to `@plan:`. Historical
-`@chat:` and `@bug:` references remain archive readers and are not offered for new
-authoring. The retired `#ref/<kind>:<argument>` xprompt renderer syntax is not accepted.
+`@stitch:` permanently. `@plans:` and the bare `plans:` machine-field spelling used by
+SDD plan references are both read-only compatibility spellings of `plan` — kept because
+commit trailers and bead event streams that already carry them are immutable — and
+neither is ever emitted again; new references always render as `@plan:` in prose and
+`plan:` in machine fields. Historical `@chat:` and `@bug:` references remain archive
+readers and are not offered for new authoring. The retired `#ref/<kind>:<argument>`
+xprompt renderer syntax is not accepted.
 
 ## Project Context
 
@@ -154,6 +158,14 @@ replace. Missing providers fail soft during launch and surface as
 `sase doctor -C config.repos` findings. A linked repo or cloned sidecar is not an
 installed Python distribution; the provider package must be installed so its entry
 points are visible.
+
+A sidecar's reference kind is independent of its role name. `ref.kind` (or the kind
+inherited through `ref.use`) is the `@<kind>:` prefix agents author; the sidecar role is
+storage identity only — the repo checkout path, `sase repo open <role>`, and similar
+plumbing. The builtin roles ship with kinds that differ from their role names on
+purpose: role `plans` writes kind `plan`, role `beads` writes kind `bead`, and role
+`agents` writes kind `agent`. Any sidecar, builtin or custom, can set its own `ref.kind`
+independently of its role.
 
 ### Expansion
 
