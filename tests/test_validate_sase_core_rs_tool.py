@@ -427,6 +427,7 @@ def _guard_schema_payload(providers: list[str]) -> dict[str, object]:
 def _write_guard_schema(tmp_path: Path, providers: list[str] | None = None) -> Path:
     providers = providers or [
         "patch",
+        # Legacy alias retained for the ``patch`` provider.
         "changespec",
         "agent_hood",
         "agent_clan",
@@ -501,6 +502,7 @@ def test_validate_axe_chop_guard_providers_fails_on_schema_drift(
         tmp_path,
         providers=[
             "patch",
+            # Legacy alias retained for the ``patch`` provider.
             "changespec",
             "agent_hood",
             "agent_clan",

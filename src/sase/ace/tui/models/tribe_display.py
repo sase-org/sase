@@ -105,14 +105,14 @@ def _tribe_displays() -> dict[str, _TribeDisplay]:
     return _tribe_displays_for_token(current_config_token())
 
 
-def tribe_config_key(panel_key: PanelKey) -> str:
+def _tribe_config_key(panel_key: PanelKey) -> str:
     """Return the ``ace.tribes`` config key for *panel_key*."""
     return "default" if panel_key is None else panel_key
 
 
 def tribe_display_for(panel_key: PanelKey) -> _TribeDisplay:
     """Return display settings for *panel_key*, mapping no-tribe to default."""
-    return _tribe_displays().get(tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
+    return _tribe_displays().get(_tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
 
 
 def tribe_identity_color(panel_key: PanelKey) -> str:
@@ -127,7 +127,7 @@ def tribe_identity_colors(
     displays = _tribe_displays()
     colors: dict[PanelKey, str] = {}
     for panel_key in panel_keys:
-        display = displays.get(tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
+        display = displays.get(_tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
         colors[panel_key] = display.color or TRIBE_IDENTITY_FALLBACK_COLOR
     return colors
 
@@ -209,7 +209,6 @@ __all__ = [
     "compose_tribe_identity_style",
     "effective_collapsed_panel_keys",
     "named_tribe_identity_colors",
-    "tribe_config_key",
     "tribe_display_for",
     "tribe_identity_color",
     "tribe_identity_colors",

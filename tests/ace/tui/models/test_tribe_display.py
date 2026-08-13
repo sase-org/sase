@@ -108,8 +108,8 @@ def test_description_sanitization(
 
 
 def test_tribe_config_key_maps_none_to_default() -> None:
-    assert display.tribe_config_key(None) == "default"
-    assert display.tribe_config_key("epic") == "epic"
+    assert display._tribe_config_key(None) == "default"
+    assert display._tribe_config_key("epic") == "epic"
 
 
 def test_empty_and_hostile_colors_use_fallback(

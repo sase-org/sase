@@ -603,6 +603,7 @@ _CONFIG_SCHEMA_PATH = REPO_ROOT / "src" / "sase" / "config" / "sase.schema.json"
 # `_validate_axe_chop_guard_providers` instead of silently skipping it.
 AXE_CHOP_GUARD_PROVIDER_PAYLOADS: dict[str, dict[str, Any]] = {
     "patch": {"name_prefix": "x"},
+    # Legacy alias retained for the ``patch`` provider.
     "changespec": {"name_prefix": "x"},
     "agent_hood": {"hood": "h"},
     "agent_clan": {"name_prefix": "x"},
