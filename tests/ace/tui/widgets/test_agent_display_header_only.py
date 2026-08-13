@@ -23,9 +23,11 @@ from rich.text import Text
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    DetailHeaderSummary,
     build_detail_header_summary,
     cache_detail_header_summary,
 )
+from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -285,3 +287,94 @@ def test_update_display_header_renders_debounced_full_enrichment(
     assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain
     assert "DELTAS:" not in plain
     assert "AGENT CHAT" in plain
+
+
+def test_update_header_only_renders_commit_rows_with_no_cached_summary() -> None:
+    """Phase `immediate` (bead sase-l6.5): commits show on the first paint."""
+    panel = _FakePanel()
+    agent = _make_agent(
+        step_output={
+            "meta_commit_message": "fix: align",
+            "meta_new_commit": "96a895335",
+        }
+    )
+
+    panel.update_header_only(agent)
+
+    plain = _plain_of(panel.captured[-1])
+    assert "SASE CONTEXT" in plain
+    assert "  Commits:\n" in plain
+    assert "96a895335 fix: align" in plain
+
+
+def test_update_header_only_commit_rows_do_no_disk_io() -> None:
+    """The zero-I/O commit render must not read the artifact-file store."""
+    panel = _FakePanel()
+    agent = _make_agent(
+        step_output={
+            "meta_commit_message": "fix: align",
+            "meta_new_commit": "96a895335",
+        }
+    )
+
+    with patch(
+        "sase.core.artifact_file_explicit.read_artifact_file_index"
+    ) as mock_read_index:
+        panel.update_header_only(agent)
+
+    assert mock_read_index.call_count == 0, (
+        "cheap header-only path must not read the artifact-file index"
+    )
+    plain = _plain_of(panel.captured[-1])
+    assert "  Commits:\n" in plain
+
+
+def test_update_header_only_renders_cached_lane_immediately() -> None:
+    """A lane already cached from a prior selection renders on the cheap path."""
+    panel = _FakePanel()
+    agent = _make_agent(
+        step_output={
+            "meta_commit_message": "fix: align",
+            "meta_new_commit": "96a895335",
+        }
+    )
+    cache_detail_header_summary(
+        panel,
+        agent,
+        DetailHeaderSummary(
+            artifact_file_paths=[
+                ArtifactFilePath(
+                    display_path="notes.md",
+                    actual_path="/tmp/notes.md",
+                )
+            ],
+            ready_lanes=frozenset({"artifacts"}),
+        ),
+    )
+
+    panel.update_header_only(agent)
+
+    plain = _plain_of(panel.captured[-1])
+    assert "  Commits:\n" in plain
+    assert "notes.md" in plain
+
+
+def test_update_header_only_starts_no_worker() -> None:
+    """The immediate summary lookup must not start background enrichment."""
+    panel = _FakePanel()
+    agent = _make_agent(
+        step_output={
+            "meta_commit_message": "fix: align",
+            "meta_new_commit": "96a895335",
+        }
+    )
+
+    with patch(
+        "sase.ace.tui.widgets.prompt_panel._agent_display."
+        "AgentDisplayWorkerMixin._start_agent_detail_header_enrichment_from_context"
+    ) as mock_start:
+        panel.update_header_only(agent)
+
+    assert mock_start.call_count == 0, (
+        "cheap header-only path must not start detail-header enrichment"
+    )

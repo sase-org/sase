@@ -273,7 +273,12 @@ def build_header_text(
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
     slow_tool_section: ResponsiveSlowToolCallsSection | None = None
-    if not cheap and summary is not None:
+    if summary is not None:
+        # SASE CONTEXT renders whenever there is a summary at all, cheap or
+        # not: `append_agent_context_section` already distinguishes ready
+        # lanes from pending ones via `ready_lanes`, so the immediate
+        # zero-I/O path (bead sase-l6.5) and the debounced full path share
+        # one renderer instead of the cheap flag hiding the section outright.
         from ._agent_context import append_agent_context_section
 
         if summary.bead_summary is not None:
@@ -310,6 +315,10 @@ def build_header_text(
             ready_lanes=summary.ready_lanes,
         )
 
+    if not cheap and summary is not None:
+        # Slow tool calls is not a SASE CONTEXT lane and is not guaranteed
+        # zero-I/O (bead sase-l6 trace: up to ~114 ms cold), so it stays
+        # behind the debounced path rather than joining the immediate paint.
         from ._agent_slow_tools import append_slow_tool_calls_section
 
         slow_tool_section = append_slow_tool_calls_section(

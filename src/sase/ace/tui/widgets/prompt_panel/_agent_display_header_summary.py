@@ -275,6 +275,37 @@ def merge_detail_header_summary_lanes(
     return replace(incoming, **overrides)
 
 
+def immediate_detail_header_summary(
+    widget: object,
+    agent: Agent,
+) -> DetailHeaderSummary:
+    """Zero-I/O summary for the pre-debounce immediate paint (bead sase-l6.5).
+
+    Starts from whatever is already cached for ``agent``, so a lane a prior
+    selection or a completed background enrichment already resolved renders
+    immediately. On top of that, forces the ``artifacts`` lane ready even
+    when nothing is cached yet: ``append_agent_artifacts_lane`` derives its
+    commit rows from ``agent_commit_groups``, which parses only in-memory
+    ``step_output`` metadata (0.0 ms per the bead sase-l6 trace baseline, no
+    disk I/O), so showing it before the debounced worker has resolved the
+    lane's delta/artifact-file data is legal under
+    ``sase/memory/tui_perf.md`` rule 11. The result is never written back to
+    the widget's summary cache: doing so would tell
+    ``should_refresh_detail_header_summary`` that ``artifacts`` is already
+    fresh and delay the real resolution of the delta and artifact-file data
+    this synthesized lane omits.
+    """
+    cached = get_cached_detail_header_summary(widget, agent)
+    base = (
+        cached if cached is not None else DetailHeaderSummary(ready_lanes=frozenset())
+    )
+    if "artifacts" in base.ready_lanes:
+        return base
+    return merge_detail_header_summary_lanes(
+        base, DetailHeaderSummary(ready_lanes=frozenset({"artifacts"}))
+    )
+
+
 def detail_header_summary_is_complete(summary: DetailHeaderSummary | None) -> bool:
     """Return whether every SASE CONTEXT lane has been attempted at least once.
 

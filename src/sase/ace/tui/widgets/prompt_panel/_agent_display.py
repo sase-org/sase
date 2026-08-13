@@ -29,6 +29,7 @@ from ._agent_display_clan import (
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_tribe import tribe_enrichment_sections_for_fold_state
 from ._agent_display_header import build_header_text
+from ._agent_display_header_summary import immediate_detail_header_summary
 from ._agent_display_render import AgentDisplayRenderMixin
 from ._member_roster import member_jump_map_publisher_for
 from ._agent_tribe_aggregation import (
@@ -245,6 +246,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             header_text, error_tb_syntax = build_header_text(
                 agent,
                 cheap=True,
+                summary=immediate_detail_header_summary(self, agent),
                 agent_status_buckets=agent_status_buckets,
                 clan_wait_member_statuses=clan_wait_member_statuses,
                 tribe_wait_bindings=tribe_wait_bindings,
