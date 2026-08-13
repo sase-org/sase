@@ -6,6 +6,8 @@ from typing import Any
 
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 
+from .confirm_action_modal import ConfirmActionModal
+from .confirm_dialog import ConfirmKind
 from .notification_modal_action_types import NotificationMutationResult
 from .notification_modal_tags import modal_tag_to_core_key
 
@@ -205,11 +207,47 @@ class NotificationBasicActionsMixin:
     def action_read_tab(self: Any) -> None:
         """Mark every unread notification in the active tab as read."""
         active_tag = self._active_notification_tag
+        tabs = self._tag_tabs()
+        active_tab = next((tab for tab in tabs if tab.tag == active_tag), None)
+        if active_tab is None:
+            return
+
         core_tab_key = modal_tag_to_core_key(active_tag)
         tab_keys = self._notification_tab_keys
         captured_ids = tuple(
             n.id for n in self._notifications if tab_keys.get(n.id) == active_tag
         )
+        if not captured_ids:
+            return
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if confirmed is not True:
+                return
+            if not self._notification_modal_still_active():
+                return
+            self._dispatch_read_tab(core_tab_key, captured_ids)
+
+        self.app.push_screen(
+            ConfirmActionModal(
+                "Mark Notification Tab Read?",
+                (
+                    "Every unread notification in this tab will be marked read. "
+                    "This includes rows not currently loaded in ACE and cannot "
+                    "be undone from ACE."
+                ),
+                subject=f"Tab: {active_tab.label}",
+                kind=ConfirmKind.DANGER,
+                confirm_label="Mark read",
+                cancel_label="Cancel",
+                default="cancel",
+            ),
+            _on_confirm,
+        )
+
+    def _dispatch_read_tab(
+        self: Any, core_tab_key: str, captured_ids: tuple[str, ...]
+    ) -> None:
+        """Submit a tab-scoped read mutation for a previously captured target."""
         if not captured_ids:
             return
 
