@@ -64,7 +64,8 @@ def _strip_plain(view: ArtifactsView, active_tab: str) -> str:
             if descriptor.id == active_tab
             else descriptor.label
         )
-        parts.append(f" {shortcut} {label} ")
+        icon = f" {descriptor.icon}" if descriptor.icon else ""
+        parts.append(f" {shortcut}{icon} {label} ")
     return " │ ".join(parts)
 
 
@@ -283,7 +284,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert page.app.current_artifacts_subtab == "stitches"
         assert view.current_subtab == "stitches"
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
-        assert "1 STITCHES" in strip._build_content().plain
+        assert "1 ◉ STITCHES" in strip._build_content().plain
         assert commits.first_activation_count == 0
         assert commits.artifacts_active is False
         assert calls == []

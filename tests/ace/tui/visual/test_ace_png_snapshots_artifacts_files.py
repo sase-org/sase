@@ -160,23 +160,27 @@ async def test_artifacts_files_populated_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("4", "(")
+        await page.press(page.artifacts_digit("files"), "(")
         await page.expect_state("artifacts_subtab", "files")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(
-            lambda _state: pane.snapshot is not None and pane.snapshot.rows == rows
+            lambda _state: (
+                pane.snapshot is not None
+                and len(pane.snapshot.rows) == len(rows)
+                and pane.snapshot.rows[0].label == "release-notes artifact"
+            )
         )
         await wait_for_svg_contains(page, "release-notes artifact")
-        await wait_for_svg_contains(page, "missing")
+        await wait_for_svg_contains(page, "Source:")
         await wait_for_visual_idle(page)
 
-        for glyph in (*set(FILE_VIEW_MODE_GLYPHS.values()), "◆"):
+        for glyph in set(FILE_VIEW_MODE_GLYPHS.values()):
             assert_page_svg_contains(page, glyph)
         for chip in ("1 images", "2 documents", "1 videos", "1 files"):
             assert_page_svg_contains(page, chip)
-        for token in ("Today", "Yesterday", "[Alpha]", "[Beta]", "live", "missing"):
+        for token in ("Today", "Yesterday", "[Alpha]", "[Beta]", "live", "Source:"):
             assert_page_svg_contains(page, token)
-        for token in ("file · markdown", "8.2 KiB", "build-log", "walkthrough"):
+        for token in ("release_notes.md", "8.2 KiB", "build-log", "walkthrough"):
             assert_page_svg_contains(page, token)
         svg = page.export_svg(title="ACE Artifacts Files populated assertion")
         for color in FILE_VIEW_MODE_COLORS.values():

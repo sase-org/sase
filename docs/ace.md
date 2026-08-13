@@ -99,10 +99,12 @@ Stitches, Patches, and Beads are always **1**, **2**, **3**; configured
 document-provider tabs such as Plans and Research take the next digits; and Files, which
 always renders last, always carries the highest digit — **4** with no provider tabs
 configured, **6** with two. Digits stop at `9`, and Files keeps its digit even then. Use
-`[` / `]` to cycle through the complete runtime strip. These keys act only while
-Artifacts is visible. Press `p` in Stitches, Beads, provider document panes, or Files to
-change the shared project scope, or use the command palette to jump directly to a
-top-level view. Patches remains query-scoped and retains the existing Patch workflow.
+`[` / `]` to cycle through the complete runtime strip. When horizontal space is tight,
+the strip narrows by dropping inactive labels before it ever clips a tab. These keys act
+only while Artifacts is visible. Press `p` in Stitches, Beads, provider document panes,
+or Files to change the shared project scope, or use the command palette to jump directly
+to a top-level view. Patches remains query-scoped and retains the existing Patch
+workflow.
 
 ### Navigation in Stitches, Beads, Provider Documents, and Files
 
@@ -369,7 +371,8 @@ fixed tabs are Stitches, Patches, Beads, and Files; provider-backed document tab
 as Plans and Research appear between Beads and Files when an enabled project configures
 the matching sidecar `ref:` policy. Persisted selections use stable ids such as
 `ref:plan` and `ref:research`, so a missing provider falls back to Stitches instead of
-crashing startup.
+crashing startup. Each pane renders an icon in its accent color: the four fixed marks
+are built in, and a provider pane's mark comes from its sidecar `ref.icon`.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
 existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears

@@ -134,6 +134,7 @@ repos:
       design:
         ref:
           kind: design
+          icon: ◆
           expansion_format:
             "the {checkout_path} file in the {sidecar_role} artifact repo"
           properties: {}
@@ -146,8 +147,10 @@ repos:
             referenced_by: markdown_table
 ```
 
-`use` and inline fields normalize to the same spec. Scalar values replace, mappings
-deep-merge, and lists replace. Missing providers fail soft during launch and surface as
+`use` and inline fields normalize to the same spec. An assembled reference provider spec
+must include `ref.icon`, the Artifacts tab mark; installed providers supply it, and
+inline specs declare it directly. Scalar values replace, mappings deep-merge, and lists
+replace. Missing providers fail soft during launch and surface as
 `sase doctor -C config.repos` findings. A linked repo or cloned sidecar is not an
 installed Python distribution; the provider package must be installed so its entry
 points are visible.

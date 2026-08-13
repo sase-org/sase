@@ -1,4 +1,4 @@
-"""Mechanical tofu audit for the notification tab icons.
+"""Mechanical tofu audit for the notification and Artifacts tab icons.
 
 The PNG goldens render through a pinned, system-font-free stack, so a glyph the
 bundled fonts do not carry rasterizes as a ``.notdef`` box in every snapshot
@@ -15,12 +15,15 @@ from importlib.resources import files
 
 import pytest
 
+from sase.ace.tui.artifact_tabs import ARTIFACTS_ICONS
+from sase.artifact_providers import builtin_plan_ref_provider_spec
 from sase.ace.tui.widgets.notification_tab_style import (
     _BUILTIN_TAB_ICONS,
     _KIND_TAB_ICONS,
     _LAST_RESORT_TAB_ICON,
 )
 from sase.config.loading import load_default_config
+from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON
 from tests.ace.tui.visual._glyph_audit import bundled_codepoints, render_ink
 
 pytestmark = pytest.mark.visual
@@ -41,17 +44,30 @@ def _shipped_config_tab_icons() -> tuple[str, ...]:
     )
 
 
+def _artifact_tab_icons() -> tuple[str, ...]:
+    """Return Artifacts strip icons ACE can render without user configuration."""
+    plan_icon = builtin_plan_ref_provider_spec()["ref"]["icon"]
+    assert isinstance(plan_icon, str)
+    return (
+        *ARTIFACTS_ICONS.values(),
+        DEFAULT_DOCUMENT_TAB_ICON,
+        plan_icon,
+    )
+
+
 # Every glyph ACE can put on the top bar with nothing configured: the shipped
 # config defaults, the in-module built-ins behind them, the per-kind defaults
-# for a tab ACE has never heard of, and the last-resort mark. A user-configured
-# or sender-declared icon is out of scope by construction — this suite cannot
-# know it, and the resolver already bounds its width.
+# for a tab ACE has never heard of, the Artifacts fixed/default/provider marks,
+# and the last-resort mark. A user-configured or sender-declared icon is out of
+# scope by construction — this suite cannot know it, and the resolver already
+# bounds its width.
 _AUDITED_ICONS = tuple(
     dict.fromkeys(
         (
             *_shipped_config_tab_icons(),
             *_BUILTIN_TAB_ICONS.values(),
             *_KIND_TAB_ICONS.values(),
+            *_artifact_tab_icons(),
             _LAST_RESORT_TAB_ICON,
             *string.ascii_lowercase,
             *string.digits,

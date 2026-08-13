@@ -601,8 +601,10 @@ provider host. A provider class can implement either or both hooks:
 
 - `artifact_ref_provider_specs()` returns one mapping or an iterable of mappings. Each
   schema-versioned specification has a unique provider ID and `ref.kind`, plus its
-  expansion, metadata, inventory, identity, and publication policy. A sidecar selects it
-  with `ref: {use: <provider-id>}`; local sidecar fields deep-merge over the base.
+  Artifacts tab `ref.icon`, expansion, metadata, inventory, identity, and publication
+  policy. A sidecar selects it with `ref: {use: <provider-id>}`; local sidecar fields
+  deep-merge over the base. During the compatibility window, a ref provider spec without
+  `ref.icon` is admitted with a generic mark and a warning diagnostic.
 - `artifact_file_hook_provider_specs()` returns schema-versioned file-hook templates.
   Each template has a unique provider ID, a `file_hook` mapping, and an optional list of
   required fields. A configured hook selects it with `use` and supplies the required

@@ -1697,6 +1697,7 @@ repos:
         description: Durable SASE research reports and generated media.
         visibility: public
         ref:
+          icon: ∴
           inventory:
             globs: ["reports/**/*.md", "!drafts/**"]
 ```
@@ -1718,6 +1719,7 @@ repos:
 | `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
 | `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent             | Installed artifact-reference provider ID to use as the base policy.                 |
 | `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)      | Prompt kind exposed as `@<kind>:<path>`.                                            |
+| `repos.sidecar.*.<role>.ref.icon`             | string         | role/provider dependent             | Artifacts tab mark shown beside the pane label.                                     |
 | `repos.sidecar.*.<role>.ref.expansion_format` | string         | `@{checkout_path}`                  | Provider expansion format; see [Expansion](artifact_references.md#expansion).       |
 | `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                | Typed metadata fields extracted by the provider.                                    |
 | `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                | Metadata fields shown by completion and detail surfaces.                            |

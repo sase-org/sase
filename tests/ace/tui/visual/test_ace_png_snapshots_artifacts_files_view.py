@@ -52,13 +52,12 @@ async def test_artifacts_files_nested_strip_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("4")
-        await page.expect_state("artifacts_subtab", "files")
-        await page.expect_state("files_subtab", "plans")
+        await page.expect_state("artifacts_subtab", "ref:plan")
         pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await wait_for_visual_idle(page)
 
-        for token in ("PLANS", "Chats", "Other"):
+        for token in ("PLANS", "Ship the plan browser", "Pending proposal body"):
             assert_page_svg_contains(page, token)
 
         ace_png_visual.assert_page_png(

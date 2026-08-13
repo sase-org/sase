@@ -68,6 +68,7 @@ class ArtifactsView(Vertical):
             self._current_subtab,
             show_numbers=True,
             uppercase_active=True,
+            reflow_to_fit=True,
             id="artifacts-subtabs",
         )
         with ContentSwitcher(
@@ -96,6 +97,7 @@ class ArtifactsView(Vertical):
                 descriptor.label,
                 descriptor.accent,
                 shortcut=descriptor.digit_shortcut,
+                icon=descriptor.icon,
             )
             for descriptor in self._descriptors
         )
