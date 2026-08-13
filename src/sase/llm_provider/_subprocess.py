@@ -9,7 +9,6 @@ from . import _subprocess_muse as _muse
 from . import _subprocess_opencode as _opencode
 from . import _subprocess_plain as _plain
 from . import _subprocess_qwen as _qwen
-from ._subprocess_claude import stream_and_parse_messages_json_output
 from ._subprocess_artifacts import (
     append_stream_text,
     initial_usage_totals,
@@ -49,6 +48,7 @@ _write_usage_artifact = write_usage_artifact
 start_interrupt_monitor = _plain.start_interrupt_monitor
 stream_and_parse_codex_json_output = _codex.stream_and_parse_codex_json_output
 stream_and_parse_json_output = _claude.stream_and_parse_json_output
+stream_and_parse_messages_json_output = _claude.stream_and_parse_messages_json_output
 stream_and_parse_muse_json_output = _muse.stream_and_parse_muse_json_output
 stream_and_parse_opencode_json_output = _opencode.stream_and_parse_opencode_json_output
 stream_and_parse_qwen_json_output = _qwen.stream_and_parse_qwen_json_output
@@ -85,6 +85,7 @@ __all__ = [
     "start_interrupt_monitor",
     "stream_and_parse_codex_json_output",
     "stream_and_parse_json_output",
+    "stream_and_parse_messages_json_output",
     "stream_and_parse_muse_json_output",
     "stream_and_parse_opencode_json_output",
     "stream_and_parse_qwen_json_output",
