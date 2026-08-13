@@ -41,6 +41,7 @@ from sase.ace.tui.tools import (
     build_slow_tool_sources,
     supports_slow_tool_sources,
 )
+from sase.ace.tui.util.trace import is_enabled as tui_trace_is_enabled
 from sase.ace.tui.util.trace import tui_trace
 from ...models.agent import Agent
 from ...models.agent_page_url import agent_publishes_page, resolve_agent_page_url
@@ -372,11 +373,10 @@ def build_detail_header_summary(
     ``SASE_TUI_TRACE`` is unset.
     """
     resolved_lanes = ALL_DETAIL_CONTEXT_LANES if lanes is None else lanes
-    with tui_trace(
-        _TRACE_SPAN_PREFIX,
-        agent=agent.cl_name,
-        cache_state=_detail_header_trace_cache_state(agent),
-    ):
+    trace_fields: dict[str, object] = {"agent": agent.cl_name}
+    if tui_trace_is_enabled():
+        trace_fields["cache_state"] = _detail_header_trace_cache_state(agent)
+    with tui_trace(_TRACE_SPAN_PREFIX, **trace_fields):
         return _build_detail_header_summary_impl(agent, lanes=resolved_lanes)
 
 

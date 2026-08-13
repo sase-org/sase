@@ -9,6 +9,7 @@ plus one child span per resolver, and the disabled-by-default guarantee.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -43,8 +44,15 @@ def _records(path: Path) -> list[dict]:
 
 
 @pytest.fixture(autouse=True)
-def _reset_trace_state() -> None:
+def _reset_trace_state() -> Iterator[None]:
+    previous_seen = _agent_display_header_summary._detail_header_trace_seen.copy()
     _agent_display_header_summary._detail_header_trace_seen.clear()
+    try:
+        yield
+    finally:
+        seen = _agent_display_header_summary._detail_header_trace_seen
+        seen.clear()
+        seen.update(previous_seen)
 
 
 def _stub_all_resolvers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -140,6 +148,7 @@ def test_disabled_by_default_emits_no_spans(
     build_detail_header_summary(agent)
 
     assert not log.exists()
+    assert not _agent_display_header_summary._detail_header_trace_seen
 
 
 def test_enabled_emits_parent_and_child_spans(
