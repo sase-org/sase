@@ -246,8 +246,10 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "sase monitor stop <id>",
                 "do not launch their recorded follow-up agent",
                 "previous conversation through `#fork`",
-                "path to the full captured log",
-                "If the command times out, the follow-up still launches",
+                "path to the retained captured log",
+                "--idle-timeout DURATION",
+                "--next-output none|tail|file",
+                "If the command fails or times out, the follow-up still launches",
             ),
         ),
         (

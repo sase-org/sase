@@ -61,18 +61,48 @@ sase monitor start \
 - `--command` / `-c` is the full command handed to the shell.
 - `--reason` / `-r` and `--timeout` / `-t` (bare seconds, or `90s` / `45m` / `2h`) are
   required — a monitor always says why it exists and has a bounded budget.
+- `--idle-timeout` / `-i` is optional. It kills a command that stops producing output
+  for the given duration, while still allowing intentionally quiet commands when
+  omitted.
 - `--next` / `-n` is the follow-up agent's instruction. Omit it for a fire-and-forget
   monitor: the command still runs to completion and its output, exit state, and runtime
   are recorded for later inspection, but no agent launches afterward.
+- `--next-output none|tail|file` controls how much retained command output is handed to
+  the follow-up agent. `tail` is the default; `file` points at the on-disk log; `none`
+  gives only the outcome summary and `sase monitor show --all-lines` pointer.
 - `--start-status` / `-s` and `--stop-status` / `-S` override the default `MONITORING` /
   `MONITORED` labels shown on the row — useful for a `sleep`-based wait
   (`SLEEPING FOR 300s` → `SLEPT FOR 300s`).
 - `--label` / `-L`, `--lane` / `-l`, `--cwd` / `-C`, and `--tail-lines` / `-T` are
   optional; see `sase monitor start --help` for the full list.
 
-Only one monitor may be running per lane at a time; starting a duplicate command in a
-lane that already has one active returns the existing record instead of starting a
-second one.
+Only one monitor may be running per lane at a time. Repeating the same full request
+returns the existing running record; changing the command, cwd, timeout, next action,
+status labels, or output policy is rejected until the active monitor settles. A `lost`
+monitor is never implicitly replayed.
+
+The command is executed through the platform shell (`sh -c` on Unix), so shell quoting,
+redirection, and variable expansion are the caller's responsibility. Monitors are for
+batch commands: do not use them for interactive programs or commands that require a TTY.
+
+### Supervision guarantees
+
+The detached supervisor owns the command's process group and writes combined stdout and
+stderr to a bounded rotating log. Completion is based on process exit, not pipe EOF, so
+a backgrounded grandchild that holds stdout open cannot keep the monitor running after
+the command process exits. Total timeouts and TERM-to-KILL escalation are checked on
+every supervisor tick, independent of whether the command is quiet, chatty, writing
+partial lines, or emitting non-UTF-8 bytes. Non-UTF-8 output is retained with
+replacement characters rather than crashing the supervisor.
+
+Monitor logs are bounded. The active log is `live_reply.md`; when it rotates, readers
+stitch the rotated `live_reply.md.1` and active file where appropriate. Very large
+output therefore keeps a recent on-disk view and a head-plus-tail retained summary for
+the follow-up agent rather than preserving unlimited bytes.
+
+The command does not inherit the starter agent's `SASE_AGENT*` identity or
+`SASE_ARTIFACTS_DIR`, so tools run by the command cannot accidentally write artifacts or
+variables into the dead starter's directory.
 
 ### Status and bucket
 
@@ -80,33 +110,51 @@ The displayed status is always the configured label. Because those labels are ar
 strings, the underlying **bucket** (Running / Done / Failed, used for grouping and
 counting) is tracked separately from the label, from `monitor_state`:
 
-| `monitor_state` | Bucket  | Displayed status               |
-| --------------- | ------- | ------------------------------ |
-| `running`       | Running | start status                   |
-| `completed`     | Done    | stop status                    |
-| `failed`        | Failed  | stop status (+ exit code)      |
-| `timeout`       | Failed  | stop status (+ timeout marker) |
-| `stopped`       | Done    | `STOPPED`                      |
+| `monitor_state` | Bucket  | Displayed status                                   |
+| --------------- | ------- | -------------------------------------------------- |
+| `running`       | Running | start status                                       |
+| `completed`     | Done    | stop status                                        |
+| `failed`        | Failed  | stop status (+ exit code or supervisor error)      |
+| `timeout`       | Failed  | stop status (+ total-timeout or idle-timeout note) |
+| `stopped`       | Done    | `STOPPED`                                          |
+| `lost`          | Failed  | stop status; command outcome is unknown            |
+
+A monitor is terminal only after it is settled: the command has exited or been
+reconciled, the log has been finalized, the workspace claim has been released or
+transferred, and the follow-up has launched or its disposition has been recorded.
+Polling commands such as `sase monitor show --follow` and `%wait` continue waiting while
+a monitor is stopped but not yet settled.
 
 A failing `just check-full` shows up as a Failed member with its exit code visible, and
 the follow-up agent still launches so it can fix what broke. A timed-out command is
 killed (its whole process group, not just the shell), and the follow-up is told plainly
-that the command did not finish and what it had produced before the timeout.
+which budget fired: total runtime or no-output idle time. A `lost` monitor means the
+supervisor belongs to a previous boot, so SASE cannot know whether the command finished
+or what it changed. Lost monitors are not automatically re-run, and their recorded
+follow-up action is not launched.
 
 ## The follow-up agent
 
-When `--next` is set and the monitor did not end in `stopped`, one follow-up agent
-launches into the same lane once the command finishes. It receives:
+When `--next` is set and the monitor did not end in `stopped` or `lost`, one follow-up
+agent launches into the same lane once the command finishes and the monitor settles. It
+receives:
 
 - the starter's full prior conversation, via `#fork`;
 - the original `--reason` and the `--next` instruction, verbatim, under its own heading;
 - a command-run breakdown: outcome, exit code, elapsed time vs. the timeout budget, and
-  a tail of the captured output (`--tail-lines`, default 200);
+  the selected output policy from `--next-output`;
 - the full log path and the exact `sase monitor show <id> --all-lines` invocation to
   read more than the tail.
 
 The follow-up inherits the starter's model, provider, and reasoning effort, so it is the
 same kind of agent that started the monitor.
+
+When `--next-output tail` is used, retained output is fenced and labeled as untrusted
+program output. The command and cwd fields are also fenced so directive-shaped strings
+inside a shell command or path are treated as literal data. Use `--next-output file` for
+large or hostile logs when the follow-up should inspect the log explicitly, or
+`--next-output none` when the outcome summary and `sase monitor show --all-lines`
+pointer are enough.
 
 ## Inspecting and stopping monitors
 
@@ -128,6 +176,14 @@ name. `sase monitor stop` never launches the recorded follow-up agent, even when
 `--next` was given. Every subcommand accepts `-j/--json` (or `-f/--format` for `list`
 and `show`) for machine-readable output. See `sase monitor --help` and each subcommand's
 `--help` for the complete flag reference, or [CLI Reference](cli.md).
+
+Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
+ACE Agents tab refresh path, and the axe scheduler look for running monitor members
+whose supervisor identity is no longer alive. Same-boot dead supervisors are reconciled
+to `failed`: SASE kills the recorded process group, finalizes the log, disposes the
+workspace claim, and launches or records the follow-up disposition. Pre-reboot
+supervisors reconcile to `lost`; their command effects are unknown, so the follow-up is
+recorded as not launched.
 
 ## In the ACE TUI
 

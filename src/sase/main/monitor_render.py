@@ -25,6 +25,7 @@ STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "failed": ("✗", "bold red"),
     "timeout": ("⏱", "bold red"),
     "stopped": ("⊘", "bold magenta"),
+    "lost": ("?", "bold red"),
 }
 _UNKNOWN_DISPLAY = ("?", "dim")
 _BORDER_STYLE = "#5FAFFF"
