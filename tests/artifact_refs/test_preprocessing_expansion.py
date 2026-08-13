@@ -9,6 +9,9 @@ import pytest
 
 from sase import artifact_ref_prompt
 from sase.artifact_refs import (
+    ArtifactRefContext,
+    ArtifactRefDocumentExpansion,
+    ArtifactRefDocumentRoot,
     process_artifact_references,
     validate_artifact_references,
 )
@@ -276,6 +279,62 @@ def test_commit_expands_to_full_locator_and_checkout(
         )
         == f"stitch {full_sha} in sase (checkout: {workspace})"
     )
+
+
+def _pointer_context(root: Path, tmp_path: Path) -> ArtifactRefContext:
+    return ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("research", root),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="research",
+                role="research",
+                expansion_format=(
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                ),
+                is_pointer=True,
+            ),
+        ),
+    )
+
+
+def test_pointer_ref_notes_missing_path_when_sidecar_root_is_present(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "research"
+    root.mkdir()
+    context = _pointer_context(root, tmp_path)
+
+    expanded = process_artifact_references(
+        "@research:202608/missing.md",
+        context=context,
+    )
+
+    assert expanded == "the 202608/missing.md file in the research sidecar repo"
+    err = capsys.readouterr().err
+    assert "note: research:202608/missing.md" in err
+    assert f"searched document root: {root}" in err
+
+
+def test_pointer_ref_stays_silent_when_sidecar_root_is_absent(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = tmp_path / "research"
+    context = _pointer_context(root, tmp_path)
+    assert not root.exists()
+
+    expanded = process_artifact_references(
+        "@research:202608/missing.md",
+        context=context,
+    )
+
+    assert expanded == "the 202608/missing.md file in the research sidecar repo"
+    assert capsys.readouterr().err == ""
 
 
 def test_bug_expands_to_number_and_resolved_url(

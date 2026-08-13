@@ -8,6 +8,7 @@ from pathlib import Path
 from sase.artifact_ref_entity_context import collect_entity_context
 from sase.artifact_ref_models import (
     ArtifactRefContext,
+    ArtifactRefDocumentExpansion,
     ArtifactRefDocumentRoot,
     ArtifactRefFileRoot,
     ArtifactRefProject,
@@ -44,6 +45,7 @@ def artifact_ref_context(
     )
     policies = _sidecar_ref_policies(workspace, store_roles)
     document_roots: list[ArtifactRefDocumentRoot] = []
+    document_expansions: list[ArtifactRefDocumentExpansion] = []
     seen_roots: set[tuple[str, Path]] = set()
     for role in store_roles:
         policy = policies.get(role)
@@ -59,6 +61,14 @@ def artifact_ref_context(
             policy.ref_kind,
             root,
             path_globs=policy.path_globs,
+        )
+        document_expansions.append(
+            ArtifactRefDocumentExpansion(
+                kind=policy.ref_kind,
+                role=policy.role,
+                expansion_format=policy.expansion_format,
+                is_pointer=policy.is_pointer_expansion,
+            )
         )
         if role == "plans":
             _append_document_root(
@@ -133,6 +143,7 @@ def artifact_ref_context(
         home_dir=Path.home().expanduser().resolve(strict=False),
         file_capture_max_bytes=file_capture_max_bytes,
         selected_project=_selected_project_name(project_filter, projects),
+        document_expansions=tuple(document_expansions),
     )
 
 

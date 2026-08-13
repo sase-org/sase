@@ -6,6 +6,12 @@ from types import SimpleNamespace
 import pytest
 
 from sase import artifact_refs
+from sase.artifact_refs import (
+    ArtifactRefContext,
+    ArtifactRefDocumentExpansion,
+    ArtifactRefDocumentRoot,
+    process_artifact_references,
+)
 
 from .helpers import context as make_context
 
@@ -140,4 +146,77 @@ def test_plan_design_and_agent_reference_entry_points(
     assert (
         artifact_refs.reference_for_agent_name("bob.zeus.reader")
         == "agent:bob.zeus.reader"
+    )
+
+
+def _pointer_context(tmp_path: Path) -> ArtifactRefContext:
+    return ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("research", tmp_path / "research"),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="research",
+                role="research",
+                expansion_format=(
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                ),
+                is_pointer=True,
+            ),
+        ),
+    )
+
+
+def test_pointer_document_ref_expands_through_declared_format_with_no_clone(
+    tmp_path: Path,
+) -> None:
+    context = _pointer_context(tmp_path)
+
+    expanded = process_artifact_references("@research:202608/x/x.md", context=context)
+
+    assert expanded == "the 202608/x/x.md file in the research sidecar repo"
+    assert not (tmp_path / "research").exists()
+
+
+def test_pointer_document_ref_fragment_is_appended_after_pointer_text(
+    tmp_path: Path,
+) -> None:
+    context = _pointer_context(tmp_path)
+
+    expanded = process_artifact_references(
+        "@research:202608/x/x.md#L10-L20", context=context
+    )
+
+    assert expanded == (
+        "the 202608/x/x.md file in the research sidecar repo (lines 10-20)"
+    )
+
+
+def test_path_bound_document_ref_expands_to_absolute_path_unchanged(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "plans" / "202607" / "plan.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Plan\n", encoding="utf-8")
+    context = ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("plan", tmp_path / "plans"),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="plan",
+                role="plans",
+                expansion_format="@{checkout_path}",
+                is_pointer=False,
+            ),
+        ),
+    )
+
+    assert (
+        process_artifact_references("@plan:202607/plan.md", context=context)
+        == f"@{plan}"
     )

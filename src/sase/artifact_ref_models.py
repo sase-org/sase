@@ -354,6 +354,20 @@ class ArtifactEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactRefDocumentExpansion:
+    """One document kind's Python-owned expansion-format policy.
+
+    Carried on :class:`ArtifactRefContext` for Python-side rendering only;
+    never sent across the Rust wire (see ``ArtifactRefContext.to_wire``).
+    """
+
+    kind: str
+    role: str
+    expansion_format: str
+    is_pointer: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ArtifactRefContext:
     """Caller-supplied local namespaces used by the Rust resolver."""
 
@@ -369,6 +383,7 @@ class ArtifactRefContext:
     home_dir: Path | None = None
     file_capture_max_bytes: int | None = None
     selected_project: str | None = None
+    document_expansions: tuple[ArtifactRefDocumentExpansion, ...] = ()
 
     @property
     def known_kinds(self) -> tuple[str, ...]:
@@ -382,6 +397,12 @@ class ArtifactRefContext:
                     *(entry.kind for entry in self.document_roots),
                 )
             )
+        )
+
+    def document_expansion_for(self, kind: str) -> ArtifactRefDocumentExpansion | None:
+        return next(
+            (entry for entry in self.document_expansions if entry.kind == kind),
+            None,
         )
 
     def to_wire(self) -> dict[str, object]:

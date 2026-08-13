@@ -3,19 +3,40 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from sase.artifact_ref_models import (
     ArtifactRef,
     ArtifactRefContext,
+    ArtifactRefDocumentExpansion,
     ArtifactRefFragment,
     ArtifactRefResolution,
+)
+from sase.artifact_ref_operations import (
+    artifact_ref_expansion_render,
+    artifact_ref_expansion_validate,
+    render_artifact_ref,
 )
 from sase.artifact_ref_prompt_resolution import artifact_resolved_path
 from sase.artifact_ref_renderers import ArtifactRendererJinjaProtection
 
 
 _IssueUrlResolver = Callable[[str, int], str]
+
+# Fail fast rather than deep inside a Rust-side render call if a future edit
+# lets this set drift from sidecar_ref_config.DOCUMENT_REF_EXPANSION_PLACEHOLDERS.
+_DOCUMENT_EXPANSION_SUPPORTED_PLACEHOLDERS = frozenset(
+    {
+        "kind",
+        "argument",
+        "canonical_argument",
+        "display_label",
+        "repo_relative_path",
+        "sidecar_role",
+        "checkout_path",
+    }
+)
 
 
 def artifact_ref_replacement(
@@ -35,15 +56,54 @@ def artifact_ref_replacement(
         context=context,
         materialized_path=materialized_path,
     )
-    replacement_text = _legacy_replacement_text(
-        reference,
-        resolution,
-        resolved_path=resolved_path,
-        issue_url_resolver=issue_url_resolver,
+    expansion = (
+        context.document_expansion_for(reference.kind)
+        if reference.kind_type == "document"
+        else None
+    )
+    replacement_text = (
+        _document_expansion_replacement_text(
+            reference,
+            expansion,
+            resolved_path=resolved_path,
+        )
+        if expansion is not None
+        else _legacy_replacement_text(
+            reference,
+            resolution,
+            resolved_path=resolved_path,
+            issue_url_resolver=issue_url_resolver,
+        )
     )
     if jinja_protection is not None:
         replacement_text = jinja_protection.protect(replacement_text)
     return replacement_text, resolved_path
+
+
+def _document_expansion_replacement_text(
+    reference: ArtifactRef,
+    expansion: ArtifactRefDocumentExpansion,
+    *,
+    resolved_path: Path | None,
+) -> str:
+    used_placeholders = set(artifact_ref_expansion_validate(expansion.expansion_format))
+    assert used_placeholders <= _DOCUMENT_EXPANSION_SUPPORTED_PLACEHOLDERS
+    argument = reference.payload.path or ""
+    available = {
+        "kind": reference.kind,
+        "argument": argument,
+        "canonical_argument": render_artifact_ref(replace(reference, fragment=None)),
+        "repo_relative_path": argument,
+        "display_label": Path(argument).name,
+        "sidecar_role": expansion.role,
+    }
+    if "checkout_path" in used_placeholders:
+        if resolved_path is None:
+            raise RuntimeError("resolver returned no artifact path")
+        available["checkout_path"] = str(resolved_path)
+    values = {name: available[name] for name in used_placeholders}
+    text = artifact_ref_expansion_render(expansion.expansion_format, values)
+    return f"{text}{_fragment_annotation(reference.fragment)}"
 
 
 def _legacy_replacement_text(

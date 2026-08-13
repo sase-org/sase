@@ -4,8 +4,9 @@ from pathlib import Path
 
 from sase.artifact_providers import builtin_plan_ref_provider_spec
 from sase.sidecar_ref_config import (
-    DEFAULT_DOCUMENT_TAB_ICON,
+    DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT,
     DEFAULT_DOCUMENT_REF_PATH_GLOBS,
+    DEFAULT_DOCUMENT_TAB_ICON,
     effective_sidecar_ref_policies,
     _sidecar_ref_policy_report,
 )
@@ -182,3 +183,117 @@ def test_sidecar_ref_invalid_provider_use_fails_soft(tmp_path: Path) -> None:
 
     assert "research" not in report.policies
     assert report.diagnostics[0].code == "missing_ref_provider"
+
+
+def test_unconfigured_document_sidecar_defaults_to_path_bound_expansion(
+    tmp_path: Path,
+) -> None:
+    policies = effective_sidecar_ref_policies(
+        {},
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("docs",),
+    )
+
+    policy = policies["docs"]
+    assert (
+        policy.expansion_format
+        == "@{checkout_path}"
+        == (DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT)
+    )
+    assert policy.is_pointer_expansion is False
+
+
+def test_builtin_plan_spec_expansion_is_path_bound(tmp_path: Path) -> None:
+    policies = effective_sidecar_ref_policies(
+        {},
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans",),
+    )
+
+    policy = policies["plans"]
+    assert policy.expansion_format == "@{checkout_path}"
+    assert policy.is_pointer_expansion is False
+
+
+def test_pointer_expansion_format_is_classified_correctly(tmp_path: Path) -> None:
+    report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Research docs.",
+                            "ref": {
+                                "kind": "research",
+                                "expansion_format": (
+                                    "the {repo_relative_path} file in the "
+                                    "{sidecar_role} sidecar repo"
+                                ),
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("research",),
+    )
+
+    assert report.diagnostics == ()
+    policy = report.policies["research"]
+    assert policy.is_pointer_expansion is True
+
+
+def test_expansion_format_with_unsupported_placeholder_is_rejected(
+    tmp_path: Path,
+) -> None:
+    report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Research docs.",
+                            "ref": {
+                                "kind": "research",
+                                "expansion_format": "stitch {captured_revision}",
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("research",),
+    )
+
+    assert "research" not in report.policies
+    assert report.diagnostics[0].code == "invalid_sidecar_ref"
+    assert "captured_revision" in report.diagnostics[0].message
+
+
+def test_kind_only_expansion_format_normalizes_cleanly(tmp_path: Path) -> None:
+    report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Research docs.",
+                            "ref": {
+                                "kind": "research",
+                                "expansion_format": "{kind}",
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("research",),
+    )
+
+    assert report.diagnostics == ()
+    policy = report.policies["research"]
+    assert policy.expansion_format == "{kind}"
+    assert policy.is_pointer_expansion is True

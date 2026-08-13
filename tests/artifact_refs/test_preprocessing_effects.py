@@ -9,6 +9,9 @@ import sase_core_rs
 
 from sase import artifact_ref_prompt
 from sase.artifact_refs import (
+    ArtifactRefContext,
+    ArtifactRefDocumentExpansion,
+    ArtifactRefDocumentRoot,
     ArtifactRefFileRoot,
     process_artifact_references,
     validate_artifact_references,
@@ -309,6 +312,104 @@ def test_recorder_failure_does_not_change_expansion(
         )
         == f"Read @{plan}."
     )
+
+
+def _pointer_context(tmp_path: Path, root: Path) -> ArtifactRefContext:
+    return ArtifactRefContext(
+        document_roots=(ArtifactRefDocumentRoot("research", root),),
+        chats_root=tmp_path / "chats",
+        artifact_index_path=tmp_path / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="research",
+                role="research",
+                expansion_format=(
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                ),
+                is_pointer=True,
+            ),
+        ),
+    )
+
+
+def test_unresolved_pointer_ref_records_use_row_but_no_consumption_or_staging(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    context = _pointer_context(tmp_path, tmp_path / "research")
+    consumption_events: list[object] = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: consumption_events.extend(events),
+    )
+    monkeypatch.setattr(
+        "sase.agent.identity.resolve_local_agent_name",
+        lambda: "alice.athena.9w",
+    )
+    use_rows: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.artifact_ref_uses.record_artifact_ref_use",
+        lambda **kwargs: use_rows.append(kwargs),
+    )
+    staged: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.stage_prompt_artifact",
+        lambda **kwargs: staged.append(kwargs),
+    )
+
+    expanded = process_artifact_references("@research:202608/x/x.md", context=context)
+
+    assert expanded == "the 202608/x/x.md file in the research sidecar repo"
+    assert consumption_events == []
+    assert staged == []
+    assert len(use_rows) == 1
+    assert use_rows[0]["prompt_text"] == expanded
+    assert use_rows[0]["ref_kind"] == "research"
+
+
+def test_resolved_pointer_ref_records_use_row_consumption_and_staging(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "research"
+    doc = root / "202608" / "x.md"
+    doc.parent.mkdir(parents=True)
+    doc.write_text("# X\n", encoding="utf-8")
+    context = _pointer_context(tmp_path, root)
+    consumption_events: list[object] = []
+    monkeypatch.setattr(
+        artifact_ref_prompt,
+        "append_artifact_consumption_events",
+        lambda events: consumption_events.extend(events),
+    )
+    monkeypatch.setattr(
+        "sase.agent.identity.resolve_local_agent_name",
+        lambda: "alice.athena.9w",
+    )
+    use_rows: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.artifact_ref_uses.record_artifact_ref_use",
+        lambda **kwargs: use_rows.append(kwargs),
+    )
+    staged: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "sase.core.prompt_artifact_staging.stage_prompt_artifact",
+        lambda **kwargs: staged.append(kwargs),
+    )
+
+    expanded = process_artifact_references("@research:202608/x.md", context=context)
+
+    assert expanded == "the 202608/x.md file in the research sidecar repo"
+    assert len(consumption_events) == 1
+    assert consumption_events[0].ref == "research:202608/x.md"
+    assert consumption_events[0].resolution_status == "exact"
+    assert len(staged) == 1
+    assert staged[0]["resolved_path"] == doc
+    assert len(use_rows) == 1
+    assert use_rows[0]["prompt_text"] == expanded
 
 
 def test_late_preprocessing_expands_artifacts_before_file_refs() -> None:

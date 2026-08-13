@@ -1718,7 +1718,7 @@ repos:
 | `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
 | `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent             | Installed artifact-reference provider ID to use as the base policy.                 |
 | `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)      | Prompt kind exposed as `@<kind>:<path>`.                                            |
-| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `{kind}:{argument}`                 | Provider expansion format.                                                          |
+| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `@{checkout_path}`                  | Provider expansion format; see [Expansion](artifact_references.md#expansion).       |
 | `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                | Typed metadata fields extracted by the provider.                                    |
 | `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                | Metadata fields shown by completion and detail surfaces.                            |
 | `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                | Optional provider identity rule.                                                    |
@@ -1727,8 +1727,8 @@ repos:
 
 Every enabled document sidecar exposes one compact `@<kind>:<path>` reference. Plans use
 the built-in `plan` provider, and `sase repo init` records `ref: {use: plan}`. Other
-document roles default to their role name, `{kind}:{argument}` expansion, and `**/*.md`
-inventory even when `ref` is omitted.
+document roles default to their role name, `@{checkout_path}` (path-bound) expansion,
+and `**/*.md` inventory even when `ref` is omitted.
 
 `ref.use` selects a declarative provider installed through the `sase_artifact_refs`
 plugin entry-point group. Any sibling keys deep-merge over that provider's base spec. A

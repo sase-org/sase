@@ -37,8 +37,25 @@ REF_INVENTORY_GLOBS_CONFIG_KEY = "globs"
 DEFAULT_DOCUMENT_REF_PATH_GLOBS: tuple[str, ...] = ("**/*.md",)
 SIDECAR_REF_CONFIG_SOURCE_PREFIX = "sidecar_ref_config:"
 DOCUMENT_REF_PROVIDER_SPEC_SCHEMA_VERSION = 1
-DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT = "{kind}:{argument}"
+DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT = "@{checkout_path}"
 DEFAULT_DOCUMENT_TAB_ICON = "◆"
+
+# A subset of the Rust expansion vocabulary (sase-core's
+# artifact_ref/expansion.rs); the excluded names (project, repository,
+# captured_revision, captured_digest, logical_path) have no document-ref
+# binding and must be rejected rather than rendered empty.
+DOCUMENT_REF_EXPANSION_PLACEHOLDERS = frozenset(
+    {
+        "kind",
+        "argument",
+        "canonical_argument",
+        "display_label",
+        "repo_relative_path",
+        "sidecar_role",
+        "checkout_path",
+    }
+)
+DOCUMENT_REF_PATH_PLACEHOLDERS = frozenset({"checkout_path"})
 
 _BUILTIN_SIDECAR_REF_KIND = {
     PLANS_SIDECAR_ROLE: "plan",
@@ -93,6 +110,25 @@ class SidecarRefPolicy:
     @property
     def source_id(self) -> str:
         return f"{SIDECAR_REF_CONFIG_SOURCE_PREFIX}{self.role}"
+
+    @property
+    def expansion_format(self) -> str:
+        ref = self.spec.get("ref") if self.spec is not None else None
+        if isinstance(ref, Mapping):
+            value = ref.get(REF_EXPANSION_FORMAT_CONFIG_KEY)
+            if isinstance(value, str) and value:
+                return value
+        return DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT
+
+    @property
+    def is_pointer_expansion(self) -> bool:
+        from sase.artifact_ref_operations import artifact_ref_expansion_validate
+
+        try:
+            placeholders = set(artifact_ref_expansion_validate(self.expansion_format))
+        except Exception:
+            return False
+        return not (placeholders & DOCUMENT_REF_PATH_PLACEHOLDERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,6 +350,30 @@ def _normalize_document_ref_spec(
             )
         )
         return None
+    expansion_format = str(spec["ref"][REF_EXPANSION_FORMAT_CONFIG_KEY])
+    from sase.artifact_ref_operations import artifact_ref_expansion_validate
+
+    try:
+        used_placeholders = set(artifact_ref_expansion_validate(expansion_format))
+    except Exception as exc:
+        diagnostics.append(
+            _diagnostic(
+                role,
+                "ref.expansion_format",
+                f"invalid expansion format: {type(exc).__name__}: {exc}",
+            )
+        )
+        return None
+    unsupported = sorted(used_placeholders - DOCUMENT_REF_EXPANSION_PLACEHOLDERS)
+    if unsupported:
+        diagnostics.append(
+            _diagnostic(
+                role,
+                "ref.expansion_format",
+                f"unsupported expansion placeholder(s): {', '.join(unsupported)}",
+            )
+        )
+        return None
     return spec, digest, path_globs_configured
 
 
@@ -526,6 +586,8 @@ __all__ = [
     "DEFAULT_DOCUMENT_REF_PATH_GLOBS",
     "DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT",
     "DEFAULT_DOCUMENT_TAB_ICON",
+    "DOCUMENT_REF_EXPANSION_PLACEHOLDERS",
+    "DOCUMENT_REF_PATH_PLACEHOLDERS",
     "DOCUMENT_REF_PROVIDER_SPEC_SCHEMA_VERSION",
     "REF_DETAIL_CONFIG_KEY",
     "REF_EXPANSION_FORMAT_CONFIG_KEY",

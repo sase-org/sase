@@ -9,6 +9,7 @@ import pytest
 from sase import artifact_ref_context, artifact_refs
 from sase.artifact_ref_models import (
     ArtifactRefContext,
+    ArtifactRefDocumentExpansion,
     ArtifactRefDocumentRoot,
 )
 from sase.artifact_ref_prompt_context import PromptRefContext
@@ -29,8 +30,8 @@ def test_missing_document_sidecar_materializes_and_expands(
 ) -> None:
     workspace, root, ref_context, _remote = _sidecar_context_with_store(
         tmp_path,
-        role="research",
-        kind="research",
+        role="docs",
+        kind="docs",
         remote_relpath="202608/report.md",
     )
     assert not root.exists()
@@ -38,12 +39,12 @@ def test_missing_document_sidecar_materializes_and_expands(
     monkeypatch.setattr(
         "sase.artifact_ref_prompt_context._safe_artifact_ref_context",
         lambda workspace_dir, workspace_num, *, project: _artifact_context(
-            Path(workspace_dir), "research", root
+            Path(workspace_dir), "docs", root
         ),
     )
 
     expanded = process_artifact_references(
-        "Read @research:202608/report.md.",
+        "Read @docs:202608/report.md.",
         ref_contexts=(ref_context,),
         materialize_missing_roots=True,
     )
@@ -52,8 +53,7 @@ def test_missing_document_sidecar_materializes_and_expands(
     assert (root / ".git").is_dir()
     assert root.is_relative_to(workspace)
     assert (
-        "Materializing 'research' sidecar for @research references"
-        in capsys.readouterr().err
+        "Materializing 'docs' sidecar for @docs references" in capsys.readouterr().err
     )
 
 
@@ -63,8 +63,8 @@ def test_materialization_is_noop_when_root_is_present(
 ) -> None:
     _workspace, root, ref_context, _remote = _sidecar_context_with_store(
         tmp_path,
-        role="research",
-        kind="research",
+        role="docs",
+        kind="docs",
         root_present=True,
     )
     doc = root / "202608" / "report.md"
@@ -75,7 +75,7 @@ def test_materialization_is_noop_when_root_is_present(
     monkeypatch.chdir(tmp_path)
 
     expanded = process_artifact_references(
-        "Read @research:202608/report.md.",
+        "Read @docs:202608/report.md.",
         ref_contexts=(ref_context,),
         materialize_missing_roots=True,
     )
@@ -90,15 +90,15 @@ def test_materialization_default_is_off(
 ) -> None:
     _workspace, _root, ref_context, _remote = _sidecar_context_with_store(
         tmp_path,
-        role="research",
-        kind="research",
+        role="docs",
+        kind="docs",
     )
     ensure = Mock()
     monkeypatch.setattr("sase.sdd.store.ensure_sdd_kind_clone", ensure)
 
     with pytest.raises(SystemExit, match="1"):
         process_artifact_references(
-            "@research:202608/report.md",
+            "@docs:202608/report.md",
             ref_contexts=(ref_context,),
         )
 
@@ -111,15 +111,15 @@ def test_validation_never_materializes(
 ) -> None:
     _workspace, _root, ref_context, _remote = _sidecar_context_with_store(
         tmp_path,
-        role="research",
-        kind="research",
+        role="docs",
+        kind="docs",
     )
     ensure = Mock()
     monkeypatch.setattr("sase.sdd.store.ensure_sdd_kind_clone", ensure)
 
     with pytest.raises(SystemExit, match="1"):
         validate_artifact_references(
-            "@research:202608/report.md",
+            "@docs:202608/report.md",
             ref_contexts=(ref_context,),
         )
 
@@ -133,8 +133,8 @@ def test_clone_failure_is_reported_as_actionable_hint(
 ) -> None:
     _workspace, _root, ref_context, remote = _sidecar_context_with_store(
         tmp_path,
-        role="research",
-        kind="research",
+        role="docs",
+        kind="docs",
     )
     monkeypatch.chdir(tmp_path)
 
@@ -145,16 +145,16 @@ def test_clone_failure_is_reported_as_actionable_hint(
 
     with pytest.raises(SystemExit, match="1"):
         process_artifact_references(
-            "@research:202608/report.md",
+            "@docs:202608/report.md",
             ref_contexts=(ref_context,),
             materialize_missing_roots=True,
         )
 
     captured = capsys.readouterr()
-    assert "Materializing 'research' sidecar" in captured.err
-    assert "could not materialize 'research' sidecar" in captured.out
+    assert "Materializing 'docs' sidecar" in captured.err
+    assert "could not materialize 'docs' sidecar" in captured.out
     assert str(remote) in captured.out
-    assert "sase repo path research --ensure" in captured.out
+    assert "sase repo path docs --ensure" in captured.out
 
 
 def test_present_sidecar_missing_file_names_searched_root(
@@ -164,8 +164,8 @@ def test_present_sidecar_missing_file_names_searched_root(
 ) -> None:
     _workspace, root, ref_context, _remote = _sidecar_context_with_store(
         tmp_path,
-        role="research",
-        kind="research",
+        role="docs",
+        kind="docs",
         root_present=True,
     )
     monkeypatch.chdir(tmp_path)
@@ -174,15 +174,52 @@ def test_present_sidecar_missing_file_names_searched_root(
 
     with pytest.raises(SystemExit, match="1"):
         process_artifact_references(
-            "@research:202608/missing.md",
+            "@docs:202608/missing.md",
             ref_contexts=(ref_context,),
             materialize_missing_roots=True,
         )
 
     output = capsys.readouterr().out
     assert f"searched document root: {root}" in output
-    assert "sase repo path research --ensure" not in output
+    assert "sase repo path docs --ensure" not in output
     ensure.assert_not_called()
+
+
+def test_pointer_ref_never_materializes_or_fails_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The exact regression this plan fixes: a pointer ref with a typo'd path,
+
+    in a workspace with no local sidecar clone, expands instead of exiting
+    and never stakes the launch on materializing the (potentially large)
+    sidecar.
+    """
+
+    workspace, root, ref_context, _remote = _sidecar_context_with_store(
+        tmp_path,
+        role="research",
+        kind="research",
+        is_pointer=True,
+    )
+    assert not root.exists()
+    monkeypatch.chdir(tmp_path)
+    ensure = Mock()
+    monkeypatch.setattr("sase.sdd.store.ensure_sdd_kind_clone", ensure)
+
+    expanded = process_artifact_references(
+        "Review @research:202608/monitor_command_substrate.md for context.",
+        ref_contexts=(ref_context,),
+        materialize_missing_roots=True,
+    )
+
+    assert expanded == (
+        "Review the 202608/monitor_command_substrate.md file in the research "
+        "sidecar repo for context."
+    )
+    ensure.assert_not_called()
+    assert not root.exists()
+    assert not (workspace / "sase" / "repos" / "research").exists()
 
 
 def test_kind_to_role_mapping_includes_builtin_and_custom_ref_kinds(
@@ -225,23 +262,38 @@ def test_kind_to_role_mapping_includes_builtin_and_custom_ref_kinds(
     monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: Store())
     monkeypatch.setattr("sase.sdd.store.ensure_sdd_kind_clone", ensure)
     monkeypatch.setattr(
-        "sase._linked_repo_config.resolution_config",
-        lambda *_args: {
-            "repos": {
-                "sidecar": {
-                    "custom": {
-                        "designs": {"ref": {"kind": "idea"}},
-                    }
-                }
-            }
-        },
-    )
-    monkeypatch.setattr(
         "sase.artifact_ref_prompt_materialize.refresh_prompt_ref_context",
         lambda context: context,
     )
+    artifact_context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=workspace / "chats",
+        artifact_index_path=workspace / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="plan",
+                role="plans",
+                expansion_format="@{checkout_path}",
+                is_pointer=False,
+            ),
+            ArtifactRefDocumentExpansion(
+                kind="research",
+                role="research",
+                expansion_format="@{checkout_path}",
+                is_pointer=False,
+            ),
+            ArtifactRefDocumentExpansion(
+                kind="idea",
+                role="designs",
+                expansion_format="@{checkout_path}",
+                is_pointer=False,
+            ),
+        ),
+    )
     context = PromptRefContext(
-        artifact_context=_artifact_context(workspace, "research", roots["research"]),
+        artifact_context=artifact_context,
         project=None,
         primary_repo=None,
         workspace_dir=workspace,
@@ -258,6 +310,51 @@ def test_kind_to_role_mapping_includes_builtin_and_custom_ref_kinds(
     assert refreshed is context
     assert failures == ()
     assert calls == ["research", "plans", "designs"]
+
+
+def test_kind_to_role_mapping_skips_pointer_kinds(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    ensure = Mock()
+    monkeypatch.setattr(
+        "sase.sdd.store.resolve_sdd_store", lambda *_args: SimpleNamespace()
+    )
+    monkeypatch.setattr("sase.sdd.store.ensure_sdd_kind_clone", ensure)
+    artifact_context = ArtifactRefContext(
+        document_roots=(),
+        chats_root=workspace / "chats",
+        artifact_index_path=workspace / "artifacts" / "index.jsonl",
+        repositories=(),
+        projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind="research",
+                role="research",
+                expansion_format=(
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                ),
+                is_pointer=True,
+            ),
+        ),
+    )
+    context = PromptRefContext(
+        artifact_context=artifact_context,
+        project=None,
+        primary_repo=None,
+        workspace_dir=workspace,
+        workspace_num=2,
+        origin="vcs_workflow",
+        project_ref="sase",
+    )
+
+    refreshed, failures = materialize_missing_document_roots(("research",), context)
+
+    assert refreshed is context
+    assert failures == ()
+    ensure.assert_not_called()
 
 
 def test_lsp_catalog_never_materializes_document_sidecars(
@@ -295,8 +392,8 @@ def test_lsp_catalog_never_materializes_document_sidecars(
         "artifact_ref_context",
         lambda workspace_dir, _workspace_num, project=None: _artifact_context(
             Path(workspace_dir),
-            "research",
-            Path(workspace_dir) / "sase" / "repos" / "research",
+            "docs",
+            Path(workspace_dir) / "sase" / "repos" / "docs",
         ),
     )
     monkeypatch.setattr(
@@ -317,6 +414,7 @@ def _sidecar_context_with_store(
     kind: str,
     root_present: bool = False,
     remote_relpath: str | None = None,
+    is_pointer: bool = False,
 ) -> tuple[Path, Path, PromptRefContext, Path]:
     primary = tmp_path / "repo"
     workspace = tmp_path / "repo_2"
@@ -357,7 +455,9 @@ def _sidecar_context_with_store(
         workspace,
         root,
         PromptRefContext(
-            artifact_context=_artifact_context(workspace, kind, root),
+            artifact_context=_artifact_context(
+                workspace, kind, root, role=role, is_pointer=is_pointer
+            ),
             project=None,
             primary_repo=None,
             workspace_dir=workspace,
@@ -383,6 +483,9 @@ def _artifact_context(
     workspace: Path,
     kind: str,
     root: Path,
+    *,
+    role: str | None = None,
+    is_pointer: bool = False,
 ) -> ArtifactRefContext:
     return ArtifactRefContext(
         document_roots=(ArtifactRefDocumentRoot(kind, root),),
@@ -390,4 +493,16 @@ def _artifact_context(
         artifact_index_path=workspace / "artifacts" / "index.jsonl",
         repositories=(),
         projects=(),
+        document_expansions=(
+            ArtifactRefDocumentExpansion(
+                kind=kind,
+                role=role or kind,
+                expansion_format=(
+                    "the {repo_relative_path} file in the {sidecar_role} sidecar repo"
+                    if is_pointer
+                    else "@{checkout_path}"
+                ),
+                is_pointer=is_pointer,
+            ),
+        ),
     )

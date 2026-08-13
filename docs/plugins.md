@@ -804,7 +804,7 @@ class DocumentProviders:
             "provider": "design",
             "ref": {
                 "kind": "design",
-                "expansion_format": "{kind}:{argument}",
+                "expansion_format": "@{checkout_path}",
                 "properties": {},
                 "detail": {},
                 "identity": {},

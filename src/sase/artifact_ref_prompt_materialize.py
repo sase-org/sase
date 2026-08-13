@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 import logging
-from pathlib import Path
 import sys
-from typing import Any
 
 from sase.artifact_ref_prompt_context import (
     PromptRefContext,
@@ -32,7 +30,11 @@ def materialize_missing_document_roots(
     kinds: Sequence[str],
     context: PromptRefContext,
 ) -> tuple[PromptRefContext, tuple[MaterializationFailure, ...]]:
-    """Clone missing sidecar roots for the document kinds cited by one segment."""
+    """Clone missing sidecar roots for the path-bound document kinds cited by one segment.
+
+    Pointer kinds never materialize a sidecar: their expansion does not
+    depend on a local checkout.
+    """
 
     if context.workspace_dir is None or context.workspace_num is None:
         return context, ()
@@ -51,13 +53,17 @@ def materialize_missing_document_roots(
         )
         return context, ()
 
-    role_by_kind = _document_role_by_ref_kind(workspace_dir, store)
+    expansion_by_kind = {
+        expansion.kind: expansion
+        for expansion in context.artifact_context.document_expansions
+    }
     failures: list[MaterializationFailure] = []
     cloned = False
     for kind in dict.fromkeys(kinds):
-        role = role_by_kind.get(kind)
-        if role is None:
+        expansion = expansion_by_kind.get(kind)
+        if expansion is None or expansion.is_pointer:
             continue
+        role = expansion.role
         try:
             root = store.kind_root(role)
         except Exception:
@@ -88,37 +94,6 @@ def materialize_missing_document_roots(
     if cloned:
         return refresh_prompt_ref_context(context), tuple(failures)
     return context, tuple(failures)
-
-
-def _document_role_by_ref_kind(workspace: Path, store: Any) -> dict[str, str]:
-    from sase._linked_repo_config import resolution_config
-    from sase.content_layout import resolve_project_config_read_path
-    from sase.sdd.store import document_sidecar_roles
-    from sase.sidecar_ref_config import effective_sidecar_ref_policies
-
-    roles = document_sidecar_roles(
-        store.split_sidecar_roles(),
-        include_plans=True,
-    )
-    try:
-        config: Mapping[str, Any] = resolution_config(str(workspace), None)
-    except Exception:
-        config = {}
-    try:
-        source_path = resolve_project_config_read_path(workspace)
-    except Exception:
-        source_path = None
-    policies = effective_sidecar_ref_policies(
-        config,
-        primary_workspace_dir=workspace,
-        roles=roles,
-        source_path=source_path,
-    )
-    return {
-        policy.ref_kind: policy.role
-        for policy in policies.values()
-        if policy.is_document
-    }
 
 
 def _failure(

@@ -71,13 +71,17 @@ Context affects ambiguity:
 
 ### On-demand document sidecars
 
-During final preprocessing of each agent prompt at launch, a well-formed document
-reference in a workspace-backed prompt segment can materialize its configured sidecar
-when that role has a recorded remote but no local clone. For example, the first live
-`@research:...` reference can clone the `research` sidecar, refresh that segment's
-project context, and then resolve the document. SASE prints the role it is
-materializing. A clone failure stops launch with the remote's error and an explicit
-`sase repo path <role> --ensure` retry command.
+During final preprocessing of each agent prompt at launch, a well-formed reference for a
+**path-bound** document kind (see [Expansion](#expansion)) in a workspace-backed prompt
+segment can materialize its configured sidecar when that role has a recorded remote but
+no local clone. For example, the first live `@plan:...` reference for a `plans` sidecar
+that is not yet cloned can clone it, refresh that segment's project context, and then
+resolve the document. SASE prints the role it is materializing. A clone failure stops
+launch with the remote's error and an explicit `sase repo path <role> --ensure` retry
+command.
+
+Pointer document kinds, such as `@research:...`, never trigger this: their expansion
+does not depend on a local checkout, so citing one never clones its sidecar.
 
 This write is launch-only. Validation, xprompt display and expansion previews, editor
 catalogs, and other discovery paths remain read-only and never clone a missing sidecar.
@@ -148,6 +152,34 @@ deep-merge, and lists replace. Missing providers fail soft during launch and sur
 installed Python distribution; the provider package must be installed so its entry
 points are visible.
 
+### Expansion
+
+A document reference expands through its provider spec's `expansion_format`, a template
+drawn from a subset of the shared placeholder vocabulary:
+
+| Placeholder          | Value                                                     |
+| -------------------- | --------------------------------------------------------- |
+| `kind`               | The reference's kind, such as `research`.                 |
+| `argument`           | The authored argument, fragment stripped.                 |
+| `canonical_argument` | The canonical `<kind>:<argument>` reference text.         |
+| `repo_relative_path` | The sidecar-relative POSIX path; identical to `argument`. |
+| `display_label`      | The argument's filename.                                  |
+| `sidecar_role`       | The sidecar role backing this document kind.              |
+| `checkout_path`      | The resolved absolute path in a local checkout.           |
+
+A format that uses `checkout_path` is **path-bound**: expansion resolves the reference
+to a local file, materializing a missing `auto_clone` sidecar when needed, and fails the
+launch with a diagnostic when the document cannot be found there. `@plan:` and every
+unconfigured document sidecar use the default path-bound format, `@{checkout_path}`.
+
+A format that uses no path placeholder is a **pointer**: expansion renders straight from
+the reference itself, with no resolution dependency. A pointer reference never clones
+its sidecar and never fails a launch — an unresolvable pointer still expands, using
+whatever prose the format declares. `@research:<path>` is a pointer, declaring
+`"the {repo_relative_path} file in the {sidecar_role} sidecar repo"`, so
+`@research:202608/report/report.md` expands to "the 202608/report/report.md file in the
+research sidecar repo" whether or not the `research` sidecar is cloned.
+
 ## Publication
 
 Published prompts rewrite live references as stable Markdown reference links:
@@ -162,7 +194,9 @@ Read [@research:202608/report.md][1] and [@file:~/bob/gtd.md][2].
 Clean repository-backed documents link to the captured revision. Dirty or untracked
 documents and local files link to the captured object. Tracking does not depend on
 linkability: an unlinkable reference still records a use row and remains visible in the
-published prompt metadata.
+published prompt metadata. A pointer document reference that never resolved to a local
+file — no clone of its sidecar was ever made — publishes the same way: unlinked, but
+with its use row intact.
 
 Artifact repos that opt into `referenced_by: markdown_table` get a managed
 `Referenced By` section at the bottom of cited Markdown documents. That section is a

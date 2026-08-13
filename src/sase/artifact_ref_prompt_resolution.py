@@ -66,6 +66,10 @@ def artifact_resolved_path(
                 )
             return materialized_path
         if resolution.resolved_path is None:
+            if reference.kind_type == "document":
+                expansion = context.document_expansion_for(reference.kind)
+                if expansion is not None and expansion.is_pointer:
+                    return None
             raise RuntimeError("resolver returned no artifact path")
         return resolution.resolved_path
     if reference.kind_type in {"commit", "stitch"}:

@@ -77,6 +77,11 @@ _HISTORICAL_KIND_DIAGNOSTICS = {
     "bug": "@bug: is a historical reader; cite the bead with @bead:<id>",
 }
 
+# A pointer ref can reach telemetry with a resolution status outside this set
+# (its expansion never depended on resolving). Consumption events and staged
+# artifacts require a real resolution, so both skip those entries.
+_RESOLVED_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
+
 
 @dataclass(frozen=True, slots=True)
 class _ExpandedArtifactRef:
@@ -220,26 +225,36 @@ def _expand_artifact_references(
             if outcome is not None
             else _resolve_for_launch(parsed, context=ref_context.artifact_context)
         )
-        if resolution.status not in {"exact", "drifted", "vcs_backed"}:
-            materialization_failure = materialization_failures.get(
-                (context_index, parsed.kind)
-            )
-            failures.append(
-                _ArtifactRefFailure(
-                    raw_candidate,
-                    resolution.status,
-                    (
-                        materialization_failure.detail
-                        if materialization_failure is not None
-                        else artifact_ref_resolution_hint(
-                            parsed,
-                            resolution,
-                            context=ref_context.artifact_context,
-                        )
-                    ),
+        pointer_expansion = (
+            ref_context.artifact_context.document_expansion_for(parsed.kind)
+            if parsed.kind_type == "document"
+            else None
+        )
+        is_pointer_ref = pointer_expansion is not None and pointer_expansion.is_pointer
+        if resolution.status not in _RESOLVED_STATUSES:
+            if not is_pointer_ref:
+                materialization_failure = materialization_failures.get(
+                    (context_index, parsed.kind)
                 )
+                failures.append(
+                    _ArtifactRefFailure(
+                        raw_candidate,
+                        resolution.status,
+                        (
+                            materialization_failure.detail
+                            if materialization_failure is not None
+                            else artifact_ref_resolution_hint(
+                                parsed,
+                                resolution,
+                                context=ref_context.artifact_context,
+                            )
+                        ),
+                    )
+                )
+                continue
+            _note_unresolved_pointer_ref(
+                parsed, resolution, context=ref_context.artifact_context
             )
-            continue
         try:
             replacement_text, resolved_path, captured_record = (
                 _replacement_for_candidate(
@@ -365,6 +380,29 @@ def _warn_once(diagnostic: str | None, seen: set[str]) -> None:
     print(f"warning: {diagnostic}", file=sys.stderr)
 
 
+def _note_unresolved_pointer_ref(
+    reference: ArtifactRef,
+    resolution: ArtifactRefResolution,
+    *,
+    context: ArtifactRefContext,
+) -> None:
+    """Print a non-fatal typo signal when a pointer ref's sidecar is present.
+
+    Silent when the sidecar root is not cloned at all -- that is the expected
+    state for a pointer kind, and a note there would be noise on every launch.
+    """
+
+    roots = tuple(
+        root.root for root in context.document_roots if root.kind == reference.kind
+    )
+    if not any(root.is_dir() for root in roots):
+        return
+    hint = artifact_ref_resolution_hint(reference, resolution, context=context)
+    if hint is None:
+        return
+    print(f"note: {reference.rendered}: {hint}", file=sys.stderr)
+
+
 def _resolution_from_outcome(
     reference: ArtifactRef,
     outcome: BuiltinEntryOutcome,
@@ -463,6 +501,8 @@ def _record_artifact_ref_consumption(
         events: list[ArtifactConsumptionEvent] = []
         seen_refs: set[str] = set()
         for item in consumptions:
+            if item.resolution.status not in _RESOLVED_STATUSES:
+                continue
             parsed = item.reference
             fragment_free = replace(parsed, fragment=None)
             reference = render_artifact_ref(fragment_free)
@@ -539,6 +579,8 @@ def _stage_artifact_references(
 
     staged_file_paths: set[str] = set()
     for item in consumptions:
+        if item.resolution.status not in _RESOLVED_STATUSES:
+            continue
         if item.captured_record is not None:
             if item.resolved_path is not None and item.resolved_path.is_file():
                 staged_file_paths.add(str(item.resolved_path.resolve(strict=False)))
