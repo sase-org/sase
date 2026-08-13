@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,6 +17,19 @@ if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
 _VERSION_TIMEOUT_SECONDS = 2.0
+
+# Three unrelated tools compete for the "grok" executable name on PATH:
+# xAI's Grok Build, an unrelated `grok-dev`, and Homebrew's deprecated
+# `grok` regex tool. Autodetect only checks PATH presence, so an explicit
+# `llm_provider.provider: grok` can silently launch the wrong binary. This
+# doctor-level advisory checks the resolved `grok` executable's `--version`
+# output against Grok Build's real shape — `grok 1.0.3 (1a29d5bc12) [stable]`
+# **[verified]** — rather than a loose substring, since neither competitor's
+# name alone rules it out. The same collision is called out in
+# `_grok_executable_not_found_error` for the not-found/failure path.
+_GROK_VERSION_RE = re.compile(
+    r"^grok \d+\.\d+\.\d+ \([0-9a-f]+\) \[[a-z]+\]", re.IGNORECASE
+)
 
 
 def check_provider_cli_versions(context: DoctorContext) -> DiagnosticCheck:
@@ -49,6 +63,7 @@ def check_provider_cli_versions(context: DoctorContext) -> DiagnosticCheck:
         _provider_cli_version_row(context, name, metadata)
         for name, metadata in sorted(providers.items())
     ]
+    _apply_grok_identity_advisory(rows)
     probed = [row for row in rows if row["probe_status"] != "skipped"]
     failed = [
         row for row in probed if row["probe_status"] not in {"ok", "skipped_no_cli"}
@@ -72,6 +87,22 @@ def check_provider_cli_versions(context: DoctorContext) -> DiagnosticCheck:
         summary=summary,
         details=details,
         data={"providers": rows},
+    )
+
+
+def _apply_grok_identity_advisory(rows: list[dict[str, Any]]) -> None:
+    """Flag a resolved `grok` executable that doesn't look like Grok Build."""
+    row = next((r for r in rows if r["provider"] == "grok"), None)
+    if row is None or row["probe_status"] != "ok":
+        return
+    version_text = str(row.get("version") or "").strip()
+    if _GROK_VERSION_RE.match(version_text):
+        return
+    row["probe_status"] = "identity_mismatch"
+    row["detail"] = (
+        f"{row['executable']} does not identify as Grok Build (got "
+        f"{row['version']!r}); likely `grok-dev` or Homebrew's deprecated "
+        "`grok` regex tool — set SASE_GROK_PATH to the @xai-official/grok binary"
     )
 
 

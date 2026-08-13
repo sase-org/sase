@@ -131,6 +131,9 @@ class GrokProvider(LLMProvider):
 
     @hookimpl
     def llm_install_metadata(self) -> dict[str, object]:
+        # @xai-official/grok is an npm trampoline: `npm install -g` places a
+        # shim on PATH, but the real Grok Build binary it downloads on first
+        # run lives under ~/.grok/bin/, not node_modules.
         return {
             "manager": "npm",
             "package": "@xai-official/grok",

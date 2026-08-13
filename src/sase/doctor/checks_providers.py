@@ -33,6 +33,14 @@ _PROVIDER_SETUP_FALLBACKS: dict[str, dict[str, str]] = {
         "install": "bundled with SASE — nothing to install",
         "auth": "no authentication required",
     },
+    "grok": {
+        "tool": "Grok Build",
+        "install": "npm install -g @xai-official/grok",
+        "auth": (
+            "run `grok login` (or `grok login --device-code` on a headless "
+            "host), or set XAI_API_KEY"
+        ),
+    },
     "muse": {
         "tool": "Muse Code",
         "install": "run `sase agent-cli install muse`",

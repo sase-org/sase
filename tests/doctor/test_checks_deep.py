@@ -164,6 +164,81 @@ def test_provider_cli_versions_reports_success(monkeypatch, tmp_path: Path) -> N
     assert check.data["providers"][0]["version"] == "codex 1.2.3"
 
 
+def test_provider_cli_versions_flags_grok_identity_mismatch(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_providers.llm_registry.get_llm_metadata_payload",
+        lambda: {
+            "providers": {
+                "grok": {
+                    "autodetect_cli_name": "grok",
+                    "known_model_names": [],
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_providers._resolve_executable",
+        lambda _command: "/usr/local/bin/grok",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_providers._run_version_probe",
+        lambda _executable: {
+            "probe_status": "ok",
+            "detail": "grok-dev 0.9.0",
+            "version": "grok-dev 0.9.0",
+            "returncode": 0,
+        },
+    )
+    # grok-dev's `--version` still starts with "grok", so this pins that a
+    # loose substring match would wrongly accept it — only the real
+    # `grok X.Y.Z (<hash>) [<channel>]` shape passes.
+
+    check = check_provider_cli_versions(_context(tmp_path))
+
+    assert check.status == "WARN"
+    row = check.data["providers"][0]
+    assert row["probe_status"] == "identity_mismatch"
+    assert "does not identify as Grok Build" in row["detail"]
+    assert "SASE_GROK_PATH" in row["detail"]
+    assert any("identity_mismatch" in detail for detail in check.details)
+
+
+def test_provider_cli_versions_accepts_real_grok_build(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_providers.llm_registry.get_llm_metadata_payload",
+        lambda: {
+            "providers": {
+                "grok": {
+                    "autodetect_cli_name": "grok",
+                    "known_model_names": [],
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_providers._resolve_executable",
+        lambda _command: "/home/user/.grok/bin/grok",
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_deep_providers._run_version_probe",
+        lambda _executable: {
+            "probe_status": "ok",
+            "detail": "grok 1.0.3 (1a29d5bc12) [stable]",
+            "version": "grok 1.0.3 (1a29d5bc12) [stable]",
+            "returncode": 0,
+        },
+    )
+
+    check = check_provider_cli_versions(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["providers"][0]["probe_status"] == "ok"
+
+
 def test_axe_state_ok_when_no_lumberjack_status_files(monkeypatch) -> None:
     state_dir = Path("/nonexistent/sase-test-axe-state")
     snapshot = _axe_snapshot(

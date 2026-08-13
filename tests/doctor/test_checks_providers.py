@@ -199,6 +199,19 @@ def test_setup_hint_points_script_installs_at_the_install_subcommand() -> None:
     }
 
 
+def test_setup_hint_falls_back_to_grok_metadata_when_unenriched() -> None:
+    hint = setup_hint("grok")
+
+    assert hint == {
+        "tool": "Grok Build",
+        "install": "npm install -g @xai-official/grok",
+        "auth": (
+            "run `grok login` (or `grok login --device-code` on a headless "
+            "host), or set XAI_API_KEY"
+        ),
+    }
+
+
 def test_llm_registry_reports_metadata_load_failure(monkeypatch) -> None:
     def fail() -> dict[str, object]:
         raise RuntimeError("boom")
