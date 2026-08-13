@@ -168,6 +168,90 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
             assert "sase skill use" not in target.content
 
 
+def test_grok_rendered_questions_skill_uses_native_ask_tool_wording(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Grok-rendered skills use Grok's provider context, not Claude wording."""
+    from sase.xprompt.loader import load_skills_from_package
+
+    packaged = load_skills_from_package()
+    questions_xp = packaged["skill/sase_questions"]
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    targets = init_skills_handler.render_skill_targets(
+        [questions_xp],
+        provider_filter="grok",
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.path == tmp_path / "home/.grok/skills/sase_questions/SKILL.md"
+    assert "Ask the user questions. Use instead of ask_user_question" in target.content
+    assert "This replaces Grok's native ask_user_question tool." in target.content
+    assert "AskUserQuestion" not in target.content
+
+
+def test_grok_rendered_git_commit_skill_names_grok_build(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider context renders both the Grok display name and tool name."""
+    from sase.xprompt.loader import load_skills_from_package
+
+    packaged = load_skills_from_package()
+    git_commit_xp = packaged["skill/sase_git_commit"]
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    targets = init_skills_handler.render_skill_targets(
+        [git_commit_xp],
+        provider_filter="grok",
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    assert len(targets) == 1
+    content = targets[0].content
+    assert '"Grok"' in content
+    assert '"Grok Build"' in content
+
+
+def test_grok_native_skill_targets_cover_claude_compat_skill_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every packaged SASE skill deployed for Claude also has a native Grok copy."""
+    from sase.xprompt.loader import load_skills_from_package
+
+    packaged_skills = [
+        xprompt
+        for xprompt in load_skills_from_package().values()
+        if xprompt.skill is True
+    ]
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+
+    targets = init_skills_handler.render_skill_targets(
+        packaged_skills,
+        provider_filter=None,
+        use_chezmoi=False,
+        use_prettier=False,
+    )
+
+    names_by_provider: dict[str, set[str]] = {}
+    for target in targets:
+        names_by_provider.setdefault(target.provider, set()).add(target.skill_name)
+
+    assert names_by_provider["claude"]
+    assert names_by_provider["claude"] <= names_by_provider["grok"]
+    grok_paths = {target.path for target in targets if target.provider == "grok"}
+    for skill_name in names_by_provider["claude"]:
+        assert (tmp_path / f"home/.grok/skills/{skill_name}/SKILL.md") in grok_paths
+
+
 def test_generated_names_and_paths_ignore_the_skill_reference_namespace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

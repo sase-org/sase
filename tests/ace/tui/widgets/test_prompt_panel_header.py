@@ -49,10 +49,12 @@ def _setup(
 ) -> Path:
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
+    memory_reads_module._memory_reads_snapshot_cache.clear()
     opened_workspaces_module._opened_workspaces_cache.clear()
     opened_workspaces_module._opened_workspaces_context_cache.clear()
     skill_uses_module._skill_uses_cache.clear()
     skill_uses_module._skill_uses_context_cache.clear()
+    skill_uses_module._skill_uses_snapshot_cache.clear()
     sase_home = tmp_path / "sase-home"
     sase_home.mkdir()
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: sase_home))

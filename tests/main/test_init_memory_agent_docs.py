@@ -81,6 +81,7 @@ def test_init_memory_manages_live_home_from_user_overlay(
     # Provider files are byte-for-byte copies of ``AGENTS.md``.
     for filename in PROVIDER_SHIM_FILES:
         assert (home_root / filename).read_text(encoding="utf-8") == agents
+    assert not (home_root / "GROK.md").exists()
 
 
 def test_init_memory_manages_chezmoi_home_from_source_overlay(
@@ -127,7 +128,13 @@ def test_init_memory_manages_chezmoi_home_from_source_overlay(
     for filename in PROVIDER_SHIM_FILES:
         assert (chezmoi_home / filename).read_text(encoding="utf-8") == agents
         assert not (chezmoi_home / f"{filename}.tmpl").exists()
+    assert not (chezmoi_home / "GROK.md").exists()
     assert chezmoi_home / "AGENTS.md" in deployed
+
+
+def test_provider_instruction_shims_do_not_include_grok() -> None:
+    """Grok reads AGENTS.md natively, so SASE must not generate GROK.md."""
+    assert "GROK.md" not in PROVIDER_SHIM_FILES
 
 
 def test_init_memory_does_not_migrate_single_custom_provider_file(

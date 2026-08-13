@@ -563,6 +563,42 @@ def test_agy_skill_generation_writes_antigravity_target(
         assert "Antigravity profile body." in target.read_text(encoding="utf-8")
 
 
+def test_grok_skill_generation_writes_native_target_and_renders_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``sase skill init -p grok`` writes a Grok-native rendered skill file."""
+    xprompt = XPrompt(
+        name="skill/grok_only",
+        content=(
+            "Provider {{ provider_name }} uses {{ provider_tool_name }} "
+            "and {{ provider_native_ask_tool }}.\n"
+        ),
+        description="Grok profile test skill.",
+        skill=["grok"],
+        skill_name="grok_only",
+    )
+    monkeypatch.setattr(init_skills_handler, "load_skills_from_package", lambda: {})
+    monkeypatch.setattr(
+        init_skills_handler,
+        "get_all_xprompts",
+        lambda project="": {"skill/grok_only": xprompt},
+    )
+    monkeypatch.setattr(init_skills_handler, "get_use_chezmoi", lambda: False)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(init_skills_handler.shutil, "which", lambda _: None)
+
+    with pytest.raises(SystemExit) as exc:
+        handle_init_skills_command(make_args(provider="grok"))
+
+    assert exc.value.code == 0
+    target = _get_target_path("grok", "grok_only", use_chezmoi=False)
+    assert target.exists()
+    rendered = target.read_text(encoding="utf-8")
+    assert "Provider Grok uses Grok Build and ask_user_question." in rendered
+    assert not _get_target_path("claude", "grok_only", use_chezmoi=False).exists()
+
+
 def test_config_defined_skill_is_rejected_with_a_migration_diagnostic(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

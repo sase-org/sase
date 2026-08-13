@@ -24,6 +24,20 @@ def test_get_target_path_claude_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None
     assert target == Path("/c/home/dot_claude/skills/foo/SKILL.md")
 
 
+def test_get_target_path_grok_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grok uses the default provider subpath: ~/.grok/skills/<name>/SKILL.md."""
+    monkeypatch.setattr(Path, "home", lambda: Path("/home/u"))
+    target = _get_target_path("grok", "foo", use_chezmoi=False)
+    assert target == Path("/home/u/.grok/skills/foo/SKILL.md")
+
+
+def test_get_target_path_grok_chezmoi(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Grok's default dotdir maps to dot_grok in the chezmoi source tree."""
+    monkeypatch.setattr(init_skills_handler, "CHEZMOI_HOME", Path("/c/home"))
+    target = _get_target_path("grok", "foo", use_chezmoi=True)
+    assert target == Path("/c/home/dot_grok/skills/foo/SKILL.md")
+
+
 def test_get_target_paths_agy_single_antigravity_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
