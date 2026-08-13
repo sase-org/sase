@@ -78,24 +78,24 @@ class TestExtractRecordableFileRefs:
 
     def test_records_artifact_references_verbatim_without_truncation(self) -> None:
         text = (
-            "read @plans:202607/plan.md#L2-L4 and "
+            "read @plan:202607/plan.md#L2-L4 and "
             "@commit:sase@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         )
         assert extract_recordable_file_refs(text) == [
-            "@plans:202607/plan.md#L2-L4",
+            "@plan:202607/plan.md#L2-L4",
             "@commit:sase@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         ]
 
     def test_artifact_and_file_references_preserve_prompt_order(self) -> None:
-        text = "@docs/x.md then @plans:202607/plan.md then @src/y.py"
+        text = "@docs/x.md then @plan:202607/plan.md then @src/y.py"
         assert extract_recordable_file_refs(text) == [
             "docs/x.md",
-            "@plans:202607/plan.md",
+            "@plan:202607/plan.md",
             "src/y.py",
         ]
 
     def test_literal_artifact_reference_is_not_recorded(self) -> None:
-        assert extract_recordable_file_refs("`@plans:202607/plan.md`") == []
+        assert extract_recordable_file_refs("`@plan:202607/plan.md`") == []
 
 
 class TestFileReferenceStore:
@@ -114,7 +114,7 @@ class TestFileReferenceStore:
 
     def test_artifact_reference_roundtrip_and_deletion(self, tmp_path: Path) -> None:
         store = tmp_path / "hist.json"
-        reference = "@plans:202607/artifact_ref_prompt_completion.md"
+        reference = "@plan:202607/artifact_ref_prompt_completion.md"
         with patch("sase.history.file_references._HISTORY_FILE", store):
             record_file_references([reference])
             assert load_file_references() == [reference]

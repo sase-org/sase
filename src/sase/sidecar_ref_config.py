@@ -139,7 +139,7 @@ class _SidecarRefPolicyReport:
     diagnostics: tuple[_SidecarRefPolicyDiagnostic, ...] = ()
 
 
-def _sidecar_role_ref_kind(role: str) -> str:
+def sidecar_role_ref_kind(role: str) -> str:
     """Return the contextual ref kind for one sidecar role."""
     return _BUILTIN_SIDECAR_REF_KIND.get(role, role)
 
@@ -232,7 +232,7 @@ def _policy_for_role(
     registry: Any,
     diagnostics: list[_SidecarRefPolicyDiagnostic],
 ) -> SidecarRefPolicy | None:
-    ref_kind = _sidecar_role_ref_kind(role)
+    ref_kind = sidecar_role_ref_kind(role)
     if not is_document:
         _non_document_ref_diagnostics(role, entry, diagnostics)
         return SidecarRefPolicy(
@@ -383,7 +383,7 @@ def _default_document_spec(
     *,
     prefer_registry: bool = True,
 ) -> dict[str, Any]:
-    kind = _sidecar_role_ref_kind(role)
+    kind = sidecar_role_ref_kind(role)
     if prefer_registry:
         provider = registry.ref_providers_by_id.get(
             kind
@@ -606,4 +606,5 @@ __all__ = [
     "SIDECAR_REF_CONFIG_SOURCE_PREFIX",
     "SidecarRefPolicy",
     "effective_sidecar_ref_policies",
+    "sidecar_role_ref_kind",
 ]

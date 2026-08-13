@@ -8,12 +8,12 @@ from sase.ace.tui.actions._artifacts_beads_issue_mutations import (
 
 
 def test_refs_with_canonical_bug_ref_appends_once_and_preserves_order() -> None:
-    refs = ("plans:202608/beads.md",)
+    refs = ("plan:202608/beads.md",)
 
     updated = _refs_with_canonical_bug_ref(refs, "bug:alpha#42", "alpha")
     repeated = _refs_with_canonical_bug_ref(updated, "bug:alpha#42", "alpha")
 
-    assert updated == ("plans:202608/beads.md", "bug:alpha#42")
+    assert updated == ("plan:202608/beads.md", "bug:alpha#42")
     assert repeated == updated
 
 

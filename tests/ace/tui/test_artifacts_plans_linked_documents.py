@@ -29,14 +29,14 @@ def test_linked_document_reads_are_deduplicated_by_resolved_path(
 
     cache: dict[Path, LinkedPlanPayload] = {}
     first = load_linked_plan_document(
-        "plans:202608/plan.md",
+        "plan:202608/plan.md",
         workspace_dir=str(tmp_path),
         plans_root=tmp_path,
         read_cache=cache,
         read_text=read_text,
     )
     second = load_linked_plan_document(
-        "plans:202608/plan.md",
+        "plan:202608/plan.md",
         workspace_dir=str(tmp_path),
         plans_root=tmp_path,
         read_cache=cache,
@@ -56,7 +56,7 @@ def test_missing_linked_document_is_unavailable(tmp_path: Path, monkeypatch) -> 
     )
 
     document = load_linked_plan_document(
-        "plans:missing.md",
+        "plan:missing.md",
         workspace_dir=str(tmp_path),
         plans_root=tmp_path,
         read_cache={},

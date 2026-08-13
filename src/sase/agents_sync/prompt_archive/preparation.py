@@ -38,6 +38,7 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
     parse_plan_header_block,
 )
+from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 
 type _HostedResolverFactory = Callable[
     [Path, ProjectTarget, GitRunner], HostedLinkResolver | None
@@ -470,14 +471,23 @@ def _plan_ref(meta: dict[str, Any]) -> str | None:
         value = meta.get(key)
         if isinstance(value, str) and value.strip():
             raw = value.strip()
-            return raw if raw.startswith("plans:") else f"plans:{raw}"
+            if raw.startswith(PLAN_REFERENCE_PREFIX):
+                return raw
+            # "plans:" is immutable-history: an agent's own recorded metadata
+            # may still carry the legacy spelling. Normalize it here too,
+            # rather than double-prefixing it below.
+            raw = raw.removeprefix("plans:")
+            return f"{PLAN_REFERENCE_PREFIX}{raw}"
     return None
 
 
 def _plan_label(plan_ref: str | None) -> str | None:
     if plan_ref is None:
         return None
-    return plan_ref.removeprefix("plans:").removeprefix("./")
+    # "plans:" is immutable-history: an archived prompt's plan metadata may
+    # still carry the legacy spelling. Accept it here too.
+    label = plan_ref.removeprefix(PLAN_REFERENCE_PREFIX).removeprefix("plans:")
+    return label.removeprefix("./")
 
 
 def _canonical_plan_ref(plan_ref: str | None, workspace_root: Path) -> str | None:

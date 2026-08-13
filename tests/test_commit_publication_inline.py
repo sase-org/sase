@@ -39,7 +39,7 @@ _REVISION = "a" * 40
 _MESSAGE = (
     "feat: publish inline\n\n"
     "SASE_BEAD=sase-fa.1\n"
-    "SASE_PLAN=plans:202608/inline.md\n"
+    "SASE_PLAN=plan:202608/inline.md\n"
     f"SASE_AGENT={_AGENT}"
 )
 

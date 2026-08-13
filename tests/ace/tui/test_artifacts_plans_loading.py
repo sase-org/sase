@@ -34,7 +34,7 @@ def test_snapshot_reads_beads_only_to_partition_plan_documents(
             "Fixture epic",
             IssueType.PLAN,
             tier=BeadTier.EPIC,
-            design="plans:202608/active.md",
+            design="plan:202608/active.md",
         )
         project.create("Fixture phase", IssueType.PHASE, parent_id=epic.id)
 

@@ -146,7 +146,7 @@ def register_bead_create_parser(
             "Examples:\n"
             '  sase bead create -T task -t "Fix retry race" -z medium\n'
             '  sase bead create -T phase(sase-ab) -t "Add endpoint" -z small\n'
-            "  sase bead create -T plan(plans:202608/feature.md) "
+            "  sase bead create -T plan(plan:202608/feature.md) "
             '-t "Feature" -r epic'
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

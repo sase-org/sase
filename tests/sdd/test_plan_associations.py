@@ -180,7 +180,7 @@ def test_builds_sorted_rendering_records_from_one_history_walk(
         identity=_identity(),
     )
 
-    associations = index.for_plan("plans:202607/child.md")
+    associations = index.for_plan("plan:202607/child.md")
     assert git.calls == 1
     assert [row.label for row in associations.agents] == [
         "alice.athena.reviewer",
@@ -287,7 +287,7 @@ def test_family_members_collapse_to_one_lane_with_member_link_hint(
         identity=_identity(),
     )
 
-    agent_rows = index.for_plan("plans:202607/family.md").agents
+    agent_rows = index.for_plan("plan:202607/family.md").agents
     assert len(agent_rows) == 1
     row = agent_rows[0]
     assert row.label == "alice.athena.pc"
@@ -320,7 +320,7 @@ def test_legacy_member_tag_uses_its_recorded_destination(
         identity=_identity(),
     )
 
-    row = index.for_plan("plans:202607/legacy.md").agents[0]
+    row = index.for_plan("plan:202607/legacy.md").agents[0]
     assert row.label == "alice.athena.pc"
     assert row.target == destination
 
@@ -350,7 +350,7 @@ def test_artifact_metadata_paths_collapse_to_one_plan_key(tmp_path: Path) -> Non
         identity=_identity(),
     )
 
-    assert [row.label for row in index.for_plan("plans:202607/child.md").agents] == [
+    assert [row.label for row in index.for_plan("plan:202607/child.md").agents] == [
         "alice.athena.archive",
         "alice.athena.epic-ref",
         "alice.athena.legacy",
@@ -393,12 +393,12 @@ def test_epic_rollup_reads_bullets_and_legacy_parent_without_changing_tales(
         identity=_identity(),
     )
 
-    assert [row.label for row in index.for_plan("plans:202607/epic.md").agents] == [
+    assert [row.label for row in index.for_plan("plan:202607/epic.md").agents] == [
         "alice.athena.child-agent",
         "alice.athena.epic-agent",
         "alice.athena.grandchild-agent",
     ]
-    assert [row.label for row in index.for_plan("plans:202607/child.md").agents] == [
+    assert [row.label for row in index.for_plan("plan:202607/child.md").agents] == [
         "alice.athena.child-agent",
     ]
 
@@ -431,7 +431,7 @@ def test_epic_rollup_ignores_parent_cycles(tmp_path: Path) -> None:
         identity=_identity(),
     )
 
-    assert [row.label for row in index.for_plan("plans:202607/epic.md").agents] == [
+    assert [row.label for row in index.for_plan("plan:202607/epic.md").agents] == [
         "alice.athena.child-agent",
         "alice.athena.epic-agent",
     ]
@@ -453,7 +453,7 @@ def test_history_failure_keeps_artifact_results_and_reports_diagnostic(
         identity=_identity(),
     )
 
-    assert [row.label for row in index.for_plan("plans:202607/child.md").agents] == [
+    assert [row.label for row in index.for_plan("plan:202607/child.md").agents] == [
         "alice.athena.worker"
     ]
     assert index.diagnostics == ("could not read git history: bad",)

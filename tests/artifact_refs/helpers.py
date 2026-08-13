@@ -19,8 +19,8 @@ def context(
     return ArtifactRefContext(
         document_roots=(
             ArtifactRefDocumentRoot(document_kind, tmp_path / document_kind),
-            ArtifactRefDocumentRoot("plans", tmp_path / "plans"),
             ArtifactRefDocumentRoot("plan", tmp_path / "plans"),
+            ArtifactRefDocumentRoot("plans", tmp_path / "plans"),
         ),
         chats_root=tmp_path / "chats",
         artifact_index_path=tmp_path / "artifacts" / "index.jsonl",

@@ -27,7 +27,7 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
         "Epic",
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
-        design="plans:202608/beads.md",
+        design="plan:202608/beads.md",
     )
     phase = Issue(
         "alpha-1.1",

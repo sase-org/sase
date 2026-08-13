@@ -75,7 +75,7 @@ def test_plan_file_mode_uses_sidecar_store(
     assert result.archived_plan_path.is_relative_to(sidecar)
     with BeadProject(sidecar, beads_dirname="beads") as project:
         assert project.show(result.epic_id or "").design == (
-            f"plans:{result.archived_plan_path.relative_to(sidecar).as_posix()}"
+            f"plan:{result.archived_plan_path.relative_to(sidecar).as_posix()}"
         )
 
 

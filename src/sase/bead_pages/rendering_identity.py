@@ -32,6 +32,7 @@ from sase.bead.snooze_presentation import (
 from sase.bead_pages.paths import bead_lineage_root
 from sase.bead_time_presentation import BEAD_TIME_UNKNOWN_LABEL, bead_instant_label
 from sase.bead_type_presentation import bead_type_presentation
+from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, PLAN_REFERENCE_PREFIX
 
 MAX_RENDERED_PROSE_CHARS = 10_000
 
@@ -283,7 +284,7 @@ def _plan_fact(
     if detail.plan is None:
         return ""
     plan_ref = detail.plan.path
-    label = plan_ref.removeprefix("plans:")
+    label = plan_ref.removeprefix(PLAN_REFERENCE_PREFIX)
     target = resolver.plan_url(plan_ref) if resolver is not None else None
     rendered = md_escape(label)
     if target:
@@ -310,7 +311,7 @@ def _reference_url(reference: str, resolver: PlanLinkResolver | None) -> str | N
         return None
     payload = parsed.payload
     try:
-        if parsed.kind_type == "document" and parsed.kind == "plans":
+        if parsed.kind_type == "document" and parsed.kind == PLAN_REFERENCE_KIND:
             return resolver.plan_url(parsed.rendered)
         if parsed.kind_type == "bead" and payload.id:
             if isinstance(resolver, _BeadLinkResolver):

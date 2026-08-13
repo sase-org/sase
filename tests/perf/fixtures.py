@@ -217,7 +217,7 @@ def make_hint_clan_summary(kb: int = 0) -> str:
     """
     kb = kb or HINT_CLAN_SUMMARY_KB
     block = (
-        "[bold]Plan:[/bold] plans:202608/clan_summary_view_hints.md\n"
+        "[bold]Plan:[/bold] plan:202608/clan_summary_view_hints.md\n"
         "[dim]Prompt:[/dim] prompts/clan_summary_view_hints.md\n"
         "Phase worker touched src/sase/ace/tui/widgets/prompt_panel/"
         "_agent_display_clan.py\n"

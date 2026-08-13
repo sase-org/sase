@@ -426,7 +426,7 @@ def _v4_document() -> dict[str, object]:
                 "rank": 2,
                 "project_key": "proj",
                 "project": "Project",
-                "plan_ref": "plans:202608/example.md",
+                "plan_ref": "plan:202608/example.md",
                 "primary_revision": "c" * 40,
                 "commit_message": "feat: example",
                 "attempts": 0,

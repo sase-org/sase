@@ -216,11 +216,11 @@ def test_plan_subcommand_help_is_complete() -> None:
     assert "-w WIDTH" in show_help
     assert "sase plan show" in show_help
     assert "sase plan show abcdef12" in show_help
-    assert "sase plan show plans:202608/plan_show_command.md" in show_help
+    assert "sase plan show plan:202608/plan_show_command.md" in show_help
     assert "sase plan show 202608/plan_show_command" in show_help
     assert "sase plan show sase_plan_feature.md" in show_help
     assert "sase plan show sase-64" in show_help
-    assert "sase plan show plans:202608/plan_show_command.md --format json" in show_help
+    assert "sase plan show plan:202608/plan_show_command.md --format json" in show_help
     assert "sase plan show plan_show_command --format raw > plan.md" in show_help
 
 

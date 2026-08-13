@@ -23,13 +23,13 @@ def test_show_json_uses_common_envelope(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     path = tmp_path / "doc.md"
-    result = resolved_reference(path, reference="plans:doc.md#L3")
+    result = resolved_reference(path, reference="plan:doc.md#L3")
     monkeypatch.setattr(
         "sase.artifact_cli.show.resolve_cli_reference",
         lambda _value: result,
     )
 
-    assert handle_show(argparse.Namespace(reference="plans:doc.md#L3", json=True)) == 0
+    assert handle_show(argparse.Namespace(reference="plan:doc.md#L3", json=True)) == 0
 
     payload = json.loads(capsys.readouterr().out)
     assert list(payload) == [
@@ -41,8 +41,8 @@ def test_show_json_uses_common_envelope(
         "consumption",
         "entry",
     ]
-    assert payload["reference"] == "plans:doc.md#L3"
-    assert payload["kind"] == "plans"
+    assert payload["reference"] == "plan:doc.md#L3"
+    assert payload["kind"] == "plan"
     assert payload["consumption"] is None
     assert payload["fragment"]["start"] == 3
     assert payload["resolution"]["status"] == "exact"
@@ -84,7 +84,7 @@ def test_show_reports_consumption_in_pretty_and_json(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    result = resolved_reference(tmp_path / "report.md", reference="plans:report.md")
+    result = resolved_reference(tmp_path / "report.md", reference="plan:report.md")
     summary = ArtifactConsumptionSummary(
         consumption_count=7,
         distinct_agent_count=6,
@@ -128,8 +128,8 @@ def test_show_reports_consumption_in_pretty_and_json(
         "last_consumed_at": "2026-07-30T12:00:00Z",
     }
     assert calls == [
-        ["plans:report.md"],
-        ["plans:report.md"],
+        ["plan:report.md"],
+        ["plan:report.md"],
     ]
 
 
@@ -140,7 +140,7 @@ def test_show_joins_fragment_reference_to_fragment_free_consumption_key(
 ) -> None:
     result = resolved_reference(
         tmp_path / "report.md",
-        reference="plans:report.md#L3",
+        reference="plan:report.md#L3",
     )
     calls: list[list[str]] = []
     monkeypatch.setattr(
@@ -159,4 +159,4 @@ def test_show_joins_fragment_reference_to_fragment_free_consumption_key(
 
     assert handle_show(argparse.Namespace(reference=result.input, json=True)) == 0
     assert json.loads(capsys.readouterr().out)["consumption"] is None
-    assert calls == [["plans:report.md"]]
+    assert calls == [["plan:report.md"]]

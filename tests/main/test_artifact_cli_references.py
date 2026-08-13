@@ -82,7 +82,7 @@ def test_shared_resolver_serializes_fragment_and_drift_candidates(
     drifted.parent.mkdir()
     drifted.write_text("one\ntwo\n", encoding="utf-8")
 
-    result = resolve_cli_reference("plans:doc.md#L2", context=context)
+    result = resolve_cli_reference("plan:doc.md#L2", context=context)
 
     assert result.resolution.status == "drifted"
     assert result.resolution.resolved_path == drifted

@@ -10,9 +10,7 @@ from typing import Protocol
 from rich.style import StyleType
 from rich.text import Text
 
-
-LOGICAL_PLAN_REFERENCE_PREFIX = "plans:"
-"""Canonical logical plan-reference kind accepted by ``sase_core_rs``."""
+from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX as LOGICAL_PLAN_REFERENCE_PREFIX
 
 _FILE_PATH_ALTERNATIVES = (
     # Absolute paths: /foo/bar or ~/foo/bar
@@ -179,7 +177,7 @@ def iter_file_path_matches(content: str) -> Generator[re.Match[str], None, None]
 def iter_container_file_path_matches(
     content: str,
 ) -> Generator[re.Match[str], None, None]:
-    """Yield container-hint file matches, including logical ``plans:`` refs."""
+    """Yield container-hint file matches, including logical ``plan:`` refs."""
     for match in _CONTAINER_FILE_PATH_OR_HTTP_URL_RE.finditer(content):
         if match.group(2) is not None:
             yield match

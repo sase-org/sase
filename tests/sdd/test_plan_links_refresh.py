@@ -77,7 +77,7 @@ def test_refresh_dry_run_write_and_second_write_are_idempotent(
         ),
     )
     index = PlanAssociationIndex(
-        MappingProxyType({"plans:202607/child.md": associations})
+        MappingProxyType({"plan:202607/child.md": associations})
     )
     monkeypatch.setattr(
         "sase.sdd._git_contention.store_git_write_lock",

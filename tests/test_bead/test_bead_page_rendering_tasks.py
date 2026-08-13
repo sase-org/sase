@@ -55,7 +55,7 @@ def test_task_bead_page_renders_bounded_linked_plus_one_callouts() -> None:
                 timestamp="2026-08-01T15:00:00Z",
                 reporter="agent.beta",
                 note="# Reproduced\n```unsafe",
-                refs=("plans:202608/cache.md",),
+                refs=("plan:202608/cache.md",),
             )
         ],
     )
@@ -74,8 +74,7 @@ def test_task_bead_page_renders_bounded_linked_plus_one_callouts() -> None:
     assert "> \\# Reproduced" in rendered
     assert "> \\```unsafe" in rendered
     assert (
-        "[plans:202608/cache.md](https://example.test/plans/202608/cache.md)"
-        in rendered
+        "[plan:202608/cache.md](https://example.test/plans/202608/cache.md)" in rendered
     )
 
 

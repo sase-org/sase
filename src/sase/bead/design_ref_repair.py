@@ -10,6 +10,7 @@ from typing import Literal
 from sase.bead.model import Issue
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.sdd.plan_refs import (
+    PLAN_REFERENCE_PREFIX,
     canonicalize_plan_reference_from_roots,
     parse_plan_reference,
     resolve_plan_reference_from_roots,
@@ -197,7 +198,9 @@ def _reference_basename(value: str) -> str:
     try:
         raw_path = parse_plan_reference(value).path
     except (RuntimeError, ValueError):
-        raw_path = value.removeprefix("plans:")
+        # "plans:" is immutable-history: stored bead design references may
+        # still carry the legacy spelling. Accept it here too.
+        raw_path = value.removeprefix(PLAN_REFERENCE_PREFIX).removeprefix("plans:")
     return Path(raw_path.replace("\\", "/")).name
 
 

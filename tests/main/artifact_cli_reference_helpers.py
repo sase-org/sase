@@ -27,7 +27,7 @@ def artifact_ref_context(tmp_path: Path) -> ArtifactRefContext:
     plans.mkdir()
     chats.mkdir()
     return ArtifactRefContext(
-        document_roots=(ArtifactRefDocumentRoot("plans", plans),),
+        document_roots=(ArtifactRefDocumentRoot("plan", plans),),
         chats_root=chats,
         artifact_index_path=tmp_path / "index.jsonl",
         repositories=(),
@@ -78,7 +78,7 @@ def artifact_file(path: Path, **overrides: object) -> ArtifactFile:
 def resolved_reference(
     path: Path | None,
     *,
-    reference: str = "plans:doc.md",
+    reference: str = "plan:doc.md",
     status: str = "exact",
     candidates: tuple[str, ...] = (),
     file: ArtifactFile | None = None,

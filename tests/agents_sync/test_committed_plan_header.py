@@ -59,7 +59,7 @@ def test_committed_plan_header_refresh_is_idempotent(
 
     class _Index:
         def for_plan(self, plan_ref: str) -> PlanAssociations:
-            assert plan_ref == "plans:202607/child.md"
+            assert plan_ref == "plan:202607/child.md"
             return associations
 
     @contextmanager

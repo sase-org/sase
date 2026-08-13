@@ -205,8 +205,8 @@ def test_fast_path_ref_write_guard_is_closed_except_for_list(
     assert try_handle_bead_fast_path(["ref", "list"]) == 0
     for argv in (
         ["ref"],
-        ["ref", "add", "beads-1", "plans:one.md"],
-        ["ref", "rm", "beads-1", "plans:one.md"],
+        ["ref", "add", "beads-1", "plan:one.md"],
+        ["ref", "rm", "beads-1", "plan:one.md"],
         ["ref", "future-write"],
     ):
         with pytest.raises(RuntimeError, match="fast-path ref"):

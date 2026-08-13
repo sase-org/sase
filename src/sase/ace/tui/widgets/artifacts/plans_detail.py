@@ -12,6 +12,7 @@ from sase.artifact_refs import parse_artifact_ref
 from sase.bead_status_presentation import bead_status_presentation
 from sase.plan_search.model import PlanSearchMatch
 from sase.sdd.plan_properties import ordered_plan_property_items, plan_property_label
+from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
 
 from .bead_plan_links import BeadPlanLink
 from .plans_data import ActivePlanDocument, PlanProposal
@@ -71,7 +72,7 @@ def archive_properties_header(
     match: PlanSearchMatch,
     *,
     project_name: str,
-    role: str = "plans",
+    role: str = PLAN_REFERENCE_KIND,
     owner: BeadPlanLink | None = None,
 ) -> RenderableType:
     """Build an archived-plan title and complete property grid."""
@@ -98,7 +99,9 @@ def archive_properties_header(
     return _properties_header(title, properties)
 
 
-def archive_preview_markdown(match: PlanSearchMatch, *, role: str = "plans") -> str:
+def archive_preview_markdown(
+    match: PlanSearchMatch, *, role: str = PLAN_REFERENCE_KIND
+) -> str:
     """Build the full-screen archive preview content."""
     plan = match.plan
     lines = [

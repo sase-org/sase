@@ -30,6 +30,8 @@ def test_commit_publishes_every_sidecar_inline_in_order(
     tmp_path: Path,
 ) -> None:
     order: list[str] = []
+    # A pre-rename commit trailer: proves the publication step still reads
+    # the legacy "plans:" spelling.
     cp = CommitCheckpoint(
         method="create_commit",
         payload={
@@ -124,9 +126,7 @@ def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
         ),
     )
     message = (
-        "feat: publish now\n\n"
-        "SASE_BEAD=sase-ai.5\n"
-        "SASE_PLAN=plans:202608/publish_now.md"
+        "feat: publish now\n\nSASE_BEAD=sase-ai.5\nSASE_PLAN=plan:202608/publish_now.md"
     )
     cp = CommitCheckpoint(
         method="create_commit",

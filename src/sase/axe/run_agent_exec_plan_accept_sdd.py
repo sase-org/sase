@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.bead.epic_launch import build_epic_launch_argv
+from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -47,7 +48,7 @@ def publish_planner_prompt_archive(
         commit_cwd=ctx.workspace_dir,
         agent_artifacts_dir=state.current_artifacts_dir,
         prompt_content=prompt_content,
-        plan_ref=f"plans:{yyyymm}/{plan_name}.md",
+        plan_ref=f"{PLAN_REFERENCE_PREFIX}{yyyymm}/{plan_name}.md",
         prompt_name=plan_name,
         yyyymm=yyyymm,
     )

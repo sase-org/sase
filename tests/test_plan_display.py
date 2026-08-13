@@ -105,7 +105,7 @@ def test_provenance_rows_follow_fields_and_match_tui_section(
     plan = tmp_path / "tale.md"
     plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
 
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
     shared = plan_logical_text(loaded)
     tui = ResponsivePlanSection(loaded).logical_text
     rows = [line for line in shared.plain.splitlines() if line[:9].endswith(": ")]
@@ -131,7 +131,7 @@ def test_provenance_rows_follow_fields_and_match_tui_section(
             "1a67048fbac199943e9798dd65f8af8901b2986b",
         ),
     ]
-    path_row_index = rows.index("   Path: plans:202607/tale.md")
+    path_row_index = rows.index("   Path: plan:202607/tale.md")
     assert rows[path_row_index + 1 :] == [
         " Prompt: 202607/prompts/tale.md",
         " Parent: 202607/epic.md",
@@ -147,7 +147,7 @@ def test_provenance_rows_are_absent_without_a_header_block(tmp_path: Path) -> No
     plan = tmp_path / "tale.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
 
     assert loaded.provenance == ()
     assert "Agents: " not in plan_logical_text(loaded).plain
@@ -166,7 +166,7 @@ def test_provenance_row_summarizes_entries_beyond_the_display_limit(
         encoding="utf-8",
     )
 
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
     agents_row = next(
         line
         for line in plan_logical_text(loaded).plain.splitlines()
@@ -189,7 +189,7 @@ def test_malformed_header_block_leaves_authored_metadata_visible(
         encoding="utf-8",
     )
 
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
 
     # A malformed header block is a validation error (``header-invalid``), but
     # the plan's authored title and goal stay visible for display purposes.
@@ -249,7 +249,7 @@ def test_shared_renderer_folds_overlong_basename_without_loss(
 def test_render_plan_document_omits_page_row_by_default(tmp_path: Path) -> None:
     plan = tmp_path / "tale.md"
     plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
 
     rendered = render_plan_document(loaded, width=76)
 
@@ -260,7 +260,7 @@ def test_render_plan_document_omits_page_row_by_default(tmp_path: Path) -> None:
 def test_render_plan_document_places_page_after_bead_row(tmp_path: Path) -> None:
     plan = tmp_path / "tale.md"
     plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
     page_url = (
         "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md"
     )
@@ -294,7 +294,7 @@ def test_render_plan_document_places_page_after_final_non_bead_provenance(
         ),
         encoding="utf-8",
     )
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
     page_url = "https://example.invalid/pages/sase-ai/README.md"
 
     lines = render_plan_document(
@@ -312,7 +312,7 @@ def test_bead_page_line_reflows_without_inserting_url_whitespace(
 ) -> None:
     plan = tmp_path / "tale.md"
     plan.write_text(_plan_with_header(_PROVENANCE_HEADER), encoding="utf-8")
-    loaded = load_plan_display(plan, display_path="plans:202607/tale.md")
+    loaded = load_plan_display(plan, display_path="plan:202607/tale.md")
     page_url = (
         "https://github.com/sase-org/sase--beads/blob/main/pages/sase-ar/README.md"
     )

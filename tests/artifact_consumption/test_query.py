@@ -27,7 +27,7 @@ def test_summary_checks_schema_and_validates_wire(
             def summarize(path: str, refs: object) -> dict[str, object]:
                 calls.append((path, refs))
                 return {
-                    "plans:report.md": {
+                    "plan:report.md": {
                         "agent_names": ["alpha", "zeta"],
                         "consumption_count": 3,
                         "distinct_agent_count": 2,
@@ -47,12 +47,12 @@ def test_summary_checks_schema_and_validates_wire(
     log_path = tmp_path / ".." / tmp_path.name / "consumption.jsonl"
 
     summaries = summarize_artifact_consumption(
-        ["plans:report.md"],
+        ["plan:report.md"],
         log_path=log_path,
     )
 
     assert summaries == {
-        "plans:report.md": ArtifactConsumptionSummary(
+        "plan:report.md": ArtifactConsumptionSummary(
             consumption_count=3,
             distinct_agent_count=2,
             agent_names=("alpha", "zeta"),
@@ -64,7 +64,7 @@ def test_summary_checks_schema_and_validates_wire(
     assert calls == [
         (
             str(log_path.expanduser().resolve(strict=False)),
-            ["plans:report.md"],
+            ["plan:report.md"],
         )
     ]
 
@@ -117,7 +117,7 @@ def test_summary_rejects_incompatible_rows(
     def fake_require(name: str) -> Any:
         if name == "artifact_consumption_wire_schema_version":
             return lambda: 1
-        return lambda *_args: {"plans:report.md": raw_summary}
+        return lambda *_args: {"plan:report.md": raw_summary}
 
     monkeypatch.setattr(
         "sase.core.artifact_consumption_query.require_rust_binding",

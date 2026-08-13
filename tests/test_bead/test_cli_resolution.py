@@ -123,7 +123,7 @@ def test_find_beads_location_split_sidecar_uses_repository_root(
 
     assert root == beads
     assert beads_dirname == BEADS_DIRNAME_ROOT
-    assert storage_plan_path(plan) == "plans:202607/root_store.md"
+    assert storage_plan_path(plan) == "plan:202607/root_store.md"
 
 
 def test_find_beads_location_in_tree_prefers_current_checkout(

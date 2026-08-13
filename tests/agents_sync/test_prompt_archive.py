@@ -24,7 +24,8 @@ class _HostedLinks:
         return f"https://example.test/agents/{name}"
 
     def plan_url(self, plan_ref: str) -> str:
-        return f"https://example.test/plans/{plan_ref.removeprefix('plans:')}"
+        label = plan_ref.removeprefix("plan:").removeprefix("plans:")
+        return f"https://example.test/plans/{label}"
 
     def blob_url_for_repository(
         self,

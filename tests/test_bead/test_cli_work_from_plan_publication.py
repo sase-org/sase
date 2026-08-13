@@ -556,7 +556,7 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
             assert [(phase.status.value, phase.assignee) for phase in phases] == [
                 ("in_progress", phase.id) for phase in phases
             ]
-            assert epic.design.startswith("plans:")
+            assert epic.design.startswith("plan:")
             assert epic.design.endswith("/rollout.md")
             assert [len(phase.dependencies) for phase in phases] == [0, 1, 2]
         return FakeLaunchResult()

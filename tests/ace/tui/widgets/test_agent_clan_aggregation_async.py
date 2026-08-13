@@ -217,7 +217,7 @@ def test_clan_worker_indexes_logical_plan_reference(
 ) -> None:
     member = _agent("research.one", workspace_dir=str(tmp_path), workspace_num=7)
     container = project_clan_tree([member])[0]
-    container.clan_summary = "Plan: plans:202608/clan.md"
+    container.clan_summary = "Plan: plan:202608/clan.md"
     in_memory = aggregate_clan_in_memory(container)
     disk = _disk_for(ClanSectionSnapshot(in_memory=in_memory))
     resolved = tmp_path / "plans" / "202608" / "clan.md"
@@ -241,10 +241,10 @@ def test_clan_worker_indexes_logical_plan_reference(
         sections={"replies"},
     )
 
-    assert enriched.hint_paths["plans:202608/clan.md"] == str(resolved)
+    assert enriched.hint_paths["plan:202608/clan.md"] == str(resolved)
     assert enriched.hint_paths["202608/clan.md"] == str(resolved)
     resolve.assert_called_once_with(
-        "plans:202608/clan.md",
+        "plan:202608/clan.md",
         workspace_dir=str(tmp_path),
         workspace_num=7,
     )
@@ -264,7 +264,7 @@ def test_clan_worker_indexes_markup_logical_plan_reference(
             authored_tier="tale",
             effective_tier="tale",
             actual_path=str(tmp_path / "plans" / "202608" / "markup.md"),
-            display_path="plans:202608/markup.md",
+            display_path="plan:202608/markup.md",
             committed=True,
             exists=True,
             readable=True,
@@ -298,10 +298,10 @@ def test_clan_worker_indexes_markup_logical_plan_reference(
         sections={"replies"},
     )
 
-    assert enriched.hint_paths["plans:202608/markup.md"] == str(resolved)
+    assert enriched.hint_paths["plan:202608/markup.md"] == str(resolved)
     assert enriched.hint_paths["202608/markup.md"] == str(resolved)
     resolve.assert_called_once_with(
-        "plans:202608/markup.md",
+        "plan:202608/markup.md",
         workspace_dir=str(tmp_path),
         workspace_num=7,
     )
@@ -360,7 +360,7 @@ def test_clan_worker_indexes_archived_prompt_reference_exactly(
         workspace_num=7,
     )
     container = project_clan_tree([member])[0]
-    container.clan_summary = "Path: plans:202608/x.md\nPrompt: prompts/202608/x.md"
+    container.clan_summary = "Path: plan:202608/x.md\nPrompt: prompts/202608/x.md"
     prompt_target = project_dir / "repos" / "agents" / "prompts" / "202608" / "x.md"
     prompt_target.parent.mkdir(parents=True)
     prompt_target.write_text("archived prompt\n", encoding="utf-8")

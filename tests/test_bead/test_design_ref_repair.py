@@ -41,9 +41,9 @@ def test_repair_planner_uses_owner_then_root_order(tmp_path: Path) -> None:
     )
 
     assert [(item.bead_id, item.new_reference) for item in preview.repairs] == [
-        ("beads-owner", "plans:202607/store-owner.md"),
-        ("beads-name", "plans:202607/by-name.md"),
-        ("beads-local", "plans:202607/local-only.md"),
+        ("beads-owner", "plan:202607/store-owner.md"),
+        ("beads-name", "plan:202607/by-name.md"),
+        ("beads-local", "plan:202607/local-only.md"),
     ]
     assert preview.unrepaired == ()
     assert store_owner.is_file()
@@ -99,7 +99,7 @@ def test_repair_planner_migrates_resolving_legacy_and_keeps_canonical(
     )
 
     assert [(item.bead_id, item.new_reference) for item in preview.repairs] == [
-        ("beads-plan", "plans:202607/plan.md")
+        ("beads-plan", "plan:202607/plan.md")
     ]
     assert preview.unrepaired == ()
 
@@ -115,4 +115,4 @@ def test_repair_planner_recovers_malformed_canonical_by_basename(
         roots=(store,),
     )
 
-    assert [item.new_reference for item in preview.repairs] == ["plans:202607/plan.md"]
+    assert [item.new_reference for item in preview.repairs] == ["plan:202607/plan.md"]

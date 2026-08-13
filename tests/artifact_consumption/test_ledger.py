@@ -159,7 +159,7 @@ def test_batch_append_uses_one_lock(
     append_artifact_consumption_events(
         (
             _event("event-a", "file:default:abc"),
-            _event("event-b", "plans:202607/report.md"),
+            _event("event-b", "plan:202607/report.md"),
         ),
         log_path=log_path,
     )

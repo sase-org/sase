@@ -59,7 +59,7 @@ def test_empty_created_by_leaves_the_ownership_line_unchanged() -> None:
 def test_references_link_only_where_the_resolver_produces_a_url() -> None:
     view, root, _phase, index = fixtures()
     root.refs = [
-        "plans:202607/bead_pages.md",
+        "plan:202607/bead_pages.md",
         "bead:sase-ai",
         "commit:sase@9701511abcdef",
         "agent:alice.athena.sase-ai.1",
@@ -75,7 +75,7 @@ def test_references_link_only_where_the_resolver_produces_a_url() -> None:
 
     assert "## References" in rendered
     assert (
-        "- [plans:202607/bead\\_pages.md]"
+        "- [plan:202607/bead\\_pages.md]"
         "(https://example.test/plans/202607/bead_pages.md)" in rendered
     )
     assert "- [bead:sase-ai](https://example.test/beads/sase-ai.md)" in rendered

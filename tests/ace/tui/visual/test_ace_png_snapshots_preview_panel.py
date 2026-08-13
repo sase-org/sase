@@ -241,7 +241,7 @@ async def test_preview_panel_reference_png_snapshot(
         icon="▤",
         title="Make PreviewPanelModal a real reader",
         source_path="/workspace/sase/sase/repos/plans/202607/preview_panel_reader.md",
-        reference="plans:202607/preview_panel_reader.md",
+        reference="plan:202607/preview_panel_reader.md",
         lexer="markdown",
         default_view="rendered",
         content=(

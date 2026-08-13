@@ -195,7 +195,7 @@ def test_rung_ref_resolves_plans_reference(tmp_path: Path) -> None:
     assert isinstance(result, PlanShowRecord)
     assert result.target.kind == "ref"
     assert result.target.status == "exact"
-    assert result.plan.reference == "plans:202608/a.md"
+    assert result.plan.reference == "plan:202608/a.md"
 
 
 def test_rung_ref_accepts_legacy_marker_path(tmp_path: Path) -> None:
@@ -465,7 +465,7 @@ def test_miss_carries_close_match_suggestions(
 
     assert isinstance(result, PlanShowMiss)
     assert result.suggestions
-    assert "plans:202608/unique_name.md" in result.suggestions
+    assert "plan:202608/unique_name.md" in result.suggestions
 
 
 # --- bead rung -------------------------------------------------------------

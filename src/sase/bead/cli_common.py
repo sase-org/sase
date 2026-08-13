@@ -342,7 +342,7 @@ def storage_plan_path(resolved: Path) -> str:
     """Return the plan path representation to persist on a bead.
 
     Plans below a known SDD or local-archive plans root use canonical
-    ``plans:`` references. External paths keep the legacy relative/absolute
+    ``plan:`` references. External paths keep the legacy relative/absolute
     fallback after workspace-prefix normalization.
     """
     canonical = _canonical_storage_plan_path(resolved)

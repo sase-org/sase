@@ -23,8 +23,8 @@ def test_reference_for_each_entry_target_shape(tmp_path: Path) -> None:
     archive = SimpleNamespace(
         plan=SimpleNamespace(relpath="202607/design.md", kind="designs")
     )
-    issue = SimpleNamespace(id="sase-av", design="plans:202607/epic.md")
-    phase = SimpleNamespace(id="sase-av.2", design="plans:202607/epic.md")
+    issue = SimpleNamespace(id="sase-av", design="plan:202607/epic.md")
+    phase = SimpleNamespace(id="sase-av.2", design="plan:202607/epic.md")
 
     assert (
         artifact_refs.reference_for_entry_target(
@@ -84,7 +84,7 @@ def test_reference_for_each_entry_target_shape(tmp_path: Path) -> None:
             context=context,
             row=SimpleNamespace(proposal=SimpleNamespace(plan_path=str(proposal))),
         )
-        == "plans:202607/proposal.md"
+        == "plan:202607/proposal.md"
     )
     assert (
         artifact_refs.reference_for_entry_target(
@@ -136,8 +136,8 @@ def test_plan_design_and_agent_reference_entry_points(
         classmethod(lambda _cls: identity),
     )
 
-    row = SimpleNamespace(issue=SimpleNamespace(design="plans:202607/epic.md"))
-    assert artifact_refs.design_reference_for_plan_row(row) == "plans:202607/epic.md"
+    row = SimpleNamespace(issue=SimpleNamespace(design="plan:202607/epic.md"))
+    assert artifact_refs.design_reference_for_plan_row(row) == "plan:202607/epic.md"
     assert artifact_refs.reference_for_agent_name("9w") == "agent:alice.athena.9w"
     assert (
         artifact_refs.reference_for_agent_name("alice.athena.9w--code")

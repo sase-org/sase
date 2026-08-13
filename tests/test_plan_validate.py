@@ -175,14 +175,14 @@ def test_legacy_over_sized_tale_is_normalized_for_launch(size: str) -> None:
 def test_legacy_parent_is_accepted_with_migration_warning() -> None:
     content = VALID_TALE.replace(
         "goal: Ship strict plan validation\n",
-        "goal: Ship strict plan validation\nparent: plans:202607/parent.md\n",
+        "goal: Ship strict plan validation\nparent: plan:202607/parent.md\n",
     )
 
     result = validate_plan(content, "tale")
 
     assert result.ok
     assert result.plan is not None
-    assert result.plan.parent == "plans:202607/parent.md"
+    assert result.plan.parent == "plan:202607/parent.md"
     assert [diagnostic.code for diagnostic in result.diagnostics] == [
         "parent-frontmatter-deprecated"
     ]

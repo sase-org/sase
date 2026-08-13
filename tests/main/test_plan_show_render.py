@@ -46,7 +46,7 @@ def _console(color: str, *, width: int = 100) -> tuple[Console, io.StringIO]:
 
 def _plan(**overrides: object) -> PlanShowPlan:
     defaults: dict[str, object] = {
-        "reference": "plans:202608/a.md",
+        "reference": "plan:202608/a.md",
         "path": "/abs/repo/plans/202608/a.md",
         "relpath": "202608/a.md",
         "source": "repo",
@@ -97,7 +97,7 @@ def test_full_render_covers_a_tale_in_documented_section_order() -> None:
 
     assert rendered.index("A flexible plan") < rendered.index("PROPERTIES")
     assert "reference" in rendered
-    assert "plans:202608/a.md" in rendered
+    assert "plan:202608/a.md" in rendered
     assert "size" in rendered
     assert "small" in rendered
     assert "tale" in rendered
@@ -218,7 +218,7 @@ def test_full_render_shows_proposal_section_when_resolved_via_proposal() -> None
 
 def test_full_render_shows_drifted_and_missing_markers() -> None:
     drifted = _record(
-        target=PlanShowTarget(raw="plans:202607/a.md", kind="ref", status="drifted"),
+        target=PlanShowTarget(raw="plan:202607/a.md", kind="ref", status="drifted"),
         plan=_plan(relpath="202608/a.md"),
     )
     missing = _record(plan=_plan(exists=False))
@@ -312,13 +312,13 @@ def test_print_miss_uses_reason_when_present() -> None:
 def test_print_miss_default_shape_with_suggestions() -> None:
     stream = io.StringIO()
     print_miss(
-        PlanShowMiss(target="foo", suggestions=("plans:202608/a.md",)), file=stream
+        PlanShowMiss(target="foo", suggestions=("plan:202608/a.md",)), file=stream
     )
 
     output = stream.getvalue()
     assert "unknown plan: foo" in output
     assert "suggestions:" in output
-    assert "plans:202608/a.md" in output
+    assert "plan:202608/a.md" in output
 
 
 def test_print_miss_omits_suggestions_block_when_empty() -> None:
@@ -334,13 +334,13 @@ def test_print_ambiguity_lists_every_candidate() -> None:
         target="a",
         candidates=(
             PlanShowAmbiguityCandidate(
-                reference="plans:202607/a.md",
+                reference="plan:202607/a.md",
                 tier="tale",
                 created_at="2026-07-01",
                 title="A",
             ),
             PlanShowAmbiguityCandidate(
-                reference="plans:202608/a.md",
+                reference="plan:202608/a.md",
                 tier="tale",
                 created_at="2026-08-01",
                 title="A2",
@@ -352,6 +352,6 @@ def test_print_ambiguity_lists_every_candidate() -> None:
 
     output = stream.getvalue()
     assert "ambiguous plan: a — 2 plans match" in output
-    assert "plans:202607/a.md" in output
-    assert "plans:202608/a.md" in output
+    assert "plan:202607/a.md" in output
+    assert "plan:202608/a.md" in output
     assert "narrow with --target" in output

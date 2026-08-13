@@ -68,7 +68,7 @@ def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
             (
                 ClanContextEntry(
                     key="plan",
-                    label="plans:epic.md",
+                    label="plan:epic.md",
                     member_labels=(".one",),
                     values=(plan_summary(actual_path=str(plan_path)),),
                 ),
@@ -87,7 +87,7 @@ def _context_lanes(tmp_path: Path) -> tuple[ClanContextLane, ...]:
                             phase_title="Context hints",
                             description=None,
                             actual_plan_path=str(bead_plan_path),
-                            display_plan_path="plans:bead.md",
+                            display_plan_path="plan:bead.md",
                             plan_exists=True,
                             plan_readable=True,
                             epic_title="Demo",
@@ -184,7 +184,7 @@ def test_fully_expanded_context_uses_typed_exact_path_hints(tmp_path: Path) -> N
         6: str(tmp_path / "memory" / "tui_perf.md"),
     }
     assert text.plain.count("[") == 6
-    assert "• [1] plans:epic.md" in text.plain
+    assert "• [1] plan:epic.md" in text.plain
     assert f"• {_SASE_BEADS_SKILL}" in text.plain
     assert "• sase-core" in text.plain
 

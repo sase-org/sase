@@ -284,7 +284,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
     plan_path.write_text("# Artifact")
     chat_path.write_text("# Chat")
     context = ArtifactRefContext(
-        document_roots=(ArtifactRefDocumentRoot("plans", plans_root),),
+        document_roots=(ArtifactRefDocumentRoot("plan", plans_root),),
         chats_root=chats_root,
         artifact_index_path=tmp_path / "index.jsonl",
         repositories=(),
@@ -315,7 +315,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
         archive=None,
         bead_link=SimpleNamespace(
             bead_id="sase-b2",
-            reference="plans:202607/artifact.md",
+            reference="plan:202607/artifact.md",
         ),
     )
     cases = (
@@ -339,7 +339,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
                 "alpha",
                 str(tmp_path),
             ),
-            "@plans:202607/artifact.md",
+            "@plan:202607/artifact.md",
         ),
         (
             "plans",
@@ -350,7 +350,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
                 "alpha",
                 str(tmp_path),
             ),
-            "@plans:202607/artifact.md",
+            "@plan:202607/artifact.md",
         ),
         (
             "chats",

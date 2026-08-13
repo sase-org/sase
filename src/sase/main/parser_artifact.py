@@ -38,7 +38,7 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase artifact reclaim\n"
             "  sase artifact show file:explicit:0123456789abcdef01234567\n"
             "  sase artifact trash\n"
-            "  sase artifact path plans:202607/example.md\n"
+            "  sase artifact path plan:202607/example.md\n"
             "  sase agent prompts validate\n"
             "  sase artifact-file create --path report.md"
         ),

@@ -47,30 +47,51 @@ def test_parse_uses_rust_binding(
         def binding(*args: Any) -> Any:
             calls.append((name, args))
             return {
-                "kind": "plans",
+                "kind": "plan",
                 "path": "202607/plan.md",
                 "legacy": False,
-                "rendered": "plans:202607/plan.md",
+                "rendered": "plan:202607/plan.md",
             }
 
         return binding
 
     monkeypatch.setattr(plan_refs, "require_rust_binding", require)
 
-    assert plan_refs.parse_plan_reference("plans:202607/plan.md") == (
+    assert plan_refs.parse_plan_reference("plan:202607/plan.md") == (
         plan_refs._ParsedPlanReference(
-            kind="plans",
+            kind="plan",
             path="202607/plan.md",
             legacy=False,
-            rendered="plans:202607/plan.md",
+            rendered="plan:202607/plan.md",
         )
     )
     assert calls == [
         (
             "plan_reference_parse",
-            ("plans:202607/plan.md",),
+            ("plan:202607/plan.md",),
         ),
     ]
+
+
+def test_parse_accepts_the_legacy_plans_prefix_as_a_read_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def require(name: str) -> Any:
+        def binding(*args: Any) -> Any:
+            return {
+                "kind": "plan",
+                "path": "202607/x.md",
+                "legacy": False,
+                "rendered": "plan:202607/x.md",
+            }
+
+        return binding
+
+    monkeypatch.setattr(plan_refs, "require_rust_binding", require)
+
+    parsed = plan_refs.parse_plan_reference("plans:202607/x.md")
+    assert parsed.kind == "plan"
+    assert parsed.rendered == "plan:202607/x.md"
 
 
 def test_resolve_uses_discovered_roots(
@@ -101,7 +122,7 @@ def test_resolve_uses_discovered_roots(
     monkeypatch.setattr(plan_refs, "require_rust_binding", require)
 
     resolution = plan_refs.resolve_plan_reference(
-        "plans:202607/plan.md",
+        "plan:202607/plan.md",
         workspace_dir=tmp_path,
         workspace_num=4,
     )
@@ -116,7 +137,7 @@ def test_resolve_uses_discovered_roots(
         (
             "plan_reference_resolve",
             (
-                "plans:202607/plan.md",
+                "plan:202607/plan.md",
                 [str(root) for root in roots],
             ),
         ),
@@ -144,7 +165,7 @@ def test_plan_ref_for_store_prefers_canonical_store_reference(
             for raw_root in args[1]:
                 root = Path(str(raw_root))
                 try:
-                    return f"plans:{path.relative_to(root).as_posix()}"
+                    return f"plan:{path.relative_to(root).as_posix()}"
                 except ValueError:
                     continue
             return None
@@ -159,7 +180,7 @@ def test_plan_ref_for_store_prefers_canonical_store_reference(
             store,
             workspace_dir=tmp_path / "workspace",
         )
-        == "plans:202607/rollout.md"
+        == "plan:202607/rollout.md"
     )
     assert calls == [
         (
@@ -215,7 +236,7 @@ def test_canonicalize_with_explicit_roots_deduplicates_and_normalizes(
 
         def binding(path: str, roots: list[str]) -> str:
             calls.append((path, roots))
-            return "plans:202607/plan.md"
+            return "plan:202607/plan.md"
 
         return binding
 
@@ -226,7 +247,7 @@ def test_canonicalize_with_explicit_roots_deduplicates_and_normalizes(
             plan_path,
             roots=(root, root / "."),
         )
-        == "plans:202607/plan.md"
+        == "plan:202607/plan.md"
     )
     assert calls == [(str(plan_path), [str(root)])]
 
@@ -244,7 +265,7 @@ def test_resolve_rejects_a_stale_wire(
 
     with pytest.raises(RuntimeError, match="wire is stale"):
         plan_refs.resolve_plan_reference(
-            "plans:202607/plan.md",
+            "plan:202607/plan.md",
             workspace_dir=tmp_path,
             workspace_num=1,
         )

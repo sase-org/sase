@@ -1,7 +1,7 @@
 """Resolve a ``sase plan show`` target through the five-rung ladder.
 
 ``auto`` mode tries the rungs below in order and the first definitive match
-wins: ``path`` (an existing file), ``ref`` (a ``plans:`` reference or legacy
+wins: ``path`` (an existing file), ``ref`` (a ``plan:`` reference or legacy
 marker path, Rust-resolved), ``proposal`` (a pending-approval selector),
 ``name`` (a corpus slug lookup), and ``bead`` (a bead's stored ``design``
 reference). ``-t/--target`` forces exactly one rung with no fallthrough.
@@ -30,6 +30,7 @@ from sase.plan_search import facade
 from sase.plan_search.model import Plan, PlanSearchMatch
 from sase.sdd.plan_ref_display import describe_design_reference
 from sase.sdd.plan_refs import (
+    PLAN_REFERENCE_PREFIX,
     canonicalize_plan_reference_from_roots,
     resolve_plan_reference_from_roots,
     resolve_plan_roots,
@@ -290,7 +291,10 @@ def _is_path_shaped(raw: str) -> bool:
 
 
 def _normalize_name(raw: str) -> str:
-    normalized = raw.strip().removeprefix("plans:").removeprefix("./")
+    # "plans:" is immutable-history: a stored bead design reference or commit
+    # trailer may still carry the legacy spelling. Accept it here too.
+    normalized = raw.strip().removeprefix(PLAN_REFERENCE_PREFIX).removeprefix("plans:")
+    normalized = normalized.removeprefix("./")
     return normalized.removesuffix(".md")
 
 

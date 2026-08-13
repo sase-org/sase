@@ -22,11 +22,11 @@ def test_active_row_preserves_owning_bead_design_reference(tmp_path: Path) -> No
 
     assert (
         artifact_ref_entries.design_reference_for_plan_row(active)
-        == "plans:202607/active.md"
+        == "plan:202607/active.md"
     )
     assert (
         artifact_ref_entries.design_reference_for_plan_row(archived)
-        == "plans:202607/archive.md"
+        == "plan:202607/archive.md"
     )
 
 
@@ -44,7 +44,7 @@ def test_active_row_reference_is_canonicalized_from_document_path(
     monkeypatch.setattr(
         artifact_ref_entries,
         "canonicalize_artifact_ref",
-        lambda path, *, context: "plans:202607/active.md",
+        lambda path, *, context: "plan:202607/active.md",
     )
 
     reference = artifact_ref_entries.reference_for_entry_target(
@@ -54,4 +54,4 @@ def test_active_row_reference_is_canonicalized_from_document_path(
         row=active,
     )
 
-    assert reference == "plans:202607/active.md"
+    assert reference == "plan:202607/active.md"

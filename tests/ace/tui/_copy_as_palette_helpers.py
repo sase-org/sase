@@ -167,7 +167,7 @@ def bead_pane(
     *,
     description: str = "Polish the copy palette.",
     notes: str = "Keep previews warm.",
-    design: str = "plans:202608/copy_palette.md",
+    design: str = "plan:202608/copy_palette.md",
 ) -> Any:
     issue = Issue(
         id="sase-copy.1",

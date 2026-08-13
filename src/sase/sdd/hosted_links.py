@@ -388,7 +388,7 @@ def hosted_link_resolver(
 def _plan_repo_relative_path(store: SddStore, plan_ref: str) -> str | None:
     """Return *plan_ref* as a path relative to the owning plans repository."""
 
-    from sase.sdd.plan_refs import parse_plan_reference
+    from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, parse_plan_reference
 
     raw = plan_ref.strip()
     if not raw:
@@ -397,7 +397,7 @@ def _plan_repo_relative_path(store: SddStore, plan_ref: str) -> str | None:
         parsed = parse_plan_reference(raw)
     except Exception:
         return None
-    if parsed.kind != "plans" or not parsed.path.strip():
+    if parsed.kind != PLAN_REFERENCE_KIND or not parsed.path.strip():
         return None
 
     if not parsed.legacy:

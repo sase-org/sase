@@ -56,7 +56,7 @@ def test_canonical_reference_present_in_root_and_none_outside(tmp_path: Path) ->
     repo_record = load_plan_show_record(repo_plan, target=_TARGET, roots=roots)
     outside_record = load_plan_show_record(outside_plan, target=_TARGET, roots=roots)
 
-    assert repo_record.plan.reference == "plans:202608/a.md"
+    assert repo_record.plan.reference == "plan:202608/a.md"
     assert outside_record.plan.reference is None
 
 
@@ -173,6 +173,6 @@ def test_load_ambiguity_candidate_builds_lightweight_row(tmp_path: Path) -> None
 
     candidate = load_ambiguity_candidate(plan_path, roots=(repo_root, local_root))
 
-    assert candidate.reference == "plans:202608/a.md"
+    assert candidate.reference == "plan:202608/a.md"
     assert candidate.tier == "tale"
     assert candidate.title == "Approved implementation"

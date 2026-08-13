@@ -22,6 +22,7 @@ from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
     parse_plan_header_block,
 )
+from sase.sdd.plan_refs import PLAN_REFERENCE_PREFIX
 
 PromptArchiveSeverity = Literal["error", "warning"]
 
@@ -302,7 +303,15 @@ def _validate_plan_target(
             )
         )
         return
-    label = (plan.label or "").removeprefix("plans:").removeprefix("plans/")
+    # "plans:" is immutable-history: an archived prompt's PLAN section may
+    # still carry the legacy spelling. Accept it here too. "plans/" is the
+    # directory marker, not the reference prefix.
+    label = (
+        (plan.label or "")
+        .removeprefix(PLAN_REFERENCE_PREFIX)
+        .removeprefix("plans:")
+        .removeprefix("plans/")
+    )
     relative = PurePosixPath(label)
     if (
         not label

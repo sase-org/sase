@@ -14,6 +14,7 @@ from sase.sdd.plan_header_block import (
     remove_plan_header_section,
     upsert_plan_header_section,
 )
+from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, PLAN_REFERENCE_PREFIX
 
 if TYPE_CHECKING:
     from sase.sdd.associations import PlanAssociations
@@ -318,20 +319,24 @@ def _parent_reference(
             parsed = parse_plan_reference(raw)
         except Exception:
             parsed = None
-        if parsed is not None and not parsed.legacy and parsed.kind == "plans":
+        if (
+            parsed is not None
+            and not parsed.legacy
+            and parsed.kind == PLAN_REFERENCE_KIND
+        ):
             canonical = parsed.rendered
     if canonical is not None:
-        return canonical.removeprefix("plans:"), canonical
+        return canonical.removeprefix(PLAN_REFERENCE_PREFIX), canonical
 
     normalized = Path(raw).as_posix().removeprefix("./")
     for marker in _LEGACY_PLAN_MARKERS:
         if normalized.startswith(marker):
             label = normalized.removeprefix(marker)
-            return label, f"plans:{label}"
+            return label, f"{PLAN_REFERENCE_PREFIX}{label}"
         embedded = f"/{marker}"
         if embedded in normalized:
             label = normalized.split(embedded, 1)[1]
-            return label, f"plans:{label}"
+            return label, f"{PLAN_REFERENCE_PREFIX}{label}"
     return normalized, None
 
 

@@ -294,7 +294,7 @@ def test_committed_sdd_plan_reference_resolves_to_filesystem_path(
     write_json(
         artifacts_dir / "agent_meta.json",
         {
-            "sdd_plan_path": "plans:202607/example.md",
+            "sdd_plan_path": "plan:202607/example.md",
             "plan_committed": True,
         },
     )
@@ -343,7 +343,7 @@ def test_sdd_plan_reference_miss_yields_a_real_candidate_location(
     write_json(
         artifacts_dir / "agent_meta.json",
         {
-            "sdd_plan_path": "plans:202607/missing.md",
+            "sdd_plan_path": "plan:202607/missing.md",
             "plan_committed": True,
         },
     )
@@ -353,7 +353,7 @@ def test_sdd_plan_reference_miss_yields_a_real_candidate_location(
     assert [artifact.kind for artifact in artifacts] == ["plan"]
     plan_path = artifacts[0].path
     assert plan_path is not None
-    assert plan_path != "plans:202607/missing.md"
+    assert plan_path != "plan:202607/missing.md"
     assert not plan_path.startswith(str(artifacts_dir))
     assert not plan_path.startswith(str(workspace))
 
@@ -365,7 +365,7 @@ def test_sdd_plan_reference_without_workspace_dir_passes_through_unchanged(
     write_json(
         artifacts_dir / "agent_meta.json",
         {
-            "sdd_plan_path": "plans:202607/example.md",
+            "sdd_plan_path": "plan:202607/example.md",
             "plan_committed": True,
         },
     )
@@ -373,7 +373,7 @@ def test_sdd_plan_reference_without_workspace_dir_passes_through_unchanged(
     artifacts = synthesize_default_artifact_files(artifacts_dir)
 
     assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
-        ("plan", "plans:202607/example.md")
+        ("plan", "plan:202607/example.md")
     ]
 
 

@@ -63,7 +63,7 @@ def test_store_plan_resolves_identically_across_surfaces(
     plan.parent.mkdir(parents=True)
     plan.write_text("# Shared plan\n", encoding="utf-8")
     reference = {
-        "typed": "plans:202607/shared.md",
+        "typed": "plan:202607/shared.md",
         "absolute": str(plan),
         "sdd": "sdd/plans/202607/shared.md",
         "sidecar": "sase/repos/plans/202607/shared.md",
@@ -108,17 +108,17 @@ def test_local_archive_plan_resolves_identically_across_surfaces(
         monkeypatch.chdir(workspace)
         snapshot_path = epic_plan_source_path(
             project,
-            "plans:202607/local-only.md",
+            "plan:202607/local-only.md",
         )
 
     agent = make_agent(workspace_dir=str(workspace), workspace_num=1)
 
     assert snapshot_path == plan.resolve()
     assert (
-        resolve_agent_plan_reference("plans:202607/local-only.md", agent)
+        resolve_agent_plan_reference("plan:202607/local-only.md", agent)
         == plan.resolve()
     )
-    assert resolve_clan_plan_reference("plans:202607/local-only.md") == plan.resolve()
+    assert resolve_clan_plan_reference("plan:202607/local-only.md") == plan.resolve()
     assert _synthesized_plan_path(
-        tmp_path, reference="plans:202607/local-only.md", workspace=workspace
+        tmp_path, reference="plan:202607/local-only.md", workspace=workspace
     ) == str(plan.resolve())

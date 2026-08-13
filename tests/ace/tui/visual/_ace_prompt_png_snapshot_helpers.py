@@ -96,17 +96,17 @@ XPROMPT_HIGHLIGHT_STACK = (
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
 ARTIFACT_REF_HIGHLIGHT = (
-    "Compare @plans:202607/design.md @commit:sase@abcdef1 @user:handle\n"
+    "Compare @plan:202607/design.md @commit:sase@abcdef1 @user:handle\n"
     "Known references stay vivid while unknown-kind prose stays subdued."
 )
 GLOSSARY_HIGHLIGHT_PROMPT = (
     "Ask the Agent Clan to review the Patch glossary wiring\n"
-    "Keep xprompt references, `Agent Clan`, and @plans:notes.md distinct."
+    "Keep xprompt references, `Agent Clan`, and @plan:notes.md distinct."
 )
 GLOSSARY_WRAPPED_HIGHLIGHT_PROMPT = (
     "Ask the Agent\n"
     "  Clan to review the Patch glossary wiring\n"
-    "Keep xprompt references and @plans:notes.md distinct."
+    "Keep xprompt references and @plan:notes.md distinct."
 )
 
 CODEBLOCK_HIGHLIGHT_SOLO = (

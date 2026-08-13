@@ -29,7 +29,7 @@ _PLAN_TEXT = (
 
 def _plan(path: Path, **overrides: object) -> PlanShowPlan:
     defaults: dict[str, object] = {
-        "reference": "plans:202608/a.md",
+        "reference": "plan:202608/a.md",
         "path": str(path),
         "relpath": "202608/a.md",
         "source": "repo",
@@ -115,7 +115,7 @@ def test_invalid_plan_still_renders_and_exits_zero(
 def test_miss_exits_one_and_writes_only_to_stderr(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    _stub(monkeypatch, PlanShowMiss(target="foo", suggestions=("plans:202608/a.md",)))
+    _stub(monkeypatch, PlanShowMiss(target="foo", suggestions=("plan:202608/a.md",)))
 
     exit_code = handle_plan_show_command(_args("foo"))
 
@@ -132,10 +132,10 @@ def test_ambiguity_exits_one_and_writes_only_to_stderr(
         target="a",
         candidates=(
             PlanShowAmbiguityCandidate(
-                reference="plans:202607/a.md", tier="tale", created_at=None, title="A"
+                reference="plan:202607/a.md", tier="tale", created_at=None, title="A"
             ),
             PlanShowAmbiguityCandidate(
-                reference="plans:202608/a.md", tier="tale", created_at=None, title="A2"
+                reference="plan:202608/a.md", tier="tale", created_at=None, title="A2"
             ),
         ),
     )

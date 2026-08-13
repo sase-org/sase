@@ -126,7 +126,7 @@ def test_clan_summary_prefers_worker_resolved_plan_path(
     container, snapshot = rich_clan_snapshot()
     member = clan_section_member_rows(container)[0]
     member.workspace_dir = str(tmp_path)
-    container.clan_summary = "Plan: plans:202608/clan.md"
+    container.clan_summary = "Plan: plan:202608/clan.md"
     resolved = str(tmp_path / "plan-store" / "202608" / "clan.md")
     disk = snapshot.disk
     assert disk is not None
@@ -149,10 +149,10 @@ def test_clan_summary_prefers_worker_resolved_plan_path(
         hint_state=state,
     )
 
-    assert "Plan: [1] plans:202608/clan.md" in rendered.plain
+    assert "Plan: [1] plan:202608/clan.md" in rendered.plain
     assert state.hint_mappings == {1: resolved}
-    start = rendered.plain.index("plans:202608/clan.md")
-    end = start + len("plans:202608/clan.md")
+    start = rendered.plain.index("plan:202608/clan.md")
+    end = start + len("plan:202608/clan.md")
     assert any(
         str(span.style).casefold() == "#87afff"
         and span.start <= start
@@ -167,7 +167,7 @@ def test_clan_summary_unindexed_prompt_is_not_hijacked_by_plan_suffix(
     container, snapshot = rich_clan_snapshot()
     member = clan_section_member_rows(container)[0]
     member.workspace_dir = str(tmp_path)
-    container.clan_summary = "Path: plans:202608/x.md\nPrompt: prompts/202608/x.md"
+    container.clan_summary = "Path: plan:202608/x.md\nPrompt: prompts/202608/x.md"
     plan_target = str(tmp_path / "sase" / "repos" / "plans" / "202608" / "x.md")
     disk = snapshot.disk
     assert disk is not None
@@ -176,7 +176,7 @@ def test_clan_summary_unindexed_prompt_is_not_hijacked_by_plan_suffix(
         disk=replace(
             disk,
             hint_paths={
-                "plans:202608/x.md": plan_target,
+                "plan:202608/x.md": plan_target,
                 "202608/x.md": plan_target,
                 plan_target: plan_target,
             },
@@ -190,7 +190,7 @@ def test_clan_summary_unindexed_prompt_is_not_hijacked_by_plan_suffix(
         hint_state=state,
     )
 
-    assert "Path: [1] plans:202608/x.md" in rendered.plain
+    assert "Path: [1] plan:202608/x.md" in rendered.plain
     assert "Prompt: [2] prompts/202608/x.md" in rendered.plain
     assert state.hint_mappings == {
         1: plan_target,
@@ -204,7 +204,7 @@ def test_clan_summary_prompt_row_resolves_to_archived_prompt_index(
     container, snapshot = rich_clan_snapshot()
     member = clan_section_member_rows(container)[0]
     member.workspace_dir = str(tmp_path)
-    container.clan_summary = "Path: plans:202608/x.md\nPrompt: prompts/202608/x.md"
+    container.clan_summary = "Path: plan:202608/x.md\nPrompt: prompts/202608/x.md"
     plan_target = str(tmp_path / "sase" / "repos" / "plans" / "202608" / "x.md")
     prompt_target = str(
         tmp_path
@@ -224,7 +224,7 @@ def test_clan_summary_prompt_row_resolves_to_archived_prompt_index(
         disk=replace(
             disk,
             hint_paths={
-                "plans:202608/x.md": plan_target,
+                "plan:202608/x.md": plan_target,
                 "202608/x.md": plan_target,
                 plan_target: plan_target,
                 "prompts/202608/x.md": prompt_target,
@@ -239,7 +239,7 @@ def test_clan_summary_prompt_row_resolves_to_archived_prompt_index(
         hint_state=state,
     )
 
-    assert "Path: [1] plans:202608/x.md" in rendered.plain
+    assert "Path: [1] plan:202608/x.md" in rendered.plain
     assert "Prompt: [2] prompts/202608/x.md" in rendered.plain
     assert state.hint_mappings == {1: plan_target, 2: prompt_target}
 

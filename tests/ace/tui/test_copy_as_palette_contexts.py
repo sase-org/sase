@@ -24,7 +24,7 @@ def test_commit_rows_join_registry_keys_availability_and_warm_previews() -> None
     entry = commit_entry(
         "a",
         subject="Add the Copy as palette",
-        plan="plans:202607/copy_as_palette.md",
+        plan="plan:202607/copy_as_palette.md",
     )
     app.commits_pane = commit_pane((entry,))
 
@@ -47,7 +47,7 @@ def test_commit_rows_join_registry_keys_availability_and_warm_previews() -> None
     previews = {row.target: row.preview for row in context.rows}
     assert previews["sha"] == "a" * 40
     assert previews["message"] == "Add the Copy as palette"
-    assert previews["plan"] == "plans:202607/copy_as_palette.md"
+    assert previews["plan"] == "plan:202607/copy_as_palette.md"
 
 
 def test_bead_rows_cover_every_default_target_with_warm_previews() -> None:
@@ -75,7 +75,7 @@ def test_bead_rows_cover_every_default_target_with_warm_previews() -> None:
     assert previews["id"] == "sase-copy.1"
     assert previews["title"] == "Complete bead copy mode"
     assert previews["body"] == "Polish the copy palette. Keep previews warm."
-    assert previews["design"] == "plans:202608/copy_palette.md"
+    assert previews["design"] == "plan:202608/copy_palette.md"
 
 
 def test_bead_rows_hide_empty_optional_body_and_design_targets() -> None:

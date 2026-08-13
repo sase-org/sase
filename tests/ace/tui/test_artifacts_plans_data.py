@@ -84,7 +84,7 @@ def test_snapshot_partitions_live_linked_documents_from_archive(
         BeadTier.EPIC,
         "Active plan",
         "2026-08-01T09:00:00Z",
-        "plans:202608/active.md",
+        "plan:202608/active.md",
         str(active_path),
     )
     document = LinkedPlanDocument(

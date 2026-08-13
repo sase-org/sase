@@ -49,7 +49,7 @@ class View:
 
 class Links:
     def plan_url(self, plan_ref: str) -> str | None:
-        assert plan_ref == "plans:202607/bead_pages.md"
+        assert plan_ref == "plan:202607/bead_pages.md"
         return "https://github.com/sase-org/sase--plans/blob/main/202607/bead_pages.md"
 
     def agent_url(self, agent_name: str) -> str | None:
@@ -61,7 +61,7 @@ class ReferenceLinks:
     """A resolver with every hosted-link capability the page renderer uses."""
 
     def plan_url(self, plan_ref: str) -> str | None:
-        return f"https://example.test/plans/{plan_ref.removeprefix('plans:')}"
+        return f"https://example.test/plans/{plan_ref.removeprefix('plan:')}"
 
     def bead_url(self, bead_id: str) -> str | None:
         return f"https://example.test/beads/{bead_id}.md"
@@ -88,7 +88,7 @@ def fixtures() -> tuple[View, Issue, Issue, BeadAssociationIndex]:
         resolution=Resolution.DONE,
         description="Publish a stable page for every bead.",
         notes="Verified with focused tests.",
-        design="plans:202607/bead_pages.md",
+        design="plan:202607/bead_pages.md",
     )
     phase_one = Issue(
         "sase-ai.1",

@@ -117,14 +117,14 @@ def test_regex_matches_multiple_paths() -> None:
 
 
 def test_container_matcher_keeps_plans_prefix_isolated() -> None:
-    """Only container hint matching treats ``plans:`` as part of the token."""
-    content = "Plan: plans:202608/clan.md"
+    """Only container hint matching treats ``plan:`` as part of the token."""
+    content = "Plan: plan:202608/clan.md"
 
     generic = list(iter_file_path_matches(content))
     container = list(iter_container_file_path_matches(content))
 
     assert [match.group(2) for match in generic] == ["202608/clan.md"]
-    assert [match.group(2) for match in container] == ["plans:202608/clan.md"]
+    assert [match.group(2) for match in container] == ["plan:202608/clan.md"]
 
 
 # --- Tests for append_text_with_file_hints ---
@@ -305,20 +305,20 @@ def test_bounded_append_drops_path_cut_by_byte_cap() -> None:
 
 
 def test_container_bound_content_drops_partial_logical_plan_reference() -> None:
-    """A byte cap cannot leave ``plans:`` detached from its path."""
-    content = "Open plans:202608/clan.md after approval"
+    """A byte cap cannot leave ``plan:`` detached from its path."""
+    content = "Open plan:202608/clan.md after approval"
 
     bounded = bound_hint_content(
         content,
         budget=HintContentBudget(
-            remaining_bytes=len("Open plans:"),
+            remaining_bytes=len("Open plan:"),
             remaining_lines=10,
         ),
         matcher=iter_container_file_path_matches,
     )
 
     assert bounded.content == "Open "
-    assert "plans:" not in bounded.content
+    assert "plan:" not in bounded.content
     assert bounded.notice is not None
 
 

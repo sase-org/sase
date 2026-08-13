@@ -80,8 +80,8 @@ def test_ref_add_normalizes_deduplicates_and_persists(
         ref_action="add",
         refs=[
             "research:202607/existing.md",
-            "plans:202607/plan.md",
-            "plans:202607/plan.md",
+            "plan:202607/plan.md",
+            "plan:202607/plan.md",
         ],
     )
 
@@ -90,7 +90,7 @@ def test_ref_add_normalizes_deduplicates_and_persists(
     patch = parse_project_file(str(project))[0]
     assert patch.refs == [
         "research:202607/existing.md",
-        "plans:202607/plan.md",
+        "plan:202607/plan.md",
     ]
     assert "Attached 1 artifact reference" in capsys.readouterr().out
 
@@ -101,7 +101,7 @@ def test_ref_rm_detaches_only_requested_entries(
 ) -> None:
     project = _project_file(
         tmp_path,
-        ("research:202607/report.md", "plans:202607/plan.md"),
+        ("research:202607/report.md", "plan:202607/plan.md"),
     )
     _target(monkeypatch, project)
     args = argparse.Namespace(
@@ -112,7 +112,7 @@ def test_ref_rm_detaches_only_requested_entries(
 
     assert _handle_ref(args) == 0
 
-    assert parse_project_file(str(project))[0].refs == ["plans:202607/plan.md"]
+    assert parse_project_file(str(project))[0].refs == ["plan:202607/plan.md"]
 
 
 def test_ref_list_resolve_json_returns_machine_readable_outcomes(
@@ -122,7 +122,7 @@ def test_ref_list_resolve_json_returns_machine_readable_outcomes(
 ) -> None:
     project = _project_file(
         tmp_path,
-        ("plans:resolved.md", "plans:missing.md"),
+        ("plan:resolved.md", "plan:missing.md"),
     )
     context = make_context(tmp_path)
     resolved = context.document_roots[1].root / "resolved.md"

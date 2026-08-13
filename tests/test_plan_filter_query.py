@@ -84,7 +84,7 @@ def _snapshot() -> PlansSnapshot:
         bead_tier=BeadTier.EPIC,
         bead_title="Plans filter bar",
         bead_created_at="2026-07-02T09:00:00Z",
-        reference="plans:202607/active.md",
+        reference="plan:202607/active.md",
         path="/plans/202607/active.md",
     )
     document = LinkedPlanDocument(

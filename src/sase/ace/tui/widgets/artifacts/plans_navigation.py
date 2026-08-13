@@ -9,6 +9,8 @@ from textual.widgets import Markdown, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
+from sase.sidecar_ref_config import sidecar_role_ref_kind
 
 from .._prompt_preview_target import PreviewPayload
 from .entry_navigation import ArtifactEntryTarget
@@ -229,7 +231,7 @@ class PlansNavigationMixin(_MixinBase):
             )
         if row.archive is not None:
             plan = row.archive.plan
-            role = row.archive_role or "plans"
+            role = sidecar_role_ref_kind(row.archive_role or PLAN_REFERENCE_KIND)
             return PreviewPayload(
                 content=archive_preview_markdown(row.archive, role=role),
                 lexer="markdown",
@@ -281,7 +283,7 @@ class PlansNavigationMixin(_MixinBase):
                 archive_properties_header(
                     row.archive,
                     project_name=self._project_name(row.project),
-                    role=row.archive_role or "plans",
+                    role=sidecar_role_ref_kind(row.archive_role or PLAN_REFERENCE_KIND),
                     owner=row.bead_link,
                 )
             )

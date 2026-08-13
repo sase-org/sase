@@ -279,7 +279,7 @@ def test_consumption_adds_only_canonical_file_ids_and_retains_overlap_evidence(
         return {
             f"file:{overlap_id}": object(),
             f"file:{consumed_only_id}": object(),
-            "plans:202607/report.md": object(),
+            "plan:202607/report.md": object(),
             f"file:{consumed_only_id}#L2": object(),
             "file:default:AAAAAAAAAAAAAAAAAAAAAAAA": object(),
         }

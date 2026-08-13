@@ -110,7 +110,7 @@ _EPIC_CLAN_SUMMARY_WITH_PROMPT_HINTS = _render_plan_summary(
         authored_tier="tale",
         effective_tier="tale",
         actual_path="/workspace/sase/sase/repos/plans/202608/hints.md",
-        display_path="plans:202608/hints.md",
+        display_path="plan:202608/hints.md",
         committed=True,
         exists=True,
         readable=True,
@@ -270,7 +270,7 @@ async def test_epic_clan_panel_logical_prompt_hint_mode_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "[1]")
-        assert_page_svg_contains(page, "plans:202608/")
+        assert_page_svg_contains(page, "plan:202608/")
         assert_page_svg_contains(page, "hints.md")
         assert_page_svg_contains(page, "[2]")
         assert_page_svg_contains(page, "prompts/202608/")

@@ -54,7 +54,7 @@ def _link(
         bead_tier=BeadTier.EPIC,
         bead_title="Ship the plan browser",
         bead_created_at="2026-07-01T09:00:00Z",
-        reference="plans:202607/active.md",
+        reference="plan:202607/active.md",
         path=str(path),
     )
 
@@ -123,7 +123,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         link,
         bead_id="alpha-closed",
         bead_status=Status.CLOSED,
-        reference="plans:202607/archive.md",
+        reference="plan:202607/archive.md",
         path=str(archived_path),
     )
     return PlansSnapshot(

@@ -11,6 +11,12 @@ from sase.core.rust import require_rust_binding
 from sase.sdd.store import SddStore, resolve_sdd_store
 
 
+PLAN_REFERENCE_KIND = "plan"
+"""Canonical logical plan-reference kind accepted by ``sase_core_rs``."""
+
+PLAN_REFERENCE_PREFIX = "plan:"
+"""Canonical logical plan-reference prefix rendered by ``sase_core_rs``."""
+
 PLAN_REFERENCE_RESOLUTION_WIRE_SCHEMA_VERSION = 1
 PlanReferenceResolutionStatus = Literal[
     "exact",
@@ -181,7 +187,7 @@ def plan_ref_for_store(
     """Return the stable plan reference persisted on a bead.
 
     Plans below the active store plans root or the machine-local plan archive
-    are stored as logical ``plans:`` references. Other paths keep the legacy
+    are stored as logical ``plan:`` references. Other paths keep the legacy
     stable fallback forms so callers can still link external files.
     """
     plan_path = plan_path.expanduser().resolve(strict=False)
@@ -222,6 +228,8 @@ def _normalized_unique_roots(roots: tuple[Path, ...]) -> tuple[Path, ...]:
 
 
 __all__ = [
+    "PLAN_REFERENCE_KIND",
+    "PLAN_REFERENCE_PREFIX",
     "PLAN_REFERENCE_RESOLUTION_WIRE_SCHEMA_VERSION",
     "PlanReferenceResolution",
     "PlanReferenceResolutionStatus",

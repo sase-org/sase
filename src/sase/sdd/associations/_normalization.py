@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.sdd.plan_refs import (
+    PLAN_REFERENCE_KIND,
+    PLAN_REFERENCE_PREFIX,
     canonicalize_plan_reference_from_roots,
     parse_plan_reference,
     resolve_plan_reference_from_roots,
@@ -22,7 +24,7 @@ _LEGACY_PLAN_PREFIXES = (
 
 @dataclass(frozen=True, slots=True)
 class PlanReferenceNormalizer:
-    """Collapse persisted plan spellings onto one ``plans:`` key."""
+    """Collapse persisted plan spellings onto one ``plan:`` key."""
 
     store: SddStore
     primary_root: Path
@@ -44,7 +46,7 @@ class PlanReferenceNormalizer:
         except (ImportError, RuntimeError, TypeError, ValueError):
             parsed = None
         if parsed is not None and not parsed.legacy:
-            return parsed.rendered if parsed.kind == "plans" else None
+            return parsed.rendered if parsed.kind == PLAN_REFERENCE_KIND else None
 
         path = Path(raw).expanduser()
         if path.is_absolute():
@@ -65,7 +67,7 @@ class PlanReferenceNormalizer:
             return legacy
         if not normalized or normalized.startswith("../"):
             return None
-        return f"plans:{normalized}"
+        return f"{PLAN_REFERENCE_PREFIX}{normalized}"
 
     def _resolve_existing(self, raw: str) -> str | None:
         try:
@@ -87,7 +89,7 @@ def _canonical_legacy_suffix(value: str) -> str | None:
         if marker not in normalized:
             continue
         suffix = normalized.split(marker, 1)[1]
-        return f"plans:{suffix}" if suffix else None
+        return f"{PLAN_REFERENCE_PREFIX}{suffix}" if suffix else None
     return None
 
 

@@ -145,7 +145,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase plan links refresh\n"
             "  sase plan links refresh --json\n"
-            "  sase plan links refresh --plan plans:202607/example.md\n"
+            "  sase plan links refresh --plan plan:202607/example.md\n"
             "  sase plan links refresh --write"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -397,7 +397,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "show",
         help="Show one plan's details",
         description=(
-            "Resolve TARGET — an explicit path, a `plans:` reference or "
+            "Resolve TARGET — an explicit path, a `plan:` reference or "
             "legacy marker path, a pending-approval id or unique prefix, a "
             "bare slug or `<shard>/<slug>`, or a bead id whose design points "
             "at a plan — to exactly one plan and render it as a colored, "
@@ -412,11 +412,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase plan show\n"
             "  sase plan show abcdef12\n"
-            "  sase plan show plans:202608/plan_show_command.md\n"
+            "  sase plan show plan:202608/plan_show_command.md\n"
             "  sase plan show 202608/plan_show_command\n"
             "  sase plan show sase_plan_feature.md\n"
             "  sase plan show sase-64\n"
-            "  sase plan show plans:202608/plan_show_command.md --format json\n"
+            "  sase plan show plan:202608/plan_show_command.md --format json\n"
             "  sase plan show plan_show_command --format raw > plan.md"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,

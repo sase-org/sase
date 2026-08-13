@@ -7,6 +7,8 @@ from sase.artifact_ref_operations import (
     canonicalize_artifact_ref,
     parse_artifact_ref,
 )
+from sase.sdd.plan_refs import PLAN_REFERENCE_KIND, PLAN_REFERENCE_PREFIX
+from sase.sidecar_ref_config import sidecar_role_ref_kind
 
 
 def reference_for_entry_target(
@@ -113,7 +115,7 @@ def _reference_for_plan_row(
         reference = canonicalize_artifact_ref(plan_path, context=context)
         return (
             reference
-            if reference is not None and reference.startswith("plans:")
+            if reference is not None and reference.startswith(PLAN_REFERENCE_PREFIX)
             else None
         )
     if row_kind == "active":
@@ -125,7 +127,7 @@ def _reference_for_plan_row(
         reference = canonicalize_artifact_ref(plan_path, context=context)
         return (
             reference
-            if reference is not None and reference.startswith("plans:")
+            if reference is not None and reference.startswith(PLAN_REFERENCE_PREFIX)
             else None
         )
     if row_kind == "archive":
@@ -142,11 +144,11 @@ def _reference_for_plan_row(
                 plan_kind
                 if isinstance(plan_kind, str)
                 and plan_kind not in {"tale", "epic", "prompt", "local"}
-                else "plans"
+                else PLAN_REFERENCE_KIND
             )
         if not isinstance(relpath, str) or not relpath:
             return None
-        return parse_artifact_ref(f"{role}:{relpath}").rendered
+        return parse_artifact_ref(f"{sidecar_role_ref_kind(role)}:{relpath}").rendered
     return None
 
 
@@ -165,7 +167,7 @@ def design_reference_for_plan_row(row: object | None) -> str | None:
         parsed = parse_artifact_ref(design)
     except ValueError:
         return None
-    return parsed.rendered if parsed.kind == "plans" else None
+    return parsed.rendered if parsed.kind == PLAN_REFERENCE_KIND else None
 
 
 def reference_for_agent_name(name: str) -> str | None:

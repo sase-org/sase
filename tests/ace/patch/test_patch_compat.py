@@ -163,7 +163,7 @@ def test_refs_update_inserts_before_canonical_stitches_header() -> None:
         "  (1) Existing\n",
     ]
 
-    updated = apply_refs_update(lines, "demo", ["plans:202608/demo.md"])
+    updated = apply_refs_update(lines, "demo", ["plan:202608/demo.md"])
 
     assert updated == [
         "NAME: demo\n",
@@ -171,7 +171,7 @@ def test_refs_update_inserts_before_canonical_stitches_header() -> None:
         "  Demo\n",
         "STATUS: WIP\n",
         "REFS:\n",
-        "  plans:202608/demo.md\n",
+        "  plan:202608/demo.md\n",
         "STITCHES:\n",
         "  (1) Existing\n",
     ]

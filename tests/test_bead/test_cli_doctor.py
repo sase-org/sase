@@ -246,7 +246,7 @@ def test_fix_preview_cancellation_never_opens_mutation(
             _DesignRefRepair(
                 bead_id="beads-1",
                 old_reference="/old/one.md",
-                new_reference="plans:202607/one.md",
+                new_reference="plan:202607/one.md",
             ),
         ),
         unrepaired=(),
@@ -281,7 +281,7 @@ def test_fix_preview_cancellation_never_opens_mutation(
     cli_admin.handle_bead_doctor(argparse.Namespace(fix_design_refs=True))
 
     output = capsys.readouterr().out
-    assert "/old/one.md -> plans:202607/one.md" in output
+    assert "/old/one.md -> plan:202607/one.md" in output
     assert "cancelled; no changes applied" in output
 
 
@@ -323,7 +323,7 @@ def test_confirmed_fix_uses_update_events_and_one_aggregate_commit(
     cli_admin.handle_bead_doctor(argparse.Namespace(fix_design_refs=True))
 
     with BeadProject(project_dir) as project:
-        assert project.show(issue.id).design == "plans:202607/one.md"
+        assert project.show(issue.id).design == "plan:202607/one.md"
     stream = project_dir / f"sdd/beads/events/streams/{issue.id}.jsonl"
     operations = [
         json.loads(line)["operation"]
@@ -345,7 +345,7 @@ def test_stale_preview_performs_no_updates_or_commit(
             _DesignRefRepair(
                 "beads-1",
                 "/old/one.md",
-                "plans:202607/one.md",
+                "plan:202607/one.md",
             ),
         ),
         unrepaired=(),

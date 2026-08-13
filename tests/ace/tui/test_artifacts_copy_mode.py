@@ -239,7 +239,7 @@ def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> 
         commit=SimpleNamespace(full_id="a" * 40),
     )
     message = (
-        "Subject\n\nSASE_PLAN=plans:202607/old.md\nSASE_PLAN=plans:202607/current.md"
+        "Subject\n\nSASE_PLAN=plan:202607/old.md\nSASE_PLAN=plan:202607/current.md"
     )
     app.commits_pane = SimpleNamespace(
         _selected_entry=lambda: entry,
@@ -253,7 +253,7 @@ def test_commits_copy_targets_use_the_visible_commit_and_terminal_plan_tag() -> 
         "a" * 40,
         message,
         f"sase@{'a' * 40}",
-        "plans:202607/current.md",
+        "plan:202607/current.md",
     ]
 
 
@@ -291,7 +291,7 @@ def test_plans_owner_copy_targets_preserve_the_bead_link() -> None:
     app.current_artifacts_subtab = "ref:plan"
     bead_link = SimpleNamespace(
         bead_id="sase-b2",
-        reference="plans:202607/bead_and_agent_artifact_refs.md",
+        reference="plan:202607/bead_and_agent_artifact_refs.md",
     )
     row = SimpleNamespace(
         proposal=None,

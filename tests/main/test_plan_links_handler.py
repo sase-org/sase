@@ -59,14 +59,14 @@ def test_parser_registers_nested_links_commands() -> None:
             "-p",
             "sdd",
             "--plan",
-            "plans:202607/example.md",
+            "plan:202607/example.md",
             "-j",
             "-w",
         ]
     )
     assert refresh.plan_links_subcommand == "refresh"
     assert refresh.path == "sdd"
-    assert refresh.plan == "plans:202607/example.md"
+    assert refresh.plan == "plan:202607/example.md"
     assert refresh.json is True
     assert refresh.write is True
 

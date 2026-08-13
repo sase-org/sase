@@ -207,7 +207,7 @@ def _resolve_plan_path_reference(
     done: dict[str, Any],
     agent_meta: dict[str, Any],
 ) -> str:
-    """Resolve a possibly-logical ``plans:`` reference to a filesystem path.
+    """Resolve a possibly-logical ``plan:`` reference to a filesystem path.
 
     Absolute paths are returned unchanged — the overwhelmingly common case,
     and free. A logical reference is resolved through the shared Rust-backed

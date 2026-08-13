@@ -67,7 +67,7 @@ def _markdown_payload(
             "Render this plan as Markdown.\n"
         ),
         lexer="markdown",
-        reference="plans:202607/plan.md",
+        reference="plan:202607/plan.md",
         default_view=default_view,
     )
 

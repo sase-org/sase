@@ -25,7 +25,7 @@ def test_exact_resolution_reports_the_reference_and_the_path(
     root = _plans_root(tmp_path, "202607", "durable.md")
 
     display = describe_design_reference(
-        "plans:202607/durable.md",
+        "plan:202607/durable.md",
         roots=(root,),
         cwd=tmp_path,
     )
@@ -33,7 +33,7 @@ def test_exact_resolution_reports_the_reference_and_the_path(
     assert display.resolved
     assert display.status == "exact"
     assert display.lines == (
-        "plans:202607/durable.md",
+        "plan:202607/durable.md",
         f"→ {root / '202607/durable.md'}",
     )
 
@@ -42,7 +42,7 @@ def test_month_drift_is_marked_rather_than_hidden(tmp_path: Path) -> None:
     root = _plans_root(tmp_path, "202607", "drifted.md")
 
     display = describe_design_reference(
-        "plans:202606/drifted.md",
+        "plan:202606/drifted.md",
         roots=(root,),
         cwd=tmp_path,
     )
@@ -56,23 +56,23 @@ def test_missing_and_ambiguous_references_say_so(tmp_path: Path) -> None:
     _plans_root(tmp_path, "202606", "twin.md")
 
     missing = describe_design_reference(
-        "plans:202607/gone.md",
+        "plan:202607/gone.md",
         roots=(root,),
         cwd=tmp_path,
     )
     ambiguous = describe_design_reference(
-        "plans:202605/twin.md",
+        "plan:202605/twin.md",
         roots=(root,),
         cwd=tmp_path,
     )
 
     assert not missing.resolved
     assert missing.lines == (
-        "plans:202607/gone.md",
+        "plan:202607/gone.md",
         f"→ {PLAN_REFERENCE_MISSING_LABEL}",
     )
     assert ambiguous.lines == (
-        "plans:202605/twin.md",
+        "plan:202605/twin.md",
         f"→ {PLAN_REFERENCE_AMBIGUOUS_LABEL}",
     )
 
@@ -81,7 +81,7 @@ def test_a_malformed_reference_is_reported_not_treated_as_legacy(
     tmp_path: Path,
 ) -> None:
     display = describe_design_reference(
-        "plans:../escape.md",
+        "plan:../escape.md",
         roots=(),
         cwd=tmp_path,
     )

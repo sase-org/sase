@@ -59,7 +59,7 @@ def test_patch_refs_reports_healthy_batch(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    record = _record(tmp_path, "plans:resolved.md")
+    record = _record(tmp_path, "plan:resolved.md")
     context = make_context(tmp_path)
     plan = context.document_roots[1].root / "resolved.md"
     plan.parent.mkdir(parents=True)
@@ -81,7 +81,7 @@ def test_patch_refs_groups_unresolvable_entries(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    record = _record(tmp_path, "plans:missing.md")
+    record = _record(tmp_path, "plan:missing.md")
     context = make_context(tmp_path)
     _select_record(monkeypatch, record)
     monkeypatch.setattr(
@@ -93,8 +93,7 @@ def test_patch_refs_groups_unresolvable_entries(
 
     assert check.status == "WARN"
     assert check.details == (
-        "WARNING: unresolvable artifact references (1): "
-        "sase_feature [plans:missing.md]",
+        "WARNING: unresolvable artifact references (1): sase_feature [plan:missing.md]",
     )
     assert check.data["findings"][0]["status"] == "missing"
 
@@ -103,7 +102,7 @@ def test_patch_refs_skips_when_reference_context_is_unavailable(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    record = _record(tmp_path, "plans:missing.md")
+    record = _record(tmp_path, "plan:missing.md")
     _select_record(monkeypatch, record)
     monkeypatch.setattr(
         "sase.doctor.checks_changespec_refs._reference_context",  # legacy module path
