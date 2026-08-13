@@ -15,7 +15,7 @@ from sase.core.paths import sase_projects_dir
 from sase.running_field import release_workspace
 
 from .followup import FollowupLaunchResult, launch_followup_agent
-from .models import MonitorState
+from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
 from .output import OutputCapture
 
 LOST_FOLLOWUP_ERROR = (
@@ -74,7 +74,7 @@ def settle_claim_and_followup(
                 _record_followup_outcome(
                     artifacts_dir,
                     meta,
-                    "launched-degraded",
+                    MONITOR_FOLLOWUP_DEGRADED_OUTCOME,
                     degraded_reason=launch_result.degraded_reason,
                 )
                 release_error = _release_monitor_claim(meta, project_name=project_name)

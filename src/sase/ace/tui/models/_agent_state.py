@@ -171,8 +171,10 @@ class AgentState:
 
     # Follow-up (``--next``) launch disposition, set once the monitor
     # settles. ``monitor_followup_error`` is the human-readable reason a
-    # ``--next`` action was dropped or degraded; a lane carrying one is
-    # stalled and needs a human, not merely finished.
+    # ``--next`` action was dropped entirely; a degraded launch records no
+    # error and is recognizable only by its ``launched-degraded`` outcome.
+    # A lane carrying either is stalled and needs a human, not merely
+    # finished.
     monitor_followup_outcome: str | None = None
     monitor_followup_error: str | None = None
 

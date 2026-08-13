@@ -102,6 +102,14 @@ _MONITOR_STALLED_GLYPH_STYLE = "bold #FF5F5F"
 _MONITOR_FOLLOWUP_ERROR_GLYPH = "⚑"
 _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE = "bold #FFAF00"
 
+# ``Agent.monitor_followup_outcome`` for a follow-up that launched only after
+# falling back to a fresh claim or workspace 0. Mirrors
+# ``sase.monitor.models.MONITOR_FOLLOWUP_DEGRADED_OUTCOME``, which the agent
+# list cannot import without pulling the monitor supervisor stack onto this
+# hot render path. A degraded launch records no ``monitor_followup_error``,
+# so the flag has to key off the outcome as well.
+_MONITOR_FOLLOWUP_DEGRADED_OUTCOME = "launched-degraded"
+
 # Icon for auto-approve agents. Rendered bare for a normal-plan approval and
 # suffixed ``E``/``T`` for epic/tale plan actions in
 # ``_agent_list_render_agent``.

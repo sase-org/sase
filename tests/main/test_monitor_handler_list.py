@@ -226,6 +226,49 @@ def test_list_json_envelope_carries_followup_disposition(
     assert monitor["followup_error"] == "workspace #10 with pid 3333672 was not found"
 
 
+def test_list_flags_a_degraded_followup_in_table_and_markdown(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A degraded launch sets no error, so the outcome alone must raise the flag."""
+    degraded = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        monitor_state="completed",
+        exit_code=0,
+        monitor_followup_outcome="launched-degraded",
+        monitor_followup_degraded_reason="relaunched against workspace 0",
+    )
+    patch_project_records(monkeypatch, [degraded])
+
+    assert dispatch(["monitor", "list", "--all"]) == 0
+    assert "⚑" in capsys.readouterr().out
+
+    assert dispatch(["monitor", "list", "--all", "--format", "markdown"]) == 0
+    assert "⚑" in capsys.readouterr().out
+
+
+def test_list_does_not_flag_a_cleanly_launched_followup(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    launched = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        monitor_state="completed",
+        exit_code=0,
+        monitor_followup_outcome="launched",
+    )
+    patch_project_records(monkeypatch, [launched])
+
+    assert dispatch(["monitor", "list", "--all"]) == 0
+    assert "⚑" not in capsys.readouterr().out
+
+
 def test_list_markdown_format_renders_a_pipe_table(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

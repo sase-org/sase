@@ -1752,7 +1752,11 @@ badges instead of verbose text:
 A monitor member (a family member whose work is a supervised command, started with
 `sase monitor start`) renders its own amber `⏱` glyph beside the bash/python step glyphs
 below, with its configured label as the row title and a live elapsed suffix or
-exit-code/timeout badge instead of the statuses above. See [Monitors](monitors.md).
+exit-code/timeout badge instead of the statuses above. Two extra badges mark a stalled
+lane: a red `⚠` replaces the exit-code badge when a terminal monitor's supervisor never
+reported a real exit code, and an amber `⚑` follows the row when its `--next` follow-up
+was dropped or launched degraded — a monitor can finish cleanly and still strand its
+follow-up. See [Monitors](monitors.md).
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the
 status glyph and the tribe/name. A phase agent named `<epic_id>.<N>` displays that phase

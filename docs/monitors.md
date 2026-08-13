@@ -252,9 +252,8 @@ output rendered as a plain log rather than markdown. See
 
 A stalled lane — a supervisor that never reported a real outcome, or a follow-up that
 never launched — is not something a project owner should have to notice by its absence.
-Two independent conditions render distinctly, in the Agents tab, `sase monitor list`,
-and notifications, wherever the plain exit-code/timeout badges above do not already
-cover them:
+Two independent conditions render distinctly, in the Agents tab and `sase monitor list`,
+wherever the plain exit-code/timeout badges above do not already cover them:
 
 - **A terminal monitor with no recorded exit code.** A `failed` or `lost` monitor whose
   supervisor never reported a real exit code (died on arrival, or belongs to a previous
@@ -266,12 +265,17 @@ cover them:
 
 `sase monitor list` marks the same lane with the `⚑` flag next to its `STATE` cell (in
 both the table and `--format markdown` output) so a stalled lane is visible without
-`--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line, and both
-commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
-`not-launchable`) and `followup_error`.
+`--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for a
+dropped follow-up and a `Follow-up degraded` line for a degraded one, and both commands'
+JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
+`not-launchable`), `followup_error`, and `followup_degraded_reason`.
 
-A dropped `--next` also raises its own alarm-tagged notification (separate from the
-routine monitor-complete note) so it is not lost inside "just another finished monitor".
+Monitors themselves are notification-neutral: a monitor is an execution and handoff
+mechanism, not a workflow that files notifications, so neither a completed monitor nor a
+dropped `--next` appends a notification row. The badges and flags above, plus
+`monitor_followup_outcome` / `monitor_followup_error` in `agent_meta.json` and
+`done.json`, are the durable signals — read them with `sase monitor list`,
+`sase monitor show <id>`, or the Agents tab.
 
 ## Example: approved epic launches
 

@@ -56,9 +56,9 @@ _FOLLOWUP_ERROR_STYLE = "bold yellow"
 
 
 def _state_cell(record: MonitorRecord) -> Text:
-    """Return the STATE cell, flagged when the follow-up did not launch."""
+    """Return the STATE cell, flagged when the follow-up needs a human."""
     text = status_text(record.monitor_state)
-    if record.followup_error:
+    if record.followup_needs_attention:
         text.append(f" {_FOLLOWUP_ERROR_GLYPH}", style=_FOLLOWUP_ERROR_STYLE)
     return text
 
@@ -142,6 +142,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "request_fingerprint": record.request_fingerprint,
         "followup_outcome": record.followup_outcome,
         "followup_error": record.followup_error,
+        "followup_degraded_reason": record.followup_degraded_reason,
     }
 
 
@@ -248,7 +249,7 @@ def monitor_list_markdown(records: Sequence[MonitorRecord]) -> str:
     for record in records:
         exit_code = "—" if record.exit_code is None else str(record.exit_code)
         state: str = record.monitor_state
-        if record.followup_error:
+        if record.followup_needs_attention:
             state = f"{state} {_FOLLOWUP_ERROR_GLYPH}"
         rows.append(
             "| {state} | {id} | {label} | {member} | {elapsed} | {exit} | {started} |".format(
@@ -314,6 +315,13 @@ def monitor_detail(record: MonitorRecord) -> Panel:
             (
                 "Follow-up error",
                 Text(record.followup_error, style="bold yellow"),
+            )
+        )
+    if record.followup_degraded_reason:
+        rows.append(
+            (
+                "Follow-up degraded",
+                Text(record.followup_degraded_reason, style="bold yellow"),
             )
         )
     if record.output_truncated:

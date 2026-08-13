@@ -15,6 +15,7 @@ def _monitor(
     monitor_state: str,
     exit_code: int | None = None,
     followup_error: str | None = None,
+    followup_outcome: str | None = None,
 ) -> Agent:
     started = datetime(2026, 8, 12, 9, 0, 0)
     stop_time = (
@@ -49,6 +50,7 @@ def _monitor(
         monitor_command="just check-full",
         monitor_exit_code=exit_code,
         monitor_followup_error=followup_error,
+        monitor_followup_outcome=followup_outcome,
     )
 
 
@@ -177,6 +179,37 @@ def test_monitor_row_with_dropped_followup_renders_flag_badge() -> None:
     assert "⚑" in left.plain
     # A clean completion is not also flagged as dead-on-arrival.
     assert "⚠" not in left.plain
+
+
+def test_monitor_row_with_degraded_followup_renders_flag_badge() -> None:
+    """A degraded launch records no error, so the outcome alone must flag it."""
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(
+            status="MONITORED",
+            monitor_state="completed",
+            exit_code=0,
+            followup_outcome="launched-degraded",
+        ),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚑" in left.plain
+
+
+def test_monitor_row_with_a_clean_launched_followup_has_no_flag_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _monitor(
+            status="MONITORED",
+            monitor_state="completed",
+            exit_code=0,
+            followup_outcome="launched",
+        ),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚑" not in left.plain
 
 
 def test_monitor_row_without_followup_error_has_no_flag_badge() -> None:

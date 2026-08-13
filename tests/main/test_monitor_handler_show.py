@@ -163,6 +163,34 @@ def test_show_renders_a_dropped_followup_error(
     )
 
 
+def test_show_renders_a_degraded_followup_reason(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A degraded launch records no error, so its reason gets its own row."""
+    reason = "relaunched against workspace 0; the monitor's workspace was taken"
+    artifacts_dir = make_monitor(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        lane="acme",
+        monitor_id="aaabbbcccddd",
+        monitor_state="completed",
+        exit_code=0,
+        monitor_followup_outcome="launched-degraded",
+        monitor_followup_degraded_reason=reason,
+    )
+    patch_project_records(monkeypatch, [artifacts_dir])
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd"]) == 0
+    out = capsys.readouterr().out
+    assert "Follow-up degraded" in out
+
+    assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["monitor"]["followup_outcome"] == "launched-degraded"
+    assert payload["monitor"]["followup_degraded_reason"] == reason
+
+
 def test_show_follow_streams_new_output_until_terminal(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

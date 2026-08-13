@@ -76,6 +76,7 @@ from ._agent_list_styling import (
     _HIDDEN_ICON,
     _MISSING_WAIT_TARGET_GLYPH,
     _MISSING_WAIT_TARGET_GLYPH_STYLE,
+    _MONITOR_FOLLOWUP_DEGRADED_OUTCOME,
     _MONITOR_FOLLOWUP_ERROR_GLYPH,
     _MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
     _MONITOR_GLYPH,
@@ -418,7 +419,10 @@ def format_agent_option(
         # above, which mean the command itself ran and reported.
         text.append(f" {_MONITOR_STALLED_GLYPH}", style=_MONITOR_STALLED_GLYPH_STYLE)
     text.append(")", style="dim")
-    if agent.is_monitor and agent.monitor_followup_error:
+    if agent.is_monitor and (
+        agent.monitor_followup_error
+        or agent.monitor_followup_outcome == _MONITOR_FOLLOWUP_DEGRADED_OUTCOME
+    ):
         text.append(
             f" {_MONITOR_FOLLOWUP_ERROR_GLYPH}",
             style=_MONITOR_FOLLOWUP_ERROR_GLYPH_STYLE,
