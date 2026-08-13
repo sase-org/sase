@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sase.core.dismissed_agent_completion import effective_done_outcome
 from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     agent_family_base,
@@ -30,8 +31,7 @@ def done_outcome(artifact_dir: Path) -> str | None:
 def done_outcome_from_data(done_data: Mapping[str, Any] | None) -> str | None:
     if done_data is None:
         return None
-    outcome = done_data.get("outcome")
-    return outcome if isinstance(outcome, str) else None
+    return effective_done_outcome(done_data)
 
 
 def artifact_failed_for_identity(done_data: Mapping[str, Any] | None) -> bool:

@@ -7,6 +7,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,7 @@ import pytest
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorError, MonitorRecord
 from sase.monitor.start import (
+    SUPERVISOR_LOG_NAME,
     StartMonitorRequest,
     maybe_handoff_monitor_from_agent,
     start_monitor,
@@ -241,6 +243,59 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
     assert "SASE_AGENT" not in captured_env
     assert "SASE_AGENT_NAME" not in captured_env
     assert "SASE_ARTIFACTS_DIR" not in captured_env
+
+
+def test_start_monitor_captures_supervisor_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_project_file("proj")
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812121000",
+        "acme--0",
+        agent_family="acme",
+        model="test",
+        workspace_dir=str(tmp_path),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    import sase.monitor.start as start_module
+
+    captured: dict[str, object] = {}
+
+    def fake_popen(*args: object, **kwargs: object) -> object:
+        del args
+        output = kwargs["stdout"]
+        assert hasattr(output, "write")
+        output.write(b"supervisor traceback\n")
+        output.flush()
+        captured.update(kwargs)
+        return SimpleNamespace(pid=os.getpid())
+
+    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="true",
+            reason="verify diagnostics",
+            timeout_seconds=30.0,
+            cwd=str(tmp_path),
+            project_name="proj",
+            lane="acme",
+            inherit_lane_workspace_claim=False,
+        )
+    )
+
+    log_path = Path(record.artifacts_dir) / SUPERVISOR_LOG_NAME
+    assert log_path.read_bytes() == b"supervisor traceback\n"
+    assert captured["stderr"] == start_module.subprocess.STDOUT
+    assert captured["stdin"] == start_module.subprocess.DEVNULL
+    assert captured["start_new_session"] is True
+    assert captured["close_fds"] is True
 
 
 def test_start_monitor_persists_a_supervisor_identity(

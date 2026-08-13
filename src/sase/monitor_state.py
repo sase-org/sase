@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+DEFAULT_MONITOR_STOP_STATUS = "MONITORED"
+
 MONITOR_STATE_BUCKETS: dict[str, str] = {
     "running": "Running",
     "completed": "Done",
@@ -21,4 +23,8 @@ def monitor_state_bucket(monitor_state: str | None) -> str:
     return MONITOR_STATE_BUCKETS.get(monitor_state or "", "Running")
 
 
-__all__ = ["MONITOR_STATE_BUCKETS", "monitor_state_bucket"]
+__all__ = [
+    "DEFAULT_MONITOR_STOP_STATUS",
+    "MONITOR_STATE_BUCKETS",
+    "monitor_state_bucket",
+]

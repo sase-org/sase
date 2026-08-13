@@ -75,6 +75,87 @@ def test_successful_plan_family_dependency_resolves(
     assert ready == {"resolved_deps": ["planfam"]}
 
 
+def test_completed_monitor_member_releases_plan_family_waiter(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "monitor-lane")
+    plan_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813080101",
+        "monitor-lane--plan",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    code_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813080202",
+        "monitor-lane--code",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--code",
+        parent_timestamp=plan_dir.name,
+        done=True,
+        outcome="completed",
+    )
+    monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813080303",
+        "monitor-lane--mon",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--mon",
+        parent_timestamp=code_dir.name,
+    )
+    (monitor_dir / "done.json").write_text(
+        json.dumps({"outcome": "monitored", "monitor_state": "completed"}),
+        encoding="utf-8",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["monitor-lane"]}
+
+
+def test_running_monitor_member_keeps_plan_family_waiting(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "monitor-lane")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813081111",
+        "monitor-lane--code",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--code",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260813081212",
+        "monitor-lane--mon",
+        workflow_name="monitor-lane",
+        agent_family="monitor-lane",
+        role_suffix="--mon",
+        parent_timestamp=root_dir.name,
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+
+
 def test_running_sequential_grandchild_keeps_family_waiting(
     tmp_path: Path, monkeypatch
 ) -> None:

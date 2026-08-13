@@ -15,6 +15,7 @@ def test_done_marker_writer_terminal_outcomes_are_classified() -> None:
             "epic_approved",
             "plan_committed",
             "epic_launch_failed",
+            "monitored",
         }
     )
 

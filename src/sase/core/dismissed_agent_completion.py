@@ -14,14 +14,23 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sase.monitor_state import DEFAULT_MONITOR_STOP_STATUS
+
 SUCCESS_OUTCOME = "completed"
+FAILURE_OUTCOME = "failed"
+MONITOR_OUTCOME = "monitored"
+MONITOR_SUCCESS_STATES = frozenset({"completed", "stopped"})
 WAIT_SUCCESS_OUTCOMES = frozenset(
     {"completed", "noop", "epic_approved", "plan_committed"}
 )
-FAILURE_OUTCOMES = frozenset({"failed", "killed", "stopped", "epic_launch_failed"})
+FAILURE_OUTCOMES = frozenset(
+    {FAILURE_OUTCOME, "killed", "stopped", "epic_launch_failed"}
+)
 IDENTITY_SUCCESS_OUTCOMES = WAIT_SUCCESS_OUTCOMES | frozenset({"plan_rejected"})
 KNOWN_DONE_OUTCOMES = (
-    WAIT_SUCCESS_OUTCOMES | FAILURE_OUTCOMES | frozenset({"plan_rejected"})
+    WAIT_SUCCESS_OUTCOMES
+    | FAILURE_OUTCOMES
+    | frozenset({"plan_rejected", MONITOR_OUTCOME})
 )
 
 _STATUS_OUTCOMES = {
@@ -83,6 +92,27 @@ class _ArtifactArchiveIdentity:
         )
 
 
+def effective_done_outcome(done_data: Mapping[str, Any]) -> str | None:
+    """Return the outcome wait resolution should use for one done marker.
+
+    Monitor markers retain their distinct raw outcome for display and diagnostics,
+    while ``monitor_state`` determines whether they satisfy or fail a wait. Unknown
+    or missing monitor states fail closed.
+    """
+
+    outcome = done_data.get("outcome")
+    if not isinstance(outcome, str):
+        return None
+    if outcome != MONITOR_OUTCOME:
+        return outcome
+    monitor_state = done_data.get("monitor_state")
+    return (
+        SUCCESS_OUTCOME
+        if isinstance(monitor_state, str) and monitor_state in MONITOR_SUCCESS_STATES
+        else FAILURE_OUTCOME
+    )
+
+
 def load_archived_agent_completions(
     artifacts: Iterable[tuple[Path, Mapping[str, Any], str]],
 ) -> dict[str, ArchivedAgentCompletion]:
@@ -129,13 +159,18 @@ def load_archived_agent_completions(
     for summary in summaries:
         status = getattr(summary, "status", None)
         outcome = _archived_outcome_from_status(status)
-        if outcome is None:
-            continue
         bundle_path_value = getattr(summary, "bundle_path", None)
         if not isinstance(bundle_path_value, str) or not bundle_path_value:
             continue
         bundle_path = Path(bundle_path_value)
         if not bundle_path.is_file():
+            continue
+        if outcome is None:
+            bundle_data = _read_archived_bundle(bundle_path)
+            if bundle_data is None:
+                continue
+            outcome = _archived_outcome_from_bundle(bundle_data)
+        if outcome is None:
             continue
 
         raw_suffix = getattr(summary, "raw_suffix", None)
@@ -197,6 +232,38 @@ def _archived_outcome_from_status(status: object) -> str | None:
     return None
 
 
+def _archived_outcome_from_bundle(data: Mapping[str, Any]) -> str | None:
+    """Classify terminal state retained only in a dismissed bundle payload."""
+
+    status = data.get("status")
+    outcome = _archived_outcome_from_status(status)
+    if outcome is not None:
+        return outcome
+    if (
+        not isinstance(status, str)
+        or status.strip().upper() != DEFAULT_MONITOR_STOP_STATUS
+    ):
+        # A custom monitor stop status is indistinguishable from an arbitrary
+        # user status in the archive summary, so preserve the fail-closed
+        # behavior rather than guessing.
+        return None
+    return effective_done_outcome(
+        {
+            "outcome": MONITOR_OUTCOME,
+            "monitor_state": data.get("monitor_state"),
+        }
+    )
+
+
+def _read_archived_bundle(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data: Any = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def archived_response_path(completion: ArchivedAgentCompletion) -> str | None:
     """Read and validate the archived transcript path for *completion*.
 
@@ -204,12 +271,10 @@ def archived_response_path(completion: ArchivedAgentCompletion) -> str | None:
     is therefore deferred until a fork actually requests the transcript.
     """
 
-    try:
-        with open(completion.bundle_path, encoding="utf-8") as handle:
-            data: Any = json.load(handle)
-    except (OSError, json.JSONDecodeError):
+    data = _read_archived_bundle(Path(completion.bundle_path))
+    if data is None:
         return None
-    if not isinstance(data, dict) or not _payload_matches(completion, data):
+    if not _payload_matches(completion, data):
         return None
     response_path = data.get("response_path")
     return response_path if isinstance(response_path, str) and response_path else None
@@ -275,16 +340,20 @@ def _payload_matches(
         or data.get("parent_timestamp")
     ):
         return False
-    return _archived_outcome_from_status(data.get("status")) == completion.outcome
+    return _archived_outcome_from_bundle(data) == completion.outcome
 
 
 __all__ = [
     "ArchivedAgentCompletion",
+    "FAILURE_OUTCOME",
     "FAILURE_OUTCOMES",
     "IDENTITY_SUCCESS_OUTCOMES",
     "KNOWN_DONE_OUTCOMES",
+    "MONITOR_OUTCOME",
+    "MONITOR_SUCCESS_STATES",
     "SUCCESS_OUTCOME",
     "WAIT_SUCCESS_OUTCOMES",
     "archived_response_path",
+    "effective_done_outcome",
     "load_archived_agent_completions",
 ]

@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
@@ -22,6 +22,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.logs._bounded import log_file_lock
+from sase.monitor_state import DEFAULT_MONITOR_STOP_STATUS
 from sase.plan_chain import agent_family_base
 from sase.running_field import (
     claim_workspace,
@@ -47,9 +48,10 @@ from .transaction import MONITOR_GO_MARKER, monitor_go_path
 MONITOR_WORKSPACE_CLAIM_WORKFLOW = "ace-monitor"
 
 DEFAULT_START_STATUS = "MONITORING"
-DEFAULT_STOP_STATUS = "MONITORED"
+DEFAULT_STOP_STATUS = DEFAULT_MONITOR_STOP_STATUS
 DEFAULT_TAIL_LINES = 200
 MONITOR_PENDING_MARKER = ".sase_monitor_pending"
+SUPERVISOR_LOG_NAME = "supervisor.log"
 
 
 @dataclass(frozen=True)
@@ -185,29 +187,35 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
     # matches on, but it still names the (possibly dead) starter's own
     # artifacts and must not leak into the detached supervisor.
     supervisor_env.pop("SASE_ARTIFACTS_DIR", None)
+    supervisor_log = _open_supervisor_log(artifacts_dir)
+    supervisor_stdout: int | BinaryIO = supervisor_log or subprocess.DEVNULL
     try:
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "sase",
-                "monitor",
-                "_supervise",
-                "--artifacts-dir",
-                artifacts_dir,
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            close_fds=True,
-            env=supervisor_env,
-        )
-    except (OSError, ValueError) as exc:
-        _teardown_failed_member(
-            artifacts_dir, f"could not start monitor supervisor: {exc}"
-        )
-        raise MonitorError(f"could not start monitor supervisor: {exc}") from exc
+        try:
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "sase",
+                    "monitor",
+                    "_supervise",
+                    "--artifacts-dir",
+                    artifacts_dir,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=supervisor_stdout,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                close_fds=True,
+                env=supervisor_env,
+            )
+        except (OSError, ValueError) as exc:
+            _teardown_failed_member(
+                artifacts_dir, f"could not start monitor supervisor: {exc}"
+            )
+            raise MonitorError(f"could not start monitor supervisor: {exc}") from exc
+    finally:
+        if supervisor_log is not None:
+            supervisor_log.close()
 
     # Write the pid before its identity: a crash between these two calls
     # still leaves a pid a caller can signal, and the identity is the
@@ -505,6 +513,15 @@ def _terminate_supervisor(process: subprocess.Popen[bytes]) -> None:
         process.wait()
 
 
+def _open_supervisor_log(artifacts_dir: str) -> BinaryIO | None:
+    """Open the detached supervisor's diagnostic stream when possible."""
+
+    try:
+        return (Path(artifacts_dir) / SUPERVISOR_LOG_NAME).open("ab")
+    except OSError:
+        return None
+
+
 def _same_path(left: str, right: str) -> bool:
     try:
         return Path(left).expanduser().resolve() == Path(right).expanduser().resolve()
@@ -535,6 +552,7 @@ __all__ = [
     "MONITOR_PENDING_MARKER",
     "MONITOR_WORKSPACE_CLAIM_WORKFLOW",
     "NEXT_OUTPUT_CHOICES",
+    "SUPERVISOR_LOG_NAME",
     "StartMonitorRequest",
     "maybe_handoff_monitor_from_agent",
     "start_monitor",
