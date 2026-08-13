@@ -18,6 +18,7 @@ def builtin_plan_ref_provider_spec() -> dict[str, Any]:
         "provider": "plan",
         "ref": {
             "kind": "plan",
+            "icon": "✎",
             "expansion_format": "{kind}:{argument}",
             "properties": {
                 "tier": {

@@ -84,6 +84,11 @@
           "pattern": "^[a-z][a-z0-9_-]*$",
           "description": "Artifact reference kind, for inline specs or provider overrides."
         },
+        "icon": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Single emoji or glyph rendered as this provider pane's Artifacts tab mark."
+        },
         "expansion_format": {
           "type": "string",
           "minLength": 1,

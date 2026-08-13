@@ -51,6 +51,7 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
                 label="Plans",
                 accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
                 pane_id="artifacts-plans-pane",
+                icon="✎",
                 provider_kind="plan",
                 provider_spec={},
             ),

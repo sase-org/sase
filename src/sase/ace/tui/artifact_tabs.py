@@ -13,10 +13,18 @@ from pathlib import Path
 import re
 from typing import Any
 
+from rich.cells import cell_len
+
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import effective_project_name
-from sase.sidecar_ref_config import SidecarRefPolicy, effective_sidecar_ref_policies
+from sase.notification_gates.model_validation import GateError, validate_icon
+from sase.sidecar_ref_config import (
+    DEFAULT_DOCUMENT_TAB_ICON,
+    REF_ICON_CONFIG_KEY,
+    SidecarRefPolicy,
+    effective_sidecar_ref_policies,
+)
 
 
 ArtifactsSubTab = str
@@ -59,6 +67,12 @@ ARTIFACTS_ACCENTS: dict[str, str] = {
     "plans": "#AF87FF",
     "other": "#FFAF5F",
 }
+ARTIFACTS_ICONS: dict[str, str] = {
+    "stitches": "◉",
+    "patches": "⎇",
+    "beads": "◈",
+    "files": "▤",
+}
 
 _PROVIDER_ACCENTS: tuple[str, ...] = (
     "#AF87FF",
@@ -80,6 +94,7 @@ class ArtifactsTabDescriptor:
     label: str
     accent: str
     pane_id: str
+    icon: str = ""
     provider_kind: str | None = None
     provider_spec_digest: str | None = None
     provider_spec: Mapping[str, Any] | None = None
@@ -295,6 +310,7 @@ def _fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
         label=labels[subtab],
         accent=ARTIFACTS_ACCENTS[subtab],
         pane_id=FIXED_ARTIFACTS_PANE_IDS[subtab],
+        icon=ARTIFACTS_ICONS[subtab],
     )
 
 
@@ -310,11 +326,17 @@ def _provider_descriptors(
         records = by_kind[kind]
         policy = records[0].policy
         spec = policy.spec or {}
+        ref = spec.get("ref")
         tab_id = f"ref:{kind}"
         accent = (
             ARTIFACTS_ACCENTS.get(tab_id)
             or _PROVIDER_ACCENTS[index % len(_PROVIDER_ACCENTS)]
         )
+        icon = (
+            _sanitize_tab_icon(ref.get(REF_ICON_CONFIG_KEY))
+            if isinstance(ref, Mapping)
+            else ""
+        ) or DEFAULT_DOCUMENT_TAB_ICON
         digest = "|".join(
             sorted(
                 {
@@ -334,6 +356,7 @@ def _provider_descriptors(
                     if kind == "plan"
                     else f"artifacts-ref-{_slug(kind)}-pane"
                 ),
+                icon=icon,
                 provider_kind=kind,
                 provider_spec_digest=digest or policy.digest,
                 provider_spec=spec,
@@ -522,6 +545,17 @@ def _provider_label(kind: str, spec: Mapping[str, Any]) -> str:
     return f"{label}s"
 
 
+def _sanitize_tab_icon(raw: object) -> str:
+    """Return a safe Artifacts tab icon, or ``""`` for stored junk."""
+    try:
+        icon = validate_icon(raw, "ref.icon")
+    except GateError:
+        return ""
+    if icon is None or cell_len(icon) > 2:
+        return ""
+    return icon
+
+
 def _natural_label_key(value: str) -> tuple[object, ...]:
     return tuple(
         int(part) if part.isdigit() else part.casefold()
@@ -548,9 +582,11 @@ DEFAULT_FILES_SUBTAB: FilesSubTab = "files"
 
 __all__ = [
     "ARTIFACTS_ACCENTS",
+    "ARTIFACTS_ICONS",
     "ARTIFACTS_PANE_IDS",
     "ARTIFACTS_SUBTAB_ORDER",
     "DEFAULT_ARTIFACTS_SUBTAB",
+    "DEFAULT_DOCUMENT_TAB_ICON",
     "DEFAULT_FILES_SUBTAB",
     "EXTERNAL_ACCENT",
     "FILES_PANE_IDS",

@@ -63,10 +63,53 @@ def test_registry_registers_builtin_plan_and_entry_kind_descriptors() -> None:
     registry = assemble_artifact_provider_registry(entry_points_fn=_entry_points([]))
 
     assert registry.ref_providers_by_id["plan"].kind == "plan"
+    assert registry.ref_providers_by_id["plan"].spec["ref"]["icon"] == "✎"
     assert len(registry.ref_providers_by_id["plan"].digest) == 64
     kinds = {entry["kind"] for entry in registry.entry_kinds}
     assert {"stitch", "patch", "bead", "agent", "file"}.issubset(kinds)
     assert registry.diagnostics == ()
+
+
+def test_registry_admits_iconless_ref_provider_with_warning() -> None:
+    class Plugin:
+        @hookimpl
+        def artifact_ref_provider_specs(self) -> tuple[dict[str, Any], ...]:
+            spec = _research_spec()
+            spec["ref"].pop("icon", None)
+            return (spec,)
+
+    registry = assemble_artifact_provider_registry(
+        entry_points_fn=_entry_points(
+            [_EntryPoint("research", ARTIFACT_REF_ENTRY_POINT_GROUP, Plugin)]
+        )
+    )
+
+    record = registry.ref_providers_by_id["research"]
+    assert record.spec["ref"]["icon"] == "◆"
+    assert [diagnostic.code for diagnostic in registry.diagnostics] == [
+        "missing_ref_provider_icon"
+    ]
+    assert registry.diagnostics[0].severity == "warning"
+
+
+def test_registry_rejects_malformed_ref_provider_icon() -> None:
+    class Plugin:
+        @hookimpl
+        def artifact_ref_provider_specs(self) -> tuple[dict[str, Any], ...]:
+            spec = _research_spec()
+            spec["ref"]["icon"] = "abc"
+            return (spec,)
+
+    registry = assemble_artifact_provider_registry(
+        entry_points_fn=_entry_points(
+            [_EntryPoint("research", ARTIFACT_REF_ENTRY_POINT_GROUP, Plugin)]
+        )
+    )
+
+    assert "research" not in registry.ref_providers_by_id
+    assert [diagnostic.code for diagnostic in registry.diagnostics] == [
+        "invalid_ref_provider"
+    ]
 
 
 def test_registry_discovers_ref_providers_with_provenance() -> None:

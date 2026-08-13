@@ -13,6 +13,7 @@ import pluggy
 
 from sase.config.core import current_config_token
 from sase.core.rust import require_rust_binding
+from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON
 
 from ._builtin import BuiltinArtifactProviders
 from ._hookspec import ArtifactProviderHookSpec
@@ -360,6 +361,13 @@ def _validate_ref_providers(
                 )
             )
             continue
+        _ensure_compat_ref_provider_icon(
+            spec,
+            provenance,
+            diagnostics,
+            provider_id=provider_id,
+            kind=kind,
+        )
         try:
             digest = validate_ref_provider_spec(spec)
         except Exception as exc:
@@ -384,6 +392,43 @@ def _validate_ref_providers(
         seen_kinds[kind] = record
 
     return tuple(sorted(providers, key=lambda item: (item.kind, item.provider_id)))
+
+
+def _ensure_compat_ref_provider_icon(
+    spec: dict[str, Any],
+    provenance: ArtifactProviderProvenance,
+    diagnostics: list[ArtifactProviderDiagnostic],
+    *,
+    provider_id: str,
+    kind: str,
+) -> None:
+    ref = spec.get("ref")
+    if not isinstance(ref, dict):
+        return
+    raw_icon = ref.get("icon")
+    if isinstance(raw_icon, str) and raw_icon:
+        return
+
+    # Compatibility shim for providers released before ref.icon became
+    # required. Remove once no supported plugins rely on icon-less specs.
+    ref["icon"] = DEFAULT_DOCUMENT_TAB_ICON
+    diagnostics.append(
+        ArtifactProviderDiagnostic(
+            code="missing_ref_provider_icon",
+            message=(
+                f"Artifact ref provider {provider_id!r} from {provenance.label} "
+                f"omits ref.icon; using generic Artifacts tab icon "
+                f"{DEFAULT_DOCUMENT_TAB_ICON!r} during the compatibility window"
+            ),
+            severity="warning",
+            provider=provider_id,
+            kind=kind,
+            group=provenance.group,
+            source=provenance.label,
+            package=provenance.package,
+            version=provenance.version,
+        )
+    )
 
 
 def _validate_file_hook_providers(

@@ -21,6 +21,7 @@ from sase.sdd._store_types import (
 
 REF_CONFIG_KEY = "ref"
 REF_USE_CONFIG_KEY = "use"
+REF_ICON_CONFIG_KEY = "icon"
 REF_KIND_CONFIG_KEY = "kind"
 REF_EXPANSION_FORMAT_CONFIG_KEY = "expansion_format"
 REF_PROPERTIES_CONFIG_KEY = "properties"
@@ -37,6 +38,7 @@ DEFAULT_DOCUMENT_REF_PATH_GLOBS: tuple[str, ...] = ("**/*.md",)
 SIDECAR_REF_CONFIG_SOURCE_PREFIX = "sidecar_ref_config:"
 DOCUMENT_REF_PROVIDER_SPEC_SCHEMA_VERSION = 1
 DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT = "{kind}:{argument}"
+DEFAULT_DOCUMENT_TAB_ICON = "◆"
 
 _BUILTIN_SIDECAR_REF_KIND = {
     PLANS_SIDECAR_ROLE: "plan",
@@ -46,6 +48,7 @@ _BUILTIN_SIDECAR_REF_KIND = {
 _KNOWN_REF_CONFIG_KEYS = frozenset(
     {
         REF_USE_CONFIG_KEY,
+        REF_ICON_CONFIG_KEY,
         REF_KIND_CONFIG_KEY,
         REF_EXPANSION_FORMAT_CONFIG_KEY,
         REF_PROPERTIES_CONFIG_KEY,
@@ -332,6 +335,7 @@ def _default_document_spec(
         "provider": _provider_id_for_role(kind),
         "ref": {
             "kind": kind,
+            "icon": DEFAULT_DOCUMENT_TAB_ICON,
             "expansion_format": DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT,
             "properties": {},
             "detail": {},
@@ -521,11 +525,13 @@ def _entry_text(entry: Mapping[str, Any], key: str) -> str:
 __all__ = [
     "DEFAULT_DOCUMENT_REF_PATH_GLOBS",
     "DEFAULT_DOCUMENT_REF_EXPANSION_FORMAT",
+    "DEFAULT_DOCUMENT_TAB_ICON",
     "DOCUMENT_REF_PROVIDER_SPEC_SCHEMA_VERSION",
     "REF_DETAIL_CONFIG_KEY",
     "REF_EXPANSION_FORMAT_CONFIG_KEY",
     "REF_CONFIG_KEY",
     "REF_FILTERS_CONFIG_KEY",
+    "REF_ICON_CONFIG_KEY",
     "REF_IDENTITY_CONFIG_KEY",
     "REF_INVENTORY_CONFIG_KEY",
     "REF_INVENTORY_GLOBS_CONFIG_KEY",

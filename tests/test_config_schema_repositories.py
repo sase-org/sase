@@ -76,6 +76,7 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
                         "disabled": False,
                         "ref": {
                             "kind": "research",
+                            "icon": "∴",
                             "inventory": {"globs": ["**/*.md"]},
                             "publication": {
                                 "link": "vcs_permalink",
