@@ -25,7 +25,9 @@ from sase.logs._bounded import log_file_lock
 from sase.monitor_state import DEFAULT_MONITOR_STOP_STATUS
 from sase.plan_chain import agent_family_base
 from sase.running_field import (
+    WorkspaceClaim,
     claim_workspace,
+    get_claimed_workspaces,
     release_workspace,
     transfer_workspace_claim,
 )
@@ -40,7 +42,14 @@ from .models import (
     MonitorLaneError,
     MonitorRecord,
 )
-from .transaction import MONITOR_GO_MARKER, monitor_go_path, monitor_lane_lock_path
+from .transaction import (
+    MONITOR_GO_MARKER,
+    MONITOR_START_ACK_TIMEOUT_SECONDS,
+    monitor_go_path,
+    monitor_lane_lock_path,
+    monitor_started_path,
+    write_json_marker_atomic,
+)
 
 #: RUNNING-field workflow label used for a monitor's workspace claim, distinct
 #: from ``"ace-run"`` so the starter's own runner-exit cleanup no longer
@@ -54,6 +63,7 @@ MONITOR_PENDING_MARKER = ".sase_monitor_pending"
 SUPERVISOR_LOG_NAME = "supervisor.log"
 _SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS = 5.0
 _SUPERVISOR_STOP_POLL_SECONDS = 0.05
+_SUPERVISOR_ACK_POLL_SECONDS = 0.05
 
 
 class _SupervisorSpawnError(RuntimeError):
@@ -238,6 +248,11 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
 
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
     if transfer_from_pid is not None:
+        starter_claim = _find_claim(
+            newest.project_file,
+            workspace_num=resolved_workspace_num,
+            pid=transfer_from_pid,
+        )
         claim_result = transfer_workspace_claim(
             newest.project_file,
             resolved_workspace_num,
@@ -248,6 +263,7 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
             cl_name=raw_meta.get("cl_name"),
         )
     else:
+        starter_claim = None
         claim_result = claim_workspace(
             newest.project_file,
             0,
@@ -282,6 +298,19 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
             artifacts_dir, f"could not release monitor launch barrier: {exc}"
         )
         raise MonitorError(f"could not release monitor launch barrier: {exc}") from exc
+
+    ack_error = _wait_for_start_acknowledgement(artifacts_dir, supervisor)
+    if ack_error is not None:
+        _terminate_supervisor(supervisor)
+        _undo_workspace_claim(
+            newest.project_file,
+            resolved_workspace_num,
+            supervisor_pid=supervisor.pid,
+            starter_claim=starter_claim,
+            cl_name=raw_meta.get("cl_name"),
+        )
+        _teardown_failed_member(artifacts_dir, ack_error)
+        raise MonitorError(ack_error)
 
     return MonitorRecord(
         monitor_id=monitor_id,
@@ -447,32 +476,93 @@ def _write_monitor_go_marker(
     monitor_id: str,
     request_fingerprint: str,
 ) -> None:
-    marker_path = monitor_go_path(artifacts_dir)
-    marker_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = marker_path.with_name(
-        f".{marker_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    write_json_marker_atomic(
+        monitor_go_path(artifacts_dir),
+        {
+            "monitor_id": monitor_id,
+            "request_fingerprint": request_fingerprint,
+            "timestamp": time.time(),
+        },
     )
-    try:
-        with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "monitor_id": monitor_id,
-                    "request_fingerprint": request_fingerprint,
-                    "timestamp": time.time(),
-                },
-                f,
-                indent=2,
-                sort_keys=True,
+
+
+def _find_claim(
+    project_file: str,
+    *,
+    workspace_num: int,
+    pid: int,
+) -> WorkspaceClaim | None:
+    """Return the live claim for *workspace_num*/*pid*, if any.
+
+    Captured before a forward claim transfer so a later reversal (a missing
+    startup acknowledgement) can hand the exact same workflow and artifacts
+    timestamp back to the starter instead of guessing at them.
+    """
+    return next(
+        (
+            claim
+            for claim in get_claimed_workspaces(project_file)
+            if claim.workspace_num == workspace_num and claim.pid == pid
+        ),
+        None,
+    )
+
+
+def _wait_for_start_acknowledgement(
+    artifacts_dir: str,
+    supervisor: _DetachedSupervisor,
+) -> str | None:
+    """Block until the supervisor proves it is alive, or return an error.
+
+    Polls the supervisor's own liveness alongside the marker so a supervisor
+    that died outright fails fast instead of waiting out the full budget.
+    """
+    marker_path = monitor_started_path(artifacts_dir)
+    deadline = time.monotonic() + MONITOR_START_ACK_TIMEOUT_SECONDS
+    while True:
+        if marker_path.exists():
+            return None
+        if not supervisor_is_alive(supervisor.pid, supervisor.identity):
+            return (
+                "monitor supervisor died without acknowledging startup; "
+                "no process group was recorded"
             )
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, marker_path)
-    except OSError:
-        try:
-            tmp_path.unlink()
-        except OSError:
-            pass
-        raise
+        if time.monotonic() >= deadline:
+            return (
+                "monitor supervisor did not acknowledge startup within "
+                f"{MONITOR_START_ACK_TIMEOUT_SECONDS:g}s"
+            )
+        time.sleep(_SUPERVISOR_ACK_POLL_SECONDS)
+
+
+def _undo_workspace_claim(
+    project_file: str,
+    workspace_num: int,
+    *,
+    supervisor_pid: int,
+    starter_claim: WorkspaceClaim | None,
+    cl_name: object,
+) -> None:
+    """Give a dead-on-arrival supervisor's claim back to the still-live starter.
+
+    A missing acknowledgement means the starter agent -- not the supervisor
+    -- is the process that is actually still alive, and it must get its
+    workspace back exactly as it held it, never released into the free pool
+    where another agent could claim it out from under the starter.
+    """
+    if starter_claim is not None:
+        result = transfer_workspace_claim(
+            project_file,
+            workspace_num,
+            from_pid=supervisor_pid,
+            to_pid=starter_claim.pid,
+            new_workflow=starter_claim.workflow,
+            new_artifacts_timestamp=starter_claim.artifacts_timestamp,
+            cl_name=cl_name if isinstance(cl_name, str) else None,
+        )
+        if result.success:
+            return
+    _release_start_claim(project_file, workspace_num, cl_name=cl_name)
 
 
 def _release_start_claim(

@@ -15,6 +15,7 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.monitor.output import OutputCapture
 from sase.monitor.start import StartMonitorRequest, start_monitor
+from sase.monitor.transaction import monitor_started_path, write_json_marker_atomic
 from sase.running_field import WorkspaceClaim, WorkspaceClaimError
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -68,12 +69,21 @@ def _promote_and_start_monitor(
     )
 
     def fake_popen(*args: object, **kwargs: object) -> _FakeSupervisorPid:
-        del args
+        argv = args[0]
+        assert isinstance(argv, list)
+        artifacts_dir = argv[argv.index("--artifacts-dir") + 1]
         pass_fds = kwargs["pass_fds"]
         assert isinstance(pass_fds, tuple)
         pid_fd = pass_fds[0]
         assert isinstance(pid_fd, int)
         os.write(pid_fd, json.dumps({"pid": _FakeSupervisorPid.pid}).encode() + b"\n")
+        # A real supervisor acknowledges startup almost immediately; simulate
+        # that here so `start_monitor`'s ack wait does not block on (or time
+        # out against) this fixture's pid, which names no real process.
+        write_json_marker_atomic(
+            monitor_started_path(artifacts_dir),
+            {"pid": _FakeSupervisorPid.pid},
+        )
         return _FakeSupervisorPid()
 
     monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)

@@ -30,6 +30,7 @@ from sase.history.chat import save_chat_history
 from sase.logs.pipe import BoundedLogPipe
 
 from .followup import launch_followup_agent
+from .identity import process_identity
 from .logs import append_monitor_log_bytes, monitor_log_max_bytes, monitor_log_path
 from .models import MonitorState
 from .output import OutputCapture
@@ -39,7 +40,12 @@ from .settlement import (
     settle_claim_and_followup,
     touch_monitor_refresh_pulse,
 )
-from .transaction import MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS, monitor_go_path
+from .transaction import (
+    MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS,
+    monitor_go_path,
+    monitor_started_path,
+    write_json_marker_atomic,
+)
 
 _POLL_SECONDS = 0.05
 _KILL_GRACE_SECONDS = 5.0
@@ -166,6 +172,7 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             on_chunk=activity.append_bytes,
             close_drain_seconds=0.5,
         )
+        _write_start_acknowledgement(artifacts_dir, meta)
         barrier_error = _wait_for_launch_barrier(artifacts_dir, termination)
         if barrier_error is not None:
             error = barrier_error
@@ -250,6 +257,27 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             timeout_kind=timeout_kind,
         )
     return 0 if monitor_state in {"completed", "stopped"} else 1
+
+
+def _write_start_acknowledgement(artifacts_dir: str, meta: dict[str, Any]) -> None:
+    """Prove this supervisor survived its own startup window.
+
+    Written once dispositions are set, meta is read, and the output log is
+    open -- before waiting on the launch barrier -- so ``start_monitor`` can
+    stop blocking its caller the moment ownership is real, independent of
+    whether the barrier has been released yet.
+    """
+    pid = os.getpid()
+    write_json_marker_atomic(
+        monitor_started_path(artifacts_dir),
+        {
+            "monitor_id": meta.get("monitor_id"),
+            "pid": pid,
+            "pgid": os.getpgid(0),
+            "monitor_supervisor_identity": process_identity(pid),
+            "timestamp": time.time(),
+        },
+    )
 
 
 def _wait_for_launch_barrier(
