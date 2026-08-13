@@ -38,9 +38,11 @@ def _restore_signal_handlers() -> Iterator[None]:
     """
     original_term = signal.getsignal(signal.SIGTERM)
     original_int = signal.getsignal(signal.SIGINT)
+    original_hup = signal.getsignal(signal.SIGHUP)
     yield
     signal.signal(signal.SIGTERM, original_term)
     signal.signal(signal.SIGINT, original_int)
+    signal.signal(signal.SIGHUP, original_hup)
 
 
 def _make_member(

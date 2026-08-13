@@ -51,11 +51,14 @@ class _Termination:
 
     def __init__(self) -> None:
         self.requested = False
+        self.requested_signum: int | None = None
         self.child: subprocess.Popen[bytes] | None = None
         self.kill_deadline: float | None = None
 
     def request(self, _signum: int, _frame: object) -> None:
         self.requested = True
+        if self.requested_signum is None:
+            self.requested_signum = _signum
         self._signal_child()
 
     def trigger_timeout(self) -> None:
@@ -92,6 +95,10 @@ class _Termination:
             _signal_group(self.child.pid, signal.SIGKILL)
             self.child.wait()
 
+    def before_command_start_message(self) -> str:
+        signal_name = _signal_name(self.requested_signum)
+        return f"monitor stopped by {signal_name} before command start; command was not run"
+
 
 class _OutputActivity:
     """Track output arrival from the drain thread for idle-timeout checks."""
@@ -118,8 +125,15 @@ def _signal_group(pgid: int, signum: int) -> None:
         pass
 
 
-def run_supervisor(artifacts_dir: str) -> int:
+def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> int:
     """Own one monitor member from command spawn through terminal marker."""
+    termination = _Termination()
+    signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, termination.request)
+    signal.signal(signal.SIGINT, termination.request)
+    if startup_signal is not None:
+        termination.request(startup_signal, None)
+
     meta = _read_meta(artifacts_dir)
     if meta.get("monitor_state") != "running":
         return 0
@@ -128,10 +142,6 @@ def run_supervisor(artifacts_dir: str) -> int:
     cwd = str(meta["monitor_cwd"])
     timeout_seconds = float(meta.get("monitor_timeout_seconds") or 0.0)
     idle_timeout_seconds = float(meta.get("monitor_idle_timeout_seconds") or 0.0)
-
-    termination = _Termination()
-    signal.signal(signal.SIGTERM, termination.request)
-    signal.signal(signal.SIGINT, termination.request)
 
     output_path = monitor_log_path(artifacts_dir)
     meta["monitor_output_path"] = str(output_path)
@@ -160,6 +170,10 @@ def run_supervisor(artifacts_dir: str) -> int:
         if barrier_error is not None:
             error = barrier_error
             monitor_state = "stopped" if termination.requested else "failed"
+            _append_supervisor_line(output_path, output_pipe, capture, error)
+        elif termination.requested:
+            error = termination.before_command_start_message()
+            monitor_state = "stopped"
             _append_supervisor_line(output_path, output_pipe, capture, error)
         else:
             command_env = os.environ.copy()
@@ -246,10 +260,10 @@ def _wait_for_launch_barrier(
     marker_path = monitor_go_path(artifacts_dir)
     deadline = time.monotonic() + MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS
     while True:
+        if termination.requested:
+            return termination.before_command_start_message()
         if marker_path.exists():
             return None
-        if termination.requested:
-            return "monitor stopped before command start; command was not run"
         if time.monotonic() >= deadline:
             timeout = _format_duration(MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS)
             return (
@@ -431,6 +445,15 @@ def _read_meta(artifacts_dir: str) -> dict[str, Any]:
 
 def _one_line(exc: BaseException) -> str:
     return " ".join(str(exc).splitlines()) or exc.__class__.__name__
+
+
+def _signal_name(signum: int | None) -> str:
+    if signum is None:
+        return "a stop signal"
+    try:
+        return signal.Signals(signum).name
+    except ValueError:
+        return f"signal {signum}"
 
 
 def _timeout_message(

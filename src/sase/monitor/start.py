@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -31,7 +32,7 @@ from sase.running_field import (
 
 from . import naming, store
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
-from .identity import process_identity
+from .identity import process_identity, supervisor_is_alive
 from .member import create_monitor_member
 from .models import (
     MonitorAlreadyRunningError,
@@ -51,6 +52,20 @@ DEFAULT_STOP_STATUS = DEFAULT_MONITOR_STOP_STATUS
 DEFAULT_TAIL_LINES = 200
 MONITOR_PENDING_MARKER = ".sase_monitor_pending"
 SUPERVISOR_LOG_NAME = "supervisor.log"
+_SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS = 5.0
+_SUPERVISOR_STOP_POLL_SECONDS = 0.05
+
+
+class _SupervisorSpawnError(RuntimeError):
+    """Raised when the bootstrap process cannot report the real supervisor."""
+
+
+@dataclass(frozen=True)
+class _DetachedSupervisor:
+    """The real supervisor is a reparented grandchild, not the Popen child."""
+
+    pid: int
+    identity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -198,24 +213,12 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
     supervisor_stdout: int | BinaryIO = supervisor_log or subprocess.DEVNULL
     try:
         try:
-            process = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-m",
-                    "sase",
-                    "monitor",
-                    "_supervise",
-                    "--artifacts-dir",
-                    artifacts_dir,
-                ],
-                stdin=subprocess.DEVNULL,
-                stdout=supervisor_stdout,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                close_fds=True,
+            supervisor = _spawn_detached_supervisor(
+                artifacts_dir,
                 env=supervisor_env,
+                stdout=supervisor_stdout,
             )
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, _SupervisorSpawnError) as exc:
             _teardown_failed_member(
                 artifacts_dir, f"could not start monitor supervisor: {exc}"
             )
@@ -228,10 +231,10 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
     # still leaves a pid a caller can signal, and the identity is the
     # stronger of the two, not a substitute. The launch barrier below holds
     # the command behind the claim without reordering this pair.
-    update_meta_field(artifacts_dir, "pid", process.pid)
-    update_meta_field(
-        artifacts_dir, "monitor_supervisor_identity", process_identity(process.pid)
-    )
+    update_meta_field(artifacts_dir, "pid", supervisor.pid)
+    supervisor_identity = process_identity(supervisor.pid)
+    update_meta_field(artifacts_dir, "monitor_supervisor_identity", supervisor_identity)
+    supervisor = _DetachedSupervisor(supervisor.pid, supervisor_identity)
 
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
     if transfer_from_pid is not None:
@@ -239,7 +242,7 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
             newest.project_file,
             resolved_workspace_num,
             from_pid=transfer_from_pid,
-            to_pid=process.pid,
+            to_pid=supervisor.pid,
             new_workflow=MONITOR_WORKSPACE_CLAIM_WORKFLOW,
             new_artifacts_timestamp=member_timestamp,
             cl_name=raw_meta.get("cl_name"),
@@ -249,12 +252,12 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
             newest.project_file,
             0,
             MONITOR_WORKSPACE_CLAIM_WORKFLOW,
-            process.pid,
+            supervisor.pid,
             raw_meta.get("cl_name"),
             artifacts_timestamp=member_timestamp,
         )
     if not claim_result.success:
-        _terminate_supervisor(process)
+        _terminate_supervisor(supervisor)
         _teardown_failed_member(
             artifacts_dir, f"could not claim workspace: {claim_result.error}"
         )
@@ -269,7 +272,7 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
             request_fingerprint=request_fingerprint,
         )
     except OSError as exc:
-        _terminate_supervisor(process)
+        _terminate_supervisor(supervisor)
         _release_start_claim(
             newest.project_file,
             resolved_workspace_num,
@@ -299,7 +302,8 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
         next_output=request.next_output,
         monitor_state="running",
         next_action=request.next_action or None,
-        pid=process.pid,
+        pid=supervisor.pid,
+        supervisor_identity=supervisor.identity,
         request_fingerprint=request_fingerprint,
     )
 
@@ -506,19 +510,150 @@ def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
     )
 
 
-def _terminate_supervisor(process: subprocess.Popen[bytes]) -> None:
+def _spawn_detached_supervisor(
+    artifacts_dir: str,
+    *,
+    env: dict[str, str],
+    stdout: int | BinaryIO,
+) -> _DetachedSupervisor:
+    """Start the bootstrap and return the reparented supervisor grandchild."""
+    read_fd, write_fd = os.pipe()
+    launcher: subprocess.Popen[bytes] | None = None
     try:
-        os.kill(process.pid, signal.SIGTERM)
+        launcher = subprocess.Popen(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("supervisor_bootstrap.py")),
+                "--artifacts-dir",
+                artifacts_dir,
+                "--pid-fd",
+                str(write_fd),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=stdout,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            pass_fds=(write_fd,),
+            env=env,
+        )
+        os.close(write_fd)
+        write_fd = -1
+        pid = _read_supervisor_pid(read_fd, launcher)
+        _wait_for_bootstrap_exit(launcher)
+        return _DetachedSupervisor(pid)
+    finally:
+        for fd in (read_fd, write_fd):
+            if fd >= 0:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        if launcher is not None and launcher.poll() is None:
+            _terminate_bootstrap(launcher)
+
+
+def _read_supervisor_pid(
+    read_fd: int,
+    launcher: subprocess.Popen[bytes],
+) -> int:
+    deadline = time.monotonic() + _SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS
+    chunks: list[bytes] = []
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            _terminate_bootstrap(launcher)
+            raise _SupervisorSpawnError("timed out waiting for supervisor pid")
+        ready, _, _ = select.select([read_fd], [], [], remaining)
+        if not ready:
+            continue
+        chunk = os.read(read_fd, 4096)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        if b"\n" in chunk:
+            break
+
+    raw = b"".join(chunks).splitlines()[0] if chunks else b""
+    if not raw:
+        detail = _bootstrap_exit_detail(launcher)
+        raise _SupervisorSpawnError(f"bootstrap exited without reporting a pid{detail}")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _SupervisorSpawnError(
+            "bootstrap reported an invalid pid payload"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise _SupervisorSpawnError("bootstrap reported a non-object pid payload")
+    error = payload.get("error")
+    if isinstance(error, str) and error:
+        raise _SupervisorSpawnError(error)
+    try:
+        pid = int(payload["pid"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _SupervisorSpawnError("bootstrap did not report a valid pid") from exc
+    if pid <= 0:
+        raise _SupervisorSpawnError("bootstrap reported a non-positive pid")
+    return pid
+
+
+def _wait_for_bootstrap_exit(launcher: subprocess.Popen[bytes]) -> None:
+    try:
+        returncode = launcher.wait(timeout=_SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_bootstrap(launcher)
+        raise _SupervisorSpawnError("bootstrap did not exit after forking") from exc
+    if returncode != 0:
+        raise _SupervisorSpawnError(f"bootstrap exited with status {returncode}")
+
+
+def _bootstrap_exit_detail(launcher: subprocess.Popen[bytes]) -> str:
+    returncode = launcher.poll()
+    if returncode is None:
+        return ""
+    return f" before exiting with status {returncode}"
+
+
+def _terminate_bootstrap(launcher: subprocess.Popen[bytes]) -> None:
+    try:
+        launcher.terminate()
     except (ProcessLookupError, PermissionError):
         pass
     try:
-        process.wait(timeout=5.0)
+        launcher.wait(timeout=1.0)
     except subprocess.TimeoutExpired:
         try:
-            os.kill(process.pid, signal.SIGKILL)
+            launcher.kill()
         except (ProcessLookupError, PermissionError):
             pass
-        process.wait()
+        launcher.wait()
+
+
+def _terminate_supervisor(supervisor: _DetachedSupervisor) -> None:
+    try:
+        os.kill(supervisor.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
+    if not _wait_for_supervisor_exit(supervisor, timeout=5.0):
+        try:
+            os.kill(supervisor.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        _wait_for_supervisor_exit(supervisor, timeout=1.0)
+
+
+def _wait_for_supervisor_exit(
+    supervisor: _DetachedSupervisor,
+    *,
+    timeout: float,
+) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not supervisor_is_alive(supervisor.pid, supervisor.identity):
+            return True
+        time.sleep(_SUPERVISOR_STOP_POLL_SECONDS)
+    return not supervisor_is_alive(supervisor.pid, supervisor.identity)
 
 
 def _open_supervisor_log(artifacts_dir: str) -> BinaryIO | None:

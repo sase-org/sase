@@ -30,6 +30,13 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 class _FakeSupervisorPid:
     pid = 4242424
 
+    def poll(self) -> int:
+        return 0
+
+    def wait(self, timeout: float | None = None) -> int:
+        del timeout
+        return 0
+
 
 def _promote_and_start_monitor(
     tmp_path: Path,
@@ -58,9 +65,17 @@ def _promote_and_start_monitor(
         pid=os.getpid(),
         cl_name="acme",
     )
-    monkeypatch.setattr(
-        start_module.subprocess, "Popen", lambda *a, **k: _FakeSupervisorPid()
-    )
+
+    def fake_popen(*args: object, **kwargs: object) -> _FakeSupervisorPid:
+        del args
+        pass_fds = kwargs["pass_fds"]
+        assert isinstance(pass_fds, tuple)
+        pid_fd = pass_fds[0]
+        assert isinstance(pid_fd, int)
+        os.write(pid_fd, json.dumps({"pid": _FakeSupervisorPid.pid}).encode() + b"\n")
+        return _FakeSupervisorPid()
+
+    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
     request = StartMonitorRequest(
         command="true",
         reason="verify",
