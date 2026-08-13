@@ -13,6 +13,7 @@ from sase.sdd.plan_tiers import cached_plan_tier
 from ._json_cache import load_json_cached
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
+    apply_monitor_meta,
     append_timestamp_field,
     apply_workflow_child_identity_from_meta,
     has_plan_submission_marker,
@@ -375,5 +376,15 @@ def enrich_agent_from_meta(
         )
         if plan_status is not None:
             agent.status = plan_status
+
+    apply_monitor_meta(
+        agent,
+        monitor_id=data.get("monitor_id"),
+        monitor_state=data.get("monitor_state"),
+        monitor_command=data.get("monitor_command"),
+        monitor_label=data.get("monitor_label"),
+        monitor_start_status=data.get("monitor_start_status"),
+        monitor_exit_code=data.get("monitor_exit_code"),
+    )
 
     agent.refresh_raw_presented_agent_name()

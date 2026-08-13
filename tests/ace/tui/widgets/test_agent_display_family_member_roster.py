@@ -203,6 +203,51 @@ def test_three_member_family_middle_member_lists_others_in_chain_order() -> None
     ]
 
 
+def test_family_roster_labels_monitor_members() -> None:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="DONE",
+        start_time=started,
+        stop_time=started + timedelta(minutes=1),
+        raw_suffix="20260812090000",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING",
+        status_bucket="Running",
+        start_time=started + timedelta(minutes=1),
+        run_start_time=started + timedelta(minutes=1),
+        raw_suffix="20260812090100",
+        parent_timestamp=root.raw_suffix,
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        model="shell",
+        monitor_id="m123",
+        monitor_state="running",
+        monitor_label="just check",
+        monitor_command="just check-full",
+    )
+    root.followup_agents = [monitor]
+
+    entries = family_roster_entries(root)
+
+    assert [(entry.label, entry.kind, entry.status) for entry in entries] == [
+        ("--0", "AGENT (0)", "DONE"),
+        ("--mon", "MONITOR", "MONITORING"),
+    ]
+
+
 def test_member_panel_stays_on_agent_scale_across_fold_levels(
     tmp_path: Path,
 ) -> None:

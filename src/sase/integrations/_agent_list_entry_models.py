@@ -135,6 +135,15 @@ class AgentListEntry:
     traceback: str | None = None
     has_file_changes: bool = False
     has_done_marker: bool = False
+    monitor_id: str | None = None
+    monitor_state: str | None = None
+    monitor_label: str | None = None
+    monitor_command: str | None = None
+    monitor_exit_code: int | None = None
+
+    @property
+    def is_monitor(self) -> bool:
+        return bool(self.monitor_id)
 
     @property
     def is_terminal(self) -> bool:

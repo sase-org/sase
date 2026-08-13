@@ -21,6 +21,7 @@ class _CatalogMember:
     clan_tribe: str | None
     tribe: str | None
     status: str
+    is_monitor: bool = False
 
 
 def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
@@ -46,7 +47,7 @@ def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                 "name": name,
                 "status": agent.status,
                 "project": project,
-                "kind": "agent",
+                "kind": "monitor" if getattr(agent, "monitor_id", None) else "agent",
                 "member_count": 1,
                 "detail": detail,
             }
@@ -155,6 +156,7 @@ def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMembe
                 clan_tribe=clan_tribe,
                 tribe=persisted_tribe or ((meta.tribe or "").strip() or None),
                 status=statuses.get(record.artifact_dir) or _record_status(record),
+                is_monitor=bool(meta.monitor_id),
             )
         )
     return members
@@ -181,6 +183,13 @@ def _persisted_tribe_for_record(
 def _record_status(record: Any) -> str:
     done = record.done
     if record.has_done_marker and done is not None:
+        if done.outcome == "monitored":
+            meta = record.agent_meta
+            return (
+                done.status_label
+                or (meta.monitor_stop_status if meta is not None else None)
+                or "MONITORED"
+            )
         if done.outcome in {"failed", "epic_launch_failed"}:
             return "FAILED"
         return "DONE"
@@ -286,7 +295,7 @@ def _tribe_entries(
         if previous is None or member.timestamp > previous.timestamp:
             newest_by_name[member.name] = member
     for member in newest_by_name.values():
-        if member.tribe:
+        if member.tribe and not member.is_monitor:
             tribe_agents.setdefault(member.tribe, set()).add(member.name)
 
     tribe_clans: dict[str, set[str]] = {}

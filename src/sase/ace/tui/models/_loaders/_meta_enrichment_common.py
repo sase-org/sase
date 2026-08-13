@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import pending_plan_status_for_tier
 from sase.core.time import to_local
 from sase.core.artifact_file_helpers import select_canonical_plan_path
+from sase.monitor_state import monitor_state_bucket
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_phase_name,
@@ -26,6 +27,55 @@ if TYPE_CHECKING:
 
 
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
+
+
+def apply_monitor_meta(
+    agent: Agent,
+    *,
+    monitor_id: object,
+    monitor_state: object,
+    monitor_command: object,
+    monitor_label: object,
+    monitor_start_status: object,
+    monitor_exit_code: object,
+) -> None:
+    """Apply monitor fields from ``agent_meta.json`` to one row."""
+    if not isinstance(monitor_id, str) or not monitor_id:
+        return
+    state = monitor_state if isinstance(monitor_state, str) else None
+    agent.monitor_id = monitor_id
+    agent.monitor_state = state
+    agent.monitor_command = (
+        monitor_command if isinstance(monitor_command, str) else None
+    )
+    agent.monitor_label = monitor_label if isinstance(monitor_label, str) else None
+    if type(monitor_exit_code) is int:
+        agent.monitor_exit_code = monitor_exit_code
+    agent.status_bucket = monitor_state_bucket(state)
+    if state == "running" and agent.status != "STARTING":
+        agent.status = (
+            monitor_start_status
+            if isinstance(monitor_start_status, str) and monitor_start_status
+            else "MONITORING"
+        )
+
+
+def apply_monitor_done(
+    agent: Agent,
+    *,
+    monitor_state: object,
+    monitor_exit_code: object,
+    status_label: object,
+) -> None:
+    """Apply terminal monitor fields from ``done.json`` to one row."""
+    state = monitor_state if isinstance(monitor_state, str) else agent.monitor_state
+    if isinstance(state, str) and state:
+        agent.monitor_state = state
+        agent.status_bucket = monitor_state_bucket(state)
+    if type(monitor_exit_code) is int:
+        agent.monitor_exit_code = monitor_exit_code
+    if isinstance(status_label, str) and status_label:
+        agent.status = status_label
 
 
 def refresh_agent_plan_path(agent: Agent) -> None:

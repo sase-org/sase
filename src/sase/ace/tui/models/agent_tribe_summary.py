@@ -201,6 +201,8 @@ def _unit_kind(agent: Agent) -> str:
 def _member_kind(agent: Agent) -> str:
     if agent.is_family_container_row:
         return "family"
+    if agent.is_monitor:
+        return "monitor"
     if agent.is_workflow_step_child or agent.agent_type == AgentType.WORKFLOW:
         return "step"
     return "agent"

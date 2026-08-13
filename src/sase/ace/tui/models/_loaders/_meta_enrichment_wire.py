@@ -13,6 +13,7 @@ from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
+    apply_monitor_meta,
     append_timestamp_values,
     parent_timestamp_from_meta,
     parse_utc_to_local,
@@ -249,5 +250,15 @@ def enrich_agent_from_meta_wire(
         )
         if plan_status is not None:
             agent.status = plan_status
+
+    apply_monitor_meta(
+        agent,
+        monitor_id=meta.monitor_id,
+        monitor_state=meta.monitor_state,
+        monitor_command=meta.monitor_command,
+        monitor_label=meta.monitor_label,
+        monitor_start_status=meta.monitor_start_status,
+        monitor_exit_code=meta.monitor_exit_code,
+    )
 
     agent.refresh_raw_presented_agent_name()

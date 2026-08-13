@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from sase.agent.running_listing import _running_from_snapshot
+from sase.agent.running_listing import _done_from_snapshot, _running_from_snapshot
 from sase.agents.cli_list import _agent_to_json
 from sase.core.agent_scan_wire import (
     AgentArtifactScanOptionsWire,
@@ -15,6 +15,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
     AgentClanContextWire,
     AgentMetaWire,
+    DoneMarkerWire,
     WaitingMarkerWire,
 )
 from sase.integrations.agent_list_entries import (
@@ -166,6 +167,94 @@ def test_agent_list_carries_status_bucket_from_snapshot_metadata(
 
     assert info.status_bucket == "Done"
     assert entry.status_bucket == "Done"
+
+
+def test_agent_list_includes_live_monitor_family_child(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    artifact_record = record(
+        agent_meta=AgentMetaWire(
+            name="alpha--mon",
+            pid=1234,
+            parent_timestamp="20260812085900",
+            agent_family="alpha",
+            agent_family_role="monitor",
+            role_suffix="--mon",
+            run_started_at="2026-08-12T13:00:00Z",
+            monitor_id="m123",
+            monitor_state="running",
+            monitor_label="just check",
+            monitor_command="just check-full",
+            monitor_start_status="MONITORING",
+        )
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[artifact_record],
+    )
+    monkeypatch.setattr(
+        "sase.agent.running_listing.is_process_alive",
+        lambda *_args: True,
+    )
+
+    (info,) = _running_from_snapshot(snapshot)
+    entry = _build_agent_list_entry(info, record=artifact_record)
+    payload = _agent_to_json(entry)
+
+    assert info.status == "MONITORING"
+    assert info.status_bucket == "Running"
+    assert info.holds_runner_slot is False
+    assert info.monitor_id == "m123"
+    assert entry.is_monitor is True
+    assert entry.monitor_label == "just check"
+    assert payload["is_monitor"] is True
+    assert payload["monitor_command"] == "just check-full"
+    assert payload["status_bucket"] == "Running"
+
+
+def test_agent_list_includes_terminal_monitor_family_child() -> None:
+    artifact_record = record(
+        agent_meta=AgentMetaWire(
+            name="alpha--mon",
+            parent_timestamp="20260812085900",
+            agent_family="alpha",
+            agent_family_role="monitor",
+            role_suffix="--mon",
+            monitor_id="m123",
+            monitor_state="timeout",
+            monitor_label="just check",
+            monitor_command="just check-full",
+            monitor_stop_status="MONITORED",
+            status_bucket="Running",
+        ),
+        has_done_marker=True,
+        done=DoneMarkerWire(
+            outcome="monitored",
+            monitor_state="timeout",
+            monitor_exit_code=124,
+            status_label="MONITORED",
+            status_bucket="Running",
+        ),
+    )
+    snapshot = AgentArtifactScanWire(
+        schema_version=4,
+        projects_root="/tmp/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=[artifact_record],
+    )
+
+    (info,) = _done_from_snapshot(snapshot, cap_per_project=10)
+    entry = _build_agent_list_entry(info, record=artifact_record)
+
+    assert info.status == "MONITORED"
+    assert info.status_bucket == "Failed"
+    assert info.monitor_exit_code == 124
+    assert entry.status_bucket == "Failed"
+    assert entry.is_monitor is True
 
 
 def test_agent_list_entries_names_parallel_child_blocking_waiter(

@@ -26,6 +26,7 @@ from sase.core.runner_slots import (
     is_runner_slot_user_agent_record,
 )
 from sase.core.time import get_timezone
+from sase.monitor_state import monitor_state_bucket
 
 
 @dataclass
@@ -62,6 +63,11 @@ class RunningAgentInfo:
     # Effective presentation-neutral tribe. Clan declarations/context take
     # precedence; standalone assignments remain unchanged for non-clan rows.
     tribe: str | None = None
+    monitor_id: str | None = None
+    monitor_state: str | None = None
+    monitor_label: str | None = None
+    monitor_command: str | None = None
+    monitor_exit_code: int | None = None
 
 
 class _RunningAgentListing(list[RunningAgentInfo]):
@@ -151,6 +157,10 @@ def active_status_for_record(record: AgentArtifactRecordWire) -> str:
                 pass
         return "QUESTION"
     meta = record.agent_meta
+    if meta is not None and meta.monitor_id:
+        if meta.run_started_at or meta.wait_completed_at:
+            return meta.monitor_start_status or "MONITORING"
+        return "STARTING"
     if meta is not None and (meta.run_started_at or meta.wait_completed_at):
         return "RUNNING"
     return "STARTING"
@@ -210,13 +220,22 @@ def _running_info_from_running_record(
 
     status = active_status_for_record(record)
     started_at = _parse_iso_datetime(
-        meta.run_started_at if status == "RUNNING" else None
+        meta.run_started_at
+        if status == "RUNNING" or _record_is_running_monitor(record)
+        else None
     )
     if started_at is None:
         started_at = _parse_started_at(record.timestamp)
     duration = "?"
     duration_seconds: int | None = None
-    if status == "RUNNING" and started_at is not None:
+    if _record_is_running_monitor(record):
+        duration_seconds = (
+            int((now - started_at).total_seconds()) if started_at is not None else None
+        )
+        duration = (
+            _format_duration(duration_seconds) if duration_seconds is not None else "?"
+        )
+    elif status == "RUNNING" and started_at is not None:
         duration_seconds = int((now - started_at).total_seconds())
         duration = _format_duration(duration_seconds)
 
@@ -248,11 +267,15 @@ def _running_info_from_running_record(
         approve=bool(meta.approve),
         prompt=record.raw_prompt_snippet,
         status=status,
-        status_bucket=valid_status_bucket(meta.status_bucket),
+        status_bucket=_record_status_bucket(meta.status_bucket, meta, None),
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
-        holds_runner_slot=bool(meta.run_started_at) and record.pending_question is None,
+        holds_runner_slot=(
+            False
+            if meta.monitor_id
+            else bool(meta.run_started_at) and record.pending_question is None
+        ),
         agent_clan=meta.agent_clan,
         agent_clan_generation=meta.agent_clan_generation,
         clan_tribe=clan_tribe,
@@ -261,6 +284,11 @@ def _running_info_from_running_record(
             declared_clan_tribe=meta.clan_tribe,
             context=context,
         ),
+        monitor_id=meta.monitor_id,
+        monitor_state=meta.monitor_state,
+        monitor_label=meta.monitor_label,
+        monitor_command=meta.monitor_command,
+        monitor_exit_code=meta.monitor_exit_code,
     )
 
 
@@ -275,7 +303,11 @@ def _running_from_snapshot(
 
     for record in snapshot.records:
         is_root = is_root_user_agent_record(record)
-        if not is_root and not _is_visible_runner_slot_child(record):
+        if (
+            not is_root
+            and not _is_visible_runner_slot_child(record)
+            and not _is_visible_monitor_record(record)
+        ):
             continue
         info = _running_info_from_running_record(
             record,
@@ -305,6 +337,38 @@ def _is_visible_runner_slot_child(record: AgentArtifactRecordWire) -> bool:
     return holds_runner_slot or queued_for_runner_slot
 
 
+def _is_visible_monitor_record(record: AgentArtifactRecordWire) -> bool:
+    meta = record.agent_meta
+    return bool(
+        record.workflow_dir_name == "ace-run"
+        and meta is not None
+        and meta.monitor_id
+        and meta.agent_family_role == "monitor"
+        and not record.has_done_marker
+    )
+
+
+def _record_is_running_monitor(record: AgentArtifactRecordWire) -> bool:
+    meta = record.agent_meta
+    return bool(
+        meta is not None and meta.monitor_id and meta.monitor_state == "running"
+    )
+
+
+def _record_status_bucket(
+    raw_bucket: str | None,
+    meta: object | None,
+    done: object | None,
+) -> str | None:
+    monitor_state = getattr(done, "monitor_state", None) or getattr(
+        meta, "monitor_state", None
+    )
+    monitor_id = getattr(meta, "monitor_id", None)
+    if monitor_id or monitor_state:
+        return monitor_state_bucket(monitor_state)
+    return valid_status_bucket(raw_bucket)
+
+
 def _done_info_from_record(
     record: AgentArtifactRecordWire,
     *,
@@ -319,7 +383,7 @@ def _done_info_from_record(
 
     meta = record.agent_meta
 
-    if meta is not None and meta.parent_timestamp:
+    if meta is not None and meta.parent_timestamp and not meta.monitor_id:
         return None
 
     wf_state = record.workflow_state
@@ -331,6 +395,12 @@ def _done_info_from_record(
         return None
     if outcome == "epic_approved":
         status = EPIC_APPROVED_STATUS
+    elif outcome == "monitored":
+        status = (
+            done.status_label
+            or (meta.monitor_stop_status if meta is not None else None)
+            or "MONITORED"
+        )
     elif outcome in {"failed", "epic_launch_failed"}:
         status = "FAILED"
     else:
@@ -352,8 +422,10 @@ def _done_info_from_record(
     model = (meta.model if meta is not None else None) or done.model
     provider = (meta.llm_provider if meta is not None else None) or done.llm_provider
     approve = bool((meta.approve if meta is not None else False) or done.approve)
-    status_bucket = (
-        valid_status_bucket(meta.status_bucket) if meta is not None else None
+    status_bucket = _record_status_bucket(
+        meta.status_bucket if meta is not None else None,
+        meta,
+        done,
     )
     if status_bucket is None:
         status_bucket = valid_status_bucket(done.status_bucket)
@@ -395,6 +467,15 @@ def _done_info_from_record(
             declared_clan_tribe=(meta.clan_tribe if meta is not None else None),
             context=context,
         ),
+        monitor_id=meta.monitor_id if meta is not None else None,
+        monitor_state=done.monitor_state or (meta.monitor_state if meta else None),
+        monitor_label=meta.monitor_label if meta is not None else None,
+        monitor_command=meta.monitor_command if meta is not None else None,
+        monitor_exit_code=done.monitor_exit_code
+        if done.monitor_exit_code is not None
+        else meta.monitor_exit_code
+        if meta is not None
+        else None,
     )
 
 

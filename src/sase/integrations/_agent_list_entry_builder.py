@@ -31,6 +31,7 @@ from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.patch_metadata import canonicalize_patch_metadata
 from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
+from sase.monitor_state import monitor_state_bucket
 
 from ._agent_list_entry_models import (
     AgentChildrenSummary,
@@ -53,11 +54,17 @@ class _AgentListStatusRow:
 
 def record_status_bucket(record: AgentArtifactRecordWire) -> str:
     meta = _record_meta(record)
+    if _is_monitor(meta, record.done):
+        state = record.done.monitor_state if record.done is not None else None
+        return monitor_state_bucket(
+            state or (meta.monitor_state if meta is not None else None)
+        )
     status = _derive_status(
         _base_record_status(record),
         meta,
         _record_waiting(record),
         _record_pending_question(record),
+        record.done,
     )
     retry = _retry_info(meta, record.done)
     override = valid_status_bucket(meta.status_bucket) if meta is not None else None
@@ -68,7 +75,14 @@ def record_status_bucket(record: AgentArtifactRecordWire) -> str:
 
 def _base_record_status(record: AgentArtifactRecordWire) -> str:
     if record.has_done_marker:
-        outcome = record.done.outcome if record.done is not None else None
+        done = record.done
+        outcome = done.outcome if done is not None else None
+        if outcome == "monitored":
+            return (
+                done.status_label
+                if done is not None and done.status_label
+                else "MONITORED"
+            )
         return "FAILED" if outcome == "failed" else "DONE"
     if record.waiting is not None:
         return "WAITING"
@@ -94,13 +108,19 @@ def build_agent_list_entry(
     )
     done = record.done if record is not None else _read_done(agent.artifacts_dir)
 
-    status = _derive_status(agent.status, meta, waiting, pending_question)
+    status = _derive_status(agent.status, meta, waiting, pending_question, done)
     retry = _retry_info(meta, done)
-    status_bucket = valid_status_bucket(agent.status_bucket) or (
-        valid_status_bucket(meta.status_bucket) if meta is not None else None
-    )
-    if status_bucket is None and done is not None:
-        status_bucket = valid_status_bucket(done.status_bucket)
+    status_bucket: str | None
+    if _is_monitor(meta, done):
+        status_bucket = monitor_state_bucket(
+            _text(done, "monitor_state") or _text(meta, "monitor_state")
+        )
+    else:
+        status_bucket = valid_status_bucket(agent.status_bucket) or (
+            valid_status_bucket(meta.status_bucket) if meta is not None else None
+        )
+        if status_bucket is None and done is not None:
+            status_bucket = valid_status_bucket(done.status_bucket)
     bucket = agent_status_bucket(
         _AgentListStatusRow(
             status=status,
@@ -200,6 +220,22 @@ def build_agent_list_entry(
         has_done_marker=(
             record.has_done_marker if record is not None else done is not None
         ),
+        monitor_id=_first_text(agent.monitor_id, _text(meta, "monitor_id")),
+        monitor_state=_first_text(
+            agent.monitor_state,
+            _text(done, "monitor_state"),
+            _text(meta, "monitor_state"),
+        ),
+        monitor_label=_first_text(agent.monitor_label, _text(meta, "monitor_label")),
+        monitor_command=_first_text(
+            agent.monitor_command,
+            _text(meta, "monitor_command"),
+        ),
+        monitor_exit_code=_first_int(
+            agent.monitor_exit_code,
+            _int(done, "monitor_exit_code"),
+            _int(meta, "monitor_exit_code"),
+        ),
     )
 
 
@@ -227,6 +263,7 @@ def _derive_status(
     meta: AgentMetaWire | None,
     waiting: WaitingMarkerWire | None,
     pending_question: PendingQuestionMarkerWire | None,
+    done: DoneMarkerWire | None,
 ) -> str:
     derived = status or "RUNNING"
     if waiting is not None and derived in _ACTIVE_OR_PRE_ACTIVE_STATUSES:
@@ -241,7 +278,24 @@ def _derive_status(
         plan_status = _plan_status(meta)
         if plan_status is not None:
             derived = plan_status
+    if _is_monitor(meta, done):
+        if done is not None and done.outcome == "monitored":
+            return (
+                done.status_label
+                or (meta.monitor_stop_status if meta is not None else None)
+                or "MONITORED"
+            )
+        if meta is not None and (meta.run_started_at or meta.wait_completed_at):
+            return meta.monitor_start_status or "MONITORING"
+        return "STARTING"
     return derived
+
+
+def _is_monitor(meta: AgentMetaWire | None, done: DoneMarkerWire | None) -> bool:
+    return bool(
+        (meta is not None and meta.monitor_id)
+        or (done is not None and done.outcome == "monitored")
+    )
 
 
 def _plan_status(meta: AgentMetaWire) -> str | None:
@@ -488,6 +542,10 @@ def _text(obj: object | None, attr: str) -> str | None:
 
 def _first_text(*values: str | None) -> str | None:
     return next((value for value in values if value), None)
+
+
+def _first_int(*values: int | None) -> int | None:
+    return next((value for value in values if value is not None), None)
 
 
 def _bool(obj: object | None, attr: str) -> bool:

@@ -115,3 +115,32 @@ def test_list_mobile_agents_projects_starting_agent(
     assert agent["status"] == "starting"
     assert agent["display"]["status_label"] == "Starting"
     assert agent["actions"]["can_kill"] is True
+
+
+def test_list_mobile_agents_projects_monitor_metadata(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monitor = _agent(tmp_path, name="alpha--mon", status="MONITORING")
+    monitor.monitor_id = "m123"
+    monitor.monitor_state = "running"
+    monitor.monitor_label = "just check"
+    monitor.monitor_command = "just check-full"
+    monkeypatch.setattr(
+        mobile_agents,
+        "list_running_agents",
+        lambda: [monitor],
+    )
+
+    payload = _list_mobile_agents({"schema_version": 1})
+    agent = payload["agents"][0]
+
+    assert agent["is_monitor"] is True
+    assert agent["monitor"] == {
+        "id": "m123",
+        "state": "running",
+        "label": "just check",
+        "command": "just check-full",
+        "exit_code": None,
+    }
+    assert agent["actions"]["can_kill"] is True

@@ -65,6 +65,8 @@ def get_phase_label(agent: Agent) -> str:
         return "EPIC"
     if role == "commit":
         return "COMMIT"
+    if role == "monitor":
+        return "MONITOR"
     if role == "plan":
         return "PLANNER"
     if suffix in _PHASE_LABELS:

@@ -155,6 +155,14 @@ class AgentState:
     # prompt/detail header renders this as a labeled Activity field.
     activity: str | None = None
 
+    # Monitor-member projection. Monitor rows are ordinary agent-family
+    # members whose work is one supervised OS command rather than an LLM turn.
+    monitor_id: str | None = None
+    monitor_state: str | None = None
+    monitor_command: str | None = None
+    monitor_label: str | None = None
+    monitor_exit_code: int | None = None
+
     # Runner stdout/stderr output file path (for debugging failed agents)
     output_path: str | None = None
 

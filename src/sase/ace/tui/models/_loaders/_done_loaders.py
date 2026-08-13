@@ -31,6 +31,7 @@ from ._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_meta_wire,
 )
+from ._meta_enrichment_common import apply_monitor_done
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 
@@ -254,6 +255,17 @@ def _load_done_agent_for_dir(
                 "Epic launch failed" if outcome == "epic_launch_failed" else None
             )
             error_traceback = data.get("traceback")
+        elif outcome == "monitored":
+            status = (
+                data.get("status_label")
+                if isinstance(data.get("status_label"), str)
+                and data.get("status_label")
+                else "MONITORED"
+            )
+            error_message = (
+                data.get("error") if isinstance(data.get("error"), str) else None
+            )
+            error_traceback = None
         elif outcome == "stopped" or data.get("repeat_stopped"):
             # Repeat-chain STOP: the slot was skipped by a predecessor's STOP
             # output variable. It keeps ``outcome: "completed"`` (so %wait
@@ -341,6 +353,13 @@ def _load_done_agent_for_dir(
         # after the agent started, which the runner doesn't know
         # about when writing done.json).
         enrich_agent_from_meta(agent, str(artifact_dir))
+        if outcome == "monitored":
+            apply_monitor_done(
+                agent,
+                monitor_state=data.get("monitor_state"),
+                monitor_exit_code=data.get("monitor_exit_code"),
+                status_label=data.get("status_label"),
+            )
         enrich_agent_from_prompt_markers(agent, str(artifact_dir))
         _enrich_missing_commit_metadata(agent, artifact_dir)
         _enrich_agent_revert_state(agent, artifact_dir)
@@ -455,6 +474,10 @@ def _build_done_agent_from_record(
             "Epic launch failed" if outcome == "epic_launch_failed" else None
         )
         error_traceback = done.traceback
+    elif outcome == "monitored":
+        status = done.status_label or "MONITORED"
+        error_message = done.error
+        error_traceback = None
     elif outcome == "stopped" or done.repeat_stopped:
         # Repeat-chain STOP: skipped by a predecessor's STOP output variable.
         # Keeps ``outcome: "completed"`` for %wait cascading but renders as a
@@ -529,6 +552,13 @@ def _build_done_agent_from_record(
             record.plan_path.plan_path if record.plan_path is not None else None
         ),
     )
+    if outcome == "monitored":
+        apply_monitor_done(
+            agent,
+            monitor_state=done.monitor_state,
+            monitor_exit_code=done.monitor_exit_code,
+            status_label=done.status_label,
+        )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     _enrich_missing_commit_metadata(agent, record.artifact_dir)
     _enrich_agent_revert_state(agent, record.artifact_dir)

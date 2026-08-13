@@ -75,6 +75,7 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "provider": agent.provider,
         "workspace_num": agent.workspace_num,
         "status": agent.status,
+        "status_bucket": agent.status_bucket,
         "duration_seconds": agent.duration_seconds,
         "started_at": started_at_iso,
         "approve": agent.approve,
@@ -91,11 +92,18 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "runner_slot_queue_size": agent.wait.runner_slot_queue_size,
         "parent_agent_name": agent.parent_agent_name,
         "agent_family": agent.agent_family,
+        "agent_family_role": agent.agent_family_role,
         "tribe": agent.tribe,
         "agent_clan": agent.agent_clan,
         "agent_clan_generation": agent.agent_clan_generation,
         "clan_tribe": agent.clan_tribe,
         "runner_slot_holders": list(agent.wait.runner_slot_holders),
+        "is_monitor": agent.is_monitor,
+        "monitor_id": agent.monitor_id,
+        "monitor_state": agent.monitor_state,
+        "monitor_label": agent.monitor_label,
+        "monitor_command": agent.monitor_command,
+        "monitor_exit_code": agent.monitor_exit_code,
     }
 
 

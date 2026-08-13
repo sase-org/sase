@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from sase.monitor_state import monitor_state_bucket
+
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
@@ -29,14 +31,6 @@ TERMINAL_MONITOR_STATES: frozenset[str] = frozenset(
     {"completed", "failed", "timeout", "stopped"}
 )
 
-_MONITOR_STATE_BUCKETS: dict[str, str] = {
-    "running": "Running",
-    "completed": "Done",
-    "failed": "Failed",
-    "timeout": "Failed",
-    "stopped": "Done",
-}
-
 
 class MonitorError(RuntimeError):
     """Base class for monitor lifecycle failures."""
@@ -48,16 +42,6 @@ class MonitorLaneError(MonitorError):
 
 class MonitorAlreadyRunningError(MonitorError):
     """The lane already has an active monitor."""
-
-
-def monitor_state_bucket(monitor_state: str | None) -> str:
-    """Return the status bucket for a monitor's ``monitor_state``.
-
-    An unrecognized or missing state buckets as ``Running`` so a monitor
-    member that has not (yet) reached a terminal state never reads as
-    finished.
-    """
-    return _MONITOR_STATE_BUCKETS.get(monitor_state or "", "Running")
 
 
 @dataclass(frozen=True)

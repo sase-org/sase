@@ -26,6 +26,8 @@ class ConcreteAgentStatus:
 
 def agent_row_is_in_flight(agent: Agent) -> bool:
     """Return whether one row represents work that is still executing."""
+    if agent.is_monitor:
+        return agent.monitor_state == "running" and agent.stop_time is None
     return agent_is_active(agent.status) and agent.stop_time is None
 
 
@@ -71,8 +73,11 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
             agent.step_type == "agent"
             and not agent.is_synthetic_planner
             and not agent.agent_family_parallel
+            and not agent.is_monitor
         ):
             return (agent,)
+        return ()
+    if agent.is_monitor:
         return ()
 
     if _is_workflow_aggregate_row(agent):
@@ -84,6 +89,7 @@ def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
                 and child.step_type == "agent"
                 and not child.is_synthetic_planner
                 and not child.agent_family_parallel
+                and not child.is_monitor
             )
         )
         if agent_steps:
@@ -164,10 +170,12 @@ def concrete_agent_statuses(agent: Agent) -> tuple[ConcreteAgentStatus, ...]:
     else:
         rows = _concrete_agent_rows(agent)
         buckets = tuple(agent_status_bucket(row) for row in rows)
-    return tuple(
-        ConcreteAgentStatus(agent=row, bucket=bucket)
+    pairs = tuple(
+        (row, bucket)
         for row, bucket in zip(rows, buckets, strict=True)
+        if not row.is_monitor
     )
+    return tuple(ConcreteAgentStatus(agent=row, bucket=bucket) for row, bucket in pairs)
 
 
 def _concrete_planner_child(agent: Agent) -> Agent | None:

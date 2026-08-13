@@ -166,6 +166,37 @@ def test_record_status_bucket_uses_marker_override_for_custom_label() -> None:
     assert bucket == "Done"
 
 
+def test_terminal_monitor_entry_uses_monitor_state_bucket_and_label() -> None:
+    artifact_record = record(
+        agent_meta=AgentMetaWire(
+            monitor_id="m123",
+            monitor_state="timeout",
+            monitor_label="sleep",
+            monitor_command="sleep 60",
+            monitor_stop_status="SLEPT",
+            status_bucket="Running",
+        ),
+        has_done_marker=True,
+        done=DoneMarkerWire(
+            outcome="monitored",
+            monitor_state="timeout",
+            status_label="SLEPT",
+            status_bucket="Running",
+        ),
+    )
+
+    entry = _build_agent_list_entry(
+        agent(status="DONE", status_bucket="Running"),
+        record=artifact_record,
+    )
+
+    assert record_status_bucket(artifact_record) == "Failed"
+    assert entry.status == "SLEPT"
+    assert entry.status_bucket == "Failed"
+    assert entry.is_monitor is True
+    assert entry.monitor_state == "timeout"
+
+
 def test_live_epic_parent_is_not_terminal() -> None:
     entry = _build_agent_list_entry(
         agent(),

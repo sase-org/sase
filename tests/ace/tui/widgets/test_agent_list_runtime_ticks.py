@@ -64,6 +64,14 @@ def test_runtime_suffix_ticks_linked_followup_workflow_ticks() -> None:
     assert runtime_suffix_ticks(result) is True
 
 
+def test_runtime_suffix_ticks_live_monitor_custom_status() -> None:
+    result = agent(status="MONITORING")
+    result.monitor_id = "m123"
+    result.monitor_state = "running"
+
+    assert runtime_suffix_ticks(result) is True
+
+
 def test_runtime_suffix_ticks_appears_as_agent_prompt_step_done_is_static() -> None:
     result = workflow_child(
         step_type="agent",

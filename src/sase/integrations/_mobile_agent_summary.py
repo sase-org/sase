@@ -169,11 +169,23 @@ def agent_summary(agent: RunningAgentInfo) -> dict[str, Any]:
         "duration_seconds": optional_uint(agent.duration_seconds),
         "prompt_snippet": prompt,
         "has_artifact_dir": has_artifact_dir,
+        "is_monitor": bool(agent.monitor_id),
+        "monitor": {
+            "id": agent.monitor_id,
+            "state": agent.monitor_state,
+            "label": agent.monitor_label,
+            "command": agent.monitor_command,
+            "exit_code": optional_uint(agent.monitor_exit_code),
+        },
         "retry_lineage": lineage,
         "actions": {
             "can_resume": has_name,
             "can_wait": has_name,
-            "can_kill": has_name and agent.status.upper() in _KILLABLE_ACTIVE_STATUSES,
+            "can_kill": has_name
+            and (
+                agent.status.upper() in _KILLABLE_ACTIVE_STATUSES
+                or agent.monitor_state == "running"
+            ),
             "can_retry": has_name and (has_artifact_dir or context is not None),
         },
         "display": {

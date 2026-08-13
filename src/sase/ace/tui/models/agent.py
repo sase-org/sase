@@ -247,6 +247,11 @@ class Agent(AgentState):
         return self.status
 
     @property
+    def is_monitor(self) -> bool:
+        """Whether this row represents a supervised monitor command."""
+        return bool(self.monitor_id) or self.agent_family_role == "monitor"
+
+    @property
     def start_time_display(self) -> str:
         """Formatted start time for display."""
         if self.start_time is None:
@@ -427,6 +432,8 @@ class Agent(AgentState):
         and workflow child steps of type ``agent``.
         """
         if self.is_clan_container:
+            return False
+        if self.is_monitor:
             return False
         if self.agent_type == AgentType.RUNNING:
             return True

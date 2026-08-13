@@ -250,7 +250,24 @@ def test_custom_final_family_member_bucket_override_wins() -> None:
     )
 
     assert family_member_status_buckets((monitor,)) == ("Done",)
-    assert concrete_agent_statuses(monitor)[0].bucket == "Done"
+    assert concrete_agent_statuses(monitor) == ()
+
+
+def test_monitor_family_member_rows_do_not_count_as_agents() -> None:
+    root = _agent("alpha--0", role="root")
+    monitor = _agent(
+        "alpha--mon",
+        role="monitor",
+        parent_timestamp=root.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+    )
+    monitor.monitor_id = "m123"
+    monitor.monitor_state = "running"
+    root.followup_agents = [monitor]
+
+    assert concrete_family_member_rows(root) == (root, monitor)
+    assert [entry.agent for entry in concrete_agent_statuses(root)] == [root]
 
 
 def test_stopped_non_final_family_member_projects_done() -> None:

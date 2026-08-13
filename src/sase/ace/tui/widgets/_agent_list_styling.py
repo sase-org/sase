@@ -86,6 +86,10 @@ _STEP_TYPE_GLYPHS: dict[str, str] = {
     "bash": "🐚",
 }
 
+_MONITOR_GLYPH = "⏱"
+_MONITOR_GLYPH_STYLE = "bold #FFAF5F"
+_MONITOR_ROW_STYLE = "#FFAF5F"
+
 # Icon for auto-approve agents. Rendered bare for a normal-plan approval and
 # suffixed ``E``/``T`` for epic/tale plan actions in
 # ``_agent_list_render_agent``.

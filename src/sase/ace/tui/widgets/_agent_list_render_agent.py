@@ -76,6 +76,9 @@ from ._agent_list_styling import (
     _HIDDEN_ICON,
     _MISSING_WAIT_TARGET_GLYPH,
     _MISSING_WAIT_TARGET_GLYPH_STYLE,
+    _MONITOR_GLYPH,
+    _MONITOR_GLYPH_STYLE,
+    _MONITOR_ROW_STYLE,
     _REVERTED_GLYPH,
     _REVERTED_GLYPH_STYLE,
     _STEP_TYPE_COLORS,
@@ -178,11 +181,15 @@ def format_agent_option(
         _append_tree_indent(text, tree_depth)
         if approve_icon is not None:
             text.append(f"{approve_icon} ", style="bold #00FFFF")
-        if agent.is_workflow_step_child:
+        if agent.is_monitor:
+            text.append(f"{_MONITOR_GLYPH} ", style=_MONITOR_GLYPH_STYLE)
+        elif agent.is_workflow_step_child:
             step_glyph = _STEP_TYPE_GLYPHS.get(agent.step_type or "")
             if step_glyph is not None:
                 glyph_color = _STEP_TYPE_COLORS.get(agent.step_type or "", "#FFFFFF")
                 text.append(f"{step_glyph} ", style=f"bold {glyph_color}")
+    elif agent.is_monitor:
+        text.append(f"{_MONITOR_GLYPH} ", style=_MONITOR_GLYPH_STYLE)
 
     # Hidden icon for agents that are normally hidden
     if agent.hidden:
@@ -204,7 +211,9 @@ def format_agent_option(
     is_appears_as_agent = agent.appears_as_agent and not (
         agent.is_anonymous and is_expanded
     )
-    if is_appears_as_agent:
+    if agent.is_monitor:
+        color = _MONITOR_ROW_STYLE
+    elif is_appears_as_agent:
         color = _AGENT_TYPE_COLORS[AgentType.RUNNING]
     elif agent.is_workflow_step_child and agent.step_type in _STEP_TYPE_COLORS:
         color = _STEP_TYPE_COLORS[agent.step_type]
@@ -217,7 +226,7 @@ def format_agent_option(
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
     if not (agent.is_clan_container or is_family_container_row) and not (
-        is_appears_as_agent or agent_is_tree_child(agent)
+        is_appears_as_agent or agent_is_tree_child(agent) or agent.is_monitor
     ):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
@@ -242,7 +251,10 @@ def format_agent_option(
 
         # Agent display name (workflow name for top-level workflows,
         # Patch name otherwise).
-        text.append(agent.display_name, style=name_style)
+        display_name = agent.monitor_label if agent.is_monitor else agent.display_name
+        text.append(display_name or agent.display_name, style=name_style)
+        if agent.is_monitor and agent.monitor_command:
+            text.append(f" · {agent.monitor_command}", style="dim #D7AF5F")
         if tribe_label:
             text.append(
                 f" @{tribe_label}",
@@ -258,6 +270,12 @@ def format_agent_option(
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
         text.append(display_status, style=f"bold {RUNNING_COLOR}")
+    elif agent.is_monitor and agent.monitor_state == "running":
+        text.append(display_status, style=_MONITOR_GLYPH_STYLE)
+    elif agent.is_monitor and agent.monitor_state in {"completed", "stopped"}:
+        text.append(display_status, style="bold #5FD75F")
+    elif agent.is_monitor and agent.monitor_state in {"failed", "timeout"}:
+        text.append(display_status, style="bold #FF5F5F")
     elif agent.status in ("DONE", "PLAN DONE", "TALE DONE"):
         text.append(display_status, style="bold #5FD75F")  # Green
     elif agent.status == "PLAN REJECTED":
@@ -380,6 +398,11 @@ def format_agent_option(
         text.append(f"RETRYING{countdown}", style="bold #FF8700")  # Orange
     else:
         text.append(display_status, style="dim")
+    if agent.is_monitor and agent.monitor_state in {"failed", "timeout"}:
+        if agent.monitor_state == "timeout":
+            text.append(" ⧖", style="bold #FFAF5F")
+        elif agent.monitor_exit_code is not None:
+            text.append(f" ✗ {agent.monitor_exit_code}", style="bold #FF5F5F")
     text.append(")", style="dim")
 
     # Retry/fallback annotations for RUNNING agents that have retried
