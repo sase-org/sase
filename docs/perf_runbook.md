@@ -238,6 +238,18 @@ the identity before, independent of and coarser than each resolver's own on-disk
 so it exists to make a raw capture readable without cross-referencing every resolver's
 cache state.
 
+Since phase `stream` (bead `sase-l6.4`), one selection's enrichment worker resolves its
+requested lanes cheapest-first across `LANE_RESOLUTION_BATCHES`
+(`_agent_display_header_summary.py`) and merges/publishes each batch as it lands, so a
+single selection now emits **up to three**
+`widget.prompt_panel.build_detail_header_summary` parent spans back to back — one per
+non-empty batch — instead of one. All three share the same `agent`; only the first
+carries `cache_state: "cold"` for a never-before-seen identity; the batches after it
+reuse the same process-local seen-set and read `"warm"`. Group by `agent` and read the
+spans in capture order to see which lane group landed first (typically the
+free/cached-lookup batch) versus last (typically the store-backed
+`ARTIFACTS`/`MEMORY`/`SKILLS` batch, before phase `stores`'s caches are warm).
+
 Slice one selection's enrichment out of a capture with:
 
 ```bash

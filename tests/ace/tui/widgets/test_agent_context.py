@@ -424,6 +424,98 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
             assert rendered_labels.index("ARTIFACTS") == expected_index
 
 
+def test_ready_lanes_none_omits_unresolved_lanes_like_before_streaming() -> None:
+    """``ready_lanes=None`` (the default) keeps the pre-streaming contract."""
+    text = Text()
+    append_agent_context_section(
+        text,
+        memory_reads=(_memory_event(),),
+        ready_lanes=None,
+    )
+
+    assert "▸ MEMORY" in text.plain
+    assert "resolving…" not in text.plain
+    assert "▸ SKILLS" not in text.plain
+
+
+def test_unresolved_lanes_render_dim_pending_affordance_not_real_content() -> None:
+    """A lane absent from ``ready_lanes`` shows a pending row, not its data.
+
+    Bead sase-l6.4: distinguishes "still resolving" from "resolved empty" so
+    streamed lanes never silently disappear before they land.
+    """
+    text = Text()
+    append_agent_context_section(
+        text,
+        bead_section=_bead_section(),
+        plan_section=_plan_section(),
+        memory_reads=(_memory_event(),),
+        skill_uses=(_skill_event(),),
+        opened_workspaces=(_workspace_event(),),
+        artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
+        ready_lanes=frozenset(),
+    )
+
+    plain = text.plain
+    for label in _EXPECTED_CONTEXT_LANE_ORDER:
+        assert f"▸ {label} · resolving…\n" in plain, label
+    # None of the real, already-loaded data leaks into a pending row.
+    assert "sase-42.3" not in plain
+    assert "Plan lane" not in plain
+    assert "generated_skills.md" not in plain
+    assert "sase_plan" not in plain
+    assert "sase-core" not in plain
+    assert "result.txt" not in plain
+
+
+def test_mixed_readiness_keeps_stable_order_and_only_pending_rows_stay_dim() -> None:
+    """A partially-resolved summary renders ready lanes for real, in order."""
+    text = Text()
+    append_agent_context_section(
+        text,
+        bead_section=_bead_section(),
+        memory_reads=(_memory_event(),),
+        skill_uses=(_skill_event(),),
+        ready_lanes=frozenset({"plan-bead", "memory"}),
+    )
+
+    plain = text.plain
+    assert "▸ BEAD · ↳ phase sase-42.3\n" in plain
+    assert "generated_skills.md" in plain
+    assert "▸ SKILLS · resolving…\n" in plain
+    assert "sase_plan" not in plain
+    assert "▸ WORKSPACES · resolving…\n" in plain
+    # PLAN has nothing to show yet (plan-bead is ready but no plan_section
+    # was passed) -- a ready-but-empty lane still renders nothing, matching
+    # "resolved to nothing" rather than "still pending".
+    assert "▸ PLAN" not in plain
+    assert plain.index("▸ BEAD") < plain.index("▸ MEMORY")
+    assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
+    assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
+
+
+def test_pending_lane_does_not_consume_a_hint_number() -> None:
+    """A dim pending row is non-interactive: it must not claim a hint slot."""
+    text = Text()
+    hint_state = HeaderHintState(
+        hint_counter=1,
+        hint_mappings={},
+        workspace_dir=None,
+        tool_call_reports={},
+    )
+
+    append_agent_context_section(
+        text,
+        plan_section=_plan_section(),
+        hint_state=hint_state,
+        ready_lanes=frozenset(),
+    )
+
+    assert "▸ PLAN · resolving…\n" in text.plain
+    assert hint_state.hint_counter == 1
+    assert hint_state.hint_mappings == {}
+
+
 def test_context_lanes_render_in_parent_context_order() -> None:
     text = Text()
     append_agent_context_section(

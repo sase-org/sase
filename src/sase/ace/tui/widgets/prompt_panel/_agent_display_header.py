@@ -307,6 +307,7 @@ def build_header_text(
             responsive_ranges=responsive_ranges,
             fold_level=(resolved_lane_fold_level if family_fold_enabled else None),
             section_fold_overrides=lane_overrides,
+            ready_lanes=summary.ready_lanes,
         )
 
         from ._agent_slow_tools import append_slow_tool_calls_section

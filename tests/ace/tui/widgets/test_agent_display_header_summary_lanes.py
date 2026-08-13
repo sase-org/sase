@@ -19,8 +19,10 @@ from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_display_header_summary
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     ALL_DETAIL_CONTEXT_LANES,
+    LANE_RESOLUTION_BATCHES,
     build_detail_header_summary,
     cache_detail_header_summary,
+    detail_header_summary_is_complete,
     get_cached_detail_header_summary,
     should_refresh_detail_header_summary,
 )
@@ -209,6 +211,30 @@ def test_stationary_selection_settles_into_per_lane_revalidation(
     assert "memory" in stale
     assert "artifacts" in stale
     assert "wait-beads" not in stale
+
+
+def test_lane_resolution_batches_cover_every_lane_exactly_once() -> None:
+    """The streaming worker's batches (bead sase-l6.4) partition every lane.
+
+    A lane missing from every batch would silently never resolve; a lane in
+    two batches would be resolved (and published) twice. Both are bugs the
+    worker's cheapest-first loop relies on this constant to avoid.
+    """
+    seen: set[str] = set()
+    for batch in LANE_RESOLUTION_BATCHES:
+        assert not (seen & batch), f"lane(s) {seen & batch} appear in two batches"
+        seen |= batch
+    assert seen == ALL_DETAIL_CONTEXT_LANES
+
+
+def test_detail_header_summary_is_complete() -> None:
+    assert not detail_header_summary_is_complete(None)
+    assert not detail_header_summary_is_complete(
+        DetailHeaderSummary(ready_lanes=frozenset({"memory"}))
+    )
+    assert detail_header_summary_is_complete(
+        DetailHeaderSummary(ready_lanes=ALL_DETAIL_CONTEXT_LANES)
+    )
 
 
 def test_hint_session_widens_every_lane_including_slow_tools(

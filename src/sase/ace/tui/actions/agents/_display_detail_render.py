@@ -265,7 +265,21 @@ class AgentDetailRenderMixin:
         self,
         message: AgentDetailHeaderEnriched,
     ) -> None:
-        """Repaint an enriched header without clobbering active view hints."""
+        """Repaint an enriched header without clobbering active view hints.
+
+        Detail-header enrichment now publishes once per resolved lane batch
+        (bead sase-l6.4) rather than once at the very end, so this handler
+        can fire several times for one selection. The non-hint branch
+        routes the repaint through the shared detail debouncer -- the same
+        mechanism ``on_clan_section_snapshot_loaded`` already uses below --
+        so a burst of batch publishes collapses to one paint instead of
+        rebuilding the document per batch. The hint-mode branch stays
+        immediate (hint numbering must never lag what is on screen) but
+        gains a second escape hatch: even with a typed hint value, a
+        publish that finished the *last* lane is still allowed through, so
+        a hint session started mid-stream is not stuck on a partial
+        document until the user clears the input.
+        """
         from textual.css.query import NoMatches
         from textual.widgets import Input
 
@@ -287,10 +301,11 @@ class AgentDetailRenderMixin:
                 hint_input = self.query_one("#hint-input", Input)  # type: ignore[attr-defined]
             except (NoMatches, KeyError, LookupError):
                 hint_input = None
-            if hint_input is None or not hint_input.value:
+            hint_empty = hint_input is None or not hint_input.value
+            if hint_empty or agent_detail.detail_header_summary_complete(current_agent):
                 self._render_agent_detail_with_hints(agent_detail, current_agent)
         else:
-            agent_detail.refresh_detail_header_from_cache(current_agent)
+            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
         message.stop()
 
     def on_clan_section_snapshot_loaded(

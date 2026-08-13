@@ -167,17 +167,6 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 prepare_sections(agent)
             self._update_display_impl(agent)
 
-    def refresh_detail_header_from_cache(self, agent: Agent) -> None:
-        """Re-render after async detail-header enrichment populated the cache."""
-        with tui_trace("widget.prompt_panel.refresh_detail_header_from_cache"):
-            self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
-            self._update_display_impl(agent)
-            configure_slow_tick = getattr(
-                self, "_configure_slow_tool_render_tick", None
-            )
-            if callable(configure_slow_tick):
-                configure_slow_tick(agent)
-
     def update_header_only(self, agent: Agent) -> None:
         """Render only the agent-details header + inline error traceback.
 

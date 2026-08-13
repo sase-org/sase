@@ -110,6 +110,26 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
     "wait-beads": ("wait_bead_statuses",),
 }
 
+# Cheapest-first resolution batches for the streaming worker (bead
+# sase-l6.4), derived from the bead sase-l6 trace baseline
+# (plans/202608/sase_context_incremental.md). Batch 1 lanes measure ~0 ms
+# even cold: `wait-beads` is derived from data already on the `Agent` row,
+# `plan-bead` hits `_PLAN_ASSOCIATION_CACHE`, `workspaces` stats marker
+# files instead of parsing a log, and `xprompts`/`page-url` are cheap
+# lookups. Batch 2 lanes each parse a multi-MB append-only store on a
+# cache miss (~85-210 ms cold per the trace table; near-zero once the
+# sibling `stores` phase's snapshot caches are warm) -- still slower than
+# batch 1, so they publish separately instead of blocking it. Batch 3
+# (`slow-tools`) is pinned to its own 5 s render-tick cadence
+# (`_LANE_SLOW_TOOLS_REFRESH_INTERVAL_SECONDS`) and must never block the
+# lanes ahead of it. Every `DetailContextLane` appears in exactly one
+# batch; see `test_lane_resolution_batches_cover_every_lane_exactly_once`.
+LANE_RESOLUTION_BATCHES: tuple[frozenset[DetailContextLane], ...] = (
+    frozenset({"wait-beads", "plan-bead", "workspaces", "xprompts", "page-url"}),
+    frozenset({"artifacts", "memory", "skills"}),
+    frozenset({"slow-tools"}),
+)
+
 _DETAIL_HEADER_TRACE_SEEN_MAX_ENTRIES = 512
 _detail_header_trace_seen: OrderedDict[tuple[object, ...], None] = OrderedDict()
 
@@ -230,7 +250,7 @@ def should_refresh_detail_header_summary(
     return frozenset(stale_lanes)
 
 
-def _merge_detail_header_summary(
+def merge_detail_header_summary_lanes(
     previous: DetailHeaderSummary,
     incoming: DetailHeaderSummary,
 ) -> DetailHeaderSummary:
@@ -239,6 +259,9 @@ def _merge_detail_header_summary(
     Lanes ``previous`` had ready that ``incoming`` did not (re)resolve keep
     their previously cached values; every other field takes ``incoming``'s
     value, including fields that are not lane-gated (``bead_display``).
+    Public (bead sase-l6.4) so the streaming worker can fold each cheapest-
+    first batch into a running summary in-thread, independent of the
+    widget-cache merge below.
     """
     kept_lanes = previous.ready_lanes - incoming.ready_lanes
     if not kept_lanes:
@@ -250,6 +273,17 @@ def _merge_detail_header_summary(
     }
     overrides["ready_lanes"] = previous.ready_lanes | incoming.ready_lanes
     return replace(incoming, **overrides)
+
+
+def detail_header_summary_is_complete(summary: DetailHeaderSummary | None) -> bool:
+    """Return whether every SASE CONTEXT lane has been attempted at least once.
+
+    A ``None`` summary (nothing cached yet) counts as incomplete. Used to
+    decide whether a streamed, partially-resolved summary is safe to treat
+    as "done" -- e.g. to allow a hint-mode document to rebuild even while
+    the hint input has a typed value (bead sase-l6.4).
+    """
+    return summary is not None and summary.ready_lanes >= ALL_DETAIL_CONTEXT_LANES
 
 
 def cache_detail_header_summary(
@@ -265,7 +299,7 @@ def cache_detail_header_summary(
     if previous_entry is not None and previous_entry.associated_plan_key == (
         current_plan_key
     ):
-        merged = _merge_detail_header_summary(previous_entry.summary, summary)
+        merged = merge_detail_header_summary_lanes(previous_entry.summary, summary)
     cache[agent.identity] = DetailHeaderSummaryCacheEntry(
         summary=merged,
         cached_monotonic=time.monotonic(),

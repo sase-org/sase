@@ -25,6 +25,10 @@ from ._agent_detail_panels import (
 from .file_panel import AgentFilePanel
 from .file_panel._messages import LinkedDeltasRefreshed
 from .prompt_panel import AgentPromptPanel
+from .prompt_panel._agent_display_header_summary import (
+    detail_header_summary_is_complete,
+    get_cached_detail_header_summary,
+)
 from .prompt_panel._agent_display_state import AgentHintRender
 from .tools_panel import AgentToolsPanel, ToolDetailLevel
 from ..util.trace import tui_trace
@@ -388,15 +392,17 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prompt_panel.attempt_pinned_number = self._current_attempt_number
         return prompt_panel.hint_document_is_current(agent)
 
-    def refresh_detail_header_from_cache(self, agent: Agent) -> None:
-        """Apply cached header enrichment without advancing the generation."""
-        if (
-            self._current_agent is None
-            or self._current_agent.identity != agent.identity
-        ):
-            return
+    def detail_header_summary_complete(self, agent: Agent) -> bool:
+        """Return whether every SASE CONTEXT lane has resolved for ``agent``.
+
+        Lets a hint-mode repaint override the "hint input has a value"
+        suppression once streaming (bead sase-l6.4) finishes the last lane,
+        instead of leaving the document stuck on a partial render for the
+        rest of the hint session.
+        """
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
-        prompt_panel.refresh_detail_header_from_cache(agent)
+        summary = get_cached_detail_header_summary(prompt_panel, agent)
+        return detail_header_summary_is_complete(summary)
 
     def show_empty(self) -> None:
         """Show empty state for all panels."""

@@ -20,10 +20,16 @@ from ._agent_display_async_agent import AgentDisplayAgentWorkerMixin
 from ._agent_display_async_groups import AgentDisplayGroupWorkerMixin
 from ._agent_display_async_types import AgentDetailRenderContext
 from ._agent_display_header_summary import (
+    LANE_RESOLUTION_BATCHES,
     build_detail_header_summary,
+    merge_detail_header_summary_lanes,
     should_refresh_detail_header_summary,
 )
-from ._agent_display_state import DetailContextLane
+from ._agent_display_state import (
+    ALL_DETAIL_CONTEXT_LANES,
+    DetailContextLane,
+    DetailHeaderSummary,
+)
 from ._agent_tribe_aggregation import (
     TribeEnrichmentResult,
     TribeEnrichmentSection,
@@ -98,9 +104,55 @@ class AgentDisplayWorkerMixin(
         """Keep the historical refresh-decision patch point stable."""
         return should_refresh_detail_header_summary(self, agent)
 
-    def _build_detail_header_summary(self, agent: Agent) -> object:
-        """Keep the historical header-builder patch point stable."""
-        return build_detail_header_summary(agent)
+    def _build_detail_header_summary(
+        self,
+        agent: Agent,
+        *,
+        lanes: frozenset[DetailContextLane] = ALL_DETAIL_CONTEXT_LANES,
+    ) -> object:
+        """Keep the historical header-builder patch point stable.
+
+        Resolves ``lanes`` cheapest-first across ``LANE_RESOLUTION_BATCHES``
+        (bead sase-l6.4), merging each batch into a running summary so the
+        return value is always a complete, self-contained result -- the
+        publish below is a UX optimization, not something the return value
+        depends on. Every batch but the last is also handed to the main
+        thread via ``call_from_thread`` as it lands, so the SASE CONTEXT
+        section can render it immediately instead of waiting for the
+        slowest lane; the final batch is left for the existing
+        ``Worker.StateChanged`` SUCCESS path (``_apply_agent_detail_header_
+        enrichment_result``), which already caches and posts
+        ``AgentDetailHeaderEnriched``, so completion has exactly one place
+        that does it.
+        """
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            app = None
+        call_from_thread = getattr(app, "call_from_thread", None)
+
+        remaining = set(lanes)
+        merged: DetailHeaderSummary | None = None
+        for batch in LANE_RESOLUTION_BATCHES:
+            batch_lanes = frozenset(batch & remaining)
+            if not batch_lanes:
+                continue
+            remaining -= batch_lanes
+            partial = build_detail_header_summary(agent, lanes=batch_lanes)
+            merged = (
+                partial
+                if merged is None
+                else merge_detail_header_summary_lanes(merged, partial)
+            )
+            if remaining and callable(call_from_thread):
+                call_from_thread(
+                    self._publish_partial_detail_header_summary,  # type: ignore[attr-defined]
+                    agent,
+                    merged,
+                )
+        if merged is None:
+            return build_detail_header_summary(agent, lanes=frozenset())
+        return merged
 
     @staticmethod
     def _should_resolve_bead_display(agent: Agent) -> bool:

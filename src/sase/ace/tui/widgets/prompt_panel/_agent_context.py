@@ -17,11 +17,21 @@ from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
 from ._agent_artifacts_lane import append_agent_artifacts_lane
 from ._agent_bead_section import BEAD_SECTION_ID, ResponsiveBeadSection
+from ._agent_context_common import (
+    COLOR_ARTIFACTS_SUBHEADER,
+    COLOR_BEAD_SUBHEADER,
+    COLOR_MEMORY_SUBHEADER,
+    COLOR_PLAN_SUBHEADER,
+    COLOR_SKILLS_SUBHEADER,
+    COLOR_TRUNCATION,
+    COLOR_WORKSPACE_SUBHEADER,
+    append_context_lane_header,
+)
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_opened_workspaces import append_agent_opened_workspaces_section
 from ._agent_plan_section import ResponsivePlanSection
 from ._agent_skill_uses import append_agent_skills_section
-from ._agent_display_state import HeaderHintState
+from ._agent_display_state import DetailContextLane, HeaderHintState
 from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
@@ -35,6 +45,29 @@ CONTEXT_LANE_ORDER = (
     "SKILLS",
     "WORKSPACES",
 )
+
+# Which resolved `DetailContextLane` backs each `CONTEXT_LANE_ORDER` label.
+# PLAN and BEAD deliberately share `plan-bead` (bead sase-l6.3): if that
+# lane is still resolving, both render their own pending row rather than
+# trying to merge into one, since which of the two will end up with
+# content is not known until the lane actually lands.
+_LANE_LABEL_BACKING: dict[str, DetailContextLane] = {
+    "PLAN": "plan-bead",
+    "BEAD": "plan-bead",
+    "ARTIFACTS": "artifacts",
+    "MEMORY": "memory",
+    "SKILLS": "skills",
+    "WORKSPACES": "workspaces",
+}
+_LANE_LABEL_PENDING_STYLE: dict[str, str] = {
+    "PLAN": COLOR_PLAN_SUBHEADER,
+    "BEAD": COLOR_BEAD_SUBHEADER,
+    "ARTIFACTS": COLOR_ARTIFACTS_SUBHEADER,
+    "MEMORY": COLOR_MEMORY_SUBHEADER,
+    "SKILLS": COLOR_SKILLS_SUBHEADER,
+    "WORKSPACES": COLOR_WORKSPACE_SUBHEADER,
+}
+_LANE_PENDING_DETAIL = "resolving…"
 
 
 def append_agent_context_section(
@@ -53,8 +86,18 @@ def append_agent_context_section(
     responsive_ranges: dict[str, tuple[int, int]] | None = None,
     fold_level: FoldLevel | None = None,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    ready_lanes: frozenset[DetailContextLane] | None = None,
 ) -> tuple[int, int] | None:
-    """Append present SASE CONTEXT lanes in the declared narrative order."""
+    """Append present SASE CONTEXT lanes in the declared narrative order.
+
+    ``ready_lanes`` distinguishes a lane that has not resolved yet from one
+    that resolved to nothing (bead sase-l6.4): when it is not ``None``, a
+    label whose backing lane is absent renders a dim, non-interactive
+    "resolving…" row instead of being silently skipped, so streamed lanes
+    render progressively without the section visibly reshuffling once the
+    rest land. Passing ``None`` keeps the legacy behavior of treating "no
+    data" and "not requested" identically.
+    """
 
     def append_bead_lane(lane: Text) -> None:
         if bead_section is None:
@@ -109,7 +152,16 @@ def append_agent_context_section(
     rendered_lanes: list[tuple[str, Text]] = []
     for label in CONTEXT_LANE_ORDER:
         lane = Text()
-        lane_renderers[label](lane)
+        if ready_lanes is not None and _LANE_LABEL_BACKING[label] not in ready_lanes:
+            append_context_lane_header(
+                lane,
+                label,
+                label_style=_LANE_LABEL_PENDING_STYLE[label],
+                details=_LANE_PENDING_DETAIL,
+                details_style=COLOR_TRUNCATION,
+            )
+        else:
+            lane_renderers[label](lane)
         if lane:
             rendered_lanes.append((label, lane))
     if not rendered_lanes:

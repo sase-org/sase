@@ -18,6 +18,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
     AgentHintsDisplayMixin,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
+    ALL_DETAIL_CONTEXT_LANES,
+    LANE_RESOLUTION_BATCHES,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContextLane
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     _DetailHeaderSummary,
     cache_detail_header_summary,
@@ -62,6 +67,30 @@ class _MessageHeaderEnrichmentPanel(_HeaderEnrichmentPanel):
 
     def post_message(self, message: object) -> None:
         self.messages.append(message)
+
+
+class _RecordingApp:
+    """Minimal ``call_from_thread`` stand-in: runs the callback inline.
+
+    Real Textual marshals the call onto the event loop from a worker
+    thread; these tests run everything on one thread, so calling straight
+    through is equivalent for exercising what gets published and when.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[Any, ...]] = []
+
+    def call_from_thread(self, fn: Callable[..., object], *args: object) -> object:
+        self.calls.append(args)
+        return fn(*args)
+
+
+class _StreamingHeaderEnrichmentPanel(_MessageHeaderEnrichmentPanel):
+    """A panel with an ``app`` so the streaming worker can publish batches."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.app = _RecordingApp()
 
 
 def _set_context(
@@ -155,7 +184,8 @@ def test_update_display_schedules_header_enrichment_without_sync_build(
     calls: list[object] = []
     summary = _summary()
 
-    def build(agent_arg: object) -> _DetailHeaderSummary:
+    def build(agent_arg: object, *, lanes: object = None) -> _DetailHeaderSummary:
+        del lanes
         calls.append(agent_arg)
         return summary
 
@@ -172,8 +202,12 @@ def test_update_display_schedules_header_enrichment_without_sync_build(
     assert "Deltas:" not in plain_of(panel.captured[-1])
     assert "Files:" not in plain_of(panel.captured[-1])
 
+    # The streaming worker (bead sase-l6.4) resolves the default full lane
+    # set cheapest-first across three batches, calling the patched builder
+    # once per batch; every batch here returns the same fixed summary, so
+    # the merge across batches collapses back to that same object.
     assert panel.worker_fn() is summary
-    assert calls == [agent]
+    assert calls == [agent, agent, agent]
 
 
 def test_successful_header_enrichment_repaints_from_cache(
@@ -186,7 +220,7 @@ def test_successful_header_enrichment_repaints_from_cache(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda _agent: summary,
+        lambda _agent, *, lanes=None: summary,
     )
 
     panel.update_display(agent)
@@ -224,7 +258,7 @@ def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda _agent: summary,
+        lambda _agent, *, lanes=None: summary,
     )
 
     panel.update_display(agent)
@@ -258,7 +292,7 @@ def test_successful_header_enrichment_posts_completion_message(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda _agent: summary,
+        lambda _agent, *, lanes=None: summary,
     )
 
     panel.update_display(agent)
@@ -289,7 +323,7 @@ def test_stale_header_enrichment_result_is_cached_without_repaint(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda _agent: summary,
+        lambda _agent, *, lanes=None: summary,
     )
 
     panel.update_display(agent)
@@ -349,7 +383,8 @@ def test_cold_hint_render_schedules_enrichment_without_sync_build(
     _set_context(panel, agent.identity, current=True)
     calls: list[Agent] = []
 
-    def build(agent_arg: Agent) -> _DetailHeaderSummary:
+    def build(agent_arg: Agent, *, lanes: object = None) -> _DetailHeaderSummary:
+        del lanes
         calls.append(agent_arg)
         return _summary()
 
@@ -383,7 +418,8 @@ def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
         ]
     )
 
-    def build(agent_arg: Agent) -> _DetailHeaderSummary:
+    def build(agent_arg: Agent, *, lanes: object = None) -> _DetailHeaderSummary:
+        del lanes
         calls.append(agent_arg)
         return summary
 
@@ -406,7 +442,9 @@ def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
         cast(Worker[Any], panel.worker),
         WorkerState.SUCCESS,
     )
-    assert calls == [agent]
+    # Three cheapest-first batches (bead sase-l6.4) for the default full
+    # lane set, each hitting the patched builder once.
+    assert calls == [agent, agent, agent]
     assert isinstance(panel.messages[-1], AgentDetailHeaderEnriched)
 
     enriched = panel.update_display_with_hints(agent)
@@ -426,7 +464,7 @@ def test_hint_request_replaces_same_agent_in_flight_render_context(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda _agent: summary,
+        lambda _agent, *, lanes=None: summary,
     )
 
     panel.update_display(agent)
@@ -473,7 +511,7 @@ def test_completed_phase_enrichment_cannot_overwrite_new_phase_selection(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda agent: _DetailHeaderSummary(
+        lambda agent, *, lanes=None: _DetailHeaderSummary(
             phase_bead=_phase_summary(agent.phase_bead_id or "missing")
         ),
     )
@@ -523,7 +561,8 @@ def test_fresh_header_summary_cache_skips_second_worker(
     summary = _summary()
     build_calls: list[object] = []
 
-    def build(agent_arg: object) -> _DetailHeaderSummary:
+    def build(agent_arg: object, *, lanes: object = None) -> _DetailHeaderSummary:
+        del lanes
         build_calls.append(agent_arg)
         return summary
 
@@ -540,11 +579,128 @@ def test_fresh_header_summary_cache_skips_second_worker(
         cast(Worker[Any], panel.worker),
         WorkerState.SUCCESS,
     )
-    assert build_calls == [agent]
+    assert build_calls == [agent, agent, agent]
 
     panel.worker_fn = None
     panel.update_display(agent)
 
     assert panel.worker_fn is None
-    assert build_calls == [agent]
+    assert build_calls == [agent, agent, agent]
     assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain_of(panel.captured[-1])
+
+
+def test_worker_resolves_lane_batches_cheapest_first_and_publishes_each(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bead sase-l6.4: batches run in ``LANE_RESOLUTION_BATCHES`` order and
+    every batch but the last is handed to the main thread as it lands.
+    """
+    agent = make_agent(status="RUNNING")
+    panel = _StreamingHeaderEnrichmentPanel()
+    _set_context(panel, agent.identity, current=True)
+    seen_batches: list[frozenset[DetailContextLane]] = []
+
+    def build(
+        agent_arg: object, *, lanes: frozenset[DetailContextLane]
+    ) -> _DetailHeaderSummary:
+        del agent_arg
+        seen_batches.append(lanes)
+        return _DetailHeaderSummary(ready_lanes=lanes)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "build_detail_header_summary",
+        build,
+    )
+
+    panel.update_display(agent)
+    assert panel.worker_fn is not None
+    result = cast(_DetailHeaderSummary, panel.worker_fn())
+
+    assert seen_batches == list(LANE_RESOLUTION_BATCHES)
+    assert result.ready_lanes == ALL_DETAIL_CONTEXT_LANES
+
+    # Every batch but the last publishes to the main thread as it lands;
+    # the final batch is left for the Worker.StateChanged SUCCESS path so
+    # completion has exactly one place that caches and posts.
+    assert len(panel.app.calls) == len(LANE_RESOLUTION_BATCHES) - 1
+    assert len(panel.messages) == len(LANE_RESOLUTION_BATCHES) - 1
+    assert all(isinstance(m, AgentDetailHeaderEnriched) for m in panel.messages)
+
+    # The cache already reflects the first two batches by the time the
+    # worker returns, ahead of the SUCCESS handler's own cache write.
+    cached = get_cached_detail_header_summary(panel, agent)
+    assert cached is not None
+    assert cached.ready_lanes == LANE_RESOLUTION_BATCHES[0] | LANE_RESOLUTION_BATCHES[1]
+
+
+def test_only_stale_lanes_are_resolved_when_summary_is_partially_fresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cache with one stale lane should not re-resolve the fresh ones."""
+    agent = make_agent(status="RUNNING")
+    panel = _StreamingHeaderEnrichmentPanel()
+    _set_context(panel, agent.identity, current=True)
+    cache_detail_header_summary(
+        panel,
+        agent,
+        _DetailHeaderSummary(ready_lanes=ALL_DETAIL_CONTEXT_LANES - {"memory"}),
+    )
+    seen_batches: list[frozenset[DetailContextLane]] = []
+
+    def build(
+        agent_arg: object, *, lanes: frozenset[DetailContextLane]
+    ) -> _DetailHeaderSummary:
+        del agent_arg
+        seen_batches.append(lanes)
+        return _DetailHeaderSummary(ready_lanes=lanes)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "build_detail_header_summary",
+        build,
+    )
+
+    panel.update_display(agent)
+
+    assert panel.worker_fn is not None
+    result = cast(_DetailHeaderSummary, panel.worker_fn())
+
+    assert seen_batches == [frozenset({"memory"})]
+    assert result.ready_lanes == frozenset({"memory"})
+    # No intermediate publish: the one stale lane is also the last batch.
+    assert panel.app.calls == []
+
+
+def test_superseded_selection_intermediate_batch_caches_without_repaint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A batch landing after the selection moved on must not repaint it."""
+    agent = make_agent(status="RUNNING")
+    panel = _StreamingHeaderEnrichmentPanel()
+    _set_context(panel, agent.identity, current=False)
+
+    def build(
+        agent_arg: object, *, lanes: frozenset[DetailContextLane]
+    ) -> _DetailHeaderSummary:
+        del agent_arg
+        return _DetailHeaderSummary(ready_lanes=lanes)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "build_detail_header_summary",
+        build,
+    )
+
+    panel.update_display(agent)
+    assert panel.worker_fn is not None
+    result = cast(_DetailHeaderSummary, panel.worker_fn())
+
+    assert result.ready_lanes == ALL_DETAIL_CONTEXT_LANES
+    # The now-stale intermediate batches still ran and still cached (same
+    # unconditional-cache-then-check-is_current shape as the SUCCESS
+    # handler), but none of them posted a repaint message.
+    assert panel.messages == []
+    cached = get_cached_detail_header_summary(panel, agent)
+    assert cached is not None
+    assert cached.ready_lanes == LANE_RESOLUTION_BATCHES[0] | LANE_RESOLUTION_BATCHES[1]

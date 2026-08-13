@@ -20,6 +20,11 @@ from ._agent_display_header_summary import (
     cache_detail_header_summary,
     get_cached_detail_header_summary,
 )
+from ._agent_display_state import (
+    ALL_DETAIL_CONTEXT_LANES,
+    DetailContextLane,
+    DetailHeaderSummary,
+)
 from ._messages import AgentDetailHeaderEnriched
 from ..file_panel._messages import LinkedDeltasRefreshed
 
@@ -67,13 +72,15 @@ class AgentDisplayAgentWorkerMixin:
         )
         if context is None or context.attempt_pinned_number is not None:
             return
-        if not self._should_refresh_detail_header_summary(  # type: ignore[attr-defined]
+        stale_lanes = self._should_refresh_detail_header_summary(  # type: ignore[attr-defined]
             agent
-        ):
+        )
+        if not stale_lanes:
             return
 
         self.start_agent_detail_header_enrichment(
             agent,
+            lanes=stale_lanes,
             generation=context.generation,
             attempt_view_mode=context.attempt_view_mode,
             attempt_pinned_number=context.attempt_pinned_number,
@@ -84,12 +91,18 @@ class AgentDisplayAgentWorkerMixin:
         self,
         agent: Agent,
         *,
+        lanes: frozenset[DetailContextLane] = ALL_DETAIL_CONTEXT_LANES,
         generation: int,
         attempt_view_mode: str,
         attempt_pinned_number: int | None,
         is_current: Callable[[tuple[Any, ...], int, str, int | None], bool],
     ) -> None:
-        """Build expensive detail-header metadata in a worker thread."""
+        """Build expensive detail-header metadata in a worker thread.
+
+        ``lanes`` is resolved cheapest-first and published to the main
+        thread batch by batch as it lands (bead sase-l6.4); see
+        ``_build_detail_header_summary`` in ``_agent_display_async.py``.
+        """
         run_worker = getattr(self, "run_worker", None)
         if not callable(run_worker):
             return
@@ -97,6 +110,7 @@ class AgentDisplayAgentWorkerMixin:
         request = DetailHeaderEnrichmentRequest(
             agent=agent,
             agent_identity=agent.identity,
+            lanes=lanes,
             generation=generation,
             attempt_view_mode=attempt_view_mode,
             attempt_pinned_number=attempt_pinned_number,
@@ -122,7 +136,9 @@ class AgentDisplayAgentWorkerMixin:
             current_worker.cancel()
 
         def enrich_task() -> object:
-            return self._build_detail_header_summary(agent)  # type: ignore[attr-defined,no-any-return]
+            return self._build_detail_header_summary(  # type: ignore[attr-defined,no-any-return]
+                agent, lanes=lanes
+            )
 
         self._agent_detail_header_request = request  # type: ignore[attr-defined]
         self._agent_detail_header_worker = run_worker(  # type: ignore[attr-defined]
@@ -266,6 +282,40 @@ class AgentDisplayAgentWorkerMixin:
         )
         if current_request is None or current_request.agent_identity != agent.identity:
             current_worker.cancel()
+
+    def _publish_partial_detail_header_summary(
+        self,
+        agent: Agent,
+        partial: DetailHeaderSummary,
+    ) -> None:
+        """Merge one streamed batch into the cache and repaint if still current.
+
+        Called on the main thread via ``call_from_thread`` from inside the
+        still-running enrichment worker (bead sase-l6.4), so lanes render
+        as they land instead of all waiting for the slowest one. Re-reads
+        the request pointer rather than closing over it, matching
+        ``_apply_agent_detail_header_enrichment_result`` below, so a
+        selection change that replaces the request mid-run is honored on
+        every batch rather than only the final one.
+        """
+        cache_detail_header_summary(self, agent, partial)
+
+        request: DetailHeaderEnrichmentRequest | None = getattr(
+            self, "_agent_detail_header_request", None
+        )
+        if request is None or request.agent_identity != agent.identity:
+            return
+        if not request.is_current(
+            request.agent_identity,
+            request.generation,
+            request.attempt_view_mode,
+            request.attempt_pinned_number,
+        ):
+            return
+
+        post_message = getattr(self, "post_message", None)
+        if callable(post_message):
+            post_message(AgentDetailHeaderEnriched(agent.identity))
 
     def _apply_agent_detail_header_enrichment_result(
         self, worker: Worker[Any], state: WorkerState

@@ -9,6 +9,7 @@ from typing import Any
 from ...models._agent_clan_sections import ClanDiskSection, ClanInMemorySnapshot
 from ...models.agent import Agent
 from ...models.agent_tribe_summary import TribePanelIdentity
+from ._agent_display_state import DetailContextLane
 from ._agent_tribe_aggregation import TribeEnrichmentSection, TribeUnitSource
 
 
@@ -52,6 +53,7 @@ class DetailHeaderEnrichmentRequest:
 
     agent: Agent
     agent_identity: tuple[Any, ...]
+    lanes: frozenset[DetailContextLane]
     generation: int
     attempt_view_mode: str
     attempt_pinned_number: int | None

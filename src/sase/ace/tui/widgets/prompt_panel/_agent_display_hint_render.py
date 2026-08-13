@@ -30,6 +30,7 @@ from ._agent_display_content import (
 from ._agent_display_context import runner_capacity_for_app
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
+    detail_header_summary_is_complete,
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
@@ -223,7 +224,9 @@ class AgentHintRenderMixin:
                 file_hints=hint_mappings,
                 tool_call_reports=tool_call_reports,
                 commit_views=header_hint_state.commit_views,
-                header_enrichment_pending=summary is None,
+                header_enrichment_pending=not detail_header_summary_is_complete(
+                    summary
+                ),
             )
 
         # Error traceback as text with hints (not Syntax)
@@ -417,7 +420,7 @@ class AgentHintRenderMixin:
             file_hints=hint_mappings,
             tool_call_reports=tool_call_reports,
             commit_views=header_hint_state.commit_views,
-            header_enrichment_pending=summary is None,
+            header_enrichment_pending=not detail_header_summary_is_complete(summary),
         )
 
     def _update_clan_display_with_hints(self, agent: Agent) -> AgentHintRender:
