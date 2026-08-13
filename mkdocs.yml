@@ -31,6 +31,7 @@ nav:
       - Beads: beads.md
       - Workflows: workflow_spec.md
       - Agent Families: agent_families.md
+      - Monitors: monitors.md
       - Workspaces: workspace.md
       - Mentors: mentors.md
   - The Nitty Gritty:

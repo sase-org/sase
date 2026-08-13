@@ -35,6 +35,12 @@ Run `just check-full` instead — every lint gate plus the full test suite — b
 landing an epic's combined tree, when the change touches the broadening set, or any time
 `just check`'s scoped run escalated or reported an unusual selection.
 
+`just check-full` routinely outruns a single agent turn, so run it **only** through
+`/sase_monitor` (`sase monitor start --command 'just check-full' …`), never inline. Hand
+a `--next` action so the follow-up agent acts on the result. `just check` may be run
+inline, but hand it to a monitor too whenever it is taking a long time — same `--next`
+rule applies.
+
 **IMPORTANT**: One consequence of sase's ephemeral workspace directories (see the
 sase.md file in this directory) is that you need to run `just install` before running
 other commands like `just check` (since it is possible we haven't used this workspace

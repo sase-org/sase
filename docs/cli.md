@@ -275,6 +275,16 @@ Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dep
 resolution, cleanup, and error digests. ACE starts axe automatically unless launched
 with `sase ace --no-axe`.
 
+| Command              | Purpose                                                                       | Details                 |
+| -------------------- | ----------------------------------------------------------------------------- | ----------------------- |
+| `sase monitor start` | Hand a command to a detached supervisor and return; kills the caller.         | [Monitors](monitors.md) |
+| `sase monitor list`  | List monitor family members, newest first; bare `sase monitor` defaults here. | [Monitors](monitors.md) |
+| `sase monitor show`  | Show one monitor's detail and captured output; `--follow` streams it.         | [Monitors](monitors.md) |
+| `sase monitor stop`  | Stop a running monitor; no follow-up agent launches.                          | [Monitors](monitors.md) |
+
+A long command (`just check-full`, a CI wait, a deploy) should run under a monitor
+rather than blocking an agent turn — see the `/sase_monitor` skill.
+
 ## Prompt And Workflow Authoring
 
 | Command                          | Purpose                                                                           | Details                                                                                     |
