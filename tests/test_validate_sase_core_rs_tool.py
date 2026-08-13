@@ -179,6 +179,18 @@ def test_validate_sase_core_rs_requires_vcs_log_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_snippet_session_binding() -> None:
+    validator = _load_validate_sase_core_rs()
+
+    assert "apply_snippet_session_event" in validator.REQUIRED_BINDINGS
+    assert not validator._validate_bindings(
+        _module_with_required_bindings(
+            validator,
+            missing={"apply_snippet_session_event"},
+        )
+    )
+
+
 def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     validator = _load_validate_sase_core_rs()
 
