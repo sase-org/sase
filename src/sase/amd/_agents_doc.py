@@ -9,15 +9,11 @@ import re
 from sase.memory.paths import canonical_memory_reference
 
 
-_SHORT_SECTION_HEADINGS = frozenset(
-    {
-        "## Tier 1 (short-term) Memory",
-    }
+_SHORT_SECTION_RE = re.compile(
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 1 \(short-term\) Memory$"
 )
-_LONG_SECTION_HEADINGS = frozenset(
-    {
-        "## Tier 2 (long-term) Memory",
-    }
+_LONG_SECTION_RE = re.compile(
+    r"^##\s+(?:\d+(?:\.\d+)*\.?\s+)?Tier 2 \(long-term\) Memory$"
 )
 _H2_RE = re.compile(r"^##\s+")
 _LEGACY_AMD_COMMENT_RE = re.compile(r"^\s*<!--\s*sase-" r"amd:[^>]+-->\s*$")
@@ -101,10 +97,10 @@ def _is_legacy_amd_comment(line: str) -> bool:
 
 def _section_bounds(
     lines: list[str],
-    headings: frozenset[str],
+    heading_re: re.Pattern[str],
 ) -> tuple[int, int] | None:
     for index, line in enumerate(lines):
-        if _normalized_line(line) not in headings:
+        if heading_re.match(_normalized_line(line)) is None:
             continue
         end = len(lines)
         for section_end, candidate in enumerate(lines[index + 1 :], start=index + 1):
@@ -200,8 +196,8 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
         )
 
     lines = text.splitlines()
-    short_bounds = _section_bounds(lines, _SHORT_SECTION_HEADINGS)
-    long_bounds = _section_bounds(lines, _LONG_SECTION_HEADINGS)
+    short_bounds = _section_bounds(lines, _SHORT_SECTION_RE)
+    long_bounds = _section_bounds(lines, _LONG_SECTION_RE)
     return _AmdAgentsDocument(
         has_short_section=short_bounds is not None,
         has_long_section=long_bounds is not None,

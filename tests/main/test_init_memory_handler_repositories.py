@@ -113,7 +113,10 @@ sibling_repos:
         assert "Non-README Markdown files live directly under `sase/memory/`" in readme
         assert "`type: long` notes are detailed reference material" in readme
         agents = (root / "AGENTS.md").read_text()
-        assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
+        assert (
+            "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
+            or "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
+        )
         assert "@sase/memory/sase.md" not in agents
         # Provider files are byte-for-byte copies of ``AGENTS.md``.
         for filename in PROVIDER_SHIM_FILES:

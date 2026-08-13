@@ -489,7 +489,9 @@ as aliases; when both paths appear in one file, the nested `memory.*` form wins.
 
 Every configured path must remain inside the project root. Rendering uses strict
 variables: required placeholders must appear, unknown placeholders are rejected, and the
-rendered instruction/memory structure is validated before any file is written.
+rendered instruction/memory structure is validated before any file is written. Generated
+agent documents are numbered automatically, so custom `AGENTS.template.md` headings
+should not carry their own numbers.
 
 Home initialization uses convention-based files instead of the project-local path keys.
 Put `AGENTS.template.md`, `AGENTS.minimal.template.md`, `memory-sase.template.md`, or
@@ -3722,13 +3724,13 @@ byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` / `*.md.tmpl`
 shims are recognized and migrated to full copies). This copy applies to every existing
 project-tree `AGENTS.md`; directories without one are untouched. For managed roots,
 memory init synchronizes memory: short-term notes are inlined into the Tier 1 block of
-`AGENTS.md` with generated heading numbers, long-term notes are rendered as a
-description-driven reference list, and missing long-memory `description` frontmatter is
-inserted. By default it also tries to commit, rebase-pull, and push generated
-project-side files. `sase init memory` is a compatibility alias for this command.
-Generated repository memory requires agents to use `/sase_repo` before reading or
-modifying any repo outside their own workspace checkout. The rule covers linked repos,
-sidecars, different SASE projects, and unlinked GitHub repos even when no linked
+`AGENTS.md`, every heading in the generated document is numbered, long-term notes are
+rendered as a description-driven reference list, and missing long-memory `description`
+frontmatter is inserted. By default it also tries to commit, rebase-pull, and push
+generated project-side files. `sase init memory` is a compatibility alias for this
+command. Generated repository memory requires agents to use `/sase_repo` before reading
+or modifying any repo outside their own workspace checkout. The rule covers linked
+repos, sidecars, different SASE projects, and unlinked GitHub repos even when no linked
 repositories are configured. When a managed project has a nonempty `memory.glossary`
 section, the same run also regenerates `sase/memory/glossary.md`, lists it in
 `sase/memory/README.md`, and refreshes the generated Tier 2 description in `AGENTS.md`;

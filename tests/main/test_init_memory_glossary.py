@@ -43,13 +43,13 @@ def _setup_project(
 
 
 def _tier1_memory(agents: str) -> str:
-    return agents.split("## Tier 1 (short-term) Memory", 1)[1].split(
-        "## Tier 2 (long-term) Memory", 1
+    return agents.split("## 1. Tier 1 (short-term) Memory", 1)[1].split(
+        "## 2. Tier 2 (long-term) Memory", 1
     )[0]
 
 
 def _tier2_memory(agents: str) -> str:
-    return agents.split("## Tier 2 (long-term) Memory", 1)[1]
+    return agents.split("## 2. Tier 2 (long-term) Memory", 1)[1]
 
 
 def test_memory_plan_generates_project_glossary_before_agents(

@@ -285,8 +285,8 @@ def _render_managed_agents(
 
     bodies = short_memory_bodies or {}
     tier1_sections = "\n\n".join(
-        inline_memory_section(relative_path, body, number=index + 1).rstrip("\n")
-        for index, (relative_path, body) in enumerate(bodies.items())
+        inline_memory_section(relative_path, body).rstrip("\n")
+        for relative_path, body in bodies.items()
     )
 
     rendered_long_notes = []
@@ -349,7 +349,7 @@ def plan_minimal_agents_sync(
     """Plan the create-if-missing fallback agent document from its template."""
     relative_path = (CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md").as_posix()
     body = generated_short_notes.get(relative_path, "")
-    tier1_sections = inline_memory_section(relative_path, body, number=1).rstrip("\n")
+    tier1_sections = inline_memory_section(relative_path, body).rstrip("\n")
     rendered, render_error = render_agents_template(
         root,
         title="Agent Instructions",

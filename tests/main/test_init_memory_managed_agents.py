@@ -127,18 +127,18 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert agents.startswith("# Managed Instructions\n")
-    assert "## Tier 1 (short-term) Memory" in agents
+    assert "## 1. Tier 1 (short-term) Memory" in agents
     assert "The following memories contain core (always loaded) context:" in agents
     # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
-    assert "### 1. Extra (extra)" in agents
-    assert "#### 1.1 Section" in agents
-    assert "### 2. SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1.1 Extra (extra)" in agents
+    assert "#### 1.1.1 Section" in agents
+    assert "### 1.2 SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "@sase/memory/extra.md" not in agents
     assert "@sase/memory/sase.md" not in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
-    assert "## Tier 2 (long-term) Memory" in agents
+    assert "## 2. Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
     assert "#### Long-Term Memory Files" not in agents
     assert "**`sase/memory/curated.md`**  \nCurated description survives." in agents
@@ -337,7 +337,7 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
     assert run_handler() == 0
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
-    assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
+    assert "### 1.1 SASE = Structured Agentic Software Engineering (sase)" in agents
     assert "@sase/memory/sase.md" not in agents
 
     # ``sase/memory/sase.md`` is regenerated every run, and its *fresh* body is the one

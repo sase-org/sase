@@ -12,6 +12,7 @@ from sase.amd.constants import (
     PROVIDER_SHIM_CONTENT,
     PROVIDER_SHIM_FILES,
 )
+from sase.amd._agents_doc import parse_amd_agents_document
 from sase.amd.inventory import _render_amd_inventory, _build_amd_inventory
 
 _LEGACY_MARKER_PREFIX = "sase-" + "amd"
@@ -40,6 +41,7 @@ def managed_agents(
     title: str = "Managed Instructions",
     *,
     markered: bool = False,
+    numbered: bool = False,
 ) -> str:
     short_markers = ([legacy_marker("short-memory:start")] if markered else []) + (
         [legacy_marker("short-memory:end")] if markered else []
@@ -47,21 +49,37 @@ def managed_agents(
     long_markers = ([legacy_marker("long-memory:start")] if markered else []) + (
         [legacy_marker("long-memory:end")] if markered else []
     )
+    tier1_heading = (
+        "## 1. Tier 1 (short-term) Memory"
+        if numbered
+        else "## Tier 1 (short-term) Memory"
+    )
+    tier2_heading = (
+        "## 2. Tier 2 (long-term) Memory"
+        if numbered
+        else "## Tier 2 (long-term) Memory"
+    )
+    first_short = "### 1.1 Extra (extra)" if numbered else "### 1. Extra (extra)"
+    second_short = (
+        "### 1.2 SASE = Structured Agentic Software Engineering (sase)"
+        if numbered
+        else "### 2. SASE = Structured Agentic Software Engineering (sase)"
+    )
     return "\n".join(
         [
             f"# {title}",
             "",
-            "## Tier 1 (short-term) Memory",
+            tier1_heading,
             "",
             "The following memory files contain core context.",
             "",
             *short_markers[:1],
-            "### 1. Extra (extra)",
+            first_short,
             "",
-            "### 2. SASE = Structured Agentic Software Engineering (sase)",
+            second_short,
             *short_markers[1:],
             "",
-            "## Tier 2 (long-term) Memory",
+            tier2_heading,
             "",
             "Prose mentions @sase/memory/prose.md and sase/memory/prose.md.",
             "",
@@ -72,6 +90,22 @@ def managed_agents(
             "",
         ]
     )
+
+
+def test_amd_parser_accepts_numbered_and_unnumbered_tier_headings() -> None:
+    unnumbered = parse_amd_agents_document(managed_agents())
+    numbered = parse_amd_agents_document(managed_agents(numbered=True))
+
+    for parsed in (unnumbered, numbered):
+        assert parsed.has_short_section
+        assert parsed.has_long_section
+        assert parsed.short_memory_paths == (
+            "sase/memory/extra.md",
+            "sase/memory/sase.md",
+        )
+        assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+            "sase/memory/generated_skills.md",
+        )
 
 
 def entry_by_path(inventory_path: str, paths_to_entries):
@@ -260,6 +294,26 @@ def test_build_inventory_treats_markered_current_structure_as_managed(
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)
     write(project / "AGENTS.md", managed_agents(markered=True))
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=tmp_path / "home",
+        chezmoi_root=tmp_path / "chezmoi",
+        include_chezmoi=False,
+    )
+
+    entry = entry_by_path("AGENTS.md", inventory.entries)
+    assert entry.management == "managed"
+    assert entry.short_memory_refs == 2
+    assert entry.long_memory_refs == 1
+
+
+def test_build_inventory_treats_numbered_current_structure_as_managed(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "repo"
+    (project / ".git").mkdir(parents=True)
+    write(project / "AGENTS.md", managed_agents(numbered=True))
 
     inventory = _build_amd_inventory(
         root=project,

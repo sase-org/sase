@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ._config import resolve_amd_template_override
+from ._section_numbers import number_agent_document_sections
 from sase.mdtemplates import render_markdown_template
 
 MANAGED_TEMPLATE_FILENAME = "AGENTS.template.md"
@@ -27,7 +28,7 @@ def render_agents_template(
         return None, resolve_error
     filename = MINIMAL_TEMPLATE_FILENAME if minimal else MANAGED_TEMPLATE_FILENAME
     required = _MINIMAL_TEMPLATE_VARS if minimal else _MANAGED_TEMPLATE_VARS
-    return render_markdown_template(
+    rendered, error = render_markdown_template(
         package="sase.amd",
         filename=f"templates/{filename}",
         required_variables=required,
@@ -38,6 +39,9 @@ def render_agents_template(
         },
         override_path=override,
     )
+    if rendered is None:
+        return None, error
+    return number_agent_document_sections(rendered), None
 
 
 __all__ = [

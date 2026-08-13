@@ -6,11 +6,11 @@ Each non-README note declares its tier in YAML frontmatter:
 
 - **Short-term memory** uses `type: short`. It is always-loaded instruction context:
   `sase memory init` inlines each short-term note into the
-  `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` with generated note
-  and subsection numbers (e.g. `### 1. Build & Run Commands (build_and_run)` and
-  `#### 1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with project-local
-  `is_sase_managed: true`. `memory.h1_title` optionally customizes the generated title.
-  The retired `memory.enabled` key no longer authorizes management.
+  `## 1. Tier 1 (short-term) Memory` block of the managed `AGENTS.md`; generated section
+  numbers span the whole document (e.g. `### 1.1 Build & Run Commands (build_and_run)`
+  and `#### 1.1.1 IMPORTANT: Two-Speed Verification`) when the root opts in with
+  project-local `is_sase_managed: true`. `memory.h1_title` optionally customizes the
+  generated title. The retired `memory.enabled` key no longer authorizes management.
 - **Long-term memory** uses `type: long`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another long note's `## Children` section. A long note description may be a Markdown

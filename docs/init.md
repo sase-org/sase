@@ -211,11 +211,11 @@ initializer stops with migration guidance instead of overwriting it. See
 behavior, and collision rules.
 
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
-with generated heading numbers, renders Tier 2 from long-note descriptions, adds missing
-canonical frontmatter, and validates reachability. Missing, false, merged-global, or
-`memory.h1_title`-only configuration does not authorize any project memory or root
-`AGENTS.md` creation, refresh, or validation. The retired `memory.enabled` key is not an
-alias. Existing projects must replace it once with:
+and numbers every heading in the generated document, renders Tier 2 from long-note
+descriptions, adds missing canonical frontmatter, and validates reachability. Missing,
+false, merged-global, or `memory.h1_title`-only configuration does not authorize any
+project memory or root `AGENTS.md` creation, refresh, or validation. The retired
+`memory.enabled` key is not an alias. Existing projects must replace it once with:
 
 ```yaml
 is_sase_managed: true
