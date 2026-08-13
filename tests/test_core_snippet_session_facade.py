@@ -63,9 +63,9 @@ def test_apply_snippet_session_event_forwards_typed_state_and_event(
 ) -> None:
     calls: list[tuple[dict[str, object], dict[str, object]]] = []
     state = facade.SnippetSessionState(
-        stops=(facade.SnippetStop(offset=2, session=0),),
+        stops=(facade._SnippetStop(offset=2, session=0),),
         index=0,
-        sessions=(facade.SnippetSpan(id=0, start=0, end=4),),
+        sessions=(facade._SnippetSpan(id=0, start=0, end=4),),
         next_session_id=1,
     )
 
@@ -87,7 +87,7 @@ def test_apply_snippet_session_event_forwards_typed_state_and_event(
         lambda name: binding if name == "apply_snippet_session_event" else None,
     )
 
-    result = facade.apply_snippet_session_event(state, {"kind": "advance"})
+    result = facade._apply_snippet_session_event(state, {"kind": "advance"})
 
     assert calls == [(state.to_wire(), {"kind": "advance"})]
     assert result.cursor_offset == 2

@@ -303,13 +303,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-kz.5(SnippetExpansionPlan)' \
-        --epic-symbol 'sase-kz.5(SnippetSessionTransition)' \
-        --epic-symbol 'sase-kz.5(SnippetSpan)' \
-        --epic-symbol 'sase-kz.5(SnippetStop)' \
-        --epic-symbol 'sase-kz.5(apply_snippet_session_event)' \
-        --epic-symbol 'sase-kz.5(clear_snippet_session)' \
-        --epic-symbol 'sase-kz.5(retreat_snippet_session)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

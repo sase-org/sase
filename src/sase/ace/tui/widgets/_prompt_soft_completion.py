@@ -71,6 +71,8 @@ class PromptSoftCompletionMixin(_MixinBase):
             template: str,
             start: tuple[int, int],
             end: tuple[int, int],
+            *,
+            session_policy: str,
         ) -> bool: ...
         def _replace_absolute_range(
             self,
@@ -297,6 +299,7 @@ class PromptSoftCompletionMixin(_MixinBase):
                 ),
                 start,
                 end,
+                session_policy="nest",
             )
             if used_xprompt_skeleton:
                 self._note_xprompt_completion_spacer(selected.metadata)

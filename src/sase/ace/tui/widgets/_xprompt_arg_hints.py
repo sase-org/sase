@@ -69,6 +69,8 @@ class XPromptArgHintMixin(_MixinBase):
             template: str,
             start: tuple[int, int],
             end: tuple[int, int],
+            *,
+            session_policy: str,
         ) -> bool: ...
 
     def _show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
@@ -311,6 +313,7 @@ class XPromptArgHintMixin(_MixinBase):
             named_args_skeleton(hint.entry),
             start,
             end,
+            session_policy="nest",
         )
 
     def _note_xprompt_completion_spacer(self, entry: XPromptAssistEntry) -> None:

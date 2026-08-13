@@ -156,6 +156,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             ),
             (row, start),
             (row, end),
+            session_policy="nest",
         )
         if expanded:
             self._note_xprompt_completion_spacer(selected.metadata)

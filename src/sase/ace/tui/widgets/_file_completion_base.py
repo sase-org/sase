@@ -134,6 +134,8 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             template: str,
             start: tuple[int, int],
             end: tuple[int, int],
+            *,
+            session_policy: str,
         ) -> bool: ...
 
     def _prompt_word_completion_result(

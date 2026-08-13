@@ -137,7 +137,12 @@ class PromptInputBarLocalXPromptActionsMixin(_MixinBase):
         document = text_area.document
         last_row = document.line_count - 1
         end = (last_row, len(document.get_line(last_row)))
-        text_area._expand_snippet_template_at_range(skeleton, (0, 0), end)
+        text_area._expand_snippet_template_at_range(
+            skeleton,
+            (0, 0),
+            end,
+            session_policy="reset",
+        )
         if not enter_insert:
             text_area._enter_normal_mode()
         text_area.focus()

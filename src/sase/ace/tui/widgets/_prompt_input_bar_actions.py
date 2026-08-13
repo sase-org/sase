@@ -665,7 +665,12 @@ class PromptInputBarActionsMixin(_MixinBase):
             append_text_arg_space=append_text_arg_space,
             next_char=next_char,
         )
-        if not text_area._expand_snippet_template_at_range(skeleton, start, end):
+        if not text_area._expand_snippet_template_at_range(
+            skeleton,
+            start,
+            end,
+            session_policy="nest",
+        ):
             return False
 
         text_area._note_xprompt_completion_spacer(entry)

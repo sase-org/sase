@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from textual.document._edit import Edit
 
@@ -10,6 +10,7 @@ from sase.core.snippet_session_facade import (
     SnippetSessionState,
     advance_snippet_session,
     apply_snippet_session_edit,
+    clear_snippet_session,
     empty_snippet_session,
     expand_snippet_session,
     plan_snippet_expansion,
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
     from ..app import AceApp
 else:
     _MixinBase = object
+
+SnippetExpansionPolicy = Literal["nest", "reset"]
 
 
 class SnippetExpansionMixin(_MixinBase):
@@ -54,7 +57,7 @@ class SnippetExpansionMixin(_MixinBase):
 
     def _clear_snippet_session(self) -> None:
         """End any active snippet tabstop session."""
-        self._snippet_session = empty_snippet_session()
+        self._snippet_session = clear_snippet_session(self._snippet_session).state
 
     def edit(self, edit: Edit) -> EditResult:
         """Feed every document mutation's delta to the active snippet session.
@@ -132,6 +135,7 @@ class SnippetExpansionMixin(_MixinBase):
             template,
             (row, word_start),
             (row, col),
+            session_policy="nest",
         )
         if expanded:
             self._try_auto_placeholder_completion()
@@ -142,12 +146,15 @@ class SnippetExpansionMixin(_MixinBase):
         template: str,
         start: tuple[int, int],
         end: tuple[int, int],
+        *,
+        session_policy: SnippetExpansionPolicy,
     ) -> bool:
         """Expand a snippet template at an explicit document range.
 
-        Nests inside the active session when *start*/*end* fall inside its
-        innermost expansion, otherwise resets it -- see the Rust
-        ``snippet_session`` module for the containment rule.
+        ``"nest"`` lets the Rust session engine apply its containment rule:
+        nest inside the active session when *start*/*end* fall inside the
+        innermost expansion, otherwise reset. ``"reset"`` always replaces any
+        active session before installing the new expansion.
         """
         row = start[0]
         line = self.document.get_line(row)
@@ -171,8 +178,13 @@ class SnippetExpansionMixin(_MixinBase):
         # No markers: cursor stays wherever _replace_via_keyboard left it
         # (the end of the expansion), matching plain-text insertion.
 
+        state = (
+            empty_snippet_session()
+            if session_policy == "reset"
+            else self._snippet_session
+        )
         transition = expand_snippet_session(
-            self._snippet_session,
+            state,
             range_start=range_start,
             range_end=range_start + len(plan.text),
             tabstop_offsets=plan.tabstop_offsets,

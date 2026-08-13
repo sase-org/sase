@@ -8,8 +8,8 @@ from textual.widgets.text_area import Selection
 from sase.ace.testing import PromptPage
 from sase.core.snippet_session_facade import (
     SnippetSessionState,
-    SnippetSpan,
-    SnippetStop,
+    _SnippetSpan,
+    _SnippetStop,
 )
 
 
@@ -328,9 +328,12 @@ async def test_prompt_insert_tab_indent_is_one_undo_checkpoint() -> None:
 async def test_prompt_insert_tab_advances_queued_tabstop_before_bullet_indent() -> None:
     async with PromptPage("- \nnext", cursor=(0, 2), mode="insert") as page:
         page.ta._snippet_session = SnippetSessionState(
-            stops=(SnippetStop(offset=0, session=0), SnippetStop(offset=7, session=0)),
+            stops=(
+                _SnippetStop(offset=0, session=0),
+                _SnippetStop(offset=7, session=0),
+            ),
             index=0,
-            sessions=(SnippetSpan(id=0, start=0, end=7),),
+            sessions=(_SnippetSpan(id=0, start=0, end=7),),
             next_session_id=1,
         )
         await page.press("tab")

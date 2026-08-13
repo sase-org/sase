@@ -14,8 +14,8 @@ from sase.ace.tui.widgets._prompt_ordered_shift_editing import (
 )
 from sase.core.snippet_session_facade import (
     SnippetSessionState,
-    SnippetSpan,
-    SnippetStop,
+    _SnippetSpan,
+    _SnippetStop,
 )
 from sase.file_references import format_agent_prompt_markdown
 
@@ -210,9 +210,12 @@ async def test_prompt_insert_tab_advances_queued_tabstop_before_ordered_nest() -
     text = "1. one\n2. \nnext"
     async with PromptPage(text, cursor=(1, 3), mode="insert") as page:
         page.ta._snippet_session = SnippetSessionState(
-            stops=(SnippetStop(offset=0, session=0), SnippetStop(offset=15, session=0)),
+            stops=(
+                _SnippetStop(offset=0, session=0),
+                _SnippetStop(offset=15, session=0),
+            ),
             index=0,
-            sessions=(SnippetSpan(id=0, start=0, end=15),),
+            sessions=(_SnippetSpan(id=0, start=0, end=15),),
             next_session_id=1,
         )
         await page.press("tab")

@@ -12,7 +12,7 @@ SNIPPET_SESSION_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True, slots=True)
-class SnippetStop:
+class _SnippetStop:
     """One active tabstop in document-offset space."""
 
     offset: int
@@ -20,7 +20,7 @@ class SnippetStop:
 
 
 @dataclass(frozen=True, slots=True)
-class SnippetSpan:
+class _SnippetSpan:
     """Document span for one live snippet expansion."""
 
     id: int
@@ -33,9 +33,9 @@ class SnippetSessionState:
     """Typed Python view of the Rust snippet session state."""
 
     schema_version: int = SNIPPET_SESSION_SCHEMA_VERSION
-    stops: tuple[SnippetStop, ...] = ()
+    stops: tuple[_SnippetStop, ...] = ()
     index: int = 0
-    sessions: tuple[SnippetSpan, ...] = ()
+    sessions: tuple[_SnippetSpan, ...] = ()
     next_session_id: int = 0
 
     @property
@@ -58,7 +58,7 @@ class SnippetSessionState:
 
 
 @dataclass(frozen=True, slots=True)
-class SnippetExpansionPlan:
+class _SnippetExpansionPlan:
     """Expansion text and tabstop offsets planned by the Rust engine."""
 
     text: str
@@ -66,7 +66,7 @@ class SnippetExpansionPlan:
 
 
 @dataclass(frozen=True, slots=True)
-class SnippetSessionTransition:
+class _SnippetSessionTransition:
     """Typed result from one snippet session event."""
 
     state: SnippetSessionState
@@ -85,8 +85,8 @@ def plan_snippet_expansion(
     *,
     indent_continuation_lines: bool,
     state: SnippetSessionState | None = None,
-) -> SnippetExpansionPlan:
-    result = apply_snippet_session_event(
+) -> _SnippetExpansionPlan:
+    result = _apply_snippet_session_event(
         state or empty_snippet_session(),
         {
             "kind": "plan",
@@ -97,7 +97,7 @@ def plan_snippet_expansion(
     )
     if result.text is None:
         raise ValueError("snippet session plan event returned no text")
-    return SnippetExpansionPlan(
+    return _SnippetExpansionPlan(
         text=result.text,
         tabstop_offsets=result.tabstop_offsets,
     )
@@ -109,8 +109,8 @@ def expand_snippet_session(
     range_start: int,
     range_end: int,
     tabstop_offsets: Sequence[int],
-) -> SnippetSessionTransition:
-    return apply_snippet_session_event(
+) -> _SnippetSessionTransition:
+    return _apply_snippet_session_event(
         state,
         {
             "kind": "expand",
@@ -123,14 +123,14 @@ def expand_snippet_session(
 
 def advance_snippet_session(
     state: SnippetSessionState,
-) -> SnippetSessionTransition:
-    return apply_snippet_session_event(state, {"kind": "advance"})
+) -> _SnippetSessionTransition:
+    return _apply_snippet_session_event(state, {"kind": "advance"})
 
 
 def retreat_snippet_session(
     state: SnippetSessionState,
-) -> SnippetSessionTransition:
-    return apply_snippet_session_event(state, {"kind": "retreat"})
+) -> _SnippetSessionTransition:
+    return _apply_snippet_session_event(state, {"kind": "retreat"})
 
 
 def apply_snippet_session_edit(
@@ -139,8 +139,8 @@ def apply_snippet_session_edit(
     edit_start: int,
     edit_end: int,
     inserted_len: int,
-) -> SnippetSessionTransition:
-    return apply_snippet_session_event(
+) -> _SnippetSessionTransition:
+    return _apply_snippet_session_event(
         state,
         {
             "kind": "apply_edit",
@@ -153,20 +153,20 @@ def apply_snippet_session_edit(
 
 def clear_snippet_session(
     state: SnippetSessionState,
-) -> SnippetSessionTransition:
-    return apply_snippet_session_event(state, {"kind": "clear"})
+) -> _SnippetSessionTransition:
+    return _apply_snippet_session_event(state, {"kind": "clear"})
 
 
-def apply_snippet_session_event(
+def _apply_snippet_session_event(
     state: SnippetSessionState,
     event: Mapping[str, object],
-) -> SnippetSessionTransition:
+) -> _SnippetSessionTransition:
     binding = require_rust_binding("apply_snippet_session_event")
     payload: Any = binding(state.to_wire(), dict(event))
     return _transition_from_wire(payload)
 
 
-def _transition_from_wire(payload: Any) -> SnippetSessionTransition:
+def _transition_from_wire(payload: Any) -> _SnippetSessionTransition:
     if not isinstance(payload, Mapping):
         raise TypeError(
             "apply_snippet_session_event returned a non-mapping top-level payload"
@@ -182,7 +182,7 @@ def _transition_from_wire(payload: Any) -> SnippetSessionTransition:
         payload.get("tabstop_offsets"),
         "tabstop_offsets",
     )
-    return SnippetSessionTransition(
+    return _SnippetSessionTransition(
         state=state,
         cursor_offset=cursor_offset,
         text=text,
@@ -241,14 +241,14 @@ def _state_from_wire(value: Any, field: str) -> SnippetSessionState:
     )
 
 
-def _stops_from_wire(value: Any) -> tuple[SnippetStop, ...]:
+def _stops_from_wire(value: Any) -> tuple[_SnippetStop, ...]:
     items = _sequence(value, "stops")
-    stops: list[SnippetStop] = []
+    stops: list[_SnippetStop] = []
     for item in items:
         if not isinstance(item, Mapping):
             raise TypeError("snippet session field 'stops' contains a non-mapping item")
         stops.append(
-            SnippetStop(
+            _SnippetStop(
                 offset=_nonnegative_int(item.get("offset"), "stops.offset"),
                 session=_nonnegative_int(item.get("session"), "stops.session"),
             )
@@ -256,9 +256,9 @@ def _stops_from_wire(value: Any) -> tuple[SnippetStop, ...]:
     return tuple(stops)
 
 
-def _sessions_from_wire(value: Any) -> tuple[SnippetSpan, ...]:
+def _sessions_from_wire(value: Any) -> tuple[_SnippetSpan, ...]:
     items = _sequence(value, "sessions")
-    sessions: list[SnippetSpan] = []
+    sessions: list[_SnippetSpan] = []
     seen_ids: set[int] = set()
     for item in items:
         if not isinstance(item, Mapping):
@@ -278,7 +278,7 @@ def _sessions_from_wire(value: Any) -> tuple[SnippetSpan, ...]:
                 "snippet session state contains a session span whose end "
                 f"{end} precedes start {start}"
             )
-        sessions.append(SnippetSpan(id=session_id, start=start, end=end))
+        sessions.append(_SnippetSpan(id=session_id, start=start, end=end))
     return tuple(sessions)
 
 
@@ -319,14 +319,9 @@ def _nonnegative_int(value: Any, field: str) -> int:
 
 __all__ = [
     "SNIPPET_SESSION_SCHEMA_VERSION",
-    "SnippetExpansionPlan",
     "SnippetSessionState",
-    "SnippetSessionTransition",
-    "SnippetSpan",
-    "SnippetStop",
     "advance_snippet_session",
     "apply_snippet_session_edit",
-    "apply_snippet_session_event",
     "clear_snippet_session",
     "empty_snippet_session",
     "expand_snippet_session",
