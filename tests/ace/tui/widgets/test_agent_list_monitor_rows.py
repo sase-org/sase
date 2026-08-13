@@ -49,7 +49,7 @@ def _monitor(
     )
 
 
-def test_monitor_row_uses_glyph_label_and_command_annotation() -> None:
+def test_monitor_row_uses_glyph_and_label_without_the_command() -> None:
     left, _suffix, _option_id = format_agent_option(
         _monitor(status="MONITORING", monitor_state="running"),
         0,
@@ -58,7 +58,7 @@ def test_monitor_row_uses_glyph_label_and_command_annotation() -> None:
 
     assert "⏱" in left.plain
     assert "just check" in left.plain
-    assert "just check-full" in left.plain
+    assert "just check-full" not in left.plain
     assert "MONITORING" in left.plain
 
 

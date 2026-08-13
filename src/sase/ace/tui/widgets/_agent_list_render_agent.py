@@ -251,10 +251,10 @@ def format_agent_option(
 
         # Agent display name (workflow name for top-level workflows,
         # Patch name otherwise).
+        # A monitor row shows its label only; the full command is long enough
+        # to swamp the tree, so it lives in the detail panel instead.
         display_name = agent.monitor_label if agent.is_monitor else agent.display_name
         text.append(display_name or agent.display_name, style=name_style)
-        if agent.is_monitor and agent.monitor_command:
-            text.append(f" · {agent.monitor_command}", style="dim #D7AF5F")
         if tribe_label:
             text.append(
                 f" @{tribe_label}",
