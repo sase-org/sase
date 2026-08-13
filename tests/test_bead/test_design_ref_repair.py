@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
+import sase.bead.design_ref_repair as repair
 from sase.bead.design_ref_repair import plan_design_ref_repairs
 from sase.bead.model import Issue
 
@@ -84,7 +87,26 @@ def test_repair_planner_stops_at_ambiguous_or_wrong_owner_tier(
     ]
 
 
-def test_repair_planner_migrates_resolving_legacy_and_keeps_canonical(
+def test_repair_planner_migrates_alias_without_filesystem_lookup(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    def fail_normalize_roots(_roots: tuple[Path, ...]) -> tuple[Path, ...]:
+        raise AssertionError("alias-only repair should not inspect plan roots")
+
+    monkeypatch.setattr(repair, "_normalize_roots", fail_normalize_roots)
+
+    preview = plan_design_ref_repairs(
+        [_issue("beads-alias", "plans:202607/deleted.md")],
+        roots=(Path("/plan-root-should-not-be-read"),),
+    )
+
+    assert [(item.old_reference, item.new_reference) for item in preview.repairs] == [
+        ("plans:202607/deleted.md", "plan:202607/deleted.md")
+    ]
+    assert preview.unrepaired == ()
+
+
+def test_repair_planner_migrates_legacy_and_alias_and_keeps_canonical(
     tmp_path: Path,
 ) -> None:
     store = tmp_path / "store"
@@ -93,13 +115,15 @@ def test_repair_planner_migrates_resolving_legacy_and_keeps_canonical(
     preview = plan_design_ref_repairs(
         [
             _issue("beads-plan", str(plan)),
-            _issue("beads-canonical", "plans:202607/plan.md"),
+            _issue("beads-alias", "plans:202607/plan.md"),
+            _issue("beads-canonical", "plan:202607/plan.md"),
         ],
         roots=(store,),
     )
 
     assert [(item.bead_id, item.new_reference) for item in preview.repairs] == [
-        ("beads-plan", "plan:202607/plan.md")
+        ("beads-plan", "plan:202607/plan.md"),
+        ("beads-alias", "plan:202607/plan.md"),
     ]
     assert preview.unrepaired == ()
 

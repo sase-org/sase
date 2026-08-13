@@ -69,10 +69,8 @@ def plan_design_ref_repairs(
 ) -> DesignRefRepairPreview:
     """Build a stable, read-only repair preview for *issues*."""
 
-    normalized_roots = tuple(
-        dict.fromkeys(root.expanduser().resolve(strict=False) for root in roots)
-    )
-    indexes = _build_root_indexes(normalized_roots)
+    normalized_roots: tuple[Path, ...] | None = None
+    indexes: tuple[_RootPlanIndex, ...] | None = None
     repairs: list[_DesignRefRepair] = []
     unrepaired: list[_DesignRefUnrepaired] = []
 
@@ -80,9 +78,26 @@ def plan_design_ref_repairs(
         old_reference = issue.design.strip()
         if not old_reference:
             continue
+        parsed_rendering = _parsed_reference_rendering(old_reference)
+        if parsed_rendering is not None:
+            is_legacy, rendered = parsed_rendering
+            if not is_legacy and rendered != old_reference:
+                repairs.append(
+                    _DesignRefRepair(
+                        bead_id=issue.id,
+                        old_reference=old_reference,
+                        new_reference=rendered,
+                    )
+                )
+                continue
+
+        if normalized_roots is None:
+            normalized_roots = _normalize_roots(roots)
         if _resolved_canonical_reference(old_reference, normalized_roots):
             continue
 
+        if indexes is None:
+            indexes = _build_root_indexes(normalized_roots)
         basename = _reference_basename(old_reference)
         candidate, reason = _select_candidate(
             issue.id,
@@ -125,6 +140,12 @@ def plan_design_ref_repairs(
     return DesignRefRepairPreview(
         repairs=tuple(repairs),
         unrepaired=tuple(unrepaired),
+    )
+
+
+def _normalize_roots(roots: tuple[Path, ...]) -> tuple[Path, ...]:
+    return tuple(
+        dict.fromkeys(root.expanduser().resolve(strict=False) for root in roots)
     )
 
 
@@ -175,6 +196,14 @@ def _read_plan_owner(path: Path) -> str | None:
         if isinstance(raw, str) and raw.strip():
             return raw.strip()
     return None
+
+
+def _parsed_reference_rendering(value: str) -> tuple[bool, str] | None:
+    try:
+        parsed = parse_plan_reference(value)
+    except (RuntimeError, ValueError):
+        return None
+    return parsed.legacy, parsed.rendered
 
 
 def _resolved_canonical_reference(
