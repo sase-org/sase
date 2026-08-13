@@ -1775,6 +1775,7 @@ suffix:
 | 🐼    | Qwen              |
 | 🐙    | OpenCode          |
 | ♾️    | Muse Code (Meta)  |
+| 🛰️    | Grok Build (xAI)  |
 
 The same provider palette also colors the `<PROVIDER>(<model>)` suffix on the right edge
 of the row — the provider name, the parentheses, and the model name each render in a
@@ -3519,13 +3520,19 @@ for `bash`, and otherwise a bounded preview of the result text — SASE does not
 arguments Muse did not emit. Antigravity (`agy`) runs in plain-stdout mode; SASE never
 scrapes display prose, but supported Antigravity versions may contribute guarded
 `source: "trajectory"` rows from the local trajectory DB. When that extractor is
-unavailable, the panel simply shows nothing for `agy` runs. See
+unavailable, the panel simply shows nothing for `agy` runs. Grok Build writes
+stream-derived rows from its `streaming-messages-json` output with `runtime: "grok"` and
+`source: "stream"`; Grok's native tool names (`run_terminal_command`, `read_file`,
+`search_replace`, and so on) are mapped onto the same canonical display names Claude
+rows use, and its JSON-encoded `tool_result` envelopes are decoded for exit codes and
+file paths rather than shown raw. See
 [LLM Providers — Claude tool-call hooks](llms.md#claude-tool-call-hooks),
 [LLM Providers — Codex tool-call capture](llms.md#codex-tool-call-capture),
 [LLM Providers — Qwen tool-call capture](llms.md#qwen-tool-call-capture),
-[LLM Providers — Muse tool-call capture](llms.md#muse-tool-call-capture), and
-[LLM Providers — Antigravity (`agy`) Integration](llms.md#antigravity-agy-integration)
-for provider integration details.
+[LLM Providers — Muse tool-call capture](llms.md#muse-tool-call-capture),
+[LLM Providers — Antigravity (`agy`) Integration](llms.md#antigravity-agy-integration),
+and [LLM Providers — Grok Tool-Call Capture](llms.md#grok-tool-call-capture) for
+provider integration details.
 
 ## Plan Workflows
 
@@ -3664,12 +3671,12 @@ launches bead work directly, so those controls are hidden for Epic:
   used by Approve and Tale.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using
   the role default. For Approve and Tale that agent is the coder. Shows all registered
-  models grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode, Muse Code)
-  with a "Custom..." option for freeform input. A model its provider flags with an
-  advisory carries a warning-styled `⚠ <label>` suffix on its row (`ⓘ` for informational
-  advisories), with the full advisory sentence in the row's secondary text — this is
-  where somebody actually chooses a model, so the trade is impossible to miss. See
-  [LLM Providers — Model advisories](llms.md#model-advisories). Type to filter by
+  models grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode, Muse Code,
+  Grok Build) with a "Custom..." option for freeform input. A model its provider flags
+  with an advisory carries a warning-styled `⚠ <label>` suffix on its row (`ⓘ` for
+  informational advisories), with the full advisory sentence in the row's secondary text
+  — this is where somebody actually chooses a model, so the trade is impossible to miss.
+  See [LLM Providers — Model advisories](llms.md#model-advisories). Type to filter by
   provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter`
   to select, `Esc` to clear the filter or cancel, and `'` for jump hints over the
   visible selectable rows. The displayed default resolves to the model the handoff will

@@ -307,8 +307,8 @@ leaving the TUI. Use `]` / `[` to cycle its three pane-local sub-tabs:
   experience into the TUI: filter the catalog, inspect a plugin, and install, update,
   uninstall, or switch install mode.
 - **Agent CLIs** is a provider-colored master/detail browser for Claude Code, Codex CLI,
-  OpenCode, Qwen Code, Antigravity, and Muse Code. Rows show installed → latest
-  versions, install method, `↑` availability, and update marks. Details show the
+  OpenCode, Qwen Code, Antigravity, Muse Code, and Grok Build. Rows show installed →
+  latest versions, install method, `↑` availability, and update marks. Details show the
   resolved executable, exact automatic or manual update command, skip reason, canonical
   vendor docs URL, and the last result.
 
@@ -1365,7 +1365,7 @@ and invocation lifecycle.
 
 ```yaml
 llm_provider:
-  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "fakey" (default: auto-detect)
+  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "grok", "fakey" (default: auto-detect)
   model_tier_map:
     large: opus
     small: sonnet
@@ -1391,14 +1391,14 @@ llm_provider:
         description: Size-specific phase-agent roles.
 ```
 
-| Field                                | Type   | Default     | Description                                                                                                                                                                                                          |
-| ------------------------------------ | ------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` declares no priority and is never auto-detected; name it explicitly. |
-| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                                                                                               |
-| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                                                                               |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides. Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                                                                                  |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                             |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                          |
+| Field                                | Type   | Default     | Description                                                                                                                                                                                                                       |
+| ------------------------------------ | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` and `grok` declare no priority and are never auto-detected; name them explicitly. |
+| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                            |
+| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                            |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides. Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                                                                                               |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                       |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at
 names such as `%model:@default` or `%model:@blogger` while each user's `sase.yml`
@@ -3136,6 +3136,9 @@ Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 | `SASE_MUSE_LARGE_ARGS`                   | Muse-specific extra args for `large` tier (fallback if generic unset).              |
 | `SASE_MUSE_SMALL_ARGS`                   | Muse-specific extra args for `small` tier (fallback if generic unset).              |
 | `SASE_MUSE_SANDBOX`                      | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                |
+| `SASE_GROK_PATH`                         | Path to the Grok Build CLI binary (default: `grok`).                                |
+| `SASE_GROK_LARGE_ARGS`                   | Grok-specific extra args for `large` tier (fallback if generic unset).              |
+| `SASE_GROK_SMALL_ARGS`                   | Grok-specific extra args for `small` tier (fallback if generic unset).              |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If
 unset, the provider-specific variable is used as a fallback. Values are split on
@@ -3178,6 +3181,15 @@ advisory renders in the ACE model picker, in `%model` completion detail, and in 
 resolved model label, and `sase doctor -C llm.model_advisory` warns when a configured
 default or model alias resolves to any advisory-flagged model. See
 [LLM Providers — Model advisories](llms.md#model-advisories).
+
+Grok Build uses
+`grok --prompt-file /dev/stdin --output-format streaming-messages-json --permission-mode bypassPermissions --model <model> --cwd <cwd> --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader`
+and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is a
+generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
+deprecated regex tool, so Grok is explicit-only like Muse; see
+[llm_provider.provider](#llm_provider) above. Grok's `grok-4.6` model accepts only
+`low`/`medium`/`high`/`xhigh` for `--effort`; see
+[LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider
 
@@ -3790,21 +3802,21 @@ in the provenance manifest — see
 [Commit Before Deploying](init.md#commit-before-deploying). `sase init skills` is a
 compatibility alias for `sase skill init`.
 
-| Form               | Flags                                                                   | Description                                                                                     |
-| ------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                         |
-| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                     |
-| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.      |
-| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.      |
-| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                               |
-| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                                |
-| `sase skill init`  | `-p, --provider <name>`                                                 | Deploy only for one registered provider (`claude`, `agy`, `codex`, `muse`, `opencode`, `qwen`). |
-| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.        |
-| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                       |
-| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`.     |
-| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                        |
-| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.             |
-| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                      |
+| Form               | Flags                                                                   | Description                                                                                             |
+| ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                                 |
+| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                             |
+| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.              |
+| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.              |
+| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                                       |
+| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                                        |
+| `sase skill init`  | `-p, --provider <name>`                                                 | Deploy only for one registered provider (`claude`, `agy`, `codex`, `grok`, `muse`, `opencode`, `qwen`). |
+| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.                |
+| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                               |
+| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`.             |
+| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                                |
+| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.                     |
+| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                              |
 
 ### `sase repo init`
 

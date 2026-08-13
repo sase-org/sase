@@ -33,12 +33,12 @@ An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                                                          |
-| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_llm: agy, claude, codex, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`                                |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                 |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                              |
+| Package         | Description                                                                             | Entry Points                                                                                                                                |
+| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`                                      |
+| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                       |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                                    |
 
 ## Installation
 
@@ -524,9 +524,10 @@ call; metadata hooks (`llm_provider_name`, `llm_known_model_names`,
 so each provider contributes its own metadata. All hook method names are prefixed with
 `llm_`.
 
-Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, and Meta's Muse Code
-providers as built-in entry points. Additional providers belong in external plugin
-packages that declare `sase_llm` entry points and provide their own metadata hooks.
+Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Meta's Muse Code,
+and xAI's Grok Build providers as built-in entry points. Additional providers belong in
+external plugin packages that declare `sase_llm` entry points and provide their own
+metadata hooks.
 
 #### LLM Provider Install Metadata and Advisories
 

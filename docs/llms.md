@@ -2,9 +2,9 @@
 
 This document describes the LLM provider abstraction layer in sase. The system supports
 pluggable LLM backends (Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
-OpenCode, and Meta's Muse Code are bundled; additional providers can ship as external
-plugins) behind a shared orchestration layer that handles preprocessing, invocation, and
-postprocessing.
+OpenCode, Meta's Muse Code, and xAI's Grok Build are bundled; additional providers can
+ship as external plugins) behind a shared orchestration layer that handles
+preprocessing, invocation, and postprocessing.
 
 > This page documents how SASE _integrates_ each provider. To install and authenticate a
 > provider CLI in the first place, see
@@ -21,6 +21,7 @@ postprocessing.
 - [Qwen Code Integration](#qwen-code-integration)
 - [OpenCode Integration](#opencode-integration)
 - [Muse Code Integration](#muse-code-integration)
+- [Grok Build Integration](#grok-build-integration)
 - [External Provider Plugins](#external-provider-plugins)
 - [Configuration](#configuration)
 - [Per-Prompt Provider Switching](#per-prompt-provider-switching)
@@ -74,6 +75,9 @@ Key design principles:
 | `src/sase/llm_provider/_subprocess_muse.py`       | Muse `exec --json` JSONL stream parser                                                   |
 | `src/sase/llm_provider/_tool_call_muse.py`        | Muse tool-call record extraction from the event stream                                   |
 | `src/sase/llm_provider/_muse_session_usage.py`    | Muse token-usage recovery from the on-disk session log                                   |
+| `src/sase/llm_provider/grok.py`                   | xAI Grok Build provider implementation                                                   |
+| `src/sase/llm_provider/_subprocess_claude.py`     | Provider-neutral Anthropic-Messages stream reader shared by Claude and Grok              |
+| `src/sase/llm_provider/_tool_call_grok.py`        | Grok tool-call normalization (native names → canonical display names)                    |
 | `src/sase/llm_provider/registry.py`               | Provider registration and lookup                                                         |
 | `src/sase/llm_provider/_registry_metadata.py`     | Provider metadata normalization and cache fingerprints                                   |
 | `src/sase/llm_provider/_registry_plugins.py`      | Plugin discovery/construction via `sase_llm` entry points                                |
@@ -135,6 +139,7 @@ claude = "sase.llm_provider.claude:ClaudeCodeProvider"
 codex  = "sase.llm_provider.codex:CodexProvider"
 fakey = "sase.llm_provider.fakey:FakeyProvider"
 agy = "sase.llm_provider.agy:AgyProvider"
+grok = "sase.llm_provider.grok:GrokProvider"
 muse = "sase.llm_provider.muse:MuseProvider"
 opencode = "sase.llm_provider.opencode:OpenCodeProvider"
 qwen   = "sase.llm_provider.qwen:QwenProvider"
@@ -163,9 +168,11 @@ provider = get_provider("claude")  # Explicit provider name
    `codex=10`, `qwen=15`, `opencode=18`, `agy=30`. External plugins slot in by declaring
    their own priority. `agy` autodetects via the `agy` CLI name in the late-fallback
    slot. A provider that declares no priority never participates in autodetection:
-   `muse` deliberately omits one, because `muse` is a generic executable name and
-   autodetect only checks `PATH` presence. Muse is reachable only by explicit selection
-   (see [Muse Code Integration](#muse-code-integration)).
+   `muse` and `grok` deliberately omit one, because `muse` and `grok` are both generic
+   executable names and autodetect only checks `PATH` presence. Muse and Grok are
+   reachable only by explicit selection (see
+   [Muse Code Integration](#muse-code-integration) and
+   [Grok Build Integration](#grok-build-integration)).
 
 ## Commit Finalization
 
@@ -801,6 +808,199 @@ The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_MUSE_*_ARGS`.
 While waiting for a response, a `provider_timer("Waiting for Muse Code")` spinner is
 shown (unless `suppress_output` is `True`).
 
+## Grok Build Integration
+
+The `GrokProvider` invokes xAI's Grok Build CLI (`grok`).
+
+### Selection
+
+Grok is **explicit-only**. It publishes `llm_autodetect_cli_name` but deliberately no
+`llm_autodetect_priority`, so it never appears in autodetect candidates: `grok` is a
+generic executable name shared with a stale community CLI (`grok-dev`, which also uses
+`~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool. Reach Grok with
+`llm_provider.provider: grok`, `%model:grok/grok-4.6`, or by pointing `SASE_GROK_PATH`
+at the binary. When a `grok` on `PATH` does not identify itself as Grok Build,
+`sase doctor` reports a distinct wrong-binary advisory instead of silently launching it.
+
+Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
+
+### Command Construction
+
+```
+grok --prompt-file /dev/stdin --output-format streaming-messages-json \
+  --permission-mode bypassPermissions --model <model> --cwd <cwd> \
+  --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader \
+  [--effort <level>] [extra_args...]
+```
+
+The prompt is written to `process.stdin`, exactly as Claude's provider does, so there is
+no temp file to leak or clean up on interrupt and no argv exposure of prompt text.
+Decisions inside that command:
+
+- **`--permission-mode bypassPermissions`, not the undocumented `--yolo`.** No sandbox
+  profile is set, matching what SASE already does for Codex, OpenCode, and Muse.
+- **`--no-auto-update` is not optional.** Without it Grok may replace its own ~166 MB
+  binary mid-run; update it through
+  [`sase agent-cli update grok`](agent_providers.md#grok-build) instead.
+- **`--no-plan` and `--no-ask-user`.** `/sase_plan` owns planning handoffs and
+  `/sase_questions` owns asking, so Grok's native planning and asking are disabled. Both
+  flags are undocumented in `grok --help`, so a parse-probe test pins them.
+- **`--no-leader` is passed explicitly**, even though leader mode is off by default,
+  because it is opt-in via a user's own `[cli] use_leader = true` and SASE runs many
+  agents concurrently against one shared backend socket — explicit beats inherited.
+- **`--session-id` is generated by SASE**, matching Claude's convention.
+- **Subagents stay enabled.** Subagent usage can set Grok's internal
+  `usage_is_incomplete` flag, which degrades usage telemetry only — SASE treats token
+  counts as telemetry, not as text or tool-call fidelity, so `--no-subagents` is not
+  passed.
+
+### Model Mapping
+
+| Tier    | Grok Model |
+| ------- | ---------- |
+| `large` | `grok-4.6` |
+| `small` | `grok-4.6` |
+
+**Both tiers map to `grok-4.6` on purpose**: it is the only model in the authenticated
+catalog. Inventing a distinct `small` mapping to a model that may not exist would make
+ordinary `@cheap`/`@cheaper` routing fail; this is revisited if the catalog grows.
+
+### Reasoning Effort
+
+`grok-4.6` accepts only `--effort low|medium|high|xhigh`; `none`, `minimal`, and `max`
+are rejected by the CLI with a nonzero exit. SASE declares exactly the four supported
+levels, so an explicit `%effort:max`/`none`/`minimal` raises a clean
+`LLMInvocationError` instead of a Grok process crash, and a config-derived default at
+one of those levels is logged and skipped. See [Reasoning Effort](#reasoning-effort)
+below — the shipped `@smartest` alias resolves to `claude/opus@max`, so a Grok run must
+name a level it supports.
+
+### The Event Stream
+
+Grok shares Claude's generalized Anthropic-Messages stream reader
+(`stream_and_parse_messages_json_output` in `_subprocess_claude.py`), parameterized with
+`runtime="grok"`, the Grok tool-call writer, and a thinking sink — Claude's own behavior
+is unchanged by this generalization. A no-tool turn emits `system`/`init`, one
+`assistant` message whose `message.content[]` holds `thinking` and `text` blocks, and a
+terminal `result`; a tool-using turn adds `assistant` messages with `tool_use` blocks
+and `user` messages with `tool_result` blocks. `result.usage` carries the same four keys
+`initial_usage_totals()` accumulates, plus a nested `server_tool_use` SASE's accumulator
+ignores harmlessly.
+
+Grok's failure frames carry detail in **`errors[]` only** — no top-level `error`,
+`message`, or `result` field. The shared error-detail extraction folds `errors[]` in
+when those are absent:
+
+```python
+detail = event.get("error") or event.get("message") or event.get("result", "")
+if not detail:
+    errors = event.get("errors")
+    if isinstance(errors, list):
+        detail = "\n".join(str(item) for item in errors if item)
+```
+
+This is safe by construction for Claude, which never emits `errors[]` and whose
+`append_error_events` returns early on a success exit, so a success-path `result.result`
+is never mistaken for an error.
+
+Grok's `thinking` content blocks are routed into the same `codex_thinking.jsonl` sidecar
+Codex writes reasoning summaries to (the filename is kept as-is because ACE's
+`read_codex_thinking` reads that exact path), so Grok's reasoning renders in the ACE
+thinking pane instead of being silently discarded the way non-`text` Claude blocks are.
+
+### Grok Tool-Call Capture
+
+SASE captures Grok tool calls from the `streaming-messages-json` event stream; it does
+not install Grok hooks. When `SASE_ARTIFACTS_DIR` is present, normalized records are
+appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with `runtime: "grok"` and
+`source: "stream"` for the ACE [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
+Grok's native tool names are mapped onto SASE's canonical display names so the shared
+summarizers in `_tool_call_common.py` produce rich previews instead of falling through
+to a generic `{"input_keys": [...]}` row:
+
+| Grok tool              | Canonical display name |
+| ---------------------- | ---------------------- |
+| `run_terminal_command` | `Bash`                 |
+| `read_file`            | `Read`                 |
+| `write`                | `Write`                |
+| `search_replace`       | `Edit`                 |
+| `grep`                 | `Grep`                 |
+| `list_dir`             | `Glob`                 |
+| `web_fetch`            | `WebFetch`             |
+| `web_search`           | `WebSearch`            |
+| `spawn_subagent`       | `Task`                 |
+| `todo_write`           | `TodoWrite`            |
+
+An unmapped tool name survives under its own name rather than being dropped.
+
+**Result envelope decoding.** Grok's `tool_result` blocks carry `content` as a
+**JSON-encoded string**, not text, decoding to a bespoke tagged shape (for example
+`{"type": "Bash", "output": [...], "output_for_prompt": "exit: 0\n...", "exit_code": 0, ...}`
+for a shell command, or `{"type": "SearchReplace", "EditsApplied": {...}}` for an edit).
+SASE decodes it and prefers `output_for_prompt` / `tool_output_for_prompt` for previews
+— the human-readable projection Grok itself uses — maps `exit_code` through so `Bash`
+rows show exit status, and `absolute_path` through so edit rows show the file. `output`
+is a byte array, not a string, and is never previewed raw. A `content` string that is
+not valid JSON degrades to the existing plain-text preview path rather than raising.
+Grok's `user` messages carry no top-level `tool_use_result` envelope, so the decoded
+`content` is the only structured source; Grok's tool-call ids are
+`call-<uuid>-<n>`-shaped, which pair correctly through the existing id-based logic.
+
+### Token Usage
+
+Grok's `result.usage` carries the same four keys Claude's does (`input_tokens`,
+`output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`), so token
+accounting reuses the same accumulator. Usage is **best-effort**: Grok's
+`streaming-messages-json` output is a projection of its native usage ledger that drops
+the internal "usage incomplete" marker, so subagent turns and interrupted turns can
+under-count or zero out. Text and tool records are unaffected. `total_cost_usd` and a
+per-model `modelUsage` ledger are populated on the OAuth subscription path.
+
+### Interrupts and Retries
+
+Interrupt handling reuses Claude's interrupt/continue loop: `start_interrupt_monitor`
+watches for an interrupt, and a continuation prompt carrying accumulated work is
+relaunched on the same session mechanics as Claude. `GrokProvider` declares
+`llm_default_retry_config()` with xAI-specific `error_patterns` (`"xAI API error"`,
+`"xAI rate limit"`, `"xAI server error"`, `"xAI upstream request failed"`) kept
+deliberately narrow so they cannot collide with Codex's ownership of generic `429` /
+`Too Many Requests` wording; see
+[Provider-Supplied Retry Defaults](#provider-supplied-retry-defaults).
+
+### Skills and Instruction File
+
+`skill_deploy_subpaths()` defaults to `f".{provider}"` with no hook override, so Grok
+skills deploy to `~/.grok/skills/<skill>/SKILL.md`, rendered with
+`provider_name: "Grok"`, `provider_tool_name: "Grok Build"`, and
+`provider_native_ask_tool: "ask_user_question"`. Grok's `[compat.claude]` cells default
+to on, so a Grok run also sees `~/.claude/skills/`; this is benign because a native
+`~/.grok/skills/<name>` shadows a same-named Claude-compat skill entirely, and
+`sase init skills` deploys every SASE skill to every registered provider's subpath, so
+SASE skills are always shadowed by their correctly-rendered Grok copies.
+
+Grok reads `AGENTS.md` natively, so there is no `GROK.md` provider shim. Grok also loads
+SASE's generated `CLAUDE.md` as project instructions — `[compat.claude] agents = false`
+does not suppress this — so a Grok run injects the same ~2,930-token instruction content
+twice. This is accepted for now rather than suppressing `CLAUDE.md` generation under a
+Grok provider, which would break any human running `claude` in the same tree.
+
+### Environment Variables
+
+| Variable               | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`  | Extra CLI args for `large` tier (generic, preferred)          |
+| `SASE_LLM_SMALL_ARGS`  | Extra CLI args for `small` tier (generic, preferred)          |
+| `SASE_GROK_PATH`       | Path to the Grok Build CLI binary (default: `grok` on `PATH`) |
+| `SASE_GROK_LARGE_ARGS` | Extra CLI args for `large` tier (Grok-specific fallback)      |
+| `SASE_GROK_SMALL_ARGS` | Extra CLI args for `small` tier (Grok-specific fallback)      |
+
+The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_GROK_*_ARGS`.
+
+### Timer Display
+
+While waiting for a response, a `provider_timer("Waiting for Grok")` spinner is shown
+(unless `suppress_output` is `True`).
+
 ## External Provider Plugins
 
 Additional LLM providers are shipped as external packages that declare
@@ -822,7 +1022,7 @@ The LLM provider reads its configuration from `~/.config/sase/sase.yml` under th
 
 ```yaml
 llm_provider:
-  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "fakey" (default: auto-detect)
+  provider: claude # or "codex", "qwen", "opencode", "agy", "muse", "grok", "fakey" (default: auto-detect)
   default_effort: xhigh # default reasoning effort when a prompt sets none (default: unset)
   model_tier_map:
     large: opus
@@ -856,7 +1056,7 @@ llm_provider:
 
 | Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------------ | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` declares no priority and is never auto-detected; select it explicitly.                                                                                                                                                           |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` and `grok` declare no priority and are never auto-detected; select them explicitly.                                                                                                                                              |
 | `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort` and the selected alias carries no effort. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                               |
 | `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                                                                                                                             |
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -1100,6 +1300,7 @@ Use `provider/model` to specify both explicitly:
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
 %model:muse/muse-spark-1.2
+%model:grok/grok-4.6
 %model:fakey/fakey-large
 ```
 
@@ -1115,6 +1316,7 @@ Known model names are automatically mapped to their provider:
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                               | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                   | opencode |
 | `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                            | muse     |
+| `grok-4.6`                                                                                                                                                                                                                                                                  | grok     |
 | `fakey-large`, `fakey-small`                                                                                                                                                                                                                                                | fakey    |
 
 Each installed plugin contributes its own model names via the `llm_known_model_names()`
@@ -1254,15 +1456,16 @@ governs what happens on a provider that cannot honor the requested level:
 
 ### Provider Support Matrix
 
-| Provider            | Mechanism                             | Supported levels                  | Rejected      |
-| ------------------- | ------------------------------------- | --------------------------------- | ------------- |
-| Claude              | `--effort <level>`                    | low, medium, high, xhigh, max     | none, minimal |
-| Codex               | `-c model_reasoning_effort="<level>"` | minimal, low, medium, high, xhigh | none, max     |
-| OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model) | —             |
-| Antigravity (`agy`) | none today                            | —                                 | all           |
-| Qwen                | none today                            | —                                 | all           |
-| Muse Code           | `--reasoning-effort <level>`          | all seven (`max` sent as `ultra`) | —             |
-| Fakey               | `--effort <level>`                    | all                               | —             |
+| Provider            | Mechanism                             | Supported levels                  | Rejected           |
+| ------------------- | ------------------------------------- | --------------------------------- | ------------------ |
+| Claude              | `--effort <level>`                    | low, medium, high, xhigh, max     | none, minimal      |
+| Codex               | `-c model_reasoning_effort="<level>"` | minimal, low, medium, high, xhigh | none, max          |
+| OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model) | —                  |
+| Antigravity (`agy`) | none today                            | —                                 | all                |
+| Qwen                | none today                            | —                                 | all                |
+| Muse Code           | `--reasoning-effort <level>`          | all seven (`max` sent as `ultra`) | —                  |
+| Grok Build          | `--effort <level>`                    | low, medium, high, xhigh          | none, minimal, max |
+| Fakey               | `--effort <level>`                    | all                               | —                  |
 
 For `agy` and `qwen` (no reasoning-effort mechanism today), every level is
 "unsupported": an explicit effort raises, while a config-default effort is skipped with
@@ -1619,6 +1822,17 @@ SASE always launches Muse with `MUSE_NO_AUTO_UPDATE=1` so the launcher cannot sw
 binary mid-run; `sase agent-cli update muse` sets `MUSE_SYNC_UPDATE=1` instead. The two
 must never be set together.
 
+### Grok-Specific
+
+| Variable               | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `SASE_GROK_PATH`       | Path to the Grok Build CLI binary (default: `grok` on `PATH`) |
+| `SASE_GROK_LARGE_ARGS` | Grok-specific extra args for `large` tier                     |
+| `SASE_GROK_SMALL_ARGS` | Grok-specific extra args for `small` tier                     |
+
+SASE always launches Grok with `--no-auto-update` so it cannot swap its own binary
+mid-run; `sase agent-cli update grok` runs Grok Build's own `update` subcommand instead.
+
 External provider plugins document their own environment variables in their respective
 repos.
 
@@ -1710,7 +1924,7 @@ config can replace or extend it through the normal config merge.
 ### Provider-Supplied Retry Defaults
 
 Providers can also declare retry defaults through the `llm_default_retry_config()` hook.
-Both Claude and Codex declare a recovery entry that is merged with their configured
+Claude, Codex, and Grok declare a recovery entry that is merged with their configured
 policy.
 
 Claude:
@@ -1736,6 +1950,17 @@ Codex:
 - **max_retries**: 3
 - **wait_times**: `[60, 300, 1800]` — the bundled Codex policy supplies the same backoff
 - **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude
+- **preserve_workspace**: `true`
+
+Grok:
+
+- **error patterns**: `"xAI API error"`, `"xAI rate limit"`, `"xAI server error"`, and
+  `"xAI upstream request failed"` — kept narrow and xAI-specific so they cannot collide
+  with Codex's ownership of generic `429` / `Too Many Requests` wording
+- **max_retries**: 3
+- **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min)
+- **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude and
+  Codex
 - **preserve_workspace**: `true`
 
 Fakey:
@@ -1861,7 +2086,10 @@ usage is accumulated from `step_finish` token counters. Muse emits no token coun
 stdout at all, so its usage is recovered after the process exits from the
 [session log SASE named](#token-usage-and-model-identity) via `--session-id`. Codex
 currently captures assistant text and reasoning summaries but does not emit
-`usage.json`.
+`usage.json`. Grok's `result.usage` uses the same four keys as Claude's, but is
+best-effort: subagent turns and interrupted turns can under-count or zero out because
+the `streaming-messages-json` projection drops Grok's internal "usage incomplete" marker
+— see [Token Usage](#token-usage).
 
 When usage is available, input tokens, output tokens, cache-creation tokens, and
 cache-read tokens are persisted as a `usage.json` artifact in the agent run directory.
@@ -1973,10 +2201,12 @@ When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-t
 display the agent's reply as it streams in, and remains available after execution
 completes for the metadata panel's AGENT REPLY section.
 
-Providers that support richer streams may write sidecar artifacts. Codex writes
-reasoning summaries to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl`; providers with token
-counters write `<SASE_ARTIFACTS_DIR>/usage.json`; Muse records the model it actually
-configured and its session id in `<SASE_ARTIFACTS_DIR>/run_metadata.json`.
+Providers that support richer streams may write sidecar artifacts. Codex and Grok both
+write reasoning content to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl` (the filename is
+shared rather than renamed per provider, since ACE's `read_codex_thinking` reads that
+exact path); providers with token counters write `<SASE_ARTIFACTS_DIR>/usage.json`; Muse
+records the model it actually configured and its session id in
+`<SASE_ARTIFACTS_DIR>/run_metadata.json`.
 
 ### Output Suppression
 

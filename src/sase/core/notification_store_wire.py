@@ -99,6 +99,7 @@ class NotificationStateUpdateWire:
     now: str | None = None
     agents: tuple[NotificationAgentKeyWire, ...] = ()
     notifications: tuple[Notification, ...] = ()
+    tab_key: str | None = None
 
 
 def notification_store_wire_to_json_dict(record: Any) -> Any:
@@ -111,7 +112,16 @@ def notification_store_wire_to_json_dict(record: Any) -> Any:
         return asdict(record)
     if isinstance(record, NotificationStateUpdateWire):
         payload: dict[str, Any] = {"kind": record.kind}
-        for key in ("id", "ids", "muted", "until", "now", "agents", "notifications"):
+        for key in (
+            "id",
+            "ids",
+            "muted",
+            "until",
+            "now",
+            "agents",
+            "notifications",
+            "tab_key",
+        ):
             value = getattr(record, key)
             if value is None or value == ():
                 continue

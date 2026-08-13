@@ -6,6 +6,9 @@ from typing import Any
 
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 
+from .notification_modal_action_types import NotificationMutationResult
+from .notification_modal_tags import modal_tag_to_core_key
+
 
 class NotificationBasicActionsMixin:
     """Dismiss, mark, and read notification rows."""
@@ -199,11 +202,57 @@ class NotificationBasicActionsMixin:
         self._rebuild_list(highlight_index=highlight if highlight >= 0 else None)
         return len(notification_ids)
 
-    def action_read_all(self: Any) -> None:
-        """Mark all notifications as read and rebuild the display."""
-        self._mark_all_read()
+    def action_read_tab(self: Any) -> None:
+        """Mark every unread notification in the active tab as read."""
+        active_tag = self._active_notification_tag
+        core_tab_key = modal_tag_to_core_key(active_tag)
+        tab_keys = self._notification_tab_keys
+        captured_ids = tuple(
+            n.id for n in self._notifications if tab_keys.get(n.id) == active_tag
+        )
+        if not captured_ids:
+            return
 
+        def _task() -> NotificationMutationResult:
+            try:
+                self._mark_tab_read(core_tab_key)
+            except Exception as exc:
+                return NotificationMutationResult(
+                    action="read",
+                    ids=captured_ids,
+                    success=False,
+                    message=str(exc),
+                )
+            return NotificationMutationResult(
+                action="read",
+                ids=captured_ids,
+                success=True,
+                message="Tab marked read",
+            )
+
+        self._submit_notification_state_task(
+            label="Read tab",
+            task=_task,
+            on_complete=self._complete_read_tab,
+        )
+
+    def _complete_read_tab(self: Any, result: NotificationMutationResult) -> None:
+        """Apply a completed tab-scoped read mutation on the UI thread."""
+        self._request_authoritative_notification_refresh()
+        if not result.success:
+            self.notify(f"Could not mark tab read: {result.message}", severity="error")
+            return
+        if not self._notification_modal_still_active():
+            return
+
+        acted_ids = set(result.ids)
+        current = self._get_highlighted_notification()
+        preferred_id = current.id if current is not None else None
         for notification in self._notifications:
-            notification.read = True
+            if notification.id in acted_ids:
+                notification.read = True
 
-        self._rebuild_list()
+        highlight = self._visible_notification_index_for_id(preferred_id)
+        if highlight is None:
+            highlight = self._first_visible_notification_index()
+        self._rebuild_list(highlight_index=highlight)

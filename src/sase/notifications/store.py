@@ -327,6 +327,12 @@ def mark_all_read() -> int:
     return int(outcome.changed_count)
 
 
+def mark_tab_read(tab_key: str) -> int:
+    """Mark all unread notifications in one tab as read. Returns changed count."""
+    outcome = _apply_state_update(_state_update(kind="mark_tab_read", tab_key=tab_key))
+    return int(outcome.changed_count)
+
+
 def _agent_key_from_mapping(data: dict[str, Any]) -> Any | None:
     cl_name = data.get("cl_name")
     if not cl_name:

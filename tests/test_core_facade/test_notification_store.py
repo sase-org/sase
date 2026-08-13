@@ -190,6 +190,15 @@ def test_update_wire_serializes_tagged_shape() -> None:
     }
 
 
+def test_update_wire_serializes_mark_tab_read_shape() -> None:
+    update = NotificationStateUpdateWire(kind="mark_tab_read", tab_key="alpha")
+
+    assert notification_store_wire_to_json_dict(update) == {
+        "kind": "mark_tab_read",
+        "tab_key": "alpha",
+    }
+
+
 def test_update_wire_serializes_mark_many_dismissed_shape() -> None:
     update = NotificationStateUpdateWire(kind="mark_many_dismissed", ids=("n1", "n2"))
 
@@ -336,6 +345,37 @@ def test_real_extension_round_trips_bulk_mute_and_snooze(tmp_path: Path) -> None
     normalized_deadline = deadline.astimezone(UTC).isoformat()
     assert by_id["n2"].snooze_until == normalized_deadline
     assert by_id["n3"].snooze_until == normalized_deadline
+
+
+def test_real_extension_mark_tab_read_scopes_to_one_tab(tmp_path: Path) -> None:
+    _skip_without_notification_bindings()
+    path = tmp_path / "notifications.jsonl"
+    facade.rewrite_notifications(
+        path,
+        [
+            _notification("a1", tags=["alpha"]),
+            _notification("a2", tags=["alpha"]),
+            _notification("b1", tags=["beta"]),
+        ],
+    )
+
+    outcome = facade.apply_notification_state_update(
+        path, NotificationStateUpdateWire(kind="mark_tab_read", tab_key="alpha")
+    )
+    assert outcome.matched_count == 2
+    assert outcome.changed_count == 2
+
+    snapshot = facade.read_notifications_snapshot(path)
+    by_id = {n.id: n for n in snapshot.notifications}
+    assert by_id["a1"].read is True
+    assert by_id["a2"].read is True
+    assert by_id["b1"].read is False
+
+    repeat = facade.apply_notification_state_update(
+        path, NotificationStateUpdateWire(kind="mark_tab_read", tab_key="alpha")
+    )
+    assert repeat.matched_count == 0
+    assert repeat.changed_count == 0
 
 
 def test_append_counts_uses_metadata_binding(

@@ -34,7 +34,7 @@ class NotificationTargetSelection:
 class NotificationMutationResult:
     """Result of a mute or snooze persistence operation."""
 
-    action: Literal["mute", "snooze"]
+    action: Literal["mute", "snooze", "read"]
     ids: tuple[str, ...]
     success: bool
     message: str

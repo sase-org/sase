@@ -153,6 +153,11 @@ def _modal_tag_from_core_key(core_key: str) -> str | None:
     return None if core_key == _CORE_GENERAL_TAB_KEY else core_key
 
 
+def modal_tag_to_core_key(tag: str | None) -> str:
+    """Translate one modal tab tag into the core's tab-key vocabulary."""
+    return _CORE_GENERAL_TAB_KEY if tag is None else tag
+
+
 def notification_tabs_from_core(core_tabs: Any) -> list[NotificationTagTab]:
     """Return modal tab rows for an ordered list of core tab records.
 

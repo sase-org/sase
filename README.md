@@ -17,9 +17,9 @@
 </div>
 
 **sase** (Structured Agentic Software Engineering, pronounced "sassy") turns Claude
-Code, Codex, Antigravity, Qwen Code, OpenCode, and Meta's Muse Code into a coordinated
-engineering team. One developer supervises parallel agents in isolated workspaces, with
-every run tracked, reviewable, and repeatable.
+Code, Codex, Antigravity, Qwen Code, OpenCode, Meta's Muse Code, and xAI's Grok Build
+into a coordinated engineering team. One developer supervises parallel agents in
+isolated workspaces, with every run tracked, reviewable, and repeatable.
 
 **Status:** sase is alpha software, and its interfaces and workflows are still evolving.
 It supports POSIX systems (Linux and macOS) only; Windows is not supported. sase assumes
@@ -67,9 +67,10 @@ Submitted, with grouping, search, stitches, and diffs.
 Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 [uv](https://docs.astral.sh/uv/), `git`, a text editor (`$EDITOR`, falling back to
 `nvim` then `vim`), and one authenticated agent CLI: Claude Code, Codex, Antigravity CLI
-(`agy`), Qwen Code, OpenCode, or Meta's Muse Code (`muse`). Muse Code is explicit-only:
-select it with a Muse model/provider directive because SASE does not auto-detect the
-generic `muse` executable name.
+(`agy`), Qwen Code, OpenCode, Meta's Muse Code (`muse`), or xAI's Grok Build (`grok`).
+Muse Code and Grok Build are explicit-only: select either with a Muse/Grok
+model/provider directive because SASE does not auto-detect the generic `muse`/`grok`
+executable names.
 
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github
@@ -77,14 +78,16 @@ sase doctor                                               # check install, confi
 sase run "#git:home summarize what this repository does; do not change files" # auto-detected providers
 # Or, for Muse Code:
 sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
+# Or, for Grok Build:
+sase run "%model:grok/grok-4.6 #git:home summarize what this repository does; do not change files"
 sase ace                                                  # open the interactive control surface
 ```
 
-For a first run, use the auto-detected-provider command, or the Muse Code command if
-Muse is your provider. The `#git:home` workspace reference targets the built-in `home`
-project, which is bootstrapped automatically, so the first run needs no project setup.
-After the run completes, `sase ace` opens the TUI with the completed run visible on the
-Agents tab.
+For a first run, use the auto-detected-provider command, or the Muse/Grok command if
+Muse or Grok is your provider. The `#git:home` workspace reference targets the built-in
+`home` project, which is bootstrapped automatically, so the first run needs no project
+setup. After the run completes, `sase ace` opens the TUI with the completed run visible
+on the Agents tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
 check again; see [Agent Providers](https://sase.sh/agent_providers/). For full
@@ -101,6 +104,7 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 | [Qwen Code](https://github.com/QwenLM/qwen-code)                                | **Supported**                |
 | [OpenCode](https://opencode.ai/)                                                | **Supported**                |
 | [Muse Code](https://developer.meta.com/ai/resources/blog/build-with-muse-code/) | **Supported; explicit-only** |
+| [Grok Build](https://docs.x.ai/build/overview)                                  | **Supported; explicit-only** |
 
 ## Learn more
 

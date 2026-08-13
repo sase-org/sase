@@ -50,6 +50,18 @@ def test_notification_modal_footer_hint_advertises_tag_tab_brackets() -> None:
     assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
 
 
+def test_notification_modal_binds_capital_r_to_read_tab() -> None:
+    """Capital R marks only the active tab read, not every notification."""
+    assert ("R", "read_tab", "Read Tab") in NotificationModal.BINDINGS
+    assert ("R", "read_all", "Read All") not in NotificationModal.BINDINGS
+
+
+def test_notification_modal_footer_hint_advertises_read_tab() -> None:
+    """The default footer advertises the tab-scoped read action wording."""
+    assert "R: read tab" in DEFAULT_HINT_TEXT
+    assert "R: read all" not in DEFAULT_HINT_TEXT
+
+
 def test_copy_file_path_copies_current_attachment() -> None:
     notification = _make_notification("n1", action="JumpToAgent")
     notification.files = ["/tmp/first.txt", "/tmp/second.txt"]

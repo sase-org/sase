@@ -4,8 +4,8 @@ SASE normally orchestrates an existing coding-agent CLI; the exception is the bu
 `fakey` testing provider. You need **at least one** supported real provider CLI
 installed **and authenticated** for production work. This page collects the install
 command, the authentication command, and a link to each vendor's canonical documentation
-for every provider SASE currently supports. Claude Code, Codex CLI, and Qwen Code
-install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode, the
+for every provider SASE currently supports. Claude Code, Codex CLI, Qwen Code, and Grok
+Build install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode, the
 Antigravity CLI, and Muse Code use their own install methods, shown in their sections
 below. Muse Code is the one provider SASE can install for you, with
 [`sase agent-cli install muse`](#inventory-and-updates).
@@ -133,6 +133,79 @@ binary mid-run; update it through `sase agent-cli` instead.
 
 Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-code/>
 
+## Grok Build
+
+xAI's Grok Build CLI (`grok`). Grok is **explicit-only**: SASE never auto-detects it,
+because the executable name `grok` collides with `grok-dev` (a stale community CLI that
+also uses `~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool.
+Select it with `llm_provider.provider: grok`, `%model:grok/grok-4.6`, or
+`SASE_GROK_PATH`. If a `grok` on `PATH` does not identify itself as Grok Build,
+`sase doctor` reports it as a distinct, actionable finding rather than silently
+launching the wrong binary.
+
+### Install
+
+```bash
+npm install -g @xai-official/grok
+```
+
+`@xai-official/grok` is an npm trampoline: `npm install -g` places a shim on `PATH`, but
+the real Grok Build binary it downloads on first run lives under `~/.grok/bin/`, not
+`node_modules`.
+
+### Authenticate
+
+SASE doctor hint: run `grok login` (or `grok login --device-code` on a headless host),
+or set `XAI_API_KEY`.
+
+### Update
+
+`sase agent-cli update grok` runs Grok Build's own self-update (`grok update`).
+
+SASE always launches agent runs with `--no-auto-update` so Grok cannot swap its own
+binary mid-run; update it through `sase agent-cli` instead.
+
+### Execution posture
+
+SASE runs Grok with `--permission-mode bypassPermissions` and no sandbox profile — the
+same posture SASE already uses for Codex and OpenCode. This is powerful local execution:
+Grok can read, write, and run shell commands anywhere the SASE process can, without
+per-action approval prompts.
+
+### Effort ceiling
+
+The `grok-4.6` model — the only model in the authenticated catalog — accepts only `low`,
+`medium`, `high`, and `xhigh` for `--effort`. `%effort:none`, `%effort:minimal`, and
+`%effort:max` raise a clean SASE error rather than a Grok process crash. The shipped
+`@smartest` alias resolves to `claude/opus@max`, so a Grok run must name one of its four
+supported levels explicitly.
+
+### Usage is best-effort
+
+Grok's `streaming-messages-json` output is a projection of its own internal usage
+ledger. Subagent turns can set an internal "usage incomplete" flag that the projection
+drops silently, and an interrupted turn can under-count. Text and tool records are
+unaffected, and cost reporting (`total_cost_usd`) does work on the OAuth login path.
+
+### Instruction double-load
+
+Grok reads `AGENTS.md` natively, so SASE generates no `GROK.md` shim. Grok also
+recognizes SASE's generated `CLAUDE.md` as project instructions and loads both files —
+duplicating the same content. `[compat.claude] agents = false` does not suppress this.
+SASE accepts the duplication for now rather than suppressing `CLAUDE.md` generation
+under a Grok provider, which would break any human running `claude` in the same tree.
+
+### Privacy
+
+Prompts, workspace context, and tool results are sent to xAI. Non-enterprise Grok Build
+sessions are **not** zero-data-retention by default; review Grok Build's own privacy and
+telemetry controls (including `/privacy`, `[telemetry]` settings, and Zero Data
+Retention for enterprise accounts) before pointing SASE at Grok Build on a workspace
+with sensitive contents. See <https://docs.x.ai/build/settings> for the current
+controls. SASE does not set or manage any of these settings on your behalf.
+
+Canonical docs: <https://docs.x.ai/build/overview>
+
 ## Antigravity CLI
 
 Google's Antigravity CLI (`agy`). There is no separate "Gemini CLI" provider in SASE;
@@ -192,8 +265,8 @@ and check again.
 If a provider CLI lives at a non-standard path, point SASE at it with the provider's
 `SASE_<PROVIDER>_PATH` override environment variable — `SASE_CLAUDE_PATH`,
 `SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, `SASE_AGY_PATH`,
-`SASE_MUSE_PATH`, or `SASE_FAKEY_PATH`. For deeper integration details (model mapping,
-per-provider environment variables, retry/fallback behavior), see the
+`SASE_MUSE_PATH`, `SASE_GROK_PATH`, or `SASE_FAKEY_PATH`. For deeper integration details
+(model mapping, per-provider environment variables, retry/fallback behavior), see the
 [LLM provider reference](llms.md).
 
 ## Inventory and Updates

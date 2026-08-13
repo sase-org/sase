@@ -19,13 +19,13 @@ from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from sase.notification_gates.summary import GateSummary
 from sase.notifications import (
     Notification,
-    mark_all_read,
     mark_dismissed,
     mark_many_dismissed,
     mark_many_muted,
     mark_many_snoozed,
     mark_muted,
     mark_snoozed,
+    mark_tab_read,
 )
 
 from .base import OptionListNavigationMixin
@@ -78,7 +78,7 @@ class NotificationModal(
         ("ctrl+p", "prev_file", "Previous File"),
         ("left_square_bracket", "prev_notification_tag_tab", "Prev Tag"),
         ("right_square_bracket", "next_notification_tag_tab", "Next Tag"),
-        ("R", "read_all", "Read All"),
+        ("R", "read_tab", "Read Tab"),
         ("M", "toggle_mute", "Toggle Mute"),
         ("m", "toggle_mark", "Mark"),
         ("s", "snooze", "Snooze"),
@@ -164,9 +164,9 @@ class NotificationModal(
         """
         return image_preview(path, context, columns=columns, rows=rows)
 
-    def _mark_all_read(self) -> None:
-        """Mark all notifications as read in the backing store."""
-        mark_all_read()
+    def _mark_tab_read(self, tab_key: str) -> int:
+        """Mark every unread, non-dismissed, non-silent row in one tab as read."""
+        return mark_tab_read(tab_key)
 
     def _mark_dismissed(self, notification_id: str) -> None:
         """Mark one notification as dismissed in the backing store."""

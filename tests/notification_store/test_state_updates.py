@@ -8,6 +8,7 @@ from sase.notifications.store import (
     mark_dismissed,
     mark_many_dismissed,
     mark_read,
+    mark_tab_read,
 )
 
 from .helpers import make_notification
@@ -139,4 +140,68 @@ class TestMarkAllRead:
         assert count == 1
         mock_update.assert_called_once()
         assert mock_update.call_args.args[1].kind == "mark_all_read"
+        assert mock_update.call_args.kwargs == {"include_notifications": False}
+
+
+class TestMarkTabRead:
+    """Tests for mark_tab_read()."""
+
+    def test_marks_only_targeted_tab(self, temp_notifications_dir: Path) -> None:
+        a1 = make_notification(id="a1", tags=["alpha"])
+        a2 = make_notification(id="a2", tags=["alpha"])
+        b1 = make_notification(id="b1", tags=["beta"])
+        for notification in (a1, a2, b1):
+            append_notification(notification)
+
+        count = mark_tab_read("alpha")
+
+        by_id = {n.id: n for n in load_notifications()}
+        assert count == 2
+        assert by_id["a1"].read is True
+        assert by_id["a2"].read is True
+        assert by_id["b1"].read is False
+
+    def test_skips_already_read_and_is_idempotent(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n1 = make_notification(id="n1", tags=["alpha"], read=True)
+        n2 = make_notification(id="n2", tags=["alpha"])
+        append_notification(n1)
+        append_notification(n2)
+
+        assert mark_tab_read("alpha") == 1
+        assert mark_tab_read("alpha") == 0
+
+    def test_empty_store(self, temp_notifications_dir: Path) -> None:
+        assert mark_tab_read("alpha") == 0
+
+    def test_general_tab_uses_untagged_rows(self, temp_notifications_dir: Path) -> None:
+        n1 = make_notification(id="n1")
+        n2 = make_notification(id="n2", tags=["alpha"])
+        append_notification(n1)
+        append_notification(n2)
+
+        count = mark_tab_read("general")
+
+        by_id = {n.id: n for n in load_notifications()}
+        assert count == 1
+        assert by_id["n1"].read is True
+        assert by_id["n2"].read is False
+
+    def test_uses_metadata_only_update(self, temp_notifications_dir: Path) -> None:
+        import sase.notifications.store as store
+
+        n = make_notification(tags=["alpha"])
+        append_notification(n)
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            count = mark_tab_read("alpha")
+
+        assert count == 1
+        mock_update.assert_called_once()
+        update = mock_update.call_args.args[1]
+        assert update.kind == "mark_tab_read"
+        assert update.tab_key == "alpha"
         assert mock_update.call_args.kwargs == {"include_notifications": False}

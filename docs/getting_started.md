@@ -10,18 +10,18 @@ description: >-
 
 SASE (pronounced "sassy" — yes, really) is a coordination layer that sits above
 coding-agent CLIs like Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code, OpenCode,
-or Meta's Muse Code. This guide is the practical on-ramp: by the end you'll have
-installed `sase`, checked that a provider CLI is ready, launched a safe read-only agent
-run, found the resulting agent record, handed one durable artifact to another run, and
-picked up the vocabulary you'll keep bumping into in the rest of the docs. Plan on
-roughly fifteen minutes at a terminal, plus however long your favorite model takes to
-think.
+Meta's Muse Code, or xAI's Grok Build. This guide is the practical on-ramp: by the end
+you'll have installed `sase`, checked that a provider CLI is ready, launched a safe
+read-only agent run, found the resulting agent record, handed one durable artifact to
+another run, and picked up the vocabulary you'll keep bumping into in the rest of the
+docs. Plan on roughly fifteen minutes at a terminal, plus however long your favorite
+model takes to think.
 
 ## Step 1 — Install SASE
 
 SASE needs Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and one authenticated
 coding-agent CLI such as Claude Code, Codex, Antigravity CLI (`agy`), Qwen Code,
-OpenCode, or Meta's Muse Code. With Python and `uv` in place:
+OpenCode, Meta's Muse Code, or xAI's Grok Build. With Python and `uv` in place:
 
 ```bash
 uv tool install sase
@@ -63,14 +63,17 @@ spending time on an agent run.
 ## Step 3 — Launch A Safe First Agent
 
 Start with a read-only task in SASE's managed `home` project. Use one launch form: the
-normal form when SASE can auto-detect an installed provider CLI, or the Muse form when
-Muse Code is your provider, because `muse` is explicit-only and never auto-detected:
+normal form when SASE can auto-detect an installed provider CLI, or the explicit form
+when Muse Code or Grok Build is your provider, because `muse` and `grok` are
+explicit-only and never auto-detected:
 
 ```bash
 # Auto-detected providers:
 sase run "#git:home summarize this workspace's layout; do not change files"
 # Muse Code:
 sase run "%model:muse/muse-spark-1.2 #git:home summarize this workspace's layout; do not change files"
+# Grok Build:
+sase run "%model:grok/grok-4.6 #git:home summarize this workspace's layout; do not change files"
 # Then:
 sase agent list
 ```
@@ -310,8 +313,8 @@ The names you'll keep bumping into, in one place:
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts
   on disk.
 - **[Plugins and providers](plugins.md)** — model and VCS providers behind a common
-  boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, Muse Code
-  for agents; bare git and GitHub for version control.
+  boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, Muse Code,
+  Grok Build for agents; bare git and GitHub for version control.
 
 ## What To Read Next
 
