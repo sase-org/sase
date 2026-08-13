@@ -93,19 +93,19 @@ async def test_help_panel_filter_png_snapshot(
         await wait_for_visual_idle(page)
 
         modal.action_focus_filter()
-        await page.press("b", "e", "a", "d", "s")
-        await page.wait_for(lambda _s: modal._filter_query == "beads")
+        await page.press("b", "e", "a", "d")
+        await page.wait_for(lambda _s: modal._filter_query == "bead")
         await wait_for_visual_idle(page)
 
-        # "Beads" renders as its own highlighted span (the matched run), so it
-        # stays contiguous in the exported SVG even though "Beads Pane" as a
+        # "Bead" renders as its own highlighted span (the matched run), so it
+        # stays contiguous in the exported SVG even though "Bead Pane" as a
         # whole does not.
-        assert_page_svg_contains(page, "Beads")
+        assert_page_svg_contains(page, "Bead")
         assert_page_svg_contains(page, "Pane")
         ace_png_visual.assert_page_png(
             page,
             "help_keymaps_filter_120x40",
-            title="ACE Help panel keymaps filter (beads)",
+            title="ACE Help panel keymaps filter (bead)",
         )
 
 

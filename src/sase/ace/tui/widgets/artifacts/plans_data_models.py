@@ -84,7 +84,7 @@ class PlansSnapshot:
     errors: dict[str, str]
     archive_truncated: bool = False
     provider_kind: str = "plan"
-    provider_label: str = "Plans"
+    provider_label: str = "Plan"
 
 
 @dataclass(frozen=True)

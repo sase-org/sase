@@ -41,6 +41,7 @@ class PlansOptionsMixin(_MixinBase):
     """Own list rebuilding, match counts, and pane summary text."""
 
     project_scope: str | None
+    provider_label: str
     filters: PlanFilterValues
     _project_display_name: str | None
     _registry: KeymapRegistry
@@ -261,6 +262,7 @@ class PlansOptionsMixin(_MixinBase):
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
             filter_tokens=to_query_tokens(self.filters),
+            provider_label=self.provider_label,
         )
 
     def _status_text(self) -> Text:

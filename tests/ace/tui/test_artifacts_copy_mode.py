@@ -58,7 +58,7 @@ def test_each_artifacts_copy_menu_supports_snapshot_and_names_unknown_keys(
     assert app.artifacts_footer_restores == 1
 
     assert app._handle_copy_key("n") is False
-    label = "Plans" if subtab == "ref:plan" else subtab.title()
+    label = {"stitches": "Stitch", "ref:plan": "Plan", "files": "File"}[subtab]
     assert app.notifications[-1][0].startswith(f"Unknown copy key ({label}:")
     assert app.artifacts_footer_restores == 2
 
@@ -72,7 +72,7 @@ def test_document_percent_n_never_copies_a_patch_name() -> None:
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "Plans:" in app.notifications[-1][0]
+    assert "Plan:" in app.notifications[-1][0]
 
 
 def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
@@ -84,7 +84,7 @@ def test_files_percent_unknown_key_never_reaches_patch_dispatch() -> None:
     assert app._handle_copy_key("n") is False
 
     app._copy_cl_name.assert_not_called()
-    assert "Files:" in app.notifications[-1][0]
+    assert "File:" in app.notifications[-1][0]
 
 
 def _artifact_file(

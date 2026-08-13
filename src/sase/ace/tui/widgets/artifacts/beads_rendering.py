@@ -45,7 +45,7 @@ def build_beads_scope(
 ) -> Text:
     text = Text()
     accent = ARTIFACTS_ACCENTS["beads"]
-    text.append(" Beads ", style=f"bold #1a1a1a on {accent}")
+    text.append(" Bead ", style=f"bold #1a1a1a on {accent}")
     text.append("  Project scope  ", style="dim")
     text.append(
         f" {project_display_name or project_scope or 'All projects'} ",

@@ -65,11 +65,11 @@ can still be selected and recovered.
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                               |
-| ------------- | ------------------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts                |
-| **Artifacts** | Browse Stitches, Patches, Beads, configured document providers, and Files |
-| **Axe**       | Monitor the Axe daemon and background commands                            |
+| Tab           | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts          |
+| **Artifacts** | Browse Stitch, Patch, Bead, configured document providers, and File |
+| **Axe**       | Monitor the Axe daemon and background commands                      |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press
 `,?` (leader mode) to open the Help modal on its **Keymaps** view, then `]` to switch to
@@ -95,16 +95,15 @@ more" links into the published docs. An empty Beads pane points agents to
 TaskTriage.
 
 Within Artifacts, number keys follow the visible left-to-right order of the strip:
-Stitches, Patches, and Beads are always **1**, **2**, **3**; configured
-document-provider tabs such as Plans and Research take the next digits; and Files, which
-always renders last, always carries the highest digit — **4** with no provider tabs
-configured, **6** with two. Digits stop at `9`, and Files keeps its digit even then. Use
-`[` / `]` to cycle through the complete runtime strip. When horizontal space is tight,
-the strip narrows by dropping inactive labels before it ever clips a tab. These keys act
-only while Artifacts is visible. Press `p` in Stitches, Beads, provider document panes,
-or Files to change the shared project scope, or use the command palette to jump directly
-to a top-level view. Patches remains query-scoped and retains the existing Patch
-workflow.
+Stitch, Patch, and Bead are always **1**, **2**, **3**; configured document-provider
+tabs such as Plan and Research take the next digits; and File, which always renders
+last, always carries the highest digit — **4** with no provider tabs configured, **6**
+with two. Digits stop at `9`, and File keeps its digit even then. Use `[` / `]` to cycle
+through the complete runtime strip. When horizontal space is tight, the strip narrows by
+dropping inactive labels before it ever clips a tab. These keys act only while Artifacts
+is visible. Press `p` in Stitch, Bead, provider document panes, or File to change the
+shared project scope, or use the command palette to jump directly to a top-level view.
+Patches remains query-scoped and retains the existing Patch workflow.
 
 ### Navigation in Stitches, Beads, Provider Documents, and Files
 
@@ -284,7 +283,7 @@ search for a literal leading minus (`"-repo:plans"`); quote only the excluded va
 keep negation active (`-"generated rollout"`). Matching remains case-insensitive, and
 repository/project aliases work for both inclusion and exclusion.
 
-### Beads Pane
+### Bead Pane
 
 The top-level Beads view (`3`) is the work-item home for standalone tasks, epic plan
 beads, and their phase beads. Every bead appears once: tasks occupy their own section,
@@ -367,12 +366,12 @@ when one is stored, without trying to resolve an epic plan.
 ### Document Provider Panes
 
 Artifacts includes one document pane per configured artifact-reference provider. The
-fixed tabs are Stitches, Patches, Beads, and Files; provider-backed document tabs such
-as Plans and Research appear between Beads and Files when an enabled project configures
-the matching sidecar `ref:` policy. Persisted selections use stable ids such as
-`ref:plan` and `ref:research`, so a missing provider falls back to Stitches instead of
-crashing startup. Each pane renders an icon in its accent color: the four fixed marks
-are built in, and a provider pane's mark comes from its sidecar `ref.icon`.
+fixed tabs are Stitch, Patch, Bead, and File; provider-backed document tabs such as Plan
+and Research appear between Bead and File when an enabled project configures the
+matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
+and `ref:research`, so a missing provider falls back to Stitch instead of crashing
+startup. Each pane renders an icon in its accent color: the four fixed marks are built
+in, and a provider pane's mark comes from its sidecar `ref.icon`.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
 existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
@@ -456,14 +455,14 @@ Markdown switches to source view. `Esc` in the input cancels the edit, while `Es
 a committed search first clears the matches and only closes the reader on the next
 press.
 
-### Files Pane
+### File Pane
 
 Files browses the artifact-file index that backs [`sase artifact list`](cli.md). The
-pane is one of the four fixed Artifacts views: Stitches, Patches, Beads, and Files.
-Configured document-provider panes appear between Beads and Files in the runtime tab
-strip. Rows are grouped by logical file identity, so repeated captures of
-`@file:~/bob/gtd.md` or repeated `sase artifact create` rows for the same logical
-artifact appear as one selectable row with versions.
+pane is one of the four fixed Artifacts views: Stitch, Patch, Bead, and File. Configured
+document-provider panes appear between Bead and File in the runtime tab strip. Rows are
+grouped by logical file identity, so repeated captures of `@file:~/bob/gtd.md` or
+repeated `sase artifact create` rows for the same logical artifact appear as one
+selectable row with versions.
 
 Each row shows a view-mode glyph, the project, the producing agents, an origin badge,
 the logical label, the latest selected version's timestamp, and the indexed size.
@@ -1287,7 +1286,7 @@ count. These modal-local `l`/`J` accelerators are distinct from the Artifacts Fi
 pane's compatibility-preserving `%L`/`%j` keys. The legacy `y` and `Y` accelerators
 remain available and apply to the same marked set.
 
-`Y` shares one helper with the [Files pane](#files-pane), so both copy the same anchored
+`Y` shares one helper with the [Files pane](#file-pane), so both copy the same anchored
 path: the stored path, except that PDF rows yield the live Markdown source they were
 rendered from when the index recorded one. Relative index paths are anchored to the
 producing workspace — including legacy rows whose workspace is discoverable only through

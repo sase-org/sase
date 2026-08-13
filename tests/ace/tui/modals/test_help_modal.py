@@ -22,16 +22,16 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     right = modal._build_right_column().plain
     combined = left + right
     assert "Artifact Views" in left
-    assert "Stitches Pane" in left
-    assert "Beads Pane" in left
-    assert "Files Pane" in combined
+    assert "Stitch Pane" in left
+    assert "Bead Pane" in left
+    assert "File Pane" in combined
     assert "Filter kind, status, or tier" in combined
     assert "Filter project or creation date" in combined
     assert "Title/body/id/metadata (AND)" in combined
     assert "Patch Actions" in combined
     assert "Create task bead" in combined
     assert "Close / reopen bead" in combined
-    assert "Copy Mode · Beads" in combined
+    assert "Copy Mode · Bead" in combined
     assert "Copy Mode · Other" in combined
     assert "[01]" in left
     assert "01-9 / 00" in right

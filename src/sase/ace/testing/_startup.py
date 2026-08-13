@@ -48,7 +48,7 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
             artifact_tabs._fixed_descriptor("beads"),
             artifact_tabs.ArtifactsTabDescriptor(
                 id="ref:plan",
-                label="Plans",
+                label="Plan",
                 accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
                 pane_id="artifacts-plans-pane",
                 icon="✎",

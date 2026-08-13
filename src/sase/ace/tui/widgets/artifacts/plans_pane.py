@@ -54,7 +54,7 @@ class ArtifactsDocumentsPane(
         self,
         *,
         provider_kind: str = "plan",
-        provider_label: str = "Plans",
+        provider_label: str = "Plan",
         pane_key: str = "ref:plan",
         provider_spec: dict[str, Any] | None = None,
         **kwargs: Any,

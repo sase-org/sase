@@ -51,7 +51,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Stitches Pane",
+            "Stitch Pane",
             [
                 (
                     f"{d(a.stitches_next)} / {d(a.stitches_prev)}",
@@ -93,7 +93,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Beads Pane",
+            "Bead Pane",
             [
                 (
                     f"{d(a.beads_next)} / {d(a.beads_prev)}",
@@ -153,7 +153,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Files Pane",
+            "File Pane",
             [
                 (f"{d(a.files_next)} / {d(a.files_prev)}", "Next / previous row"),
                 (

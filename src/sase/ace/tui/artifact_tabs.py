@@ -300,10 +300,10 @@ def switch_to_artifacts_subtab(app: Any, subtab: ArtifactsSubTab) -> None:
 
 def _fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
     labels = {
-        "patches": "Patches",
-        "stitches": "Stitches",
-        "beads": "Beads",
-        "files": "Files",
+        "patches": "Patch",
+        "stitches": "Stitch",
+        "beads": "Bead",
+        "files": "File",
     }
     return ArtifactsTabDescriptor(
         id=subtab,
@@ -539,10 +539,8 @@ def _provider_label(kind: str, spec: Mapping[str, Any]) -> str:
             return candidate.strip()
     label = kind.replace("_", " ").replace("-", " ").strip().title()
     if not label:
-        return "Documents"
-    if label.casefold().endswith("s"):
-        return label
-    return f"{label}s"
+        return "Document"
+    return label
 
 
 def _sanitize_tab_icon(raw: object) -> str:

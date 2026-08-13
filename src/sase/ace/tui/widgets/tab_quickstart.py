@@ -279,7 +279,7 @@ class TabQuickStart(VerticalScroll):
                         key_display_name(app.files_prev_version),
                         key_display_name(app.files_next_version),
                     ),
-                    "Files: previous / next version.",
+                    "File: previous / next version.",
                 ),
             )
 

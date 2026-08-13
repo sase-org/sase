@@ -23,9 +23,12 @@ def build_plans_scope(
     project_scope: str | None,
     project_display_name: str | None,
     filter_tokens: tuple[str, ...] = (),
+    provider_label: str = "Plan",
 ) -> Text:
     text = Text()
-    text.append(" Plans ", style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}")
+    text.append(
+        f" {provider_label} ", style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}"
+    )
     text.append("  Project scope  ", style="dim")
     label = project_display_name or project_scope or "All projects"
     text.append(f" {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")

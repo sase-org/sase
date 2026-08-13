@@ -56,7 +56,7 @@ def filter_sections(sections: Sections, query: str) -> FilterResult:
 
     Pass 1 accepts only contiguous fuzzy matches. If it yields no rows, pass 2
     relaxes to scattered-subsequence matches so initialisms like ``bp`` still
-    find ``Beads Pane``.
+    find ``Bead Pane``.
     """
     tokens = tokenize(query)
     if not tokens:

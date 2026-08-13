@@ -37,6 +37,12 @@ _ARTIFACT_DESCRIPTIONS: dict[ArtifactsSubTab, str] = {
     "beads": "Review task, epic, and phase work items.",
     "files": "Browse logical artifact files and their versions.",
 }
+_ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
+    "stitches": "Stitch",
+    "patches": "Patch",
+    "beads": "Bead",
+    "files": "File",
+}
 
 
 class PatchOnboarding(VerticalScroll):
@@ -146,7 +152,7 @@ class PatchOnboarding(VerticalScroll):
 
     @staticmethod
     def _artifact_label(subtab: ArtifactsSubTab) -> str:
-        return subtab.title()
+        return _ARTIFACT_LABELS[subtab]
 
     @classmethod
     def _append_artifact_row(

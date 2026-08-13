@@ -68,11 +68,11 @@ def build_plan_options(
     rows: dict[str, PlanRow] = {}
     active_marks = marks or set()
     if snapshot is None or snapshot.project != project_scope:
-        provider_label = snapshot.provider_label if snapshot is not None else "Plans"
+        provider_label = snapshot.provider_label if snapshot is not None else "Plan"
         label = (
-            f"Loading {provider_label.casefold()}…"
+            f"Loading {provider_label.casefold()} documents…"
             if loading
-            else f"{provider_label} have not loaded yet."
+            else f"{provider_label} documents have not loaded yet."
         )
         return [Option(single_line_text(label), disabled=True)], rows
 

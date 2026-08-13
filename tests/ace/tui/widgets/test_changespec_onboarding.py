@@ -50,17 +50,14 @@ def test_patch_onboarding_uses_active_keymap_registry() -> None:
     positions = {
         label: tabs_text.index(label)
         for label in (
-            "Stitches",
-            "Patches",
-            "Beads",
-            "Files",
+            "Stitch",
+            "Patch",
+            "Bead",
+            "File",
         )
     }
     assert (
-        positions["Stitches"]
-        < positions["Patches"]
-        < positions["Beads"]
-        < positions["Files"]
+        positions["Stitch"] < positions["Patch"] < positions["Bead"] < positions["File"]
     )
     for key in ("f3", "f4", "f5"):
         assert key in tabs_text

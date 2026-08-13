@@ -57,7 +57,7 @@ def build_files_info(
     accent = ARTIFACTS_ACCENTS["files"]
     scope = project_display_name or project_scope or "All projects"
     text = Text()
-    text.append(" Files ", style=f"bold #1a1a1a on {accent}")
+    text.append(" File ", style=f"bold #1a1a1a on {accent}")
     text.append("  Project scope  ", style="dim")
     text.append(f" {scope} ", style=f"bold {accent}")
     text.append("  ·  ", style="dim")

@@ -36,7 +36,7 @@ def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, .
             artifact_tabs._fixed_descriptor("beads"),
             artifact_tabs.ArtifactsTabDescriptor(
                 id="ref:plan",
-                label="Plans",
+                label="Plan",
                 accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
                 pane_id="artifacts-plans-pane",
                 provider_kind="plan",
@@ -126,9 +126,9 @@ def test_artifacts_quickstart_advertises_every_subtab(
     agents_card = _section_plain(agents, "#agent-quickstart-card")
     artifacts_card = _section_plain(patches, "#patch-quickstart-card")
 
-    assert "Jump: Stitches · Patches · Beads · Files." in artifacts_card
-    assert "Cycle Artifacts: Stitches · Patches · Beads · Files." in artifacts_card
-    assert "Files: previous / next version." in artifacts_card
+    assert "Jump: Stitch · Patch · Bead · File." in artifacts_card
+    assert "Cycle Artifacts: Stitch · Patch · Bead · File." in artifacts_card
+    assert "File: previous / next version." in artifacts_card
     assert "Cycle Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
         patches, "#patch-quickstart-hero"
@@ -143,10 +143,8 @@ def test_artifacts_quickstart_advertises_every_subtab(
     provider_patches = TabQuickStart.render_content(registry, tab="patches")
     provider_card = _section_plain(provider_patches, "#patch-quickstart-card")
 
-    assert "Jump: Stitches · Patches · Beads · Plans · Files." in provider_card
-    assert (
-        "Cycle Artifacts: Stitches · Patches · Beads · Plans · Files." in provider_card
-    )
+    assert "Jump: Stitch · Patch · Bead · Plan · File." in provider_card
+    assert "Cycle Artifacts: Stitch · Patch · Bead · Plan · File." in provider_card
 
 
 def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:

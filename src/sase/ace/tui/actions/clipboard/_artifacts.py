@@ -35,12 +35,19 @@ def _copy_group_for_artifacts_subtab(subtab: str) -> str:
     return f"artifacts_{subtab}"
 
 
+_ARTIFACTS_COPY_LABELS = {
+    "stitches": "Stitch",
+    "patches": "Patch",
+    "beads": "Bead",
+}
+
+
 def _copy_label_for_artifacts_subtab(subtab: str) -> str:
     if subtab.startswith("ref:"):
-        return "Plans"
+        return "Plan"
     if subtab == "files":
-        return "Files"
-    return subtab.title()
+        return "File"
+    return _ARTIFACTS_COPY_LABELS.get(subtab, subtab.title())
 
 
 class ClipboardArtifactsMixin(

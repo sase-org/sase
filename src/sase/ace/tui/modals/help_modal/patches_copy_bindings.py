@@ -24,7 +24,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
 
     return [
         (
-            f"Copy Mode · Stitches ({d(cm.prefix)})",
+            f"Copy Mode · Stitch ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
                 (
@@ -66,7 +66,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            f"Copy Mode · Beads ({d(cm.prefix)})",
+            f"Copy Mode · Bead ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
                 (
@@ -108,7 +108,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            f"Copy Mode · Plans ({d(cm.prefix)})",
+            f"Copy Mode · Plan ({d(cm.prefix)})",
             [
                 (d(cm.prefix), "Open Copy as… palette"),
                 (

@@ -270,8 +270,8 @@ def _active_timestamp(entry: ActivePlanDocument) -> str:
 def _provider_label(provider_kind: str) -> str:
     label = provider_kind.replace("_", " ").replace("-", " ").strip().title()
     if not label:
-        return "Documents"
-    return label if label.casefold().endswith("s") else f"{label}s"
+        return "Document"
+    return label
 
 
 def _add_project_error(errors: dict[str, str], project: str, message: str) -> None:

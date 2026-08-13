@@ -57,7 +57,7 @@ async def test_artifacts_files_nested_strip_png_snapshot(
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
         await wait_for_visual_idle(page)
 
-        for token in ("PLANS", "Ship the plan browser", "Pending proposal body"):
+        for token in ("PLAN", "Ship the plan browser", "Pending proposal body"):
             assert_page_svg_contains(page, token)
 
         ace_png_visual.assert_page_png(

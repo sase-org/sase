@@ -62,7 +62,7 @@ def build_commits_info_header(
     """Build the comparatively static first row of the Stitches information area."""
     accent = ARTIFACTS_ACCENTS["stitches"]
     text = Text()
-    text.append(" Stitches ", style=f"bold #1a1a1a on {accent}")
+    text.append(" Stitch ", style=f"bold #1a1a1a on {accent}")
     if active_limit is not None:
         text.append("  ", style="dim")
         text.append(f"limit:{active_limit}", style=f"bold {accent}")
