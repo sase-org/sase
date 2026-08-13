@@ -109,6 +109,24 @@ def _stream_and_parse_messages_json_output(
     return combined_text, stderr_content, return_code, usage_totals
 
 
+def stream_and_parse_messages_json_output(
+    process: subprocess.Popen[str],
+    suppress_output: bool = False,
+    *,
+    runtime: str = "claude",
+    tool_call_writer: ToolCallWriter = append_claude_tool_call_event,
+    thinking_sink: ThinkingSinkOption = None,
+) -> tuple[str, str, int, dict[str, int]]:
+    """Public compatibility wrapper for Messages JSON stream parsing."""
+    return _stream_and_parse_messages_json_output(
+        process,
+        suppress_output=suppress_output,
+        runtime=runtime,
+        tool_call_writer=tool_call_writer,
+        thinking_sink=thinking_sink,
+    )
+
+
 def _process_json_line(
     line: str,
     assistant_texts: list[str],

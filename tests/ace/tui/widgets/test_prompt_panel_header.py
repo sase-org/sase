@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -46,7 +47,7 @@ _MAJOR_SECTION_RULE = "\u2500" * 50
 def _setup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-) -> Path:
+) -> Iterator[Path]:
     memory_reads_module._memory_reads_cache.clear()
     memory_reads_module._memory_reads_context_cache.clear()
     memory_reads_module._memory_reads_snapshot_cache.clear()
@@ -73,7 +74,15 @@ def _setup(
         "get_timezone",
         lambda: ZoneInfo("UTC"),
     )
-    return sase_home
+    yield sase_home
+    memory_reads_module._memory_reads_cache.clear()
+    memory_reads_module._memory_reads_context_cache.clear()
+    memory_reads_module._memory_reads_snapshot_cache.clear()
+    opened_workspaces_module._opened_workspaces_cache.clear()
+    opened_workspaces_module._opened_workspaces_context_cache.clear()
+    skill_uses_module._skill_uses_cache.clear()
+    skill_uses_module._skill_uses_context_cache.clear()
+    skill_uses_module._skill_uses_snapshot_cache.clear()
 
 
 def _assert_dim_divider_before(header: Text, section: str) -> None:
