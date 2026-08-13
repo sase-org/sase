@@ -3936,7 +3936,7 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                               |
 | `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                     |
 | `Tab`                        | Indent a bullet, or nest an ordered item under a preceding marker; otherwise expand a snippet or advance its tabstop                     |
-| `Shift+Tab`                  | Dedent a bullet, or unnest an ordered item into its enclosing run; otherwise do nothing                                                  |
+| `Shift+Tab`                  | Dedent a bullet, or unnest an ordered item into its enclosing run; otherwise retreat to the previous snippet tabstop                     |
 | `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                          |
 | `Escape`                     | Switch to vim NORMAL mode                                                                                                                |
 
@@ -5033,13 +5033,17 @@ ace:
 2. Press `Tab`. If the word before the cursor matches a snippet, it is replaced with the
    template text.
 3. If the template contains tabstop markers (`$1`, `$2`, ...), the cursor jumps to `$1`
-   first. Press `Tab` again to advance to `$2`, then `$3`, and so on. `$0` marks the
-   final cursor position after all tabstops are visited. If there are no tabstop
-   markers, the cursor moves to the end of the expanded text.
+   first. Press `Tab` again to advance to `$2`, then `$3`, and so on. `Shift+Tab`
+   retreats through already visited tabstops. `$0` marks the final cursor position after
+   all tabstops are visited. If there are no tabstop markers, the cursor moves to the
+   end of the expanded text.
 
 **Tab priority:** Snippet expansion always takes priority over tabstop advancement. If
 you type a trigger word at an active tabstop and press `Tab`, the snippet expands rather
-than jumping to the next tabstop.
+than jumping to the next tabstop. Expanding inside the live snippet nests the new
+snippet session: ACE visits the nested snippet's tabstops first, then resumes the
+enclosing snippet at the next outer stop. Expanding outside the current snippet resets
+the tabstop session.
 
 **Multi-line indentation:** When a multi-line snippet is expanded on an indented line,
 continuation lines automatically inherit the leading whitespace of the trigger line.
@@ -5047,7 +5051,9 @@ Tabstop positions are adjusted accordingly.
 
 Trigger words are matched against the alphanumeric/underscore word immediately before
 the cursor. If no snippet matches, `Tab` advances to the next tabstop (if any are
-remaining from a previous expansion), or behaves normally.
+remaining from a previous expansion), and `Shift+Tab` retreats to a previously visited
+tabstop. Reaching the final tabstop clears the session so the next `Tab` behaves
+normally.
 
 XPrompt-derived snippets compose normal xprompt references before they enter the snippet
 registry. After xprompt-derived snippets and `ace.snippets` are merged, any snippet can

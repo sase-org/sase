@@ -1064,10 +1064,12 @@ ace:
     plan: "#plan\n$0"
 ```
 
-Templates can contain `$0` to mark where the cursor should be placed after expansion. If
-no `$0` is present, the cursor moves to the end of the expanded text. Templates can also
-splice another merged snippet with `#[trigger]`; use `#[trigger(value)]` or
-`#[trigger:value]` to fill referenced `$1`, `$2`, ... tabstops before splicing.
+Templates can contain `$1`, `$2`, ... tabstops plus `$0` for the final cursor position.
+In the ACE prompt input, `Tab` advances through those stops and `Shift+Tab` retreats
+through stops already visited. Expanding a trigger inside an active snippet nests the
+new snippet's tabstops before the remaining outer stops. Templates can also splice
+another merged snippet with `#[trigger]`; use `#[trigger(value)]` or `#[trigger:value]`
+to fill referenced `$1`, `$2`, ... tabstops before splicing.
 
 Every effective snippet also gains a generated initial-capital alias: only the first
 character of the trigger and of the resolved template is uppercased, so

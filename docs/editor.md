@@ -80,7 +80,11 @@ Snippet completions come from the same registry ACE uses: xprompts with `snippet
 matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
 collisions. The server asks the host helper bridge for that authoritative registry and
 falls back to native Rust loading only for simple xprompt snippets and configured
-`ace.snippets` when the helper is unavailable.
+`ace.snippets` when the helper is unavailable. In ACE, that shared registry expands into
+nested snippet sessions: expanding a trigger while another snippet's tabstops are live
+visits the inner tabstops first, then returns to the remaining outer tabstops. LSP
+clients receive ordinary editor snippets from the same catalog, so placeholder
+navigation in external editors is handled by the editor.
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
 file rows whenever the query prefix-matches an artifact kind (including bare `@`), and
@@ -247,6 +251,11 @@ the generated editor template stays predictable.
 Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positional
 forms such as `#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's
 tabstops before the composed template is renumbered.
+
+When the composed registry is used in ACE, `Tab` moves forward through `$1`, `$2`, ...
+and `$0`, while `Shift+Tab` retreats through visited tabstops. Expanding a second
+trigger from inside an active snippet nests it instead of discarding the remaining outer
+stops.
 
 ## Troubleshooting
 
