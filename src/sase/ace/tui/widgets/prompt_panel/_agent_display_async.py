@@ -23,6 +23,7 @@ from ._agent_display_header_summary import (
     build_detail_header_summary,
     should_refresh_detail_header_summary,
 )
+from ._agent_display_state import DetailContextLane
 from ._agent_tribe_aggregation import (
     TribeEnrichmentResult,
     TribeEnrichmentSection,
@@ -91,7 +92,9 @@ class AgentDisplayWorkerMixin(
             slow_tool_threshold_ms=slow_tool_threshold_ms,
         )
 
-    def _should_refresh_detail_header_summary(self, agent: Agent) -> bool:
+    def _should_refresh_detail_header_summary(
+        self, agent: Agent
+    ) -> frozenset[DetailContextLane]:
         """Keep the historical refresh-decision patch point stable."""
         return should_refresh_detail_header_summary(self, agent)
 

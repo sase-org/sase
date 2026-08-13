@@ -26,13 +26,21 @@ from ._agent_display_header_summary import (
     should_refresh_detail_header_summary,
     time,
 )
-from ._agent_display_state import AgentHintRender, DetailHeaderSummary, HeaderHintState
+from ._agent_display_state import (
+    ALL_DETAIL_CONTEXT_LANES,
+    AgentHintRender,
+    DetailContextLane,
+    DetailHeaderSummary,
+    HeaderHintState,
+)
 from ._helpers import load_xprompts_used
 
 _DetailHeaderSummary = DetailHeaderSummary
 _DetailHeaderSummaryCacheEntry = DetailHeaderSummaryCacheEntry
 
 __all__ = [
+    "ALL_DETAIL_CONTEXT_LANES",
+    "DetailContextLane",
     "DetailHeaderSummary",
     "DetailHeaderSummaryCacheEntry",
     "AgentHintRender",

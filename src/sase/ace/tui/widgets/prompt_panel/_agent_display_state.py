@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
@@ -68,6 +68,41 @@ class AgentHintRender:
     header_enrichment_pending: bool = False
 
 
+type DetailContextLane = Literal[
+    "plan-bead",
+    "artifacts",
+    "memory",
+    "skills",
+    "workspaces",
+    "slow-tools",
+    "xprompts",
+    "page-url",
+    "wait-beads",
+]
+# The independently resolved/cached lanes inside `DetailHeaderSummary` (bead
+# sase-l6.3). `plan-bead`, `artifacts`, `memory`, `skills`, and `workspaces`
+# back the SASE CONTEXT lanes in `CONTEXT_LANE_ORDER`
+# (`_agent_context.py:30`; `plan-bead` covers both PLAN and BEAD, which share
+# one resolver). The remaining four back non-context summary fields resolved
+# by the same worker. `bead_display` is deliberately not a lane: it is a
+# cheap cache read (`cached_bead_display`), not a store parse, and its own
+# dedicated worker (`start_agent_bead_display_resolve`) keeps it fresh
+# independently of lane selection.
+ALL_DETAIL_CONTEXT_LANES: frozenset[DetailContextLane] = frozenset(
+    {
+        "plan-bead",
+        "artifacts",
+        "memory",
+        "skills",
+        "workspaces",
+        "slow-tools",
+        "xprompts",
+        "page-url",
+        "wait-beads",
+    }
+)
+
+
 @dataclass(frozen=True)
 class DetailHeaderSummary:
     """Precomputed data that is too expensive for hot header rendering."""
@@ -85,6 +120,12 @@ class DetailHeaderSummary:
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
     agent_page_url: str | None = None
+    # Lanes this instance actually resolved (attempted), as opposed to lanes
+    # that were never requested. A lane in `ready_lanes` whose field is still
+    # falsy resolved to "nothing" rather than "not yet resolved". Defaults to
+    # every lane so a summary built without lane selection (the common case)
+    # is treated as a complete, mergeable snapshot.
+    ready_lanes: frozenset[DetailContextLane] = ALL_DETAIL_CONTEXT_LANES
 
     @property
     def bead_summary(self) -> BeadSummary | None:

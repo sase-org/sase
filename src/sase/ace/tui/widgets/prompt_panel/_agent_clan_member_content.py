@@ -22,7 +22,7 @@ from ...models._agent_clan_sections import (
 from ...models.agent import Agent
 from ._agent_display_content import get_prompt_content
 from ._agent_display_header_summary import build_detail_header_summary
-from ._agent_display_state import DetailHeaderSummary
+from ._agent_display_state import ALL_DETAIL_CONTEXT_LANES, DetailHeaderSummary
 from ._helpers import format_output
 
 
@@ -43,11 +43,10 @@ def load_clan_disk_member_snapshot(
     context: DetailHeaderSummary | None = None
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None
     if needs_context:
-        context = build_detail_header_summary(
-            member,
-            include_slow_tools=needs_slow_tools,
-            include_agent_page_url=False,
-        )
+        lanes = ALL_DETAIL_CONTEXT_LANES - {"page-url"}
+        if not needs_slow_tools:
+            lanes = lanes - {"slow-tools"}
+        context = build_detail_header_summary(member, lanes=lanes)
         slow_tool_sources = context.slow_tool_sources
     elif needs_slow_tools:
         slow_tool_sources = build_slow_tool_sources(member)

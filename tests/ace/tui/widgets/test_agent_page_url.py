@@ -18,6 +18,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     build_detail_header_summary,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
+    ALL_DETAIL_CONTEXT_LANES,
     DetailHeaderSummary,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -219,7 +220,7 @@ def test_summary_can_skip_agent_page_resolution(
 
     summary = build_detail_header_summary(
         _committed_agent(),
-        include_agent_page_url=False,
+        lanes=ALL_DETAIL_CONTEXT_LANES - {"page-url"},
     )
 
     assert summary.agent_page_url is None
