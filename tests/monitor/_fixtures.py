@@ -4,12 +4,16 @@ Builds real ``agent_meta.json`` / ``done.json`` files under a sandboxed
 ``SASE_HOME`` and a real ``.sase`` project file for workspace claims, then
 reads scan-shaped records straight off disk -- bypassing the Rust-backed
 artifact index/scanner so these tests do not depend on a compiled binding.
+
+Also carries the bounded-wait helpers the monitor tests use to poll for
+markers written by real supervisor subprocesses.
 """
 
 from __future__ import annotations
 
 import json
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -21,6 +25,8 @@ from sase.core.wire import known_field_kwargs
 from sase.running_field import WorkspaceClaim
 
 DEAD_PID = 99_999_999
+POLL_TIMEOUT = 60.0
+POLL_INTERVAL = 0.1
 
 
 def make_starter_agent(
@@ -110,6 +116,34 @@ def patch_project_records(
         ]
 
     monkeypatch.setattr(store_module, "_project_records", fake)
+
+
+def wait_for_done(
+    artifacts_dir: str,
+    *,
+    timeout: float = POLL_TIMEOUT,
+) -> dict[str, object]:
+    """Block until a monitor member writes ``done.json`` and return it."""
+    done_path = Path(artifacts_dir) / "done.json"
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if done_path.exists():
+            try:
+                return json.loads(done_path.read_text())
+            except json.JSONDecodeError:
+                pass
+        time.sleep(POLL_INTERVAL)
+    raise AssertionError(f"monitor at {artifacts_dir} never finished")
+
+
+def wait_for_path(path: Path, *, timeout: float = POLL_TIMEOUT) -> None:
+    """Block until *path* exists."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists():
+            return
+        time.sleep(POLL_INTERVAL)  # sase-test-wait: poll subprocess file marker
+    raise AssertionError(f"{path} was not created")
 
 
 def _load[WireT](path: Path, cls: type[WireT]) -> WireT:
