@@ -32,6 +32,7 @@ def create_monitor_member(
     timeout_seconds: float,
     tail_lines: int,
     next_output: str,
+    request_fingerprint: str,
     idle_timeout_seconds: float = 0.0,
     starter_agent: str | None = None,
 ) -> str:
@@ -69,6 +70,8 @@ def create_monitor_member(
             "monitor_tail_lines": tail_lines,
             "monitor_next_output": next_output,
             "monitor_state": "running",
+            "monitor_settled": False,
+            "monitor_request_fingerprint": request_fingerprint,
         }
     )
     if idle_timeout_seconds > 0:

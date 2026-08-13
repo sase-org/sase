@@ -15,6 +15,7 @@ import pytest
 
 from sase.ace.hooks.processes import is_process_running
 from sase.monitor.supervise import run_supervisor
+from sase.monitor.transaction import MONITOR_GO_MARKER
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -51,6 +52,7 @@ def _make_member(
     next_action: str | None = None,
     workspace_num: int = 1,
     claim_workflow: str = "ace-monitor",
+    go_barrier: bool = True,
 ) -> tuple[str, str]:
     extra_meta = {}
     if idle_timeout_seconds > 0:
@@ -81,6 +83,8 @@ def _make_member(
         workspace_num=workspace_num,
         **extra_meta,
     )
+    if go_barrier:
+        (Path(artifacts_dir) / MONITOR_GO_MARKER).write_text("{}", encoding="utf-8")
     return artifacts_dir, project_file
 
 
@@ -123,6 +127,34 @@ def test_run_supervisor_records_a_non_zero_exit_as_failed(tmp_path: Path) -> Non
     assert "boom" in (Path(artifacts_dir) / "live_reply.md").read_text()
 
 
+def test_run_supervisor_fails_without_the_launch_barrier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.monitor.supervise as supervise_module
+
+    sentinel = tmp_path / "command-ran"
+    monkeypatch.setattr(supervise_module, "MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS", 0.1)
+    artifacts_dir, project_file = _make_member(
+        tmp_path,
+        command=f"touch {sentinel}",
+        timeout_seconds=30.0,
+        go_barrier=False,
+    )
+
+    exit_status = run_supervisor(artifacts_dir)
+
+    assert exit_status == 1
+    assert not sentinel.exists()
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "failed"
+    assert meta["monitor_settled"] is True
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["monitor_state"] == "failed"
+    assert "command was not run" in done["error"]
+    assert get_claimed_workspaces(project_file) == []
+
+
 def test_run_supervisor_kills_the_whole_process_group_on_timeout(
     tmp_path: Path,
 ) -> None:
@@ -151,12 +183,23 @@ def test_run_supervisor_holds_the_claim_when_the_followup_launch_succeeds(
     )
     import sase.monitor.supervise as supervise_module
 
-    monkeypatch.setattr(supervise_module, "launch_followup_agent", lambda *a, **k: True)
+    done_path = Path(artifacts_dir) / "done.json"
+
+    def fake_launch_success(
+        _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
+    ) -> bool:
+        assert not done_path.exists()
+        meta["monitor_followup_agent"] = "acme--1"
+        return True
+
+    monkeypatch.setattr(supervise_module, "launch_followup_agent", fake_launch_success)
 
     run_supervisor(artifacts_dir)
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "completed"
+    assert meta["monitor_settled"] is True
+    assert done_path.exists()
     # engine-next transfers this claim to the follow-up agent it launches;
     # the supervisor itself must never release it on success.
     assert len(get_claimed_workspaces(project_file)) == 1
@@ -173,6 +216,7 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
     def fake_launch_failure(
         _artifacts_dir: str, meta: dict[str, object], **_kwargs: object
     ) -> bool:
+        assert not (Path(_artifacts_dir) / "done.json").exists()
         meta["monitor_followup_error"] = "boom"
         return False
 
@@ -182,6 +226,10 @@ def test_run_supervisor_releases_the_claim_when_the_followup_launch_fails(
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "completed"
+    assert meta["monitor_settled"] is True
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert done["monitor_state"] == "completed"
+    assert done["monitor_followup_error"] == "boom"
     # A failed follow-up launch must not leave the workspace claimed forever.
     assert get_claimed_workspaces(project_file) == []
 

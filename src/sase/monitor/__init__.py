@@ -19,6 +19,7 @@ from .naming import (
     short_monitor_id,
 )
 from .start import (
+    MONITOR_GO_MARKER,
     MONITOR_PENDING_MARKER,
     StartMonitorRequest,
     maybe_handoff_monitor_from_agent,
@@ -50,6 +51,7 @@ __all__ = [
     "MonitorRecord",
     "MonitorRefError",
     "MonitorState",
+    "MONITOR_GO_MARKER",
     "MONITOR_PENDING_MARKER",
     "StartMonitorRequest",
     "active_monitor_for_lane",

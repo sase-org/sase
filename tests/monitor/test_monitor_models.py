@@ -99,6 +99,41 @@ def test_from_record_prefers_done_marker_over_running_meta() -> None:
     assert record.is_terminal
 
 
+def test_from_record_treats_unsettled_terminal_meta_as_active() -> None:
+    meta = AgentMetaWire(
+        name="acme--mon",
+        agent_family="acme",
+        monitor_id="abc123",
+        monitor_command="true",
+        monitor_state="completed",
+        monitor_settled=False,
+    )
+    record = MonitorRecord.from_record(_record(agent_meta=meta))
+
+    assert record.monitor_state == "completed"
+    assert record.settled is False
+    assert record.status_bucket == "Running"
+    assert not record.is_terminal
+
+
+def test_from_record_uses_settled_meta_without_done_marker() -> None:
+    meta = AgentMetaWire(
+        name="acme--mon",
+        agent_family="acme",
+        monitor_id="abc123",
+        monitor_command="true",
+        monitor_state="completed",
+        monitor_settled=True,
+        monitor_request_fingerprint="sha256:test",
+    )
+    record = MonitorRecord.from_record(_record(agent_meta=meta))
+
+    assert record.settled is True
+    assert record.request_fingerprint == "sha256:test"
+    assert record.status_bucket == "Done"
+    assert record.is_terminal
+
+
 def test_from_record_preserves_a_zero_exit_code() -> None:
     meta = AgentMetaWire(
         name="acme--mon",

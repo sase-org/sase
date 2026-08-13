@@ -61,6 +61,7 @@ def make_monitor(
         "agent_family_role": "monitor",
         "monitor_id": monitor_id,
         "monitor_state": monitor_state,
+        "monitor_settled": monitor_state != "running",
         "monitor_command": command,
         "monitor_cwd": cwd,
         "monitor_reason": reason,

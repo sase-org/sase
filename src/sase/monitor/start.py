@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +20,14 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.paths import sase_projects_dir
+from sase.logs._bounded import log_file_lock
 from sase.plan_chain import agent_family_base
-from sase.running_field import claim_workspace, transfer_workspace_claim
+from sase.running_field import (
+    claim_workspace,
+    release_workspace,
+    transfer_workspace_claim,
+)
 
 from . import naming, store
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
@@ -32,6 +39,7 @@ from .models import (
     MonitorLaneError,
     MonitorRecord,
 )
+from .transaction import MONITOR_GO_MARKER, monitor_go_path
 
 #: RUNNING-field workflow label used for a monitor's workspace claim, distinct
 #: from ``"ace-run"`` so the starter's own runner-exit cleanup no longer
@@ -77,14 +85,31 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
             "no lane given and SASE_AGENT_NAME is unset; pass an explicit lane"
         )
 
+    with log_file_lock(_lane_start_lock_path(request.project_name, lane)):
+        return _start_monitor_locked(request, lane)
+
+
+def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRecord:
+    """Start one monitor while the caller holds the lane start lock."""
+    label = request.label or _default_label(request.command)
+    request_fingerprint = _monitor_request_fingerprint(
+        request,
+        lane=lane,
+        label=label,
+    )
+
     existing = store.active_monitor_for_lane(request.project_name, lane)
     if existing is not None:
         existing_record = MonitorRecord.from_record(existing)
-        if existing_record.command == request.command:
+        if existing_record.request_fingerprint == request_fingerprint:
             return existing_record
         raise MonitorAlreadyRunningError(
-            f"lane {lane!r} already has an active monitor "
-            f"({existing_record.monitor_id}): {existing_record.command!r}"
+            _active_monitor_message(
+                lane,
+                existing_record,
+                requested_fingerprint=request_fingerprint,
+                requested_command=request.command,
+            )
         )
 
     lane_ctx = store.resolve_lane(request.project_name, lane)
@@ -115,7 +140,6 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         has_existing_monitor=store.has_any_monitor(request.project_name, durable_lane),
     )
     monitor_id = naming.new_monitor_id()
-    label = request.label or _default_label(request.command)
 
     transfer_from_pid: int | None = None
     starter_agent: str | None = None
@@ -151,6 +175,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         tail_lines=request.tail_lines,
         idle_timeout_seconds=request.idle_timeout_seconds,
         next_output=request.next_output,
+        request_fingerprint=request_fingerprint,
         starter_agent=starter_agent,
     )
 
@@ -186,9 +211,8 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
 
     # Write the pid before its identity: a crash between these two calls
     # still leaves a pid a caller can signal, and the identity is the
-    # stronger of the two, not a substitute. A future launch barrier
-    # (`sase-ku.4`) must hold the command behind the claim without
-    # reordering this pair.
+    # stronger of the two, not a substitute. The launch barrier below holds
+    # the command behind the claim without reordering this pair.
     update_meta_field(artifacts_dir, "pid", process.pid)
     update_meta_field(
         artifacts_dir, "monitor_supervisor_identity", process_identity(process.pid)
@@ -215,13 +239,31 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
             artifacts_timestamp=member_timestamp,
         )
     if not claim_result.success:
-        _kill_supervisor(process.pid)
+        _terminate_supervisor(process)
         _teardown_failed_member(
             artifacts_dir, f"could not claim workspace: {claim_result.error}"
         )
         raise MonitorError(
             f"could not claim workspace for monitor: {claim_result.error}"
         )
+
+    try:
+        _write_monitor_go_marker(
+            artifacts_dir,
+            monitor_id=monitor_id,
+            request_fingerprint=request_fingerprint,
+        )
+    except OSError as exc:
+        _terminate_supervisor(process)
+        _release_start_claim(
+            newest.project_file,
+            resolved_workspace_num,
+            cl_name=raw_meta.get("cl_name"),
+        )
+        _teardown_failed_member(
+            artifacts_dir, f"could not release monitor launch barrier: {exc}"
+        )
+        raise MonitorError(f"could not release monitor launch barrier: {exc}") from exc
 
     return MonitorRecord(
         monitor_id=monitor_id,
@@ -243,6 +285,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         monitor_state="running",
         next_action=request.next_action or None,
         pid=process.pid,
+        request_fingerprint=request_fingerprint,
     )
 
 
@@ -313,10 +356,124 @@ def _touch_agent_artifacts_refresh_pulse(artifacts_dir: str) -> None:
         pass
 
 
+def _lane_start_lock_path(project_name: str, lane: str) -> Path:
+    key = sha256(f"{project_name}\0{lane}".encode()).hexdigest()[:32]
+    return (
+        sase_projects_dir()
+        / project_name
+        / "artifacts"
+        / "ace-run"
+        / f".monitor-start-{key}"
+    )
+
+
+def _monitor_request_fingerprint(
+    request: StartMonitorRequest,
+    *,
+    lane: str,
+    label: str,
+) -> str:
+    payload = {
+        "command": request.command,
+        "cwd": request.cwd,
+        "idle_timeout_seconds": request.idle_timeout_seconds,
+        "inherit_lane_workspace_claim": request.inherit_lane_workspace_claim,
+        "label": label,
+        "lane": lane,
+        "next_action": request.next_action or None,
+        "next_output": request.next_output,
+        "project_name": request.project_name,
+        "reason": request.reason,
+        "start_status": request.start_status,
+        "stop_status": request.stop_status,
+        "tail_lines": request.tail_lines,
+        "timeout_seconds": request.timeout_seconds,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return f"sha256:{sha256(encoded).hexdigest()}"
+
+
+def _active_monitor_message(
+    lane: str,
+    existing_record: MonitorRecord,
+    *,
+    requested_fingerprint: str,
+    requested_command: str,
+) -> str:
+    if existing_record.command == requested_command:
+        existing_fingerprint = (
+            existing_record.request_fingerprint or "missing fingerprint"
+        )
+        return (
+            f"lane {lane!r} already has an active monitor "
+            f"({existing_record.monitor_id}) with the same command but a "
+            "different request "
+            f"(existing {existing_fingerprint}, requested {requested_fingerprint})"
+        )
+    return (
+        f"lane {lane!r} already has an active monitor "
+        f"({existing_record.monitor_id}): {existing_record.command!r}"
+    )
+
+
+def _write_monitor_go_marker(
+    artifacts_dir: str,
+    *,
+    monitor_id: str,
+    request_fingerprint: str,
+) -> None:
+    marker_path = monitor_go_path(artifacts_dir)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = marker_path.with_name(
+        f".{marker_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
+    )
+    try:
+        with tmp_path.open("w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "monitor_id": monitor_id,
+                    "request_fingerprint": request_fingerprint,
+                    "timestamp": time.time(),
+                },
+                f,
+                indent=2,
+                sort_keys=True,
+            )
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, marker_path)
+    except OSError:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _release_start_claim(
+    project_file: str,
+    workspace_num: int,
+    *,
+    cl_name: object,
+) -> None:
+    release_workspace(
+        project_file,
+        workspace_num,
+        MONITOR_WORKSPACE_CLAIM_WORKFLOW,
+        cl_name=cl_name if isinstance(cl_name, str) else None,
+    )
+
+
 def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
     """Mark a half-created monitor member failed rather than phantom-running."""
     meta = _read_meta(artifacts_dir)
     meta["monitor_state"] = "failed"
+    meta["monitor_settled"] = True
     write_agent_meta_atomic(
         artifacts_dir,
         meta,
@@ -333,11 +490,19 @@ def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
     )
 
 
-def _kill_supervisor(pid: int) -> None:
+def _terminate_supervisor(process: subprocess.Popen[bytes]) -> None:
     try:
-        os.kill(pid, signal.SIGTERM)
+        os.kill(process.pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
         pass
+    try:
+        process.wait(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        try:
+            os.kill(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        process.wait()
 
 
 def _same_path(left: str, right: str) -> bool:
@@ -366,6 +531,7 @@ __all__ = [
     "DEFAULT_START_STATUS",
     "DEFAULT_STOP_STATUS",
     "DEFAULT_TAIL_LINES",
+    "MONITOR_GO_MARKER",
     "MONITOR_PENDING_MARKER",
     "MONITOR_WORKSPACE_CLAIM_WORKFLOW",
     "NEXT_OUTPUT_CHOICES",

@@ -83,14 +83,21 @@ def resolve_lane(project_name: str, lane: str) -> LaneContext:
 def active_monitor_for_lane(
     project_name: str, lane: str
 ) -> AgentArtifactRecordWire | None:
-    """Return the running monitor member for *lane*, if any."""
+    """Return the not-yet-terminal monitor member for *lane*, if any."""
+    candidates: list[AgentArtifactRecordWire] = []
     for record in _monitor_records(project_name):
         meta = record.agent_meta
         if meta is None or meta.agent_family != lane:
             continue
-        if meta.monitor_state == "running":
-            return record
-    return None
+        try:
+            monitor = MonitorRecord.from_record(record)
+        except ValueError:
+            continue
+        if not monitor.is_terminal:
+            candidates.append(record)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda record: record.timestamp)
 
 
 def has_any_monitor(project_name: str, lane: str) -> bool:
@@ -204,7 +211,7 @@ def resolve_monitor_ref(ref: str, records: Sequence[MonitorRecord]) -> MonitorRe
 
     by_lane = [record for record in records if record.lane == query]
     if by_lane:
-        active = [record for record in by_lane if record.monitor_state == "running"]
+        active = [record for record in by_lane if not record.is_terminal]
         if active:
             return max(active, key=lambda record: record.timestamp)
         return max(by_lane, key=lambda record: record.timestamp)

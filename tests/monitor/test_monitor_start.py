@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorError, MonitorRecord
 from sase.monitor.start import (
     StartMonitorRequest,
@@ -20,7 +22,12 @@ from sase.monitor.start import (
 from sase.core.paths import sase_projects_dir
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
-from ._fixtures import make_starter_agent, patch_project_records, write_project_file
+from ._fixtures import (
+    make_starter_agent,
+    patch_project_records,
+    record_from_disk,
+    write_project_file,
+)
 
 _POLL_TIMEOUT = 60.0
 _POLL_INTERVAL = 0.1
@@ -93,6 +100,95 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
     # No next action: the transferred claim is released once the command
     # finishes.
     assert get_claimed_workspaces(project_file) == []
+
+
+def test_start_monitor_serializes_concurrent_starts_in_one_lane(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.monitor import store as store_module
+
+    write_project_file("proj")
+    make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+
+    def dynamic_project_records(
+        project_name: str | None, *, only_monitors: bool = False
+    ) -> list[AgentArtifactRecordWire]:
+        records: list[AgentArtifactRecordWire] = []
+        projects_root = sase_projects_dir()
+        project_names = [project_name] if project_name else ["proj"]
+        for name in project_names:
+            artifacts_root = projects_root / name / "artifacts" / "ace-run"
+            for meta_path in artifacts_root.glob("*/*/*/agent_meta.json"):
+                record = record_from_disk(meta_path.parent)
+                if only_monitors and (
+                    record.agent_meta is None
+                    or record.agent_meta.agent_family_role != "monitor"
+                ):
+                    continue
+                records.append(record)
+        return records
+
+    monkeypatch.setattr(store_module, "_project_records", dynamic_project_records)
+
+    barrier = threading.Barrier(3)
+    records: list[MonitorRecord] = []
+    expected_errors: list[str] = []
+    unexpected_errors: list[BaseException] = []
+
+    def worker(command: str) -> None:
+        request = StartMonitorRequest(
+            command=command,
+            reason="verify",
+            timeout_seconds=30.0,
+            cwd=str(tmp_path),
+            project_name="proj",
+            lane="acme",
+            inherit_lane_workspace_claim=False,
+        )
+        barrier.wait()
+        try:
+            records.append(start_monitor(request))
+        except MonitorAlreadyRunningError as exc:
+            expected_errors.append(str(exc))
+        except BaseException as exc:
+            unexpected_errors.append(exc)
+
+    threads = [
+        threading.Thread(target=worker, args=("sleep 2",)),
+        threading.Thread(target=worker, args=("sleep 3",)),
+    ]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join(timeout=10.0)
+
+    if unexpected_errors:
+        raise unexpected_errors[0]
+    assert [thread.is_alive() for thread in threads] == [False, False]
+    assert len(records) == 1
+    assert len(expected_errors) == 1
+    assert "already has an active monitor" in expected_errors[0]
+
+    monitor_meta_paths = [
+        p
+        for p in (sase_projects_dir() / "proj" / "artifacts" / "ace-run").glob(
+            "*/*/*/agent_meta.json"
+        )
+        if json.loads(p.read_text()).get("agent_family_role") == "monitor"
+    ]
+    assert len(monitor_meta_paths) == 1
+    _wait_for_done(records[0].artifacts_dir)
 
 
 def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
@@ -188,6 +284,7 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import store as store_module
+    import sase.monitor.start as start_module
 
     existing = MonitorRecord(
         monitor_id="aaa",
@@ -205,6 +302,7 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
         timeout_seconds=2700.0,
         tail_lines=200,
         monitor_state="running",
+        request_fingerprint="sha256:match",
     )
 
     def fake_active(project_name: str, lane: str) -> object:
@@ -214,6 +312,11 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     monkeypatch.setattr(store_module, "active_monitor_for_lane", fake_active)
     monkeypatch.setattr(
         MonitorRecord, "from_record", staticmethod(lambda record: existing)
+    )
+    monkeypatch.setattr(
+        start_module,
+        "_monitor_request_fingerprint",
+        lambda request, *, lane, label: "sha256:match",
     )
 
     request = StartMonitorRequest(
@@ -230,10 +333,62 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     assert result is existing
 
 
+def test_start_monitor_rejects_same_command_with_changed_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.monitor import store as store_module
+    import sase.monitor.start as start_module
+
+    existing = MonitorRecord(
+        monitor_id="aaa",
+        member_agent_name="acme--mon",
+        lane="acme",
+        project_name="proj",
+        artifacts_dir="/some/dir",
+        timestamp="20260812120000",
+        command="just check-full",
+        cwd=str(tmp_path),
+        reason="verify",
+        label="just check-full",
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        timeout_seconds=2700.0,
+        tail_lines=200,
+        monitor_state="running",
+        request_fingerprint="sha256:old",
+    )
+
+    monkeypatch.setattr(
+        store_module, "active_monitor_for_lane", lambda project_name, lane: object()
+    )
+    monkeypatch.setattr(
+        MonitorRecord, "from_record", staticmethod(lambda record: existing)
+    )
+    monkeypatch.setattr(
+        start_module,
+        "_monitor_request_fingerprint",
+        lambda request, *, lane, label: "sha256:new",
+    )
+
+    request = StartMonitorRequest(
+        command="just check-full",
+        reason="verify with a different follow-up",
+        timeout_seconds=2700.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        lane="acme",
+        next_action="Fix failures.",
+    )
+
+    with pytest.raises(MonitorAlreadyRunningError, match="same command"):
+        start_monitor(request)
+
+
 def test_start_monitor_rejects_a_second_concurrent_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import store as store_module
+    import sase.monitor.start as start_module
 
     existing = MonitorRecord(
         monitor_id="aaa",
@@ -251,6 +406,7 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
         timeout_seconds=300.0,
         tail_lines=200,
         monitor_state="running",
+        request_fingerprint="sha256:existing",
     )
 
     monkeypatch.setattr(
@@ -258,6 +414,11 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
     )
     monkeypatch.setattr(
         MonitorRecord, "from_record", staticmethod(lambda record: existing)
+    )
+    monkeypatch.setattr(
+        start_module,
+        "_monitor_request_fingerprint",
+        lambda request, *, lane, label: "sha256:requested",
     )
 
     request = StartMonitorRequest(
@@ -319,6 +480,55 @@ def test_start_monitor_tears_down_the_member_when_the_supervisor_cannot_spawn(
     assert len(member_dirs) == 1
     meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "failed"
+    done = json.loads((member_dirs[0] / "done.json").read_text())
+    assert done["monitor_state"] == "failed"
+
+
+def test_start_monitor_claim_failure_does_not_run_the_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sentinel = tmp_path / "command-ran"
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=123456)],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    request = StartMonitorRequest(
+        command=f"touch {sentinel}",
+        reason="verify",
+        timeout_seconds=30.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        lane="acme",
+    )
+
+    with pytest.raises(MonitorError, match="could not claim workspace"):
+        start_monitor(request)
+
+    assert not sentinel.exists()
+    artifacts_root = sase_projects_dir() / "proj" / "artifacts" / "ace-run"
+    member_dirs = [
+        p.parent
+        for p in artifacts_root.glob("*/*/*/agent_meta.json")
+        if p.parent != Path(starter_dir)
+    ]
+    assert len(member_dirs) == 1
+    meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
+    assert meta["monitor_state"] == "failed"
+    assert meta["monitor_settled"] is True
+    assert "monitor_pgid" not in meta
     done = json.loads((member_dirs[0] / "done.json").read_text())
     assert done["monitor_state"] == "failed"
 

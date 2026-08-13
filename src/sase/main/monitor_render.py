@@ -15,7 +15,6 @@ from rich.text import Text
 from sase.core.time import get_timezone
 from sase.monitor.models import MonitorRecord
 from sase.monitor.naming import short_monitor_id
-from sase.monitor_state import monitor_state_bucket
 
 # Bumped only when the JSON payloads below change incompatibly.
 MONITOR_JSON_SCHEMA_VERSION = 1
@@ -114,8 +113,9 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "tail_lines": record.tail_lines,
         "next_output": record.next_output,
         "monitor_state": record.monitor_state,
-        "status_bucket": monitor_state_bucket(record.monitor_state),
+        "status_bucket": record.status_bucket,
         "is_terminal": record.is_terminal,
+        "settled": record.settled,
         "next_action": record.next_action,
         "pid": record.pid,
         "exit_code": record.exit_code,
@@ -123,6 +123,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "output_truncated": record.output_truncated,
         "starter_agent": record.starter_agent,
         "followup_agent": record.followup_agent,
+        "request_fingerprint": record.request_fingerprint,
     }
 
 

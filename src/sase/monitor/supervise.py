@@ -36,6 +36,7 @@ from .followup import launch_followup_agent
 from .logs import append_monitor_log_bytes, monitor_log_max_bytes, monitor_log_path
 from .models import MonitorState
 from .output import OutputCapture
+from .transaction import MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS, monitor_go_path
 
 _POLL_SECONDS = 0.05
 _KILL_GRACE_SECONDS = 5.0
@@ -146,56 +147,62 @@ def run_supervisor(artifacts_dir: str) -> int:
             on_chunk=activity.append_bytes,
             close_drain_seconds=0.5,
         )
-        command_env = os.environ.copy()
-        scrub_agent_identity_env(command_env)
-        # SASE_ARTIFACTS_DIR does not carry the SASE_AGENT_ prefix the
-        # scrubber matches on, but it still names the dead starter's
-        # artifacts and must not leak into the monitored command.
-        command_env.pop("SASE_ARTIFACTS_DIR", None)
-        try:
-            child = subprocess.Popen(
-                command,
-                shell=True,
-                cwd=cwd,
-                stdin=subprocess.DEVNULL,
-                stdout=cast(Any, output_pipe),
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                close_fds=True,
-                text=False,
-                env=command_env,
-            )
-        except (OSError, ValueError) as exc:
-            error = f"could not start command: {_one_line(exc)}"
+        barrier_error = _wait_for_launch_barrier(artifacts_dir, termination)
+        if barrier_error is not None:
+            error = barrier_error
+            monitor_state = "stopped" if termination.requested else "failed"
             _append_supervisor_line(output_path, output_pipe, capture, error)
         else:
-            termination.attach(child)
-            # Persist the child's pgid before waiting on it, so nothing can
-            # outlive this recorder: start_new_session=True makes the pgid
-            # equal the child's own pid.
-            meta["monitor_pgid"] = child.pid
-            write_agent_meta_atomic(
-                artifacts_dir,
-                meta,
-                index_updater=update_agent_artifact_index_for_marker_mutation,
-            )
-            timeout_kind = _wait_for_child(
-                child,
-                termination,
-                timeout_seconds,
-                idle_timeout_seconds,
-                activity,
-            )
-
-            if termination.requested:
-                monitor_state = "stopped"
-            elif timeout_kind is not None:
-                monitor_state = "timeout"
-            elif child.returncode == 0:
-                monitor_state = "completed"
+            command_env = os.environ.copy()
+            scrub_agent_identity_env(command_env)
+            # SASE_ARTIFACTS_DIR does not carry the SASE_AGENT_ prefix the
+            # scrubber matches on, but it still names the dead starter's
+            # artifacts and must not leak into the monitored command.
+            command_env.pop("SASE_ARTIFACTS_DIR", None)
+            try:
+                child = subprocess.Popen(
+                    command,
+                    shell=True,
+                    cwd=cwd,
+                    stdin=subprocess.DEVNULL,
+                    stdout=cast(Any, output_pipe),
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    close_fds=True,
+                    text=False,
+                    env=command_env,
+                )
+            except (OSError, ValueError) as exc:
+                error = f"could not start command: {_one_line(exc)}"
+                _append_supervisor_line(output_path, output_pipe, capture, error)
             else:
-                monitor_state = "failed"
-            exit_code = child.returncode
+                termination.attach(child)
+                # Persist the child's pgid before waiting on it, so nothing can
+                # outlive this recorder: start_new_session=True makes the pgid
+                # equal the child's own pid.
+                meta["monitor_pgid"] = child.pid
+                write_agent_meta_atomic(
+                    artifacts_dir,
+                    meta,
+                    index_updater=update_agent_artifact_index_for_marker_mutation,
+                )
+                timeout_kind = _wait_for_child(
+                    child,
+                    termination,
+                    timeout_seconds,
+                    idle_timeout_seconds,
+                    activity,
+                )
+
+                if termination.requested:
+                    monitor_state = "stopped"
+                elif timeout_kind is not None:
+                    monitor_state = "timeout"
+                elif child.returncode == 0:
+                    monitor_state = "completed"
+                else:
+                    monitor_state = "failed"
+                exit_code = child.returncode
     except BaseException as exc:
         termination.terminate_after_failure()
         error = f"supervisor error: {_one_line(exc)}"
@@ -217,6 +224,27 @@ def run_supervisor(artifacts_dir: str) -> int:
             timeout_kind=timeout_kind,
         )
     return 0 if monitor_state in {"completed", "stopped"} else 1
+
+
+def _wait_for_launch_barrier(
+    artifacts_dir: str,
+    termination: _Termination,
+) -> str | None:
+    """Wait until ``start_monitor`` releases the supervisor to exec."""
+    marker_path = monitor_go_path(artifacts_dir)
+    deadline = time.monotonic() + MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS
+    while True:
+        if marker_path.exists():
+            return None
+        if termination.requested:
+            return "monitor stopped before command start; command was not run"
+        if time.monotonic() >= deadline:
+            timeout = _format_duration(MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS)
+            return (
+                "monitor start barrier was not released within "
+                f"{timeout}; command was not run"
+            )
+        time.sleep(_POLL_SECONDS)
 
 
 def _wait_for_child(
@@ -329,6 +357,25 @@ def _finish_monitor(
         metadata_llm_provider=meta.get("llm_provider"),
     )
 
+    project_name = _project_name_from_artifacts_dir(artifacts_dir)
+    followup_error = _settle_claim_and_followup(
+        artifacts_dir,
+        meta,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        elapsed_seconds=elapsed_seconds,
+        capture=capture,
+        timeout_kind=timeout_kind,
+        project_name=project_name,
+    )
+
+    meta["monitor_settled"] = True
+    write_agent_meta_atomic(
+        artifacts_dir,
+        meta,
+        index_updater=update_agent_artifact_index_for_marker_mutation,
+    )
+
     done_marker: dict[str, Any] = {
         "outcome": "monitored",
         "name": meta.get("name"),
@@ -343,18 +390,37 @@ def _finish_monitor(
     }
     if error:
         done_marker["error"] = error
+    if followup_error:
+        done_marker["monitor_followup_error"] = followup_error
     if timeout_kind is not None:
         done_marker["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             done_marker["monitor_timeout_message"] = timeout_message
     write_done_marker_and_update_index(artifacts_dir, done_marker)
 
-    project_name = _project_name_from_artifacts_dir(artifacts_dir)
     _touch_refresh_pulse(project_name)
+    _notify_monitor_complete(
+        meta,
+        monitor_state=monitor_state,
+        stop_status=stop_status,
+        followup_error=followup_error,
+    )
 
+
+def _settle_claim_and_followup(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    *,
+    monitor_state: MonitorState,
+    exit_code: int | None,
+    elapsed_seconds: float,
+    capture: OutputCapture,
+    timeout_kind: _TimeoutKind | None,
+    project_name: str | None,
+) -> str | None:
+    """Launch/record follow-up disposition and dispose of the monitor claim."""
     next_action = meta.get("monitor_next_action")
     if next_action and monitor_state != "stopped":
-        followup_error: str | None = None
         launched = False
         if project_name:
             launched = launch_followup_agent(
@@ -373,45 +439,46 @@ def _finish_monitor(
                 "could not resolve the monitor's project from its artifacts path"
             )
         if launched:
-            return
-        _release_claim_and_notify(
+            return None
+        release_error = _release_claim(
             meta,
             project_name=project_name,
-            monitor_state=monitor_state,
-            stop_status=stop_status,
-            followup_error=followup_error or "follow-up launch failed",
         )
-        return
+        return release_error or followup_error or "follow-up launch failed"
 
-    _release_claim_and_notify(
-        meta,
-        project_name=project_name,
-        monitor_state=monitor_state,
-        stop_status=stop_status,
-    )
+    return _release_claim(meta, project_name=project_name)
 
 
-def _release_claim_and_notify(
+def _release_claim(
     meta: dict[str, Any],
     *,
     project_name: str | None,
-    monitor_state: MonitorState,
-    stop_status: str,
-    followup_error: str | None = None,
-) -> None:
+) -> str | None:
     workspace_num = meta.get("workspace_num")
     cl_name = meta.get("cl_name")
     if project_name and workspace_num is not None:
         from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
         from sase.workflows.utils import get_project_file_path
 
-        release_workspace(
+        result = release_workspace(
             get_project_file_path(project_name),
             int(workspace_num),
             MONITOR_WORKSPACE_CLAIM_WORKFLOW,
             cl_name=cl_name,
         )
+        if not result.success:
+            return result.error or "workspace release failed"
+    return None
 
+
+def _notify_monitor_complete(
+    meta: dict[str, Any],
+    *,
+    monitor_state: MonitorState,
+    stop_status: str,
+    followup_error: str | None = None,
+) -> None:
+    cl_name = meta.get("cl_name")
     success = monitor_state in {"completed", "stopped"} and followup_error is None
     notes = [f"{stop_status}: {meta.get('monitor_command')}"]
     if followup_error:

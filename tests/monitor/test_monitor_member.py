@@ -45,6 +45,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
         timeout_seconds=2700.0,
         tail_lines=200,
         next_output="tail",
+        request_fingerprint="sha256:test",
         idle_timeout_seconds=600.0,
     )
 
@@ -80,6 +81,8 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["monitor_next_output"] == "tail"
     assert meta["monitor_idle_timeout_seconds"] == 600.0
     assert meta["monitor_state"] == "running"
+    assert meta["monitor_settled"] is False
+    assert meta["monitor_request_fingerprint"] == "sha256:test"
 
 
 def test_create_monitor_member_omits_next_action_when_none() -> None:
@@ -103,6 +106,7 @@ def test_create_monitor_member_omits_next_action_when_none() -> None:
         timeout_seconds=30.0,
         tail_lines=200,
         next_output="tail",
+        request_fingerprint="sha256:test",
     )
 
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())

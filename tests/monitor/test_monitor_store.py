@@ -78,6 +78,7 @@ def test_active_monitor_for_lane_ignores_other_lanes_and_terminal_monitors(
         agent_family_role="monitor",
         monitor_id="bbb",
         monitor_state="completed",
+        monitor_settled=True,
     )
     running_same_lane = make_starter_agent(
         "proj",
@@ -97,6 +98,27 @@ def test_active_monitor_for_lane_ignores_other_lanes_and_terminal_monitors(
 
     assert found is not None
     assert found.artifact_dir == running_same_lane
+
+
+def test_active_monitor_for_lane_keeps_unsettled_terminal_meta_active(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unsettled_same_lane = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="completed",
+        monitor_settled=False,
+    )
+    patch_project_records(monkeypatch, [unsettled_same_lane])
+
+    found = active_monitor_for_lane("proj", "acme")
+
+    assert found is not None
+    assert found.artifact_dir == unsettled_same_lane
 
 
 def test_has_any_monitor_is_true_once_any_monitor_member_exists(
@@ -365,7 +387,11 @@ def test_resolve_monitor_ref_matches_the_exact_member_agent_name() -> None:
 
 def test_resolve_monitor_ref_prefers_the_active_monitor_for_a_lane() -> None:
     finished = _fake_record(
-        monitor_id="aaa", lane="acme", timestamp="20260812120000", state="completed"
+        monitor_id="aaa",
+        lane="acme",
+        timestamp="20260812120000",
+        state="completed",
+        settled=True,
     )
     active = _fake_record(
         monitor_id="bbb", lane="acme", timestamp="20260812110000", state="running"
@@ -415,6 +441,7 @@ def _fake_record(
     member_agent_name: str | None = None,
     timestamp: str = "20260812120000",
     state: str = "running",
+    settled: bool = False,
 ) -> MonitorRecord:
     return MonitorRecord(
         monitor_id=monitor_id,
@@ -432,6 +459,7 @@ def _fake_record(
         timeout_seconds=60.0,
         tail_lines=200,
         monitor_state=state,  # type: ignore[arg-type]
+        settled=settled,
     )
 
 

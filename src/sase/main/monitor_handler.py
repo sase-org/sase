@@ -99,7 +99,7 @@ def _handle_monitor_list(args: argparse.Namespace) -> int:
     if statuses:
         records = [record for record in records if record.monitor_state in statuses]
     elif not include_all:
-        records = [record for record in records if record.monitor_state == "running"]
+        records = [record for record in records if not record.is_terminal]
     if limit is not None:
         records = records[: max(0, limit)]
 

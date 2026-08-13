@@ -156,4 +156,5 @@ def _set_monitor_state(artifacts_dir: str, state: str) -> None:
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["monitor_state"] = state
+    meta["monitor_settled"] = state != "running"
     meta_path.write_text(json.dumps(meta), encoding="utf-8")

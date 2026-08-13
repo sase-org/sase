@@ -81,16 +81,20 @@ class MonitorRecord:
     followup_agent: str | None = None
     pgid: int | None = None
     supervisor_identity: str | None = None
+    settled: bool = False
+    request_fingerprint: str | None = None
 
     @property
     def status_bucket(self) -> str:
         """Return this monitor's status bucket for its current state."""
+        if not self.is_terminal:
+            return "Running"
         return monitor_state_bucket(self.monitor_state)
 
     @property
     def is_terminal(self) -> bool:
         """Return whether the monitored command has stopped running."""
-        return self.monitor_state in TERMINAL_MONITOR_STATES
+        return self.monitor_state in TERMINAL_MONITOR_STATES and self.settled
 
     @classmethod
     def from_record(cls, record: AgentArtifactRecordWire) -> MonitorRecord:
@@ -116,6 +120,8 @@ class MonitorRecord:
         elapsed_seconds: float | None = None
         if done is not None and done.monitor_elapsed_seconds is not None:
             elapsed_seconds = done.monitor_elapsed_seconds
+
+        settled = bool(meta.monitor_settled or done is not None)
 
         return cls(
             monitor_id=meta.monitor_id,
@@ -145,6 +151,8 @@ class MonitorRecord:
             followup_agent=meta.monitor_followup_agent,
             pgid=meta.monitor_pgid,
             supervisor_identity=meta.monitor_supervisor_identity,
+            settled=settled,
+            request_fingerprint=meta.monitor_request_fingerprint,
         )
 
 
