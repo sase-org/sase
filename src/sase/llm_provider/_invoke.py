@@ -189,7 +189,7 @@ def invoke_agent(
     # nor an explicit provider_name was supplied. Explicit caller intent always
     # wins over the default.
     if not model_override and not provider_name:
-        from .config import default_model_alias_name, get_model_aliases
+        from .config import default_model_alias_name
         from .temporary_override import (
             get_active_temporary_override,
             resolve_effective_default_provider_model_with_effort,
@@ -212,11 +212,9 @@ def invoke_agent(
             provider_name = active.provider
             model_override = active.model
             alias_effort = active.effort
-        elif default_model_alias_name() in get_model_aliases():
-            # A configured @default alias routes the no-directive launch through
-            # the alias resolver so a configured default model is never silently
-            # bypassed. With no configured default, @default is just the provider
-            # tier default, so the plain-tier resolution below is left untouched.
+        else:
+            # The implicit @default alias owns the no-directive launch lane,
+            # including shipped fallback chains and load-balanced pools.
             (
                 provider_name,
                 model_override,

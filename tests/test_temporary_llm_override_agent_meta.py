@@ -47,13 +47,26 @@ def test_agent_meta_after_clear_uses_configured_default_provider(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The next launch after clear resolves against the configured default."""
+    """The next launch after clear resolves through the default alias."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from sase.llm_provider import config as llm_config
+    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+    from tests._model_alias_defaults_fixture import (
+        frozen_selector_provider_model_effort,
+    )
 
+    config = {"provider": "claude"}
+    monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
     monkeypatch.setattr(
         "sase.llm_provider.registry.get_llm_provider_config",
-        lambda: {"provider": "claude"},
+        lambda: config,
     )
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    llm_config._get_model_aliases_for_token.cache_clear()
 
     workspace_dir = str(tmp_path / "workspace")
     artifacts_a = tmp_path / "a"
@@ -75,7 +88,12 @@ def test_agent_meta_after_clear_uses_configured_default_provider(
     meta_b = json.loads((artifacts_b / "agent_meta.json").read_text(encoding="utf-8"))
 
     assert (meta_a["llm_provider"], meta_a["model"]) == ("codex", "o3")
-    assert meta_b["llm_provider"] == "claude"
+    provider, model, effort = frozen_selector_provider_model_effort(
+        SMARTER_MODEL_ALIAS_NAME, 0
+    )
+    assert (meta_b["llm_provider"], meta_b["model"]) == (provider, model)
+    assert meta_b["reasoning_effort"] == effort
+    assert meta_b["model_alias"] == "default"
     assert (meta_b["llm_provider"], meta_b["model"]) != ("codex", "o3")
 
 

@@ -70,6 +70,7 @@ def test_invoke_agent_model_size_backward_compat(
         "prompt",
         agent_type="test",
         model_size="little",
+        provider_name="claude",
         suppress_output=True,
     )
 
@@ -235,6 +236,7 @@ def test_invoke_agent_model_tier_override_env(
             "prompt",
             agent_type="test",
             model_tier="large",  # Should be overridden to "small"
+            provider_name="claude",
             suppress_output=True,
         )
 
@@ -433,6 +435,73 @@ def test_invoke_agent_no_directive_routes_through_configured_default_alias(
     )
 
 
+def test_invoke_agent_no_directive_routes_through_shipped_default_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The invoke default branch consumes the implicit ``@default`` pool."""
+    from sase.llm_provider import config as llm_config
+    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+    from tests._model_alias_defaults_fixture import (
+        frozen_selector_provider_model_effort,
+    )
+
+    config = {"provider": "claude"}
+    monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: config
+    )
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    llm_config._get_model_aliases_for_token.cache_clear()
+
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="response")
+    with (
+        patch("sase.llm_provider._invoke.get_provider", return_value=provider),
+        patch("sase.llm_provider._invoke.postprocess_success"),
+        patch(
+            "sase.llm_provider._invoke.run_commit_finalizer",
+            side_effect=lambda **kw: kw["invoke_result"],
+        ),
+    ):
+        for _ in range(2):
+            invoke_agent(
+                "prompt",
+                agent_type="test",
+                suppress_output=True,
+                skip_preprocessing=True,
+                directives=PromptDirectives(),
+            )
+
+    _first_provider, first_model, first_effort = frozen_selector_provider_model_effort(
+        SMARTER_MODEL_ALIAS_NAME, 0
+    )
+    _second_provider, second_model, second_effort = (
+        frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 1)
+    )
+    assert provider.invoke.call_args_list[0].kwargs == {
+        "model_tier": "large",
+        "suppress_output": True,
+        "model_override": first_model,
+        "options": LLMInvocationOptions(
+            reasoning_effort=first_effort,
+            explicit=False,
+        ),
+    }
+    assert provider.invoke.call_args_list[1].kwargs == {
+        "model_tier": "large",
+        "suppress_output": True,
+        "model_override": second_model,
+        "options": LLMInvocationOptions(
+            reasoning_effort=second_effort,
+            explicit=False,
+        ),
+    }
+
+
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.preprocess_prompt")
 @patch("sase.llm_provider._invoke.postprocess_success")
@@ -453,6 +522,7 @@ def test_invoke_agent_model_size_override_env_compat(
             "prompt",
             agent_type="test",
             model_tier="large",  # Should be overridden to "small" via "little"
+            provider_name="claude",
             suppress_output=True,
         )
 

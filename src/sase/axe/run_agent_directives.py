@@ -290,7 +290,10 @@ def extract_directives_and_write_meta(
             )
 
     # Match the effective effort that the provider adapter applies.
-    from sase.llm_provider.config import resolve_effective_effort
+    from sase.llm_provider.config import (
+        default_model_alias_name,
+        resolve_effective_effort,
+    )
 
     preserved_effort = preserved_metadata.get("reasoning_effort")
     preserved_model_alias = preserved_metadata.get("model_alias")
@@ -303,7 +306,9 @@ def extract_directives_and_write_meta(
         )
     else:
         agent_reasoning_effort, _ = resolve_effective_effort(directives, alias_effort)
-        agent_model_alias = directives.model_alias if directives.model else None
+        agent_model_alias = (
+            directives.model_alias if directives.model else default_model_alias_name()
+        )
 
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:

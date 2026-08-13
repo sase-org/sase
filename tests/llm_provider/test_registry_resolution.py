@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
+import yaml  # type: ignore[import-untyped]
 
 import pytest
 
+from sase.llm_provider import model_alias_policy
 from sase.llm_provider.registry import (
     resolve_default_alias_provider_model,
     resolve_default_alias_provider_model_with_effort,
@@ -13,6 +15,12 @@ from sase.llm_provider.registry import (
 )
 from sase.llm_provider.temporary_override import (
     resolve_effective_default_provider_model,
+    resolve_effective_default_provider_model_with_effort,
+)
+from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+from tests._model_alias_defaults_fixture import (
+    frozen_alias_defaults_yaml,
+    frozen_selector_provider_model_effort,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -33,14 +41,45 @@ def test_effective_default_uses_configured_default_alias(
     assert resolve_effective_default_provider_model() == ("codex", "gpt-5.6-sol")
 
 
-def test_effective_default_falls_back_to_provider_tier_default(
+def test_unconfigured_default_routes_through_shipped_fallback_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no configured ``default``, the provider tier default is used."""
+    """With no configured ``default``, the shipped fallback pool is authoritative."""
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
+    )
+
+    first = resolve_effective_default_provider_model_with_effort(consume=True)
+    second = resolve_effective_default_provider_model_with_effort(consume=True)
+
+    assert first == frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 0)
+    assert second == frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 1)
+
+
+def test_default_without_shipped_fallback_uses_provider_tier_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The terminal provider default still honors the requested model tier."""
+    aliases = yaml.safe_load(frozen_alias_defaults_yaml())["aliases"]
+    aliases["default"] = {"description": "Default with no shipped fallback."}
+    defaults = model_alias_policy._parse_model_alias_defaults(
+        frozen_alias_defaults_yaml(aliases),
+        source="test",
+    )
+    monkeypatch.setattr(
+        model_alias_policy, "_load_model_alias_defaults", lambda: defaults
+    )
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
     assert resolve_default_alias_provider_model() == ("claude", "opus")
     assert resolve_default_alias_provider_model("small") == ("claude", "sonnet")
+    assert resolve_default_alias_provider_model_with_effort("small") == (
+        "claude",
+        "sonnet",
+        None,
+    )
     assert resolve_effective_default_provider_model() == ("claude", "opus")
 
 

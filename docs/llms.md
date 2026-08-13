@@ -857,7 +857,7 @@ llm_provider:
 | Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ------------------------------------ | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback. `muse` declares no priority and is never auto-detected; select it explicitly.                                                                                                                                                           |
-| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                                                                        |
+| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort` and the selected alias carries no effort. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                                                                                                                               |
 | `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                                                                                                                             |
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                                                                                                                             |
 | `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `epic_lander`, `big_epic_lander`, `<size>_worker`, `smartest`, `smarter`, `smart`, `cheap`, `cheaper`, `cheapest`). Values use the single-target grammar below, a `\|` round-robin pool, or a `\|\|` ordered fallback. Retired `coder`, `<provider>_coder`, `epic_creator`, `phase_worker`, and `<size>_phase_worker` names are no longer builtin overrides; `sase doctor` reports them. |
@@ -906,7 +906,8 @@ Agents launched through the `@<alias>` spelling show that launch-time provenance
 their `Model:` field, for example `Model: CLAUDE(sonnet) ← @fast` or
 `Model: CLAUDE(sonnet) @ high ← @fast`. The chip records the alias named at launch and
 is never re-resolved, so completed agents keep telling the truth after an alias is
-retargeted, overridden, or deleted.
+retargeted, overridden, or deleted. Launches without a `%model` directive record the
+implicit entry-point alias the same way, as `← @default`.
 
 Alias values may point at another alias (for example `@default` or `@medium_worker`), a
 bare known model such as `opus`, an explicit provider/model string such as
@@ -941,6 +942,12 @@ expression for the override's lifetime. The ACE Models panel shows every member'
 availability, an aggregate `pool <available>/<total>` chip for round-robin pools, and a
 `→` on the current selection; an active temporary override labels the member list
 suspended because it bypasses selection.
+
+To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
+for agents whose metadata has `model_alias: "default"` or the explicit alias being
+audited. A healthy two-member round-robin pool should keep the member counts within one
+launch of each other, ignoring periods where provider availability caused a member to be
+skipped.
 
 When the same name appears in both maps, `model_aliases.custom` wins.
 `sase doctor -C config.model_aliases` warns about legacy flat keys in `model_aliases`,
@@ -1428,7 +1435,9 @@ default is resolved as:
 For every alias, including `default`, `resolve_model_alias()` consults the launch-scoped
 map first, then that alias's active machine-wide override, then its configured/implicit
 value. The implicit `default` fallback is honored before the provider tier default. This
-order applies at every nested alias hop.
+order applies at every nested alias hop. If `@default` reaches a round-robin pool, each
+fresh no-`%model` launch consumes that pool exactly once; a runner re-exec reuses the
+stored provider/model metadata and does not advance the cursor again.
 
 A concrete temporary override sets both the default provider and a concrete
 `model_override` for the next launch — so the agent metadata (running marker, plan

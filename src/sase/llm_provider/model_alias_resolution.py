@@ -21,6 +21,7 @@ from .model_alias_policy import (
     implicit_alias_targets,
     role_alias_fallbacks,
 )
+from .types import ModelTier
 
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
 
@@ -49,7 +50,7 @@ def active_alias_overrides() -> dict[str, Any]:
         return {}
 
 
-def resolve_default_alias_target() -> str:
+def resolve_default_alias_target(model_tier: ModelTier = "large") -> str:
     """Return the implicit ``@default`` target as a ``provider/model`` string.
 
     Only reached when ``default`` is neither temporarily overridden nor
@@ -60,7 +61,7 @@ def resolve_default_alias_target() -> str:
         from .registry import get_configured_default_provider_name, get_provider
 
         provider_name = get_configured_default_provider_name()
-        model = get_provider(provider_name).resolve_model_name("large")
+        model = get_provider(provider_name).resolve_model_name(model_tier)
         return f"{provider_name}/{model}"
     except Exception:
         return DEFAULT_MODEL_ALIAS_NAME
@@ -125,6 +126,7 @@ def _resolve_model_alias_result(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    model_tier: ModelTier = "large",
     initial_seen: set[str] | None = None,
     active_selector: str | None = None,
 ) -> _ResolvedModelAlias:
@@ -258,7 +260,11 @@ def _resolve_model_alias_result(
                     "_resolve_default_alias_target",
                     resolve_default_alias_target,
                 )
-                target, target_effort = split_model_effort(default_target())
+                try:
+                    default_target_value = default_target(model_tier)
+                except TypeError:
+                    default_target_value = default_target()
+                target, target_effort = split_model_effort(default_target_value)
                 return _ResolvedModelAlias(
                     target,
                     effort or target_effort,
@@ -287,6 +293,7 @@ def resolve_model_alias_with_effort(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    model_tier: ModelTier = "large",
 ) -> _ResolvedModelAlias:
     """Resolve *model*, retaining alias-borne effort and selector provenance.
 
@@ -298,6 +305,7 @@ def resolve_model_alias_with_effort(
         model,
         model_alias_overrides,
         consume=consume,
+        model_tier=model_tier,
     )
 
 
@@ -306,6 +314,7 @@ def resolve_model_alias(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    model_tier: ModelTier = "large",
 ) -> str:
     """Resolve a model alias to its concrete target string.
 
@@ -317,6 +326,7 @@ def resolve_model_alias(
         model,
         model_alias_overrides,
         consume=consume,
+        model_tier=model_tier,
     ).target
 
 

@@ -227,12 +227,31 @@ def test_invoke_agent_expired_override_ignored(
     _mock_postprocess: MagicMock,
     mock_preprocess: MagicMock,
     mock_get_provider: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An expired override is ignored — invocation uses configured default."""
+    """An expired override is ignored and the launch uses ``@default``."""
     import json
     import time
 
+    from sase.llm_provider import config as llm_config
+    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
     from sase.llm_provider.temporary_override import _state_path
+    from tests._model_alias_defaults_fixture import (
+        frozen_selector_provider_model_effort,
+    )
+
+    config = {"provider": "claude"}
+    monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config",
+        lambda: config,
+    )
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    llm_config._get_model_aliases_for_token.cache_clear()
 
     mock_preprocess.return_value = PreprocessResult(prompt="preprocessed")
     mock_provider = MagicMock()
@@ -247,14 +266,16 @@ def test_invoke_agent_expired_override_ignored(
 
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
-    # No model_override applied; provider falls through to default (None → autodetect).
-    mock_get_provider.assert_called_once_with(None)
+    provider, model, effort = frozen_selector_provider_model_effort(
+        SMARTER_MODEL_ALIAS_NAME, 0
+    )
+    mock_get_provider.assert_called_once_with(provider)
     mock_provider.invoke.assert_called_once_with(
         "preprocessed",
         model_tier="large",
         suppress_output=True,
-        model_override=None,
-        options=_NO_EFFORT,
+        model_override=model,
+        options=LLMInvocationOptions(reasoning_effort=effort, explicit=False),
     )
 
 

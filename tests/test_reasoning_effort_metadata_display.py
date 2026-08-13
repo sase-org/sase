@@ -57,10 +57,10 @@ def test_agent_meta_persists_explicit_effort(tmp_path: Path) -> None:
     assert meta["reasoning_effort"] == "xhigh"
 
 
-def test_agent_meta_omits_effort_when_unset(
+def test_agent_meta_records_default_alias_for_plain_prompt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """No directive and no configured default leaves the key out entirely."""
+    """A no-%model launch records the implicit default alias provenance."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
 
     # Pin the config default to "unset" so the test is independent of the
@@ -81,17 +81,17 @@ def test_agent_meta_omits_effort_when_unset(
     meta = json.loads(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert "reasoning_effort" not in meta
-    assert "model_alias" not in meta
+    assert meta["reasoning_effort"] == "high"
+    assert meta["model_alias"] == "default"
 
 
-def test_agent_meta_uses_config_default_effort(
+def test_agent_meta_default_alias_effort_beats_config_default_effort(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With no directive, ``llm_provider.default_effort`` is persisted."""
+    """Alias-borne default-lane effort wins before ``default_effort``."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
 
-    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "high")
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "low")
 
     workspace_dir = str(tmp_path / "workspace")
     artifacts_dir = str(tmp_path / "artifacts")
@@ -108,6 +108,7 @@ def test_agent_meta_uses_config_default_effort(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert meta["reasoning_effort"] == "high"
+    assert meta["model_alias"] == "default"
 
 
 def test_agent_meta_records_model_alias_and_launch_override_target(
@@ -234,6 +235,96 @@ def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
     assert (second["llm_provider"], second["model"]) == ("codex", "gpt-5.5")
     assert second["model_alias"] == "pool"
     assert "reasoning_effort" not in second
+
+
+def test_agent_meta_default_lane_consumes_pool_once_and_resume_reuses_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The implicit default launch lane advances the shared pool cursor once."""
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from sase.llm_provider import config as llm_config
+    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+    from tests._model_alias_defaults_fixture import (
+        frozen_selector_provider_model_effort,
+    )
+
+    config = {"provider": "claude"}
+    monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: config
+    )
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda _target: True,
+    )
+    llm_config._get_model_aliases_for_token.cache_clear()
+
+    workspace_dir = str(tmp_path / "workspace")
+    first_artifacts = str(tmp_path / "first")
+    second_artifacts = str(tmp_path / "second")
+    os.makedirs(workspace_dir, exist_ok=True)
+    os.makedirs(first_artifacts, exist_ok=True)
+    os.makedirs(second_artifacts, exist_ok=True)
+    state_path = Path.home() / ".sase" / "llm_lb.json"
+
+    def cursor() -> int:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        return int(state["entries"][SMARTER_MODEL_ALIAS_NAME]["cursor"])
+
+    extract_directives_and_write_meta(
+        prompt="do the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=first_artifacts,
+    )
+    first = json.loads(
+        (Path(first_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    first_provider, first_model, first_effort = frozen_selector_provider_model_effort(
+        SMARTER_MODEL_ALIAS_NAME, 0
+    )
+    assert (first["llm_provider"], first["model"], first["reasoning_effort"]) == (
+        first_provider,
+        first_model,
+        first_effort,
+    )
+    assert first["model_alias"] == "default"
+    assert cursor() == 1
+
+    extract_directives_and_write_meta(
+        prompt="do the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=first_artifacts,
+    )
+    preserved = json.loads(
+        (Path(first_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert preserved["model_alias"] == "default"
+    assert (preserved["llm_provider"], preserved["model"]) == (
+        first_provider,
+        first_model,
+    )
+    assert cursor() == 1
+
+    extract_directives_and_write_meta(
+        prompt="do the work",
+        workspace_dir=workspace_dir,
+        artifacts_dir=second_artifacts,
+    )
+    second = json.loads(
+        (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    second_provider, second_model, second_effort = (
+        frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 1)
+    )
+    assert (second["llm_provider"], second["model"], second["reasoning_effort"]) == (
+        second_provider,
+        second_model,
+        second_effort,
+    )
+    assert second["model_alias"] == "default"
+    assert cursor() == 0
 
 
 # --- prompt-step marker persistence ----------------------------------------

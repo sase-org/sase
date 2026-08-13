@@ -327,6 +327,7 @@ def resolve_model_provider(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    model_tier: ModelTier = "large",
 ) -> tuple[str | None, str]:
     """Resolve a model override string to (provider_name, model_name).
 
@@ -349,6 +350,7 @@ def resolve_model_provider(
         model_override,
         model_alias_overrides,
         consume=consume,
+        model_tier=model_tier,
     )
     return provider, model
 
@@ -358,6 +360,7 @@ def resolve_model_provider_with_effort(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    model_tier: ModelTier = "large",
 ) -> tuple[str | None, str, str | None]:
     """Resolve a model override to provider/model plus alias-borne effort.
 
@@ -371,6 +374,7 @@ def resolve_model_provider_with_effort(
         model_override,
         model_alias_overrides,
         consume=consume,
+        model_tier=model_tier,
     )
     model_override = resolved.target
 
@@ -398,34 +402,16 @@ def resolve_default_alias_provider_model(
     """Resolve the implicit ``@default`` alias to ``(provider, model)``.
 
     An active temporary ``default`` override wins and ignores *model_tier*.
-    Otherwise, honors a configured
-    ``llm_provider.model_aliases.builtin.default`` target (which may itself
-    chain through other aliases via ``@``), then falls back to the configured
-    or autodetected provider's *model_tier* default.
+    Otherwise, resolves the full ``@default`` alias chain, including shipped
+    fallbacks. If the chain terminates at the provider tier default, *model_tier*
+    selects that terminal model.
     """
-    from .temporary_override import get_active_alias_override
-
-    override = get_active_alias_override("default")
-    if override is not None:
-        return override.provider, override.model
-
-    from .config import default_model_alias_name, get_model_aliases
-
-    configured = get_model_aliases().get(default_model_alias_name())
-    if configured:
-        provider, model = resolve_model_provider(
-            f"@{default_model_alias_name()}",
-            model_alias_overrides,
-            consume=consume,
-        )
-        if provider is not None:
-            return provider, model
-        # Configured default is a bare/unknown model: run it on the configured
-        # provider rather than silently dropping the user's choice.
-        return get_configured_default_provider_name(), model
-
-    provider_name = get_configured_default_provider_name()
-    return provider_name, get_provider(provider_name).resolve_model_name(model_tier)
+    provider, model, _effort = resolve_default_alias_provider_model_with_effort(
+        model_tier,
+        model_alias_overrides,
+        consume=consume,
+    )
+    return provider, model
 
 
 def resolve_default_alias_provider_model_with_effort(
@@ -444,27 +430,19 @@ def resolve_default_alias_provider_model_with_effort(
     if override is not None:
         return override.provider, override.model, override.effort
 
-    from .config import default_model_alias_name, get_model_aliases
+    from .config import default_model_alias_name
 
-    configured = get_model_aliases().get(default_model_alias_name())
-    if configured:
-        provider, model, effort = resolve_model_provider_with_effort(
-            f"@{default_model_alias_name()}",
-            model_alias_overrides,
-            consume=consume,
-        )
-        if provider is not None:
-            return provider, model, effort
-        # Configured default is a bare/unknown model: run it on the configured
-        # provider rather than silently dropping the user's choice.
-        return get_configured_default_provider_name(), model, effort
-
-    provider_name, model = resolve_default_alias_provider_model(
-        model_tier,
+    provider, model, effort = resolve_model_provider_with_effort(
+        f"@{default_model_alias_name()}",
         model_alias_overrides,
         consume=consume,
+        model_tier=model_tier,
     )
-    return provider_name, model, None
+    if provider is not None:
+        return provider, model, effort
+    # A configured default may be a bare/unknown model. Run it on the configured
+    # provider rather than silently dropping the user's choice.
+    return get_configured_default_provider_name(), model, effort
 
 
 def format_provider_model_label(

@@ -521,13 +521,13 @@ def _write_alias_override(
 
     # Lazy import to avoid an import cycle (registry imports from this
     # module's siblings via __init__.py).
-    from .registry import resolve_model_provider_with_effort
+    from .registry import get_default_provider_name, resolve_model_provider_with_effort
 
     resolved_provider, resolved_model, resolved_effort = (
         resolve_model_provider_with_effort(cleaned)
     )
     if resolved_provider is None:
-        resolved_provider, _ = resolve_effective_default_provider_model()
+        resolved_provider = get_default_provider_name()
 
     override = TemporaryLLMOverride(
         provider=resolved_provider,
@@ -646,7 +646,10 @@ def resolve_effective_default_provider_model(
         )
 
         provider, model = resolve_model_provider(
-            "@default", launch_overrides, consume=consume
+            "@default",
+            launch_overrides,
+            consume=consume,
+            model_tier=model_tier,
         )
         return provider or get_configured_default_provider_name(), model
 
@@ -680,7 +683,10 @@ def resolve_effective_default_provider_model_with_effort(
         )
 
         provider, model, effort = resolve_model_provider_with_effort(
-            "@default", launch_overrides, consume=consume
+            "@default",
+            launch_overrides,
+            consume=consume,
+            model_tier=model_tier,
         )
         return provider or get_configured_default_provider_name(), model, effort
 
