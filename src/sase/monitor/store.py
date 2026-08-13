@@ -15,7 +15,6 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from sase.ace.hooks.processes import is_process_running
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
@@ -34,6 +33,7 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_projects_dir
 from sase.plan_chain import agent_family_base
 
+from .identity import supervisor_is_alive
 from .models import MonitorLaneError, MonitorRecord, MonitorRefError
 from .naming import short_monitor_id
 
@@ -109,14 +109,15 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     """
     if record.monitor_state != "running":
         return record
-    if record.pid is None or not is_process_running(record.pid):
+    pid = record.pid
+    if pid is None or not supervisor_is_alive(pid, record.supervisor_identity):
         return _reconcile_dead_supervisor(record)
 
     # The supervisor's own SIGTERM handler forwards to the monitored
     # command's process group; signal the supervisor pid directly rather
     # than its group, mirroring ``sase.tasks.runner.kill_task``.
     try:
-        os.kill(record.pid, signal.SIGTERM)
+        os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
         return _reconcile_dead_supervisor(record)
 
@@ -125,7 +126,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
         current = get_monitor(record.project_name, record.artifacts_dir)
         if current is None or current.monitor_state != "running":
             return current if current is not None else record
-        if record.pid is not None and not is_process_running(record.pid):
+        if not supervisor_is_alive(pid, record.supervisor_identity):
             return _reconcile_dead_supervisor(record)
         time.sleep(_STOP_POLL_SECONDS)
 

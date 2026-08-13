@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
@@ -145,6 +146,12 @@ def run_supervisor(artifacts_dir: str) -> int:
             on_chunk=activity.append_bytes,
             close_drain_seconds=0.5,
         )
+        command_env = os.environ.copy()
+        scrub_agent_identity_env(command_env)
+        # SASE_ARTIFACTS_DIR does not carry the SASE_AGENT_ prefix the
+        # scrubber matches on, but it still names the dead starter's
+        # artifacts and must not leak into the monitored command.
+        command_env.pop("SASE_ARTIFACTS_DIR", None)
         try:
             child = subprocess.Popen(
                 command,
@@ -156,12 +163,22 @@ def run_supervisor(artifacts_dir: str) -> int:
                 start_new_session=True,
                 close_fds=True,
                 text=False,
+                env=command_env,
             )
         except (OSError, ValueError) as exc:
             error = f"could not start command: {_one_line(exc)}"
             _append_supervisor_line(output_path, output_pipe, capture, error)
         else:
             termination.attach(child)
+            # Persist the child's pgid before waiting on it, so nothing can
+            # outlive this recorder: start_new_session=True makes the pgid
+            # equal the child's own pid.
+            meta["monitor_pgid"] = child.pid
+            write_agent_meta_atomic(
+                artifacts_dir,
+                meta,
+                index_updater=update_agent_artifact_index_for_marker_mutation,
+            )
             timeout_kind = _wait_for_child(
                 child,
                 termination,

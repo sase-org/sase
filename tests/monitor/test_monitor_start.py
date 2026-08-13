@@ -95,6 +95,95 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
     assert get_claimed_workspaces(project_file) == []
 
 
+def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "starter--0")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/dead/starter")
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    import sase.monitor.start as start_module
+
+    real_popen = start_module.subprocess.Popen
+    captured_env: dict[str, str] = {}
+
+    def fake_popen(*args: object, **kwargs: object) -> object:
+        env = kwargs.get("env")
+        if isinstance(env, dict):
+            captured_env.update(env)
+        return real_popen(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+
+    request = StartMonitorRequest(
+        command="true",
+        reason="verify",
+        timeout_seconds=30.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        lane="acme",
+    )
+
+    record = start_monitor(request)
+    _wait_for_done(record.artifacts_dir)
+
+    assert "SASE_AGENT" not in captured_env
+    assert "SASE_AGENT_NAME" not in captured_env
+    assert "SASE_ARTIFACTS_DIR" not in captured_env
+
+
+def test_start_monitor_persists_a_supervisor_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    request = StartMonitorRequest(
+        command="true",
+        reason="verify",
+        timeout_seconds=30.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        lane="acme",
+    )
+
+    record = start_monitor(request)
+    meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+    _wait_for_done(record.artifacts_dir)
+
+    # Empty is an accepted fallback on platforms without /proc identity
+    # support; the field must at least have been written.
+    assert "monitor_supervisor_identity" in meta
+
+
 def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

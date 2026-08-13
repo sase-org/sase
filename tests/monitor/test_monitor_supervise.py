@@ -419,6 +419,55 @@ def test_supervisor_subprocess_stops_cleanly_on_sigterm(tmp_path: Path) -> None:
             process.wait()
 
 
+def test_run_supervisor_scrubs_agent_identity_from_the_command_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme--0")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", "/some/dead/starter")
+    env_dump = tmp_path / "env.out"
+    command = f"env | grep -E '^SASE_(AGENT|ARTIFACTS_DIR)' > {env_dump}; true"
+    artifacts_dir, _ = _make_member(tmp_path, command=command)
+
+    exit_status = run_supervisor(artifacts_dir)
+
+    assert exit_status == 0
+    assert env_dump.read_text() == ""
+
+
+def test_supervisor_subprocess_persists_monitor_pgid_while_the_command_runs(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, _ = _make_member(tmp_path, command="sleep 5", timeout_seconds=120.0)
+
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "sase.monitor.supervise",
+            "--artifacts-dir",
+            artifacts_dir,
+        ],
+        env=os.environ.copy(),
+    )
+    try:
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+        deadline = time.monotonic() + _STOP_POLL_TIMEOUT
+        pgid: int | None = None
+        while time.monotonic() < deadline:
+            meta = json.loads(meta_path.read_text())
+            if meta.get("monitor_state") == "running" and meta.get("monitor_pgid"):
+                pgid = meta["monitor_pgid"]
+                break
+            time.sleep(_STOP_POLL_INTERVAL)
+
+        assert pgid is not None, "monitor_pgid was never persisted while running"
+        assert is_process_running(pgid)
+    finally:
+        process.send_signal(signal.SIGTERM)
+        process.wait(timeout=_STOP_POLL_TIMEOUT)
+
+
 def _terminate_pid(pid: int) -> None:
     if not is_process_running(pid):
         return

@@ -197,6 +197,63 @@ def test_stop_monitor_signals_the_supervisor_and_waits_for_it_to_settle(
         child.wait()
 
 
+def test_stop_monitor_treats_a_recycled_pid_as_dead_and_never_signals_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+        monitor_command="sleep 60",
+        monitor_stop_status="MONITORED",
+    )
+    # A real, live process stands in for the pid on disk, but its recorded
+    # identity is rewritten below to simulate the OS having recycled that
+    # pid for an unrelated process since the supervisor recorded it.
+    child = subprocess.Popen(["sleep", "30"])
+    real_kill = os.kill
+    signaled: list[int] = []
+
+    def fake_kill(pid: int, sig: int) -> None:
+        if sig == 0:
+            real_kill(pid, sig)
+            return
+        signaled.append(pid)
+
+    import sase.monitor.identity as identity_module
+
+    monkeypatch.setattr(identity_module, "process_identity", lambda pid: "boot-b:2")
+
+    try:
+        patch_project_records(monkeypatch, [monitor_dir])
+        monkeypatch.setattr("os.kill", fake_kill)
+
+        record = MonitorRecord.from_record(record_from_disk(monitor_dir))
+        record = MonitorRecord(
+            **{
+                **record.__dict__,
+                "pid": child.pid,
+                "supervisor_identity": "boot-a:1",
+            }
+        )
+
+        result = stop_monitor(record)
+
+        assert signaled == []
+        assert result is not None
+        assert result.monitor_state == "failed"
+        on_disk_done = json.loads((Path(monitor_dir) / "done.json").read_text())
+        assert on_disk_done["error"] == "monitor supervisor died without reporting"
+    finally:
+        if child.poll() is None:
+            real_kill(child.pid, signal.SIGKILL)
+        child.wait()
+
+
 def test_stop_monitor_reconciles_a_dead_supervisor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

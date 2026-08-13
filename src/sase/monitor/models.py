@@ -79,6 +79,8 @@ class MonitorRecord:
     output_truncated: bool = False
     starter_agent: str | None = None
     followup_agent: str | None = None
+    pgid: int | None = None
+    supervisor_identity: str | None = None
 
     @property
     def status_bucket(self) -> str:
@@ -141,6 +143,8 @@ class MonitorRecord:
             output_truncated=meta.monitor_output_truncated,
             starter_agent=meta.monitor_starter_agent,
             followup_agent=meta.monitor_followup_agent,
+            pgid=meta.monitor_pgid,
+            supervisor_identity=meta.monitor_supervisor_identity,
         )
 
 

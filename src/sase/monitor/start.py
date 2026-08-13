@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
@@ -23,6 +24,7 @@ from sase.running_field import claim_workspace, transfer_workspace_claim
 
 from . import naming, store
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
+from .identity import process_identity
 from .member import create_monitor_member
 from .models import (
     MonitorAlreadyRunningError,
@@ -152,6 +154,12 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         starter_agent=starter_agent,
     )
 
+    supervisor_env = os.environ.copy()
+    scrub_agent_identity_env(supervisor_env)
+    # SASE_ARTIFACTS_DIR does not carry the SASE_AGENT_ prefix the scrubber
+    # matches on, but it still names the (possibly dead) starter's own
+    # artifacts and must not leak into the detached supervisor.
+    supervisor_env.pop("SASE_ARTIFACTS_DIR", None)
     try:
         process = subprocess.Popen(
             [
@@ -168,7 +176,7 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
             stderr=subprocess.DEVNULL,
             start_new_session=True,
             close_fds=True,
-            env=os.environ.copy(),
+            env=supervisor_env,
         )
     except (OSError, ValueError) as exc:
         _teardown_failed_member(
@@ -176,7 +184,15 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
         )
         raise MonitorError(f"could not start monitor supervisor: {exc}") from exc
 
+    # Write the pid before its identity: a crash between these two calls
+    # still leaves a pid a caller can signal, and the identity is the
+    # stronger of the two, not a substitute. A future launch barrier
+    # (`sase-ku.4`) must hold the command behind the claim without
+    # reordering this pair.
     update_meta_field(artifacts_dir, "pid", process.pid)
+    update_meta_field(
+        artifacts_dir, "monitor_supervisor_identity", process_identity(process.pid)
+    )
 
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
     if transfer_from_pid is not None:
