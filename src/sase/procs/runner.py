@@ -1,4 +1,4 @@
-"""Submission and control APIs for detached background tasks."""
+"""Submission and control APIs for detached procs."""
 
 from __future__ import annotations
 
@@ -14,42 +14,42 @@ from pathlib import Path
 
 from sase.ace.hooks.processes import is_process_running
 
-from .ids import new_task_id
-from .logs import task_log_path
+from .ids import new_proc_id
+from .logs import proc_log_path
 from .models import (
-    ACTIVE_TASK_STATUSES,
-    COMMAND_TASK_KIND,
-    DETACHED_TASK_KIND,
-    TERMINAL_TASK_STATUSES,
-    TUI_TASK_KIND,
-    BackgroundTask,
+    ACTIVE_PROC_STATUSES,
+    COMMAND_PROC_KIND,
+    DETACHED_PROC_KIND,
+    TERMINAL_PROC_STATUSES,
+    TUI_PROC_KIND,
+    Proc,
 )
-from .store import append_task, get_task, read_tasks, update_task
+from .store import append_proc, get_proc, read_procs, update_proc
 
 LineCallback = Callable[[str], None]
 
 _INITIAL_POLL_SECONDS = 0.05
 _MAX_POLL_SECONDS = 0.5
-_CHILD_ENV_VAR = "_SASE_TASK_CHILD_ENV_JSON"
+_CHILD_ENV_VAR = "_SASE_PROC_CHILD_ENV_JSON"
 
 # How long a supervisor-owned row may sit without a supervisor pid before
 # reconciliation treats it as a submit that died before it spawned.
 _UNCLAIMED_GRACE_SECONDS = 60.0
 
-# Kinds whose rows are driven by ``sase.tasks.supervisor`` rather than by the
+# Kinds whose rows are driven by ``sase.procs.supervisor`` rather than by the
 # process that recorded them.
-_SUPERVISOR_OWNED_KINDS = frozenset({COMMAND_TASK_KIND, DETACHED_TASK_KIND})
+_SUPERVISOR_OWNED_KINDS = frozenset({COMMAND_PROC_KIND, DETACHED_PROC_KIND})
 
 
-class TaskSubmitError(RuntimeError):
-    """A task could not be validated or its supervisor could not be started."""
+class ProcSubmitError(RuntimeError):
+    """A proc could not be validated or its supervisor could not be started."""
 
 
-class TaskControlError(RuntimeError):
-    """A durable task could not be found or controlled."""
+class ProcControlError(RuntimeError):
+    """A durable proc could not be found or controlled."""
 
 
-def submit_task(
+def submit_proc(
     argv: Sequence[str],
     *,
     label: str,
@@ -61,11 +61,11 @@ def submit_task(
     origin: str = "api",
     cl_name: str | None = None,
     env: Mapping[str, str] | None = None,
-) -> BackgroundTask:
-    """Record and detach a command task under the task supervisor."""
-    return _submit_supervised_task(
+) -> Proc:
+    """Record and detach a command proc under the proc supervisor."""
+    return _submit_supervised_proc(
         argv,
-        kind=COMMAND_TASK_KIND,
+        kind=COMMAND_PROC_KIND,
         label=label,
         cwd=cwd,
         session_id=session_id,
@@ -78,7 +78,7 @@ def submit_task(
     )
 
 
-def submit_detached_task(
+def submit_detached_proc(
     argv: Sequence[str],
     *,
     label: str,
@@ -89,16 +89,16 @@ def submit_detached_task(
     tags: Sequence[str] = (),
     cl_name: str | None = None,
     env: Mapping[str, str] | None = None,
-) -> BackgroundTask:
-    """Record and detach a task that no interactive session owns.
+) -> Proc:
+    """Record and detach a proc that no interactive session owns.
 
     A detached row carries no ``session_id``, so every surface keeps it in
     scope no matter which session — if any — submitted it. ``origin`` is the
     only record of where the work came from and is therefore required.
     """
-    return _submit_supervised_task(
+    return _submit_supervised_proc(
         argv,
-        kind=DETACHED_TASK_KIND,
+        kind=DETACHED_PROC_KIND,
         label=label,
         cwd=cwd,
         session_id=None,
@@ -111,7 +111,7 @@ def submit_detached_task(
     )
 
 
-def _submit_supervised_task(
+def _submit_supervised_proc(
     argv: Sequence[str],
     *,
     kind: str,
@@ -124,13 +124,13 @@ def _submit_supervised_task(
     origin: str,
     cl_name: str | None,
     env: Mapping[str, str] | None,
-) -> BackgroundTask:
+) -> Proc:
     """Record a row, then spawn the supervisor that owns it."""
     command = _validated_argv(argv)
     resolved_cwd = _validated_cwd(cwd)
-    task_id = new_task_id()
-    task = BackgroundTask(
-        task_id=task_id,
+    proc_id = new_proc_id()
+    proc = Proc(
+        proc_id=proc_id,
         label=label,
         kind=kind,
         status="pending",
@@ -144,12 +144,12 @@ def _submit_supervised_task(
         cl_name=cl_name,
         tags=sorted(set(tags)),
         created_at=_utc_timestamp(),
-        log_path=str(task_log_path(task_id)),
+        log_path=str(proc_log_path(proc_id)),
     )
     try:
-        append_task(task)
+        append_proc(proc)
     except Exception as exc:
-        raise TaskSubmitError(f"could not record task: {_one_line(exc)}") from exc
+        raise ProcSubmitError(f"could not record proc: {_one_line(exc)}") from exc
 
     supervisor_env = os.environ.copy()
     if env is not None:
@@ -159,9 +159,9 @@ def _submit_supervised_task(
             [
                 sys.executable,
                 "-m",
-                "sase.tasks.supervisor",
-                "--task-id",
-                task_id,
+                "sase.procs.supervisor",
+                "--proc-id",
+                proc_id,
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -171,134 +171,134 @@ def _submit_supervised_task(
             env=supervisor_env,
         )
     except (OSError, ValueError) as exc:
-        message = f"could not start task supervisor: {_one_line(exc)}"
-        update_task(
-            task_id,
+        message = f"could not start proc supervisor: {_one_line(exc)}"
+        update_proc(
+            proc_id,
             status="error",
             message=message,
             finished_at=_utc_timestamp(),
         )
-        raise TaskSubmitError(message) from exc
+        raise ProcSubmitError(message) from exc
 
-    outcome = update_task(task_id, pid=process.pid)
-    return outcome.task or task
+    outcome = update_proc(proc_id, pid=process.pid)
+    return outcome.proc or proc
 
 
-def wait_for_task(
-    task_id: str,
+def wait_for_proc(
+    proc_id: str,
     *,
     timeout: float | None = None,
     on_line: LineCallback | None = None,
-) -> BackgroundTask:
-    """Wait for a task, streaming newly retained log lines through ``on_line``."""
+) -> Proc:
+    """Wait for a proc, streaming newly retained log lines through ``on_line``."""
     started = time.monotonic()
     delay = _INITIAL_POLL_SECONDS
     seen_log = ""
     buffered = ""
     while True:
-        task = get_task(task_id)
-        if task is None:
-            raise TaskControlError(f"no task with id {task_id!r}")
+        proc = get_proc(proc_id)
+        if proc is None:
+            raise ProcControlError(f"no proc with id {proc_id!r}")
 
-        current_log = _read_retained_log(Path(task.log_path))
+        current_log = _read_retained_log(Path(proc.log_path))
         new_text = _new_log_text(seen_log, current_log)
         seen_log = current_log
         if on_line is not None:
             buffered = _emit_complete_lines(buffered + new_text, on_line)
 
-        if task.status in TERMINAL_TASK_STATUSES:
+        if proc.status in TERMINAL_PROC_STATUSES:
             if on_line is not None and buffered:
                 on_line(buffered.rstrip("\r"))
-            return task
+            return proc
         if timeout is not None and time.monotonic() - started >= timeout:
-            raise TimeoutError(f"timed out waiting for task {task_id}")
+            raise TimeoutError(f"timed out waiting for proc {proc_id}")
         time.sleep(delay)
         delay = min(delay * 1.5, _MAX_POLL_SECONDS)
 
 
-def kill_task(task_id: str) -> BackgroundTask:
-    """Terminate a task's process group and durably mark it killed."""
-    task = get_task(task_id)
-    if task is None:
-        raise TaskControlError(f"no task with id {task_id!r}")
-    if task.status in TERMINAL_TASK_STATUSES:
-        return task
-    if task.kind == TUI_TASK_KIND:
-        raise TaskControlError(
-            "TUI-owned tasks can only be killed from their owning ACE session"
+def kill_proc(proc_id: str) -> Proc:
+    """Terminate a proc's process group and durably mark it killed."""
+    proc = get_proc(proc_id)
+    if proc is None:
+        raise ProcControlError(f"no proc with id {proc_id!r}")
+    if proc.status in TERMINAL_PROC_STATUSES:
+        return proc
+    if proc.kind == TUI_PROC_KIND:
+        raise ProcControlError(
+            "TUI-owned procs can only be killed from their owning ACE session"
         )
-    if task.pid is not None and not _supervisor_process_matches(task):
-        update_task(
-            task_id,
+    if proc.pid is not None and not _supervisor_process_matches(proc):
+        update_proc(
+            proc_id,
             status="error",
             message="supervisor exited without reporting",
             finished_at=_utc_timestamp(),
         )
-        raise TaskControlError(
-            f"task {task_id} no longer belongs to its recorded supervisor"
+        raise ProcControlError(
+            f"proc {proc_id} no longer belongs to its recorded supervisor"
         )
 
     errors: list[OSError] = []
-    if task.pid is not None:
-        _signal_target(os.kill, task.pid, errors)
+    if proc.pid is not None:
+        _signal_target(os.kill, proc.pid, errors)
     if errors:
         error = errors[0]
         if isinstance(error, PermissionError):
-            raise TaskControlError(
-                f"permission denied killing task {task_id}"
+            raise ProcControlError(
+                f"permission denied killing proc {proc_id}"
             ) from error
-        raise TaskControlError(f"could not kill task {task_id}: {error}") from error
+        raise ProcControlError(f"could not kill proc {proc_id}: {error}") from error
 
-    outcome = update_task(
-        task_id,
+    outcome = update_proc(
+        proc_id,
         status="killed",
-        message="task killed",
+        message="proc killed",
         finished_at=_utc_timestamp(),
     )
-    if outcome.task is None:
-        raise TaskControlError(f"task {task_id!r} disappeared before it was killed")
-    return outcome.task
+    if outcome.proc is None:
+        raise ProcControlError(f"proc {proc_id!r} disappeared before it was killed")
+    return outcome.proc
 
 
-def reconcile_running_tasks() -> list[BackgroundTask]:
+def reconcile_running_procs() -> list[Proc]:
     """Mark active rows whose supervisor died without terminalizing them."""
-    reconciled: list[BackgroundTask] = []
-    for task in read_tasks(status=ACTIVE_TASK_STATUSES):
-        if not _is_orphaned(task):
+    reconciled: list[Proc] = []
+    for proc in read_procs(status=ACTIVE_PROC_STATUSES):
+        if not _is_orphaned(proc):
             continue
-        current = get_task(task.task_id)
-        if current is None or current.status not in ACTIVE_TASK_STATUSES:
+        current = get_proc(proc.proc_id)
+        if current is None or current.status not in ACTIVE_PROC_STATUSES:
             continue
-        outcome = update_task(
-            task.task_id,
+        outcome = update_proc(
+            proc.proc_id,
             status="error",
             message="supervisor exited without reporting",
             finished_at=_utc_timestamp(),
         )
-        if outcome.task is not None:
-            reconciled.append(outcome.task)
+        if outcome.proc is not None:
+            reconciled.append(outcome.proc)
     return reconciled
 
 
-def _is_orphaned(task: BackgroundTask) -> bool:
+def _is_orphaned(proc: Proc) -> bool:
     """Return whether an active row's owner is gone without a terminal write."""
-    if task.pid is not None:
-        if task.kind in _SUPERVISOR_OWNED_KINDS:
-            return not _supervisor_process_matches(task)
-        return not is_process_running(task.pid)
+    if proc.pid is not None:
+        if proc.kind in _SUPERVISOR_OWNED_KINDS:
+            return not _supervisor_process_matches(proc)
+        return not is_process_running(proc.pid)
     # No supervisor pid yet. A submit stamps one within milliseconds of
-    # appending the row, and mirrored in-TUI tasks are owned by their own
+    # appending the row, and mirrored in-TUI procs are owned by their own
     # process, so only a stale supervisor-owned row is a genuine ghost:
     # reconciling a just-submitted row would race its supervisor to a terminal
     # status the store then refuses to move off.
-    if task.kind not in _SUPERVISOR_OWNED_KINDS:
+    if proc.kind not in _SUPERVISOR_OWNED_KINDS:
         return False
-    return _age_seconds(task.created_at) >= _UNCLAIMED_GRACE_SECONDS
+    return _age_seconds(proc.created_at) >= _UNCLAIMED_GRACE_SECONDS
 
 
-def _supervisor_process_matches(task: BackgroundTask) -> bool:
+def _supervisor_process_matches(proc: Proc) -> bool:
     """Reject dead or PID-reused supervisors before trusting their PID."""
-    pid = task.pid
+    pid = proc.pid
     if pid is None or not is_process_running(pid):
         return False
     try:
@@ -313,14 +313,14 @@ def _supervisor_process_matches(task: BackgroundTask) -> bool:
         return True
     try:
         module_index = argv.index("-m")
-        task_id_index = argv.index("--task-id")
+        proc_id_index = argv.index("--proc-id")
     except ValueError:
         return False
     return (
         module_index + 1 < len(argv)
-        and argv[module_index + 1] == "sase.tasks.supervisor"
-        and task_id_index + 1 < len(argv)
-        and argv[task_id_index + 1] == task.task_id
+        and argv[module_index + 1] == "sase.procs.supervisor"
+        and proc_id_index + 1 < len(argv)
+        and argv[proc_id_index + 1] == proc.proc_id
     )
 
 
@@ -337,14 +337,14 @@ def _age_seconds(timestamp: str) -> float:
 def _validated_argv(argv: Sequence[str]) -> list[str]:
     command = [str(part) for part in argv]
     if not command or not command[0]:
-        raise TaskSubmitError("task command must contain a non-empty argv")
+        raise ProcSubmitError("proc command must contain a non-empty argv")
     return command
 
 
 def _validated_cwd(cwd: str | Path) -> Path:
     path = Path(cwd).expanduser()
     if not path.is_dir():
-        raise TaskSubmitError(f"task cwd is not an existing directory: {path}")
+        raise ProcSubmitError(f"proc cwd is not an existing directory: {path}")
     return path.resolve()
 
 
@@ -419,11 +419,11 @@ def _signal_target(
 
 
 __all__ = [
-    "TaskControlError",
-    "TaskSubmitError",
-    "kill_task",
-    "reconcile_running_tasks",
-    "submit_detached_task",
-    "submit_task",
-    "wait_for_task",
+    "ProcControlError",
+    "ProcSubmitError",
+    "kill_proc",
+    "reconcile_running_procs",
+    "submit_detached_proc",
+    "submit_proc",
+    "wait_for_proc",
 ]

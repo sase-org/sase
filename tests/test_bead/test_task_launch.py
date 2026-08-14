@@ -83,14 +83,14 @@ def test_submit_task_launch_task_submits_literal_detached_command(
 ) -> None:
     task = SimpleNamespace(task_id="k7m2xyz")
     with (
-        patch("sase.tasks.tasks_dir", return_value=tmp_path / "tasks"),
-        patch("sase.tasks.read_tasks", return_value=[]),
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
         patch(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
         ),
         patch(
-            "sase.tasks.runner.submit_detached_task",
+            "sase.procs.runner.submit_detached_proc",
             return_value=task,
         ) as submit_task,
     ):
@@ -130,13 +130,13 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
         tags=["launch", "task"],
     )
     with (
-        patch("sase.tasks.tasks_dir", return_value=tmp_path / "tasks"),
-        patch("sase.tasks.read_tasks", return_value=[existing]) as read_tasks,
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[existing]) as read_tasks,
         patch(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
         ),
-        patch("sase.tasks.runner.submit_detached_task") as submit_task,
+        patch("sase.procs.runner.submit_detached_proc") as submit_task,
     ):
         submitted = submit_task_launch_task(
             "sase-42",
@@ -189,7 +189,7 @@ def test_active_task_launch_bead_ids_returns_active_task_bead_launches() -> None
         assert kind == "detached"
         return [row for row in rows if row.status in status and row.kind == kind]
 
-    with patch("sase.tasks.read_tasks", side_effect=read_tasks):
+    with patch("sase.procs.read_procs", side_effect=read_tasks):
         assert active_task_launch_bead_ids() == frozenset({"sase-42", "sase-99"})
 
 
@@ -198,7 +198,7 @@ def test_active_task_launch_returns_newest_matching_active_row() -> None:
     older = _task_row("older", command=["sase", "bead", "work", "sase-42"])
     other = _task_row("other", command=["sase", "bead", "work", "sase-99"])
 
-    with patch("sase.tasks.read_tasks", return_value=[other, newest, older]):
+    with patch("sase.procs.read_procs", return_value=[other, newest, older]):
         assert _active_task_launch("sase-42") is newest
 
 

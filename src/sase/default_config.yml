@@ -46,10 +46,9 @@ runner_slots:
   deference_seconds_per_step: 3
   deference_max_seconds: 60
 
-tasks:
-  # Maximum number of finished background tasks kept in ~/.sase/tasks. Running
-  # tasks are never pruned. Lower values trim history sooner; the oldest
-  # finished tasks (and their logs) are removed first.
+procs:
+  # Maximum number of finished procs kept in ~/.sase/procs. Running procs are
+  # never pruned.
   history_limit: 100
 
 markdown:

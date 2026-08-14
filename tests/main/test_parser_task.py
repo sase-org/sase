@@ -153,14 +153,14 @@ def test_task_run_detached_and_session_are_mutually_exclusive() -> None:
 def test_task_status_choices_match_the_store_lifecycle() -> None:
     """The parser's inlined status list must not drift from the store's."""
     from sase.main.parser_task import TASK_STATUS_CHOICES
-    from sase.tasks import ACTIVE_TASK_STATUSES, TERMINAL_TASK_STATUSES
+    from sase.procs import ACTIVE_PROC_STATUSES, TERMINAL_PROC_STATUSES
 
-    assert set(TASK_STATUS_CHOICES) == ACTIVE_TASK_STATUSES | TERMINAL_TASK_STATUSES
+    assert set(TASK_STATUS_CHOICES) == ACTIVE_PROC_STATUSES | TERMINAL_PROC_STATUSES
 
 
 def test_task_kind_choices_match_the_store_kinds() -> None:
     """The parser's inlined kind list must not drift from the store's."""
     from sase.main.parser_task import TASK_KIND_CHOICES
-    from sase.tasks import TASK_KINDS
+    from sase.procs import PROC_KINDS
 
-    assert set(TASK_KIND_CHOICES) == TASK_KINDS
+    assert set(TASK_KIND_CHOICES) == PROC_KINDS

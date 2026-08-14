@@ -7,7 +7,7 @@ defaulting rules for which writable layer to target, and a thin ``chezmoi
 apply`` wrapper.
 
 No Textual imports: callable from a worker thread. The ``chezmoi apply`` helper
-is side-effecting (subprocess) and must only run from a tracked background task.
+is side-effecting (subprocess) and must only run from a tracked proc.
 """
 
 from __future__ import annotations
@@ -120,7 +120,7 @@ def apply_chezmoi(
     source path; ``~`` is expanded so chezmoi always receives an absolute home
     path it can resolve.
 
-    Side-effecting subprocess; only ever call from a tracked background task.
+    Side-effecting subprocess; only ever call from a tracked proc.
     Returns the completed process so the caller can surface stdout/stderr; a
     non-zero exit is not raised here.
     """

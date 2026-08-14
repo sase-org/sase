@@ -358,12 +358,12 @@ def _restore_pending(path: Path, deferred: _DeferredCompletion) -> None:
 
 
 def _active_epic_launch_keys() -> set[str]:
-    from sase.tasks import ACTIVE_TASK_STATUSES, DETACHED_TASK_KIND, read_tasks
+    from sase.procs import ACTIVE_PROC_STATUSES, DETACHED_PROC_KIND, read_procs
 
     try:
-        tasks = read_tasks(
-            status=ACTIVE_TASK_STATUSES,
-            kind=DETACHED_TASK_KIND,
+        tasks = read_procs(
+            status=ACTIVE_PROC_STATUSES,
+            kind=DETACHED_PROC_KIND,
         )
     except Exception:
         return set()

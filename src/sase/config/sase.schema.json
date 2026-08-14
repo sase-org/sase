@@ -2490,7 +2490,7 @@
         }
       }
     },
-    "tasks": {
+    "procs": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -2498,7 +2498,21 @@
           "type": "integer",
           "minimum": 1,
           "default": 100,
-          "description": "Maximum number of finished background tasks kept in ~/.sase/tasks. Running tasks are never pruned. Lower values trim history sooner; the oldest finished tasks (and their logs) are removed first."
+          "description": "Maximum number of finished procs kept in ~/.sase/procs. Running procs are never pruned. Lower values trim history sooner; the oldest finished procs (and their logs) are removed first."
+        }
+      }
+    },
+    "tasks": {
+      "type": "object",
+      "additionalProperties": false,
+      "deprecated": true,
+      "description": "Deprecated alias for 'procs'. Still parsed during the compatibility window; prefer 'procs' in new config.",
+      "properties": {
+        "history_limit": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 100,
+          "description": "Deprecated alias for 'procs.history_limit'."
         }
       }
     },

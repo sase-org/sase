@@ -1,7 +1,7 @@
 """Detached supervisor process for one monitor family member.
 
 Invoked as ``python -m sase.monitor.supervise --artifacts-dir <dir>``, mirroring
-:mod:`sase.tasks.supervisor`. Owns the monitored command from spawn through the
+:mod:`sase.procs.supervisor`. Owns the monitored command from spawn through the
 terminal marker: streams its merged output, enforces the timeout, and reacts
 to ``SIGTERM`` (sent by :func:`sase.monitor.store.stop_monitor`) by killing
 the command's whole process group rather than just itself.

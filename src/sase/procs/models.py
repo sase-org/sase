@@ -1,4 +1,4 @@
-"""Typed Python records for the Rust background-task wire."""
+"""Typed Python records for the Rust proc wire."""
 
 from __future__ import annotations
 
@@ -8,25 +8,25 @@ from typing import Any, Final
 
 from sase.core.wire import known_field_kwargs
 
-TASK_WIRE_SCHEMA_VERSION: Final = 1
+PROC_WIRE_SCHEMA_VERSION: Final = 2
 
-ACTIVE_TASK_STATUSES: Final = frozenset({"pending", "running"})
-TERMINAL_TASK_STATUSES: Final = frozenset({"success", "error", "killed"})
+ACTIVE_PROC_STATUSES: Final = frozenset({"pending", "running"})
+TERMINAL_PROC_STATUSES: Final = frozenset({"success", "error", "killed"})
 
-# A supervised task submitted by a session, attributed to it.
-COMMAND_TASK_KIND: Final = "command"
-# A task a TUI process runs itself and mirrors into the store.
-TUI_TASK_KIND: Final = "tui"
-# A supervised task no session owns, so every surface always shows it.
-DETACHED_TASK_KIND: Final = "detached"
-TASK_KINDS: Final = frozenset({COMMAND_TASK_KIND, TUI_TASK_KIND, DETACHED_TASK_KIND})
+# A supervised proc submitted by a session, attributed to it.
+COMMAND_PROC_KIND: Final = "command"
+# A proc a TUI process runs itself and mirrors into the store.
+TUI_PROC_KIND: Final = "tui"
+# A supervised proc no session owns, so every surface always shows it.
+DETACHED_PROC_KIND: Final = "detached"
+PROC_KINDS: Final = frozenset({COMMAND_PROC_KIND, TUI_PROC_KIND, DETACHED_PROC_KIND})
 
 
 @dataclass(frozen=True)
-class BackgroundTask:
-    """One durable background task."""
+class Proc:
+    """One durable background proc."""
 
-    task_id: str
+    proc_id: str
     label: str
     kind: str
     status: str
@@ -50,10 +50,10 @@ class BackgroundTask:
     finished_at: str | None = None
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> BackgroundTask:
-        """Rehydrate a task while ignoring additive wire fields."""
+    def from_dict(cls, data: Mapping[str, Any]) -> Proc:
+        """Rehydrate a proc while ignoring additive wire fields."""
         values = known_field_kwargs(cls, data)
-        values["task_id"] = str(data["task_id"])
+        values["proc_id"] = str(data["proc_id"])
         values["label"] = str(data["label"])
         values["kind"] = str(data["kind"])
         values["status"] = str(data["status"])
@@ -83,7 +83,7 @@ class BackgroundTask:
         return {
             name: getattr(self, name)
             for name in (
-                "task_id",
+                "proc_id",
                 "label",
                 "kind",
                 "status",
@@ -110,8 +110,8 @@ class BackgroundTask:
 
 
 @dataclass(frozen=True)
-class TaskStoreStats:
-    """Parse statistics returned with a task-store snapshot."""
+class ProcStoreStats:
+    """Parse statistics returned with a proc-store snapshot."""
 
     total_lines: int = 0
     blank_lines: int = 0
@@ -120,7 +120,7 @@ class TaskStoreStats:
     loaded_rows: int = 0
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> TaskStoreStats:
+    def from_dict(cls, data: Mapping[str, Any]) -> ProcStoreStats:
         return cls(
             **{
                 name: int(value)
@@ -130,36 +130,36 @@ class TaskStoreStats:
 
 
 @dataclass(frozen=True)
-class TaskStoreSnapshot:
-    """Newest-first task rows plus store parse statistics."""
+class ProcStoreSnapshot:
+    """Newest-first proc rows plus store parse statistics."""
 
     schema_version: int
-    tasks: list[BackgroundTask] = field(default_factory=list)
-    stats: TaskStoreStats = field(default_factory=TaskStoreStats)
+    procs: list[Proc] = field(default_factory=list)
+    stats: ProcStoreStats = field(default_factory=ProcStoreStats)
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> TaskStoreSnapshot:
+    def from_dict(cls, data: Mapping[str, Any]) -> ProcStoreSnapshot:
         _require_schema(data)
         return cls(
             schema_version=int(data["schema_version"]),
-            tasks=[BackgroundTask.from_dict(item) for item in data.get("tasks") or []],
-            stats=TaskStoreStats.from_dict(data.get("stats") or {}),
+            procs=[Proc.from_dict(item) for item in data.get("procs") or []],
+            stats=ProcStoreStats.from_dict(data.get("stats") or {}),
         )
 
 
 @dataclass(frozen=True)
-class TaskAppendOutcome:
+class ProcAppendOutcome:
     schema_version: int
-    snapshot: TaskStoreSnapshot
-    pruned_task_ids: list[str] = field(default_factory=list)
+    snapshot: ProcStoreSnapshot
+    pruned_proc_ids: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> TaskAppendOutcome:
+    def from_dict(cls, data: Mapping[str, Any]) -> ProcAppendOutcome:
         _require_schema(data)
         return cls(
             schema_version=int(data["schema_version"]),
-            snapshot=TaskStoreSnapshot.from_dict(data["snapshot"]),
-            pruned_task_ids=[str(item) for item in data.get("pruned_task_ids") or []],
+            snapshot=ProcStoreSnapshot.from_dict(data["snapshot"]),
+            pruned_proc_ids=[str(item) for item in data.get("pruned_proc_ids") or []],
         )
 
 
@@ -173,10 +173,10 @@ UpdateValue = str | int | list[str] | None | _Unset
 
 
 @dataclass(frozen=True)
-class TaskUpdate:
-    """Partial task mutation; ``UNSET`` differs from an explicit ``None``."""
+class ProcUpdate:
+    """Partial proc mutation; ``UNSET`` differs from an explicit ``None``."""
 
-    task_id: str
+    proc_id: str
     label: UpdateValue = UNSET
     kind: UpdateValue = UNSET
     status: UpdateValue = UNSET
@@ -200,13 +200,13 @@ class TaskUpdate:
     log_path: UpdateValue = UNSET
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> TaskUpdate:
+    def from_dict(cls, data: Mapping[str, Any]) -> ProcUpdate:
         return cls(**known_field_kwargs(cls, data))
 
     def to_dict(self) -> dict[str, Any]:
-        payload: dict[str, Any] = {"task_id": self.task_id}
+        payload: dict[str, Any] = {"proc_id": self.proc_id}
         for name in self.__dataclass_fields__:
-            if name == "task_id":
+            if name == "proc_id":
                 continue
             value = getattr(self, name)
             if value is not UNSET:
@@ -215,65 +215,61 @@ class TaskUpdate:
 
 
 @dataclass(frozen=True)
-class TaskUpdateOutcome:
+class ProcUpdateOutcome:
     schema_version: int
-    task: BackgroundTask | None
+    proc: Proc | None
     matched: bool
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> TaskUpdateOutcome:
+    def from_dict(cls, data: Mapping[str, Any]) -> ProcUpdateOutcome:
         _require_schema(data)
-        raw_task = data.get("task")
+        raw_proc = data.get("proc")
         return cls(
             schema_version=int(data["schema_version"]),
-            task=(
-                BackgroundTask.from_dict(raw_task)
-                if isinstance(raw_task, Mapping)
-                else None
-            ),
+            proc=(Proc.from_dict(raw_proc) if isinstance(raw_proc, Mapping) else None),
             matched=bool(data.get("matched", False)),
         )
 
 
 @dataclass(frozen=True)
-class TaskPruneOutcome:
+class ProcPruneOutcome:
     schema_version: int
-    snapshot: TaskStoreSnapshot
-    pruned_task_ids: list[str] = field(default_factory=list)
+    snapshot: ProcStoreSnapshot
+    pruned_proc_ids: list[str] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> TaskPruneOutcome:
+    def from_dict(cls, data: Mapping[str, Any]) -> ProcPruneOutcome:
         _require_schema(data)
         return cls(
             schema_version=int(data["schema_version"]),
-            snapshot=TaskStoreSnapshot.from_dict(data["snapshot"]),
-            pruned_task_ids=[str(item) for item in data.get("pruned_task_ids") or []],
+            snapshot=ProcStoreSnapshot.from_dict(data["snapshot"]),
+            pruned_proc_ids=[str(item) for item in data.get("pruned_proc_ids") or []],
         )
 
 
 def _require_schema(data: Mapping[str, Any]) -> None:
     schema = int(data["schema_version"])
-    if schema != TASK_WIRE_SCHEMA_VERSION:
+    if schema != PROC_WIRE_SCHEMA_VERSION:
         raise ValueError(
-            f"task wire schema mismatch: got {schema}, "
-            f"expected {TASK_WIRE_SCHEMA_VERSION}"
+            f"proc wire schema mismatch: got {schema}, "
+            f"expected {PROC_WIRE_SCHEMA_VERSION}"
         )
 
 
 __all__ = [
-    "ACTIVE_TASK_STATUSES",
-    "COMMAND_TASK_KIND",
-    "DETACHED_TASK_KIND",
-    "TASK_KINDS",
-    "TASK_WIRE_SCHEMA_VERSION",
-    "TERMINAL_TASK_STATUSES",
-    "TUI_TASK_KIND",
+    "ACTIVE_PROC_STATUSES",
+    "COMMAND_PROC_KIND",
+    "DETACHED_PROC_KIND",
+    "PROC_KINDS",
+    "PROC_WIRE_SCHEMA_VERSION",
+    "TERMINAL_PROC_STATUSES",
+    "TUI_PROC_KIND",
     "UNSET",
-    "BackgroundTask",
-    "TaskAppendOutcome",
-    "TaskPruneOutcome",
-    "TaskStoreSnapshot",
-    "TaskStoreStats",
-    "TaskUpdate",
-    "TaskUpdateOutcome",
+    "Proc",
+    "ProcAppendOutcome",
+    "ProcPruneOutcome",
+    "ProcStoreSnapshot",
+    "ProcStoreStats",
+    "ProcUpdate",
+    "ProcUpdateOutcome",
 ]

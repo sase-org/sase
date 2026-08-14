@@ -24,7 +24,7 @@ from sase.notification_gates.models import GateError
 
 if TYPE_CHECKING:
     from sase.bead.task_launch import TaskLaunchOrigin
-    from sase.tasks.models import BackgroundTask
+    from sase.procs.models import Proc
 
 
 def cancel_task_triage(
@@ -58,7 +58,7 @@ def launch_task_triage(
     decision: TaskTriageResponse,
     *,
     origin: TaskLaunchOrigin | None = None,
-) -> BackgroundTask:
+) -> Proc:
     """Submit or reuse the detached task launch selected by a human."""
     if decision.action != TASK_TRIAGE_LAUNCH_OPTION_ID:
         raise GateError(

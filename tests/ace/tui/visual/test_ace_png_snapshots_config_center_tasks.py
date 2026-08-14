@@ -9,7 +9,7 @@ from sase.ace.tui.modals import tasks_pane as tp
 from sase.ace.tui.modals import tasks_pane_render as tpr
 from sase.ace.tui.modals.tasks_store_rows import _store_task_row
 from sase.ace.tui.task_queue import TaskQueue
-from sase.tasks import BackgroundTask
+from sase.procs import Proc
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _FIXED_TASK_NOW,
@@ -57,8 +57,8 @@ async def test_config_center_tasks_tab_png_snapshot(
     # 0.25s refresh timer would otherwise advance it between runs.
     monkeypatch.setattr(tpr, "_SPINNER_FRAMES", ("|",))
     detached = _store_task_row(
-        BackgroundTask(
-            task_id="detached123",
+        Proc(
+            proc_id="detached123",
             label="Epic · nightly",
             kind="detached",
             status="running",

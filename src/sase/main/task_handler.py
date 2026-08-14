@@ -18,24 +18,24 @@ from sase.sessions import (
     resolve_session_ref,
     short_session_handle,
 )
-from sase.tasks import (
-    ACTIVE_TASK_STATUSES,
-    DETACHED_TASK_KIND,
-    TERMINAL_TASK_STATUSES,
-    BackgroundTask,
-    TaskControlError,
-    TaskRefError,
-    TaskSubmitError,
-    get_task,
-    kill_task,
-    read_task_log_tail,
-    read_tasks,
-    reconcile_running_tasks,
-    resolve_task_ref,
-    short_task_id,
-    submit_task,
-    submit_detached_task,
-    wait_for_task,
+from sase.procs import (
+    ACTIVE_PROC_STATUSES,
+    DETACHED_PROC_KIND,
+    TERMINAL_PROC_STATUSES,
+    Proc,
+    ProcControlError,
+    ProcRefError,
+    ProcSubmitError,
+    get_proc,
+    kill_proc,
+    read_proc_log_tail,
+    read_procs,
+    reconcile_running_procs,
+    resolve_proc_ref,
+    short_proc_id,
+    submit_proc,
+    submit_detached_proc,
+    wait_for_proc,
 )
 
 from .task_render import (
@@ -77,10 +77,10 @@ class _ListScope:
     include_unattributed: bool
     ref: str | None
 
-    def matches(self, task: BackgroundTask) -> bool:
+    def matches(self, task: Proc) -> bool:
         if self.all_sessions:
             return True
-        if task.kind == DETACHED_TASK_KIND:
+        if task.kind == DETACHED_PROC_KIND:
             return True
         if task.session_id is None:
             return self.include_unattributed
@@ -122,7 +122,7 @@ def _handle_task_list(args: argparse.Namespace) -> int:
         return 2
 
     try:
-        matched = read_tasks(
+        matched = read_procs(
             status=_requested_statuses(args),
             kind=_requested_kinds(args),
             project=getattr(args, "project", None),
@@ -178,7 +178,7 @@ def _handle_task_run(args: argparse.Namespace) -> int:
 
     project, workspace_num = _infer_attribution(cwd, getattr(args, "project", None))
     try:
-        submit = submit_detached_task if detached else submit_task
+        submit = submit_detached_proc if detached else submit_proc
         submit_kwargs: dict[str, Any] = {
             "label": getattr(args, "label", None) or _derived_label(command),
             "cwd": cwd,
@@ -190,7 +190,7 @@ def _handle_task_run(args: argparse.Namespace) -> int:
         if not detached:
             submit_kwargs["session_id"] = session_id
         task = submit(command, **submit_kwargs)
-    except TaskSubmitError as exc:
+    except ProcSubmitError as exc:
         print(f"sase task run: {exc}", file=sys.stderr)
         return 1
 
@@ -202,11 +202,11 @@ def _handle_task_run(args: argparse.Namespace) -> int:
         if not wait:
             _print_task_json(task)
     elif bool(getattr(args, "quiet", False)):
-        print(task.task_id)
+        print(task.proc_id)
     elif not wait:
         # Waiting prints the task's own output instead: keep stdout clean.
-        print(task.task_id)
-        print(f"monitor with: sase task show {short_task_id(task.task_id)} --follow")
+        print(task.proc_id)
+        print(f"monitor with: sase task show {short_proc_id(task.proc_id)} --follow")
 
     if not wait:
         return 0
@@ -215,11 +215,11 @@ def _handle_task_run(args: argparse.Namespace) -> int:
     # goes to stderr and the finished task is the only thing on stdout.
     exit_code = _wait_and_report(task, stream=sys.stderr if as_json else sys.stdout)
     if as_json:
-        _print_task_json(get_task(task.task_id) or task)
+        _print_task_json(get_proc(task.proc_id) or task)
     return exit_code
 
 
-def _print_task_json(task: BackgroundTask) -> None:
+def _print_task_json(task: Proc) -> None:
     json.dump(
         task_show_json(task, log="", live_session_ids=_live_session_ids()),
         sys.stdout,
@@ -232,8 +232,8 @@ def _handle_task_show(args: argparse.Namespace) -> int:
     """Show one task's detail panel and captured output."""
     _reconcile_quietly()
     try:
-        task = resolve_task_ref(getattr(args, "task_id", ""), read_tasks())
-    except TaskRefError as exc:
+        task = resolve_proc_ref(getattr(args, "task_id", ""), read_procs())
+    except ProcRefError as exc:
         print(f"sase task show: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
@@ -244,12 +244,12 @@ def _handle_task_show(args: argparse.Namespace) -> int:
     follow = bool(getattr(args, "follow", False))
     if getattr(args, "format", "markdown") == "json":
         # JSON is a snapshot, so following means "wait, then report the result".
-        if follow and task.status not in TERMINAL_TASK_STATUSES:
+        if follow and task.status not in TERMINAL_PROC_STATUSES:
             try:
-                task = wait_for_task(task.task_id)
+                task = wait_for_proc(task.proc_id)
             except KeyboardInterrupt:
                 return _KILLED_EXIT_CODE
-            except TaskControlError as exc:
+            except ProcControlError as exc:
                 print(f"sase task show: {exc}", file=sys.stderr)
                 return 1
         payload = task_show_json(
@@ -281,18 +281,18 @@ def _handle_task_kill(args: argparse.Namespace) -> int:
     """Kill one task, resolving the same id prefixes as ``task show``."""
     _reconcile_quietly()
     try:
-        task = resolve_task_ref(getattr(args, "task_id", ""), read_tasks())
-    except TaskRefError as exc:
+        task = resolve_proc_ref(getattr(args, "task_id", ""), read_procs())
+    except ProcRefError as exc:
         print(f"sase task kill: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:
         print(f"sase task kill: cannot read tasks: {exc}", file=sys.stderr)
         return 1
 
-    was_active = task.status not in TERMINAL_TASK_STATUSES
+    was_active = task.status not in TERMINAL_PROC_STATUSES
     try:
-        result = kill_task(task.task_id)
-    except TaskControlError as exc:
+        result = kill_proc(task.proc_id)
+    except ProcControlError as exc:
         print(f"sase task kill: {exc}", file=sys.stderr)
         return 1
 
@@ -309,23 +309,23 @@ def _handle_task_kill(args: argparse.Namespace) -> int:
         )
         sys.stdout.write("\n")
     elif changed:
-        print(f"Killed task {short_task_id(result.task_id)}.")
+        print(f"Killed task {short_proc_id(result.proc_id)}.")
     else:
         print(
-            f"Task {short_task_id(result.task_id)} is already "
+            f"Task {short_proc_id(result.proc_id)} is already "
             f"{result.status}; nothing to do."
         )
     return 0
 
 
-def _follow_log(task: BackgroundTask, args: argparse.Namespace) -> int:
+def _follow_log(task: Proc, args: argparse.Namespace) -> int:
     """Print the retained log, then stream new lines until the task ends."""
-    retained = read_task_log_tail(task.task_id, _ALL_LOG_LINES).splitlines()
+    retained = read_proc_log_tail(task.proc_id, _ALL_LOG_LINES).splitlines()
     lines = _log_lines(args)
     for line in retained[-lines:] if lines > 0 else []:
         print(line)
 
-    # ``wait_for_task`` replays the log it reads before streaming new output,
+    # ``wait_for_proc`` replays the log it reads before streaming new output,
     # so drop exactly the lines that were already retained when we read above.
     remaining = len(retained)
 
@@ -337,29 +337,29 @@ def _follow_log(task: BackgroundTask, args: argparse.Namespace) -> int:
         print(line)
 
     try:
-        wait_for_task(task.task_id, on_line=on_line)
+        wait_for_proc(task.proc_id, on_line=on_line)
     except KeyboardInterrupt:
         return _KILLED_EXIT_CODE
-    except TaskControlError as exc:
+    except ProcControlError as exc:
         print(f"sase task show: {exc}", file=sys.stderr)
         return 1
     return 0
 
 
-def _wait_and_report(task: BackgroundTask, *, stream: TextIO) -> int:
+def _wait_and_report(task: Proc, *, stream: TextIO) -> int:
     """Stream a submitted task's output and return its exit code."""
     try:
-        finished = wait_for_task(
-            task.task_id, on_line=lambda line: print(line, file=stream)
+        finished = wait_for_proc(
+            task.proc_id, on_line=lambda line: print(line, file=stream)
         )
     except KeyboardInterrupt:
-        print(f"\nkilling task {short_task_id(task.task_id)}…", file=sys.stderr)
+        print(f"\nkilling task {short_proc_id(task.proc_id)}…", file=sys.stderr)
         try:
-            kill_task(task.task_id)
-        except TaskControlError as exc:
+            kill_proc(task.proc_id)
+        except ProcControlError as exc:
             print(f"sase task run: {exc}", file=sys.stderr)
         return _KILLED_EXIT_CODE
-    except TaskControlError as exc:
+    except ProcControlError as exc:
         print(f"sase task run: {exc}", file=sys.stderr)
         return 1
 
@@ -398,14 +398,14 @@ def _resolve_session_id(ref: str | None) -> str | None:
 def _requested_statuses(args: argparse.Namespace) -> set[str] | None:
     statuses: set[str] = {str(value) for value in getattr(args, "status", None) or ()}
     if bool(getattr(args, "running", False)):
-        statuses |= set(ACTIVE_TASK_STATUSES)
+        statuses |= set(ACTIVE_PROC_STATUSES)
     return statuses or None
 
 
 def _requested_kinds(args: argparse.Namespace) -> set[str] | None:
     kinds: set[str] = {str(value) for value in getattr(args, "kind", None) or ()}
     if bool(getattr(args, "detached", False)):
-        kinds.add(DETACHED_TASK_KIND)
+        kinds.add(DETACHED_PROC_KIND)
     return kinds or None
 
 
@@ -431,9 +431,9 @@ def _log_lines(args: argparse.Namespace) -> int:
     return max(0, getattr(args, "log_lines", 200))
 
 
-def _log_text(task: BackgroundTask, args: argparse.Namespace) -> str:
+def _log_text(task: Proc, args: argparse.Namespace) -> str:
     try:
-        return read_task_log_tail(task.task_id, _log_lines(args))
+        return read_proc_log_tail(task.proc_id, _log_lines(args))
     except (OSError, ValueError):
         return ""
 
@@ -478,7 +478,7 @@ def _live_session_ids() -> set[str]:
 def _reconcile_quietly() -> None:
     """Sweep orphaned rows; a reconciliation failure must not break output."""
     try:
-        reconcile_running_tasks()
+        reconcile_running_procs()
     except Exception:
         pass
 

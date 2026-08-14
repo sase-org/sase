@@ -8,7 +8,7 @@ import sys
 
 import pytest
 
-from sase.tasks import get_task
+from sase.procs import get_proc
 from tests.main.task_handler_helpers import (
     dead_pid,
     dispatch,
@@ -29,7 +29,7 @@ def test_list_renders_a_row_and_glyph_for_every_status(
     # ellipsis depending on the wall clock when the worker renders the table.
     monkeypatch.setenv("COLUMNS", "120")
     monkeypatch.setattr(
-        "sase.tasks.runner._supervisor_process_matches", lambda _task: True
+        "sase.procs.runner._supervisor_process_matches", lambda _task: True
     )
     statuses = ("pending", "running", "success", "error", "killed")
     for index, status in enumerate(statuses):
@@ -221,7 +221,7 @@ def test_list_running_filter_matches_pending_and_running(
 ) -> None:
     """``--running`` covers both active states and nothing terminal."""
     monkeypatch.setattr(
-        "sase.tasks.runner._supervisor_process_matches", lambda _task: True
+        "sase.procs.runner._supervisor_process_matches", lambda _task: True
     )
     stored(
         "aaaaaaaaaaaa",
@@ -264,7 +264,7 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
         "session_id": None,
     }
     task = payload["tasks"][0]
-    assert task["task_id"] == "aaaaaaaaaaaa"
+    assert task["proc_id"] == "aaaaaaaaaaaa"
     assert task["short_id"] == "aaaaaa"
     assert task["is_terminal"] is True
     assert task["detached"] is False
@@ -288,7 +288,7 @@ def test_list_reconciles_a_supervisor_that_never_reported(
     assert dispatch(["task", "list"]) == 0
 
     assert "✗" in capsys.readouterr().out
-    reconciled = get_task("aaaaaaaaaaaa")
+    reconciled = get_proc("aaaaaaaaaaaa")
     assert reconciled is not None
     assert reconciled.status == "error"
     assert reconciled.message == "supervisor exited without reporting"

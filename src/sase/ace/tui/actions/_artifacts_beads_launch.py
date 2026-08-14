@@ -93,7 +93,7 @@ class ArtifactsBeadsLaunchActionsMixin(ArtifactsBeadsCommonMixin):
             return TrackedTaskResult(
                 True,
                 f"Submitted work for {row.issue.id}",
-                str(launched.task_id),
+                str(launched.proc_id),
             )
 
         self._submit_beads_task(

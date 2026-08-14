@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from sase.tasks import get_task
+from sase.procs import get_proc
 from tests.main.task_handler_helpers import dispatch, stored, task_home
 
 __all__ = ["task_home"]
@@ -30,7 +30,7 @@ def test_kill_resolves_prefix_and_marks_active_task_killed(
     assert dispatch(["task", "kill", "aaa"]) == 0
 
     assert "Killed task aaaaaa." in capsys.readouterr().out
-    task = get_task("aaaaaaaaaaaa")
+    task = get_proc("aaaaaaaaaaaa")
     assert task is not None
     assert task.status == "killed"
 

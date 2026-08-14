@@ -264,7 +264,7 @@ def test_sweep_preserves_active_then_flushes_orphan_once() -> None:
     )
 
     with (
-        patch("sase.tasks.read_tasks", return_value=[active_task]),
+        patch("sase.procs.read_procs", return_value=[active_task]),
         patch("sase.notifications.senders.notify_workflow_complete") as notify,
     ):
         active_result = flush_orphaned_deferrals()
@@ -273,7 +273,7 @@ def test_sweep_preserves_active_then_flushes_orphan_once() -> None:
     notify.assert_not_called()
 
     with (
-        patch("sase.tasks.read_tasks", return_value=[]),
+        patch("sase.procs.read_procs", return_value=[]),
         patch("sase.notifications.senders.notify_workflow_complete") as notify,
     ):
         flushed_result = flush_orphaned_deferrals()
@@ -303,7 +303,7 @@ def test_sweep_leaves_young_pending_and_reaps_stale_settle() -> None:
         },
     )
 
-    with patch("sase.tasks.read_tasks", return_value=[]):
+    with patch("sase.procs.read_procs", return_value=[]):
         result = flush_orphaned_deferrals()
 
     assert result.young == 1

@@ -21,7 +21,7 @@ from sase.ace.tui.modals.tasks_pane import TasksPane
 from sase.ace.tui.modals.tasks_store_rows import StoreTasksSnapshot, _store_task_row
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue
 from sase.ace.testing import wait_for
-from sase.tasks import BackgroundTask
+from sase.procs import Proc
 
 
 def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -145,9 +145,9 @@ def store_task(
     session_label: str | None = None,
     kind: str = "command",
     message: str = "",
-) -> BackgroundTask:
-    return BackgroundTask(
-        task_id=task_id,
+) -> Proc:
+    return Proc(
+        proc_id=task_id,
         label=label,
         kind=kind,
         status=status,
@@ -168,7 +168,7 @@ def store_task(
 
 def patch_store_loader(
     monkeypatch: pytest.MonkeyPatch,
-    tasks: list[BackgroundTask],
+    tasks: list[Proc],
     *,
     live_session_ids: frozenset[str] = frozenset(),
     output: str = "",

@@ -13,7 +13,7 @@ from rich.text import Text
 
 from sase.sessions import session_chip
 from sase.core.time import local_now
-from sase.tasks import DETACHED_TASK_KIND
+from sase.procs import DETACHED_PROC_KIND
 
 from ..task_queue import TaskInfo, TaskLogLine
 from ..task_subprocess import command_display
@@ -84,7 +84,7 @@ def _row_session_chip(task: TaskInfo) -> Text | None:
     rows use their explicit marker instead; every other store-backed row gets
     a chip so foreign or unattributed ownership is visible at a glance.
     """
-    if not task.store_backed or task.task_type == DETACHED_TASK_KIND:
+    if not task.store_backed or task.task_type == DETACHED_PROC_KIND:
         return None
     live_ids: frozenset[str] = frozenset()
     if task.session_live and task.session_id is not None:
@@ -103,7 +103,7 @@ def _append_detached_marker(
     suffix: str = "",
 ) -> None:
     """Mark a globally owned task without introducing another color family."""
-    if task.task_type == DETACHED_TASK_KIND:
+    if task.task_type == DETACHED_PROC_KIND:
         text.append(f"{prefix}{_DETACHED_MARKER}{suffix}", style="bold cyan")
 
 

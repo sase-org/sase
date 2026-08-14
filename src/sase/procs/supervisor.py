@@ -1,4 +1,4 @@
-"""Detached command supervisor for :mod:`sase.tasks.runner`."""
+"""Detached command supervisor for :mod:`sase.procs.runner`."""
 
 from __future__ import annotations
 
@@ -11,13 +11,13 @@ import time
 from datetime import UTC, datetime
 from typing import IO, cast
 
-from .logs import open_task_log
-from .models import TERMINAL_TASK_STATUSES
-from .store import get_task, update_task
+from .logs import open_proc_log
+from .models import TERMINAL_PROC_STATUSES
+from .store import get_proc, update_proc
 
 _KILL_GRACE_SECONDS = 1.0
 _POLL_SECONDS = 0.05
-_CHILD_ENV_VAR = "_SASE_TASK_CHILD_ENV_JSON"
+_CHILD_ENV_VAR = "_SASE_PROC_CHILD_ENV_JSON"
 
 
 class _Termination:
@@ -65,12 +65,12 @@ class _Termination:
             self.child.wait()
 
 
-def _run_supervisor(task_id: str) -> int:
-    """Own one recorded task from child spawn through terminal status."""
-    task = get_task(task_id)
-    if task is None:
+def _run_supervisor(proc_id: str) -> int:
+    """Own one recorded proc from child spawn through terminal status."""
+    proc = get_proc(proc_id)
+    if proc is None:
         return 2
-    if task.status in TERMINAL_TASK_STATUSES:
+    if proc.status in TERMINAL_PROC_STATUSES:
         return 0
 
     termination = _Termination()
@@ -81,24 +81,24 @@ def _run_supervisor(task_id: str) -> int:
     exit_code: int | None = None
     message = "supervisor exited without reporting"
     try:
-        with open_task_log(task_id) as log:
+        with open_proc_log(proc_id) as log:
             if termination.requested:
                 status = "killed"
-                message = "task killed"
+                message = "proc killed"
             else:
                 child_env = _child_environment()
                 child_env.update(
                     {
-                        "SASE_TASK_ID": task.task_id,
-                        "SASE_TASK_LOG_PATH": task.log_path,
-                        "SASE_TASK_SESSION_ID": task.session_id or "",
+                        "SASE_PROC_ID": proc.proc_id,
+                        "SASE_PROC_LOG_PATH": proc.log_path,
+                        "SASE_PROC_SESSION_ID": proc.session_id or "",
                     }
                 )
                 try:
                     output = cast(IO[str], log)
                     child = subprocess.Popen(
-                        task.command,
-                        cwd=task.cwd,
+                        proc.command,
+                        cwd=proc.cwd,
                         env=child_env,
                         stdin=subprocess.DEVNULL,
                         stdout=output,
@@ -112,22 +112,22 @@ def _run_supervisor(task_id: str) -> int:
                     log.write(f"{message}\n")
                 else:
                     termination.attach(child)
-                    running = update_task(
-                        task_id,
+                    running = update_proc(
+                        proc_id,
                         status="running",
                         pid=os.getpid(),
                         pgid=child.pid,
                         started_at=_utc_timestamp(),
                     )
                     if (
-                        running.task is None
-                        or running.task.status in TERMINAL_TASK_STATUSES
+                        running.proc is None
+                        or running.proc.status in TERMINAL_PROC_STATUSES
                     ):
                         termination.request(signal.SIGTERM, None)
                     exit_code = termination.wait()
                     if termination.requested:
                         status = "killed"
-                        message = "task killed"
+                        message = "proc killed"
                     elif exit_code == 0:
                         status = "success"
                         message = "completed successfully"
@@ -138,13 +138,13 @@ def _run_supervisor(task_id: str) -> int:
         termination.terminate_after_failure()
         if termination.requested:
             status = "killed"
-            message = "task killed"
+            message = "proc killed"
         else:
             status = "error"
             message = f"supervisor error: {_one_line(exc)}"
     finally:
-        update_task(
-            task_id,
+        update_proc(
+            proc_id,
             status=status,
             exit_code=exit_code,
             message=message,
@@ -170,7 +170,7 @@ def _child_environment() -> dict[str, str]:
         isinstance(key, str) and isinstance(value, str)
         for key, value in overlay.items()
     ):
-        raise ValueError("task child environment must contain string pairs")
+        raise ValueError("proc child environment must contain string pairs")
     env.update(overlay)
     return env
 
@@ -184,13 +184,13 @@ def _one_line(value: object) -> str:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Supervise one SASE task.")
-    parser.add_argument("--task-id", required=True)
+    parser = argparse.ArgumentParser(description="Supervise one SASE proc.")
+    parser.add_argument("--proc-id", required=True)
     return parser
 
 
 def _main() -> int:
-    return _run_supervisor(_parser().parse_args().task_id)
+    return _run_supervisor(_parser().parse_args().proc_id)
 
 
 if __name__ == "__main__":

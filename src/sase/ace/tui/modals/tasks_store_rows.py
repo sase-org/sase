@@ -18,13 +18,13 @@ from datetime import datetime
 
 from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.core.time import local_now, to_local
-from sase.tasks import (
-    DETACHED_TASK_KIND,
-    BackgroundTask,
-    kill_task,
-    read_task_log_tail,
-    read_tasks,
-    task_store_path,
+from sase.procs import (
+    DETACHED_PROC_KIND,
+    Proc,
+    kill_proc,
+    proc_store_path,
+    read_proc_log_tail,
+    read_procs,
 )
 
 from ..task_queue import TaskInfo
@@ -67,7 +67,7 @@ def load_store_task_rows(
         A snapshot; ``unchanged=True`` means the store and the requested
         detail row both match what the caller already has.
     """
-    if not pytest_path_is_sandboxed(task_store_path()):
+    if not pytest_path_is_sandboxed(proc_store_path()):
         return StoreTasksSnapshot(all_sessions=all_sessions)
     mtime = _store_mtime()
     if (
@@ -82,13 +82,13 @@ def load_store_task_rows(
             unchanged=True,
         )
 
-    tasks = read_tasks()
+    tasks = read_procs()
     live_session_ids = _live_session_ids()
     rows = [
         _store_task_row(
             task,
             live_session_ids=live_session_ids,
-            with_output=task.task_id == detail_task_id,
+            with_output=task.proc_id == detail_task_id,
         )
         for task in tasks
         if _in_scope(task, session_id=session_id, all_sessions=all_sessions)
@@ -103,7 +103,7 @@ def load_store_task_rows(
 
 
 def _store_task_row(
-    task: BackgroundTask,
+    task: Proc,
     *,
     live_session_ids: frozenset[str] = frozenset(),
     with_output: bool = False,
@@ -112,9 +112,9 @@ def _store_task_row(
     started_at = _local_datetime(task.started_at or task.created_at) or local_now()
     output = ""
     if with_output:
-        output = _read_log_tail(task.task_id)
+        output = _read_log_tail(task.proc_id)
     return TaskInfo(
-        task_id=task.task_id,
+        task_id=task.proc_id,
         task_type=task.kind,
         cl_name=task.cl_name or "",
         project_file="",
@@ -128,7 +128,7 @@ def _store_task_row(
         command=list(task.command) or None,
         phase=task.phase,
         exit_code=task.exit_code,
-        durable_task_id=task.task_id,
+        durable_task_id=task.proc_id,
         store_backed=True,
         session_id=task.session_id,
         session_label=task.session_label,
@@ -139,28 +139,28 @@ def _store_task_row(
 def kill_store_task(task_id: str) -> str | None:
     """Kill a store-backed task, returning an error message on failure."""
     try:
-        kill_task(task_id)
+        kill_proc(task_id)
     except Exception as exc:
         return " ".join(str(exc).splitlines()) or type(exc).__name__
     return None
 
 
 def _in_scope(
-    task: BackgroundTask,
+    task: Proc,
     *,
     session_id: str | None,
     all_sessions: bool,
 ) -> bool:
     if all_sessions:
         return True
-    if task.kind == DETACHED_TASK_KIND:
+    if task.kind == DETACHED_PROC_KIND:
         return True
     return task.session_id is None or task.session_id == session_id
 
 
 def _store_mtime() -> float | None:
     try:
-        return task_store_path().stat().st_mtime
+        return proc_store_path().stat().st_mtime
     except OSError:
         return None
 
@@ -176,7 +176,7 @@ def _live_session_ids() -> frozenset[str]:
 
 def _read_log_tail(task_id: str) -> str:
     try:
-        return read_task_log_tail(task_id, DETAIL_LOG_LINES)
+        return read_proc_log_tail(task_id, DETAIL_LOG_LINES)
     except (OSError, ValueError):
         return ""
 

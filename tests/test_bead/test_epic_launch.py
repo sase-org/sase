@@ -185,7 +185,7 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     plan = tmp_path / "auth rewrite.md"
     monitor = SimpleNamespace(monitor_id="m7k2xyz")
     with (
-        patch("sase.tasks.tasks_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
         patch(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
@@ -235,14 +235,14 @@ def test_start_epic_launch_monitor_falls_back_to_detached_task_when_lane_missing
         session_id=None,
     )
     with (
-        patch("sase.tasks.tasks_dir", return_value=tmp_path / "tasks"),
-        patch("sase.tasks.read_tasks", return_value=[]),
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
         patch(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
         ),
         patch(
-            "sase.tasks.runner.submit_detached_task",
+            "sase.procs.runner.submit_detached_proc",
             return_value=task,
         ) as submit_task,
     ):
@@ -288,13 +288,13 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
         tags=["epic", "launch"],
     )
     with (
-        patch("sase.tasks.tasks_dir", return_value=tmp_path / "tasks"),
-        patch("sase.tasks.read_tasks", return_value=[existing]) as read_tasks,
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[existing]) as read_tasks,
         patch(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
         ),
-        patch("sase.tasks.runner.submit_detached_task") as submit_task,
+        patch("sase.procs.runner.submit_detached_proc") as submit_task,
     ):
         submitted = start_epic_launch_monitor(plan, cwd=tmp_path)
 

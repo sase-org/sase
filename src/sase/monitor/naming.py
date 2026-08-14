@@ -13,12 +13,12 @@ from sase.plan_chain import (
 #: ``--mon-0``, ``--mon-1``, ... .
 MONITOR_SEQUENCE_SUFFIX_TEMPLATE = f"{PLAN_CHAIN_MONITOR_SUFFIX}-@"
 
-#: Same alphabet/length as :data:`sase.tasks.ids.TASK_ID_ALPHABET` /
-#: ``TASK_ID_LENGTH`` so monitor ids read consistently with task ids.
+#: Same alphabet/length as :data:`sase.procs.ids.PROC_ID_ALPHABET` /
+#: ``PROC_ID_LENGTH`` so monitor ids read consistently with proc ids.
 _MONITOR_ID_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
 _MONITOR_ID_LENGTH = 12
 
-#: Mirrors :data:`sase.tasks.ids.SHORT_TASK_ID_LENGTH` for display.
+#: Mirrors :data:`sase.procs.ids.SHORT_PROC_ID_LENGTH` for display.
 SHORT_MONITOR_ID_LENGTH = 6
 
 

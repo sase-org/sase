@@ -44,7 +44,7 @@ from .reconcile import (
 _STOP_WAIT_SECONDS = 10.0
 _STOP_POLL_SECONDS = 0.1
 
-#: Mirrors :data:`sase.tasks.ids.MIN_TASK_REF_LENGTH` for monitor id prefixes.
+#: Mirrors :data:`sase.procs.ids.MIN_PROC_REF_LENGTH` for monitor id prefixes.
 MIN_MONITOR_REF_LENGTH = 3
 
 
@@ -145,7 +145,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     """Terminate a running monitor's supervisor and wait for it to settle.
 
     A dead supervisor pid is reconciled in place rather than treated as an
-    error, mirroring the durable-task store's dead-supervisor handling.
+    error, mirroring the durable-proc store's dead-supervisor handling.
     """
     if record.monitor_state != "running":
         return record
@@ -155,7 +155,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
 
     # The supervisor's own SIGTERM handler forwards to the monitored
     # command's process group; signal the supervisor pid directly rather
-    # than its group, mirroring ``sase.tasks.runner.kill_task``.
+    # than its group, mirroring ``sase.procs.runner.kill_proc``.
     try:
         os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):

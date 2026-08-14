@@ -10,8 +10,8 @@ from sase.ace.tui.modals.tasks_store_rows import (
     _store_task_row,
     load_store_task_rows,
 )
+from sase.procs import Proc, append_proc, proc_log_path
 from sase.sessions import SessionIdentity
-from sase.tasks import BackgroundTask, append_task, task_log_path
 
 
 @pytest.fixture(autouse=True)
@@ -39,9 +39,9 @@ def _append(
     status: str = "running",
     label: str | None = None,
     kind: str = "command",
-) -> BackgroundTask:
-    task = BackgroundTask(
-        task_id=task_id,
+) -> Proc:
+    task = Proc(
+        proc_id=task_id,
         label=label or f"task {task_id}",
         kind=kind,
         status=status,
@@ -49,11 +49,11 @@ def _append(
         cwd="/tmp",
         origin="cli",
         created_at=f"2026-07-25T12:0{len(task_id)}:00Z",
-        log_path=str(task_log_path(task_id)),
+        log_path=str(proc_log_path(task_id)),
         session_id=session_id,
         session_label="ace·sase#7" if session_id else None,
     )
-    append_task(task)
+    append_proc(task)
     return task
 
 
@@ -118,7 +118,7 @@ def test_only_the_detail_row_loads_its_log_tail() -> None:
     task = _append("aaa111", session_id="session-mine")
     other = _append("bbb222", session_id="session-mine")
     for record, text in ((task, "detail output\n"), (other, "other output\n")):
-        path = task_log_path(record.task_id)
+        path = proc_log_path(record.proc_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
@@ -135,8 +135,8 @@ def test_only_the_detail_row_loads_its_log_tail() -> None:
 
 def test_store_task_row_carries_display_state() -> None:
     row = _store_task_row(
-        BackgroundTask(
-            task_id="eee555",
+        Proc(
+            proc_id="eee555",
             label="Epic launch · auth",
             kind="command",
             status="killed",

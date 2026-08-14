@@ -14,13 +14,13 @@ from rich.text import Text
 
 from sase.core.time import format_local
 from sase.sessions import session_chip, short_session_handle
-from sase.tasks import (
-    COMMAND_TASK_KIND,
-    DETACHED_TASK_KIND,
-    TERMINAL_TASK_STATUSES,
-    TUI_TASK_KIND,
-    BackgroundTask,
-    short_task_id,
+from sase.procs import (
+    COMMAND_PROC_KIND,
+    DETACHED_PROC_KIND,
+    TERMINAL_PROC_STATUSES,
+    TUI_PROC_KIND,
+    Proc,
+    short_proc_id,
 )
 
 # Bumped only when the JSON payloads below change incompatibly.
@@ -37,9 +37,9 @@ STATUS_DISPLAY: dict[str, tuple[str, str]] = {
 }
 _UNKNOWN_DISPLAY = ("?", "dim")
 _KIND_DISPLAY: dict[str, tuple[str, str]] = {
-    COMMAND_TASK_KIND: ("⌘", "dim"),
-    TUI_TASK_KIND: ("▣", "dim"),
-    DETACHED_TASK_KIND: ("◆", "bold cyan"),
+    COMMAND_PROC_KIND: ("⌘", "dim"),
+    TUI_PROC_KIND: ("▣", "dim"),
+    DETACHED_PROC_KIND: ("◆", "bold cyan"),
 }
 _UNKNOWN_KIND_DISPLAY = ("?", "dim")
 
@@ -69,12 +69,12 @@ def _kind_text(kind: str, *, verbose: bool = False) -> Text:
     """Render a consistent compact kind marker, optionally with its name."""
     glyph, style = _KIND_DISPLAY.get(kind, _UNKNOWN_KIND_DISPLAY)
     label = kind
-    if kind == DETACHED_TASK_KIND and verbose:
+    if kind == DETACHED_PROC_KIND and verbose:
         label = "detached (global; no session owns this task)"
     return Text(f"{glyph} {label}" if verbose else glyph, style=style)
 
 
-def _task_duration_seconds(task: BackgroundTask) -> float | None:
+def _task_duration_seconds(task: Proc) -> float | None:
     """Return how long a task has run, or ``None`` when it never started."""
     started = _parse_timestamp(task.started_at)
     if started is None:
@@ -84,15 +84,15 @@ def _task_duration_seconds(task: BackgroundTask) -> float | None:
 
 
 def _task_json(
-    task: BackgroundTask,
+    task: Proc,
     *,
     live_session_ids: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """Return the stable JSON shape for one task."""
     payload: dict[str, Any] = dict(task.to_dict())
-    payload["short_id"] = short_task_id(task.task_id)
-    payload["is_terminal"] = task.status in TERMINAL_TASK_STATUSES
-    payload["detached"] = task.kind == DETACHED_TASK_KIND
+    payload["short_id"] = short_proc_id(task.proc_id)
+    payload["is_terminal"] = task.status in TERMINAL_PROC_STATUSES
+    payload["detached"] = task.kind == DETACHED_PROC_KIND
     payload["duration_seconds"] = _task_duration_seconds(task)
     payload["session_handle"] = (
         short_session_handle(task.session_id) if task.session_id else None
@@ -106,7 +106,7 @@ def _task_json(
 
 
 def task_list_json(
-    tasks: Sequence[BackgroundTask],
+    tasks: Sequence[Proc],
     *,
     scope: dict[str, Any],
     live_session_ids: Collection[str] | None = None,
@@ -123,7 +123,7 @@ def task_list_json(
 
 
 def task_show_json(
-    task: BackgroundTask,
+    task: Proc,
     *,
     log: str,
     live_session_ids: Collection[str] | None = None,
@@ -137,7 +137,7 @@ def task_show_json(
 
 
 def task_kill_json(
-    task: BackgroundTask,
+    task: Proc,
     *,
     changed: bool,
     live_session_ids: Collection[str] | None = None,
@@ -151,7 +151,7 @@ def task_kill_json(
 
 
 def task_table(
-    tasks: Sequence[BackgroundTask],
+    tasks: Sequence[Proc],
     *,
     title: str,
     live_session_ids: Collection[str] | None = None,
@@ -173,7 +173,7 @@ def task_table(
     table.add_column("EXIT", justify="right", no_wrap=True)
 
     for task in tasks:
-        terminal = task.status in TERMINAL_TASK_STATUSES
+        terminal = task.status in TERMINAL_PROC_STATUSES
         row_style = _TERMINAL_ROW_STYLE if terminal else ""
         glyph, glyph_style = _status_display(task.status)
         status_and_kind = Text()
@@ -182,7 +182,7 @@ def task_table(
         status_and_kind.append_text(_kind_text(task.kind))
         table.add_row(
             status_and_kind,
-            Text(short_task_id(task.task_id), style=row_style or "bold"),
+            Text(short_proc_id(task.proc_id), style=row_style or "bold"),
             Text(task.label, style=row_style),
             session_chip(task.to_dict(), live_session_ids=live_session_ids),
             Text(task.project or "—", style=row_style or "dim"),
@@ -215,7 +215,7 @@ def empty_task_panel(title: str, *, hint: str | None = None) -> Panel:
 
 
 def task_detail(
-    task: BackgroundTask,
+    task: Proc,
     *,
     live_session_ids: Collection[str] | None = None,
 ) -> Panel:
@@ -226,7 +226,7 @@ def task_detail(
 
     rows: list[tuple[str, RenderableType]] = [
         ("Status", status_text(task.status)),
-        ("Id", Text(f"{task.task_id}  ({short_task_id(task.task_id)})")),
+        ("Id", Text(f"{task.proc_id}  ({short_proc_id(task.proc_id)})")),
         ("Kind", _kind_text(task.kind, verbose=True)),
         ("Origin", Text(task.origin)),
         ("Session", session_chip(task.to_dict(), live_session_ids=live_session_ids)),
@@ -268,26 +268,26 @@ def task_detail(
     )
 
 
-def _command_display(task: BackgroundTask) -> str:
+def _command_display(task: Proc) -> str:
     if not task.command:
         return "—"
     return " ".join(task.command)
 
 
-def _relative_start(task: BackgroundTask) -> str:
+def _relative_start(task: Proc) -> str:
     from sase.notifications.models import format_relative_time
 
     return format_relative_time(task.started_at or task.created_at)
 
 
-def _duration_label(task: BackgroundTask) -> str:
+def _duration_label(task: Proc) -> str:
     from sase.ace.hooks.timestamps import format_duration
 
     seconds = _task_duration_seconds(task)
     return "—" if seconds is None else format_duration(seconds)
 
 
-def _exit_code_text(task: BackgroundTask) -> Text:
+def _exit_code_text(task: Proc) -> Text:
     if task.exit_code is None:
         return Text("—", style="dim")
     style = "dim" if task.exit_code == 0 else "bold red"

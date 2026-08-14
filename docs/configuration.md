@@ -3233,7 +3233,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | Variable                  | Description                                                                                                                                                          |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SASE_HOME`               | Override the SASE state root. Defaults to `~/.sase`; project files, chats, artifacts, notifications, dismissed bundles, saved groups, and logs move under this root. |
-| `SASE_TASK_LOG_MAX_BYTES` | Maximum active task-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                               |
+| `SASE_PROC_LOG_MAX_BYTES` | Maximum active proc-log segment size in bytes (default: 2 MiB); `0` disables rotation.                                                                               |
 
 ### General
 

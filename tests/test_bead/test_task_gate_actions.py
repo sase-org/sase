@@ -27,7 +27,7 @@ def test_task_triage_launch_executes_real_command_translates_and_persists_task_i
 ) -> None:
     del gate_home
     gate = create_gate(task_triage_spec(request_id="task-triage-launch"))
-    task = SimpleNamespace(task_id="task-bg-123")
+    task = SimpleNamespace(proc_id="task-bg-123")
     primary = Path("/canonical/sase")
 
     with (

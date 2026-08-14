@@ -256,7 +256,7 @@ def require_machine_name() -> str:
 DEFAULT_MAX_RUNNING_AGENTS = 10
 DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
-DEFAULT_TASK_HISTORY_LIMIT = 100
+DEFAULT_PROC_HISTORY_LIMIT = 100
 DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
 DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
 DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
@@ -325,17 +325,26 @@ def get_runner_slot_deference_max_seconds() -> int:
     return DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
 
 
-def get_task_history_limit() -> int:
-    """Return the validated configured finished-task retention limit."""
-    tasks = load_merged_config().get("tasks", {})
-    value = (
-        tasks.get("history_limit", DEFAULT_TASK_HISTORY_LIMIT)
-        if isinstance(tasks, dict)
-        else DEFAULT_TASK_HISTORY_LIMIT
-    )
+def get_proc_history_limit() -> int:
+    """Return the validated configured finished-proc retention limit."""
+    merged = load_merged_config()
+    procs = merged.get("procs", {})
+    if isinstance(procs, dict) and "history_limit" in procs:
+        value = procs["history_limit"]
+    else:
+        tasks = merged.get("tasks", {})
+        value = (
+            tasks.get("history_limit", DEFAULT_PROC_HISTORY_LIMIT)
+            if isinstance(tasks, dict)
+            else DEFAULT_PROC_HISTORY_LIMIT
+        )
     if type(value) is int and value >= 1:
         return value
-    return DEFAULT_TASK_HISTORY_LIMIT
+    return DEFAULT_PROC_HISTORY_LIMIT
+
+
+# Legacy accessor alias; retire after every caller moves to the proc spelling.
+get_task_history_limit = get_proc_history_limit
 
 
 def get_markdown_print_width() -> int:

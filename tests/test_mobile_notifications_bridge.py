@@ -491,7 +491,7 @@ def test_execute_mobile_task_triage_reports_registered_action_kind(
         title="Review mobile follow-up",
     )
     notification = load_notifications()[0]
-    task = SimpleNamespace(task_id="mobile-task-123")
+    task = SimpleNamespace(proc_id="mobile-task-123")
 
     with (
         patch(

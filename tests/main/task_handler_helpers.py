@@ -9,8 +9,8 @@ import pytest
 
 from sase.main.parser import create_parser
 from sase.main.task_handler import handle_task_command
+from sase.procs import Proc, append_proc, proc_log_path
 from sase.sessions import SessionIdentity
-from sase.tasks import BackgroundTask, append_task, task_log_path
 
 
 @pytest.fixture(autouse=True)
@@ -59,10 +59,10 @@ def stored(
     pid: int | None = None,
     command: list[str] | None = None,
     kind: str = "command",
-) -> BackgroundTask:
+) -> Proc:
     """Append and return a task with concise test-friendly defaults."""
-    task = BackgroundTask(
-        task_id=task_id,
+    task = Proc(
+        proc_id=task_id,
         label=label,
         kind=kind,
         status=status,
@@ -78,15 +78,15 @@ def stored(
         created_at=created_at,
         started_at=started_at,
         finished_at=finished_at,
-        log_path=str(task_log_path(task_id)),
+        log_path=str(proc_log_path(task_id)),
     )
-    append_task(task)
+    append_proc(task)
     return task
 
 
 def write_log(task_id: str, text: str) -> None:
     """Write captured output for a stored task."""
-    path = task_log_path(task_id)
+    path = proc_log_path(task_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
 

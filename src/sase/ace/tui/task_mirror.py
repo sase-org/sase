@@ -24,28 +24,28 @@ from datetime import UTC, datetime
 
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 from sase.core.time import get_timezone, local_now
-from sase.tasks import (
-    ACTIVE_TASK_STATUSES,
-    COMMAND_TASK_KIND,
-    DETACHED_TASK_KIND,
-    BackgroundTask,
-    TERMINAL_TASK_STATUSES,
-    TUI_TASK_KIND,
-    append_task,
-    append_task_log_text,
-    new_task_id,
-    read_tasks,
-    reconcile_running_tasks,
-    task_log_path,
-    task_store_path,
-    update_task,
+from sase.procs import (
+    ACTIVE_PROC_STATUSES,
+    COMMAND_PROC_KIND,
+    DETACHED_PROC_KIND,
+    Proc,
+    TERMINAL_PROC_STATUSES,
+    TUI_PROC_KIND,
+    append_proc,
+    append_proc_log_text,
+    new_proc_id,
+    proc_log_path,
+    proc_store_path,
+    read_procs,
+    reconcile_running_procs,
+    update_proc,
 )
 
 from .task_queue import TaskInfo
 
 log = logging.getLogger(__name__)
 
-MIRROR_KIND = TUI_TASK_KIND
+MIRROR_KIND = TUI_PROC_KIND
 MIRROR_ORIGIN = "ace"
 STATE_WRITE_CATEGORY = "tasks"
 
@@ -134,7 +134,7 @@ class TaskMirror:
     def start(self) -> bool:
         """Start the writer thread unless store writes are not permitted."""
         if not best_effort_test_state_write_allowed(
-            task_store_path(), category=STATE_WRITE_CATEGORY
+            proc_store_path(), category=STATE_WRITE_CATEGORY
         ):
             return False
         with self._lock:
@@ -171,7 +171,7 @@ class TaskMirror:
         if not self.running:
             return None
         try:
-            task_id = new_task_id()
+            task_id = new_proc_id()
             info.durable_task_id = task_id
             self._queue.put(_TrackOp(info=info, cl_name=cl_name or None))
             return task_id
@@ -251,9 +251,9 @@ class TaskMirror:
         context = self._resolve_context()
         status = _STATUS_BY_TUI_STATUS.get(info.status, "running")
         created_at = _utc_timestamp(info.started_at)
-        append_task(
-            BackgroundTask(
-                task_id=task_id,
+        append_proc(
+            Proc(
+                proc_id=task_id,
                 label=info.label,
                 kind=MIRROR_KIND,
                 status=status,
@@ -271,7 +271,7 @@ class TaskMirror:
                 message=info.message or None,
                 created_at=created_at,
                 started_at=created_at,
-                log_path=str(task_log_path(task_id)),
+                log_path=str(proc_log_path(task_id)),
             )
         )
         tracked = _Tracked(
@@ -287,7 +287,7 @@ class TaskMirror:
         tracked = self._tracked.pop(op.task_id, None)
         if tracked is not None:
             self._flush_log(tracked)
-        update_task(
+        update_proc(
             op.task_id,
             status=op.status,
             message=op.message or None,
@@ -308,7 +308,7 @@ class TaskMirror:
         if now >= self._next_reconcile:
             self._next_reconcile = now + RECONCILE_SECONDS
             try:
-                reconcile_running_tasks()
+                reconcile_running_procs()
             except Exception:
                 log.debug("task reconciliation failed", exc_info=True)
         if now >= self._next_detached_poll:
@@ -331,7 +331,7 @@ class TaskMirror:
             else snapshot.lines
         )
         tracked.emitted_lines = total
-        append_task_log_text(
+        append_proc_log_text(
             tracked.task_id,
             "".join(f"{line.text}\n" for line in lines),
         )
@@ -339,24 +339,24 @@ class TaskMirror:
     def _mirror_progress(self, tracked: _Tracked) -> None:
         info = tracked.info
         status = _STATUS_BY_TUI_STATUS.get(info.status, "running")
-        if status in TERMINAL_TASK_STATUSES:
+        if status in TERMINAL_PROC_STATUSES:
             return
         if status == tracked.status and info.phase == tracked.phase:
             return
         tracked.status = status
         tracked.phase = info.phase
-        update_task(tracked.task_id, status=status, phase=info.phase)
+        update_proc(tracked.task_id, status=status, phase=info.phase)
 
     def _refresh_detached_count(self) -> None:
         """Count global detached tasks plus this session's command tasks."""
         context = self._resolve_context()
-        rows = read_tasks(status=ACTIVE_TASK_STATUSES)
+        rows = read_procs(status=ACTIVE_PROC_STATUSES)
         count = sum(
             1
             for row in rows
-            if row.kind == DETACHED_TASK_KIND
+            if row.kind == DETACHED_PROC_KIND
             or (
-                row.kind == COMMAND_TASK_KIND
+                row.kind == COMMAND_PROC_KIND
                 and context.session_id is not None
                 and row.session_id == context.session_id
             )

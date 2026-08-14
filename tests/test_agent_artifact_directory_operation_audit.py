@@ -217,6 +217,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "retry; interaction bundles are not agent artifact directories."
         ),
     ),
+    "src/sase/procs/_migration.py:_perform_migration": DirOpReview(
+        exemption=(
+            "Relocates the legacy ~/.sase/tasks proc-store logs directory to "
+            "~/.sase/procs during the one-shot rename migration, not an agent "
+            "artifact directory."
+        ),
+    ),
     "src/sase/sdd/_store_adoption.py:cleanup_staging": DirOpReview(
         exemption=(
             "Removes only provider-owned SDD materialization staging and recovery "

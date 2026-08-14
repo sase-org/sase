@@ -102,7 +102,7 @@ class GateAdapter:
             if isinstance(response, dict):
                 from sase.notification_gates.durability import atomic_write_json
 
-                response["task_launch_task_id"] = task_launch.task_id
+                response["task_launch_task_id"] = task_launch.proc_id
                 atomic_write_json(bundle_path / "response.json", response)
             return
         if self.kind == "bead_snooze":
@@ -215,7 +215,7 @@ class GateAdapter:
                     from sase.notification_gates.durability import atomic_write_json
 
                     monitor_id = getattr(launch, "monitor_id", None)
-                    task_id = getattr(launch, "task_id", None)
+                    task_id = getattr(launch, "proc_id", None)
                     if monitor_id:
                         response["epic_launch_monitor_id"] = str(monitor_id)
                     elif task_id:

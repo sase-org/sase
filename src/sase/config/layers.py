@@ -36,6 +36,7 @@ DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
     "memory_readme_template": "memory.readme_template",
     "memory_sase_template": "memory.sase_template",
     "sibling_repos": "repos.linked",
+    "tasks": "procs",
 }
 
 # Placement is provider-owned. These nested keys are recognized only so old

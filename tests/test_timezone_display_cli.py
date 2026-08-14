@@ -17,11 +17,11 @@ from sase.memory.read_log import MemoryReadEvent
 from sase.memory.review_tui._render import format_time_or_age
 from sase.notification_gates.debug import iso_from_unix as debug_iso_from_unix
 from sase.notification_gates.debug_rendering import iso_from_unix
+from sase.procs import Proc
 from sase.repo_open_cli_log import _event_panel as repo_event_panel
 from sase.repo_open_log import RepoOpenEvent
 from sase.skills.cli_log import _event_panel as skill_event_panel
 from sase.skills.use_log import SkillUseEvent
-from sase.tasks import BackgroundTask
 from sase.telemetry.render import (
     format_recording_started,
     render_bar_chart,
@@ -44,8 +44,8 @@ def _render_plain(renderable: object, *, width: int = 200) -> str:
 def test_task_detail_uses_configured_timezone_but_json_stays_raw(
     tz_divergence: None,
 ) -> None:
-    task = BackgroundTask(
-        task_id="task-1",
+    task = Proc(
+        proc_id="task-1",
         label="Timezone task",
         kind="command",
         status="success",

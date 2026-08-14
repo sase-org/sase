@@ -13,8 +13,8 @@ import pytest
 import sase.ace.tui.task_mirror as tm
 from sase.ace.tui.task_mirror import TaskMirror
 from sase.ace.tui.task_queue import TaskInfo
+from sase.procs import read_proc_log_tail, read_procs
 from sase.sessions import SessionIdentity
-from sase.tasks import read_task_log_tail, read_tasks
 
 
 @pytest.fixture
@@ -64,17 +64,17 @@ def test_mirror_defers_every_store_write_to_the_writer_thread(
 
     monkeypatch.setattr(
         tm,
-        "append_task",
+        "append_proc",
         lambda record: writes.append(("append", threading.get_ident())),
     )
     monkeypatch.setattr(
         tm,
-        "update_task",
+        "update_proc",
         lambda task_id, **changes: writes.append(("update", threading.get_ident())),
     )
     monkeypatch.setattr(
         tm,
-        "append_task_log_text",
+        "append_proc_log_text",
         lambda task_id, text: writes.append(("log", threading.get_ident())),
     )
 
@@ -111,8 +111,8 @@ def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None
         assert task_id is not None
         assert mirror.flush(timeout=5.0) is True
 
-        rows = read_tasks()
-        assert [row.task_id for row in rows] == [task_id]
+        rows = read_procs()
+        assert [row.proc_id for row in rows] == [task_id]
         row = rows[0]
         assert row.kind == "tui"
         assert row.origin == "ace"
@@ -124,7 +124,7 @@ def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None
         assert row.cl_name == "sase-42"
         assert row.tags == ["ace", "sync"]
         assert row.pid == os.getpid()
-        assert "remote: counting objects" in read_task_log_tail(task_id, 10)
+        assert "remote: counting objects" in read_proc_log_tail(task_id, 10)
 
         info.log.append("second line")
         info.status = "success"
@@ -133,12 +133,12 @@ def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None
     finally:
         _stop(mirror)
 
-    row = read_tasks()[0]
+    row = read_procs()[0]
     assert row.status == "success"
     assert row.message == "synced"
     assert row.exit_code == 0
     assert row.finished_at is not None
-    tail = read_task_log_tail(row.task_id, 10)
+    tail = read_proc_log_tail(row.proc_id, 10)
     assert tail.splitlines() == ["remote: counting objects", "second line"]
 
 
@@ -159,8 +159,8 @@ def test_mirror_flushes_only_new_log_lines(sandboxed_home: Path) -> None:
     finally:
         _stop(mirror)
 
-    assert read_task_log_tail(str(task_id), 10) == "line 1\nline 2\n"
-    row = read_tasks()[0]
+    assert read_proc_log_tail(str(task_id), 10) == "line 1\nline 2\n"
+    row = read_procs()[0]
     assert row.status == "error"
     assert row.exit_code == 2
 
@@ -191,7 +191,7 @@ def test_progress_tick_does_not_terminalize_before_finish(
     finally:
         _stop(mirror)
 
-    row = read_tasks()[0]
+    row = read_procs()[0]
     assert row.status == "success"
     assert row.message == "started"
     assert row.exit_code == 0
@@ -201,7 +201,7 @@ def test_mirror_counts_global_detached_and_this_sessions_command_tasks(
     sandboxed_home: Path,
 ) -> None:
     del sandboxed_home
-    from sase.tasks import BackgroundTask, append_task
+    from sase.procs import Proc, append_proc
 
     for index, (session_id, kind, status) in enumerate(
         (
@@ -213,9 +213,9 @@ def test_mirror_counts_global_detached_and_this_sessions_command_tasks(
             (None, "detached", "success"),
         )
     ):
-        append_task(
-            BackgroundTask(
-                task_id=f"row{index}",
+        append_proc(
+            Proc(
+                proc_id=f"row{index}",
                 label=f"row {index}",
                 kind=kind,
                 status=status,
@@ -242,13 +242,13 @@ def test_mirror_counts_global_detached_tasks_without_a_tui_session(
 ) -> None:
     """A missing session must not hide globally owned work."""
     del sandboxed_home
-    from sase.tasks import BackgroundTask, append_task
+    from sase.procs import Proc, append_proc
 
     monkeypatch.setattr("sase.sessions.current_session_id", lambda: None)
     monkeypatch.setattr("sase.sessions.live_sessions", lambda: [])
-    append_task(
-        BackgroundTask(
-            task_id="global-row",
+    append_proc(
+        Proc(
+            proc_id="global-row",
             label="global row",
             kind="detached",
             status="running",
@@ -296,14 +296,14 @@ def test_mirror_tick_reconciles_and_mirrors_progress(
             reconciled.append("swept")
         return []
 
-    monkeypatch.setattr(tm, "reconcile_running_tasks", reconcile)
+    monkeypatch.setattr(tm, "reconcile_running_procs", reconcile)
     updates: list[dict[str, Any]] = []
 
     def update(task_id: str, **changes: Any) -> None:
         if threading.get_ident() == caller:
             updates.append({"task_id": task_id, **changes})
 
-    monkeypatch.setattr(tm, "update_task", update)
+    monkeypatch.setattr(tm, "update_proc", update)
 
     mirror = TaskMirror()
     info = _task_info()
