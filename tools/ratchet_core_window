@@ -10,6 +10,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import copy
 import difflib
 import json
 import re
@@ -31,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 DEFAULT_UV_LOCK = REPO_ROOT / "uv.lock"
 DEPENDENCY_NAME = "sase-core-rs"
+PROJECT_PACKAGE_NAME = "sase"
 PYPI_URL = f"https://pypi.org/pypi/{DEPENDENCY_NAME}/json"
 PYPI_TIMEOUT_SECONDS = 5.0
 PYPI_ATTEMPTS = 3
@@ -349,20 +351,6 @@ def _changed_line_indices(before: str, after: str, label: str) -> list[int]:
     ]
 
 
-def _find_package_stanza(lines: list[str], package_name: str) -> range:
-    stanza_starts = [
-        index for index, line in enumerate(lines) if line.strip() == "[[package]]"
-    ]
-    for offset, start in enumerate(stanza_starts):
-        end = stanza_starts[offset + 1] if offset + 1 < len(stanza_starts) else len(lines)
-        if any(
-            line.strip() == f'name = "{package_name}"'
-            for line in lines[start + 1 : end]
-        ):
-            return range(start, end)
-    raise LockRefreshError(f"uv.lock has no [[package]] stanza for {package_name}")
-
-
 def _validate_pyproject_diff(
     before: str,
     after: str,
@@ -382,79 +370,184 @@ def _validate_pyproject_diff(
         )
 
 
+def _parse_uv_lock(text: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    try:
+        parsed = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as exc:
+        raise LockRefreshError(f"uv.lock is invalid TOML: {exc}") from exc
+
+    packages = parsed.get("package")
+    if not isinstance(packages, list):
+        raise LockRefreshError("uv.lock is missing [[package]] entries")
+    for package in packages:
+        if not isinstance(package, dict):
+            raise LockRefreshError("uv.lock contains a non-table package entry")
+    return parsed, packages
+
+
+def _package_name(package: dict[str, Any]) -> str:
+    name = package.get("name")
+    if not isinstance(name, str):
+        raise LockRefreshError("uv.lock contains a package without a string name")
+    return name
+
+
+def _metadata_requires_dist(package: dict[str, Any]) -> list[dict[str, Any]]:
+    metadata = package.get("metadata")
+    requires_dist = metadata.get("requires-dist") if isinstance(metadata, dict) else None
+    if not isinstance(requires_dist, list):
+        raise LockRefreshError(
+            f"uv.lock package {_package_name(package)} has no metadata requires-dist"
+        )
+    for requirement in requires_dist:
+        if not isinstance(requirement, dict):
+            raise LockRefreshError(
+                f"uv.lock package {_package_name(package)} has a non-table "
+                "requires-dist entry"
+            )
+    return requires_dist
+
+
+def _expected_project_package_after(
+    before_package: dict[str, Any],
+    new_specifier: str,
+) -> dict[str, Any]:
+    expected = copy.deepcopy(before_package)
+    matches = 0
+    for requirement in _metadata_requires_dist(expected):
+        name = requirement.get("name")
+        if isinstance(name, str) and _normalize_name(name) == DEPENDENCY_NAME:
+            requirement["specifier"] = new_specifier
+            matches += 1
+    if matches != 1:
+        raise LockRefreshError(
+            f"uv.lock package {PROJECT_PACKAGE_NAME} has {matches} metadata "
+            f"requires-dist entries for {DEPENDENCY_NAME}; expected 1"
+        )
+    return expected
+
+
+def _validate_core_artifact(
+    artifact: object,
+    *,
+    target: ParsedVersion,
+    label: str,
+    filename_prefix: str,
+    filename_suffix: str,
+) -> None:
+    if not isinstance(artifact, dict):
+        raise LockRefreshError(f"uv.lock {label} entry is not a table")
+    url = artifact.get("url")
+    if not isinstance(url, str):
+        raise LockRefreshError(f"uv.lock {label} entry has no URL")
+    expected_name = f"{filename_prefix}{target.raw}{filename_suffix}"
+    if expected_name not in url:
+        raise LockRefreshError(
+            f"uv.lock {label} URL did not update to {DEPENDENCY_NAME} {target.raw}"
+        )
+
+
+def _validate_core_package_after(
+    *,
+    before_package: dict[str, Any],
+    after_package: dict[str, Any],
+    target: ParsedVersion,
+) -> None:
+    before_static = {
+        key: value
+        for key, value in before_package.items()
+        if key not in {"version", "sdist", "wheels"}
+    }
+    after_static = {
+        key: value
+        for key, value in after_package.items()
+        if key not in {"version", "sdist", "wheels"}
+    }
+    if before_static != after_static:
+        raise LockRefreshError(
+            f"uv.lock {DEPENDENCY_NAME} package changed fields other than "
+            "version, sdist, or wheels"
+        )
+    if after_package.get("version") != target.raw:
+        raise LockRefreshError(
+            f"uv.lock package version did not update to {target.raw}"
+        )
+
+    _validate_core_artifact(
+        after_package.get("sdist"),
+        target=target,
+        label=f"{DEPENDENCY_NAME} sdist",
+        filename_prefix="sase_core_rs-",
+        filename_suffix=".tar.gz",
+    )
+    wheels = after_package.get("wheels")
+    if not isinstance(wheels, list) or not wheels:
+        raise LockRefreshError(f"uv.lock {DEPENDENCY_NAME} package has no wheels")
+    for index, wheel in enumerate(wheels, start=1):
+        _validate_core_artifact(
+            wheel,
+            target=target,
+            label=f"{DEPENDENCY_NAME} wheel #{index}",
+            filename_prefix="sase_core_rs-",
+            filename_suffix="-",
+        )
+
+
 def _validate_uv_lock_diff(
     before: str,
     after: str,
     target: ParsedVersion,
     new_specifier: str,
 ) -> None:
-    changed = _changed_line_indices(before, after, "uv.lock")
-    if len(changed) != 7:
+    before_data, before_packages = _parse_uv_lock(before)
+    after_data, after_packages = _parse_uv_lock(after)
+    before_top = {key: value for key, value in before_data.items() if key != "package"}
+    after_top = {key: value for key, value in after_data.items() if key != "package"}
+    if before_top != after_top:
+        raise LockRefreshError("uv.lock top-level metadata changed unexpectedly")
+
+    before_names = [_package_name(package) for package in before_packages]
+    after_names = [_package_name(package) for package in after_packages]
+    if before_names != after_names:
         raise LockRefreshError(
-            f"uv.lock changed {len(changed)} line(s); expected exactly 7 "
-            f"{DEPENDENCY_NAME} replacements"
+            "uv.lock package order or package set changed unexpectedly"
         )
 
-    before_lines = before.splitlines(keepends=True)
-    after_lines = after.splitlines(keepends=True)
-    package_stanza = _find_package_stanza(before_lines, DEPENDENCY_NAME)
-    metadata_indices = [
-        index
-        for index, line in enumerate(before_lines)
-        if f'{{ name = "{DEPENDENCY_NAME}", specifier = ' in line
-    ]
-    if len(metadata_indices) != 1:
-        raise LockRefreshError(
-            f"uv.lock has {len(metadata_indices)} metadata requires-dist "
-            f"specifier lines for {DEPENDENCY_NAME}; expected 1"
-        )
-    metadata_index = metadata_indices[0]
-
-    counts = {"metadata": 0, "version": 0, "sdist": 0, "wheel": 0}
-    for index in changed:
-        before_line = before_lines[index].strip()
-        after_line = after_lines[index].strip()
-        if index == metadata_index:
-            expected = f'{{ name = "{DEPENDENCY_NAME}", specifier = "{new_specifier}" }}'
-            if expected not in after_line:
+    seen_project_package = False
+    seen_core_package = False
+    for before_package, after_package, package_name in zip(
+        before_packages,
+        after_packages,
+        before_names,
+        strict=True,
+    ):
+        normalized_name = _normalize_name(package_name)
+        if normalized_name == PROJECT_PACKAGE_NAME:
+            seen_project_package = True
+            expected = _expected_project_package_after(before_package, new_specifier)
+            if after_package != expected:
                 raise LockRefreshError(
-                    f"uv.lock metadata specifier did not update to {new_specifier}"
+                    f"uv.lock package {PROJECT_PACKAGE_NAME} changed outside the "
+                    f"{DEPENDENCY_NAME} metadata specifier"
                 )
-            counts["metadata"] += 1
-            continue
-        if index not in package_stanza:
-            raise LockRefreshError(
-                f"uv.lock changed outside the {DEPENDENCY_NAME} package stanza"
+        elif normalized_name == DEPENDENCY_NAME:
+            seen_core_package = True
+            _validate_core_package_after(
+                before_package=before_package,
+                after_package=after_package,
+                target=target,
             )
-        if before_line.startswith("version = "):
-            if after_line != f'version = "{target.raw}"':
-                raise LockRefreshError(
-                    f"uv.lock package version did not update to {target.raw}"
-                )
-            counts["version"] += 1
-        elif before_line.startswith("sdist = "):
-            if f"sase_core_rs-{target.raw}.tar.gz" not in after_line:
-                raise LockRefreshError(
-                    f"uv.lock sdist line did not update to {target.raw}"
-                )
-            counts["sdist"] += 1
-        elif before_line.startswith("{ url = ") and ".whl" in before_line:
-            if f"sase_core_rs-{target.raw}-" not in after_line:
-                raise LockRefreshError(
-                    f"uv.lock wheel line did not update to {target.raw}"
-                )
-            counts["wheel"] += 1
-        else:
+        elif before_package != after_package:
             raise LockRefreshError(
-                f"uv.lock changed unexpected {DEPENDENCY_NAME} stanza line: "
-                f"{before_line}"
+                f"uv.lock changed unrelated package {package_name}"
             )
 
-    expected_counts = {"metadata": 1, "version": 1, "sdist": 1, "wheel": 4}
-    if counts != expected_counts:
+    if not seen_project_package:
         raise LockRefreshError(
-            f"uv.lock changed {counts}; expected {expected_counts}"
+            f"uv.lock has no [[package]] stanza for {PROJECT_PACKAGE_NAME}"
         )
+    if not seen_core_package:
+        raise LockRefreshError(f"uv.lock has no [[package]] stanza for {DEPENDENCY_NAME}")
 
 
 def _validate_expected_diffs(

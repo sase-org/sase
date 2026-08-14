@@ -82,9 +82,18 @@ dependencies = [
 
 
 def _lock_text(version: str = "0.21.3", specifier: str = ">=0.21.3,<0.22.0") -> str:
+    return _lock_text_for_platforms(version, specifier, platforms=PLATFORMS)
+
+
+def _lock_text_for_platforms(
+    version: str,
+    specifier: str,
+    *,
+    platforms: tuple[str, ...],
+) -> str:
     wheel_lines = "\n".join(
         f'    {{ url = "https://files.example/sase_core_rs-{version}-cp312-abi3-{platform}.whl", hash = "sha256:{index}", size = {index} }},'
-        for index, platform in enumerate(PLATFORMS, start=1)
+        for index, platform in enumerate(platforms, start=1)
     )
     return f"""
 version = 1
@@ -126,11 +135,15 @@ def _write_project(
     return pyproject, uv_lock
 
 
-def _successful_lock_runner(tool: ModuleType):
+def _successful_lock_runner(
+    tool: ModuleType,
+    *,
+    platforms: tuple[str, ...] = PLATFORMS,
+):
     def _runner(project_dir: Path, target: object) -> subprocess.CompletedProcess[str]:
         specifier = tool.dependency_specifier_for_floor(target)
         (project_dir / "uv.lock").write_text(
-            _lock_text(target.raw, specifier),
+            _lock_text_for_platforms(target.raw, specifier, platforms=platforms),
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
@@ -245,6 +258,30 @@ def test_default_mode_applies_pyproject_and_guarded_lock_update(
     assert "applied" in capsys.readouterr().out
 
 
+def test_default_mode_accepts_expanded_core_artifact_set(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pyproject, uv_lock = _write_project(tmp_path)
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+    expanded_platforms = PLATFORMS + ("manylinux_2_28_ppc64le",)
+    monkeypatch.setattr(
+        tool,
+        "_run_uv_lock",
+        _successful_lock_runner(tool, platforms=expanded_platforms),
+    )
+
+    code = tool.main(["--pyproject", str(pyproject), "--uv-lock", str(uv_lock)])
+
+    assert code == tool.EXIT_RATCHET
+    assert "sase_core_rs-0.22.0-cp312-abi3-manylinux_2_28_ppc64le.whl" in (
+        uv_lock.read_text(encoding="utf-8")
+    )
+
+
 def test_idempotent_when_declared_floor_is_newest(
     tool: ModuleType,
     tmp_path: Path,
@@ -315,7 +352,7 @@ def test_network_failure_is_distinguishable_and_non_destructive(
     assert "network unavailable" in capsys.readouterr().err
 
 
-def test_unexpected_lock_diff_restores_files(
+def test_unrelated_package_movement_restores_files(
     tool: ModuleType,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -348,7 +385,45 @@ def test_unexpected_lock_diff_restores_files(
     assert code == tool.EXIT_COULD_NOT_DETERMINE
     assert pyproject.read_text(encoding="utf-8") == before_pyproject
     assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
-    assert "uv.lock changed 8 line(s)" in capsys.readouterr().err
+    assert (
+        "package order or package set changed unexpectedly" in capsys.readouterr().err
+    )
+
+
+def test_unrelated_direct_dependency_diff_restores_files(
+    tool: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject, uv_lock = _write_project(tmp_path)
+    before_pyproject = pyproject.read_text(encoding="utf-8")
+    before_uv_lock = uv_lock.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        tool, "fetch_pypi_metadata", lambda: _metadata("0.21.3", "0.22.0")
+    )
+
+    def _bad_lock_runner(
+        project_dir: Path,
+        target: object,
+    ) -> subprocess.CompletedProcess[str]:
+        specifier = tool.dependency_specifier_for_floor(target)
+        bad_lock = _lock_text(target.raw, specifier).replace(
+            '{ name = "sase-core-rs" },',
+            '{ name = "sase-core-rs", specifier = ">=999" },',
+            1,
+        )
+        (project_dir / "uv.lock").write_text(bad_lock, encoding="utf-8")
+        return subprocess.CompletedProcess(["uv", "lock"], 0, "", "")
+
+    monkeypatch.setattr(tool, "_run_uv_lock", _bad_lock_runner)
+
+    code = tool.main(["--pyproject", str(pyproject), "--uv-lock", str(uv_lock)])
+
+    assert code == tool.EXIT_COULD_NOT_DETERMINE
+    assert pyproject.read_text(encoding="utf-8") == before_pyproject
+    assert uv_lock.read_text(encoding="utf-8") == before_uv_lock
+    assert "package sase changed outside" in capsys.readouterr().err
 
 
 class _Response:
