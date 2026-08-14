@@ -139,10 +139,11 @@ xAI's Grok Build CLI (`grok`). SASE never auto-detects it, because the executabl
 `grok` collides with `grok-dev` (a stale community CLI that also uses `~/.grok/`) and
 with Homebrew's deprecated, unrelated `grok` regex tool. Select it explicitly with
 `llm_provider.provider: grok`, `%model:grok/grok-4.6`, or `SASE_GROK_PATH`, or reach it
-automatically through the shipped `@smart`/`@cheap`/`@cheaper` load-balanced pools
-whenever the `grok` CLI is installed. If a `grok` on `PATH` does not identify itself as
-Grok Build, `sase doctor` reports it as a distinct, actionable finding rather than
-silently launching the wrong binary.
+automatically whenever the `grok` CLI is installed: through the shipped
+`@smart`/`@cheap`/`@cheaper` load-balanced pools, or as the last candidate in
+`@smartest`'s ordered fallback (behind Claude and Codex). If a `grok` on `PATH` does not
+identify itself as Grok Build, `sase doctor` reports it as a distinct, actionable
+finding rather than silently launching the wrong binary.
 
 ### Install
 
@@ -178,8 +179,10 @@ per-action approval prompts.
 The `grok-4.6` model — the only model in the authenticated catalog — accepts only `low`,
 `medium`, `high`, and `xhigh` for `--effort`. `%effort:none`, `%effort:minimal`, and
 `%effort:max` raise a clean SASE error rather than a Grok process crash. The shipped
-`@smartest` alias resolves to `claude/opus@max`, so a Grok run must name one of its four
-supported levels explicitly.
+`@smartest` alias carries `@max` on every fallback candidate, but that alias-borne
+effort is best-effort, not explicit: when the fallback selects Grok (or Codex, which
+also has no `max` level), `max` is logged and skipped and the CLI runs at its own
+default effort instead of erroring.
 
 ### Usage is best-effort
 

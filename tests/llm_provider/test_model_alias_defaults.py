@@ -241,10 +241,10 @@ def test_parser_rejects_fallback_cycle_routed_through_default() -> None:
         _parse_fixture_aliases(aliases)
 
 
-def test_every_shipped_pool_member_names_a_registered_provider_model(
+def test_every_shipped_selector_member_names_a_registered_provider_model(
     real_model_alias_defaults: None,
 ) -> None:
-    """Every `provider/model` target member must name a real, published model.
+    """Every `provider/model` selector member must name a real, published model.
 
     Guards against typos like `grok/grok4.6` or a member pointing at a
     provider the registry does not know about.

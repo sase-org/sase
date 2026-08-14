@@ -1434,16 +1434,18 @@ that resolve even when unset: `@default` (no-`%model` launches), `@epic_lander`,
 `@big_epic_lander` falls back independently to `@smartest`; xsmall phases and tasks fall
 back to `@cheaper`, small ones to `@cheap`, medium ones use `@medium_worker` through
 `@smart`, large ones use `@large_worker` through `@smarter`, and xlarge ones use
-`@xlarge_worker` through `@smartest`. The capability aliases (`@smart`, `@smarter`,
-`@smartest`) and cost aliases (`@cheap`, `@cheaper`, `@cheapest`) own the shipped
-targets or pools, so they do not track `@default`; dependent worker and epic aliases
-inherit through them unless the dependent alias or the owner is overridden. Override
-only threshold-sized epic landers with `model_aliases.builtin.big_epic_lander`; override
-only large phases and sized tasks with `model_aliases.builtin.large_worker`. `@smartest`
-is selected automatically through the threshold-sized epic and xlarge phase/task
-fallback chains. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full
-table and [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for
-how delegated launches pick a role. New tasks require an explicit size after
+`@xlarge_worker` through `@smartest`. The pool-owning capability aliases (`@smart`,
+`@smarter`) and cost aliases (`@cheap`, `@cheaper`, `@cheapest`) own shipped
+load-balanced pools, while `@smartest` owns a shipped ordered fallback across providers;
+none of them track `@default`, and dependent worker and epic aliases inherit through
+them — resolving to whichever pool member or fallback candidate is selected — unless the
+dependent alias or the owner is overridden. Override only threshold-sized epic landers
+with `model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks
+with `model_aliases.builtin.large_worker`. `@smartest` is selected automatically through
+the threshold-sized epic and xlarge phase/task fallback chains. See
+[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how
+delegated launches pick a role. New tasks require an explicit size after
 `/sase_new_task` has ruled out a semantic duplicate and a causally related in-progress
 epic. Legacy tasks without size metadata remain launchable through the small phase/task
 route.
@@ -3189,9 +3191,11 @@ and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is 
 generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
 deprecated regex tool, so Grok never participates in autodetection like Muse; it is
 reached by explicit selection (see [llm_provider.provider](#llm_provider) above) or
-automatically through the shipped `@smart`/`@cheap`/`@cheaper` pools whenever the `grok`
-CLI is installed. Grok's `grok-4.6` model accepts only `low`/`medium`/`high`/`xhigh` for
-`--effort`; see [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
+automatically whenever the `grok` CLI is installed: through the shipped
+`@smart`/`@cheap`/`@cheaper` load-balanced pools, or as the last candidate in
+`@smartest`'s ordered fallback (behind Claude and Codex). Grok's `grok-4.6` model
+accepts only `low`/`medium`/`high`/`xhigh` for `--effort`; see
+[LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider
 

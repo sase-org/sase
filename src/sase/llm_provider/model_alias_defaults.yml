@@ -52,10 +52,10 @@ aliases:
       Higher-capability pool used automatically by large phase agents and by
       `@default`.
   smartest:
-    target: "claude/opus@max"
+    target: "claude/opus@max || codex/gpt-5.6-sol@max || grok/grok-4.6@max"
     description: >-
-      Highest-capability model used automatically by extra-large phase agents
-      and large epic landers.
+      Highest-capability ordered fallback used automatically by extra-large
+      phase agents and large epic landers.
   cheap:
     target: "claude/sonnet@high | codex/gpt-5.5@high | grok/grok-4.6@high"
     description: "Load-balanced pool used automatically by small phase agents."

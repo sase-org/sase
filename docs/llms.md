@@ -172,7 +172,8 @@ provider = get_provider("claude")  # Explicit provider name
    executable names and autodetect only checks `PATH` presence. Muse is reachable only
    by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
    never participates in autodetection either, but it is reached automatically by the
-   shipped `@smart`/`@cheap`/`@cheaper` pools whenever the `grok` CLI is installed (see
+   shipped `@smart`/`@cheap`/`@cheaper` load-balanced pools, or as the last candidate in
+   `@smartest`'s ordered fallback, whenever the `grok` CLI is installed (see
    [Grok Build Integration](#grok-build-integration)).
 
 ## Commit Finalization
@@ -820,8 +821,9 @@ so it never appears in autodetect candidates: `grok` is a generic executable nam
 with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
 deprecated, unrelated `grok` regex tool. Reach Grok with `llm_provider.provider: grok`,
 `%model:grok/grok-4.6`, by pointing `SASE_GROK_PATH` at the binary, or automatically
-through the shipped `@smart`/`@cheap`/`@cheaper` load-balanced pools whenever the `grok`
-CLI is installed. When a `grok` on `PATH` does not identify itself as Grok Build,
+whenever the `grok` CLI is installed: through the shipped `@smart`/`@cheap`/`@cheaper`
+load-balanced pools, or as the last candidate in `@smartest`'s ordered fallback (behind
+Claude and Codex). When a `grok` on `PATH` does not identify itself as Grok Build,
 `sase doctor` reports a distinct wrong-binary advisory instead of silently launching it.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
@@ -874,8 +876,10 @@ are rejected by the CLI with a nonzero exit. SASE declares exactly the four supp
 levels, so an explicit `%effort:max`/`none`/`minimal` raises a clean
 `LLMInvocationError` instead of a Grok process crash, and a config-derived default at
 one of those levels is logged and skipped. See [Reasoning Effort](#reasoning-effort)
-below — the shipped `@smartest` alias resolves to `claude/opus@max`, so a Grok run must
-name a level it supports.
+below — the shipped `@smartest` ordered fallback carries `@max` on every candidate, but
+`max` is not an explicit directive. When `@smartest` selects Grok (or Codex, which
+likewise has no `max` level), the alias-borne `max` is best-effort: it is logged and
+skipped, and the CLI runs at its own default effort instead of erroring.
 
 ### The Event Stream
 
@@ -1197,28 +1201,29 @@ The check is provider-neutral and read-only.
 On top of any aliases you configure, SASE always exposes a fixed set of **implicit role
 aliases** that resolve even when you have not defined them. Most fall back through other
 aliases to a capability alias. `@default` delegates to `@smarter` in the shipped graph,
-while `@smart`, `@smarter`, `@smartest`, `@cheap`, `@cheaper`, and `@cheapest` own
-independent built-in targets or pools. The current shipped defaults are generated from
+while `@smart`, `@smarter`, `@cheap`, `@cheaper`, and `@cheapest` own independent
+built-in load-balanced pools, and `@smartest` owns a stateless, provider-ordered
+fallback. The current shipped defaults are generated from
 `src/sase/llm_provider/model_alias_defaults.yml`:
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias              | Description                                                                                     | Shipped default                                                        |
-| ------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `@default`         | Model used when a prompt has no %model directive; delegates to @smarter unless configured.      | `@smarter`                                                             |
-| `@epic_lander`     | Epic land agents that finalize and submit an epic.                                              | `@default`                                                             |
-| `@big_epic_lander` | Epic land agents selected for plans at or above the configured phase-count threshold.           | `@smartest`                                                            |
-| `@xsmall_worker`   | Extra-small bead phase agents that implement the simplest tasks directly.                       | `@cheaper`                                                             |
-| `@small_worker`    | Small bead phase agents that implement directly.                                                | `@cheap`                                                               |
-| `@medium_worker`   | Medium bead phase agents that implement directly.                                               | `@smart`                                                               |
-| `@large_worker`    | Large bead phase agents that plan before implementation.                                        | `@smarter`                                                             |
-| `@xlarge_worker`   | Extra-large bead phase agents that author an epic plan before implementation.                   | `@smartest`                                                            |
-| `@smart`           | High-capability pool used automatically by medium phase agents.                                 | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`    |
-| `@smarter`         | Higher-capability pool used automatically by large phase agents and by `@default`.              | `codex/gpt-5.6-sol@xhigh \| claude/opus@xhigh`                         |
-| `@smartest`        | Highest-capability model used automatically by extra-large phase agents and large epic landers. | `claude/opus@max`                                                      |
-| `@cheap`           | Load-balanced pool used automatically by small phase agents.                                    | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`       |
-| `@cheaper`         | Lower-cost load-balanced pool used automatically by extra-small phase agents.                   | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium` |
-| `@cheapest`        | Lowest-cost load-balanced pool available for explicit use.                                      | `claude/haiku \| codex/gpt-5.3-codex-spark`                            |
+| Alias              | Description                                                                                                | Shipped default                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `@default`         | Model used when a prompt has no %model directive; delegates to @smarter unless configured.                 | `@smarter`                                                             |
+| `@epic_lander`     | Epic land agents that finalize and submit an epic.                                                         | `@default`                                                             |
+| `@big_epic_lander` | Epic land agents selected for plans at or above the configured phase-count threshold.                      | `@smartest`                                                            |
+| `@xsmall_worker`   | Extra-small bead phase agents that implement the simplest tasks directly.                                  | `@cheaper`                                                             |
+| `@small_worker`    | Small bead phase agents that implement directly.                                                           | `@cheap`                                                               |
+| `@medium_worker`   | Medium bead phase agents that implement directly.                                                          | `@smart`                                                               |
+| `@large_worker`    | Large bead phase agents that plan before implementation.                                                   | `@smarter`                                                             |
+| `@xlarge_worker`   | Extra-large bead phase agents that author an epic plan before implementation.                              | `@smartest`                                                            |
+| `@smart`           | High-capability pool used automatically by medium phase agents.                                            | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`    |
+| `@smarter`         | Higher-capability pool used automatically by large phase agents and by `@default`.                         | `codex/gpt-5.6-sol@xhigh \| claude/opus@xhigh`                         |
+| `@smartest`        | Highest-capability ordered fallback used automatically by extra-large phase agents and large epic landers. | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`    |
+| `@cheap`           | Load-balanced pool used automatically by small phase agents.                                               | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`       |
+| `@cheaper`         | Lower-cost load-balanced pool used automatically by extra-small phase agents.                              | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium` |
+| `@cheapest`        | Lowest-cost load-balanced pool available for explicit use.                                                 | `claude/haiku \| codex/gpt-5.3-codex-spark`                            |
 
 <!-- END GENERATED: model-alias-defaults -->
 
@@ -1231,10 +1236,12 @@ override affects only below-threshold epics; configure `big_epic_lander` directl
 replace the large-epic policy. Phase sizes likewise diverge: xsmall uses `@cheaper`,
 small uses `@cheap`, medium uses `@medium_worker` through `@smart`, large uses
 `@large_worker` through `@smarter`, and xlarge uses `@xlarge_worker` through
-`@smartest`. The capability aliases own the concrete targets or pools that dependent
-roles inherit. A configured alias value or temporary override still takes precedence
-over those targets and efforts. The standalone `@cheapest` pool has no automatic
-consumer and is available for explicit launches with its own rotation:
+`@smartest`. The capability aliases own the concrete targets, pools, or ordered
+fallbacks that dependent roles inherit — a role routed through `@smartest` resolves to
+whichever fallback candidate is selected, not one permanent model. A configured alias
+value or temporary override still takes precedence over those targets and efforts. The
+standalone `@cheapest` pool has no automatic consumer and is available for explicit
+launches with its own rotation:
 
 ```yaml
 llm_provider:
@@ -1617,13 +1624,14 @@ provenance on the second description line.
 Overrides are **per-alias** and independent. An override takes effect wherever that
 alias is resolved, including a `default` override at every direct or nested `@default`
 hop. For example, an override on `@medium_worker` affects only that size alias. An
-active override on `@smartest` replaces its concrete target, while overrides on
-`@smart`, `@smarter`, `@cheap`, `@cheaper`, and `@cheapest` suspend their independent
-load-balanced rotations for the override's duration. The selector-backed capability and
-cost pools do not reference `@default`, so a `default` override does not move
-`@medium_worker`, `@large_worker`, or their dependent size lanes; override the owning or
-size-specific alias itself to move one of those lanes. Machine-wide temporary overrides
-do not change:
+active override on `@smartest` suspends its ordered fallback for a single concrete
+target, just as overrides on `@smart`, `@smarter`, `@cheap`, `@cheaper`, and `@cheapest`
+suspend their independent load-balanced rotations for the override's duration —
+`@smartest`'s fallback has no cursor of its own to suspend, but the override still wins
+over every candidate. The selector-backed capability and cost pools do not reference
+`@default`, so a `default` override does not move `@medium_worker`, `@large_worker`, or
+their dependent size lanes; override the owning or size-specific alias itself to move
+one of those lanes. Machine-wide temporary overrides do not change:
 
 - Already-running agents — they keep whatever provider/model they were launched with.
 - Explicit concrete `%model` prompt targets — they still take precedence. A

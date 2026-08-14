@@ -192,3 +192,40 @@ def test_launch_and_temporary_overrides_suspend_ordered_fallback(
         lambda: {"fallback": override},
     )
     assert resolve_model_alias("@fallback", consume=True) == "claude/opus"
+
+
+@pytest.mark.parametrize(
+    ("available", "expected_target"),
+    [
+        (
+            {"claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"},
+            "claude/opus",
+        ),
+        (
+            {"codex/gpt-5.6-sol", "grok/grok-4.6"},
+            "codex/gpt-5.6-sol",
+        ),
+        (
+            {"grok/grok-4.6"},
+            "grok/grok-4.6",
+        ),
+    ],
+)
+def test_shipped_smartest_ordered_fallback_selects_by_availability(
+    real_model_alias_defaults: None,
+    monkeypatch: pytest.MonkeyPatch,
+    available: set[str],
+    expected_target: str,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "model_aliases": {"builtin": {}}},
+    )
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target in available,
+    )
+
+    resolved = resolve_model_alias_with_effort("@smartest", consume=True)
+    assert (resolved.target, resolved.effort) == (expected_target, "max")

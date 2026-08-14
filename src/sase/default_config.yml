@@ -841,8 +841,10 @@ llm_provider:
   # tale follow-ups use the tale size's @<size>_worker alias. Medium phases use
   # @smart, large phases use @smarter, and threshold-selected epic landers plus
   # extra-large phases use @smartest. `smart`, `smarter`, `cheap`, `cheaper`,
-  # and `cheapest` own independent pools by default. Use `A | B` for
-  # round-robin or `A || B` for ordered fallback; do not mix the operators.
+  # and `cheapest` own independent round-robin pools by default, while
+  # @smartest owns a stateless ordered fallback across providers. Use `A | B`
+  # for round-robin or `A || B` for ordered fallback; do not mix the
+  # operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.2), a nested
   # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an

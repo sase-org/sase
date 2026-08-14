@@ -2708,10 +2708,10 @@ Overrides are per-alias and independent:
   `PROVIDER(model)[@<effort>] <time-left>`.
 - An override on **any other alias** takes effect wherever that alias is resolved. A
   size-specific phase override affects only that alias. An override on `@smartest`
-  replaces its concrete maximum-effort target, while overrides on `@smart`, `@smarter`,
-  `@cheap`, `@cheaper`, and `@cheapest` suspend their independent load-balanced
-  rotations until the override expires or is cleared. It is surfaced by a distinct,
-  concise violet top-bar pill: a single active override renders as
+  suspends its ordered fallback for a single concrete target, just as overrides on
+  `@smart`, `@smarter`, `@cheap`, `@cheaper`, and `@cheapest` suspend their independent
+  load-balanced rotations, until the override expires or is cleared. It is surfaced by a
+  distinct, concise violet top-bar pill: a single active override renders as
   `@<alias>[@<effort>] <time-left>`, and several render as `@<alias> +N`, naming the
   alphabetically first alias and counting the rest. In both pills, lane color carries
   the "override" meaning while the effort suffix and time use a recessive tone; `∞`
@@ -2735,9 +2735,9 @@ configured under `llm_provider.model_aliases.builtin`. The size-specific phase/t
 aliases route through `@cheaper`, `@cheap`, `@smart`, `@smarter`, and `@smartest`; a
 task without size metadata uses the small phase/task route. Nested `@default` references
 follow a temporary `default` override. The selector-backed `@smart`, `@smarter`,
-`@cheap`, `@cheaper`, and `@cheapest` pools and the concrete `@smartest` target do not
-follow it; override the target/pool-owning or size-specific alias itself to move one of
-those lanes.
+`@cheap`, `@cheaper`, and `@cheapest` pools, and `@smartest`'s ordered fallback, do not
+follow it; override the pool/fallback-owning or size-specific alias itself to move one
+of those lanes.
 
 ### Persistent edits
 
@@ -2800,7 +2800,7 @@ live validation line reports an error.
   threshold-selected epic landers reach that target through `@xlarge_worker` →
   `@smartest` and `@big_epic_lander` → `@smartest`.
 - Leave `smartest` implicit — xlarge phases and threshold-selected epic landers follow
-  the current `@smartest` target.
+  whichever `@smartest` fallback candidate is currently selected.
 - Highlight `cheaper`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases
   round-robin across installed providers while the panel continues to show the next
