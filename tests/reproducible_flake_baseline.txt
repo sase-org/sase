@@ -6,3 +6,29 @@
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
 tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_marker_search_and_json_agree
+# sase-ke
+tests/ace/tui/modals/test_snippet_name_modal.py::test_matches_filter_order_and_tab_completion
+# sase-j7
+tests/ace/tui/test_config_center_state.py::test_save_atomically_replaces_existing_state
+# sase-le
+tests/ace/tui/widgets/test_prompt_panel_header.py::test_family_header_renders_followup_role_attribution
+tests/ace/tui/widgets/test_prompt_panel_header.py::test_header_renders_skill_uses_without_memory_reads
+# sase-kw
+tests/main/test_project_handler_list_show.py::TestListAndShow::test_project_handler_imports_in_fresh_interpreter
+# sase-lf
+tests/monitor/test_monitor_start.py::test_start_monitor_promotes_a_bare_lane_and_runs_to_completion
+# sase-lk
+tests/monitor/test_monitor_supervise.py::test_run_supervisor_escalates_term_ignoring_chatty_child
+# sase-j7
+tests/monitor/test_monitor_supervise.py::test_run_supervisor_kills_the_whole_process_group_on_timeout
+# sase-lc
+tests/test_agent_artifact_marker_path_passing_audit.py::test_tracked_marker_path_passing_sites_are_reviewed
+# sase-lb.1
+tests/test_axe_run_agent_runner_deferred_workspace_outcomes.py::TestDeferredWorkspaceOutcomes::test_repeat_stop_exits_before_workspace_claim_and_run_loop
+# sase-jq
+tests/test_contract_manifest.py::test_contract_manifest_matches_marker_selection
+tests/test_core_vcs_log.py::test_classify_origin_matches_python_golden[fix: automatic-Details\n\nSASE_TYPE=sase init]
+tests/test_core_vcs_log.py::test_classify_origin_matches_python_golden[fix: legacy-Details\n\nSASE_AGENT=sase-1]
+tests/test_core_vcs_log.py::test_classify_origin_matches_python_golden[fix: tracked-Details\n\nSASE_TYPE=stitch\nSASE_BEAD=sase-1]
+tests/test_core_vcs_log.py::test_parse_computes_auto_origin_from_footer
+tests/test_core_vcs_log.py::test_parse_computes_origin_from_footer

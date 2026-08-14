@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -41,6 +42,12 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
 
 def _make_app(*paths: str) -> _ViewApp:
     return _ViewApp({i + 1: path for i, path in enumerate(paths)})
+
+
+async def _drain_pump_free_clipboard_tasks(app: _ViewApp) -> None:
+    while tasks := tuple(getattr(app.app, "_pump_free_clipboard_tasks", ())):
+        await asyncio.gather(*tasks)
+        await asyncio.sleep(0)
 
 
 def _commit_spec(

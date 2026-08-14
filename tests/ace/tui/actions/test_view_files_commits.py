@@ -18,7 +18,11 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_clan_sections import (
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 
-from ._view_files_helpers import _commit_spec, _make_app
+from ._view_files_helpers import (
+    _commit_spec,
+    _drain_pump_free_clipboard_tasks,
+    _make_app,
+)
 
 
 def _rendered_clan_commit_hint(
@@ -122,6 +126,7 @@ async def test_commit_hint_copy_suffix_copies_short_sha(
 
     await app._process_view_input("1%")
     await asyncio.wait_for(copied_event.wait(), timeout=1.0)
+    await _drain_pump_free_clipboard_tasks(app)
 
     assert copied == ["abcdef123456"]
     app.notify.assert_called_once_with(
@@ -154,6 +159,7 @@ async def test_multiple_commit_hint_copy_suffix_copies_all_short_shas(
 
     await app._process_view_input("1 2%")
     await asyncio.wait_for(copied_event.wait(), timeout=1.0)
+    await _drain_pump_free_clipboard_tasks(app)
 
     assert copied == ["111111111111 222222222222"]
     app.notify.assert_called_once_with(
