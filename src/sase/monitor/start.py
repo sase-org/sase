@@ -26,6 +26,9 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.logs._bounded import log_file_lock
 from sase.plan_chain import agent_family_base
+from sase.running_field import get_claimed_workspaces
+from sase.workspace_provider import resolve_workspace_num_for_dir
+from sase.workspace_provider.utils import parse_workspace_dir
 from sase.workflows.utils import get_project_file_path
 
 from . import naming, store
@@ -80,14 +83,13 @@ from .transaction import (
 class _LaneStart:
     """The lane state a start resolves before it creates anything.
 
-    ``workspace_num``/``transfer_from_pid`` carry the workspace-inheritance
-    decision: a monitor started from the lane's own workspace takes that
-    workspace over from the starter's runner, and one started anywhere else
-    runs workspace-less (``0``) with a fresh claim.
+    ``workspace_num`` is the workspace identity for the directory the monitored
+    command runs in. ``transfer_from_pid`` is set only when that identity is the
+    starter runner's own live claim row and should move to the supervisor.
     """
 
     project_file: str
-    raw_meta: dict[str, Any]
+    member_meta: dict[str, Any]
     durable_lane: str
     cl_name: str | None
     prev_timestamp: str
@@ -131,7 +133,7 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
 
     artifacts_dir = create_monitor_member(
         request.project_name,
-        lane_start.raw_meta,
+        lane_start.member_meta,
         lane=durable_lane,
         suffix=suffix,
         prev_artifacts_timestamp=lane_start.prev_timestamp,
@@ -164,13 +166,16 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
         cl_name=lane_start.cl_name,
     )
     if not claim.result.success:
+        claim_error = _monitor_claim_error(
+            lane_start.project_file,
+            lane_start.workspace_num,
+            claim.result.error,
+        )
         terminate_supervisor(supervisor)
         _teardown_failed_member(
-            artifacts_dir, f"could not claim workspace: {claim.result.error}"
+            artifacts_dir, f"could not claim workspace: {claim_error}"
         )
-        raise MonitorError(
-            f"could not claim workspace for monitor: {claim.result.error}"
-        )
+        raise MonitorError(f"could not claim workspace for monitor: {claim_error}")
 
     try:
         _write_monitor_go_marker(
@@ -284,33 +289,38 @@ def _resolve_lane_start(request: StartMonitorRequest, lane: str) -> _LaneStart:
     workspace_dir = raw_meta.get("workspace_dir")
     raw_lane_workspace_num = raw_meta.get("workspace_num")
     raw_runner_pid = raw_meta.get("pid")
-    lane_workspace_num = (
-        int(raw_lane_workspace_num) if raw_lane_workspace_num is not None else None
-    )
-    runner_pid = int(raw_runner_pid) if raw_runner_pid is not None else None
+    lane_workspace_num = _optional_int(raw_lane_workspace_num)
+    runner_pid = _optional_int(raw_runner_pid)
     cwd_matches_lane = bool(workspace_dir) and _same_path(
         request.cwd, str(workspace_dir)
     )
 
+    resolved_workspace_num = _resolve_monitor_workspace_num(
+        newest.project_file,
+        request.cwd,
+        cwd_matches_lane=cwd_matches_lane,
+        lane_workspace_num=lane_workspace_num,
+    )
     transfer_from_pid: int | None = None
     starter_agent: str | None = None
     if (
         request.inherit_lane_workspace_claim
         and cwd_matches_lane
-        and lane_workspace_num is not None
+        and resolved_workspace_num != 0
         and runner_pid is not None
     ):
-        resolved_workspace_num = lane_workspace_num
         transfer_from_pid = runner_pid
         raw_name = raw_meta.get("name")
         starter_agent = raw_name if isinstance(raw_name, str) and raw_name else None
-    else:
-        resolved_workspace_num = 0
+
+    member_meta = dict(raw_meta)
+    member_meta["workspace_dir"] = request.cwd
+    member_meta["workspace_num"] = resolved_workspace_num
 
     cl_name = raw_meta.get("cl_name")
     return _LaneStart(
         project_file=newest.project_file,
-        raw_meta=raw_meta,
+        member_meta=member_meta,
         durable_lane=durable_lane,
         cl_name=cl_name if isinstance(cl_name, str) else None,
         prev_timestamp=newest.timestamp,
@@ -318,6 +328,34 @@ def _resolve_lane_start(request: StartMonitorRequest, lane: str) -> _LaneStart:
         transfer_from_pid=transfer_from_pid,
         starter_agent=starter_agent,
     )
+
+
+def _resolve_monitor_workspace_num(
+    project_file: str,
+    cwd: str,
+    *,
+    cwd_matches_lane: bool,
+    lane_workspace_num: int | None,
+) -> int:
+    """Return the workspace number that owns the monitor command's cwd."""
+    if cwd_matches_lane and lane_workspace_num not in (None, 0):
+        return lane_workspace_num
+
+    cwd_workspace_num = _lookup_workspace_num_for_dir(project_file, cwd)
+    if cwd_workspace_num is not None:
+        return cwd_workspace_num
+
+    if cwd_matches_lane and lane_workspace_num is not None:
+        return lane_workspace_num
+
+    return 0
+
+
+def _lookup_workspace_num_for_dir(project_file: str, directory: str) -> int | None:
+    primary_workspace_dir = parse_workspace_dir(project_file)
+    if not primary_workspace_dir:
+        return None
+    return resolve_workspace_num_for_dir(primary_workspace_dir, directory)
 
 
 def _launch_supervisor(artifacts_dir: str) -> DetachedSupervisor:
@@ -384,6 +422,42 @@ def _same_path(left: str, right: str) -> bool:
         return Path(left).expanduser().resolve() == Path(right).expanduser().resolve()
     except OSError:
         return left == right
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int | str):
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _monitor_claim_error(
+    project_file: str,
+    workspace_num: int,
+    error: str | None,
+) -> str:
+    base = error or f"workspace #{workspace_num} claim rejected"
+    if workspace_num == 0:
+        return base
+
+    conflicts = [
+        claim
+        for claim in get_claimed_workspaces(project_file)
+        if claim.workspace_num == workspace_num
+    ]
+    if not conflicts:
+        return base
+
+    details = "; ".join(
+        f"#{claim.workspace_num} pid {claim.pid} workflow {claim.workflow}"
+        f" cl {claim.cl_name or '(none)'}"
+        for claim in conflicts
+    )
+    return f"{base}; conflicting RUNNING claim: {details}"
 
 
 def _read_meta(artifacts_dir: str) -> dict[str, Any]:

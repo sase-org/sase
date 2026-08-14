@@ -27,7 +27,12 @@ from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.transaction import monitor_started_path
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
-from ._fixtures import make_starter_agent, patch_project_records, write_project_file
+from ._fixtures import (
+    make_starter_agent,
+    patch_project_records,
+    register_workspace_checkout,
+    write_project_file,
+)
 
 _POLL_TIMEOUT = 60.0
 _POLL_INTERVAL = 0.1
@@ -282,6 +287,78 @@ def test_start_monitor_raises_and_restores_the_claim_when_the_supervisor_never_a
     assert claims[0].pid == os.getpid()
     assert claims[0].workflow == "ace-run"
     assert claims[0].cl_name == "acme"
+
+
+def test_start_monitor_releases_a_fresh_numbered_claim_when_the_supervisor_never_acknowledges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    monkeypatch.setattr(
+        "sase.workspace_provider.store._list_git_remote_urls",
+        lambda _primary_workspace_dir: [],
+    )
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 12)
+    project_file = write_project_file("proj", workspace_dir=str(primary))
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(primary),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    import sase.monitor.spawn as spawn_module
+
+    real_popen = spawn_module.subprocess.Popen
+
+    def fake_popen(*args: object, **kwargs: object) -> object:
+        del args
+        dead = real_popen(["true"])
+        dead.wait()
+        pass_fds = kwargs["pass_fds"]
+        assert isinstance(pass_fds, tuple)
+        pid_fd = pass_fds[0]
+        assert isinstance(pid_fd, int)
+        os.write(pid_fd, json.dumps({"pid": dead.pid}).encode() + b"\n")
+        return SimpleNamespace(
+            pid=dead.pid, poll=lambda: 0, wait=lambda timeout=None: 0
+        )
+
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
+
+    request = StartMonitorRequest(
+        command="true",
+        reason="verify fresh claim rollback",
+        timeout_seconds=30.0,
+        cwd=workspace_dir,
+        project_name="proj",
+        lane="acme",
+        inherit_lane_workspace_claim=False,
+    )
+
+    with pytest.raises(MonitorError, match="died without acknowledging startup"):
+        start_monitor(request)
+
+    assert get_claimed_workspaces(project_file) == []
+
+    artifacts_root = sase_projects_dir() / "proj" / "artifacts" / "ace-run"
+    member_dirs = [
+        p.parent
+        for p in artifacts_root.glob("*/*/*/agent_meta.json")
+        if p.parent != Path(starter_dir)
+    ]
+    assert len(member_dirs) == 1
+    meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
+    assert meta["workspace_num"] == 12
+    assert meta["workspace_dir"] == workspace_dir
+    assert meta["monitor_state"] == "failed"
 
 
 def test_start_monitor_kills_a_supervisor_that_never_writes_the_ack_marker(

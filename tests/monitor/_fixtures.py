@@ -54,6 +54,7 @@ def make_starter_agent(
 def write_project_file(
     project: str,
     *,
+    workspace_dir: str | None = None,
     running_claims: list[WorkspaceClaim] | None = None,
 ) -> str:
     """Write a real ``.sase`` project file with an optional RUNNING field."""
@@ -63,6 +64,8 @@ def write_project_file(
         dir=project_dir, mode="w", delete=False, suffix=".sase", prefix=f"{project}."
     ) as f:
         f.write("# Test Project\n\n")
+        if workspace_dir:
+            f.write(f"WORKSPACE_DIR: {workspace_dir}\n")
         if running_claims:
             f.write("RUNNING:\n")
             for claim in running_claims:
@@ -73,6 +76,19 @@ def write_project_file(
     canonical = project_dir / f"{project}.gp"
     Path(path).replace(canonical)
     return str(canonical)
+
+
+def register_workspace_checkout(primary_dir: str | Path, workspace_num: int) -> str:
+    """Record a managed checkout in the workspace registry and return its path."""
+    from sase.workspace_provider.registry import record_workspace
+    from sase.workspace_provider.store import WorkspaceStore
+
+    store = WorkspaceStore(str(primary_dir))
+    workspace = store.resolve(workspace_num)
+    checkout = Path(workspace.checkout_dir.rstrip("/"))
+    checkout.mkdir(parents=True, exist_ok=True)
+    record_workspace(store, workspace)
+    return str(checkout)
 
 
 def record_from_disk(artifacts_dir: str | Path) -> AgentArtifactRecordWire:

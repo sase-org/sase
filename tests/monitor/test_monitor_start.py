@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import threading
 from pathlib import Path
 
@@ -15,7 +16,8 @@ import pytest
 
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
-from sase.monitor.models import MonitorAlreadyRunningError, MonitorRecord
+from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+from sase.monitor.models import MonitorAlreadyRunningError, MonitorError, MonitorRecord
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
@@ -23,6 +25,7 @@ from ._fixtures import (
     make_starter_agent,
     patch_project_records,
     record_from_disk,
+    register_workspace_checkout,
     wait_for_done,
     write_project_file,
 )
@@ -81,6 +84,144 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
 
     # No next action: the transferred claim is released once the command
     # finishes.
+    assert get_claimed_workspaces(project_file) == []
+
+
+def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 10)
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(primary),
+        running_claims=[WorkspaceClaim(10, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=workspace_dir,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="sleep 30",
+            reason="verify missing metadata workspace number",
+            timeout_seconds=30.0,
+            cwd=workspace_dir,
+            project_name="proj",
+            lane="acme",
+        )
+    )
+
+    try:
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].workspace_num == 10
+        assert claims[0].pid == record.pid
+        assert claims[0].workflow == MONITOR_WORKSPACE_CLAIM_WORKFLOW
+        assert claims[0].cl_name == "acme"
+
+        meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert meta["workspace_num"] == 10
+        assert meta["workspace_dir"] == workspace_dir
+    finally:
+        if record.pid is not None:
+            try:
+                os.kill(record.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        wait_for_done(record.artifacts_dir, timeout=10.0)
+
+
+def test_start_monitor_refuses_a_numbered_cwd_claimed_by_another_live_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 11)
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(primary),
+        running_claims=[WorkspaceClaim(11, "ace-run", "other", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(primary),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    before_claims = get_claimed_workspaces(project_file)
+    sentinel = tmp_path / "command-ran"
+
+    request = StartMonitorRequest(
+        command=f"touch {sentinel}",
+        reason="verify conflict refusal",
+        timeout_seconds=30.0,
+        cwd=workspace_dir,
+        project_name="proj",
+        lane="acme",
+        inherit_lane_workspace_claim=False,
+    )
+
+    with pytest.raises(MonitorError, match=r"workspace #11.*other"):
+        start_monitor(request)
+
+    assert not sentinel.exists()
+    assert get_claimed_workspaces(project_file) == before_claims
+
+
+def test_start_monitor_epic_launch_from_non_numbered_cwd_uses_workspace_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    project_file = write_project_file("proj", workspace_dir=str(primary))
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(primary),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="true",
+            reason="verify non-numbered cwd",
+            timeout_seconds=30.0,
+            cwd=str(outside),
+            project_name="proj",
+            lane="acme",
+            inherit_lane_workspace_claim=False,
+        )
+    )
+
+    meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["workspace_num"] == 0
+    assert meta["workspace_dir"] == str(outside)
+    wait_for_done(record.artifacts_dir)
     assert get_claimed_workspaces(project_file) == []
 
 
