@@ -6,6 +6,8 @@ import sys
 from typing import TYPE_CHECKING, Literal
 
 from textual.app import App
+from textual.content import Content
+from textual.markup import MarkupError
 from textual.reactive import reactive
 
 from sase.ace.tui.util.session_registration import register_ace_session
@@ -262,15 +264,48 @@ class AceApp(
         timeout: float | None = None,
         markup: bool = True,
     ) -> None:
-        """Show a Textual toast and persist it to the TUI toast history."""
+        """Show a Textual toast and persist it to the TUI toast history.
+
+        Many call sites interpolate agent- or exception-supplied text into
+        the message, which can contain stray bracket tokens (e.g. ``[/]``)
+        that ``Toast.render()`` would otherwise markup-parse and raise on.
+        Pre-validate and degrade to a literal render instead of crashing.
+        """
+        effective_markup = markup
+        if markup and "[" in message:
+            try:
+                Content.from_markup(message)
+            except MarkupError:
+                effective_markup = False
         super().notify(
             message,
             title=title,
             severity=severity,
             timeout=timeout,
-            markup=markup,
+            markup=effective_markup,
         )
         record_toast(message=message, title=title, severity=severity)
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Log the crash and guarantee the terminal is restored.
+
+        Textual's own crash path can itself raise (e.g. rendering a
+        traceback of a partially constructed ``Selection`` whose markup
+        parsing failed mid-``__init__`` leaves ``Option.__rich_repr__``
+        broken), which leaves the driver in raw mode with a dead message
+        pump instead of exiting cleanly. Log first so the failure is never
+        silent, then force shutdown if the superclass crash handling
+        itself fails.
+        """
+        log.exception("Unhandled exception in sase ace", exc_info=error)
+        try:
+            super()._handle_exception(error)
+        except Exception:
+            log.exception("sase ace crash-path handling itself raised")
+            try:
+                self._close_messages_no_wait()
+            except Exception:
+                log.exception("Failed to force-close the message pump after a crash")
 
     @property
     def canonical_query_string(self) -> str:

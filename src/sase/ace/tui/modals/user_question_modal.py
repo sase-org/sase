@@ -14,6 +14,7 @@ from rich.style import Style
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.content import Content
 from textual.screen import ModalScreen
 from textual.strip import Strip
 from textual.widgets import OptionList, SelectionList, Static
@@ -276,16 +277,22 @@ class UserQuestionModal(
     @staticmethod
     def _build_selections(
         question: dict,
-    ) -> list[tuple[str, str]]:
-        """Build SelectionList items from a question dict."""
+    ) -> list[tuple[Content, str]]:
+        """Build SelectionList items from a question dict.
+
+        Agent-authored option text may contain bracket sequences (e.g.
+        ``[/]``) that ``SelectionList`` would otherwise markup-parse as
+        Textual content markup and raise on. Wrapping each prompt in
+        ``Content`` bypasses markup parsing so the text renders verbatim.
+        """
         options = question.get("options", [])
-        items: list[tuple[str, str]] = []
+        items: list[tuple[Content, str]] = []
         for opt in options:
             label = opt.get("label", "")
             desc = opt.get("description", "")
             display = f"{label} \u2014 {desc}" if desc else label
-            items.append((display, label))
-        items.append(("Other...", _OTHER_VALUE))
+            items.append((Content(display), label))
+        items.append((Content("Other..."), _OTHER_VALUE))
         return items
 
     def _build_footer_hints(self) -> str:
@@ -374,8 +381,8 @@ class UserQuestionModal(
         # Rebuild selection list
         sel_list = self.query_one("#user-question-options", SelectionList)
         sel_list.clear_options()
-        for label, value in self._build_selections(q):
-            sel_list.add_option((label, value))
+        for prompt, value in self._build_selections(q):
+            sel_list.add_option((prompt, value))
 
         # Restore previous selections
         if idx in self._answers:
