@@ -1569,7 +1569,7 @@ single worker prompt without changing the bead or agent registry. A real launch:
 5. Restores the prior task state if dispatch fails before any runner starts; a live
    runner keeps the checkpoint.
 
-The `TaskTriage` gate's default Launch branch submits this command as a detached task
+The `TaskTriage` gate's default Launch branch submits this command as a detached proc
 with `--yes-to-all`; optional gate feedback is appended to the worker prompt.
 
 Plan-file mode is the canonical epic-approval entry point. It:
@@ -1827,19 +1827,30 @@ a task with no stored size.
 The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal
 approval saves to the resolved SDD `plans/` directory with `tier: tale`. Every epic
 approval surface behaves the same way — ACE, `sase plan approve --kind epic`, Telegram,
-and bare gate responses all submit one deduplicated global `detached` proc that runs
-`sase bead work <plan-file> --yes-to-all` from the project's primary workspace, then
-record that the host owns the launch in the planner response. Because the proc is
-detached and global, no interactive session owns it: it survives the approving process,
-appears in every default `sase proc list` and Procs-tab scope, is streamable with
-`sase proc show <id> --follow`, supports kill, and still emits the epic-completion
-notification. The approval passes `--artifacts-dir` (and `--cl-name` when a Patch is
+and bare gate responses all hand `sase bead work <plan-file> --yes-to-all` to a detached
+supervisor that runs it from the project's primary workspace, then record that the host
+owns the launch in the planner response.
+
+The preferred handoff is a [monitor](monitors.md) member in the planner's own lane,
+labeled `Epic launch · <plan>`. It borrows the planner's status labels, so the row reads
+`EPIC APPROVED` while `sase bead work` runs and `EPIC CREATED` once every phase has been
+launched, and it records no follow-up agent because `sase bead work` launches the phase
+agents itself. The monitor takes a zero workspace claim rather than the planner's, since
+the launch runs in the primary workspace. When the planner's lane cannot be resolved,
+the same command is submitted as one deduplicated global `detached` proc instead.
+
+Either handoff is durable and unowned by any interactive session: it survives the
+approving process, still emits the epic-completion notification, and can be inspected
+after the fact — a monitor through `sase monitor list` /
+`sase monitor show <id> --follow`, and the proc fallback through every default
+`sase proc list` and Procs-tab scope, `sase proc show <id> --follow`, and
+`sase proc kill`. The approval passes `--artifacts-dir` (and `--cl-name` when a Patch is
 involved), so a successful launch back-fills the epic ID and committed plan path into
 planner metadata.
 
 There is no planner-side subprocess fallback and no foreground path. If the host cannot
 resolve the primary workspace, finds the approved-epic plans store unusable, or fails to
-submit the task, approval fails loudly and reports the
+start both the monitor and the proc fallback, approval fails loudly and reports the
 `sase bead work <plan> --yes-to-all` resume command rather than launching invisibly.
 After a successful handoff, the planner publishes its prompt archive entry, finishes as
 `EPIC APPROVED`, and does not race the command for ownership of the epic plan file.

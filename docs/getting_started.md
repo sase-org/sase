@@ -312,6 +312,12 @@ The names you'll keep bumping into, in one place:
   inputs and multi-agent fan-out. See also [workflow specs](workflow_spec.md).
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts
   on disk.
+- **Procs** — durable background work (a sync, an accept, an epic launch) that outlives
+  the session that started it. Inspect them with `sase proc list` / `sase proc show`, or
+  on the Admin Center's [Procs tab](ace.md#procs-tab).
+- **[Monitors](monitors.md)** — how an agent runs a slow command (`just check-full`, a
+  CI wait, a deploy) without blocking its turn: a detached supervisor runs the command
+  and an optional follow-up agent picks up the result in the same lane and workspace.
 - **[Plugins and providers](plugins.md)** — model and VCS providers behind a common
   boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, Muse Code,
   Grok Build for agents; bare git and GitHub for version control.

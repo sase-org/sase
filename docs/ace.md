@@ -99,11 +99,16 @@ Stitch, Patch, and Bead are always **1**, **2**, **3**; configured document-prov
 tabs such as Plan and Research take the next digits; and File, which always renders
 last, always carries the highest digit — **4** with no provider tabs configured, **6**
 with two. Digits stop at `9`, and File keeps its digit even then. Use `[` / `]` to cycle
-through the complete runtime strip. When horizontal space is tight, the strip narrows by
-dropping inactive labels before it ever clips a tab. These keys act only while Artifacts
-is visible. Press `p` in Stitch, Bead, provider document panes, or File to change the
-shared project scope, or use the command palette to jump directly to a top-level view.
-Patches remains query-scoped and retains the existing Patch workflow.
+through the complete runtime strip. The strip reflows to fit rather than clipping: as
+horizontal space tightens it steps down a full → compact → micro ladder and keeps the
+narrowest tier that still fits, re-rendering only when the tier actually changes. Each
+step tightens the padding and separators, and the narrowest tier also drops the labels
+of inactive tabs so they stand on their icons and digits alone — but only when **every**
+tab in the strip carries an icon, so a document provider whose `ref.icon` is missing or
+invalid keeps labels on the whole strip rather than leaving a tab blank. These keys act
+only while Artifacts is visible. Press `p` in Stitch, Bead, provider document panes, or
+File to change the shared project scope, or use the command palette to jump directly to
+a top-level view. Patches remains query-scoped and retains the existing Patch workflow.
 
 ### Split Modes in Artifacts Panes
 
@@ -390,8 +395,11 @@ fixed tabs are Stitch, Patch, Bead, and File; provider-backed document tabs such
 and Research appear between Bead and File when an enabled project configures the
 matching sidecar `ref:` policy. Persisted selections use stable ids such as `ref:plan`
 and `ref:research`, so a missing provider falls back to Stitch instead of crashing
-startup. Each pane renders an icon in its accent color: the four fixed marks are built
-in, and a provider pane's mark comes from its sidecar `ref.icon`.
+startup. Each pane renders an icon before its label — the four fixed marks (`◉` Stitch,
+`⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark comes from its
+sidecar `ref.icon`. The active tab's icon takes that pane's accent color; inactive icons
+render dim. A `ref.icon` that fails validation or is wider than two terminal cells is
+dropped, and that pane simply renders label-only.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
 existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
@@ -910,7 +918,7 @@ rather than landing somewhere stale.
 | `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                      |
 | `U`                 | Toggle the focused agent's unread marker                                                                   |
 | `u`                 | Clear all agent marks                                                                                      |
-| `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                              |
+| `x`                 | Kill / dismiss agent, stop a running monitor, or act on every marked agent or focused group                |
 | `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                    |
 | `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                   |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation             |
@@ -1051,21 +1059,32 @@ for exhaustive detail. These keys are configurable; see
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel
 adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the same run
 also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `PLAN`, `BEAD`,
-`ARTIFACTS`, the audited `MEMORY`, `SKILLS`, and `WORKSPACES`, with absent lanes
-omitted. A plan or any recorded output is enough to show the context section. An epic
-phase worker never shows its parent epic as a `PLAN` lane. Instead, its launch metadata
-identifies the epic plan and exact phase bead, and ACE derives one phase-local `BEAD`
-lane from that phase's validated, frontmatter-ordered entry. The lane shows
-`Phase Title`, `Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses the
-literal `xsmall`, `small`, `medium`, `large`, or `xlarge` label and the same accessible
-chip palette as epic summaries. The phase title comes from the same validated entry, is
-normalized to one line, and wraps losslessly like the other values. Authored
+`ARTIFACTS`, the audited `MEMORY`, `SKILLS`, and `WORKSPACES`, with absent lanes omitted
+once they have resolved. A plan or any recorded output is enough to show the context
+section. An epic phase worker never shows its parent epic as a `PLAN` lane. Instead, its
+launch metadata identifies the epic plan and exact phase bead, and ACE derives one
+phase-local `BEAD` lane from that phase's validated, frontmatter-ordered entry. The lane
+shows `Phase Title`, `Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses
+the literal `xsmall`, `small`, `medium`, `large`, or `xlarge` label and the same
+accessible chip palette as epic summaries. The phase title comes from the same validated
+entry, is normalized to one line, and wraps losslessly like the other values. Authored
 descriptions are also normalized to one line; a missing description uses the same stable
 plan-and-phase pointer generated during deterministic bead creation. This modern path
 does not read the bead store, and missing, unreadable, damaged, explicitly invalid, or
 out-of-range metadata keeps the known identity/path fallbacks while rendering optional
 fields as `unavailable`, without exposing the epic goal, dependencies, or any peer
 phase.
+
+`SASE CONTEXT` **streams**: its lanes are resolved cheapest-first in batches and each
+batch is published as it lands, so the section appears almost immediately instead of
+waiting for the slowest lane. A lane that has not resolved yet is not the same as a lane
+that resolved to nothing — while a lane is still in flight it renders a dim,
+non-interactive `resolving…` row that holds its position in the order above, so the
+section fills in rather than reshuffling as the remaining lanes arrive. `PLAN` and
+`BEAD` share one backing lane, so both show their own `resolving…` row until it lands
+and the panel can tell which of the two actually has content. Repaints coalesce through
+the same debouncer that drives the rest of the header, leaving hint mode and scroll
+position undisturbed.
 
 For planner/author and lander rows, the lane body contains the complete normalized
 `Title`, `Goal`, and canonical `Path`; a tale additionally gets a `Size` row between
@@ -1243,6 +1262,14 @@ waiters.
 otherwise moves focus to the next field, `Ctrl+R` runs the agent now by clearing every
 wait condition, and `Escape` cancels. The modal supports readline-style keybindings
 (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
+
+`Ctrl+J` and `Ctrl+K` walk forward and backward through the five fields directly, in the
+displayed order (Agents, Beads, Time, Runners, Priority), wrapping around at either end
+and placing the cursor at the end of the field's current value. Unlike `Tab`, they never
+consume a highlighted completion, so they move focus even while a completion list is
+open; when focus is on the Agents or Beads completion list itself, the step is taken
+from that list's own field. `Up` / `Down` and `Ctrl+P` / `Ctrl+N` move within the
+visible completion list rather than between fields.
 
 ### VCS Tag Resolution in Fork/Wait
 
@@ -1757,6 +1784,16 @@ lane: a red `⚠` replaces the exit-code badge when a terminal monitor's supervi
 reported a real exit code, and an amber `⚑` follows the row when its `--next` follow-up
 was dropped or launched degraded — a monitor can finish cleanly and still strand its
 follow-up. See [Monitors](monitors.md).
+
+A monitor has no LLM process to kill, so `x` on a selected **running** monitor row is
+routed off the ordinary kill/dismiss path: it opens a `Stop Monitor` confirmation
+(defaulting to **Keep running**) and, once confirmed, terminates the supervised command
+through the same code path as `sase monitor stop`. As with the CLI, stopping never
+launches the recorded `--next` follow-up agent. The stop itself runs as a tracked proc,
+so a slow teardown does not block the TUI. `x` on a monitor row that has already settled
+falls through to the normal dismiss behavior, and bulk scopes still win over the single
+row: marks, a focused panel, and a focused group are all handled before ACE looks at
+whether the selected row is a monitor.
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the
 status glyph and the tribe/name. A phase agent named `<epic_id>.<N>` displays that phase
@@ -3034,9 +3071,10 @@ all procs complete.
 
 Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information
 including hook runners, agent runners, and a **Procs** section listing active and
-recently completed procs (sync, rebase, accept, mail, add-tag, notification gates). Each
-proc entry shows its type, target, status, timestamps, and live output when the proc
-reports it.
+recently completed procs — Patch operations such as `sync`, `rebase`, `accept`, `mail`,
+`submit`, `archive`, `revert`, `rewind`, `reword`, and `restore`, plus `monitor-stop`
+and notification-gate work. Each proc entry shows its type, target, status, timestamps,
+and live output when the proc reports it.
 
 ## File Panel Rendering
 
@@ -3402,7 +3440,8 @@ pinned attempt view resets the cursor.
   show `phases unavailable` in the lane header without leaking partial entries; tales do
   not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every
   combination of present lanes, the full order is `PLAN`, `BEAD`, `ARTIFACTS`, `MEMORY`,
-  `SKILLS`, then `WORKSPACES`, with absent lanes omitted.
+  `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve and
+  still-resolving lanes holding their slot with a dim `resolving…` row.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
   `Deltas`, and `Artifacts` as compact fields, preserves that internal order, and
   summarizes only the present fields in its header. Commits persisted by the selected
@@ -3410,9 +3449,12 @@ pinned attempt view resets the cursor.
   sidecar, and external-repo commits retain their repository identity. Deltas preserve
   their green `+`, gold `~`, and red `-` change glyphs and group linked or external
   files by repository. Artifact type remains visible through its icon shape, while every
-  artifact icon and path uses the shared blue output-lane/file-path palette. The lane is
-  rendered atomically with full header enrichment, so it is omitted from the immediate
-  cheap navigation frame rather than appearing first with partial content.
+  artifact icon and path uses the shared blue output-lane/file-path palette. This lane
+  starts painting on the very first navigation frame: `Commits` is derived from the
+  selected agent's in-memory step metadata and needs no disk reads, so it renders
+  immediately, while `Deltas` and `Artifacts` — which do need store reads — fill in when
+  the debounced enrichment resolves the lane. The immediate commit-only view is
+  deliberately not cached, so the full lane still resolves on its normal schedule.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or
   longer, ordered by start time and capped at 8 rows (an overflow line points to the
   full [Tools panel](#agents-tab-tools-panel) timeline via `]`). Level 1 is a compact

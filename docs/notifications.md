@@ -36,13 +36,22 @@ relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
 | `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                               |
 | `[` / `]`           | Switch notification tabs                                                    |
-| `R`                 | Mark all notifications as read                                              |
+| `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
 | `Esc` / `q`         | Close modal                                                                 |
 
 Plan, launch, question, and task-triage notifications require confirmation (`y` / `n`)
 before dismissal to prevent accidental loss of pending decisions. The same `y` / `n`
 confirmation is used for bulk dismissal when at least one marked protected notification
 is included in the batch.
+
+`R` is scoped to the tab you are on, not the whole inbox, and it is a wider write than
+it looks: it marks the tab read in the notification store, which includes rows matching
+that tab that ACE has not loaded into the visible list. Because of that, it opens a
+danger confirmation naming the tab (`Mark Notification Tab Read?`) that defaults to
+**Cancel**; it cannot be undone from ACE. The target is frozen when the prompt opens, so
+switching tabs while the confirmation is up cannot redirect the write to a different
+tab, and a tab with nothing in the visible list never prompts at all. The mutation
+itself runs as a proc, so a slow store write does not block the modal.
 
 ### Gate Detail Pane
 
@@ -959,13 +968,13 @@ map kinds to notification actions:
 | `custom`      | `CustomGate`        | `sase gate create`                                |
 
 `TaskTriage` uses `launch OR close`, with Launch as the primary branch. Launch accepts
-optional feedback and submits or reuses one globally visible detached task whose command
-is `sase bead work <bead-id> --yes-to-all`; the gate response records that background
-task ID. Close requires feedback, closes the task bead with `resolution=canceled`, and
-uses the feedback as its close reason. The gate preview is generated from the bead's
-title, description, and notes, with the notes section present only when the bead has
-notes. Automatic resolution is forbidden, and all client surfaces use the same host-side
-side effects.
+optional feedback and submits or reuses one globally visible detached proc whose command
+is `sase bead work <bead-id> --yes-to-all`; the gate response records that proc ID.
+Close requires feedback, closes the task bead with `resolution=canceled`, and uses the
+feedback as its close reason. The gate preview is generated from the bead's title,
+description, and notes, with the notes section present only when the bead has notes.
+Automatic resolution is forbidden, and all client surfaces use the same host-side side
+effects.
 
 Workflow `HITL` remains a legacy producer, but a HITL notification that references a
 neutral bundle is resolved through the same hash-verified executor in ACE and Telegram.

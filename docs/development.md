@@ -998,6 +998,8 @@ boundaries, and docs/tests:
 | `src/sase/vcs_provider/`       | VCS provider hook specs, plugin registry, and built-in git provider.                                   |
 | `src/sase/workspace_provider/` | Workspace provider hook specs, plugin registry, and bare-git workspace support.                        |
 | `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
+| `src/sase/procs/`              | Durable proc store, ids, logs, supervisor, and runner for background work.                             |
+| `src/sase/monitor/`            | Monitor member lifecycle: start handoff, detached supervisor, store queries, and follow-up launch.     |
 | `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |
 | `src/sase/telemetry/`          | Local debugging metric accumulation, store queries, health checks, and shared numeric render helpers.  |
 | `src/sase/version/`            | Runtime inventory collection and rendering for the `sase version` CLI command.                         |

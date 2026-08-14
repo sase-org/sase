@@ -144,16 +144,30 @@ before the response, SDD copy, or notification dismissal, and failures leave the
 proposal pending.
 
 Tale approval promotes the plan and launches its coder through the agent runner. Every
-epic approval surface — ACE, the CLI, Telegram, or a bare gate response — instead
-submits one global `detached` proc whose command is
-`sase bead work <plan-file> --yes-to-all`. No interactive session owns that proc, so it
-survives the approving process, appears in every default `sase proc list` and Procs-tab
-scope, is streamable with `sase proc show <id> --follow`, and still emits the
-epic-completion notification. The equivalent hand-run form is
+epic approval surface — ACE, the CLI, Telegram, or a bare gate response — instead hands
+`sase bead work <plan-file> --yes-to-all` to a detached supervisor, because launching an
+epic's phases is itself a long-running command that must outlive the approving process.
+
+The preferred form is a [monitor](monitors.md) member in the planner's own lane, labeled
+`Epic launch · <plan>`. Its status labels are the planner's: the row reads
+`EPIC APPROVED` while `sase bead work` runs and becomes `EPIC CREATED` once every phase
+has been launched. No follow-up agent is recorded — `sase bead work` launches the phase
+agents itself — and the monitor takes a zero workspace claim, since the launch runs in
+the project's primary workspace rather than the planner's. If the planner's lane cannot
+be resolved (a very old artifacts layout, or a wiped agent), the launch falls back to a
+global `detached` proc with the same command and label rather than silently dropping the
+approval.
+
+Either way the launch is durable: it survives the approving process, is visible from
+every surface, and still emits the epic-completion notification. A monitor-backed launch
+is inspected with `sase monitor list` / `sase monitor show <id> --follow`; the
+`detached`-proc fallback appears in every default `sase proc list` and Procs-tab scope
+and streams with `sase proc show <id> --follow`. The equivalent hand-run form is
 `sase proc run --detached --label 'Epic launch · <plan>' -- sase bead work <plan> --yes-to-all`.
-If the approval host cannot resolve or submit the launch, approval fails loudly with
-that resume command instead of falling back to an invisible planner-side subprocess.
-After a successful handoff, the planner finishes with `EPIC APPROVED`.
+If the approval host cannot resolve or submit the launch at all, approval fails loudly
+with that resume command instead of falling back to an invisible planner-side
+subprocess. On the `detached`-proc path, which has no monitor row to relabel, the
+planner simply finishes at `EPIC APPROVED`.
 
 `--kind approve` runs the coder without committing an SDD plan, while `--kind commit`
 records the approved plan in SDD without launching a coder.

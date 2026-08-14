@@ -290,7 +290,7 @@ unmute.
 
 The `TaskTriage` gate presents the task title, description, and notes, and offers three
 options. **Launch** (the primary branch) accepts optional feedback and submits a
-deduplicated global detached task for `sase bead work <task-id> --yes-to-all`; **Close**
+deduplicated global detached proc for `sase bead work <task-id> --yes-to-all`; **Close**
 requires a reason and closes the bead as `canceled`; **Snooze** collects one required
 `duration` line and defers the task, moving it to `snoozed` so the next tick reconciles
 it into a `BeadSnooze` gate instead. The line takes the same `"<wake-time> [+<N>]"`

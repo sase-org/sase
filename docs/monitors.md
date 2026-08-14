@@ -222,9 +222,14 @@ sase monitor stop [<id>]                   # stop a running monitor; omit id to 
 
 `ID` accepts a monitor id (or unique prefix), the monitor member's agent name, or a lane
 name. `sase monitor stop` never launches the recorded follow-up agent, even when
-`--next` was given. Every subcommand accepts `-j/--json` (or `-f/--format` for `list`
-and `show`) for machine-readable output. See `sase monitor --help` and each subcommand's
-`--help` for the complete flag reference, or [CLI Reference](cli.md).
+`--next` was given.
+
+Every subcommand can emit machine-readable output, but not with the same flag: `start`,
+`list`, and `stop` take `-j/--json`, while `list` and `show` take `-f/--format`
+(`table`/`markdown`/`json` for `list`, `markdown`/`json` for `show`).
+`sase monitor show` has **no** `-j` — use `--format json` there. See
+`sase monitor --help` and each subcommand's `--help` for the complete flag reference, or
+[CLI Reference](cli.md).
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 ACE Agents tab refresh path, and the axe scheduler look for running monitor members
@@ -242,10 +247,30 @@ and a live elapsed suffix while running or an exit-code / timeout badge once ter
 Monitor members appear in the family roster and contribute to the family's total
 runtime, but — like workflow steps — they are not counted as agents in `sase stats` or
 tribe/clan summaries: a family with one agent and one monitor is a one-agent family that
-ran one command. Selecting a monitor row shows its command, working directory, reason,
-next action, state, and timeout budget in a `MONITOR` detail section, with the captured
-output rendered as a plain log rather than markdown. See
-[Agent Row Glyphs](ace.md#agent-row-glyphs) and
+ran one command.
+
+Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
+section in place of the usual prompt and reply body. It shows the shell-highlighted
+`Command`, then whichever of `Cwd`, `Reason`, and `Next action` were recorded, then
+`State` (a colored glyph plus the state name, with `(exit N)` appended once an exit code
+is known). `Timeout` reports elapsed time against the budget (`3m12s of 45m0s budget`),
+falling back to a plain `Elapsed` row for a record with no recorded budget, and an
+`--idle-timeout` adds its own `Idle timeout` row. The section ends with the full
+`Monitor id`, its short form, and the exact `sase monitor show <short-id> --follow`
+command to stream the rest from a shell.
+
+Beneath that, an `OUTPUT` block renders the captured stdout/stderr. Because
+`live_reply.md` holds a command's raw merged output rather than prose, it is rendered as
+a plain ANSI-aware log rather than through the markdown path used for agent replies, and
+a monitor whose retained output was capped shows an
+`… output truncated (head + tail retained) …` notice above it. A monitor that has not
+written anything yet shows `No output yet.`.
+
+With a **running** monitor row selected, the Agents tab's kill key (`x` by default)
+stops the monitor instead of killing an agent: it opens a `Stop Monitor` confirmation
+that defaults to **Keep running**, and confirming runs the same `stop_monitor` path as
+`sase monitor stop`, so no follow-up agent launches. On a settled monitor row, `x`
+behaves like an ordinary dismiss. See [Agent Row Glyphs](ace.md#agent-row-glyphs) and
 [Sequential Agent Families](agent_families.md#sequential-agent-families).
 
 ## Visibility
@@ -280,13 +305,15 @@ dropped `--next` appends a notification row. The badges and flags above, plus
 ## Example: approved epic launches
 
 Launching an approved epic (`sase bead work <plan> --yes-to-all …`) is itself a
-long-running command, so it runs under a monitor rather than a bare detached task: the
+long-running command, so it runs under a monitor rather than a bare detached proc: the
 planner's `EPIC APPROVED` status becomes `EPIC CREATED` once `sase bead work` finishes
 launching every phase. The monitor takes a zero workspace claim (the launch runs in the
 project's primary workspace, not the planner's), and no follow-up agent is recorded —
 `sase bead work` launches the phase agents itself. If the planner's lane cannot be
 resolved (a very old artifacts layout, a wiped agent), the launch falls back to the
-original detached-task submission rather than silently dropping the approval.
+original global `detached` proc submission rather than silently dropping the approval.
+See [Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that
+handoff.
 
 ## See also
 
