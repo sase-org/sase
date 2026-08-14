@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.tools import read_tool_calls_for_agent
+from sase.llm_provider._tool_call_grok import _GROK_TOOL_USES
 from sase.llm_provider._tool_calls import append_grok_tool_call_event
 
 from ._reader_helpers import _agent
@@ -141,6 +142,33 @@ def test_read_tool_calls_for_agent_handles_grok_non_json_result_content(
     assert entry.display_tool_name == "Bash"
     assert entry.status == "success"
     assert entry.detail == "plain text result"
+
+
+def test_completed_grok_tool_calls_do_not_accumulate_module_state(
+    artifacts_dir: Path,
+) -> None:
+    """A resolved tool_use is released, so the module global stays bounded."""
+    for index in range(3):
+        _append_grok_pair(
+            artifacts_dir,
+            tool_use_id=f"call-bounded-{index}",
+            raw_tool_name="run_terminal_command",
+            tool_input={"command": f"echo {index}", "description": f"Echo {index}"},
+            result={"type": "Bash", "output_for_prompt": f"{index}\n", "exit_code": 0},
+        )
+
+    assert not [key for key in _GROK_TOOL_USES if key.startswith("call-bounded-")]
+
+    # An unresolved tool_use is still retained, so a later result can name it.
+    append_grok_tool_call_event(
+        _assistant_event(
+            tool_use_id="call-in-flight",
+            raw_tool_name="run_terminal_command",
+            tool_input={"command": "sleep 60"},
+        )
+    )
+    assert "call-in-flight" in _GROK_TOOL_USES
+    del _GROK_TOOL_USES["call-in-flight"]
 
 
 def _append_grok_pair(

@@ -55,6 +55,11 @@ class _GrokToolUse:
     tool_input: Mapping[str, Any]
 
 
+# Grok reports a tool_use and its tool_result in two separate stream events, so
+# the use has to be carried across them. Entries are popped when their result
+# arrives -- same lifecycle as ``ToolCallDurationTracker`` -- leaving only
+# genuinely in-flight calls behind; without the pop this module-global would
+# retain every tool input for the life of the process.
 _GROK_TOOL_USES: dict[str, _GrokToolUse] = {}
 
 
@@ -162,7 +167,7 @@ def _records_from_user_event(
         if not tool_use_id:
             continue
 
-        tool_use = _GROK_TOOL_USES.get(tool_use_id)
+        tool_use = _GROK_TOOL_USES.pop(tool_use_id, None)
         decoded = _decode_grok_result_content(block.get("content"))
         tool_name = _tool_name_for_result(tool_use, decoded)
         response = _normalize_grok_tool_response(
