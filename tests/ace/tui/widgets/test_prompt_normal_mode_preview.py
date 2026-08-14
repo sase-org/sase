@@ -266,6 +266,63 @@ async def test_counted_k_is_noop_and_does_not_preview(
         assert not _top_is_preview(page)
 
 
+async def test_k_on_word_inside_shorthand_argument_runs_word_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    looked_up: list[bool] = []
+
+    async with PromptPage(
+        "#foo:: hello world",
+        cursor=(0, 8),
+        size=(80, 24),
+    ) as page:
+        monkeypatch.setattr(
+            page.ta,
+            "_lookup_word_under_cursor",
+            lambda: looked_up.append(True) or True,
+        )
+
+        await page.press("K")
+        await page.pause()
+
+        assert looked_up == [True]
+        assert page.ta._prompt_preview_request_id == 0
+        assert not _top_is_preview(page)
+
+
+async def test_k_on_punctuation_inside_shorthand_argument_previews_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[PreviewToken] = []
+
+    def fake_resolve(token: PreviewToken, **_kwargs: object) -> PreviewPayload:
+        seen.append(token)
+        return PreviewPayload(
+            kind_label="xprompt",
+            icon="#",
+            title="#foo",
+            source_path="/tmp/foo.md",
+            content="Body\n",
+            lexer="markdown",
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview.resolve_preview_target",
+        fake_resolve,
+    )
+
+    text = "#foo:: hello, world"
+    async with PromptPage(text, cursor=(0, text.index(",")), size=(80, 24)) as page:
+        await page.press("K")
+        await page.wait_for(lambda: page.ta._prompt_preview_request_id == 1)
+        await page.wait_for(lambda: _top_is_preview(page))
+
+        assert seen
+        assert seen[0].kind == "xprompt"
+        assert seen[0].target == "foo"
+        assert seen[0].raw == text
+
+
 async def test_k_does_not_overwrite_dot_repeat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

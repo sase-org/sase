@@ -95,6 +95,38 @@ def test_parse_double_colon_shorthand_reference_with_parentheses_in_text() -> No
     assert ref.parse_arguments() == (["find foo (bar)"], {})
 
 
+def test_shorthand_text_start_points_at_first_argument_character() -> None:
+    cases = (
+        ("#foo: text", 6),
+        ("#foo:: text", 7),
+        ("#foo(x=1): text", 11),
+        ("#foo(x=1):: text", 12),
+        ("#foo!!: text", 8),
+        ("#!foo:: text", 8),
+    )
+    for prompt, expected_start in cases:
+        ref = _single_ref(prompt)
+        start = ref.shorthand_text_start
+        assert start == expected_start
+        assert start is not None
+        assert prompt[start] == "t"
+        assert prompt[start:].startswith("text")
+
+    prompt = "#foo:: line one\n\nline two\nstill going"
+    ref = _single_ref(prompt)
+    start = ref.shorthand_text_start
+    assert start == 7
+    assert start is not None
+    assert prompt[start:].startswith("line one")
+    assert "line two" in prompt[start : ref.end]
+
+
+def test_shorthand_text_start_is_none_without_free_text_argument() -> None:
+    for prompt in ("#foo", "#foo:bar", "#foo+", "#foo(x=1)", "#foo(x=1):bar"):
+        ref = _single_ref(prompt)
+        assert ref.shorthand_text_start is None
+
+
 def test_parse_standalone_reference_with_paren_args() -> None:
     ref = _single_ref("#!deploy(arg=value)")
 

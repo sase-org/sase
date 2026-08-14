@@ -12,6 +12,7 @@ from typing import Literal
 from sase.ace.tui.widgets._prompt_preview_target import (
     PreviewToken,
     detect_preview_target_at_cursor,
+    detect_shorthand_argument_owner_at_cursor,
 )
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     file_hint_match_span,
@@ -81,6 +82,16 @@ def detect_jump_target_at_cursor(
         return _jump_token_from_preview_token(text, preview_token)
 
     return _detect_file_token_suffix_at_cursor(text, cursor_offset)
+
+
+def detect_shorthand_argument_owner_jump_target(
+    text: str, cursor_offset: int
+) -> JumpToken | None:
+    """Return the jump token for the shorthand xprompt that owns the cursor."""
+    preview_token = detect_shorthand_argument_owner_at_cursor(text, cursor_offset)
+    if preview_token is None:
+        return None
+    return _jump_token_from_preview_token(text, preview_token)
 
 
 def resolve_jump_target(
@@ -407,5 +418,6 @@ __all__ = [
     "JumpToken",
     "build_jump_editor_argv",
     "detect_jump_target_at_cursor",
+    "detect_shorthand_argument_owner_jump_target",
     "resolve_jump_target",
 ]

@@ -10,6 +10,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     PreviewError,
     PreviewToken,
     detect_preview_target_at_cursor,
+    detect_shorthand_argument_owner_at_cursor,
     resolve_preview_target,
 )
 from sase.xprompt.models import InputArg, InputType, XPrompt
@@ -28,6 +29,77 @@ def test_detects_xprompt_reference_name_and_arg_region() -> None:
 
     token = _detect(text, "bar")
     assert token == PreviewToken("xprompt", "#foo:bar", "foo", 4, 12)
+
+
+def test_skips_colon_shorthand_argument_text_but_keeps_head_and_separator() -> None:
+    text = "#foo: some text"
+    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+
+    assert _detect(text, "#foo") == expected
+    assert detect_preview_target_at_cursor(text, text.index(":")) == expected
+    assert detect_preview_target_at_cursor(text, text.index(":") + 1) == expected
+    assert _detect(text, "some") is None
+    assert _detect(text, "text") is None
+
+
+def test_skips_double_colon_argument_text_including_later_lines() -> None:
+    text = "#foo:: line one\nsecond line"
+    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+
+    assert _detect(text, "#foo") == expected
+    assert detect_preview_target_at_cursor(text, text.index(":")) == expected
+    assert detect_preview_target_at_cursor(text, text.index(":") + 2) == expected
+    assert _detect(text, "line one") is None
+    assert detect_preview_target_at_cursor(text, text.index("second")) is None
+
+
+def test_nested_reference_inside_double_colon_block_wins() -> None:
+    text = "run #foo:: line one\n\nline two\n#bar do it"
+    token = _detect(text, "#bar")
+    start = text.index("#bar")
+    assert token == PreviewToken("xprompt", "#bar", "bar", start, start + len("#bar"))
+
+
+def test_file_path_inside_colon_shorthand_wins() -> None:
+    text = "#foo: fix src/main.py now"
+    token = _detect(text, "src/main.py")
+    start = text.index("src/main.py")
+    assert token == PreviewToken(
+        "file",
+        "src/main.py",
+        "src/main.py",
+        start,
+        start + len("src/main.py"),
+    )
+
+
+def test_paren_args_still_preview_xprompt_but_shorthand_text_does_not() -> None:
+    text = "#foo(x=1): text"
+    expected = PreviewToken("xprompt", text, "foo", 0, len(text))
+
+    assert _detect(text, "x=1") == expected
+    assert _detect(text, "text") is None
+
+
+def test_detect_shorthand_argument_owner_at_cursor() -> None:
+    text = "#foo: some text"
+    owner = detect_shorthand_argument_owner_at_cursor(text, text.index("some"))
+    assert owner == PreviewToken("xprompt", text, "foo", 0, len(text))
+
+    assert detect_shorthand_argument_owner_at_cursor(text, text.index("#foo")) is None
+    assert detect_shorthand_argument_owner_at_cursor("#foo:bar", 5) is None
+    assert detect_shorthand_argument_owner_at_cursor("hello world", 3) is None
+
+    nested = "a #foo: hi #bar: yo"
+    owner = detect_shorthand_argument_owner_at_cursor(nested, nested.index("yo"))
+    start = nested.index("#bar")
+    assert owner == PreviewToken(
+        "xprompt",
+        "#bar: yo",
+        "bar",
+        start,
+        start + len("#bar: yo"),
+    )
 
 
 def test_detects_project_xprompt_reference() -> None:

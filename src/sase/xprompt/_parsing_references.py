@@ -74,6 +74,8 @@ class XPromptReference:
     arg_kind: XPromptReferenceArgKind = XPromptReferenceArgKind.NONE
     argument_source: str = ""
     hitl_override: bool | None = None
+    shorthand_text_start: int | None = None
+    """Offset where ``: ``/``:: `` free-text argument content begins, if any."""
 
     @property
     def is_standalone_marker(self) -> bool:
@@ -124,33 +126,35 @@ def _reference_arg_kind_from_match(
     return XPromptReferenceArgKind.NONE
 
 
-def _reference_end(prompt: str, match: re.Match[str]) -> int:
-    """Return the semantic end offset for a reference match."""
+def _reference_span(prompt: str, match: re.Match[str]) -> tuple[int, int | None]:
+    """Return ``(end, shorthand_text_start)`` for a reference match."""
     if match.group("open_paren") is not None:
         paren_start = match.end("open_paren") - 1
         paren_end = find_matching_paren_for_args(prompt, paren_start)
         if paren_end is None:
-            return match.end()
+            return match.end(), None
 
         end = paren_end + 1
         after_paren = prompt[end:]
         if after_paren.startswith(":: "):
-            return find_double_colon_text_end(prompt, end + 3)
+            return find_double_colon_text_end(prompt, end + 3), end + 3
         if after_paren.startswith(": "):
-            return find_shorthand_text_end(prompt, end + 2)
+            return find_shorthand_text_end(prompt, end + 2), end + 2
         if after_paren.startswith(":") and len(after_paren) > 1:
-            return end + 1 + len(after_paren[1:].split(maxsplit=1)[0])
-        return end
+            return end + 1 + len(after_paren[1:].split(maxsplit=1)[0]), None
+        return end, None
 
     if match.group("colon_arg") is not None or match.group("plus") is not None:
-        return match.end()
+        return match.end(), None
 
     after_match = prompt[match.end() :]
     if after_match.startswith(":: "):
-        return find_double_colon_text_end(prompt, match.end() + 3)
+        text_start = match.end() + 3
+        return find_double_colon_text_end(prompt, text_start), text_start
     if after_match.startswith(": "):
-        return find_shorthand_text_end(prompt, match.end() + 2)
-    return match.end()
+        text_start = match.end() + 2
+        return find_shorthand_text_end(prompt, text_start), text_start
+    return match.end(), None
 
 
 def xprompt_reference_from_match(prompt: str, match: re.Match[str]) -> XPromptReference:
@@ -158,7 +162,7 @@ def xprompt_reference_from_match(prompt: str, match: re.Match[str]) -> XPromptRe
     marker = XPromptReferenceMarker(match.group("marker"))
     hitl_suffix = match.group("hitl")
     name_end = match.end("hitl") if hitl_suffix else match.end("name")
-    end = _reference_end(prompt, match)
+    end, shorthand_text_start = _reference_span(prompt, match)
     raw = prompt[match.start() : end]
 
     return XPromptReference(
@@ -170,6 +174,7 @@ def xprompt_reference_from_match(prompt: str, match: re.Match[str]) -> XPromptRe
         arg_kind=_reference_arg_kind_from_match(prompt, match, end),
         argument_source=prompt[name_end:end],
         hitl_override=_hitl_override_from_suffix(hitl_suffix),
+        shorthand_text_start=shorthand_text_start,
     )
 
 

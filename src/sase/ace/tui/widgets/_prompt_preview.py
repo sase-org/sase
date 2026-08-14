@@ -11,6 +11,7 @@ from sase.ace.tui.widgets._prompt_preview_target import (
     PreviewError,
     PreviewToken,
     detect_preview_target_at_cursor,
+    detect_shorthand_argument_owner_at_cursor,
     is_slash_skill_candidate_at_cursor,
     resolve_preview_target,
 )
@@ -53,12 +54,14 @@ class PromptPreviewMixin(_MixinBase):
                 return
             if self._lookup_word_under_cursor():
                 return
-            self.notify(
-                "Move the cursor onto an xprompt, skill, file path, glossary term, "
-                "or word to look it up",
-                severity="warning",
-            )
-            return
+            token = detect_shorthand_argument_owner_at_cursor(self.text, offset)
+            if token is None:
+                self.notify(
+                    "Move the cursor onto an xprompt, skill, file path, glossary term, "
+                    "or word to look it up",
+                    severity="warning",
+                )
+                return
 
         project, base_dir = self._preview_context()
         self._prompt_preview_request_id += 1

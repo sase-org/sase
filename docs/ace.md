@@ -4505,11 +4505,14 @@ position captured when the finder opened. Inside the finder, type to filter, use
 and `Esc` to cancel.
 
 In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor.
-On ordinary prompt text, ACE checks the warm project glossary before falling back to
-plain word lookup or spelling fixes. `Ctrl+]` jumps to an xprompt, skill, file, or
-glossary definition, or opens an action picker when several jump targets are available.
-Glossary terms come from the project selected by a leading VCS workflow reference, or
-from the active workspace project when the prompt does not select one.
+Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]` prefer a nested reference,
+file path, glossary term, or plain word under the cursor, and fall back to the xprompt
+that owns the argument text only when nothing else matches. On ordinary prompt text, ACE
+checks the warm project glossary before falling back to plain word lookup or spelling
+fixes. `Ctrl+]` jumps to an xprompt, skill, file, or glossary definition, or opens an
+action picker when several jump targets are available. Glossary terms come from the
+project selected by a leading VCS workflow reference, or from the active workspace
+project when the prompt does not select one.
 
 #### Glossary terms
 

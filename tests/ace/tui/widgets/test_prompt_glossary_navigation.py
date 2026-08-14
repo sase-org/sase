@@ -236,6 +236,42 @@ async def test_ctrl_bracket_on_wrapped_continuation_opens_full_definition(
         assert payload.col == 5
 
 
+async def test_ctrl_bracket_on_glossary_term_inside_shorthand_argument(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    text = "#foo:: Ask Agent Clan to coordinate"
+    catalog = catalog_for_text(text, tmp_path, "Agent Clan")
+    calls: list[tuple[str, Any]] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.is_tmux_session",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_perform_jump_action",
+        lambda self, choice, payload: calls.append((choice, payload)),
+    )
+
+    async with PromptPage(
+        text,
+        cursor=(0, text.index("Agent")),
+        size=(80, 24),
+    ) as page:
+        install_warm_glossary(monkeypatch, page.ta.app, catalog)
+
+        await page.press("ctrl+right_square_bracket")
+        await page.wait_for(lambda: bool(calls))
+
+        choice, payload = calls[0]
+        assert choice == "editor"
+        assert payload.kind_label == "glossary"
+        assert payload.title == "Agent Clan"
+        assert payload.source_path == str(tmp_path / "sase.yml")
+        assert page.ta._prompt_jump_request_id == 0
+
+
 async def test_ctrl_bracket_on_cold_glossary_defers_without_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

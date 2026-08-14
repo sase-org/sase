@@ -17,6 +17,7 @@ from sase.ace.tui.widgets._prompt_jump_target import (
     JumpToken,
     build_jump_editor_argv,
     detect_jump_target_at_cursor,
+    detect_shorthand_argument_owner_jump_target,
     resolve_jump_target,
 )
 from sase.workflows.commit.editor_utils import get_editor
@@ -64,11 +65,13 @@ class PromptJumpMixin(_MixinBase):
             )
             if callable(jump_glossary) and jump_glossary():
                 return
-            self.notify(
-                "Move the cursor onto an xprompt, skill, file path, or glossary term to jump to its definition",
-                severity="warning",
-            )
-            return
+            token = detect_shorthand_argument_owner_jump_target(self.text, offset)
+            if token is None:
+                self.notify(
+                    "Move the cursor onto an xprompt, skill, file path, or glossary term to jump to its definition",
+                    severity="warning",
+                )
+                return
 
         project, base_dir = self._preview_context()
         self._prompt_jump_request_id += 1

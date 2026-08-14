@@ -13,7 +13,7 @@ from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     resolve_file_path,
 )
 from sase.xprompt import xprompt_inspect
-from sase.xprompt._parsing_references import iter_xprompt_references
+from sase.xprompt._parsing_references import XPromptReference, iter_xprompt_references
 from sase.content_layout import skill_reference_name
 from sase.xprompt.loader import get_xprompt_or_workflow
 from sase.xprompt.models import UNSET, InputArg, XPrompt
@@ -70,6 +70,21 @@ class PreviewError(Exception):
     """User-facing preview failure."""
 
 
+def _cursor_in_shorthand_argument_text(ref: XPromptReference, offset: int) -> bool:
+    start = ref.shorthand_text_start
+    return start is not None and start <= offset < ref.end
+
+
+def _preview_token_from_xprompt_reference(ref: XPromptReference) -> PreviewToken:
+    return PreviewToken(
+        kind="xprompt",
+        raw=ref.raw,
+        target=ref.name,
+        start=ref.start,
+        end=ref.end,
+    )
+
+
 def detect_preview_target_at_cursor(
     text: str,
     cursor_offset: int,
@@ -94,13 +109,9 @@ def detect_preview_target_at_cursor(
 
     for ref in iter_xprompt_references(text):
         if ref.start <= offset < ref.end:
-            return PreviewToken(
-                kind="xprompt",
-                raw=ref.raw,
-                target=ref.name,
-                start=ref.start,
-                end=ref.end,
-            )
+            if _cursor_in_shorthand_argument_text(ref, offset):
+                continue
+            return _preview_token_from_xprompt_reference(ref)
 
     for match in iter_file_path_matches(text):
         at_prefix = match.group(1)
@@ -125,6 +136,22 @@ def detect_preview_target_at_cursor(
             )
 
     return None
+
+
+def detect_shorthand_argument_owner_at_cursor(
+    text: str, cursor_offset: int
+) -> PreviewToken | None:
+    """Return the xprompt whose ``: ``/``:: `` argument text holds the cursor."""
+    offset = max(0, min(cursor_offset, len(text)))
+    owner: XPromptReference | None = None
+    for ref in iter_xprompt_references(text):
+        if not _cursor_in_shorthand_argument_text(ref, offset):
+            continue
+        if owner is None or ref.start > owner.start:
+            owner = ref
+    if owner is None:
+        return None
+    return _preview_token_from_xprompt_reference(owner)
 
 
 def is_slash_skill_candidate_at_cursor(text: str, cursor_offset: int) -> bool:
@@ -466,6 +493,7 @@ __all__ = [
     "PreviewPayload",
     "PreviewToken",
     "detect_preview_target_at_cursor",
+    "detect_shorthand_argument_owner_at_cursor",
     "is_slash_skill_candidate_at_cursor",
     "resolve_preview_target",
 ]
