@@ -16,6 +16,10 @@ from sase.ace.tui.models.agent_associated_plan import (
     _AgentPlanEnrichment,
 )
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
+    should_refresh_detail_header_summary,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContextLane
 from sase.bead.model import Issue, IssueType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -501,4 +505,104 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
             page,
             "agents_phase_bead_and_plan_context_120x40",
             title="ACE agents phase family BEAD and PLAN context lanes",
+        )
+
+
+async def test_agents_partially_streamed_context_lanes_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Mid-stream SASE CONTEXT marks unresolved lanes (bead sase-l6.4).
+
+    Lanes resolve cheapest-first and publish as they land, so the section is
+    routinely on screen while the store-backed lanes are still resolving.
+    Holding ``memory`` and ``skills`` back for the whole capture makes that
+    transient state a stable frame: the enrichment worker still runs to
+    completion (so the page reaches visual idle) but never marks those two
+    lanes ready, which is exactly what the renderer sees between two
+    streamed publishes.
+    """
+    workspace = tmp_path / "sase_42"
+    relative_plan_path = Path("sase/repos/plans/202608/streaming context lanes.md")
+    plan_path = workspace / relative_plan_path
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Streaming SASE context lanes\n"
+        "goal: Render each context lane as soon as it resolves.\n"
+        "size: medium\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-streaming-lanes",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 8, 13, 18, 15, 0),
+        raw_suffix="20260813181500",
+        agent_name="visual.streaming-lanes",
+        plan_path=relative_plan_path.as_posix(),
+        sdd_plan_path=relative_plan_path.as_posix(),
+        plan_committed=True,
+        plan_action="tale",
+        workspace_dir=str(workspace),
+        llm_provider="codex",
+        model="gpt-5",
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat(ace): stream SASE CONTEXT lanes",
+                    "sha": "1234567890abcdef",
+                    "cwd": str(workspace),
+                }
+            ],
+        },
+    )
+
+    withheld: frozenset[DetailContextLane] = frozenset({"memory", "skills"})
+
+    def _refresh_without_store_lanes(
+        panel: AgentPromptPanel,
+        row: Agent,
+    ) -> frozenset[DetailContextLane]:
+        return frozenset(should_refresh_detail_header_summary(panel, row) - withheld)
+
+    monkeypatch.setattr(
+        AgentPromptPanel,
+        "_should_refresh_detail_header_summary",
+        _refresh_without_store_lanes,
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        await page.wait_for(
+            lambda _state: "resolving" in (renderable_to_text(panel.content) or "")
+        )
+        await wait_for_visual_idle(page)
+
+        metadata = renderable_to_text(panel.content) or ""
+        assert "SASE CONTEXT" in metadata
+        assert "Streaming SASE context lanes" in metadata
+        for resolved_label in ("PLAN", "ARTIFACTS"):
+            assert f"▸ {resolved_label} · resolving…\n" not in metadata
+        for pending_label in ("MEMORY", "SKILLS"):
+            assert f"▸ {pending_label} · resolving…\n" in metadata
+        assert metadata.index("▸ ARTIFACTS") < metadata.index("▸ MEMORY")
+        assert metadata.index("▸ MEMORY") < metadata.index("▸ SKILLS")
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "resolving")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_partially_streamed_context_lanes_120x40",
+            title="ACE agents partially streamed SASE context lanes",
         )
