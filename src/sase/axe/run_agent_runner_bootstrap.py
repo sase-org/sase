@@ -233,6 +233,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
         state.workspace_dir,
         state.artifacts_dir,
         cl_name=state.cl_name,
+        workspace_num=state.workspace_num,
         output_path=state.output_path,
         raw_resolved_prompt=raw_resolved_prompt,
     )

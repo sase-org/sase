@@ -28,6 +28,7 @@ class TestExtractDirectivesMetadata:
             "agent_family_role": "phase",
             "agent_family_parallel": True,
             "parent_timestamp": "20260713150000",
+            "workspace_num": 11,
         }
         (artifacts / "agent_meta.json").write_text(
             json.dumps({"pid": 123, **durable_metadata}),
@@ -129,7 +130,17 @@ class TestExtractDirectivesMetadata:
         result = run_extract(tmp_path, env_auto_dismiss=True)
         expected = str(tmp_path / "workspace")
         assert result["meta"]["workspace_dir"] == expected
+        assert result["meta"]["workspace_num"] == 0
         assert "vcs_provider" not in result["meta"]
+
+    def test_metadata_records_claimed_workspace_num(self, tmp_path: Path) -> None:
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            workspace_num=12,
+        )
+
+        assert result["meta"]["workspace_num"] == 12
 
     def test_named_agent_writes_agent_metadata(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

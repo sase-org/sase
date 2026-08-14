@@ -22,6 +22,7 @@ def run_extract(
     prompt: str = "do stuff",
     raw_resolved_prompt: str | None = None,
     cl_name: str | None = None,
+    workspace_num: int = 0,
 ) -> dict:
     """Call extract_directives_and_write_meta with standard mocks.
 
@@ -74,6 +75,7 @@ def run_extract(
             workspace,
             artifacts,
             cl_name=cl_name,
+            workspace_num=workspace_num,
             raw_resolved_prompt=raw_resolved_prompt,
         )
         bead_env = os.environ.get("SASE_BEAD_ID")

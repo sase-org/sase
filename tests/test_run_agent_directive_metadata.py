@@ -112,6 +112,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
     artifacts_dir.mkdir(parents=True)
     inputs = AgentMetadataInputs(
         workspace_dir="/workspace",
+        workspace_num=7,
         output_path=None,
         bead_id=None,
         wait_names=[],
@@ -141,6 +142,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
 
     assert identity.name == "foo"
     assert identity.meta["name"] == "foo"
+    assert identity.meta["workspace_num"] == 7
     assert os.environ["SASE_AGENT_NAME"] == "foo"
 
 
@@ -157,3 +159,16 @@ def test_preserved_agent_metadata_keeps_model_alias(tmp_path: Path) -> None:
     assert preserved["model"] == "opus"
     assert preserved["llm_provider"] == "claude"
     assert preserved["model_alias"] == "medium_worker"
+
+
+def test_preserved_agent_metadata_keeps_workspace_num(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        '{"workspace_num":12,"workspace_dir":"/tmp/sase_12"}',
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["workspace_num"] == 12

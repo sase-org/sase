@@ -46,6 +46,7 @@ class TestDeferredWorkspaceFlow:
         real_ws = tmp_path / "real-ws"
         placeholder_ws.mkdir()
         real_ws.mkdir()
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
         events: list[str] = []
 
         patches = base_patches(artifacts_dir)
@@ -70,6 +71,9 @@ class TestDeferredWorkspaceFlow:
             events.append("run")
             assert ctx.workspace_num == 3
             assert ctx.workspace_dir == str(real_ws)
+            meta = json.loads(meta_path.read_text())
+            assert meta["workspace_num"] == 3
+            assert meta["workspace_dir"] == str(real_ws)
             return exec_result(artifacts_dir)
 
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_dependencies

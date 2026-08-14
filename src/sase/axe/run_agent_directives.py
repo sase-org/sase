@@ -59,6 +59,7 @@ def extract_directives_and_write_meta(
     artifacts_dir: str,
     cl_name: str | None = None,
     *,
+    workspace_num: int = 0,
     output_path: str | None = None,
     raw_resolved_prompt: str | None = None,
 ) -> AgentInfo:
@@ -299,6 +300,7 @@ def extract_directives_and_write_meta(
 
     metadata_inputs = AgentMetadataInputs(
         workspace_dir=workspace_dir,
+        workspace_num=workspace_num,
         output_path=output_path,
         bead_id=bead_id,
         wait_names=wait_names,

@@ -37,6 +37,7 @@ class AgentMetadataInputs:
     """Resolved launch values used to assemble ``agent_meta.json``."""
 
     workspace_dir: str
+    workspace_num: int
     output_path: str | None
     bead_id: str | None
     wait_names: list[str]
@@ -82,6 +83,9 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
             preserved[key] = value
+    workspace_num = existing_meta.get("workspace_num")
+    if isinstance(workspace_num, int):
+        preserved["workspace_num"] = workspace_num
     if existing_meta.get("plan_committed") is True:
         preserved["plan_committed"] = True
     for key in (
@@ -159,6 +163,7 @@ def build_agent_meta(
     agent_meta: dict[str, Any] = {
         "pid": os.getpid(),
         "workspace_dir": inputs.workspace_dir,
+        "workspace_num": inputs.workspace_num,
     }
     if inputs.output_path:
         agent_meta["output_path"] = inputs.output_path
@@ -281,9 +286,16 @@ def _add_family_metadata(
     agent_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = family_attach_plan.parent_timestamp
     agent_meta[AGENT_FAMILY_FIELD] = family_attach_plan.parent_base
     agent_meta[AGENT_FAMILY_ROLE_FIELD] = family_attach_plan.agent_family_role
-    if family_attach_plan.parent_workspace_dir:
+    claimed_workspace_num = agent_meta.get("workspace_num")
+    run_has_claimed_workspace = (
+        isinstance(claimed_workspace_num, int) and claimed_workspace_num > 0
+    )
+    if family_attach_plan.parent_workspace_dir and not run_has_claimed_workspace:
         agent_meta["workspace_dir"] = family_attach_plan.parent_workspace_dir
-    if family_attach_plan.parent_workspace_num is not None:
+    if (
+        family_attach_plan.parent_workspace_num is not None
+        and not run_has_claimed_workspace
+    ):
         agent_meta["workspace_num"] = family_attach_plan.parent_workspace_num
     if family_attach_plan.parent_cl_name:
         agent_meta["patch_name"] = family_attach_plan.parent_cl_name

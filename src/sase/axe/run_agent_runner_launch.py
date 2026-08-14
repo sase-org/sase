@@ -57,6 +57,13 @@ def _prepare_workspace_and_repos(
             state.cl_name,
             state.artifacts_timestamp,
         )
+        bootstrap.agent_meta.update(
+            {
+                "workspace_dir": state.workspace_dir,
+                "workspace_num": state.workspace_num,
+            }
+        )
+        write_agent_meta(state.artifacts_dir, bootstrap.agent_meta)
 
     fresh_sidecar_paths = prepare_workspace_if_needed(
         workspace_dir=state.workspace_dir,
