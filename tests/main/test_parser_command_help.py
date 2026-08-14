@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import (
     assert_metavar_option_documented as _assert_metavar_option_documented,
@@ -90,6 +92,29 @@ def test_agent_tribe_help_uses_public_tribe_vocabulary() -> None:
     _assert_metavar_option_documented(set_help, "-t", "--tribe", "TRIBE")
     assert "--tag" not in set_help
     assert args.tribe == "review"
+
+
+def test_agent_show_takes_name_positionally(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``sase agent show`` takes NAME positionally; the old -n/--name is gone."""
+    show_help = flat_help(parser_for(("sase", "agent", "show")).format_help())
+    args = create_parser().parse_args(["agent", "show", "brisk-otter"])
+
+    assert args.name == "brisk-otter"
+    assert "usage: sase agent show [-h] NAME" in show_help
+    assert "-n" not in show_help
+    assert "--name" not in show_help
+
+    with pytest.raises(SystemExit) as missing_name:
+        create_parser().parse_args(["agent", "show"])
+    assert missing_name.value.code == 2
+    assert "the following arguments are required: NAME" in capsys.readouterr().err
+
+    with pytest.raises(SystemExit) as old_option_form:
+        create_parser().parse_args(["agent", "show", "-n", "brisk-otter"])
+    assert old_option_form.value.code == 2
+    assert "unrecognized arguments: -n" in capsys.readouterr().err
 
 
 def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:

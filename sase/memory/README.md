@@ -88,8 +88,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Type: `long`
 - Description: Read anytime new CLI subcommands or options are added.
 - Parent: `AGENTS.md`
-- Lines: 33
-- Approx. tokens: 383
+- Lines: 35
+- Approx. tokens: 425
 
 ### `sase/memory/generated_skills.md`
 
@@ -170,8 +170,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 12
 - Short notes: 4
 - Long notes: 8
-- Total lines: 936
-- Total approx. tokens: 11561
+- Total lines: 938
+- Total approx. tokens: 11603
 
 ## Commands
 

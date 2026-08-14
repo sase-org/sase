@@ -166,6 +166,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             "sase_agents_status",
             (
                 "sase agent list -j",
+                "sase agent show <name>",
                 "artifacts_dir",
                 "cite the artifact paths",
             ),

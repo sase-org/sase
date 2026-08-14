@@ -14,6 +14,8 @@ When adding or changing CLI subcommands or options:
   subprocess arguments.
 - Prefer beautiful, colored output over black-and-white output when color improves
   readability.
+- Options must not be required. A value that is required for the command to execute
+  belongs in a positional argument; options represent optional controls or modifiers.
 
 ## Default `list` Subcommand Convention
 

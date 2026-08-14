@@ -89,15 +89,14 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Name of the agent to kill",
     )
 
-    # sase agent show -n NAME
+    # sase agent show NAME
     show_parser = agents_sub.add_parser(
         "show",
         help="Render a full detail panel for one agent",
     )
     show_parser.add_argument(
-        "-n",
-        "--name",
-        required=True,
+        "name",
+        metavar="NAME",
         help="Name of the agent to show",
     )
 
