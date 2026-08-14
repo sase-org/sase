@@ -53,7 +53,7 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     monkeypatch.setattr(store_module, "monitor_blocking_start_for_lane", fake_blocking)
     monkeypatch.setattr(
         start_module,
-        "_monitor_request_fingerprint",
+        "monitor_request_fingerprint",
         lambda request, *, lane, label: "sha256:match",
     )
 
@@ -103,7 +103,7 @@ def test_start_monitor_rejects_same_command_with_changed_request(
     )
     monkeypatch.setattr(
         start_module,
-        "_monitor_request_fingerprint",
+        "monitor_request_fingerprint",
         lambda request, *, lane, label: "sha256:new",
     )
 
@@ -154,7 +154,7 @@ def test_start_monitor_rejects_identical_replay_of_lost_monitor(
     )
     monkeypatch.setattr(
         start_module,
-        "_monitor_request_fingerprint",
+        "monitor_request_fingerprint",
         lambda request, *, lane, label: "sha256:match",
     )
 
@@ -203,7 +203,7 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
     )
     monkeypatch.setattr(
         start_module,
-        "_monitor_request_fingerprint",
+        "monitor_request_fingerprint",
         lambda request, *, lane, label: "sha256:requested",
     )
 

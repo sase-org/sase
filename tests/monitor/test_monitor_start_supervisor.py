@@ -125,9 +125,9 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.start as start_module
+    import sase.monitor.spawn as spawn_module
 
-    real_popen = start_module.subprocess.Popen
+    real_popen = spawn_module.subprocess.Popen
     captured_env: dict[str, str] = {}
 
     def fake_popen(*args: object, **kwargs: object) -> object:
@@ -136,7 +136,7 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
             captured_env.update(env)
         return real_popen(*args, **kwargs)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
 
     request = StartMonitorRequest(
         command="true",
@@ -173,7 +173,7 @@ def test_start_monitor_captures_supervisor_diagnostics(
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.start as start_module
+    import sase.monitor.spawn as spawn_module
 
     captured: dict[str, object] = {}
 
@@ -203,7 +203,7 @@ def test_start_monitor_captures_supervisor_diagnostics(
             wait=lambda timeout=None: 0,
         )
 
-    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
 
     record = start_monitor(
         StartMonitorRequest(
@@ -219,8 +219,8 @@ def test_start_monitor_captures_supervisor_diagnostics(
 
     log_path = Path(record.artifacts_dir) / SUPERVISOR_LOG_NAME
     assert log_path.read_bytes() == b"supervisor traceback\n"
-    assert captured["stderr"] == start_module.subprocess.STDOUT
-    assert captured["stdin"] == start_module.subprocess.DEVNULL
+    assert captured["stderr"] == spawn_module.subprocess.STDOUT
+    assert captured["stdin"] == spawn_module.subprocess.DEVNULL
     assert captured["start_new_session"] is True
     assert captured["close_fds"] is True
     assert captured["pass_fds"]

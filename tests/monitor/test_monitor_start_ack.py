@@ -223,9 +223,9 @@ def test_start_monitor_raises_and_restores_the_claim_when_the_supervisor_never_a
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.start as start_module
+    import sase.monitor.spawn as spawn_module
 
-    real_popen = start_module.subprocess.Popen
+    real_popen = spawn_module.subprocess.Popen
 
     def fake_popen(*args: object, **kwargs: object) -> object:
         del args
@@ -244,7 +244,7 @@ def test_start_monitor_raises_and_restores_the_claim_when_the_supervisor_never_a
             pid=dead.pid, poll=lambda: 0, wait=lambda timeout=None: 0
         )
 
-    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
 
     request = StartMonitorRequest(
         command=f"touch {shlex.quote(str(sentinel))}",
@@ -301,11 +301,11 @@ def test_start_monitor_kills_a_supervisor_that_never_writes_the_ack_marker(
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.start as start_module
+    import sase.monitor.spawn as spawn_module
 
-    monkeypatch.setattr(start_module, "MONITOR_START_ACK_TIMEOUT_SECONDS", 0.3)
+    monkeypatch.setattr(spawn_module, "MONITOR_START_ACK_TIMEOUT_SECONDS", 0.3)
 
-    real_popen = start_module.subprocess.Popen
+    real_popen = spawn_module.subprocess.Popen
     spawned: list[subprocess.Popen[bytes]] = []
 
     def fake_popen(*args: object, **kwargs: object) -> object:
@@ -322,7 +322,7 @@ def test_start_monitor_kills_a_supervisor_that_never_writes_the_ack_marker(
             pid=stalled.pid, poll=lambda: 0, wait=lambda timeout=None: 0
         )
 
-    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
 
     request = StartMonitorRequest(
         command="true",

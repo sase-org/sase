@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 import sase.monitor.followup as followup_module
-import sase.monitor.start as start_module
+import sase.monitor.spawn as spawn_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.monitor.output import OutputCapture
@@ -86,7 +86,7 @@ def _promote_and_start_monitor(
         )
         return _FakeSupervisorPid()
 
-    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
     request = StartMonitorRequest(
         command="true",
         reason="verify",

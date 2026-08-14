@@ -42,12 +42,12 @@ def test_start_monitor_tears_down_the_member_when_the_supervisor_cannot_spawn(
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.start as start_module
+    import sase.monitor.spawn as spawn_module
 
     def fake_popen(*args: object, **kwargs: object) -> None:
         raise OSError("no more processes")
 
-    monkeypatch.setattr(start_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
 
     request = StartMonitorRequest(
         command="true",
