@@ -142,10 +142,13 @@ def test_agent_meta_omits_model_alias_for_concrete_model(
     assert "model_alias" not in meta
 
 
-def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
+def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_selection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The axe metadata lane is authoritative and a re-exec does not re-consume."""
+    """The axe metadata lane only previews the pool; a re-exec reuses the
+    preserved selection without re-resolving. The pool's cursor only
+    advances when the anonymous workflow's prompt step performs the real,
+    consuming resolution immediately before invoking the provider."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
     from sase.llm_provider import config as llm_config
 
@@ -197,6 +200,9 @@ def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
     )
     assert first["model_alias"] == "pool"
 
+    # A second, independent launch's metadata preview sees the same
+    # unconsumed cursor position as the first, since neither call is a real
+    # invocation.
     extract_directives_and_write_meta(
         prompt=prompt,
         workspace_dir=workspace_dir,
@@ -205,16 +211,21 @@ def test_agent_meta_consumes_alias_pool_once_and_resume_reuses_selection(
     second = json.loads(
         (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert (second["llm_provider"], second["model"]) == ("codex", "gpt-5.5")
+    assert (second["llm_provider"], second["model"], second["reasoning_effort"]) == (
+        "claude",
+        "opus",
+        "medium",
+    )
     assert second["model_alias"] == "pool"
-    assert "reasoning_effort" not in second
 
 
-def test_agent_meta_default_lane_consumes_pool_once_and_resume_reuses_selection(
+def test_agent_meta_default_lane_previews_pool_without_consuming(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The implicit default launch lane advances the shared pool cursor once."""
+    """The implicit default launch lane previews the pool but never advances
+    its shared cursor; only a real invocation does that (see
+    ``test_workflow_executor.py`` for the composed, consuming path)."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
     from sase.llm_provider import config as llm_config
     from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
@@ -243,6 +254,8 @@ def test_agent_meta_default_lane_consumes_pool_once_and_resume_reuses_selection(
     state_path = Path.home() / ".sase" / "llm_lb.json"
 
     def cursor() -> int:
+        if not state_path.exists():
+            return 0
         state = json.loads(state_path.read_text(encoding="utf-8"))
         return int(state["entries"][SMARTER_MODEL_ALIAS_NAME]["cursor"])
 
@@ -263,7 +276,7 @@ def test_agent_meta_default_lane_consumes_pool_once_and_resume_reuses_selection(
         first_effort,
     )
     assert first["model_alias"] == "default"
-    assert cursor() == 1
+    assert cursor() == 0
 
     extract_directives_and_write_meta(
         prompt="do the work",
@@ -278,8 +291,10 @@ def test_agent_meta_default_lane_consumes_pool_once_and_resume_reuses_selection(
         first_provider,
         first_model,
     )
-    assert cursor() == 1
+    assert cursor() == 0
 
+    # A second, independent launch's preview also sees member 0: previewing
+    # never advances the cursor, regardless of how many previews run.
     extract_directives_and_write_meta(
         prompt="do the work",
         workspace_dir=workspace_dir,
@@ -288,13 +303,10 @@ def test_agent_meta_default_lane_consumes_pool_once_and_resume_reuses_selection(
     second = json.loads(
         (Path(second_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
-    second_provider, second_model, second_effort = (
-        frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 1)
-    )
     assert (second["llm_provider"], second["model"], second["reasoning_effort"]) == (
-        second_provider,
-        second_model,
-        second_effort,
+        first_provider,
+        first_model,
+        first_effort,
     )
     assert second["model_alias"] == "default"
     assert cursor() == 0

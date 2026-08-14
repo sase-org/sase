@@ -59,6 +59,24 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
         pass
 
 
+def update_meta_fields(artifacts_dir: str, fields: dict[str, Any]) -> None:
+    """Read agent_meta.json, set multiple keys, and write it back once."""
+    if not fields:
+        return
+    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        meta.update(fields)
+        write_agent_meta_atomic(
+            artifacts_dir,
+            meta,
+            index_updater=update_agent_artifact_index_for_marker_mutation,
+        )
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+
 def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:
     """Read agent_meta.json, set role_suffix, and write it back."""
     canonical_suffix = canonical_plan_chain_suffix(suffix) or suffix

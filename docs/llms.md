@@ -1121,16 +1121,19 @@ xprompt values stay bare. A bare configured/implicit alias raises with a migrati
 and `@` in front of a non-alias raises.
 
 An alias value can instead use one of two selector operators. `A | B` is an
-availability-filtered round-robin pool: real launches advance machine-global state in
-`~/.sase/llm_lb.json`, while display, completion, doctor, dry-run, and preview callers
-only peek. `A || B` is an ordered fallback chain: the first member whose registered
-provider CLI is installed always wins, and resolution never reads or changes the
-round-robin cursor, including during a real launch. Fallback is based only on the cached
-CLI-installation probe (including `SASE_<PROVIDER>_PATH`), not a later model or runtime
-failure; SASE does not relaunch with the next candidate after such a failure. If every
-provider is unavailable, both modes preserve a candidate for the ordinary provider
-lookup to report: fallback preserves its first member, while the pool preserves its
-current rotation choice.
+availability-filtered round-robin pool: each real LLM invocation advances the
+machine-global cursor in `~/.sase/llm_lb.json` exactly once, under a machine-wide lock,
+immediately before the provider is called — never during metadata preparation, a
+display/marker preview, or a doctor/dry-run check, which only peek. `@default` and any
+other alias that merely delegates to a pool (directly or through further aliasing) share
+that pool-owning alias's cursor rather than keeping one of their own. `A || B` is an
+ordered fallback chain: the first member whose registered provider CLI is installed
+always wins, and resolution never reads or changes the round-robin cursor, including
+during a real launch. Fallback is based only on the cached CLI-installation probe
+(including `SASE_<PROVIDER>_PATH`), not a later model or runtime failure; SASE does not
+relaunch with the next candidate after such a failure. If every provider is unavailable,
+both modes preserve a candidate for the ordinary provider lookup to report: fallback
+preserves its first member, while the pool preserves its current rotation choice.
 
 Both selectors accept two or more members using the same single-target grammar,
 including candidate-specific trailing reasoning effort. Whitespace is trimmed and empty
@@ -1638,9 +1641,15 @@ default is resolved as:
 For every alias, including `default`, `resolve_model_alias()` consults the launch-scoped
 map first, then that alias's active machine-wide override, then its configured/implicit
 value. The implicit `default` fallback is honored before the provider tier default. This
-order applies at every nested alias hop. If `@default` reaches a round-robin pool, each
-fresh no-`%model` launch consumes that pool exactly once; a runner re-exec reuses the
-stored provider/model metadata and does not advance the cursor again.
+order applies at every nested alias hop. If `@default` reaches a round-robin pool, the
+pool advances exactly once per real LLM invocation — the runner's top-level metadata
+preparation only previews the selection (`consume=False`); the anonymous workflow's
+prompt step performs the one authoritative, consuming resolution immediately before
+invoking the provider, and reuses it for the step marker, root `agent_meta.json`, and
+the saved chat's metadata. A no-`%model` launch and an explicit `%model:@smarter` (or
+any other reference that resolves through the same pool-owning alias) advance that same
+shared cursor. A runner re-exec reuses the stored provider/model metadata and does not
+advance the cursor again.
 
 A concrete temporary override sets both the default provider and a concrete
 `model_override` for the next launch — so the agent metadata (running marker, plan

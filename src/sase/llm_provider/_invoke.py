@@ -31,12 +31,12 @@ from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
 from .commit_finalizer import run_commit_finalizer
 from .config import resolve_effective_effort
+from .launch_selection import LaunchSelection
 from .registry import (
     LLM_EXEC_PROVIDER_ENV,
     get_default_provider_name,
     get_provider,
     resolve_execution_provider_name,
-    resolve_model_provider_with_effort,
 )
 from .types import (
     LLMInvocationError,
@@ -68,6 +68,7 @@ def invoke_agent(
     provider_name: str | None = None,
     skip_preprocessing: bool = False,
     directives: PromptDirectives | None = None,
+    launch_selection: LaunchSelection | None = None,
 ) -> AIMessage:
     """Invoke an LLM agent with standard preprocessing, logging, and postprocessing.
 
@@ -103,6 +104,11 @@ def invoke_agent(
             and use the prompt as-is (caller already preprocessed).
         directives: Pre-extracted prompt directives to use when
             ``skip_preprocessing=True``.
+        launch_selection: An already-resolved provider/model/effort
+            selection. When supplied, ``invoke_agent()`` uses it as-is
+            instead of resolving *directives* itself, so a caller that
+            already consumed a pooled model alias (e.g. the workflow
+            executor's prompt step) does not advance its cursor twice.
 
     Returns:
         The AIMessage response from the agent.
@@ -158,78 +164,36 @@ def invoke_agent(
             model_alias_overrides,
         )
 
-    # Resolve provider from model override (e.g. "o3" → codex, "codex/o3" → codex)
-    alias_effort: str | None = None
-    if model_override and not provider_name:
-        original_model_override = model_override
-        if model_alias_overrides:
-            resolved_provider, model_override, alias_effort = (
-                resolve_model_provider_with_effort(
-                    model_override,
-                    model_alias_overrides,
-                    consume=True,
-                )
-            )
-        else:
-            resolved_provider, model_override, alias_effort = (
-                resolve_model_provider_with_effort(model_override, consume=True)
-            )
-        if resolved_provider:
-            provider_name = resolved_provider
-        else:
-            provider_name = get_default_provider_name()
-            logger.warning(
-                "Model override %r did not resolve to an LLM provider; "
-                "falling back to default provider %r.",
-                original_model_override,
-                provider_name,
-            )
+    # A caller that already consumed a pooled model alias (e.g. the workflow
+    # executor's prompt step, immediately before this call) hands over that
+    # exact selection so it is never resolved — and never consumed — twice.
+    if launch_selection is not None:
+        provider_name = launch_selection.provider
+        model_override = launch_selection.model
+        effective_effort = launch_selection.reasoning_effort
+        effort_explicit = launch_selection.effort_explicit
+    else:
+        from .launch_selection import resolve_launch_selection
 
-    # Resolve the launch default only when neither an explicit %model directive
-    # nor an explicit provider_name was supplied. Explicit caller intent always
-    # wins over the default.
-    if not model_override and not provider_name:
-        from .config import default_model_alias_name
-        from .temporary_override import (
-            get_active_temporary_override,
-            resolve_effective_default_provider_model_with_effort,
+        selection = resolve_launch_selection(
+            result_directives,
+            model_alias_overrides,
+            model_tier=model_tier,
+            provider_name=provider_name,
+            consume=True,
         )
-
-        active = get_active_temporary_override()
-        if default_model_alias_name() in model_alias_overrides:
-            (
-                provider_name,
-                model_override,
-                alias_effort,
-            ) = resolve_effective_default_provider_model_with_effort(
-                model_tier,
-                model_alias_overrides,
-                consume=True,
-            )
-        elif active is not None:
-            # An active primary temporary override wins the new-launch-default
-            # slot (it is the user's recent explicit choice).
-            provider_name = active.provider
-            model_override = active.model
-            alias_effort = active.effort
+        if selection is not None:
+            provider_name = selection.provider
+            model_override = selection.model
+            effective_effort = selection.reasoning_effort
+            effort_explicit = selection.effort_explicit
         else:
-            # The implicit @default alias owns the no-directive launch lane,
-            # including shipped fallback chains and load-balanced pools.
-            (
-                provider_name,
-                model_override,
-                alias_effort,
-            ) = resolve_effective_default_provider_model_with_effort(
-                model_tier,
-                model_alias_overrides or None,
-                consume=True,
+            # Caller supplied provider_name directly with no %model directive;
+            # nothing to resolve here (model_tier drives the fallback below).
+            effective_effort, effort_explicit = resolve_effective_effort(
+                result_directives, None
             )
 
-    # Explicit %effort/@effort (including a %model suffix) beats effort carried
-    # by the selected alias target, which in turn beats default_effort.
-    effective_effort, effort_explicit = resolve_effective_effort(
-        result_directives, alias_effort
-    )
     invocation_options = LLMInvocationOptions(
         reasoning_effort=effective_effort,
         explicit=effort_explicit,

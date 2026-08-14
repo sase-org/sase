@@ -45,6 +45,7 @@ __all__ = [
     "read_commit_result_metadata",
     "read_commit_results_metadata",
     "update_meta_field",
+    "update_meta_fields",
     "update_meta_suffix",
     "update_step_marker_chat_path",
 ]
@@ -95,6 +96,11 @@ def append_meta_list_field(artifacts_dir: str, key: str, value: Any) -> None:
 def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
     _sync_patchable_dependencies()
     _artifacts.update_meta_field(artifacts_dir, key, value)
+
+
+def update_meta_fields(artifacts_dir: str, fields: dict[str, Any]) -> None:
+    _sync_patchable_dependencies()
+    _artifacts.update_meta_fields(artifacts_dir, fields)
 
 
 def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:

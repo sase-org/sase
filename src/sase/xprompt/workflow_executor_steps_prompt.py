@@ -273,36 +273,26 @@ class PromptStepMixin:
         if pre_step_meta:
             step_state.output = dict(pre_step_meta)
 
-        # Resolve model and LLM provider for TUI display in the step marker
-        from sase.llm_provider.registry import (
-            get_default_provider_name,
-            resolve_model_provider_with_effort,
+        # Resolve the concrete provider/model/effort for this step's one real
+        # invocation. This consumes a load-balanced alias pool's cursor
+        # exactly once, under the machine-wide lock, and the resulting
+        # selection is reused for the step marker, the root launch metadata
+        # (for the primary anonymous prompt step), the provider call itself,
+        # and the saved chat history — so all of them name the model that
+        # actually answered instead of a separately re-resolved preview.
+        from sase.llm_provider.launch_selection import resolve_launch_selection
+
+        launch_selection = resolve_launch_selection(
+            effective_directives,
+            effective_directives.model_alias_overrides,
+            consume=True,
         )
-        from sase.llm_provider.temporary_override import (
-            resolve_effective_default_provider_model_with_effort,
-        )
-
-        step_model = effective_directives.model
-        alias_effort: str | None = None
-        if step_model:
-            resolved_provider, step_model, alias_effort = (
-                resolve_model_provider_with_effort(step_model)
-            )
-            step_llm_provider = resolved_provider or get_default_provider_name()
-        else:
-            (
-                step_llm_provider,
-                step_model,
-                alias_effort,
-            ) = resolve_effective_default_provider_model_with_effort()
-
-        # Resolve the step's effective reasoning effort (explicit %effort/@effort
-        # beats llm_provider.default_effort) so the step row's Model field shows
-        # the same uniform effort suffix as a top-level agent.
-        from sase.llm_provider.config import resolve_effective_effort
-
-        step_reasoning_effort, _ = resolve_effective_effort(
-            effective_directives, alias_effort
+        assert launch_selection is not None
+        step_model = launch_selection.model
+        step_llm_provider = launch_selection.provider
+        step_reasoning_effort = launch_selection.reasoning_effort
+        step_model_alias = (
+            effective_directives.model_alias if effective_directives.model else None
         )
 
         # Save initial marker to show step is running in TUI
@@ -314,10 +304,32 @@ class PromptStepMixin:
             model=step_model,
             llm_provider=step_llm_provider,
             reasoning_effort=step_reasoning_effort,
-            model_alias=(
-                effective_directives.model_alias if effective_directives.model else None
-            ),
+            model_alias=step_model_alias,
         )
+
+        if self.workflow.is_anonymous():
+            # The anonymous workflow's single step is the top-level agent
+            # invocation: reconcile agent_meta.json with the authoritative
+            # selection so `sase agent list`, the ACE row, and any launch
+            # metadata preview written before this real invocation all agree
+            # with what actually ran.
+            from sase.axe.run_agent_helpers import update_meta_fields
+            from sase.llm_provider.config import default_model_alias_name
+
+            root_model_alias = (
+                effective_directives.model_alias
+                if effective_directives.model
+                else default_model_alias_name()
+            )
+            root_meta_fields: dict[str, Any] = {
+                "model": step_model,
+                "llm_provider": step_llm_provider,
+            }
+            if root_model_alias:
+                root_meta_fields["model_alias"] = root_model_alias
+            if step_reasoning_effort:
+                root_meta_fields["reasoning_effort"] = step_reasoning_effort
+            update_meta_fields(self.artifacts_dir, root_meta_fields)
 
         # Check if any embedded workflow has finally-marked post-steps.
         # When present, those steps must run even if the agent invocation or
@@ -359,6 +371,7 @@ class PromptStepMixin:
                 branch_or_workspace=branch_or_workspace,
                 skip_preprocessing=True,
                 directives=effective_directives,
+                launch_selection=launch_selection,
             )
             response_text = ensure_str_content(response.content)
 
