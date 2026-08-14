@@ -8,12 +8,12 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.testing import wait_for
-from sase.ace.tui.modals import tasks_pane as tp
+from sase.ace.tui.modals import procs_pane as tp
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
-from tests.ace.tui._tasks_pane_helpers import (
-    TasksTestApp,
-    open_tasks_pane,
+from tests.ace.tui._procs_pane_helpers import (
+    ProcsTestApp,
+    open_procs_pane,
     output_plain,
     patch_other_panes,
     patch_store_loader,
@@ -48,23 +48,23 @@ async def test_tasks_session_restores_selected_task_across_modal_instances(
     )
     state = AdminCenterSessionState()
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        first, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        first, pane = await open_procs_pane(pilot, session_state=state)
         await pilot.press("j")
         await pilot.pause()
 
-        assert state.tasks.task.identity == "ok"
-        assert pane.query_one("#tasks-list", OptionList).highlighted == 1
+        assert state.procs.task.identity == "ok"
+        assert pane.query_one("#procs-list", OptionList).highlighted == 1
         assert "Mailed PR" in output_plain(pane)
 
         first.action_close()
         await pilot.pause()
 
-        _, reopened = await open_tasks_pane(pilot, session_state=state)
+        _, reopened = await open_procs_pane(pilot, session_state=state)
         await pilot.pause()
 
         assert reopened is not pane
-        assert reopened.query_one("#tasks-list", OptionList).highlighted == 1
+        assert reopened.query_one("#procs-list", OptionList).highlighted == 1
         assert "Mailed PR" in output_plain(reopened)
 
 
@@ -87,15 +87,15 @@ async def test_tasks_focus_default_does_not_reset_selection_to_first_row(
         output="Mailed PR\n",
     )
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.press("j")
         await pilot.pause()
 
         pane.focus_default()
         await pilot.pause()
 
-        assert pane.query_one("#tasks-list", OptionList).highlighted == 1
+        assert pane.query_one("#procs-list", OptionList).highlighted == 1
         assert "Mailed PR" in output_plain(pane)
 
 
@@ -127,15 +127,15 @@ async def test_tasks_tab_merges_store_rows_with_in_memory_tasks(
         ],
     )
 
-    async with TasksTestApp(queue(running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.pause()
 
         labels = [
-            pane.query_one("#tasks-list", OptionList)
+            pane.query_one("#procs-list", OptionList)
             .get_option_at_index(i)
             .prompt.plain
-            for i in range(pane.query_one("#tasks-list", OptionList).option_count)
+            for i in range(pane.query_one("#procs-list", OptionList).option_count)
         ]
         joined = "\n".join(labels)
         assert "sync sase-42" in joined
@@ -168,11 +168,11 @@ async def test_tasks_tab_scope_toggle_reveals_other_sessions_with_chips(
         live_session_ids=frozenset({"session-other"}),
     )
 
-    async with TasksTestApp(queue()).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.option_count == 1
         assert "unattributed" in option_list.get_option_at_index(0).prompt.plain
         assert "—" in option_list.get_option_at_index(0).prompt.plain
@@ -183,7 +183,7 @@ async def test_tasks_tab_scope_toggle_reveals_other_sessions_with_chips(
 
         assert pane._all_sessions is True
         assert "all sessions" in pane._title_text()
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         rendered = "\n".join(
             option_list.get_option_at_index(i).prompt.plain
             for i in range(option_list.option_count)
@@ -216,12 +216,12 @@ async def test_tasks_tab_marks_and_kills_global_detached_tasks(
         output="worker: creating beads\n",
     )
 
-    async with TasksTestApp(queue()).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.pause()
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.option_count == 1
         assert "◆ detached" in option_list.get_option_at_index(0).prompt.plain
         assert "◆ detached" in output_plain(pane)
@@ -251,16 +251,16 @@ async def test_tasks_tab_store_rows_cannot_be_dismissed(
         ],
     )
 
-    async with TasksTestApp(queue()).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.pause()
 
         pane.action_dismiss_task()
         await pilot.pause()
 
-        app = cast(TasksTestApp, pilot.app)
+        app = cast(ProcsTestApp, pilot.app)
         assert any("history_limit" in message for message, _ in app.notifications)
-        assert pane.query_one("#tasks-list", OptionList).option_count == 1
+        assert pane.query_one("#procs-list", OptionList).option_count == 1
 
 
 @pytest.mark.parametrize(
@@ -286,8 +286,8 @@ async def test_following_a_live_store_row_bypasses_the_mtime_cache(
         output="line 1\n",
     )
 
-    async with TasksTestApp(queue()).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.pause()
 
         pane._request_store_reload()
@@ -332,12 +332,12 @@ async def test_tasks_session_restores_selected_store_row_across_modal_instances(
     )
     state = AdminCenterSessionState()
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        first, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        first, pane = await open_procs_pane(pilot, session_state=state)
         await pilot.pause()
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         target_index = next(
             index
             for index in range(option_list.option_count)
@@ -348,18 +348,18 @@ async def test_tasks_session_restores_selected_store_row_across_modal_instances(
         await pilot.pause()
         await pilot.pause()
 
-        assert state.tasks.task.identity == "store-detached-1"
+        assert state.procs.task.identity == "store-detached-1"
         assert "worker: creating beads" in output_plain(pane)
 
         first.action_close()
         await pilot.pause()
 
-        _, reopened = await open_tasks_pane(pilot, session_state=state)
+        _, reopened = await open_procs_pane(pilot, session_state=state)
         await pilot.pause()
         await pilot.pause()
 
         assert reopened is not pane
-        reopened_list = reopened.query_one("#tasks-list", OptionList)
+        reopened_list = reopened.query_one("#procs-list", OptionList)
         assert reopened_list.highlighted == target_index
         assert (
             reopened_list.get_option_at_index(target_index).id
@@ -383,8 +383,8 @@ async def test_tasks_fresh_open_selects_newest_row_after_store_rows_arrive(
     newer = task("newer", label="sync newer", status="success", age_seconds=5)
     state = AdminCenterSessionState()
 
-    async with TasksTestApp(queue(older)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(older)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
 
@@ -392,7 +392,7 @@ async def test_tasks_fresh_open_selects_newest_row_after_store_rows_arrive(
         # on an authoritative selection (the store legitimately finished
         # loading zero rows). Reset to a blank bookmark to simulate a
         # genuinely fresh open before driving the pre-/post-store pair below.
-        state.tasks.task.record(None, None)
+        state.procs.task.record(None, None)
 
         # Pre-store paint: only ``older`` exists yet, so it lands
         # (provisionally) on row 0 even though there is no real bookmark.
@@ -402,9 +402,9 @@ async def test_tasks_fresh_open_selects_newest_row_after_store_rows_arrive(
         pane._rebuild_list()
         await pilot.pause()
 
-        assert state.tasks.task.identity is None
-        assert state.tasks.task.provisional is True
-        assert state.tasks.task.displayed_identity == "older"
+        assert state.procs.task.identity is None
+        assert state.procs.task.provisional is True
+        assert state.procs.task.displayed_identity == "older"
 
         # ``newer`` arrives from the store and becomes the true row 0.
         pane._store_loaded_once = True
@@ -413,10 +413,10 @@ async def test_tasks_fresh_open_selects_newest_row_after_store_rows_arrive(
         pane._rebuild_list()
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.highlighted == 0
         assert option_list.get_option_at_index(0).id == "task__newer"
-        assert state.tasks.task.identity == "newer"
+        assert state.procs.task.identity == "newer"
 
 
 async def test_tasks_scope_toggle_preserves_store_row_selection(
@@ -444,12 +444,12 @@ async def test_tasks_scope_toggle_preserves_store_row_selection(
         ],
     )
 
-    async with TasksTestApp(queue()).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.pause()
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.option_count == 1
         assert option_list.highlighted == 0
         assert pane._selected_task_identity() == "store-scope-mine"
@@ -459,7 +459,7 @@ async def test_tasks_scope_toggle_preserves_store_row_selection(
         await pilot.pause()
 
         assert pane._all_sessions is True
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.option_count == 2
         target_index = next(
             index

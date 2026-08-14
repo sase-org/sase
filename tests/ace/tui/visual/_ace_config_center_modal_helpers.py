@@ -8,7 +8,7 @@ from sase.ace.tui.modals.config_pane import ConfigPane
 from sase.ace.tui.modals.logs_pane import LogsPane
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
-from sase.ace.tui.modals.tasks_pane import TasksPane
+from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
 
@@ -55,12 +55,12 @@ async def _open_logs_modal(page: AcePage) -> tuple[ConfigCenterModal, LogsPane]:
     return modal, pane
 
 
-async def _open_tasks_modal(page: AcePage) -> tuple[ConfigCenterModal, TasksPane]:
-    modal = ConfigCenterModal(initial_tab="tasks")
+async def _open_procs_modal(page: AcePage) -> tuple[ConfigCenterModal, ProcsPane]:
+    modal = ConfigCenterModal(initial_tab="procs")
     page.app.push_screen(modal)
     await page.expect_modal("ConfigCenterModal")
-    await page.wait_for(lambda _s: bool(modal.query("#tasks")))
-    pane = modal.query_one("#tasks", TasksPane)
+    await page.wait_for(lambda _s: bool(modal.query("#procs")))
+    pane = modal.query_one("#procs", ProcsPane)
     await wait_for_visual_idle(page)
     return modal, pane
 

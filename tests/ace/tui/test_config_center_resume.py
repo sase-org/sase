@@ -75,10 +75,10 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         assert first._active_tab is None
 
         await page.press("5")
-        await page.wait_for(lambda _state: first._active_tab == "tasks")
+        await page.wait_for(lambda _state: first._active_tab == "procs")
         await page.press("escape")
         await page.expect_no_modal()
-        assert page.app._last_admin_center_tab == "tasks"
+        assert page.app._last_admin_center_tab == "procs"
         generation = page.app._admin_center_tab_save_generation
         assert generation == 1
 
@@ -91,10 +91,10 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         assert second._panes == {}
 
         await page.press("number_sign", "number_sign", "number_sign")
-        await page.wait_for(lambda _state: second._active_tab == "tasks")
+        await page.wait_for(lambda _state: second._active_tab == "procs")
 
-        assert calls == ["tasks", "tasks"]
-        assert tuple(second._panes) == ("tasks",)
+        assert calls == ["procs", "procs"]
+        assert tuple(second._panes) == ("procs",)
         assert page.app.screen is second
         assert len(page.app.screen_stack) == 2
         assert page.app.current_tab == "agents"
@@ -106,14 +106,14 @@ async def test_switching_changes_resume_target_and_home_only_close_retains_it(
 ) -> None:
     _patch_stub_panes(monkeypatch)
     async with AcePage() as page:
-        page.app._last_admin_center_tab = "tasks"
+        page.app._last_admin_center_tab = "procs"
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
 
         await page.press("number_sign")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         await page.press("2")
         await page.wait_for(lambda _state: modal._active_tab == "logs")
         await page.press("escape")
@@ -139,26 +139,26 @@ async def test_direct_entry_establishes_resume_target_after_success(
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         await page.wait_for(
             lambda _state: page.app._admin_center_tab_completed_generation == 1
         )
 
-        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="tasks")
+        assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
         await page.press("escape")
         await page.expect_no_modal()
 
-        assert page.app._last_admin_center_tab == "tasks"
+        assert page.app._last_admin_center_tab == "procs"
 
 
 async def test_persisted_tab_seeds_home_and_repeated_opener_resume(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    save_admin_center_tab_history(AdminCenterTabHistory(current="tasks"))
+    save_admin_center_tab_history(AdminCenterTabHistory(current="procs"))
     _created, calls = _patch_stub_panes(monkeypatch)
 
     async with AcePage(initial_tab="agents") as page:
-        assert page.app._last_admin_center_tab == "tasks"
+        assert page.app._last_admin_center_tab == "procs"
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
@@ -169,10 +169,10 @@ async def test_persisted_tab_seeds_home_and_repeated_opener_resume(
         assert "resume Tasks" in hint
 
         await page.press("number_sign")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
 
-        assert calls == ["tasks"]
-        assert tuple(modal._panes) == ("tasks",)
+        assert calls == ["procs"]
+        assert tuple(modal._panes) == ("procs",)
         assert page.app._admin_center_tab_save_generation == 0
 
 
@@ -231,7 +231,7 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
         )
         try:
             await page.press("5")
-            await page.wait_for(lambda _state: modal._active_tab == "tasks")
+            await page.wait_for(lambda _state: modal._active_tab == "procs")
             await page.press("6")
             await page.wait_for(lambda _state: modal._active_tab == "updates")
             assert page.app._last_admin_center_tab == "updates"
@@ -248,7 +248,7 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
 
     assert writes == [
         AdminCenterTabHistory(current="logs"),
-        AdminCenterTabHistory(current="updates", alternate="tasks"),
+        AdminCenterTabHistory(current="updates", alternate="procs"),
     ]
 
 
@@ -312,7 +312,7 @@ async def test_failed_resume_retains_prior_target_and_remains_retryable(
 
     monkeypatch.setattr(ConfigCenterModal, "_create_pane", create)
     async with AcePage() as page:
-        page.app._last_admin_center_tab = "tasks"
+        page.app._last_admin_center_tab = "procs"
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
@@ -321,10 +321,10 @@ async def test_failed_resume_retains_prior_target_and_remains_retryable(
         await page.press("number_sign")
         await page.wait_for(lambda _state: attempts == 1)
         assert modal._active_tab is None
-        assert page.app._last_admin_center_tab == "tasks"
+        assert page.app._last_admin_center_tab == "procs"
 
         await page.press("number_sign")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         assert attempts == 2
 
 
@@ -339,7 +339,7 @@ async def test_custom_opener_opens_home_resumes_and_is_displayed(
     _patch_stub_panes(monkeypatch)
 
     async with AcePage() as page:
-        page.app._last_admin_center_tab = "tasks"
+        page.app._last_admin_center_tab = "procs"
         await page.press("f2")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
@@ -350,7 +350,7 @@ async def test_custom_opener_opens_home_resumes_and_is_displayed(
         assert "#" not in hint
 
         await page.press("f2")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
 
 
 async def test_literal_opener_remains_typeable_and_cannot_nest_modal(
@@ -362,10 +362,10 @@ async def test_literal_opener_remains_typeable_and_cannot_nest_modal(
         lambda _self, tab: _InputPane(tab),
     )
     async with AcePage() as page:
-        modal = ConfigCenterModal(initial_tab="tasks", resume_tab="logs")
+        modal = ConfigCenterModal(initial_tab="procs", resume_tab="logs")
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         field = modal.query_one("#stub-filter", Input)
         await page.wait_for(lambda _state: field.has_focus)
 

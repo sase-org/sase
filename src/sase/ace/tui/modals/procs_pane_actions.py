@@ -1,4 +1,4 @@
-"""Output rendering and user actions for the Admin Center Tasks pane."""
+"""Output rendering and user actions for the Admin Center Procs pane."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from sase.ace.hints import build_editor_args
 
 from ..actions.clipboard import schedule_copy_delivery
 from ..task_queue import TaskInfo, TaskQueue
-from .tasks_pane_render import (
+from .procs_pane_render import (
     BodyCache,
     is_active,
     output_body,
@@ -29,7 +29,7 @@ else:
     _MixinBase = object
 
 
-class TasksPaneActionsMixin(_MixinBase):
+class ProcsPaneActionsMixin(_MixinBase):
     """Render task output and implement task/output actions."""
 
     if TYPE_CHECKING:
@@ -63,8 +63,8 @@ class TasksPaneActionsMixin(_MixinBase):
 
     def _display_output(self, task: TaskInfo | None) -> None:
         """Render task output in the right pane."""
-        title = self.query_one("#tasks-output-title", Label)
-        content = self.query_one("#tasks-output-content", Static)
+        title = self.query_one("#procs-output-title", Label)
+        content = self.query_one("#procs-output-content", Static)
 
         if task is None:
             title.update("Output")
@@ -99,7 +99,7 @@ class TasksPaneActionsMixin(_MixinBase):
     def _reset_output_scroll(self) -> None:
         """Reset the output scroll pane to the top."""
         try:
-            scroll = self.query_one("#tasks-output-scroll", VerticalScroll)
+            scroll = self.query_one("#procs-output-scroll", VerticalScroll)
             self._force_scroll_output_to(0, scroll=scroll)
         except Exception:
             pass
@@ -107,14 +107,14 @@ class TasksPaneActionsMixin(_MixinBase):
     def _scroll_output_to_end(self) -> None:
         """Scroll the output pane to the bottom."""
         try:
-            scroll = self.query_one("#tasks-output-scroll", VerticalScroll)
+            scroll = self.query_one("#procs-output-scroll", VerticalScroll)
             self._force_scroll_output_to(scroll.max_scroll_y, scroll=scroll)
         except Exception:
             pass
 
     def _display_task_live_output(self, task: TaskInfo) -> None:
         """Update the output pane with live output and scroll to bottom."""
-        content = self.query_one("#tasks-output-content", Static)
+        content = self.query_one("#procs-output-content", Static)
         content.update(self._output_text(task))
         if not self._user_scrolled:
             self._scroll_output_to_end()
@@ -184,7 +184,7 @@ class TasksPaneActionsMixin(_MixinBase):
 
     def action_scroll_output_down(self) -> None:
         """Scroll the output pane down by half a page."""
-        scroll = self.query_one("#tasks-output-scroll", VerticalScroll)
+        scroll = self.query_one("#procs-output-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         self._force_scroll_output_to(scroll.scroll_y + height // 2, scroll=scroll)
         if scroll.scroll_y >= scroll.max_scroll_y:
@@ -193,7 +193,7 @@ class TasksPaneActionsMixin(_MixinBase):
     def action_scroll_output_up(self) -> None:
         """Scroll the output pane up by half a page."""
         self._user_scrolled = True
-        scroll = self.query_one("#tasks-output-scroll", VerticalScroll)
+        scroll = self.query_one("#procs-output-scroll", VerticalScroll)
         height = scroll.scrollable_content_region.height
         self._force_scroll_output_to(scroll.scroll_y - height // 2, scroll=scroll)
 
@@ -270,10 +270,10 @@ class TasksPaneActionsMixin(_MixinBase):
         output_scroll = (
             scroll
             if scroll is not None
-            else self.query_one("#tasks-output-scroll", VerticalScroll)
+            else self.query_one("#procs-output-scroll", VerticalScroll)
         )
         target = max(0, min(int(y), int(output_scroll.max_scroll_y)))
         output_scroll._scroll_to(y=target, animate=False, force=True)  # noqa: SLF001
 
 
-__all__ = ["TasksPaneActionsMixin"]
+__all__ = ["ProcsPaneActionsMixin"]

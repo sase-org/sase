@@ -14,11 +14,11 @@ from textual.widgets import Static
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
-from sase.ace.tui.modals import tasks_pane as tp
+from sase.ace.tui.modals import procs_pane as tp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
-from sase.ace.tui.modals.tasks_pane import TasksPane
-from sase.ace.tui.modals.tasks_store_rows import StoreTasksSnapshot, _store_task_row
+from sase.ace.tui.modals.procs_pane import ProcsPane
+from sase.ace.tui.modals.procs_store_rows import StoreTasksSnapshot, _store_task_row
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue
 from sase.ace.testing import wait_for
 from sase.procs import Proc
@@ -48,7 +48,7 @@ def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-class TasksTestApp(App[None]):
+class ProcsTestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(self, task_queue: TaskQueue) -> None:
@@ -119,21 +119,21 @@ def queue(*tasks: TaskInfo) -> TaskQueue:
     return TaskQueue(_tasks={task.task_id: task for task in tasks})
 
 
-async def open_tasks_pane(
+async def open_procs_pane(
     pilot: Any,
     *,
     session_state: AdminCenterSessionState | None = None,
-) -> tuple[ConfigCenterModal, TasksPane]:
-    modal = ConfigCenterModal(initial_tab="tasks", session_state=session_state)
+) -> tuple[ConfigCenterModal, ProcsPane]:
+    modal = ConfigCenterModal(initial_tab="procs", session_state=session_state)
     pilot.app.push_screen(modal)
     await pilot.pause()
-    pane = modal.query_one("#tasks", TasksPane)
+    pane = modal.query_one("#procs", ProcsPane)
     await wait_for(pilot, lambda: not pane._store_load_pending)
     return modal, pane
 
 
-def output_plain(pane: TasksPane) -> str:
-    return pane.query_one("#tasks-output-content", Static).render().plain
+def output_plain(pane: ProcsPane) -> str:
+    return pane.query_one("#procs-output-content", Static).render().plain
 
 
 def store_task(

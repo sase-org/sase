@@ -38,9 +38,9 @@ def test_three_way_sequence_keeps_only_the_two_most_recent_sections() -> None:
     history = AdminCenterTabHistory()
     history = history.remember("config")
     history = history.remember("logs")
-    history = history.remember("tasks")
+    history = history.remember("procs")
 
-    assert history == AdminCenterTabHistory(current="tasks", alternate="logs")
+    assert history == AdminCenterTabHistory(current="procs", alternate="logs")
 
 
 def test_toggle_sequence_ping_pongs_between_exactly_two_sections() -> None:
@@ -60,9 +60,9 @@ def test_toggle_sequence_ping_pongs_between_exactly_two_sections() -> None:
     [
         ("config",),
         ("config", "logs"),
-        ("config", "logs", "tasks"),
+        ("config", "logs", "procs"),
         ("config", "logs", "config", "logs", "config"),
-        ("config", "config", "logs", "logs", "tasks"),
+        ("config", "config", "logs", "logs", "procs"),
     ],
 )
 def test_alternate_never_equals_current_for_any_reachable_sequence(

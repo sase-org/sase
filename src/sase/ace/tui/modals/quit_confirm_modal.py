@@ -102,11 +102,11 @@ class QuitConfirmModal(ModalScreen[bool]):
         dialog.border_subtitle = "y quit & kill all · n/esc keep running · j/k scroll"
         with dialog:
             yield Static(self._summary_text(), id="quit-confirm-summary")
-            with VerticalScroll(id="quit-confirm-tasks"):
+            with VerticalScroll(id="quit-confirm-procs"):
                 for task in self._tasks:
                     yield Static(
                         self._task_card_text(task),
-                        classes="quit-confirm-task-card",
+                        classes="quit-confirm-proc-card",
                     )
             with Horizontal(id="quit-confirm-buttons"):
                 yield Button(
@@ -143,7 +143,7 @@ class QuitConfirmModal(ModalScreen[bool]):
         self._scroll_tasks(-3)
 
     def _scroll_tasks(self, rows: int) -> None:
-        scroll = self.query_one("#quit-confirm-tasks", VerticalScroll)
+        scroll = self.query_one("#quit-confirm-procs", VerticalScroll)
         scroll.scroll_relative(y=rows, animate=False)
 
     def _build_border_title(self) -> Text:

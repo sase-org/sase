@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from sase.ace.tui.task_queue import TaskInfo
 
-from .tasks_pane_render import cached_body_version, is_active
-from .tasks_store_rows import StoreTasksSnapshot
+from .procs_pane_render import cached_body_version, is_active
+from .procs_store_rows import StoreTasksSnapshot
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -19,7 +19,7 @@ else:
 _STORE_RELOAD_TICKS = 4
 
 
-class TasksPaneStoreMixin(_MixinBase):
+class ProcsPaneStoreMixin(_MixinBase):
     """Poll, merge, and operate on durable background-task rows."""
 
     if TYPE_CHECKING:
@@ -146,7 +146,7 @@ class TasksPaneStoreMixin(_MixinBase):
             except Exception:
                 self._store_load_pending = False
 
-        self.run_worker(_load, thread=True, name="tasks-store-load", group="tasks")
+        self.run_worker(_load, thread=True, name="procs-store-load", group="procs")
 
     def _apply_store_snapshot(self, snapshot: StoreTasksSnapshot | None) -> None:
         """Apply an off-thread store read on the UI thread."""
@@ -224,7 +224,7 @@ class TasksPaneStoreMixin(_MixinBase):
             except Exception:
                 pass
 
-        self.run_worker(_kill, thread=True, name="tasks-store-kill", group="tasks")
+        self.run_worker(_kill, thread=True, name="procs-store-kill", group="procs")
 
     def _on_store_kill_finished(self, label: str, error: str | None) -> None:
         if error is None:
@@ -234,4 +234,4 @@ class TasksPaneStoreMixin(_MixinBase):
         self._request_store_reload(force=True)
 
 
-__all__ = ["TasksPaneStoreMixin"]
+__all__ = ["ProcsPaneStoreMixin"]

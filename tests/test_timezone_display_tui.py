@@ -28,8 +28,8 @@ from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_projects import (
     StatisticsProjectsRenderingMixin,
 )
-from sase.ace.tui.modals.tasks_pane_render import _elapsed, _relative_time
-from sase.ace.tui.modals.tasks_store_rows import _local_datetime
+from sase.ace.tui.modals.procs_pane_render import _elapsed, _relative_time
+from sase.ace.tui.modals.procs_store_rows import _local_datetime
 from sase.ace.tui.task_mirror import _utc_timestamp
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue, _TaskLog
 from sase.ace.tui.tools.cache import (
@@ -136,7 +136,7 @@ def test_task_rows_and_default_references_share_configured_wall_time(
     local = datetime(2026, 7, 3, 6, 24, 49)
     later = datetime(2026, 7, 3, 6, 25, 49)
     monkeypatch.setattr(
-        "sase.ace.tui.modals.tasks_pane_render.local_now", lambda: later
+        "sase.ace.tui.modals.procs_pane_render.local_now", lambda: later
     )
     task = TaskInfo(
         task_id="task",

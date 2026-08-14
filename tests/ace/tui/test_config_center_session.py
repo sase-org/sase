@@ -27,10 +27,10 @@ def test_direct_config_center_modals_get_independent_session_state() -> None:
 
     assert first._session_state is not second._session_state
 
-    first._session_state.tasks.task.record("task-a", 2)
+    first._session_state.procs.task.record("task-a", 2)
 
-    assert second._session_state.tasks.task.identity is None
-    assert second._session_state.tasks.task.row is None
+    assert second._session_state.procs.task.identity is None
+    assert second._session_state.procs.task.row is None
 
 
 async def test_ace_app_reuses_one_session_state_across_modals() -> None:
@@ -56,7 +56,7 @@ async def test_ace_app_reuses_one_session_state_across_modals() -> None:
 async def test_home_only_open_does_not_create_panes_or_mutate_bookmarks() -> None:
     async with AcePage(initial_tab="agents") as page:
         state = page.app._admin_center_session_state
-        state.tasks.task.record("task-a", 3)
+        state.procs.task.record("task-a", 3)
 
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
@@ -67,8 +67,8 @@ async def test_home_only_open_does_not_create_panes_or_mutate_bookmarks() -> Non
         await page.press("escape")
         await page.expect_no_modal()
 
-        assert state.tasks.task.identity == "task-a"
-        assert state.tasks.task.row == 3
+        assert state.procs.task.identity == "task-a"
+        assert state.procs.task.row == 3
 
 
 async def test_distinct_ace_apps_do_not_share_session_state() -> None:

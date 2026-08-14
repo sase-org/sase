@@ -57,14 +57,14 @@ async def test_single_section_visited_leaves_opener_inert(
         assert isinstance(modal, ConfigCenterModal)
 
         await page.press("5")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         assert modal.check_action("alternate_center_tab", ()) is False
 
         await page.press("number_sign")
         await page.pause()
 
-        assert modal._active_tab == "tasks"
-        assert calls == ["tasks"]
+        assert modal._active_tab == "procs"
+        assert calls == ["procs"]
 
 
 async def test_seeded_alternate_survives_close_and_reopen(
@@ -138,11 +138,11 @@ async def test_literal_opener_with_alternate_available_still_types_and_stays_put
     )
     async with AcePage() as page:
         modal = ConfigCenterModal(
-            initial_tab="tasks", resume_tab="logs", alternate_tab="config"
+            initial_tab="procs", resume_tab="logs", alternate_tab="config"
         )
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         field = modal.query_one("#stub-filter", Input)
         await page.wait_for(lambda _state: field.has_focus)
 
@@ -152,7 +152,7 @@ async def test_literal_opener_with_alternate_available_still_types_and_stays_put
         await page.pause()
 
         assert field.value == "#"
-        assert modal._active_tab == "tasks"
+        assert modal._active_tab == "procs"
         assert page.app.screen is modal
         assert len(page.app.screen_stack) == 2
 
@@ -172,25 +172,25 @@ async def test_failed_alternate_jump_leaves_history_unchanged_and_is_retryable(
     monkeypatch.setattr(ConfigCenterModal, "_create_pane", create)
     async with AcePage() as page:
         page.app._admin_center_history = AdminCenterTabHistory(
-            current="tasks", alternate="logs"
+            current="procs", alternate="logs"
         )
-        page.app._last_admin_center_tab = "tasks"
+        page.app._last_admin_center_tab = "procs"
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
 
         await page.press("number_sign")
-        await page.wait_for(lambda _state: modal._active_tab == "tasks")
+        await page.wait_for(lambda _state: modal._active_tab == "procs")
         assert attempts == 1
         history_before = modal._history
         assert history_before == AdminCenterTabHistory(
-            current="tasks", alternate="logs"
+            current="procs", alternate="logs"
         )
 
         await page.press("number_sign")
         await page.wait_for(lambda _state: attempts == 2)
-        assert modal._active_tab == "tasks"
+        assert modal._active_tab == "procs"
         assert modal._history == history_before
 
         await page.press("number_sign")

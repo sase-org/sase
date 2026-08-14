@@ -148,7 +148,7 @@ def test_title_has_no_leading_icon_and_underline_matches() -> None:
 
 
 def test_resume_tab_validation_accepts_only_catalog_ids() -> None:
-    assert validated_center_tab("tasks") == "tasks"
+    assert validated_center_tab("procs") == "procs"
     assert validated_center_tab("missing") is None
     assert validated_center_tab(5) is None
 
@@ -158,7 +158,7 @@ def test_home_hint_explains_no_history_and_uses_catalog_resume_style() -> None:
     assert no_history.plain.startswith(" #  resumes after your first section visit")
     assert "1-7/click · Tab cycle" in no_history.plain
 
-    resume_ready = _home_hint_text("tasks", "f2", compact=False)
+    resume_ready = _home_hint_text("procs", "f2", compact=False)
     assert resume_ready.plain.startswith(" f2  resume Tasks")
     target_offset = resume_ready.plain.index("resume Tasks")
     assert any(
@@ -233,7 +233,7 @@ def test_importing_lightweight_modal_does_not_import_concrete_panes() -> None:
         "logs_pane",
         "projects_pane",
         "statistics_pane",
-        "tasks_pane",
+        "procs_pane",
         "plugins_browser_pane",
         "xprompt_browser_pane",
     ]

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.modals.tasks_store_rows import (
+from sase.ace.tui.modals.procs_store_rows import (
     _store_task_row,
     load_store_task_rows,
 )

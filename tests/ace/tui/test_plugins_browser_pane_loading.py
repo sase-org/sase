@@ -543,7 +543,7 @@ async def test_config_center_cycles_seven_tabs(
             "logs",
             "projects",
             "statistics",
-            "tasks",
+            "procs",
             "updates",
             "xprompts",
             "config",

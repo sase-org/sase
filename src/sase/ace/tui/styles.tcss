@@ -1420,7 +1420,7 @@ QuitConfirmModal #quit-confirm-summary {
     margin-bottom: 1;
 }
 
-QuitConfirmModal #quit-confirm-tasks {
+QuitConfirmModal #quit-confirm-procs {
     height: auto;
     max-height: 16;
     border: solid $secondary;
@@ -1428,7 +1428,7 @@ QuitConfirmModal #quit-confirm-tasks {
     margin-bottom: 1;
 }
 
-QuitConfirmModal .quit-confirm-task-card {
+QuitConfirmModal .quit-confirm-proc-card {
     height: auto;
     padding: 0 1;
     margin-bottom: 1;
@@ -6020,7 +6020,7 @@ ConfigCenterModal #admin-center-home.-compact #admin-center-home-hint {
 }
 
 ConfigCenterModal ConfigPane,
-ConfigCenterModal TasksPane,
+ConfigCenterModal ProcsPane,
 ConfigCenterModal LogsPane,
 ConfigCenterModal ProjectsPane,
 ConfigCenterModal StatisticsPane,
@@ -6212,32 +6212,32 @@ StatisticsHelpModal #statistics-help-footer {
 }
 
 /* Tasks tab: live background-task monitor */
-TasksPane #tasks-pane-title {
+ProcsPane #procs-pane-title {
     text-style: bold;
     height: 1;
     margin-bottom: 1;
 }
 
-TasksPane #tasks-panels {
+ProcsPane #procs-panels {
     width: 100%;
     height: 1fr;
 }
 
-TasksPane #tasks-list-panel {
+ProcsPane #procs-list-panel {
     width: 40%;
     height: 100%;
     border: solid $secondary;
     padding: 0 1;
 }
 
-TasksPane #tasks-list {
+ProcsPane #procs-list {
     width: 100%;
     height: 1fr;
     border: none;
     background: transparent;
 }
 
-TasksPane #tasks-output-panel {
+ProcsPane #procs-output-panel {
     width: 60%;
     height: 100%;
     border: solid $secondary;
@@ -6245,24 +6245,24 @@ TasksPane #tasks-output-panel {
     margin-left: 1;
 }
 
-TasksPane #tasks-output-scroll {
+ProcsPane #procs-output-scroll {
     width: 100%;
     height: 1fr;
     scrollbar-gutter: stable;
 }
 
-TasksPane #tasks-output-content {
+ProcsPane #procs-output-content {
     width: 100%;
     height: auto;
 }
 
-TasksPane .config-region-header {
+ProcsPane .config-region-header {
     text-style: bold;
     color: $text-muted;
     height: 1;
 }
 
-TasksPane #tasks-hints {
+ProcsPane #procs-hints {
     height: 1;
     color: $text-muted;
     text-align: center;

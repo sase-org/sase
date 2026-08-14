@@ -1,4 +1,4 @@
-"""Tasks pane for the SASE Admin Center.
+"""Procs pane for the SASE Admin Center.
 
 The pane renders a merged view: in-memory tasks owned by this TUI stay
 authoritative for live output, and rows read from the durable task store fill
@@ -20,13 +20,13 @@ from textual.widgets import Label, Static
 from ..actions.navigation.jump_hints import normalize_jump_key
 from ..task_queue import TaskInfo, TaskQueue
 from ..util.selection import ProgrammaticSelectionGuard
-from .config_center_session import TasksSessionState
+from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
-from .tasks_pane_actions import TasksPaneActionsMixin
-from .tasks_pane_render import BodyCache
-from .tasks_pane_selection import TaskList, TasksPaneSelectionMixin
-from .tasks_pane_store import TasksPaneStoreMixin
-from .tasks_store_rows import (
+from .procs_pane_actions import ProcsPaneActionsMixin
+from .procs_pane_render import BodyCache
+from .procs_pane_selection import ProcsPaneSelectionMixin, TaskList
+from .procs_pane_store import ProcsPaneStoreMixin
+from .procs_store_rows import (
     StoreTasksSnapshot,
     current_tui_session_id,
     kill_store_task,
@@ -34,18 +34,18 @@ from .tasks_store_rows import (
 )
 
 
-class TasksPane(
+class ProcsPane(
     PaneEntryJumpMixin,
-    TasksPaneActionsMixin,
-    TasksPaneStoreMixin,
-    TasksPaneSelectionMixin,
+    ProcsPaneActionsMixin,
+    ProcsPaneStoreMixin,
+    ProcsPaneSelectionMixin,
     Vertical,
 ):
     """Two-panel live background-task monitor inside the Admin Center."""
 
     can_focus = False
 
-    _option_list_id = "tasks-list"
+    _option_list_id = "procs-list"
     BINDINGS = [
         ("j", "next_option", "Next"),
         ("k", "prev_option", "Previous"),
@@ -68,11 +68,11 @@ class TasksPane(
     def __init__(
         self,
         *,
-        session_state: TasksSessionState | None = None,
+        session_state: ProcsSessionState | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        self._session_state = session_state or TasksSessionState()
+        self._session_state = session_state or ProcsSessionState()
         self._tasks: list[TaskInfo] = []
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
@@ -90,18 +90,18 @@ class TasksPane(
         self._tick_count = 0
 
     def compose(self) -> ComposeResult:
-        yield Label(self._title_text(), id="tasks-pane-title")
-        with Horizontal(id="tasks-panels"):
-            with Vertical(id="tasks-list-panel"):
+        yield Label(self._title_text(), id="procs-pane-title")
+        with Horizontal(id="procs-panels"):
+            with Vertical(id="procs-list-panel"):
                 yield Label("Tasks", classes="config-region-header")
                 yield TaskList(id=self._option_list_id)
-            with Vertical(id="tasks-output-panel"):
+            with Vertical(id="procs-output-panel"):
                 yield Label(
-                    "Output", classes="config-region-header", id="tasks-output-title"
+                    "Output", classes="config-region-header", id="procs-output-title"
                 )
-                with VerticalScroll(id="tasks-output-scroll"):
-                    yield Static("", id="tasks-output-content", markup=False)
-        yield Static(self._hints(), id="tasks-hints", markup=False)
+                with VerticalScroll(id="procs-output-scroll"):
+                    yield Static("", id="procs-output-content", markup=False)
+        yield Static(self._hints(), id="procs-hints", markup=False)
 
     def on_mount(self) -> None:
         queue = self._task_queue()
@@ -155,7 +155,7 @@ class TasksPane(
 
     def _update_hints(self) -> None:
         try:
-            self.query_one("#tasks-hints", Static).update(self._hints())
+            self.query_one("#procs-hints", Static).update(self._hints())
         except Exception:
             pass
 
@@ -210,4 +210,4 @@ class TasksPane(
         )
 
 
-__all__ = ["TasksPane"]
+__all__ = ["ProcsPane"]

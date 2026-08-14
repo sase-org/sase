@@ -22,8 +22,8 @@ pytestmark = pytest.mark.visual
     [
         ((120, 40), None, "config_center_home_120x40"),
         ((100, 24), None, "config_center_home_100x24"),
-        ((120, 40), "tasks", "config_center_home_resume_tasks_120x40"),
-        ((100, 24), "tasks", "config_center_home_resume_tasks_100x24"),
+        ((120, 40), "procs", "config_center_home_resume_procs_120x40"),
+        ((100, 24), "procs", "config_center_home_resume_procs_100x24"),
     ],
 )
 async def test_config_center_home_png_snapshot(

@@ -12,12 +12,12 @@ from textual.widgets.option_list import Option
 from ..task_queue import TaskInfo, TaskQueue
 from ..util.selection import restore_selection_by_identity
 from .pane_entry_jump import apply_jump_hint_prefix
-from .tasks_pane_render import is_active, task_row_label
+from .procs_pane_render import is_active, task_row_label
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 
-    from .tasks_pane import TasksPane
+    from .procs_pane import ProcsPane
 else:
     _MixinBase = object
 
@@ -74,18 +74,18 @@ class TaskList(OptionList):
         if pane is not None:
             pane.action_scroll_to_bottom()
 
-    def _pane(self) -> TasksPane | None:
-        from .tasks_pane import TasksPane
+    def _pane(self) -> ProcsPane | None:
+        from .procs_pane import ProcsPane
 
         node: object | None = self.parent
         while node is not None:
-            if isinstance(node, TasksPane):
+            if isinstance(node, ProcsPane):
                 return node
             node = getattr(node, "parent", None)
         return None
 
 
-class TasksPaneSelectionMixin(_MixinBase):
+class ProcsPaneSelectionMixin(_MixinBase):
     """Manage merged task rows, selection restoration, and list rendering."""
 
     if TYPE_CHECKING:
@@ -361,7 +361,7 @@ class TasksPaneSelectionMixin(_MixinBase):
 
     def _update_title(self) -> None:
         try:
-            self.query_one("#tasks-pane-title", Label).update(self._title_text())
+            self.query_one("#procs-pane-title", Label).update(self._title_text())
         except Exception:
             pass
 
@@ -372,4 +372,4 @@ class TasksPaneSelectionMixin(_MixinBase):
         return f"Tasks · {scope}  [{running} running · {done} done]"
 
 
-__all__ = ["TaskList", "TasksPaneSelectionMixin"]
+__all__ = ["ProcsPaneSelectionMixin", "TaskList"]

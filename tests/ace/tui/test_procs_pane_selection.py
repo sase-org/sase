@@ -7,9 +7,9 @@ from textual.widgets import OptionList
 
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 
-from tests.ace.tui._tasks_pane_helpers import (
-    TasksTestApp,
-    open_tasks_pane,
+from tests.ace.tui._procs_pane_helpers import (
+    ProcsTestApp,
+    open_procs_pane,
     patch_store_loader,
     queue,
     task,
@@ -40,11 +40,11 @@ async def test_tasks_loading_echo_preserves_requested_store_bookmark(
     )
     state = AdminCenterSessionState()
 
-    async with TasksTestApp(queue(second, first)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(second, first)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
-        state.tasks.task.record("store-wanted", 1)
+        state.procs.task.record("store-wanted", 1)
         pane._store_loaded_once = False
         pane._store_load_pending = True
         pane._tasks = [first, second]
@@ -52,8 +52,8 @@ async def test_tasks_loading_echo_preserves_requested_store_bookmark(
         pane._rebuild_list()
         await pilot.pause()
 
-        assert state.tasks.task.identity == "store-wanted"
-        assert state.tasks.task.displayed_identity == "second"
+        assert state.procs.task.identity == "store-wanted"
+        assert state.procs.task.displayed_identity == "second"
 
         pane._store_load_pending = False
         pane._store_loaded_once = True
@@ -61,8 +61,8 @@ async def test_tasks_loading_echo_preserves_requested_store_bookmark(
         pane._rebuild_list()
         await pilot.pause()
 
-        assert pane.query_one("#tasks-list", OptionList).highlighted == 1
-        assert state.tasks.task.identity == "store-wanted"
+        assert pane.query_one("#procs-list", OptionList).highlighted == 1
+        assert state.procs.task.identity == "store-wanted"
 
 
 async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
@@ -83,13 +83,13 @@ async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
     )
     state = AdminCenterSessionState()
 
-    async with TasksTestApp(queue(beta, alpha)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(beta, alpha)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         pane._store_loaded_once = True
         pane._store_load_pending = False
-        state.tasks.task.record("beta", 1)
+        state.procs.task.record("beta", 1)
 
         pane._tasks = [alpha, beta]
         pane._rebuild_list()
@@ -97,10 +97,10 @@ async def test_tasks_stale_rebuild_echo_cannot_record_neighbor(
         pane._rebuild_list()
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.highlighted == 0
         assert option_list.get_option_at_index(0).id == "task__beta"
-        assert state.tasks.task.identity == "beta"
+        assert state.procs.task.identity == "beta"
 
 
 async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
@@ -114,10 +114,10 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
         age_seconds=10,
     )
     state = AdminCenterSessionState()
-    state.tasks.task.record("local-task", 0)
+    state.procs.task.record("local-task", 0)
 
-    async with TasksTestApp(queue(task_info)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(task_info)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
 
@@ -126,10 +126,10 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
         pane._rebuild_list()
         await pilot.pause()
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.highlighted == 0
         assert option_list.get_option_at_index(0).id == "task__durable-task"
-        assert state.tasks.task.identity == "durable-task"
+        assert state.procs.task.identity == "durable-task"
 
 
 async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
@@ -149,10 +149,10 @@ async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
         age_seconds=20,
     )
     state = AdminCenterSessionState()
-    state.tasks.task.record("beta", 1)
+    state.procs.task.record("beta", 1)
 
-    async with TasksTestApp(queue(beta, alpha)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(beta, alpha)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
         pane._store_loaded_once = True
@@ -162,8 +162,8 @@ async def test_tasks_authoritative_identity_miss_uses_nearest_row_fallback(
         pane._rebuild_list(highlight_index=1, prior_identity="beta")
         await pilot.pause()
 
-        assert pane.query_one("#tasks-list", OptionList).highlighted == 0
-        assert state.tasks.task.identity == "alpha"
+        assert pane.query_one("#procs-list", OptionList).highlighted == 0
+        assert state.procs.task.identity == "alpha"
 
 
 async def test_tasks_provisional_highlight_echo_cannot_promote_stand_in(
@@ -189,11 +189,11 @@ async def test_tasks_provisional_highlight_echo_cannot_promote_stand_in(
     )
     state = AdminCenterSessionState()
 
-    async with TasksTestApp(queue(second, first)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot, session_state=state)
+    async with ProcsTestApp(queue(second, first)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
-        state.tasks.task.record("store-wanted", 1)
+        state.procs.task.record("store-wanted", 1)
         pane._store_loaded_once = False
         pane._store_load_pending = True
         pane._tasks = [first, second]
@@ -201,15 +201,15 @@ async def test_tasks_provisional_highlight_echo_cannot_promote_stand_in(
         pane._rebuild_list()
         await pilot.pause()
 
-        assert state.tasks.task.identity == "store-wanted"
-        assert state.tasks.task.provisional is True
-        assert state.tasks.task.displayed_identity == "second"
-        assert state.tasks.task.displayed_row == 1
+        assert state.procs.task.identity == "store-wanted"
+        assert state.procs.task.provisional is True
+        assert state.procs.task.displayed_identity == "second"
+        assert state.procs.task.displayed_row == 1
 
         # The guard remembers only one intended selection; clear it to
         # simulate an older echo slipping through after a later rebuild.
         pane._selection_guard.clear()
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         pane.on_option_list_option_highlighted(
             OptionList.OptionHighlighted(
                 option_list, option_list.get_option_at_index(1), 1
@@ -217,5 +217,5 @@ async def test_tasks_provisional_highlight_echo_cannot_promote_stand_in(
         )
         await pilot.pause()
 
-        assert state.tasks.task.identity == "store-wanted"
-        assert state.tasks.task.provisional is True
+        assert state.procs.task.identity == "store-wanted"
+        assert state.procs.task.provisional is True

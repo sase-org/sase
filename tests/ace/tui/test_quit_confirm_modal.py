@@ -94,6 +94,6 @@ async def test_modal_composes_one_card_per_task() -> None:
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        cards = modal.query(".quit-confirm-task-card").nodes
+        cards = modal.query(".quit-confirm-proc-card").nodes
         assert len(cards) == 3
         assert all(isinstance(card, Static) for card in cards)

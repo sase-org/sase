@@ -24,7 +24,7 @@ def _use_sase_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 @pytest.mark.parametrize(
     "tab",
-    ["config", "logs", "projects", "statistics", "tasks", "updates", "xprompts"],
+    ["config", "logs", "procs", "projects", "statistics", "updates", "xprompts"],
 )
 def test_valid_single_tab_round_trips_with_exact_wire_value(
     monkeypatch: pytest.MonkeyPatch,
@@ -48,13 +48,37 @@ def test_valid_pair_round_trips_with_exact_two_line_wire_value(
     home = _use_sase_home(monkeypatch, tmp_path)
 
     save_admin_center_tab_history(
-        AdminCenterTabHistory(current="tasks", alternate="logs")
+        AdminCenterTabHistory(current="procs", alternate="logs")
     )
 
     path = home / "ace_admin_center_last_tab.txt"
-    assert path.read_bytes() == b"tasks\nlogs\n"
+    assert path.read_bytes() == b"procs\nlogs\n"
     assert load_admin_center_tab_history() == AdminCenterTabHistory(
-        current="tasks", alternate="logs"
+        current="procs", alternate="logs"
+    )
+
+
+def test_legacy_tasks_current_migrates_to_procs_on_load(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = _use_sase_home(monkeypatch, tmp_path)
+    home.mkdir(parents=True)
+    (home / "ace_admin_center_last_tab.txt").write_bytes(b"tasks\n")
+
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
+
+
+def test_legacy_tasks_alternate_migrates_to_procs_on_load(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    home = _use_sase_home(monkeypatch, tmp_path)
+    home.mkdir(parents=True)
+    (home / "ace_admin_center_last_tab.txt").write_bytes(b"logs\ntasks\n")
+
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(
+        current="logs", alternate="procs"
     )
 
 
@@ -109,7 +133,7 @@ def test_degenerate_duplicate_pair_keeps_current_and_drops_alternate(
     home.mkdir(parents=True)
     (home / "ace_admin_center_last_tab.txt").write_bytes(b"tasks\ntasks\n")
 
-    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="tasks")
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")
 
 
 def test_save_atomically_replaces_existing_state(
@@ -135,11 +159,11 @@ def test_save_atomically_replaces_existing_state(
 
     monkeypatch.setattr(config_center_state.os, "replace", _replace)
 
-    save_admin_center_tab_history(AdminCenterTabHistory(current="tasks"))
+    save_admin_center_tab_history(AdminCenterTabHistory(current="procs"))
 
     assert len(replacements) == 1
     assert replacements[0][1] == path
-    assert path.read_text() == "tasks\n"
+    assert path.read_text() == "procs\n"
     assert not list(home.glob(f".{path.name}.*.tmp"))
 
 
@@ -158,7 +182,7 @@ def test_failed_replace_preserves_destination_and_cleans_temporary(
     monkeypatch.setattr(config_center_state.os, "replace", _fail_replace)
 
     with pytest.raises(OSError, match="synthetic replace failure"):
-        save_admin_center_tab_history(AdminCenterTabHistory(current="tasks"))
+        save_admin_center_tab_history(AdminCenterTabHistory(current="procs"))
 
     assert path.read_text() == "logs\n"
     assert not list(home.glob(f".{path.name}.*.tmp"))
@@ -183,9 +207,9 @@ def test_save_drops_alternate_matching_current(
     home = _use_sase_home(monkeypatch, tmp_path)
 
     save_admin_center_tab_history(
-        AdminCenterTabHistory(current="tasks", alternate="tasks")
+        AdminCenterTabHistory(current="procs", alternate="procs")
     )
 
     path = home / "ace_admin_center_last_tab.txt"
-    assert path.read_bytes() == b"tasks\n"
-    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="tasks")
+    assert path.read_bytes() == b"procs\n"
+    assert load_admin_center_tab_history() == AdminCenterTabHistory(current="procs")

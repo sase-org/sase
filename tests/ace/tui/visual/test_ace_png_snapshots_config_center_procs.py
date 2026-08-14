@@ -5,15 +5,15 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals import tasks_pane as tp
-from sase.ace.tui.modals import tasks_pane_render as tpr
-from sase.ace.tui.modals.tasks_store_rows import _store_task_row
+from sase.ace.tui.modals import procs_pane as tp
+from sase.ace.tui.modals import procs_pane_render as tpr
+from sase.ace.tui.modals.procs_store_rows import _store_task_row
 from sase.ace.tui.task_queue import TaskQueue
 from sase.procs import Proc
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _FIXED_TASK_NOW,
-    _open_tasks_modal,
+    _open_procs_modal,
     _patch_config_view,
     _patch_plugins_catalog,
     _patch_xprompt_sources,
@@ -30,7 +30,7 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_config_center_tasks_tab_png_snapshot(
+async def test_config_center_procs_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -84,9 +84,9 @@ async def test_config_center_tasks_tab_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         _seed_tasks_tab_queue(page.app)
-        _, pane = await _open_tasks_modal(page)
-        option_list = pane.query_one("#tasks-list", OptionList)
-        output = pane.query_one("#tasks-output-content", Static)
+        _, pane = await _open_procs_modal(page)
+        option_list = pane.query_one("#procs-list", OptionList)
+        output = pane.query_one("#procs-output-content", Static)
         assert "sync sase-42" in option_list.get_option_at_index(0).prompt.plain
         assert any(
             "◆ detached" in option_list.get_option_at_index(index).prompt.plain
@@ -97,6 +97,6 @@ async def test_config_center_tasks_tab_png_snapshot(
 
         ace_png_visual.assert_page_png(
             page,
-            "config_center_tasks_tab_120x40",
+            "config_center_procs_tab_120x40",
             title="ACE SASE Admin Center - Tasks tab",
         )

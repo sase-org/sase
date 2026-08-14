@@ -14,10 +14,19 @@ from .config_center_history import AdminCenterTabHistory
 _STATE_FILENAME = "ace_admin_center_last_tab.txt"
 _MAX_STATE_BYTES = 64
 
+_LEGACY_TAB_ALIASES: dict[str, str] = {
+    "tasks": "procs",  # legacy compatibility alias
+}
+
 
 def _admin_center_last_tab_path() -> Path:
     """Return the machine-local Admin Center resume-state path."""
     return sase_home() / _STATE_FILENAME
+
+
+def _migrate_legacy_tab_id(value: str) -> str:
+    """Map a persisted pre-rename tab id to its current spelling."""
+    return _LEGACY_TAB_ALIASES.get(value, value)
 
 
 def load_admin_center_tab_history() -> AdminCenterTabHistory:
@@ -42,13 +51,13 @@ def load_admin_center_tab_history() -> AdminCenterTabHistory:
     if len(lines) not in (1, 2):
         return AdminCenterTabHistory()
 
-    current = validated_center_tab(lines[0])
+    current = validated_center_tab(_migrate_legacy_tab_id(lines[0]))
     if current is None:
         return AdminCenterTabHistory()
     if len(lines) == 1:
         return AdminCenterTabHistory(current=current)
 
-    alternate = validated_center_tab(lines[1])
+    alternate = validated_center_tab(_migrate_legacy_tab_id(lines[1]))
     if alternate is None:
         return AdminCenterTabHistory()
     if alternate == current:

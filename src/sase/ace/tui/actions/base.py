@@ -133,7 +133,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
     def action_open_tasks_panel(self) -> None:
         """Open the SASE Admin Center on the Tasks tab."""
-        self._open_config_center("tasks")
+        self._open_config_center("procs")
 
     def action_open_statistics_panel(self) -> None:
         """Open the SASE Admin Center on the Statistics tab."""

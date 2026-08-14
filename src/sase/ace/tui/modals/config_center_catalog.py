@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 CenterTab = Literal[
-    "config", "logs", "projects", "statistics", "tasks", "updates", "xprompts"
+    "config", "logs", "procs", "projects", "statistics", "updates", "xprompts"
 ]
 PaneFactory = Callable[["ConfigCenterModal"], Widget]
 
@@ -63,10 +63,10 @@ def _statistics_pane_factory(modal: ConfigCenterModal) -> Widget:
     return StatisticsPane(id="statistics", keymaps=keymaps)
 
 
-def _tasks_pane_factory(_modal: ConfigCenterModal) -> Widget:
-    from .tasks_pane import TasksPane
+def _procs_pane_factory(_modal: ConfigCenterModal) -> Widget:
+    from .procs_pane import ProcsPane
 
-    return TasksPane(session_state=_modal._session_state.tasks, id="tasks")
+    return ProcsPane(session_state=_modal._session_state.procs, id="procs")
 
 
 def _updates_pane_factory(modal: ConfigCenterModal) -> Widget:
@@ -128,13 +128,13 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         _statistics_pane_factory,
     ),
     CenterTabSpec(
-        "tasks",
+        "procs",
         5,
         "Tasks",
         "#5FD75F",
         "Follow background work, inspect live output, and manage running jobs.",
-        "TasksPane",
-        _tasks_pane_factory,
+        "ProcsPane",
+        _procs_pane_factory,
     ),
     CenterTabSpec(
         "updates",

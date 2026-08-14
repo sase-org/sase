@@ -15,11 +15,11 @@ from textual.containers import VerticalScroll
 from textual.widgets import OptionList
 
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
-from sase.ace.tui.modals.tasks_pane import TasksPane
-from sase.ace.tui.modals.tasks_pane_render import _relative_time
-from tests.ace.tui._tasks_pane_helpers import (
-    TasksTestApp,
-    open_tasks_pane,
+from sase.ace.tui.modals.procs_pane import ProcsPane
+from sase.ace.tui.modals.procs_pane_render import _relative_time
+from tests.ace.tui._procs_pane_helpers import (
+    ProcsTestApp,
+    open_procs_pane,
     output_plain,
     patch_other_panes,
     queue,
@@ -66,10 +66,10 @@ async def test_tasks_tab_lists_newest_first_and_renders_selected_output() -> Non
         error="merge conflict",
     )
 
-    async with TasksTestApp(queue(error, success, running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue(error, success, running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.highlighted == 0
         assert option_list.option_count == 3
         assert "sync sase-42" in option_list.get_option_at_index(0).prompt.plain
@@ -94,13 +94,13 @@ async def test_tasks_tab_navigation_updates_output() -> None:
         output="Mailed PR\n",
     )
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
 
         await pilot.press("j")
         await pilot.pause()
 
-        assert pane.query_one("#tasks-list", OptionList).highlighted == 1
+        assert pane.query_one("#procs-list", OptionList).highlighted == 1
         assert "Mailed PR" in output_plain(pane)
 
 
@@ -114,8 +114,8 @@ async def test_tasks_tab_live_refresh_updates_output_and_rebuilds_status() -> No
     )
     task_queue = queue(running)
 
-    async with TasksTestApp(task_queue).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(task_queue).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
 
         assert running._live_buffer is not None
         running._live_buffer.write("line 2\n")
@@ -125,7 +125,7 @@ async def test_tasks_tab_live_refresh_updates_output_and_rebuilds_status() -> No
         task_queue.complete("run", success=True, message="done", output="finished\n")
         pane._refresh_running_output()
 
-        option = pane.query_one("#tasks-list", OptionList).get_option_at_index(0)
+        option = pane.query_one("#procs-list", OptionList).get_option_at_index(0)
         assert "✓" in option.prompt.plain
         assert "finished" in output_plain(pane)
 
@@ -148,19 +148,19 @@ async def test_tasks_tab_dismisses_selected_and_all_completed() -> None:
     )
     task_queue = queue(error, success, running)
 
-    async with TasksTestApp(task_queue).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(task_queue).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
         await pilot.press("j")
         await pilot.pause()
 
         pane.action_dismiss_task()
         assert task_queue.get("ok") is None
-        assert pane.query_one("#tasks-list", OptionList).option_count == 2
+        assert pane.query_one("#procs-list", OptionList).option_count == 2
 
         pane.action_dismiss_all_done()
         assert task_queue.get("err") is None
         assert task_queue.get("run") is running
-        assert pane.query_one("#tasks-list", OptionList).option_count == 1
+        assert pane.query_one("#procs-list", OptionList).option_count == 1
 
 
 async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
@@ -172,8 +172,8 @@ async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
         live_output="Syncing...\n",
     )
 
-    async with TasksTestApp(queue(running)).run_test() as pilot:
-        modal, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        modal, pane = await open_procs_pane(pilot)
 
         await pilot.press("K")
         await pilot.pause()
@@ -186,7 +186,7 @@ async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
         await pilot.press("y")
         await pilot.pause()
 
-        app = cast(TasksTestApp, pilot.app)
+        app = cast(ProcsTestApp, pilot.app)
         assert pilot.app.screen is modal
         assert app.killed_task_ids == ["run"]
         assert running.status == "error"
@@ -194,16 +194,16 @@ async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
 
 
 async def test_tasks_tab_empty_state_and_empty_output_guards() -> None:
-    async with TasksTestApp(queue()).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
 
-        option_list = pane.query_one("#tasks-list", OptionList)
+        option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.option_count == 0
         assert "No background tasks yet." in output_plain(pane)
 
         pane.action_edit_output()
         pane.action_copy_output()
-        assert cast(TasksTestApp, pilot.app).notifications == []
+        assert cast(ProcsTestApp, pilot.app).notifications == []
 
 
 async def test_tasks_tab_edit_output_unlinks_temp_file(
@@ -231,19 +231,19 @@ async def test_tasks_tab_edit_output_unlinks_temp_file(
 
     monkeypatch.setenv("EDITOR", "cat")
     monkeypatch.setattr(
-        "sase.ace.tui.modals.tasks_pane.subprocess.run",
+        "sase.ace.tui.modals.procs_pane.subprocess.run",
         fake_run,
     )
 
     @contextmanager
-    def fake_suspend(self: TasksTestApp) -> Iterator[None]:
+    def fake_suspend(self: ProcsTestApp) -> Iterator[None]:
         del self
         yield
 
-    monkeypatch.setattr(TasksTestApp, "suspend", fake_suspend)
+    monkeypatch.setattr(ProcsTestApp, "suspend", fake_suspend)
 
-    async with TasksTestApp(queue(running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
 
         pane.action_edit_output()
 
@@ -260,10 +260,10 @@ async def test_tasks_tab_scroll_actions_do_not_move_selection() -> None:
         live_output="".join(f"line {idx}\n" for idx in range(200)),
     )
 
-    async with TasksTestApp(queue(running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
-        scroll = pane.query_one("#tasks-output-scroll", VerticalScroll)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        scroll = pane.query_one("#procs-output-scroll", VerticalScroll)
+        option_list = pane.query_one("#procs-list", OptionList)
         highlighted_before = option_list.highlighted
 
         await pilot.press("G")
@@ -287,9 +287,9 @@ async def test_tasks_tab_apostrophe_enters_jump_mode_with_hints() -> None:
     running = task("run", label="sync sase-42", status="running", age_seconds=3)
     success = task("ok", label="mail sase-41", status="success", age_seconds=120)
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
 
         await pilot.press("apostrophe")
         await pilot.pause()
@@ -316,9 +316,9 @@ async def test_tasks_tab_jump_hint_selects_task_and_shows_output() -> None:
         output="Mailed PR\n",
     )
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
 
         await pilot.press("apostrophe")
         await pilot.press("1")
@@ -335,9 +335,9 @@ async def test_tasks_tab_apostrophe_in_jump_mode_returns_to_previous_task() -> N
     running = task("run", label="sync sase-42", status="running", age_seconds=3)
     success = task("ok", label="mail sase-41", status="success", age_seconds=120)
 
-    async with TasksTestApp(queue(success, running)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    async with ProcsTestApp(queue(success, running)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
 
         await pilot.press("apostrophe")
         await pilot.press("1")
@@ -358,9 +358,9 @@ async def test_tasks_tab_apostrophe_in_jump_mode_returns_to_previous_task() -> N
 async def test_tasks_tab_escape_cancels_jump_mode_without_closing_modal() -> None:
     running = task("run", label="sync sase-42", status="running", age_seconds=3)
 
-    async with TasksTestApp(queue(running)).run_test() as pilot:
-        modal, pane = await open_tasks_pane(pilot)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    async with ProcsTestApp(queue(running)).run_test() as pilot:
+        modal, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
 
         await pilot.press("apostrophe")
         await pilot.pause()
@@ -393,10 +393,10 @@ async def test_tasks_tab_jump_mode_takes_g_and_shift_g_from_the_output_scroller(
         for index in range(17)
     ]
 
-    async with TasksTestApp(queue(*tasks)).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
-        option_list = pane.query_one("#tasks-list", OptionList)
-        scroll = pane.query_one("#tasks-output-scroll", VerticalScroll)
+    async with ProcsTestApp(queue(*tasks)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
+        scroll = pane.query_one("#procs-output-scroll", VerticalScroll)
 
         await pilot.press("apostrophe")
         await pilot.pause()
@@ -429,9 +429,9 @@ async def test_tasks_tab_refresh_removing_hinted_task_clears_jump_mode() -> None
     success = task("ok", label="mail sase-41", status="success", age_seconds=120)
     task_queue = queue(success, running)
 
-    async with TasksTestApp(task_queue).run_test() as pilot:
-        _, pane = await open_tasks_pane(pilot)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    async with ProcsTestApp(task_queue).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
 
         await pilot.press("apostrophe")
         await pilot.pause()

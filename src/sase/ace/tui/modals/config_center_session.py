@@ -61,7 +61,7 @@ class ProjectsSessionState:
 
 
 @dataclass
-class TasksSessionState:
+class ProcsSessionState:
     """Session-only cursor state for the Tasks pane."""
 
     all_sessions: bool = False
@@ -84,18 +84,18 @@ class AdminCenterSessionState:
 
     config: SelectionBookmark = field(default_factory=SelectionBookmark)
     logs: SelectionBookmark = field(default_factory=SelectionBookmark)
+    procs: ProcsSessionState = field(default_factory=ProcsSessionState)
     projects: ProjectsSessionState = field(default_factory=ProjectsSessionState)
-    tasks: TasksSessionState = field(default_factory=TasksSessionState)
     updates: UpdatesSessionState = field(default_factory=UpdatesSessionState)
     xprompts: SelectionBookmark = field(default_factory=SelectionBookmark)
 
 
 __all__ = [
     "AdminCenterSessionState",
+    "ProcsSessionState",
     "ProjectsSessionState",
     "ProjectsSubTab",
     "SelectionBookmark",
-    "TasksSessionState",
     "UpdatesSessionState",
     "UpdatesSubTab",
 ]

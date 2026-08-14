@@ -70,7 +70,7 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
         "logs",
         "projects",
         "statistics",
-        "tasks",
+        "procs",
         "updates",
         "xprompts",
     )
@@ -143,7 +143,7 @@ def test_open_tasks_panel_action_pushes_admin_center_on_tasks() -> None:
     assert len(app.pushed_modals) == 1
     modal = app.pushed_modals[0]
     assert isinstance(modal, ConfigCenterModal)
-    assert modal._initial_tab == "tasks"
+    assert modal._initial_tab == "procs"
 
 
 def test_open_statistics_panel_action_pushes_admin_center_on_statistics() -> None:
@@ -234,8 +234,8 @@ def test_dismissal_validates_history_and_revalidates_updates() -> None:
     app._on_config_center_dismissed("not-a-tab")
     assert app._last_admin_center_tab == "logs"
 
-    app._on_config_center_dismissed("tasks")
-    assert app._last_admin_center_tab == "tasks"
+    app._on_config_center_dismissed("procs")
+    assert app._last_admin_center_tab == "procs"
     assert app.revalidation_count == 3
 
 

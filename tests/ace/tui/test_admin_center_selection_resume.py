@@ -21,8 +21,8 @@ from sase.ace.tui.modals.project_inventory_panes import (
     RepoInventoryPane,
     WorkspaceInventoryPane,
 )
+from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
-from sase.ace.tui.modals.tasks_pane import TasksPane
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
 from sase.ace.tui.util.selection import restore_selection_by_identity
 
@@ -35,7 +35,7 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
 from tests.ace.tui.modals.test_project_inventory_subtabs import (
     _patch_inventory_data,
 )
-from tests.ace.tui._tasks_pane_helpers import (
+from tests.ace.tui._procs_pane_helpers import (
     patch_store_loader as _patch_store_loader,
     queue as _queue,
     store_task as _store_task,
@@ -62,7 +62,7 @@ _CASES = (
         "3",
         ("right_square_bracket", "right_square_bracket"),
     ),
-    _ResumeCase("tasks", "5"),
+    _ResumeCase("procs", "5"),
     _ResumeCase("plugins", "6", ("right_square_bracket",)),
     _ResumeCase(
         "agent-clis",
@@ -170,9 +170,9 @@ def _surface_selection(modal: ConfigCenterModal, surface: str) -> str | None:
     elif surface == "workspaces":
         pane = modal.query_one(WorkspaceInventoryPane)
         option_list = pane.query_one("#workspaces-list", OptionList)
-    elif surface == "tasks":
-        pane = modal.query_one(TasksPane)
-        option_list = pane.query_one("#tasks-list", OptionList)
+    elif surface == "procs":
+        pane = modal.query_one(ProcsPane)
+        option_list = pane.query_one("#procs-list", OptionList)
     elif surface == "plugins":
         pane = modal.query_one(PluginsBrowserPane)
         option_list = pane.query_one("#plugins-list", OptionList)
@@ -201,8 +201,8 @@ def _detail_selection(modal: ConfigCenterModal, surface: str) -> str | None:
         return modal.query_one(RepoInventoryPane)._selected_record_id()
     if surface == "workspaces":
         return modal.query_one(WorkspaceInventoryPane)._selected_record_id()
-    if surface == "tasks":
-        return modal.query_one(TasksPane)._selected_task_identity()
+    if surface == "procs":
+        return modal.query_one(ProcsPane)._selected_task_identity()
     if surface == "plugins":
         return modal.query_one(PluginsBrowserPane)._detail_name
     if surface == "agent-clis":
@@ -214,7 +214,7 @@ def _detail_selection(modal: ConfigCenterModal, surface: str) -> str | None:
 def _normalized_selection(surface: str, selection: str | None) -> str | None:
     prefixes = {
         "logs": "log__",
-        "tasks": "task__",
+        "procs": "task__",
         "plugins": "plugin__",
         "agent-clis": "agent-cli__",
         "xprompts": "item__",
@@ -242,9 +242,9 @@ async def _wait_for_surface_ready(
                 and len(modal.query_one(pane_type)._filtered_records) >= 2
             )
         )
-    elif surface == "tasks":
+    elif surface == "procs":
         await page.wait_for(
-            lambda _s: modal.query_one("#tasks-list", OptionList).option_count >= 2
+            lambda _s: modal.query_one("#procs-list", OptionList).option_count >= 2
         )
     elif surface in {"plugins", "agent-clis"}:
         await page.wait_for(lambda _s: not modal.query_one(PluginsBrowserPane)._loading)

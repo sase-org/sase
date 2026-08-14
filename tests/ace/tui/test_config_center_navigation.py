@@ -32,15 +32,15 @@ async def test_repeated_first_navigation_is_idempotent(
         await pilot.pause()
 
         results = await asyncio.gather(
-            modal._switch_to("tasks"),
-            modal._switch_to("tasks"),
-            modal._switch_to("tasks"),
+            modal._switch_to("procs"),
+            modal._switch_to("procs"),
+            modal._switch_to("procs"),
         )
 
         assert results == [True, True, True]
-        assert calls == ["tasks"]
-        assert len(created["tasks"]) == 1
-        assert len(modal.query("#tasks")) == 1
+        assert calls == ["procs"]
+        assert len(created["procs"]) == 1
+        assert len(modal.query("#procs")) == 1
 
 
 async def test_activation_callback_observes_committed_success_and_not_refocus(
@@ -66,10 +66,10 @@ async def test_activation_callback_observes_committed_success_and_not_refocus(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        assert await modal._switch_to("tasks") is True
-        assert await modal._switch_to("tasks") is True
+        assert await modal._switch_to("procs") is True
+        assert await modal._switch_to("procs") is True
 
-    assert activated == ["tasks"]
+    assert activated == ["procs"]
 
 
 async def test_activation_callback_is_silent_for_construction_and_mount_failures(
@@ -85,7 +85,7 @@ async def test_activation_callback_is_silent_for_construction_and_mount_failures
         modal = ConfigCenterModal(on_tab_activated=activated.append)
         pilot.app.push_screen(modal)
         await pilot.pause()
-        assert await modal._switch_to("tasks") is False
+        assert await modal._switch_to("procs") is False
 
     assert activated == []
 
@@ -99,7 +99,7 @@ async def test_activation_callback_is_silent_for_construction_and_mount_failures
         modal = ConfigCenterModal(on_tab_activated=activated.append)
         pilot.app.push_screen(modal)
         await pilot.pause()
-        assert await modal._switch_to("tasks") is False
+        assert await modal._switch_to("procs") is False
 
     assert activated == []
 
@@ -112,7 +112,7 @@ async def test_activation_callback_is_silent_for_switch_failure(
     original_sync_chrome = ConfigCenterModal._sync_chrome
 
     def _fail_target_header(modal: ConfigCenterModal, tab: CenterTab | None) -> None:
-        if tab == "tasks":
+        if tab == "procs":
             raise RuntimeError("synthetic switch failure")
         original_sync_chrome(modal, tab)
 
@@ -122,7 +122,7 @@ async def test_activation_callback_is_silent_for_switch_failure(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        assert await modal._switch_to("tasks") is False
+        assert await modal._switch_to("procs") is False
         assert modal._active_tab is None
         assert (
             modal.query_one("#config-center-switcher", ContentSwitcher).current
@@ -146,8 +146,8 @@ async def test_activation_callback_failure_does_not_fail_navigation(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        assert await modal._switch_to("tasks") is True
-        assert modal._active_tab == "tasks"
+        assert await modal._switch_to("procs") is True
+        assert modal._active_tab == "procs"
 
     assert "Admin Center tab-activation callback failed" in caplog.text
 
