@@ -309,6 +309,17 @@ async def test_confirm_emits_normalized_expression() -> None:
         assert captured == ["claude/opus || codex/o3"]
 
 
+async def test_enter_key_on_focused_list_confirms() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("claude/opus || codex/o3")
+        captured: list[str | None] = []
+        pilot.app.push_screen(modal, captured.append)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert captured == ["claude/opus || codex/o3"]
+
+
 async def test_confirm_blocked_on_validation_error() -> None:
     async with ModelPickerTestApp().run_test() as pilot:
         modal = _modal("")

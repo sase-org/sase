@@ -380,5 +380,9 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
             return
         self.dismiss(compose_selector(self._mode, self._members))
 
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        self.action_confirm()
+
 
 __all__ = ["SelectorBuilderModal"]
