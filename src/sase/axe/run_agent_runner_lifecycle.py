@@ -20,6 +20,7 @@ from sase.core.dismissed_agents_facade import (
     load_dismissed_agents,
     persist_dismissed_agents as save_dismissed_agents,
 )
+from sase.axe.run_agent_monitor_handoff import monitor_handoff_claim_transferred
 
 _NON_HOLD_FAILURE_OUTCOMES = {
     "killed",
@@ -172,7 +173,15 @@ def finalize_runner_shutdown(
     workspace_held = False
     killed = deps.was_killed()
     steps_hidden = deps.all_steps_hidden(state.current_artifacts_dir)
-    if not context.is_home_mode and state.exec_outcome != "monitored":
+    monitor_handoff_transferred = (
+        state.exec_outcome == "monitored"
+        and monitor_handoff_claim_transferred(
+            context.project_file,
+            state.workspace_num,
+            cl_name=context.cl_name,
+        )
+    )
+    if not context.is_home_mode and not monitor_handoff_transferred:
         try:
             if _should_hold_workspace(
                 state,

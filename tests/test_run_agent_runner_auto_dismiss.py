@@ -11,6 +11,7 @@ from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
 )
 from sase.axe.runner_signals import reset_killed, was_killed
+from sase.running_field import WorkspaceClaim
 
 
 def test_auto_dismiss_completed_agent_syncs_dismissed_projection() -> None:
@@ -145,12 +146,60 @@ def test_workspace_release_sigterm_handler_skips_monitor_handoff(
         captured_handler = signal_handler.call_args[0][1]
 
     with (
+        patch(
+            "sase.running_field.get_claimed_workspaces",
+            return_value=[
+                WorkspaceClaim(
+                    workspace_num=10,
+                    workflow="ace-monitor",
+                    cl_name="sase",
+                    pid=12345,
+                )
+            ],
+        ),
+        patch("sase.ace.hooks.processes.is_process_running", return_value=True),
         patch("sase.running_field.release_workspace") as release,
         patch("sase.axe.runner_signals.sys.exit") as exit_mock,
     ):
         captured_handler(signal.SIGTERM, None)
 
     release.assert_not_called()
+    exit_mock.assert_not_called()
+    assert was_killed() is True
+    reset_killed()
+
+
+def test_workspace_release_sigterm_handler_releases_failed_monitor_handoff(
+    tmp_path, monkeypatch
+) -> None:
+    reset_killed()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    (tmp_path / ".sase_monitor_pending").write_text("{}", encoding="utf-8")
+    project_file = "/tmp/.sase/projects/sase/sase.sase"
+
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
+        install_workspace_release_sigterm_handler(
+            project_file=project_file,
+            workspace_num=10,
+            workflow_name="ace(run)-260101_120000",
+            cl_name="sase",
+            is_home_mode=False,
+        )
+        captured_handler = signal_handler.call_args[0][1]
+
+    with (
+        patch("sase.running_field.get_claimed_workspaces", return_value=[]),
+        patch("sase.running_field.release_workspace") as release,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
+    ):
+        captured_handler(signal.SIGTERM, None)
+
+    release.assert_called_once_with(
+        project_file,
+        10,
+        "ace(run)-260101_120000",
+        "sase",
+    )
     exit_mock.assert_not_called()
     assert was_killed() is True
     reset_killed()
