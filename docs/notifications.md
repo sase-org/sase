@@ -306,7 +306,7 @@ when known, appears as a **Filed by** line in the Markdown preview above the tas
 description and notes; the notes section is present only when the bead has notes. The
 gate offers three branches:
 
-- **Launch** is the default. It submits a detached background task that runs
+- **Launch** is the default. It submits a detached proc that runs
   `sase bead work <task-id> --yes-to-all`; optional feedback is appended to the worker
   prompt.
 - **Close** requires feedback and closes the bead with that reason and

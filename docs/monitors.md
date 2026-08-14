@@ -7,10 +7,10 @@ run `just check-full`, wait on a CI job, or sleep before a deploy without blocki
 own turn.
 
 SASE agents are single-turn: a provider turn runs, the runner captures it, and the agent
-is done. Provider-native "background task" or "scheduled wake-up" tools assume a
+is done. Provider-native background-execution or scheduled wake-up tools assume a
 multi-turn session and do nothing useful here — the turn ends and the wake-up never
 fires. Monitors are the SASE-native replacement: use `/sase_monitor` (or
-`sase monitor start` directly) instead of any built-in monitor, background-task, or
+`sase monitor start` directly) instead of any built-in monitor, background-execution, or
 scheduled wake-up tool.
 
 ## The lane picture

@@ -128,22 +128,22 @@ group.
 Source: `src/sase/integrations/agent_list_entries.py`,
 `src/sase/integrations/provider_badges.py`
 
-## Durable Background Tasks
+## Durable Procs
 
-Plugins and host integrations can submit supervised work through `sase.tasks`. Use
-`submit_task()` when the row may be attributed to an ACE session, and
-`submit_detached_task()` when no interactive session owns the work:
+Plugins and host integrations can submit supervised work through `sase.procs`. Use
+`submit_proc()` when the row may be attributed to an ACE session, and
+`submit_detached_proc()` when no interactive session owns the work:
 
 ```python
 from pathlib import Path
 
-from sase.tasks import (
-    DETACHED_TASK_KIND,
-    read_tasks,
-    submit_detached_task,
+from sase.procs import (
+    DETACHED_PROC_KIND,
+    read_procs,
+    submit_detached_proc,
 )
 
-task = submit_detached_task(
+proc = submit_detached_proc(
     ["python", "-m", "my_plugin.worker"],
     label="Refresh external catalog",
     cwd=Path.cwd(),
@@ -152,33 +152,33 @@ task = submit_detached_task(
     tags=("catalog", "refresh"),
 )
 
-assert task.kind == DETACHED_TASK_KIND
-assert task.session_id is None
-detached_rows = read_tasks(kind=DETACHED_TASK_KIND)
+assert proc.kind == DETACHED_PROC_KIND
+assert proc.session_id is None
+detached_rows = read_procs(kind=DETACHED_PROC_KIND)
 ```
 
 Both submission functions validate a non-empty argument vector and an existing working
 directory, append a durable `pending` row, then start the same detached supervisor. The
 supervisor owns the child process group, captures combined stdout/stderr, and writes the
-terminal status. `submit_detached_task()` deliberately accepts no `session_id`: `origin`
+terminal status. `submit_detached_proc()` deliberately accepts no `session_id`: `origin`
 is a required explicit argument, and the resulting `detached` row is unattributed even
 when called from a live ACE process. That makes it visible in every session's default
-Tasks scope and adds an active detached task to every live ACE session's top-bar
-background-task count.
+Procs scope and adds an active detached proc to every live ACE session's top-bar proc
+count.
 
-`read_tasks()` and `filter_tasks()` accept `kind=` as one string or a collection. Public
-constants are `COMMAND_TASK_KIND`, `TUI_TASK_KIND`, `DETACHED_TASK_KIND`, and
-`TASK_KINDS`; status filters have the same one-or-many shape. Use `wait_for_task()` to
-stream retained log lines and await completion, or `kill_task()` to terminate the
+`read_procs()` and `filter_procs()` accept `kind=` as one string or a collection. Public
+constants are `COMMAND_PROC_KIND`, `TUI_PROC_KIND`, `DETACHED_PROC_KIND`, and
+`PROC_KINDS`; status filters have the same one-or-many shape. Use `wait_for_proc()` to
+stream retained log lines and await completion, or `kill_proc()` to terminate the
 supervised process group. Active `command` and `detached` rows with no supervisor PID
 are allowed a 60-second startup grace period, then reconciled to `error`; `tui` rows are
 owned by the mirroring TUI and are not treated as supervisor orphans.
 
 The storage model, CLI inspection commands, retention, and ACE rendering are documented
-under [Durable Background Tasks](ace.md#durable-background-tasks).
+under [Durable Procs](ace.md#durable-procs).
 
-Source: `src/sase/tasks/__init__.py`, `src/sase/tasks/runner.py`,
-`src/sase/tasks/store.py`
+Source: `src/sase/procs/__init__.py`, `src/sase/procs/runner.py`,
+`src/sase/procs/store.py`
 
 ## Mobile Notification Bridge
 

@@ -199,6 +199,7 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Agent Tribe
 - Artifact Reference (aka ref)
 - Patch
+- Proc (aka background task)
 - Sase Project (aka project)
 - Sase Repo (aka repo)
 - Sase Workspace (aka workspace)

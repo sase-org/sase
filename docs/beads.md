@@ -286,11 +286,11 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    status is `ready`. This scan currently does not apply the dependency filter used by
    `sase bead ready`, so a blocked ready task can still receive a gate. The reviewed
    preview contains the task's title, description, and notes. **Launch** accepts
-   optional feedback and submits one global detached background task that runs
+   optional feedback and submits one global detached proc that runs
    `sase bead work <task-id> --yes-to-all`; **Close** requires feedback and closes the
    bead with `resolution=canceled` and that feedback as the reason. The detached launch
-   survives ACE, CLI, Telegram, or mobile client exit and appears in `sase task list`
-   and ACE's Tasks tab. **Snooze** requires a wake time, accepts an optional `+N` wake
+   survives ACE, CLI, Telegram, or mobile client exit and appears in `sase proc list`
+   and ACE's Procs tab. **Snooze** requires a wake time, accepts an optional `+N` wake
    threshold and reason, and defers the task until either condition is met.
 
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
@@ -557,7 +557,7 @@ presentation-contract refresh.
 
 The gate offers three decisions:
 
-- **Launch** (default) submits a detached background task that runs
+- **Launch** (default) submits a detached proc that runs
   `sase bead work <task-id> --yes-to-all`. Optional feedback is appended to the worker
   prompt.
 - **Close** requires feedback and closes the task with that reason and
@@ -1827,12 +1827,12 @@ a task with no stored size.
 The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal
 approval saves to the resolved SDD `plans/` directory with `tier: tale`. Every epic
 approval surface behaves the same way — ACE, `sase plan approve --kind epic`, Telegram,
-and bare gate responses all submit one deduplicated global `detached` task that runs
+and bare gate responses all submit one deduplicated global `detached` proc that runs
 `sase bead work <plan-file> --yes-to-all` from the project's primary workspace, then
-record that the host owns the launch in the planner response. Because the task is
+record that the host owns the launch in the planner response. Because the proc is
 detached and global, no interactive session owns it: it survives the approving process,
-appears in every default `sase task list` and Tasks-tab scope, is streamable with
-`sase task show <id> --follow`, supports kill, and still emits the epic-completion
+appears in every default `sase proc list` and Procs-tab scope, is streamable with
+`sase proc show <id> --follow`, supports kill, and still emits the epic-completion
 notification. The approval passes `--artifacts-dir` (and `--cl-name` when a Patch is
 involved), so a successful launch back-fills the epic ID and committed plan path into
 planner metadata.

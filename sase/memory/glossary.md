@@ -13,6 +13,7 @@ description: |-
   - Agent Tribe
   - Artifact Reference (aka ref)
   - Patch
+  - Proc (aka background task)
   - Sase Project (aka project)
   - Sase Repo (aka repo)
   - Sase Workspace (aka workspace)
@@ -109,6 +110,15 @@ absent `PR:` field. Active Patches live in ProjectSpec `<key>.sase` (directory k
 Reverted) live in `<key>-archive.sase`. Sections: NAME, DESCRIPTION, PARENT, PR, STATUS,
 STITCHES, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP -> Draft -> Ready -> Mailed ->
 Submitted.
+
+## Proc
+
+ALIASES: background task
+
+A Proc is a durable background process SASE records, supervises, and can stream or kill.
+Procs live in `~/.sase/procs/procs.jsonl` with combined output logs, come in `command`,
+`tui`, and `detached` kinds, and are surfaced by `sase proc` and ACE's Procs tab.
+Distinct from a task bead, which is a work item, and from an asyncio task.
 
 ## Sase Project
 

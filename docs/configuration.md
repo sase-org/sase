@@ -38,7 +38,7 @@ sections, environment variables, and CLI flags.
   - [commit_hooks](#commit_hooks)
   - [max_running_agents](#max_running_agents)
   - [runner_slots](#runner_slots)
-  - [tasks](#tasks)
+  - [procs](#procs)
   - [markdown](#markdown)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
@@ -152,7 +152,7 @@ import/publication commands, and recovery.
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the seven working sections—**Config**,
-**Logs**, **Projects**, **Statistics**, **Tasks**, **Updates**, and **XPrompts**—are
+**Logs**, **Projects**, **Statistics**, **Procs**, **Updates**, and **XPrompts**—are
 introduced without loading their data. While home is visible, press `#` again to resume
 the last section that was successfully active in this ACE process. Before the first
 section visit, the repeated key leaves home unchanged and constructs no pane. Press
@@ -169,13 +169,13 @@ jump target (or explains that none exists yet) and is itself clickable.
 
 Each pane is constructed only on first entry and is then reused until the Admin Center
 closes, preserving filters, selection, and scroll state while avoiding unrelated config,
-project, log, statistics, task, update, and xprompt work on open. Direct commands such
-as **Open logs panel**, **Open tasks panel**, **Open statistics**, and update actions
+project, log, statistics, proc, update, and xprompt work on open. Direct commands such
+as **Open logs panel**, **Open procs panel**, **Open statistics**, and update actions
 still open their requested pane immediately and make that successfully mounted section
 the next resume target. Closing and reopening with one `#` still returns to home; only a
 second press while home is visible resumes. The top-level resume target and alternate
 are persisted machine-locally and survive across ACE processes. Entry bookmarks for
-Config, Logs, Projects, Tasks, Updates, and XPrompts last only for the current ACE
+Config, Logs, Projects, Procs, Updates, and XPrompts last only for the current ACE
 process and restore by stable identity, along with minimal scope or sub-tab context when
 needed. Filters, marks, scroll positions, loaded data, pane instances, Statistics
 controls, and other pane-local state are never carried between modal lifetimes.
@@ -219,20 +219,19 @@ The Config tab answers four questions for every field — what value is effectiv
 For a chezmoi-remapped write, ACE first applies the changed target; an apply failure
 leaves the source edit in place and keeps the editor open. After a successful write and
 any targeted apply, ACE checks the file that was actually changed. If that file is dirty
-inside a git repository, it offers to **commit and push** the change as a tracked
-background task. Confirming stages that config file, commits the repository's current
-index, pulls with rebase, and pushes; pre-existing staged changes are therefore included
-in the same commit. The repository is discovered from the written file, so a remapped
-edit uses the chezmoi source repository. When `use_chezmoi` is enabled, a successful
-push is followed by a full `chezmoi apply`. Each failure stops the sequence at that
-step, without undoing the written config change. Skipping the offer—or editing a file
-outside git—also leaves the successful write in place. The
-[Models panel](ace.md#persistent-edits) uses the same workflow for persistent alias
-edits, while its fixed `Ctrl+E` binding previews and writes
-`llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is local to
-the Models modal (including bucket rows), not a configurable leader-key entry. Choosing
-Provider default writes the empty schema sentinel; a currently active temporary effort
-override remains effective until expiry or clear.
+inside a git repository, it offers to **commit and push** the change as a tracked proc.
+Confirming stages that config file, commits the repository's current index, pulls with
+rebase, and pushes; pre-existing staged changes are therefore included in the same
+commit. The repository is discovered from the written file, so a remapped edit uses the
+chezmoi source repository. When `use_chezmoi` is enabled, a successful push is followed
+by a full `chezmoi apply`. Each failure stops the sequence at that step, without undoing
+the written config change. Skipping the offer—or editing a file outside git—also leaves
+the successful write in place. The [Models panel](ace.md#persistent-edits) uses the same
+workflow for persistent alias edits, while its fixed `Ctrl+E` binding previews and
+writes `llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is
+local to the Models modal (including bucket rows), not a configurable leader-key entry.
+Choosing Provider default writes the empty schema sentinel; a currently active temporary
+effort override remains effective until expiry or clear.
 
 The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility
 aliases for [`repos.linked`](#repos), but the Config tab no longer offers a one-key
@@ -355,11 +354,11 @@ range. The global `,U` comprehensive confirmation groups SASE, Agent CLI, and **
 agent hoods** work into labeled sections with update/current/skipped glyphs, counts, and
 commands (home paths display as `~/`). The cached-hood section is runnable only when
 captured incoming hoods from other owners exist, and it lists their exact projects and
-hood counts. The tracked task runs Agent CLI commands first, the SASE/core/plugin leg
+hood counts. The tracked proc runs Agent CLI commands first, the SASE/core/plugin leg
 second, and cached agents integration last, reporting independent partial failures. `A`
 previews every exact agent-CLI command and every skip with its reason and docs URL; on
 the Agent CLIs sub-tab it uses the marked subset, otherwise it targets every safely
-updatable installed CLI. Agent-CLI commands execute sequentially as one tracked task and
+updatable installed CLI. Agent-CLI commands execute sequentially as one tracked proc and
 refresh the browser without restarting ACE; new agent launches naturally use the updated
 binaries. Installable plugins use `I` / `Space` marks, while updatable agent CLIs use
 `Space`; `Esc` clears marks in the active sub-tab before closing. All slow work runs off
@@ -2646,21 +2645,23 @@ waits. See [Agent waiting for a runner slot](troubleshooting/runner-slots.md) fo
 diagnosis, and [`%wait(priority=N)`](xprompt.md#supported-directives) for the directive
 itself.
 
-### tasks
+### procs
 
-Durable background-task records live in `~/.sase/tasks/tasks.jsonl`, with combined
-output logs under `~/.sase/tasks/logs/`. Retention keeps every pending or running task
-plus the newest configured number of finished tasks. Lowering the limit trims the oldest
-finished rows and their logs; active work is never pruned.
+Durable proc records live in `~/.sase/procs/procs.jsonl`, with combined output logs
+under `~/.sase/procs/logs/`. Retention keeps every pending or running proc plus the
+newest configured number of finished procs. Lowering the limit trims the oldest finished
+rows and their logs; active work is never pruned. The legacy `tasks.history_limit` key
+is still honored as a deprecated alias.
 
 ```yaml
-tasks:
+procs:
   history_limit: 100
 ```
 
-| Field                 | Type | Default | Minimum | Description                                      |
-| --------------------- | ---- | ------- | ------- | ------------------------------------------------ |
-| `tasks.history_limit` | int  | `100`   | `1`     | Number of finished background tasks to preserve. |
+| Field                 | Type | Default | Minimum | Description                                 |
+| --------------------- | ---- | ------- | ------- | ------------------------------------------- |
+| `procs.history_limit` | int  | `100`   | `1`     | Number of finished procs to preserve.       |
+| `tasks.history_limit` | int  | `100`   | `1`     | Deprecated alias for `procs.history_limit`. |
 
 ### markdown
 

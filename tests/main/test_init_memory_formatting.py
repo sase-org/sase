@@ -147,6 +147,23 @@ def test_format_keeps_inline_code_spans_atomic_at_wrap_points() -> None:
     assert all(len(line) <= markdown_print_width() for line in lines)
 
 
+def test_format_keeps_dash_separators_off_list_continuation_starts() -> None:
+    paragraph = (
+        "- Description: Read this note before relying on any of these SASE glossary "
+        "terms and aliases: - Agent Clan - Agent Family - Agent Hood - Patch - Proc "
+        "(aka background task) - Sase Project - Sase Repo - Sase Workspace - Stitch - "
+        "Xprompt - Xprompt Memory - Xprompt Part - Xprompt Swarm - Xprompt Workflow "
+        "Read it with `sase memory read glossary.md` whenever one of those terms or "
+        "aliases appears in a prompt, bead, plan, or code comment and you are not "
+        "certain what it means in SASE.\n"
+    )
+
+    formatted = format_generated_memory_markdown(paragraph)
+
+    assert "\n  - " not in formatted
+    assert all(len(line) <= markdown_print_width() for line in formatted.splitlines())
+
+
 def test_format_preserves_frontmatter() -> None:
     content = """---
 type: long

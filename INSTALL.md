@@ -56,10 +56,10 @@ If SASE is already installed, install plugins interactively from the TUI:
 5. Press `i` to install and confirm the preview modal. The preview shows the exact `uv`
    command and the resolved package set before anything runs.
 
-The install runs as a tracked background task (watch it on the **Tasks** tab). When the
-install actually changes the package set, SASE automatically restarts the axe daemon
-(and shows a post-restart toast in ACE) so the plugin's entry points are picked up
-immediately. The same tab uninstalls plugins with `x`.
+The install runs as a tracked proc (watch it on the **Procs** tab). When the install
+actually changes the package set, SASE automatically restarts the axe daemon (and shows
+a post-restart toast in ACE) so the plugin's entry points are picked up immediately. The
+same tab uninstalls plugins with `x`.
 
 The CLI equivalents are `sase plugin list`, `sase plugin show <plugin>`,
 `sase plugin install <plugin>`, and `sase plugin uninstall <plugin>` — see

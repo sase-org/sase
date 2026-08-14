@@ -80,6 +80,17 @@ memory:
         ones (Submitted, Archived, Reverted) live in `<key>-archive.sase`. Sections:
         NAME, DESCRIPTION, PARENT, PR, STATUS, STITCHES, HOOKS, COMMENTS, MENTORS.
         Status lifecycle: WIP -> Draft -> Ready -> Mailed -> Submitted.
+    Proc:
+      aliases:
+        - procs
+        - background task
+        - background tasks
+      definition: >-
+        A Proc is a durable background process SASE records, supervises, and can stream
+        or kill. Procs live in `~/.sase/procs/procs.jsonl` with combined output logs,
+        come in `command`, `tui`, and `detached` kinds, and are surfaced by `sase proc`
+        and ACE's Procs tab. Distinct from a task bead, which is a work item, and from
+        an asyncio task.
     Sase Project:
       aliases:
         - project

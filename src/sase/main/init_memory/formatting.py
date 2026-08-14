@@ -11,6 +11,7 @@ _FENCE_MARKERS = ("```", "~~~")
 _STANDALONE_STRONG_LABEL_RE = re.compile(r"^\*\*[^*].*?\*\*[ \t]*$")
 _INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
 _CODE_SPAN_SPACE_SENTINEL = "\x00"
+_DASH_SEPARATOR_RE = re.compile(r"(?<=\S) - (?=\S)")
 
 
 def _split_frontmatter(content: str) -> tuple[str | None, str]:
@@ -59,6 +60,10 @@ def _wrap_text(
     protected = _INLINE_CODE_SPAN_RE.sub(
         lambda match: match.group(0).replace(" ", _CODE_SPAN_SPACE_SENTINEL),
         normalized,
+    )
+    protected = _DASH_SEPARATOR_RE.sub(
+        f"{_CODE_SPAN_SPACE_SENTINEL}- ",
+        protected,
     )
     wrapper = textwrap.TextWrapper(
         width=width,

@@ -107,14 +107,15 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Description: Read this note before relying on any of these SASE glossary terms and
   aliases: - Agent Clan - Agent Family - Agent Hood (aka hood, agent neighborhood) -
   Agent Lane - Agent Instruction File (aka agents.md file) - Agent Neighbor - Agent
-  Tribe - Artifact Reference (aka ref) - Patch - Sase Project (aka project) - Sase Repo
-  (aka repo) - Sase Workspace (aka workspace) - Stitch - Xprompt - Xprompt Memory (aka
-  memory file) - Xprompt Part - Xprompt Swarm - Xprompt Workflow Read it with
-  `sase memory read glossary.md` whenever one of those terms or aliases appears in a
-  prompt, bead, plan, or code comment and you are not certain what it means in SASE.
+  Tribe - Artifact Reference (aka ref) - Patch - Proc (aka background task) - Sase
+  Project (aka project) - Sase Repo (aka repo) - Sase Workspace (aka workspace) -
+  Stitch - Xprompt - Xprompt Memory (aka memory file) - Xprompt Part - Xprompt Swarm -
+  Xprompt Workflow Read it with `sase memory read glossary.md` whenever one of those
+  terms or aliases appears in a prompt, bead, plan, or code comment and you are not
+  certain what it means in SASE.
 - Parent: `AGENTS.md`
-- Lines: 176
-- Approx. tokens: 1808
+- Lines: 186
+- Approx. tokens: 1908
 
 ### `sase/memory/sase_beads.md`
 
@@ -152,8 +153,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
 - Parent: `AGENTS.md`
-- Lines: 92
-- Approx. tokens: 1424
+- Lines: 91
+- Approx. tokens: 1416
 
 ### `sase/memory/xprompts.md`
 
@@ -169,8 +170,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 12
 - Short notes: 4
 - Long notes: 8
-- Total lines: 927
-- Total approx. tokens: 11469
+- Total lines: 936
+- Total approx. tokens: 11561
 
 ## Commands
 

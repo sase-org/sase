@@ -27,13 +27,12 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
    `cancel_pump_free_tasks()`. Preserve coalescing guards (scheduled/running/pending),
    releasing them if spawning fails. After a conversion, re-sweep all four APIs for slow
    async callbacks; the July 2026 epic missed two at phase seams.
-3. **Run slow user-initiated operations as tracked background tasks** (agent launches,
-   kill/dismiss persistence, Patch actions): `_submit_tracked_task()` /
-   `_submit_background_task()` (`src/sase/ace/tui/actions/task_actions.py`), not
-   fire-and-forget coroutines. They appear in the task indicator/Task Queue (`t`), dedup
-   submissions, count at quit, and leave records. Shape (see `LaunchTaskMixin` /
-   `CleanupTaskMixin`): optimistic UI → sync worker returning a typed outcome →
-   UI-thread `on_complete` effects.
+3. **Run slow user-initiated operations as tracked procs** (agent launches, kill/dismiss
+   persistence, Patch actions): `_submit_tracked_proc()` / `_submit_proc()`
+   (`src/sase/ace/tui/actions/proc_actions.py`), not fire-and-forget coroutines. They
+   appear in the proc indicator/Procs tab, dedup submissions, count at quit, and leave
+   records. Shape (see `LaunchProcMixin` / `CleanupProcMixin`): optimistic UI → sync
+   worker returning a typed outcome → UI-thread `on_complete` effects.
 4. **Re-capture UI state after every `await`.** Selection/tab captured before an await
    is stale when results land (pump-free tasks interleave); re-read the current tab and
    selected identity before applying, or j/k silently jumps.

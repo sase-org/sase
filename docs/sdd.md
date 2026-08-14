@@ -145,12 +145,12 @@ proposal pending.
 
 Tale approval promotes the plan and launches its coder through the agent runner. Every
 epic approval surface — ACE, the CLI, Telegram, or a bare gate response — instead
-submits one global `detached` task whose command is
-`sase bead work <plan-file> --yes-to-all`. No interactive session owns that task, so it
-survives the approving process, appears in every default `sase task list` and Tasks-tab
-scope, is streamable with `sase task show <id> --follow`, and still emits the
+submits one global `detached` proc whose command is
+`sase bead work <plan-file> --yes-to-all`. No interactive session owns that proc, so it
+survives the approving process, appears in every default `sase proc list` and Procs-tab
+scope, is streamable with `sase proc show <id> --follow`, and still emits the
 epic-completion notification. The equivalent hand-run form is
-`sase task run --detached --label 'Epic launch · <plan>' -- sase bead work <plan> --yes-to-all`.
+`sase proc run --detached --label 'Epic launch · <plan>' -- sase bead work <plan> --yes-to-all`.
 If the approval host cannot resolve or submit the launch, approval fails loudly with
 that resume command instead of falling back to an invisible planner-side subprocess.
 After a successful handoff, the planner finishes with `EPIC APPROVED`.

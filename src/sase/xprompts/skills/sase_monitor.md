@@ -2,9 +2,9 @@
 name: sase_monitor
 description:
   Run a long command without blocking your turn. Use this INSTEAD of any built-in
-  monitor, background-task, or scheduled wake-up tool - those do not work in SASE, which
-  runs agents for a single turn. Also use it to sleep/wait (for a CI job, a deploy, a
-  rate limit) by monitoring a `sleep` command.
+  monitor, provider-native background-execution, or scheduled wake-up tool - those do
+  not work in SASE, which runs agents for a single turn. Also use it to sleep/wait (for
+  a CI job, a deploy, a rate limit) by monitoring a `sleep` command.
 skill: true
 log_skill_use: false
 ---
@@ -20,8 +20,8 @@ sleep, or wait for the monitored command yourself after starting it; put any
 continuation work in `--next` so a follow-up agent can resume from the same workspace
 and conversation.
 
-Provider-native monitor, background-task, and scheduled wake-up tools do not work in
-SASE's single-turn agent model. Use `sase monitor start` instead.
+Provider-native monitor, background-execution, and scheduled wake-up tools do not work
+in SASE's single-turn agent model. Use `sase monitor start` instead.
 
 ## Canonical Invocation
 

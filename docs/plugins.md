@@ -375,7 +375,7 @@ of updating within one:
   tab) through the shared restart path.
 - **In the Admin Center Updates tab's Plugins sub-tab, press `m`** to switch mode
   interactively: it shows the current mode and dev root, confirms, runs the switch as a
-  background task, and shows a restart toast.
+  proc, and shows a restart toast.
 
 ## Installing and updating plugins (`sase plugin install` / `sase plugin update`)
 

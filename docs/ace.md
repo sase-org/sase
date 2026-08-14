@@ -351,8 +351,8 @@ Closing offers `done`, `canceled`, and `superseded` resolutions. A bead with unf
 descendants is rejected unless the close modal's force option is enabled with a
 non-`done` resolution; the modal previews those descendants first. Closing or launching
 a task with a pending TaskTriage request settles that gate so the notification does not
-outlive the decision. Mutation work runs in the tracked task system and refreshes the
-pane after completion.
+outlive the decision. Mutation work runs as tracked procs and refreshes the pane after
+completion.
 
 The default `s` status action is type-aware:
 
@@ -2303,7 +2303,7 @@ a two-slot alternate. A color-coded, clickable footer along the bottom of the wo
 section names the jump target (or explains that none exists yet). The numbered strip
 remains clickable, `Tab` enters Config, and `Shift+Tab` enters XPrompts. Each working
 pane and its data are loaded only on first entry, then cached while the modal remains
-open. Command-palette actions such as **Open logs panel**, **Open tasks panel**, and
+open. Command-palette actions such as **Open logs panel**, **Open procs panel**, and
 **Open statistics**, plus update shortcuts and indicators, enter their requested pane
 directly and make a successful entry the next resume target. Closing from home does not
 clear an older target.
@@ -2331,9 +2331,9 @@ CLIs jump normally.
 
 ### Quit / Restart Menu
 
-Pressing `Q` opens the **quit / restart menu**. When background tasks are still running,
-the menu warns inline with the count that leaving will stop
-(`N background tasks will be stopped`), and it offers three actions:
+Pressing `Q` opens the **quit / restart menu**. When procs are still running, the menu
+warns inline with the count that leaving will stop (`N procs will be stopped`), and it
+offers three actions:
 
 - `1` / `s` — quit ACE and stop the axe daemon
 - `2` / `r` — restart the TUI, leaving axe running
@@ -2341,8 +2341,8 @@ the menu warns inline with the count that leaving will stop
 
 Press `esc` (or `q`) to cancel and return to the TUI.
 
-A plain `q` quits ACE directly. When background tasks are still running, `q` first shows
-a confirmation dialog listing the active tasks and asks whether to kill them and quit;
+A plain `q` quits ACE directly. When procs are still running, `q` first shows a
+confirmation dialog listing the active procs and asks whether to kill them and quit;
 declining returns to the TUI.
 
 ## Command Palette
@@ -2798,8 +2798,8 @@ timer for the nearest deadline reported by the current notification snapshot, so
 reminders fire on time even with clean inotify state or `--refresh-interval 0` (which
 disables ordinary auto-refresh). The timer callback stays thin and synchronous: it
 compares cached wall-clock values on Textual's message pump and hands the store read to
-a coalesced background task, so no disk or worker I/O runs on the pump and an expired
-snooze never triggers a full Agents-list rebuild.
+a coalesced proc, so no disk or worker I/O runs on the pump and an expired snooze never
+triggers a full Agents-list rebuild.
 
 While any snooze is pending, ACE rechecks the wall clock at most one second apart, so a
 suspended host, a resumed session, or a forward/backward system-clock change
@@ -2855,9 +2855,9 @@ future actions produce a warning instead of silently doing nothing.
 
 Custom gates and neutral HITL gates execute through the shared hash-verifying gate
 executor. ACE schedules the terminal command and each selected add-on through the
-tracked background-task queue, streams live stdout/stderr to the task, shows each
-command as a reporter phase, and refreshes the inbox when the task completes. Legacy
-HITL bundles retain the direct response-file fallback.
+tracked proc queue, streams live stdout/stderr to the proc, shows each command as a
+reporter phase, and refreshes the inbox when the proc completes. Legacy HITL bundles
+retain the direct response-file fallback.
 
 ### Toast Notifications
 
@@ -3024,19 +3024,19 @@ The tab bar renders plain tab labels (`Agents`, `Artifacts`, `AXE`). Per-bucket 
 live inside each tab's body — for example the per-panel count summaries on the Agents
 tab — rather than as suffixes on the tab title itself.
 
-### Background Task Indicator
+### Proc Indicator
 
-A gear icon (⚙) with a count appears in the top bar when background tasks are running
-(e.g., sync, mail, accept, and notification-gate operations). The indicator
-automatically hides when all background tasks complete.
+A gear icon (⚙) with a count appears in the top bar when procs are running (e.g., sync,
+mail, accept, and notification-gate operations). The indicator automatically hides when
+all procs complete.
 
 ### Runners Modal
 
 Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information
-including hook runners, agent runners, and a **Background Tasks** section listing active
-and recently completed background tasks (sync, rebase, accept, mail, add-tag,
-notification gates). Each task entry shows its type, target, status, timestamps, and
-live output when the task reports it.
+including hook runners, agent runners, and a **Procs** section listing active and
+recently completed procs (sync, rebase, accept, mail, add-tag, notification gates). Each
+proc entry shows its type, target, status, timestamps, and live output when the proc
+reports it.
 
 ## File Panel Rendering
 
@@ -4241,7 +4241,7 @@ modal both surface this redirect so it's never a surprise.
 
 **Follow-up actions.** After a save (or an `E` / `$EDITOR` edit), a follow-up modal
 offers only the actions that apply to the file you just wrote, each toggleable and run
-through the tracked task queue in order:
+through the tracked proc queue in order:
 
 - **Commit & push** — offered when the write path is inside a git repo with changes.
 - **Apply chezmoi** — offered when the write redirected to a chezmoi source; scoped to
@@ -4836,50 +4836,50 @@ lock plus atomic tempfile replacement of monthly shard files under
 A legacy `~/.sase/prompt_history.json` store is migrated into shards before normal reads
 and writes when the shard directory has not already been created.
 
-## Tasks Tab
+## Procs Tab
 
 Open the SASE Admin Center with `#`, then press `5` (or switch tabs until you reach
-**Tasks**). You can also run the keyless **Open tasks panel** command from the command
-palette. The tab shows background tasks (hook runs, mentor executions, agent launches,
-plugin operations, etc.) with live output for running tasks and completed output for
-finished ones.
+**Procs**). You can also run the keyless **Open procs panel** command from the command
+palette. The tab shows procs (hook runs, mentor executions, agent launches, plugin
+operations, etc.) with live output for running procs and completed output for finished
+ones.
 
 ### Durability and Scope
 
-Tasks the TUI runs itself are **mirrored** into the durable background-task store
-(`~/.sase/tasks/tasks.jsonl`, with one combined output log per task under
-`~/.sase/tasks/logs/`), so their outcome survives the session that produced them and is
-visible from `sase task list` / `sase task show`. Supervisor-backed tasks — commands
-submitted with `sase task run`, epic launches started from a gate approval, and
-programmatic detached tasks — are read back out of that store and rendered here, so work
+Procs the TUI runs itself are **mirrored** into the durable proc store
+(`~/.sase/procs/procs.jsonl`, with one combined output log per proc under
+`~/.sase/procs/logs/`), so their outcome survives the session that produced them and is
+visible from `sase proc list` / `sase proc show`. Supervisor-backed procs — commands
+submitted with `sase proc run`, epic launches started from a gate approval, and
+programmatic detached procs — are read back out of that store and rendered here, so work
 that this process never owned still shows up on the tab.
 
-The pane defaults to **this session** plus unattributed tasks and every global
-`detached` task; press `a` to widen it to every session. Detached tasks remain visible
+The pane defaults to **this session** plus unattributed procs and every global
+`detached` proc; press `a` to widen it to every session. Detached procs remain visible
 in both modes. The pane title names the active scope, e.g.
-`Tasks · this session  [2 running · 5 done]`. Rows read from the store carry a colored
-session chip (`ace·sase#14 4f2a`) that matches the one `sase task list` prints; a
-session that has since exited renders dim with a `†`. An ordinary unattributed task
-renders a dim `—`; a global task instead carries a cyan `◆ detached` marker that makes
+`Procs · this session  [2 running · 5 done]`. Rows read from the store carry a colored
+session chip (`ace·sase#14 4f2a`) that matches the one `sase proc list` prints; a
+session that has since exited renders dim with a `†`. An ordinary unattributed proc
+renders a dim `—`; a global proc instead carries a cyan `◆ detached` marker that makes
 its ownership explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
-path. Retention is governed by `tasks.history_limit` (see
-[configuration](configuration.md)): finished rows and their logs age out oldest-first,
-and running tasks are never pruned. Because the store owns that retention, `d` / `D`
-only dismiss this session's in-memory rows.
+path. Retention is governed by `procs.history_limit` (see
+[configuration](configuration.md#procs)): finished rows and their logs age out
+oldest-first, and running procs are never pruned. Because the store owns that retention,
+`d` / `D` only dismiss this session's in-memory rows.
 
-The top-bar task indicator counts this session's active `command` tasks plus **every
-active `detached` task globally**, so an epic approved from Telegram is reflected in
+The top-bar proc indicator counts this session's active `command` procs plus **every
+active `detached` proc globally**, so an epic approved from Telegram is reflected in
 every TUI.
 
 ### Layout
 
-The tab uses a two-panel layout: a task list on the left and an output pane on the
-right. Running tasks refresh their output every second while the Tasks tab is visible.
+The tab uses a two-panel layout: a proc list on the left and an output pane on the
+right. Running procs refresh their output every second while the Procs tab is visible.
 
-### Task Status Icons
+### Proc Status Icons
 
 | Icon | Color  | Meaning                       |
 | ---- | ------ | ----------------------------- |
@@ -4890,70 +4890,71 @@ right. Running tasks refresh their output every second while the Tasks tab is vi
 | `⊘`  | Yellow | Killed                        |
 | `?`  | Dim    | Unknown                       |
 
-### Durable Background Tasks
+### Durable Procs
 
-Background tasks are also durable records shared by every SASE surface, not just rows in
-this pane. They live in `~/.sase/tasks/tasks.jsonl`, with one combined stdout/stderr log
-per task under `~/.sase/tasks/logs/<task_id>.log`. Because the records outlive the
-process that produced them, `sase task` can list and inspect work started anywhere —
-including an epic launch approved from Telegram or from a second terminal.
+Procs are durable records shared by every SASE surface, not just rows in this pane. They
+live in `~/.sase/procs/procs.jsonl`, with one combined stdout/stderr log per proc under
+`~/.sase/procs/logs/<proc_id>.log`. Because the records outlive the process that
+produced them, `sase proc` can list and inspect work started anywhere — including an
+epic launch approved from Telegram or from a second terminal.
 
-Each task carries a 12-character id resolvable by unique prefix (three characters
-minimum, like a git short SHA), so `sase task show k7m2` works. Statuses are `pending`,
-`running`, `success`, `error`, and `killed`; terminal states are final, and a task whose
+Each proc carries a 12-character id resolvable by unique prefix (three characters
+minimum, like a git short SHA), so `sase proc show k7m2` works. Statuses are `pending`,
+`running`, `success`, `error`, and `killed`; terminal states are final, and a proc whose
 supervisor died without reporting is reconciled to `error` rather than left running
-forever. `sase task list` reuses the icons above and adds `◌` for pending and `⊘` for
+forever. `sase proc list` reuses the icons above and adds `◌` for pending and `⊘` for
 killed.
 
 **Kinds and ownership.**
 
-| Kind       | Typical producer                                               | Owner and scope                                                     |
-| ---------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `tui`      | Work run and mirrored by ACE                                   | The ACE process; scoped to its session                              |
-| `command`  | `sase task run` or `sase.tasks.submit_task()`                  | The task supervisor; attributed to one session or left unattributed |
-| `detached` | `sase task run --detached`, epic launches, or the detached API | The task supervisor; global because no interactive session owns it  |
+| Kind       | Typical producer                                           | Owner and scope                                                     |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------------- |
+| `tui`      | Work run and mirrored by ACE                               | The ACE process; scoped to its session                              |
+| `command`  | `sase proc run` or `sase.procs.submit_proc()`              | The proc supervisor; attributed to one session or left unattributed |
+| `detached` | `sase proc run --detached`, epic launches, or detached API | The proc supervisor; global because no interactive session owns it  |
 
-The programmatic detached API is `sase.tasks.submit_detached_task()`. It requires an
+The programmatic detached API is `sase.procs.submit_detached_proc()`. It requires an
 explicit `origin` argument, uses the same detached supervisor and validation as
-`submit_task()`, and never inherits a live ACE session. The public `read_tasks()` and
-`filter_tasks()` helpers accept `kind=` as either one kind or a collection. A `command`
+`submit_proc()`, and never inherits a live ACE session. The public `read_procs()` and
+`filter_procs()` helpers accept `kind=` as either one kind or a collection. A `command`
 or `detached` row that remains `pending` without a supervisor PID for 60 seconds is
 reconciled to `error`; a mirrored `tui` row is left to its owning TUI. Detached epic
 launches record the approving surface as `ace`, `telegram`, `cli`, or `axe`, with `api`
 retained as the fallback for direct or unrecognized API callers.
 
-Session attribution is not delegation: a `command` task always executes under its own
+Session attribution is not delegation: a `command` proc always executes under its own
 supervisor, while its session id decides which TUI includes it by default. `--session`
 accepts a full session id, a unique id prefix or short handle, or `current`, `latest`,
 and `none`; the default is this process's ACE session, then the newest live one, then no
-session. `sase task run --detached` instead creates the global kind and cannot be
-combined with `--session`. `sase task list` always admits detached work, scopes other
+session. `sase proc run --detached` instead creates the global kind and cannot be
+combined with `--session`. `sase proc list` always admits detached work, scopes other
 work to the resolved session plus unattributed rows by default, and widens to other
 sessions with `--all`. Rows from a session that has since exited render dim with a `†`
 marker.
 
-**Retention.** [`tasks.history_limit`](configuration.md#tasks) caps how many _finished_
-tasks are kept; pending and running work is never pruned for being old. Lowering the
-limit removes the oldest finished rows and their log files.
+**Retention.** [`procs.history_limit`](configuration.md#procs) caps how many _finished_
+procs are kept; pending and running work is never pruned for being old. Lowering the
+limit removes the oldest finished rows and their log files. The legacy
+`tasks.history_limit` key is still honored as a deprecated alias.
 
-The CLI equivalents are `sase task list` (`--kind` / `--detached` to filter),
-`sase task show ID` (`--follow` to stream), `sase task run [--detached] -- COMMAND`
-(`--wait` to stream and inherit the exit code), and `sase task kill ID`. Approved epics
-launch as detached tasks, so they survive every submitting surface and remain in scope
+The CLI equivalents are `sase proc list` (`--kind` / `--detached` to filter),
+`sase proc show ID` (`--follow` to stream), `sase proc run [--detached] -- COMMAND`
+(`--wait` to stream and inherit the exit code), and `sase proc kill ID`. Approved epics
+launch as detached procs, so they survive every submitting surface and remain in scope
 everywhere. See the [CLI reference](cli.md#daily-operation).
 
 ### Keybindings
 
 | Key                 | Action                                       |
 | ------------------- | -------------------------------------------- |
-| `j` / `k`           | Navigate task list                           |
-| `'`                 | Jump to a task row via adaptive hints        |
+| `j` / `k`           | Navigate proc list                           |
+| `'`                 | Jump to a proc row via adaptive hints        |
 | `a`                 | Toggle scope: this session / all sessions    |
-| `K`                 | Kill selected running task (durable or live) |
-| `d`                 | Dismiss selected completed task              |
-| `D`                 | Dismiss all completed tasks                  |
-| `e`                 | Open task output in `$EDITOR`                |
-| `y`                 | Copy task output to clipboard                |
+| `K`                 | Kill selected running proc (durable or live) |
+| `d`                 | Dismiss selected completed proc              |
+| `D`                 | Dismiss all completed procs                  |
+| `e`                 | Open proc output in `$EDITOR`                |
+| `y`                 | Copy proc output to clipboard                |
 | `Ctrl+D` / `Ctrl+U` | Scroll output pane down / up                 |
 | `g` / `G`           | Jump output pane to top/bottom               |
 | `Tab` / `Shift+Tab` | Switch Admin Center tabs                     |
@@ -4993,7 +4994,7 @@ labeled sections with update/current/skipped glyphs, counts, and commands. Its *
 repos** section uses a captured no-network status snapshot from the enabled-project
 inventory. Every represented project remains runnable even when its cached status is
 current; lifecycle-disabled projects are absent rather than shown as skipped. The
-tracked task runs Agent CLI commands first, the SASE/core/plugin leg second, and one
+tracked proc runs Agent CLI commands first, the SASE/core/plugin leg second, and one
 all-enabled-project agent sync last. A failure in the final leg is reported alongside
 the independent earlier results. After a changed core/plugin update restarts ACE, the
 one-shot result toast can show applied commits grouped by repository as well as
