@@ -9,6 +9,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
 import yaml
 
 
@@ -73,6 +74,7 @@ def _image(*, reference: int, image_format: str, mode: str) -> SimpleNamespace:
 
 
 def test_pdf_image_optimization_reencodes_each_shared_rgb_png_once() -> None:
+    pytest.importorskip("pypdf")
     tool = _load_postprocess()
     first = _image(reference=7, image_format="PNG", mode="RGB")
     duplicate = _image(reference=7, image_format="PNG", mode="RGB")
