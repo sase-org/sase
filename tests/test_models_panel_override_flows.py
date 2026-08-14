@@ -32,6 +32,7 @@ from sase.llm_provider import TemporaryLLMOverride
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     make_alias_view,
+    make_pool_members,
     patch_alias_views,
 )
 
@@ -203,6 +204,92 @@ async def test_custom_override_rejects_self_alias(monkeypatch) -> None:
         assert isinstance(pilot.app.screen, ModelsPanel)
         panel.notify.assert_called_once()
         assert "current alias" in panel.notify.call_args.args[0]
+
+
+async def test_custom_override_rejects_round_robin_selector(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "medium_worker"
+        panel._on_custom_picked("claude/opus | codex/gpt-5.5")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        panel.notify.assert_called_once()
+        message, kwargs = panel.notify.call_args.args[0], panel.notify.call_args.kwargs
+        assert "@medium_worker" in message
+        assert "Press e" in message
+        assert kwargs["severity"] == "warning"
+
+
+async def test_custom_override_rejects_fallback_selector(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "medium_worker"
+        panel._on_custom_picked("claude/opus || codex/gpt-5.5")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        panel.notify.assert_called_once()
+        message, kwargs = panel.notify.call_args.args[0], panel.notify.call_args.kwargs
+        assert "@medium_worker" in message
+        assert "Press e" in message
+        assert kwargs["severity"] == "warning"
+
+
+async def test_custom_override_rejects_mixed_selector_syntax(monkeypatch) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "medium_worker"
+        panel._on_custom_picked("claude/opus | codex/gpt-5.5 || o3")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        panel.notify.assert_called_once()
+        message, kwargs = panel.notify.call_args.args[0], panel.notify.call_args.kwargs
+        assert "mix" in message
+        assert kwargs["severity"] == "warning"
+
+
+async def test_alias_reference_to_pool_owning_alias_still_snapshots(
+    monkeypatch,
+) -> None:
+    target = make_alias_view("medium_worker", "role")
+    pool_owner = make_alias_view(
+        "pool_alias",
+        "user",
+        selector_mode="round_robin",
+        selector_members=make_pool_members(),
+    )
+    patch_alias_views(monkeypatch, [target, pool_owner])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = target.name
+        panel._pending_alias_selection = AliasSelectionContext(
+            (target, pool_owner), target.name, "temporary"
+        )
+        panel._on_model_picked("@pool_alias")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, DefaultEffortLevelModal)
+        assert panel._pending_raw_model == "@pool_alias"
 
 
 async def test_t_opens_until_modal_and_back_reopens_duration(monkeypatch) -> None:

@@ -11,6 +11,10 @@ from sase.llm_provider import (
     EffectiveDefaultEffortSnapshot,
     TemporaryLLMOverride,
 )
+from sase.llm_provider.load_balancing import (
+    ModelAliasSelectorError,
+    parse_model_alias_selector,
+)
 from sase.llm_provider.registry import format_provider_model_label
 from sase.xprompt.effort import split_model_effort
 
@@ -153,6 +157,19 @@ class ModelsPanelOverrideMixin(_MixinBase):
 
     def _on_custom_picked(self, result: str | None) -> None:
         if result is None:
+            return
+        try:
+            selector = parse_model_alias_selector(result.strip())
+        except ModelAliasSelectorError as exc:
+            self.notify(str(exc), severity="warning")
+            return
+        if selector is not None:
+            self.notify(
+                "Pools and fallbacks are config-only; a temporary override on "
+                f"@{self._pending_alias} takes a single target. Press e to set "
+                f"@{self._pending_alias} to a selector.",
+                severity="warning",
+            )
             return
         rejection = alias_reference_rejection(self._pending_alias_selection, result)
         if rejection is not None:
