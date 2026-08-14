@@ -198,6 +198,54 @@ def test_clean_baseline_does_not_affect_files_dirtied_after_capture(
     assert _PRE_EXISTING_HEADER not in prompt
 
 
+def test_continuation_run_finalizer_commits_inherited_starters_work(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end regression coverage for the bug plan
+    202608/lane_baseline_inheritance.md fixes: a lane's baseline is captured
+    once, before the lane's first (starter) agent runs. A continuation run
+    that inherits that same baseline file — rather than capturing a fresh one
+    against the now-dirty workspace — must still list the starter's
+    uncommitted work in the must-commit set, not under the pre-existing
+    header, even though that work did not exist yet when the baseline was
+    captured.
+    """
+    repo = tmp_path / "sase_10"
+    _init_git_repo_with_identity(repo)
+    set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+
+    artifacts_dir = tmp_path / "artifacts"
+    # Captured once, at lane start, before the starter agent has done any work.
+    capture_dirty_baseline(str(repo), str(artifacts_dir))
+
+    # The starter agent does work and is interrupted (e.g. SIGTERMed for a
+    # monitor handoff) before its own finalizer ever runs.
+    starter_work = repo / "starter_work.txt"
+    starter_work.write_text("starter's uncommitted work\n", encoding="utf-8")
+
+    # The continuation run inherits the lane's baseline file byte-for-byte and
+    # its finalizer runs against that same artifacts directory.
+    provider = MagicMock()
+
+    def invoke(_prompt: str, **_: object) -> InvokeResult:
+        _run_git(repo, "add", "starter_work.txt")
+        _run_git(repo, "commit", "-q", "-m", "commit starter's work")
+        return InvokeResult(content="committed starter's work")
+
+    provider.invoke.side_effect = invoke
+
+    _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    prompt = provider.invoke.call_args.args[0]
+    assert "starter_work.txt" in prompt
+    assert _PRE_EXISTING_HEADER not in prompt
+    result_json = read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+
+
 def test_missing_baseline_file_behaves_like_no_baseline(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -284,7 +332,12 @@ def test_pre_existing_sibling_file_is_excluded_and_reported_separately(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        mine_file.unlink()
+        subprocess.run(["git", "add", "mine.txt"], cwd=sibling, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "commit my sibling work"],
+            cwd=sibling,
+            check=True,
+        )
         return InvokeResult(content="finalized sibling")
 
     provider.invoke.side_effect = invoke
@@ -299,6 +352,14 @@ def test_pre_existing_sibling_file_is_excluded_and_reported_separately(
     result_json = read_result_json(artifacts_dir)
     assert result_json["status"] == "finalized"
     assert foreign_file.read_text(encoding="utf-8") == "foreign\n"
+    foreign_status = subprocess.run(
+        ["git", "status", "--porcelain", "foreign.txt"],
+        cwd=sibling,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert foreign_status.strip() == "?? foreign.txt"
 
 
 def test_capture_writes_no_baseline_when_dirty_state_collection_fails(

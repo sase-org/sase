@@ -82,6 +82,12 @@ def _write_bootstrap_agent_meta(
 def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
     """Snapshot already-dirty paths before this agent's first turn.
 
+    A family-attach continuation inherits its parent's baseline instead of
+    capturing a fresh one: it runs in the same lane/workspace as its parent,
+    so the parent's still-uncommitted work is this run's own responsibility
+    to commit, not foreign dirt to exclude (plan
+    ``202608/lane_baseline_inheritance.md``).
+
     Deferred imports avoid a module-load cycle between ``sase.axe`` and
     ``sase.llm_provider``, the same constraint ``_invoke.py`` works around
     with its own lazy ``run_agent_helpers`` imports.
@@ -93,7 +99,45 @@ def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
         resolve_finalizer_project_dir,
     )
 
+    if _inherit_parent_commit_finalizer_baseline(artifacts_dir):
+        return
     capture_dirty_baseline(resolve_finalizer_project_dir(), artifacts_dir)
+
+
+def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
+    """Copy a family-attach parent's baseline into ``artifacts_dir``.
+
+    Returns ``True`` when the parent's baseline was inherited, so the caller
+    skips capturing a fresh one. Best-effort: any missing plan, missing
+    parent baseline file, or copy failure falls back to a fresh capture
+    rather than failing the run, matching ``capture_dirty_baseline``'s own
+    contract.
+    """
+    import shutil
+
+    from sase.agent.family_attach import (
+        FamilyAttachError,
+        load_family_attach_plan_from_env,
+    )
+    from sase.llm_provider.commit_finalizer_baseline import BASELINE_FILENAME
+
+    try:
+        plan = load_family_attach_plan_from_env()
+    except FamilyAttachError:
+        return False
+    if plan is None:
+        return False
+
+    parent_baseline = os.path.join(plan.parent_artifacts_dir, BASELINE_FILENAME)
+    if not os.path.isfile(parent_baseline):
+        return False
+
+    try:
+        os.makedirs(artifacts_dir, exist_ok=True)
+        shutil.copyfile(parent_baseline, os.path.join(artifacts_dir, BASELINE_FILENAME))
+    except OSError:
+        return False
+    return True
 
 
 def _load_submitted_prompt(state: RunnerRunState) -> None:

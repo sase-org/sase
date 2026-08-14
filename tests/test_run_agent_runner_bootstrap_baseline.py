@@ -1,20 +1,24 @@
 """Coverage for wiring the commit finalizer's dirty-path baseline capture
-into the runner bootstrap phase (bead sase-lb.1.6)."""
+into the runner bootstrap phase (bead sase-lb.1.6) and its inheritance by
+family-attach continuations (plan 202608/lane_baseline_inheritance.md)."""
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
 import os
 from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
+from sase.agent.family_attach import FAMILY_ATTACH_ENV, FamilyAttachLaunchPlan
 from sase.axe import run_agent_runner, run_agent_runner_bootstrap
 from sase.axe.run_agent_runner_bootstrap import _capture_commit_finalizer_baseline
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+from sase.llm_provider.commit_finalizer_baseline import BASELINE_FILENAME
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
@@ -62,6 +66,133 @@ def test_capture_commit_finalizer_baseline_is_noop_when_hook_disabled(
     _capture_commit_finalizer_baseline(str(tmp_path / "artifacts"))
 
     capture.assert_not_called()
+
+
+def _family_attach_plan(*, parent_artifacts_dir: str) -> FamilyAttachLaunchPlan:
+    return FamilyAttachLaunchPlan(
+        parent_arg="research.worker",
+        suffix_arg="reviewer",
+        parent_name="research.worker--0",
+        parent_base="research.worker",
+        parent_timestamp="20260701010101",
+        parent_artifacts_dir=parent_artifacts_dir,
+        role_suffix="--reviewer",
+        agent_name="research.worker--reviewer",
+        agent_family_role="reviewer",
+        parent_family_member_name="research.worker--0",
+        parent_family_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name="sase",
+    )
+
+
+def test_capture_commit_finalizer_baseline_inherits_parent_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A family-attach continuation copies its parent's baseline byte-for-byte
+    instead of capturing a fresh one."""
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    baseline_payload = '{"repo": {"file.txt": ["M", "abc123"]}}\n'
+    (parent_dir / BASELINE_FILENAME).write_text(baseline_payload, encoding="utf-8")
+    plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    capture = MagicMock()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
+    )
+    artifacts_dir = tmp_path / "artifacts"
+
+    _capture_commit_finalizer_baseline(str(artifacts_dir))
+
+    capture.assert_not_called()
+    assert (artifacts_dir / BASELINE_FILENAME).read_text(
+        encoding="utf-8"
+    ) == baseline_payload
+
+
+def test_capture_commit_finalizer_baseline_falls_back_when_parent_has_no_baseline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    capture = MagicMock()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
+    )
+    artifacts_dir = tmp_path / "artifacts"
+
+    _capture_commit_finalizer_baseline(str(artifacts_dir))
+
+    capture.assert_called_once_with(ANY, str(artifacts_dir))
+    assert not (artifacts_dir / BASELINE_FILENAME).exists()
+
+
+def test_capture_commit_finalizer_baseline_captures_fresh_without_family_attach_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    monkeypatch.delenv(FAMILY_ATTACH_ENV, raising=False)
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(tmp_path))
+    capture = MagicMock()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
+    )
+
+    _capture_commit_finalizer_baseline(str(tmp_path / "artifacts"))
+
+    capture.assert_called_once_with(str(tmp_path), str(tmp_path / "artifacts"))
+
+
+def test_capture_commit_finalizer_baseline_falls_back_on_malformed_family_attach_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, "not valid json")
+    capture = MagicMock()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
+    )
+    artifacts_dir = tmp_path / "artifacts"
+
+    _capture_commit_finalizer_baseline(str(artifacts_dir))
+
+    capture.assert_called_once_with(ANY, str(artifacts_dir))
+
+
+def test_capture_commit_finalizer_baseline_falls_back_when_parent_baseline_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_DISABLE_COMMIT_STOP_HOOK", raising=False)
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    baseline_path = parent_dir / BASELINE_FILENAME
+    baseline_path.write_text('{"repo": {}}\n', encoding="utf-8")
+    baseline_path.chmod(0)
+    stack = ExitStack()
+    stack.callback(baseline_path.chmod, 0o644)
+    plan = _family_attach_plan(parent_artifacts_dir=str(parent_dir))
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    capture = MagicMock()
+    monkeypatch.setattr(
+        "sase.llm_provider.commit_finalizer_baseline.capture_dirty_baseline", capture
+    )
+    artifacts_dir = tmp_path / "artifacts"
+
+    with stack:
+        _capture_commit_finalizer_baseline(str(artifacts_dir))
+
+    capture.assert_called_once_with(ANY, str(artifacts_dir))
+    assert not (artifacts_dir / BASELINE_FILENAME).exists()
 
 
 def test_bootstrap_captures_baseline_after_entering_the_real_workspace(
