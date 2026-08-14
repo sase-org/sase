@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+from sase.ace.tui.widgets.artifacts.commits_timeline import commit_row_target
 from sase.ace.tui.widgets.artifacts.plans_list import PlanRow, plan_row_target
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 from tests.ace.tui._artifacts_files_helpers import artifact_file
@@ -22,7 +23,7 @@ def test_marked_commits_copy_in_visual_order_with_labeled_sections() -> None:
         )
         for character in ("a", "b")
     )
-    targets = tuple(("commit", entry.repo, entry.commit.full_id) for entry in entries)
+    targets = tuple(commit_row_target(entry) for entry in entries)
     app._artifacts_marked_targets = {"stitches": set(targets)}
     app.commits_pane = SimpleNamespace(
         result=SimpleNamespace(commits=entries),

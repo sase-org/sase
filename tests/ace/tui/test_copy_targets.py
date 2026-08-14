@@ -23,6 +23,7 @@ from sase.ace.tui.commands import build_command_catalog
 from sase.ace.tui.copy_targets import COPY_TARGETS, copy_targets_for
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.keymaps.mode_keymaps import CopyModeKeymaps
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness as _CopyHarness
 
 
@@ -82,7 +83,7 @@ def test_link_and_metadata_json_builders_cover_every_artifact_kind(
 ) -> None:
     item = _artifacts._ArtifactReferenceItem(
         label,
-        (kind,),
+        ArtifactEntryTarget.from_legacy((kind,)),
         None,
         "sase",
         "/tmp",
@@ -118,7 +119,7 @@ def test_marked_representations_are_paste_ready_and_report_partial_failures() ->
         _artifacts._ResolvedArtifactItem(
             _artifacts._ArtifactReferenceItem(
                 f"Entry {index}",
-                ("commit", str(index)),
+                ArtifactEntryTarget.from_legacy(("commit", str(index))),
                 None,
                 "sase",
                 "/tmp",
@@ -163,14 +164,14 @@ def test_metadata_resolution_skips_unrepresentable_items_and_reuses_cli_json(
         items=(
             _artifacts._ArtifactReferenceItem(
                 "good",
-                ("commit", "sase", "a" * 40),
+                ArtifactEntryTarget(pane_id="stitches", parts=("sase", "a" * 40)),
                 None,
                 "sase",
                 "/tmp",
             ),
             _artifacts._ArtifactReferenceItem(
                 "missing",
-                ("commit", "sase", "b" * 40),
+                ArtifactEntryTarget(pane_id="stitches", parts=("sase", "b" * 40)),
                 None,
                 "sase",
                 "/tmp",
@@ -266,3 +267,85 @@ def test_patch_link_uses_humanized_name_and_pr_url(
             "Patch Markdown link",
         )
     ]
+
+
+def test_copy_patch_reference_copies_the_selected_patch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _CopyHarness()
+    app.current_idx = 1
+    app.patches = [
+        SimpleNamespace(name="alpha"),
+        SimpleNamespace(name="beta"),
+    ]
+    scheduled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        _patch,
+        "schedule_copy_delivery",
+        lambda _owner, value, *, copied_label, **_kwargs: scheduled.append(
+            (value, copied_label)
+        ),
+    )
+
+    app._copy_patch_reference()
+
+    assert scheduled == [("@patch:beta", "Patch reference (@patch:beta)")]
+
+
+def test_copy_patch_reference_copies_every_marked_patch_in_visual_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
+
+    alpha = SimpleNamespace(name="alpha", project_name="proj")
+    beta = SimpleNamespace(name="beta", project_name="proj")
+    app = _CopyHarness()
+    app.current_idx = 0
+    app.patches = [alpha, beta]
+    app._artifacts_marked_targets = {
+        "patches": {patch_row_target(alpha), patch_row_target(beta)}
+    }
+    scheduled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        _patch,
+        "schedule_copy_delivery",
+        lambda _owner, value, *, copied_label, **_kwargs: scheduled.append(
+            (value, copied_label)
+        ),
+    )
+
+    app._copy_patch_reference()
+
+    assert scheduled == [("@patch:alpha\n@patch:beta", "2 Patch references")]
+
+
+def test_percent_at_dispatches_to_copy_patch_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _CopyHarness()
+    app.current_artifacts_subtab = "patches"
+    app.current_idx = 0
+    app.patches = [SimpleNamespace(name="alpha")]
+    scheduled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        _patch,
+        "schedule_copy_delivery",
+        lambda _owner, value, *, copied_label, **_kwargs: scheduled.append(
+            (value, copied_label)
+        ),
+    )
+
+    assert app._handle_copy_key("at") is True
+
+    assert scheduled == [("@patch:alpha", "Patch reference (@patch:alpha)")]
+
+
+def test_copy_patch_reference_registered_in_the_dispatch_table() -> None:
+    keys = CopyModeKeymaps().keys["patches"]
+    assert isinstance(keys, dict)
+    assert keys["reference"] == "at"
+    assert any(
+        target.group == "patches" and target.target == "reference"
+        for target in COPY_TARGETS
+    )
+    assert "reference" in _DISPATCH_ORDER["patches"]

@@ -198,11 +198,9 @@ class ArtifactsView(Vertical):
         return cast(ArtifactsPaneLifecycle, pane)
 
     def entry_navigator(self, pane_key: ArtifactsPaneKey) -> ArtifactEntryNavigator:
-        """Return the stable-target navigator for a non-PR pane."""
+        """Return the stable-target navigator for any Artifacts pane."""
 
         normalized = normalize_artifacts_subtab(pane_key)
-        if normalized == "patches":
-            raise ValueError("Patches use the existing Patch navigation model")
         return cast(ArtifactEntryNavigator, self._pane(normalized))
 
     def detail_scroll(self, pane_key: ArtifactsPaneKey) -> VerticalScroll:

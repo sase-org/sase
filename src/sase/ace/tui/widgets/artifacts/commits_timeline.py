@@ -22,9 +22,12 @@ from .entry_navigation import (
 )
 
 
-def _stitch_target(entry: AggregatedCommitWire) -> ArtifactEntryTarget:
+def commit_row_target(entry: AggregatedCommitWire) -> ArtifactEntryTarget:
     """Return the cross-refresh identity for one repository commit."""
-    return ("commit", entry.repo, entry.commit.full_id)
+    return ArtifactEntryTarget(
+        pane_id="stitches",
+        parts=(entry.repo, entry.commit.full_id),
+    )
 
 
 class CommitsTimeline(OptionList):
@@ -87,14 +90,14 @@ class CommitsTimeline(OptionList):
 
     @property
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
-        return tuple(_stitch_target(entry) for entry in self._commits)
+        return tuple(commit_row_target(entry) for entry in self._commits)
 
     @property
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         selected_index = self.selected_commit_index
         if selected_index is None or not 0 <= selected_index < len(self._commits):
             return None
-        return _stitch_target(self._commits[selected_index])
+        return commit_row_target(self._commits[selected_index])
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> int | None:
         """Highlight a stable target without echoing a user navigation event."""
@@ -155,7 +158,7 @@ class CommitsTimeline(OptionList):
                 )
                 mapping.append(None)
                 current_day = day
-            entry_target = _stitch_target(entry)
+            entry_target = commit_row_target(entry)
             prompt = prepend_jump_hint(
                 prepend_mark_glyph(
                     build_timeline_commit(
@@ -210,7 +213,7 @@ class CommitsTimeline(OptionList):
         for option_index, commit_index in enumerate(self._commit_index_by_option):
             if (
                 commit_index is not None
-                and _stitch_target(self._commits[commit_index]) == target
+                and commit_row_target(self._commits[commit_index]) == target
             ):
                 return option_index
         return None

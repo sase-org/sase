@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import json
 from typing import Any, Literal
 
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ._helpers import format_markdown_link
 
 
@@ -17,7 +18,7 @@ class ArtifactReferenceItem:
     """One captured Artifacts row and its representation labels."""
 
     label: str
-    target: tuple[str, ...]
+    target: ArtifactEntryTarget
     row: object | None
     project: str | None
     workspace_dir: str

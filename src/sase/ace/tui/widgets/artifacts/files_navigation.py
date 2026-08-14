@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 from .files_list import FileRow, file_row_target
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 else:
-    _MixinBase = object
+    _MixinBase = ArtifactEntryNavigator
 
 
 class FilesOptionList(OptionList):
@@ -63,6 +63,7 @@ class FilesNavigationMixin(_MixinBase):
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
     _option_id_by_target: dict[ArtifactEntryTarget, str]
+    _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
 
@@ -78,6 +79,7 @@ class FilesNavigationMixin(_MixinBase):
         self._entry_jump_hints = {}
         self._entry_marks = set()
         self._option_id_by_target = {}
+        self._pending_entry_target = None
 
     def _set_file_rows(self, rows: dict[str, FileRow]) -> None:
         self._rows = rows
@@ -144,6 +146,19 @@ class FilesNavigationMixin(_MixinBase):
         finally:
             self._syncing_options = False
         return True
+
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        if self.select_entry_target(target):
+            self._pending_entry_target = None
+            return True
+        self._pending_entry_target = target
+        return False
+
+    def clear_pending_entry_target(self) -> None:
+        self._pending_entry_target = None
+
+    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        return ()
 
     def apply_entry_jump_hints(
         self,

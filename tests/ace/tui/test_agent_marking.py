@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -556,7 +557,7 @@ def test_toggle_mark_on_patches_does_not_touch_agent_marks() -> None:
     a1 = _make_agent()
     app = _FakeMarkApp([a1])
     app.current_tab = "patches"
-    app.patches = [object()]  # type: ignore[list-item]
+    app.patches = [SimpleNamespace(project_name="proj", name="patch-1")]
 
     app.action_toggle_mark()
 

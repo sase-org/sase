@@ -80,6 +80,7 @@ class _FakeMarkApp(
         self.notification_refreshes_async = 0
         self.patches: list = []  # type: ignore[assignment]
         self.marked_indices: set[int] = set()
+        self._artifacts_marked_targets: dict[str, set[Any]] = {"patches": set()}
         self._init_tracked_task_recorder()
 
     def notify(self, message: str, *, severity: str = "information") -> None:

@@ -213,8 +213,9 @@ class PatchLoadingMixin:
         self._all_patches = all_patches  # Cache for ancestry lookup
         self.patches = self._filter_patches(all_patches)
 
-        # Clear marks on reload (indices may shift)
-        self.marked_indices = set()  # type: ignore[assignment]
+        # Marks are stable-target based and survive reload; a mark whose
+        # Patch dropped out of the filtered list simply stops resolving
+        # until that Patch reappears.
 
         # Ensure current_idx is within bounds
         if self.patches:

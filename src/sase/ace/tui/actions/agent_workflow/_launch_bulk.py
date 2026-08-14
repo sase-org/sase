@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from ._launch_procs import LaunchSeverity, LaunchProcOutcome, launch_results_tuple
 from ..failure_messages import with_log_panel_hint
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
 
     from sase.ace.patch import Patch
 
+    from ...artifact_tabs import ArtifactsPaneKey
     from ._types import PromptContext
 
 
@@ -28,6 +30,7 @@ class BulkLaunchMixin:
     # Sibling-mixin state (resolved at runtime via MRO).
     _prompt_context: PromptContext | None
     marked_indices: set[int]
+    _artifacts_marked_targets: dict[ArtifactsPaneKey, set[ArtifactEntryTarget]]
 
     def _launch_bulk_agents(self, prompt: str) -> None:
         """Launch agents for all bulk patches.
@@ -57,7 +60,7 @@ class BulkLaunchMixin:
         self._prompt_context = None
 
         # Clear marks and refresh display immediately (UI state)
-        self.marked_indices = set()
+        self._artifacts_marked_targets["patches"] = set()
         self._refresh_display()  # type: ignore[attr-defined]
 
         n = len(patches)

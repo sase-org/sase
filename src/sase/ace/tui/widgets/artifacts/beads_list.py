@@ -42,7 +42,10 @@ class BeadRow:
 
 
 def bead_row_target(row: BeadRow) -> ArtifactEntryTarget:
-    return ("bead", row.project, row.kind, row.issue.id)
+    return ArtifactEntryTarget(
+        pane_id="beads",
+        parts=(row.project, row.kind, row.issue.id),
+    )
 
 
 def row_option_id(

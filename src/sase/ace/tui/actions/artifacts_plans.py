@@ -7,6 +7,7 @@ from typing import cast
 from sase.bead.model import IssueType
 
 from ..widgets.artifacts.bead_plan_links import BeadPlanLink
+from ..widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ..widgets.artifacts.plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 
 PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
@@ -93,8 +94,10 @@ class ArtifactsPlansActionsMixin:
             self.notify("No bead links this plan file", severity="warning")  # type: ignore[attr-defined]
             return
         self._request_artifacts_entry(  # type: ignore[attr-defined]
-            "beads",
-            ("bead", link.project, _bead_row_kind(link), link.bead_id),
+            ArtifactEntryTarget(
+                pane_id="beads",
+                parts=(link.project, _bead_row_kind(link), link.bead_id),
+            ),
         )
 
     def action_plans_approve(self) -> None:

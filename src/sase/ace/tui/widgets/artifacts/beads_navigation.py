@@ -21,14 +21,14 @@ from .beads_detail import (
     resolved_plan_path,
 )
 from .beads_list import BeadRow, bead_row_target, row_option_id
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 
     from .beads_data_models import ExternalIssueLink
 else:
-    _MixinBase = object
+    _MixinBase = ArtifactEntryNavigator
 
 
 class BeadsOptionList(OptionList):

@@ -13,6 +13,7 @@ from sase.ace.tui.actions.clipboard import _artifacts
 from sase.ace.tui.actions.clipboard import (
     _artifact_reference_resolution as _resolution,
 )
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.core.artifact_file_types import ArtifactFile
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
 
@@ -27,14 +28,18 @@ async def test_marked_reference_handoff_seeds_one_project_prompt(
         items=(
             _artifacts._ArtifactReferenceItem(
                 "sase-b41",
-                ("bead", "alpha", "task", "alpha-41"),
+                ArtifactEntryTarget(
+                    pane_id="beads", parts=("alpha", "task", "alpha-41")
+                ),
                 None,
                 "alpha",
                 "/tmp",
             ),
             _artifacts._ArtifactReferenceItem(
                 "sase-b42",
-                ("bead", "alpha", "task", "alpha-42"),
+                ArtifactEntryTarget(
+                    pane_id="beads", parts=("alpha", "task", "alpha-42")
+                ),
                 None,
                 "alpha",
                 "/tmp",
@@ -91,14 +96,14 @@ async def test_marked_reference_copy_uses_paste_ready_lines_and_count(
         items=(
             _artifacts._ArtifactReferenceItem(
                 "sase@aaaaaaa",
-                ("commit", "sase", "a" * 40),
+                ArtifactEntryTarget(pane_id="stitches", parts=("sase", "a" * 40)),
                 None,
                 "alpha",
                 "/tmp",
             ),
             _artifacts._ArtifactReferenceItem(
                 "sase@bbbbbbb",
-                ("commit", "sase", "b" * 40),
+                ArtifactEntryTarget(pane_id="stitches", parts=("sase", "b" * 40)),
                 None,
                 "alpha",
                 "/tmp",
@@ -175,7 +180,9 @@ async def test_files_markdown_link_dispatch_preserves_visible_order(
         project="sase",
     )
     entries = (second, first) if marked else (first,)
-    targets = tuple(("file", entry.id) for entry in entries)
+    targets = tuple(
+        ArtifactEntryTarget(pane_id="files", parts=(entry.id,)) for entry in entries
+    )
     by_target = dict(zip(targets, entries, strict=True))
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
@@ -225,7 +232,7 @@ async def test_unreferenceable_chat_warns_with_the_reason(
         items=(
             _artifacts._ArtifactReferenceItem(
                 "imported-chat",
-                ("chat", "/imports/chat.md"),
+                ArtifactEntryTarget(pane_id="ref:chat", parts=("/imports/chat.md",)),
                 None,
                 "alpha",
                 "/tmp",
@@ -323,7 +330,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
             "commits",
             _artifacts._ArtifactReferenceItem(
                 "commit",
-                ("commit", "sase", sha),
+                ArtifactEntryTarget(pane_id="stitches", parts=("sase", sha)),
                 None,
                 "alpha",
                 str(tmp_path),
@@ -334,7 +341,9 @@ def test_reference_resolver_renders_every_artifacts_identity(
             "plans",
             _artifacts._ArtifactReferenceItem(
                 "plan",
-                ("plan", "alpha", "proposal", "proposal"),
+                ArtifactEntryTarget(
+                    pane_id="ref:plan", parts=("alpha", "proposal", "proposal")
+                ),
                 row,
                 "alpha",
                 str(tmp_path),
@@ -345,7 +354,9 @@ def test_reference_resolver_renders_every_artifacts_identity(
             "plans",
             _artifacts._ArtifactReferenceItem(
                 "active plan",
-                ("plan", "alpha", "active", str(plan_path)),
+                ArtifactEntryTarget(
+                    pane_id="ref:plan", parts=("alpha", "active", str(plan_path))
+                ),
                 active_row,
                 "alpha",
                 str(tmp_path),
@@ -356,7 +367,7 @@ def test_reference_resolver_renders_every_artifacts_identity(
             "chats",
             _artifacts._ArtifactReferenceItem(
                 "chat",
-                ("chat", str(chat_path)),
+                ArtifactEntryTarget(pane_id="ref:chat", parts=(str(chat_path),)),
                 None,
                 "alpha",
                 str(tmp_path),

@@ -102,6 +102,15 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
     ),
     _target(
         "patches",
+        "reference",
+        "@ref",
+        "Copy @patch reference",
+        "Identity",
+        "Patch references",
+        accepts_marks=True,
+    ),
+    _target(
+        "patches",
         "snapshot",
         "snap",
         "Copy snapshot",

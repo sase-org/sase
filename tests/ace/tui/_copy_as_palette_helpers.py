@@ -12,6 +12,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.copy_as_modal import CopyAsModal
 from sase.ace.tui.modals.copy_as_types import CopyAsContext, CopyAsRow
 from sase.ace.tui.widgets.artifacts.beads_list import BeadRow, bead_row_target
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.bead.model import Issue, IssueType
 
 
@@ -23,7 +24,7 @@ class PaletteHarness:
         self.current_idx = 0
         self.patches: list[Any] = []
         self._axe_items: list[Any] = []
-        self._artifacts_marked_targets: dict[str, set[tuple[str, ...]]] = {}
+        self._artifacts_marked_targets: dict[str, set[ArtifactEntryTarget]] = {}
         self._keymap_registry = load_keymap_registry({})
         self.notifications: list[tuple[str, str]] = []
         self.commits_pane: Any = None
@@ -79,14 +80,16 @@ def commit_entry(
     )
 
 
-def commit_target(entry: Any) -> tuple[str, ...]:
-    return ("commit", entry.repo, entry.commit.full_id)
+def commit_target(entry: Any) -> ArtifactEntryTarget:
+    return ArtifactEntryTarget(
+        pane_id="stitches", parts=(entry.repo, entry.commit.full_id)
+    )
 
 
 def commit_pane(
     entries: tuple[Any, ...],
     *,
-    target_order: tuple[tuple[str, ...], ...] | None = None,
+    target_order: tuple[ArtifactEntryTarget, ...] | None = None,
 ) -> Any:
     ordered = target_order or tuple(commit_target(entry) for entry in entries)
     selected = next(entry for entry in entries if commit_target(entry) == ordered[0])
@@ -135,10 +138,15 @@ def file_pane(
     entries: tuple[Any, ...],
     *,
     view_modes: dict[str, str],
-    target_order: tuple[tuple[str, ...], ...] | None = None,
+    target_order: tuple[ArtifactEntryTarget, ...] | None = None,
 ) -> Any:
-    ordered = target_order or tuple(("file", entry.id) for entry in entries)
-    by_target = {("file", entry.id): entry for entry in entries}
+    ordered = target_order or tuple(
+        ArtifactEntryTarget(pane_id="files", parts=(entry.id,)) for entry in entries
+    )
+    by_target = {
+        ArtifactEntryTarget(pane_id="files", parts=(entry.id,)): entry
+        for entry in entries
+    }
     selected = by_target[ordered[0]]
     rows = {
         entry.id: SimpleNamespace(option_id=entry.id, entry=entry) for entry in entries
@@ -256,7 +264,9 @@ def controlled_artifact_pane(subtab: str) -> Any:
             issue=None,
             archive=None,
         )
-        plan_target = ("plan", "sase", "proposal", "plan-notice")
+        plan_target = ArtifactEntryTarget(
+            pane_id="ref:plan", parts=("sase", "proposal", "plan-notice")
+        )
         return SimpleNamespace(
             _rows={"plan-row": row},
             snapshot=SimpleNamespace(display_name="SASE"),
@@ -273,7 +283,7 @@ def controlled_artifact_pane(subtab: str) -> Any:
             size_bytes=4096,
         )
         row = SimpleNamespace(option_id="file-row", entry=entry)
-        file_target = ("file", entry.id)
+        file_target = ArtifactEntryTarget(pane_id="files", parts=(entry.id,))
         return SimpleNamespace(
             _rows={"file-row": row},
             snapshot=SimpleNamespace(display_name="SASE"),

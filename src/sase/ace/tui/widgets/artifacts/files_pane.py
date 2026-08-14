@@ -169,6 +169,7 @@ class ArtifactsFilesPane(
         self._update_static("#files-info", self._scope_text())
         if not changed:
             return
+        self.clear_pending_entry_target()
         self._load_generation += 1
         self._extension_generation += 1
         self._load_error = None
@@ -413,7 +414,12 @@ class ArtifactsFilesPane(
         option_list = self._option_list()
         if option_list is None:
             return
-        if preferred_target is None:
+        pending_target = self._pending_entry_target
+        if pending_target is not None:
+            # A deferred cross-pane request wins over "keep the current
+            # selection" — the caller landed here specifically to resolve it.
+            preferred_target = pending_target
+        elif preferred_target is None:
             preferred_target = self.selected_entry_target()
         values = self._display_filter_values()
         filtered = filter_files_snapshot(
@@ -432,7 +438,33 @@ class ArtifactsFilesPane(
             marks=self._entry_marks,
         )
         self._set_file_rows(rows)
-        highlighted = self._option_index_for_target(preferred_target)
+        # Resolve the target against the freshly built ``options`` list
+        # directly rather than the live OptionList, which still reflects
+        # the pre-rebuild rows until ``replace_options`` runs below.
+        preferred_option_id = (
+            None
+            if preferred_target is None
+            else self._option_id_by_target.get(preferred_target)
+        )
+        highlighted = next(
+            (
+                index
+                for index, option in enumerate(options)
+                if option.id == preferred_option_id
+            ),
+            None,
+        )
+        if pending_target is not None:
+            if highlighted is not None:
+                self._pending_entry_target = None
+            elif self._current_snapshot() is not None:
+                self._pending_entry_target = None
+                notify = getattr(self, "notify", None)
+                if callable(notify):
+                    notify(
+                        "Linked file is no longer visible in Files",
+                        severity="warning",
+                    )
         if highlighted is None:
             highlighted = next(
                 (index for index, option in enumerate(options) if not option.disabled),

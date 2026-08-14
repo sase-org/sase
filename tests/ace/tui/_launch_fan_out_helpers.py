@@ -199,6 +199,7 @@ class _BulkApp(_FanOutHarness, BulkLaunchMixin):
         self._bulk_patches = None
         self._prompt_context = None
         self.marked_indices = set()
+        self._artifacts_marked_targets: dict[str, set[Any]] = {"patches": set()}
 
 
 class _LaunchDeltaApp(LaunchDeltaMixin):

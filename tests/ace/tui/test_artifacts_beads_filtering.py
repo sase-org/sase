@@ -20,6 +20,7 @@ from sase.ace.tui.widgets.artifacts.beads_filtering import (
 )
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.bead.filter_query import (
     BeadFilterQueryError,
@@ -337,9 +338,14 @@ async def test_hide_closed_default_is_visible_and_clearable(
         assert pane.filters.excluded_statuses == ("closed",)
         assert "-status:closed" in pane.query_one("#beads-info", Static).content.plain
 
-        assert pane.select_entry_target(("bead", "alpha", "epic", "alpha-1"))
+        assert pane.select_entry_target(
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
+        )
         pane.set_selected_epic_expanded(True)
-        assert ("bead", "alpha", "phase", "alpha-1.1") not in pane.entry_targets()
+        assert (
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "phase", "alpha-1.1"))
+            not in pane.entry_targets()
+        )
 
         await page.press("/")
         bar = pane.query_one(BeadFilterBar)
@@ -352,4 +358,7 @@ async def test_hide_closed_default_is_visible_and_clearable(
         assert (
             "-status:closed" not in pane.query_one("#beads-info", Static).content.plain
         )
-        assert ("bead", "alpha", "phase", "alpha-1.1") in pane.entry_targets()
+        assert (
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "phase", "alpha-1.1"))
+            in pane.entry_targets()
+        )

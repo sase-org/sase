@@ -6,8 +6,10 @@ import re
 from typing import TYPE_CHECKING
 
 from ....patch import get_raw_patch_text
+from sase.artifact_refs import parse_artifact_ref
 from sase.project_display_names import humanize_cl_name
 
+from ...widgets.artifacts.patch_entry import patch_row_target
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
 from ._helpers import (
@@ -151,6 +153,45 @@ class ClipboardPatchMixin(ClipboardBase):
             format_markdown_link(label, patch.pr_url),
             copied_label="Patch Markdown link",
             task_name="sase-copy-patch-link",
+        )
+
+    def _copy_patch_reference(self) -> None:
+        """Copy the selected Patch's ``@patch:`` reference (%@).
+
+        Copies every visible marked Patch's reference, in visual order,
+        when marks exist; otherwise copies just the selected Patch.
+        """
+        marks = getattr(self, "_artifacts_marked_targets", {}).get(  # type: ignore[attr-defined]
+            "patches", set()
+        )
+        if marks:
+            marked_patches = [
+                patch for patch in self.patches if patch_row_target(patch) in marks
+            ]
+            if not marked_patches:
+                self.notify(  # type: ignore[attr-defined]
+                    "No marked Patches are visible", severity="warning"
+                )
+                return
+            references = [
+                f"@{parse_artifact_ref(f'patch:{patch.name}').rendered}"
+                for patch in marked_patches
+            ]
+            schedule_copy_delivery(
+                self,
+                "\n".join(references),
+                copied_label=f"{len(marked_patches)} Patch references",
+                task_name="sase-copy-patch-reference-marked",
+            )
+            return
+
+        patch = self.patches[self.current_idx]
+        reference = f"@{parse_artifact_ref(f'patch:{patch.name}').rendered}"
+        schedule_copy_delivery(
+            self,
+            reference,
+            copied_label=f"Patch reference ({reference})",
+            task_name="sase-copy-patch-reference",
         )
 
     def _copy_project_spec(self) -> None:

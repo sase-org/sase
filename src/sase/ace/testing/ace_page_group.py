@@ -12,6 +12,7 @@ from typing import Any, Literal
 from sase.ace.query import parse_query
 from sase.ace.patch import Patch
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
+from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 from textual.worker import WorkerCancelled
 
 from .ace_page import AcePage, AceStartupPolicy
@@ -264,7 +265,11 @@ def _restore_baseline_state(app: Any, baseline: _IsolationSnapshot) -> None:
     if hasattr(app, "_all_patches"):
         app.patches = app._filter_patches(app._all_patches)
     app.current_idx = min(baseline.idx, max(len(app.patches) - 1, 0))
-    app.marked_indices = set(baseline.marked)
+    app._artifacts_marked_targets["patches"] = {
+        patch_row_target(app.patches[index])
+        for index in baseline.marked
+        if 0 <= index < len(app.patches)
+    }
     app.current_files_subtab = baseline.files_subtab
     app.current_artifacts_subtab = baseline.artifacts_subtab
     app.current_tab = baseline.tab

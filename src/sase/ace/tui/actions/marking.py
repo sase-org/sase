@@ -7,9 +7,12 @@ from typing import TYPE_CHECKING, Literal
 from ...status import get_available_statuses
 from ..tab_order import ARTIFACTS_TAB
 from ..modals import StatusModal
+from ..widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from ..widgets.artifacts.patch_entry import patch_row_target
 
 if TYPE_CHECKING:
     from ...patch import Patch
+    from ..artifact_tabs import ArtifactsPaneKey
 
 # Type alias for tab names
 TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
@@ -23,6 +26,7 @@ class MarkingMixin:
     current_idx: int
     current_tab: TabName
     marked_indices: set[int]
+    _artifacts_marked_targets: dict[ArtifactsPaneKey, set[ArtifactEntryTarget]]
 
     def _is_patch_tab(self) -> bool:
         return self.current_tab in {
@@ -67,15 +71,14 @@ class MarkingMixin:
             return
 
         idx = self.current_idx
-        was_marked = idx in self.marked_indices
+        target = patch_row_target(patches[idx])
+        marks = self._artifacts_marked_targets.setdefault("patches", set())
+        was_marked = target in marks
 
         if was_marked:
-            self.marked_indices.discard(idx)
+            marks.discard(target)
         else:
-            self.marked_indices.add(idx)
-
-        # Force reactive update by reassigning
-        self.marked_indices = set(self.marked_indices)  # type: ignore[assignment]
+            marks.add(target)
 
         # Patch only the toggled row in place; falls back to a full refresh
         # if the widget can't accept the patch (e.g. width grew).
@@ -115,12 +118,13 @@ class MarkingMixin:
 
     def _clear_patch_marks(self) -> None:
         """Clear all Patch marks."""
-        if not self.marked_indices:
+        marks = self._artifacts_marked_targets.get("patches")
+        if not marks:
             self.notify("No marks to clear", severity="warning")  # type: ignore[attr-defined]
             return
 
-        count = len(self.marked_indices)
-        self.marked_indices = set()  # type: ignore[assignment]
+        count = len(marks)
+        self._artifacts_marked_targets["patches"] = set()
         self._refresh_display()  # type: ignore[attr-defined]
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
@@ -182,7 +186,7 @@ class MarkingMixin:
                 fail_count += 1
 
         # Clear marks after bulk operation (indices will shift)
-        self.marked_indices = set()  # type: ignore[assignment]
+        self._artifacts_marked_targets["patches"] = set()
 
         # Reload and reposition
         self._reload_and_reposition()  # type: ignore[attr-defined]

@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.testing.fixtures import make_patch
 from sase.ace.tui.actions.patch import PatchMixin
+from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 
 
-def _make_cs(name: str) -> MagicMock:
+def _make_cs(name: str, *, project: str = "test") -> MagicMock:
     cs = MagicMock()
     cs.name = name
+    cs.project_name = project
     return cs
 
 
@@ -27,11 +31,22 @@ class FakeApp(PatchMixin):
         self.hide_reverted = False
         self.hide_submitted = False
         self._all_patches: list = patches  # type: ignore[assignment]
-        self.marked_indices: set[int] = set()
+        self._artifacts_marked_targets: dict[str, set[Any]] = {"patches": set()}
         self._patches_last_idx: int = 0
         self._patches_last_name: str | None = None
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
+
+    @property
+    def marked_indices(self) -> set[int]:
+        marks = self._artifacts_marked_targets.get("patches")
+        if not marks:
+            return set()
+        return {
+            index
+            for index, patch in enumerate(self.patches)
+            if patch_row_target(patch) in marks
+        }
 
     def _refresh_display(self) -> None:
         pass
@@ -141,6 +156,34 @@ def test_nearest_neighbor_when_selected_patch_filtered_out(  # type: ignore[no-u
     app._reload_and_reposition(current_name="d")
     assert app.current_idx == 3
     assert app.patches[app.current_idx].name == "e"
+
+
+def test_marks_survive_full_reload_by_stable_identity(  # type: ignore[no-untyped-def]
+    _patch_loaders,
+) -> None:
+    """A full ``_apply_patches`` reload must not clear marks by identity.
+
+    Regression for the index-based ``marked_indices`` reactive, which was
+    reset on every reload because indices could shift underneath it. Marks
+    keyed by ``ArtifactEntryTarget`` survive a reload of the same Patch by
+    (project, name) identity, even though it's a brand-new object.
+    """
+
+    def _make_real_patch(name: str) -> Any:
+        return make_patch(name=name, file_path="/tmp/proj/proj.sase")
+
+    cs_list = [_make_real_patch("alpha"), _make_real_patch("beta")]
+    _patch_loaders(cs_list)
+
+    app = FakeApp(cs_list)
+    marked_target = patch_row_target(cs_list[1])
+    app._artifacts_marked_targets["patches"] = {marked_target}
+
+    reloaded = [_make_real_patch("alpha"), _make_real_patch("beta")]
+    app._apply_patches(reloaded)
+
+    assert app._artifacts_marked_targets["patches"] == {marked_target}
+    assert app.marked_indices == {1}
 
 
 def test_off_tab_reload_does_not_mutate_current_idx(  # type: ignore[no-untyped-def]

@@ -481,6 +481,7 @@ ace:
             name: "n"
             link: "l"
             spec: "p"
+            reference: "at"
             snapshot: "s"
           artifacts_stitches:
             sha: "percent_sign"

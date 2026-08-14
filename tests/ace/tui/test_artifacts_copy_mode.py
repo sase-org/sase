@@ -15,6 +15,7 @@ from sase.ace.tui.actions.clipboard._representations import (
 )
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import load_keymap_registry
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from sase.core.artifact_file_types import ArtifactFile
 from tests.ace.tui._artifacts_copy_helpers import CopyHarness
@@ -106,7 +107,9 @@ def _artifact_file(
 
 
 def _files_pane(*entries: ArtifactFile) -> SimpleNamespace:
-    targets = tuple(("file", entry.id) for entry in entries)
+    targets = tuple(
+        ArtifactEntryTarget(pane_id="files", parts=(entry.id,)) for entry in entries
+    )
     by_target = dict(zip(targets, entries, strict=True))
     selected = entries[0] if entries else None
     return SimpleNamespace(
@@ -160,7 +163,12 @@ def test_files_marked_paths_preserve_visible_order(tmp_path: Path) -> None:
     app = CopyHarness()
     app.current_artifacts_subtab = "files"
     app.files_pane = _files_pane(first, second)
-    app._artifacts_marked_targets = {"files": {("file", first.id), ("file", second.id)}}
+    app._artifacts_marked_targets = {
+        "files": {
+            ArtifactEntryTarget(pane_id="files", parts=(first.id,)),
+            ArtifactEntryTarget(pane_id="files", parts=(second.id,)),
+        }
+    }
 
     assert app._handle_copy_key("p") is True
 
@@ -195,7 +203,7 @@ def test_files_reference_resolution_is_context_free_and_serializes_record(
     items = _resolution.reference_items_for_targets(
         "files",
         pane,
-        (("file", entry.id),),
+        (ArtifactEntryTarget(pane_id="files", parts=(entry.id,)),),
     )
     selection = ArtifactReferenceSelection(
         subtab="files",

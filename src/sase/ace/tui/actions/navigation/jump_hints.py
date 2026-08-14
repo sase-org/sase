@@ -8,6 +8,7 @@ from enum import StrEnum
 from typing import Literal
 
 from ...models.agent_panels import PanelKey
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 
 JUMP_HINT_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 JUMP_HINT_CAPACITY = len(JUMP_HINT_CHARS) ** 2
@@ -49,7 +50,10 @@ PatchBannerJumpAnchor = tuple[
     ],
     tuple[str, ...],
 ]
-EntryJumpAnchor = int | PatchBannerJumpAnchor
+#: ``int`` anchors are AXE's flat-list row index; Patches rows use the
+#: stable ``ArtifactEntryTarget`` identity instead so marks/anchors survive
+#: reorder and reload; collapsed Patch banners keep their own typed anchor.
+EntryJumpAnchor = int | ArtifactEntryTarget | PatchBannerJumpAnchor
 
 
 def normalize_jump_key(key: str, character: str | None = None) -> str:

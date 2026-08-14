@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -17,11 +17,12 @@ from ..patch_info_panel import PatchInfoPanel
 from ..patch_list import PatchList
 from ..tab_quickstart import TabQuickStart
 from .lifecycle import ArtifactsPaneLifecycle
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .patch_entry import patch_row_target
 from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
-class ArtifactsPatchesPane(ArtifactsPaneLifecycle, Horizontal):
+class ArtifactsPatchesPane(ArtifactEntryNavigator, ArtifactsPaneLifecycle, Horizontal):
     """The existing Patch surface, hosted unchanged inside Artifacts."""
 
     def __init__(self, **kwargs: Any) -> None:
@@ -47,6 +48,72 @@ class ArtifactsPatchesPane(ArtifactsPaneLifecycle, Horizontal):
         """Restore focus to the PR surface after another pane owned it."""
         if self.is_mounted:
             self.query_one("#list-panel", PatchList).focus()
+
+    def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        app = cast(Any, self.app)
+        return tuple(patch_row_target(patch) for patch in getattr(app, "patches", ()))
+
+    def selected_entry_target(self) -> ArtifactEntryTarget | None:
+        app = cast(Any, self.app)
+        patches = getattr(app, "patches", ())
+        idx = getattr(app, "current_idx", 0)
+        if not patches or not 0 <= idx < len(patches):
+            return None
+        return patch_row_target(patches[idx])
+
+    def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Resolve *target* against the current Patch list and focus it.
+
+        Clears any active banner focus — selecting a concrete Patch row
+        always wins over a collapsed group banner — and synchronously
+        focuses the Patch list so the row is immediately interactive.
+        """
+        app = cast(Any, self.app)
+        patches = getattr(app, "patches", ())
+        for index, patch in enumerate(patches):
+            if patch_row_target(patch) != target:
+                continue
+            app._current_patch_group_key = None
+            app.current_idx = index
+            if self.is_mounted:
+                self.query_one("#list-panel", PatchList).focus()
+            return True
+        return False
+
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Select *target* now.
+
+        Unlike the async-loaded non-PR panes, Patches are already loaded
+        into app state by the time this pane can be queried, so there is
+        no later row model to defer to — a miss here means the Patch is
+        genuinely not in the current filtered list.
+        """
+        return self.select_entry_target(target)
+
+    def apply_entry_jump_hints(
+        self,
+        hints: Mapping[ArtifactEntryTarget, str],
+    ) -> None:
+        # Patches paint their own adaptive jump hints through the
+        # grouping-aware banner/row jump mode; this pane is never the
+        # target of the shared non-PR jump-hint renderer.
+        del hints
+
+    def clear_entry_jump_hints(self) -> None:
+        pass
+
+    def apply_entry_marks(self, marks: set[ArtifactEntryTarget]) -> None:
+        del marks
+        app = cast(Any, self.app)
+        refresh = getattr(app, "_refresh_display", None)
+        if callable(refresh):
+            refresh()
+
+    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        # Patches already drive their full conditional footer directly
+        # from ``_apply_detail_panel_update``; this pane never feeds the
+        # shared non-PR footer-entries renderer.
+        return ()
 
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {

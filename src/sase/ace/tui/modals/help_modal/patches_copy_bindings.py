@@ -209,6 +209,10 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 (f"{d(cm.prefix)}{d(cs_copy['name'])}", "Copy Patch name"),
                 (f"{d(cm.prefix)}{d(cs_copy['link'])}", "Copy Markdown link"),
                 (f"{d(cm.prefix)}{d(cs_copy['spec'])}", "Copy project spec file"),
+                (
+                    key_sequence_display(cm.prefix, cs_copy["reference"]),
+                    "Copy @patch reference",
+                ),
                 (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
             ],
         ),

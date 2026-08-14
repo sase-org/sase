@@ -144,6 +144,7 @@ def init_navigation_state(self: Any) -> None:
     self._artifacts_jump_target_to_hint = {}
     self._artifacts_jump_history = {}
     self._artifacts_marked_targets = {
+        "patches": set(),
         "stitches": set(),
         "beads": set(),
         "ref:plan": set(),

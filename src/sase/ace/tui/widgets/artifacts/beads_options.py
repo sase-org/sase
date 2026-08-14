@@ -212,13 +212,13 @@ class BeadsOptionsMixin(_MixinBase):
         snapshot = self._snapshot
         if (
             target is None
-            or len(target) < 4
-            or target[0] != "bead"
-            or target[2] != "phase"
+            or len(target.parts) < 3
+            or target.pane_id != "beads"
+            or target.parts[1] != "phase"
             or snapshot is None
         ):
             return
-        project, bead_id = target[1], target[3]
+        project, bead_id = target.parts[0], target.parts[2]
         for (phase_project, epic_id), phases in snapshot.phases_by_epic.items():
             if phase_project != project:
                 continue

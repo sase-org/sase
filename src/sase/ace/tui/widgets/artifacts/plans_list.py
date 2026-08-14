@@ -49,7 +49,10 @@ def plan_row_target(row: PlanRow) -> ArtifactEntryTarget:
         identity = row.archive.plan.path
     else:  # pragma: no cover - construction keeps one payload populated.
         identity = row.row_id
-    return (row.ref_kind, row.project, row.kind, identity)
+    return ArtifactEntryTarget(
+        pane_id=f"ref:{row.ref_kind}",
+        parts=(row.project, row.kind, identity),
+    )
 
 
 def build_plan_options(

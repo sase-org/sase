@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ._base import ClipboardBase
 from ._delivery import schedule_copy_delivery
 from ._helpers import cap_copy_content, format_multi_copy_content_capped
@@ -16,7 +17,7 @@ class ClipboardArtifactTargetSupportMixin(ClipboardBase):
     def _visible_marked_targets(
         self,
         pane: Any,
-    ) -> tuple[tuple[str, ...], ...] | None:
+    ) -> tuple[ArtifactEntryTarget, ...] | None:
         """Return marked targets in visible row order, or None when unmarked."""
         all_marks = getattr(self, "_artifacts_marked_targets", {})
         marks = all_marks.get(self.current_artifacts_pane_key, set())

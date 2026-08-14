@@ -62,6 +62,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "name": "n",
                 "link": "l",
                 "spec": "p",
+                "reference": "at",
                 "snapshot": "s",
             },
             "artifacts_stitches": {

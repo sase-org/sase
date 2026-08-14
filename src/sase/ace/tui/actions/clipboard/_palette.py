@@ -67,6 +67,8 @@ def _build_patch_context(app: Any) -> CopyAsContext | None:
         artifacts_subtab="patches",
         patch=patch,
     )
+    marks = getattr(app, "_artifacts_marked_targets", {}).get("patches", set())
+    marked = bool(marks)
     previews = {
         "raw": shorten(
             getattr(patch, "description", "")
@@ -78,6 +80,9 @@ def _build_patch_context(app: Any) -> CopyAsContext | None:
         "name": humanize_cl_name(patch.name),
         "link": shorten(getattr(patch, "pr_url", "") or ""),
         "spec": shorten(getattr(patch, "file_path", "")),
+        "reference": (
+            f"{len(marks)} marked Patches" if marked else f"@patch:{patch.name}"
+        ),
         "snapshot": "current pane",
     }
     project = (
@@ -93,6 +98,7 @@ def _build_patch_context(app: Any) -> CopyAsContext | None:
         subtitle=subtitle,
         unknown_context="Patches",
         previews=previews,
+        marked=marked,
     )
 
 

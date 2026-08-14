@@ -14,6 +14,8 @@ from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.patch_groups import PatchGroupingMode
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 
 
 def _make_patch(name: str = "test_feature", *, project: str = "test") -> Patch:
@@ -26,6 +28,11 @@ def _make_patch(name: str = "test_feature", *, project: str = "test") -> Patch:
         file_path=f"/tmp/{project}/{project}.sase",
         line_number=1,
     )
+
+
+def _patch_target(patches: list[Patch], index: int) -> ArtifactEntryTarget:
+    """Return the stable jump-anchor target for ``patches[index]``."""
+    return patch_row_target(patches[index])
 
 
 def _make_agent(cl_name: str = "test_feature", *, status: str = "RUNNING") -> Agent:
@@ -56,7 +63,7 @@ class _InlineJumpApp(AdvancedNavigationMixin, PatchGroupingNavMixin):
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
         self._entry_jump_hint_to_patch_banner: dict[str, Any] = {}
         self._entry_jump_patch_banner_to_hint: dict[Any, str] = {}
-        self._entry_jump_index_stack: dict[str, list[int]] = {}
+        self._entry_jump_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_forward_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self._entry_jump_agents_forward_anchor_stack: list[Any] = []

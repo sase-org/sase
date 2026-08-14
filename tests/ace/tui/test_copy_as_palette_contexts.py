@@ -8,6 +8,7 @@ from sase.ace.testing.fixtures import make_patch
 from sase.ace.tui.actions.clipboard._palette import build_copy_as_context
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.artifact_file_clipboard import artifact_file_clipboard_path
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from tests.ace.tui._copy_as_palette_helpers import (
     PaletteHarness,
     bead_pane,
@@ -243,7 +244,10 @@ def test_marked_files_keep_partially_representable_targets_with_warm_counts() ->
         source_path=None,
         size_bytes=4096,
     )
-    visible_order = (("file", image.id), ("file", text.id))
+    visible_order = (
+        ArtifactEntryTarget(pane_id="files", parts=(image.id,)),
+        ArtifactEntryTarget(pane_id="files", parts=(text.id,)),
+    )
     app.files_pane = file_pane(
         (text, image),
         view_modes={text.id: "text", image.id: "image"},

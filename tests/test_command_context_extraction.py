@@ -13,6 +13,7 @@ from sase.ace.tui.commands.context import (
     _stopped_agent_count,
     _unread_completed_agent_count,
 )
+from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, LumberjackItem
 
 
@@ -32,14 +33,24 @@ def _make_app_stub(
     bgcmd_slots: list | None = None,
 ):
     """Build a SimpleNamespace that mimics AceApp for context extraction."""
+    resolved_patches = patches if patches is not None else changespecs or []  # legacy
+    marks = marked_indices or set()
     return SimpleNamespace(
         current_tab=tab,
         current_idx=current_idx,
         current_attempt_number=current_attempt_number,
-        patches=patches if patches is not None else changespecs or [],  # legacy helper
+        patches=resolved_patches,
         _agents=agents or [],
         _axe_items=axe_items or [],
-        marked_indices=marked_indices or set(),
+        marked_indices=marks,
+        current_artifacts_pane_key="patches",
+        _artifacts_marked_targets={
+            "patches": {
+                patch_row_target(resolved_patches[index])
+                for index in marks
+                if 0 <= index < len(resolved_patches)
+            }
+        },
         _marked_agents=marked_agents or set(),
         _current_group_key=current_group_key,
         axe_running=axe_running,

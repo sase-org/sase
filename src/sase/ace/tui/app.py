@@ -20,6 +20,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from ..patch import Patch
 from ..query import to_canonical_string
+from .widgets.artifacts.patch_entry import patch_row_target
 from .actions import (
     AgentsMixin,
     AgentsSyncActionsMixin,
@@ -173,7 +174,6 @@ class AceApp(
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
     hide_submitted: reactive[bool] = reactive(True, recompose=False)
     hide_non_run_agents: reactive[bool] = reactive(True, recompose=False)
-    marked_indices: reactive[set[int]] = reactive(set, recompose=False)
 
     exit_action: AceExitAction
     _current_idx: int
@@ -212,6 +212,32 @@ class AceApp(
             )
             if callable(remember_panel_selection):
                 remember_panel_selection(("agent", value))
+
+    @property
+    def marked_indices(self) -> set[int]:
+        """Patch marks, derived from the stable-target mark set.
+
+        Computed on demand from ``_artifacts_marked_targets["patches"]`` so
+        marks survive Patch-list reorders and reloads by identity instead
+        of by index; a mark simply stops resolving until its row is
+        present again.
+        """
+        marks = self._artifacts_marked_targets.get("patches")
+        if not marks:
+            return set()
+        return {
+            index
+            for index, patch in enumerate(self.patches)
+            if patch_row_target(patch) in marks
+        }
+
+    @marked_indices.setter
+    def marked_indices(self, value: set[int]) -> None:
+        self._artifacts_marked_targets["patches"] = {
+            patch_row_target(self.patches[index])
+            for index in value
+            if 0 <= index < len(self.patches)
+        }
 
     @property
     def current_attempt_number(self) -> int | None:

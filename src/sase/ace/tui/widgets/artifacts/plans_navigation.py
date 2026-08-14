@@ -13,7 +13,7 @@ from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
 from sase.sidecar_ref_config import sidecar_role_ref_kind
 
 from .._prompt_preview_target import PreviewPayload
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 from .plans_data import PlansSnapshot
 from .plans_detail import (
     active_plan_properties_header,
@@ -27,7 +27,7 @@ from .plans_list import PlanRow, plan_row_target
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 else:
-    _MixinBase = object
+    _MixinBase = ArtifactEntryNavigator
 
 
 class PlansOptionList(OptionList):

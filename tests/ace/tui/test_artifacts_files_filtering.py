@@ -10,6 +10,7 @@ from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_pane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.ace.tui.widgets.artifacts.file_filter_bar import FileFilterBar
 from sase.ace.tui.widgets.artifacts.files_filtering import (
     FilesFilterQueryError,
@@ -179,7 +180,11 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         await page.press(page.artifacts_digit("files"), "(")
         pane = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         await page.wait_for(lambda _state: pane.snapshot is not None)
-        assert pane.select_entry_target(("file", logical_file(rows[1]).logical_id))
+        assert pane.select_entry_target(
+            ArtifactEntryTarget(
+                pane_id="files", parts=(logical_file(rows[1]).logical_id,)
+            )
+        )
 
         await page.press("/")
         bar = pane.query_one(FileFilterBar)

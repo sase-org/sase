@@ -14,6 +14,8 @@ from sase.artifact_refs import (
 )
 
 from ...widgets.artifacts.beads_list import bead_row_target
+from ...widgets.artifacts.commits_timeline import commit_row_target
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._representations import (
     ArtifactReferenceItem,
@@ -22,11 +24,28 @@ from ._representations import (
     ResolvedArtifactSelection,
 )
 
+#: Inverse of :data:`ArtifactEntryTarget`'s legacy-kind mapping, used only to
+#: bridge into :func:`reference_for_entry_target`'s pre-typed tuple contract.
+_PANE_ID_TO_LEGACY_KIND: dict[str, str] = {
+    "stitches": "commit",
+    "beads": "bead",
+    "files": "file",
+    "patches": "patch",
+}
+
+
+def _legacy_target_tuple(target: ArtifactEntryTarget) -> tuple[str, ...]:
+    kind = _PANE_ID_TO_LEGACY_KIND.get(
+        target.pane_id,
+        target.pane_id.removeprefix("ref:"),
+    )
+    return (kind, *target.parts)
+
 
 def reference_items_for_targets(
     subtab: str,
     pane: Any,
-    targets: tuple[tuple[str, ...], ...],
+    targets: tuple[ArtifactEntryTarget, ...],
 ) -> tuple[ArtifactReferenceItem, ...]:
     """Capture stable reference inputs and human labels for visible rows."""
 
@@ -35,14 +54,14 @@ def reference_items_for_targets(
     if subtab == "stitches":
         result = getattr(pane, "result", None)
         entries = () if result is None else result.commits
-        commits_by_target: dict[tuple[str, ...], Any] = {
-            ("commit", entry.repo, entry.commit.full_id): entry for entry in entries
+        commits_by_target: dict[ArtifactEntryTarget, Any] = {
+            commit_row_target(entry): entry for entry in entries
         }
         project = getattr(pane, "project_scope", None)
         for target in targets:
             entry = commits_by_target.get(target)
             label = (
-                f"{target[1]}@{target[2][:7]}"
+                f"{target.parts[0]}@{target.parts[1][:7]}"
                 if entry is None
                 else f"{entry.repo}@{entry.commit.short_id}"
             )
@@ -63,7 +82,7 @@ def reference_items_for_targets(
                 )
             )
     elif subtab == "beads":
-        beads_by_target: dict[tuple[str, ...], Any] = {
+        beads_by_target: dict[ArtifactEntryTarget, Any] = {
             bead_row_target(row): row for row in getattr(pane, "_rows", {}).values()
         }
         snapshot = getattr(pane, "_snapshot", None)
@@ -85,7 +104,7 @@ def reference_items_for_targets(
                 )
             )
     elif subtab.startswith("ref:") or subtab == "plans":
-        plans_by_target: dict[tuple[str, ...], Any] = {
+        plans_by_target: dict[ArtifactEntryTarget, Any] = {
             plan_row_target(row): row for row in getattr(pane, "_rows", {}).values()
         }
         snapshot = getattr(pane, "_snapshot", None)
@@ -109,8 +128,9 @@ def reference_items_for_targets(
             )
     elif subtab in {"other", "files"}:
         entries = pane.entries_for_targets(targets)
-        entries_by_target: dict[tuple[str, ...], Any] = {
-            ("file", entry.id): entry for entry in entries
+        entries_by_target: dict[ArtifactEntryTarget, Any] = {
+            ArtifactEntryTarget(pane_id="files", parts=(entry.id,)): entry
+            for entry in entries
         }
         for target in targets:
             entry = entries_by_target.get(target)
@@ -129,7 +149,7 @@ def reference_items_for_targets(
             )
     else:
         issues = getattr(pane, "issues", ())
-        issues_by_target: dict[tuple[str, ...], Any] = {
+        issues_by_target: dict[ArtifactEntryTarget, Any] = {
             pane._issue_target(issue): issue for issue in issues
         }
         selected = getattr(pane, "selected_issue", None)
@@ -144,7 +164,7 @@ def reference_items_for_targets(
                     f"#{issue.number}",
                     target,
                     None,
-                    target[1],
+                    target.parts[0] if target.parts else None,
                     cwd,
                     markdown_label=str(issue.title),
                     kind_label="bug",
@@ -176,7 +196,7 @@ def resolve_artifact_selection(
         if selection.subtab in {"other", "files"}:
             reference = reference_for_entry_target(
                 "files",
-                item.target,
+                _legacy_target_tuple(item.target),
                 context=None,
                 row=item.row,
             )
@@ -203,7 +223,7 @@ def resolve_artifact_selection(
             contexts[context_key] = context
         reference = reference_for_entry_target(
             selection.subtab,
-            item.target,
+            _legacy_target_tuple(item.target),
             context=context,
             row=item.row,
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.bead.model import Status
 
+from ..widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ._artifacts_beads_common import ArtifactsBeadsCommonMixin
 
 
@@ -69,8 +70,10 @@ class ArtifactsBeadsBrowseActionsMixin(ArtifactsBeadsCommonMixin):
             return
         plan_kind = "archive" if row.issue.status is Status.CLOSED else "active"
         self._request_artifacts_entry(  # type: ignore[attr-defined]
-            "ref:plan",
-            ("plan", row.project, plan_kind, plan_path),
+            ArtifactEntryTarget(
+                pane_id="ref:plan",
+                parts=(row.project, plan_kind, plan_path),
+            ),
         )
 
     def action_beads_refresh(self) -> None:

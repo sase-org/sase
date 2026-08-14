@@ -6,6 +6,8 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ...commands import CommandContext
+from ...widgets.artifacts.commits_timeline import commit_row_target
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ._palette_artifact_previews import artifact_target_state
 from ._palette_helpers import notify_copy_warning
 from ._palette_registry import context_from_registry
@@ -105,7 +107,7 @@ def _artifact_pane(app: Any, subtab: str) -> Any | None:
         return None
 
 
-def _entry_targets(pane: Any) -> tuple[tuple[str, ...], ...]:
+def _entry_targets(pane: Any) -> tuple[ArtifactEntryTarget, ...]:
     resolver = getattr(pane, "entry_targets", None)
     if not callable(resolver):
         return ()
@@ -115,7 +117,7 @@ def _entry_targets(pane: Any) -> tuple[tuple[str, ...], ...]:
         return ()
 
 
-def _selected_entry_target(pane: Any) -> tuple[str, ...] | None:
+def _selected_entry_target(pane: Any) -> ArtifactEntryTarget | None:
     resolver = getattr(pane, "selected_entry_target", None)
     if not callable(resolver):
         return None
@@ -143,7 +145,7 @@ def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
 def _artifact_objects(
     pane: Any,
     subtab: str,
-    targets: Iterable[tuple[str, ...]],
+    targets: Iterable[ArtifactEntryTarget],
 ) -> tuple[Any, ...]:
     ordered_targets = tuple(targets)
     if not ordered_targets:
@@ -151,8 +153,8 @@ def _artifact_objects(
     if subtab == "stitches":
         result = getattr(pane, "result", None)
         candidates = () if result is None else getattr(result, "commits", ())
-        commit_by_target: dict[tuple[str, ...], Any] = {
-            ("commit", entry.repo, entry.commit.full_id): entry for entry in candidates
+        commit_by_target: dict[ArtifactEntryTarget, Any] = {
+            commit_row_target(entry): entry for entry in candidates
         }
         return tuple(
             commit_by_target[target]
@@ -161,7 +163,7 @@ def _artifact_objects(
         )
     if subtab == "beads" or subtab.startswith("ref:") or subtab == "files":
         rows = getattr(pane, "_rows", {}).values()
-        row_by_target: dict[tuple[str, ...], Any] = {}
+        row_by_target: dict[ArtifactEntryTarget, Any] = {}
         for row in rows:
             if subtab == "beads":
                 from ...widgets.artifacts.beads_list import bead_row_target
@@ -188,7 +190,7 @@ def _artifact_objects(
     target_for = getattr(pane, "_issue_target", None)
     if not callable(target_for):
         return ()
-    issue_by_target: dict[tuple[str, ...], Any] = {
+    issue_by_target: dict[ArtifactEntryTarget, Any] = {
         target_for(issue): issue for issue in issues
     }
     return tuple(

@@ -11,6 +11,7 @@ from textual.widgets import Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot, ProjectBead
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.bead.model import Status
@@ -92,18 +93,18 @@ async def test_beads_open_plan_selects_unloaded_plans_pane(
         await page.press("3")
         beads_pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads_pane.snapshot is beads)
-        assert beads_pane.select_entry_target(("bead", "alpha", "epic", "alpha-1"))
+        assert beads_pane.select_entry_target(
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
+        )
 
         await page.press("L")
         await page.expect_state("artifacts_subtab", "ref:plan")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
 
-        assert plans_pane.selected_entry_target() == (
-            "plan",
-            "alpha",
-            "active",
-            plans.active[0].document.path,
+        assert plans_pane.selected_entry_target() == ArtifactEntryTarget(
+            pane_id="ref:plan",
+            parts=("alpha", "active", plans.active[0].document.path),
         )
         footer = page.query_one_widget("#keybinding-content", Static)
         assert "linked bead" in footer.content.plain
@@ -130,7 +131,9 @@ async def test_plans_open_bead_clears_filter_and_selects_closed_bead(
         await page.wait_for(
             lambda _state: (
                 beads_pane.selected_entry_target()
-                == ("bead", "alpha", "epic", "alpha-closed")
+                == ArtifactEntryTarget(
+                    pane_id="beads", parts=("alpha", "epic", "alpha-closed")
+                )
             )
         )
 
@@ -164,7 +167,9 @@ async def test_crosslink_actions_warn_when_counterpart_is_missing(
         await page.press("3")
         beads_pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads_pane.snapshot is beads)
-        assert beads_pane.select_entry_target(("bead", "alpha", "task", "alpha-open"))
+        assert beads_pane.select_entry_target(
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "task", "alpha-open"))
+        )
         page.app.action_beads_open_plan()
         assert messages[-1] == ("This bead links no plan file", "warning")
 

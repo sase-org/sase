@@ -8,6 +8,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
 
@@ -28,9 +29,11 @@ async def test_selection_marks_jumps_and_reload_preserve_stable_target(
         await page.wait_for(lambda _state: pane.snapshot is value)
         targets = pane.entry_targets()
         assert targets == (
-            ("bead", "alpha", "task", "alpha-ready"),
-            ("bead", "alpha", "task", "alpha-open"),
-            ("bead", "alpha", "epic", "alpha-1"),
+            ArtifactEntryTarget(
+                pane_id="beads", parts=("alpha", "task", "alpha-ready")
+            ),
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "task", "alpha-open")),
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1")),
         )
 
         assert pane.select_entry_target(targets[1])
@@ -44,7 +47,9 @@ async def test_selection_marks_jumps_and_reload_preserve_stable_target(
 
         assert pane.select_entry_target(targets[2])
         pane.set_selected_epic_expanded(True)
-        assert pane.entry_targets()[-1:] == (("bead", "alpha", "phase", "alpha-1.2"),)
+        assert pane.entry_targets()[-1:] == (
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "phase", "alpha-1.2")),
+        )
 
 
 @pytest.mark.asyncio

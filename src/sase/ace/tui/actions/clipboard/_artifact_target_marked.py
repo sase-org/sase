@@ -11,6 +11,8 @@ from ...models.artifact_file_clipboard import (
     artifact_file_source_clipboard_path,
 )
 from ...widgets.artifacts.beads_list import bead_row_target
+from ...widgets.artifacts.commits_timeline import commit_row_target
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ...widgets.artifacts.plans_list import plan_row_target
 from ._artifact_target_support import ClipboardArtifactTargetSupportMixin
 from ._artifact_target_values import (
@@ -28,15 +30,15 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
     def _copy_marked_commit_targets(
         self,
         pane: Any,
-        targets: tuple[tuple[str, ...], ...],
+        targets: tuple[ArtifactEntryTarget, ...],
         target: str,
     ) -> None:
         if not targets:
             return
         result = getattr(pane, "result", None)
         entries = () if result is None else result.commits
-        by_target: dict[tuple[str, ...], Any] = {
-            ("commit", entry.repo, entry.commit.full_id): entry for entry in entries
+        by_target: dict[ArtifactEntryTarget, Any] = {
+            commit_row_target(entry): entry for entry in entries
         }
         selected = [by_target[item] for item in targets if item in by_target]
         labels = {
@@ -74,12 +76,12 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
     def _copy_marked_plan_targets(
         self,
         pane: Any,
-        targets: tuple[tuple[str, ...], ...],
+        targets: tuple[ArtifactEntryTarget, ...],
         target: str,
     ) -> None:
         if not targets:
             return
-        by_target: dict[tuple[str, ...], Any] = {
+        by_target: dict[ArtifactEntryTarget, Any] = {
             plan_row_target(row): row for row in getattr(pane, "_rows", {}).values()
         }
         rows = [by_target[item] for item in targets if item in by_target]
@@ -103,7 +105,7 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
     def _copy_marked_bead_targets(
         self,
         pane: Any,
-        targets: tuple[tuple[str, ...], ...],
+        targets: tuple[ArtifactEntryTarget, ...],
         target: str,
     ) -> None:
         if not targets:
@@ -126,7 +128,7 @@ class ClipboardArtifactMarkedTargetsMixin(ClipboardArtifactTargetSupportMixin):
     def _copy_marked_file_targets(
         self,
         pane: Any,
-        targets: tuple[tuple[str, ...], ...],
+        targets: tuple[ArtifactEntryTarget, ...],
         target: str,
     ) -> None:
         if not targets:

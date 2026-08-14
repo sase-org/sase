@@ -26,6 +26,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "name",
         "link",
         "spec",
+        "reference",
         "snapshot",
     ),
     "artifacts_stitches": (

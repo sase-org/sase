@@ -15,6 +15,7 @@ from sase.ace.tui.actions.patch import PatchMixin
 from sase.ace.tui.actions.marking import MarkingMixin
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 
 
 class _Timer:
@@ -138,7 +139,7 @@ class _FakeApp(PatchMixin, MarkingMixin):
         self.query_string = '"feature"'
         self.hide_reverted = True
         self.hide_submitted = True
-        self.marked_indices: set[int] = set()
+        self._artifacts_marked_targets: dict[str, set[Any]] = {"patches": set()}
         self.refresh_interval = 0
         self._countdown_remaining = 0
         self._hidden_reverted_count = 0
@@ -176,6 +177,17 @@ class _FakeApp(PatchMixin, MarkingMixin):
         self.scheduled: list[tuple[float, Callable[[], None]]] = []
         self._patch_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
         self.notifications: list[tuple[str, str]] = []
+
+    @property
+    def marked_indices(self) -> set[int]:
+        marks = self._artifacts_marked_targets.get("patches")
+        if not marks:
+            return set()
+        return {
+            index
+            for index, patch in enumerate(self.patches)
+            if patch_row_target(patch) in marks
+        }
 
     def query_one(self, selector: str, _type: Any = None) -> Any:
         del selector, _type

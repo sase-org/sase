@@ -143,6 +143,8 @@ class ClipboardCoreMixin(ClipboardBase):
             self._copy_patch_link()  # type: ignore[attr-defined]
         elif key == cs_keys["spec"]:
             self._copy_project_spec()  # type: ignore[attr-defined]
+        elif key == cs_keys.get("reference"):
+            self._copy_patch_reference()  # type: ignore[attr-defined]
         elif key == cs_keys["snapshot"]:
             self._copy_snapshot()
         else:

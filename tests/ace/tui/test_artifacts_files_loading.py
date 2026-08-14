@@ -9,6 +9,7 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import files_data, files_pane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from tests.ace.tui._artifacts_files_helpers import (
     artifact_file,
@@ -98,8 +99,12 @@ async def test_first_page_paints_before_full_extension(
             assert pane.selected_entry is not None
             assert pane.selected_entry.id == first_rows[0].id
             assert pane.entry_targets() == (
-                ("file", logical_file(first_rows[0]).logical_id),
-                ("file", logical_file(first_rows[1]).logical_id),
+                ArtifactEntryTarget(
+                    pane_id="files", parts=(logical_file(first_rows[0]).logical_id,)
+                ),
+                ArtifactEntryTarget(
+                    pane_id="files", parts=(logical_file(first_rows[1]).logical_id,)
+                ),
             )
             assert full_started.wait(timeout=LOAD_TOLERANT_TIMEOUT)
             assert requested_limits[:2] == [500, None]
@@ -115,6 +120,64 @@ async def test_first_page_paints_before_full_extension(
             )
             assert pane.selected_entry is not None
             assert pane.selected_entry.id == first_rows[0].id
+    finally:
+        release_full.set()
+
+
+async def test_request_entry_target_defers_until_a_matching_snapshot_loads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A deep link to a not-yet-loaded row is remembered and resolved later."""
+    first_rows = (artifact_file("newest"),)
+    linked = artifact_file("linked", created_at="2026-07-22T09:00:00-04:00")
+    full_rows = (*first_rows, linked)
+    release_full = Event()
+
+    def load(project: str | None, limit: int | None):
+        if limit is None:
+            assert release_full.wait(timeout=LOAD_TOLERANT_TIMEOUT)
+            return snapshot(full_rows, project=project)
+        return snapshot(first_rows, project=project, complete=False)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(files_pane, "load_files_snapshot", load)
+
+    try:
+        async with AcePage(initial_tab="patches") as page:
+            await page.press(page.artifacts_digit("files"), "(")
+            pane = page.query_one_widget(
+                "#artifacts-files-pane",
+                ArtifactsFilesPane,
+            )
+            await page.wait_for(
+                lambda _state: (
+                    pane.snapshot is not None and len(pane.snapshot.rows) == 1
+                ),
+                timeout=LOAD_TOLERANT_TIMEOUT,
+            )
+
+            target = ArtifactEntryTarget(
+                pane_id="files", parts=(logical_file(linked).logical_id,)
+            )
+            assert pane.request_entry_target(target) is False
+            assert pane._pending_entry_target == target
+
+            release_full.set()
+            await page.wait_for(
+                lambda _state: (
+                    pane.snapshot is not None and len(pane.snapshot.rows) == 2
+                ),
+                timeout=LOAD_TOLERANT_TIMEOUT,
+            )
+            await page.wait_for(
+                lambda _state: pane._pending_entry_target is None,
+                timeout=LOAD_TOLERANT_TIMEOUT,
+            )
+
+            assert pane.selected_entry_target() == target
     finally:
         release_full.set()
 
@@ -186,7 +249,11 @@ async def test_cursor_survives_refresh_and_jk_has_no_highlight_echoes(
         await page.press("k")
         assert pane.selected_entry is not None
         assert pane.selected_entry.id == rows[0].id
-        assert pane.select_entry_target(("file", logical_file(rows[1]).logical_id))
+        assert pane.select_entry_target(
+            ArtifactEntryTarget(
+                pane_id="files", parts=(logical_file(rows[1]).logical_id,)
+            )
+        )
         assert pane.selected_entry is not None
         assert pane.selected_entry.id == rows[1].id
 
@@ -198,9 +265,8 @@ async def test_cursor_survives_refresh_and_jk_has_no_highlight_echoes(
                 pane.selected_entry is not None and pane.selected_entry.id == rows[1].id
             )
         )
-        assert pane.selected_entry_target() == (
-            "file",
-            logical_file(rows[1]).logical_id,
+        assert pane.selected_entry_target() == ArtifactEntryTarget(
+            pane_id="files", parts=(logical_file(rows[1]).logical_id,)
         )
 
         await page.press("g")

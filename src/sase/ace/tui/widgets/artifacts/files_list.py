@@ -34,7 +34,7 @@ class FileRow:
 def file_row_target(row: FileRow) -> ArtifactEntryTarget:
     """Use the portable logical file identity as the navigation identity."""
 
-    return ("file", row.entry.logical_id)
+    return ArtifactEntryTarget(pane_id="files", parts=(row.entry.logical_id,))
 
 
 def build_file_options(

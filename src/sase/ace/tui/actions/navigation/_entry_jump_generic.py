@@ -4,8 +4,18 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
+from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from ...widgets.artifacts.patch_entry import patch_row_target
 from ._types import NavigationMixinBase
 from .jump_hints import EntryJumpAnchor
+
+_PATCH_TABS = frozenset(
+    {
+        "artifacts",
+        "patches",
+        "changespecs",  # legacy compatibility alias
+    }
+)
 
 
 class EntryJumpGenericHistoryMixin(NavigationMixinBase):
@@ -32,21 +42,19 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         return bool(self._entry_jump_index_stack.get(self.current_tab))
 
     def _entry_jump_index_is_valid(self, tab: str, idx: int) -> bool:
-        """Return whether ``idx`` still identifies a row in ``tab``."""
-        if tab in {
-            "artifacts",
-            "patches",
-            "changespecs",  # legacy compatibility alias
-        }:
-            patches = getattr(
-                self,
-                "patches",
-                getattr(self, "changespecs", []),  # legacy compatibility alias
-            )
-            return 0 <= idx < len(patches)
+        """Return whether ``idx`` still identifies a row in AXE's flat list."""
         if tab == "axe":
             return 0 <= idx < len(self._axe_items)  # type: ignore[attr-defined]
         return False
+
+    def _patch_row_anchor_is_valid(self, target: ArtifactEntryTarget) -> bool:
+        """Return whether *target* still identifies a visible Patch row."""
+        patches = getattr(
+            self,
+            "patches",
+            getattr(self, "changespecs", []),  # legacy compatibility alias
+        )
+        return any(patch_row_target(patch) == target for patch in patches)
 
     def _patch_banner_anchor_is_valid(
         self,
@@ -68,6 +76,8 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         anchor: EntryJumpAnchor,
     ) -> bool:
         """Return whether a non-Agents jump anchor can be restored."""
+        if isinstance(anchor, ArtifactEntryTarget):
+            return tab in _PATCH_TABS and self._patch_row_anchor_is_valid(anchor)
         if isinstance(anchor, int):
             return self._entry_jump_index_is_valid(tab, anchor)
         kind, group_key = anchor
@@ -77,25 +87,14 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
                 "patch_banner",
                 "changespec_banner",  # legacy compatibility alias
             }
-            and tab
-            in {
-                "artifacts",
-                "patches",
-                "changespecs",  # legacy compatibility alias
-            }
+            and tab in _PATCH_TABS
             and self._patch_banner_anchor_is_valid(group_key)
         )
 
     def _current_entry_jump_anchor(self) -> EntryJumpAnchor | None:
         """Snapshot the current non-Agents cursor as a row or Patch banner."""
-        if self.current_tab in {
-            "artifacts",
-            "patches",
-            "changespecs",  # legacy compatibility alias
-        }:
+        if self.current_tab in _PATCH_TABS:
             group_key = getattr(self, "_current_patch_group_key", None)
-            if group_key is None:
-                group_key = getattr(self, "_current_patch_group_key", None)
             if group_key is not None:
                 kind: Literal["patch_banner", "changespec_banner"] = (
                     "changespec_banner"  # legacy compatibility alias
@@ -108,6 +107,15 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
                 )
                 if self._entry_jump_anchor_is_valid(self.current_tab, banner_anchor):
                     return banner_anchor
+
+            patches = getattr(
+                self,
+                "patches",
+                getattr(self, "changespecs", []),  # legacy compatibility alias
+            )
+            if patches and 0 <= self.current_idx < len(patches):
+                return patch_row_target(patches[self.current_idx])
+            return None
 
         if self._entry_jump_index_is_valid(self.current_tab, self.current_idx):
             return self.current_idx
@@ -197,22 +205,25 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
         """Restore a non-Agents jump anchor. Returns True when it was valid."""
         if not self._entry_jump_anchor_is_valid(self.current_tab, anchor):
             return False
-        if isinstance(anchor, int):
-            if self.current_tab in {
-                "artifacts",
+        if isinstance(anchor, ArtifactEntryTarget):
+            patches = getattr(
+                self,
                 "patches",
-                "changespecs",  # legacy compatibility alias
-            }:
-                self._current_patch_group_key = None  # type: ignore[attr-defined]
-                if hasattr(self, "_current_patch_group_key"):
+                getattr(self, "changespecs", []),  # legacy compatibility alias
+            )
+            for index, patch in enumerate(patches):
+                if patch_row_target(patch) == anchor:
                     self._current_patch_group_key = None  # type: ignore[attr-defined]
+                    self.current_idx = index
+                    return True
+            return False
+
+        if isinstance(anchor, int):
             self.current_idx = anchor
             return True
 
         _, group_key = anchor
         self._current_patch_group_key = group_key  # type: ignore[attr-defined]
-        if hasattr(self, "_current_patch_group_key"):
-            self._current_patch_group_key = group_key  # type: ignore[attr-defined]
         return True
 
     def _refresh_after_entry_jump_restore(self) -> None:

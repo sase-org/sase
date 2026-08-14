@@ -85,8 +85,6 @@ class ArtifactsNavigationActionsMixin:
         pane_key: ArtifactsPaneKey | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_pane = pane_key or self.current_artifacts_pane_key
-        if target_pane == "patches":
-            return None
         view = self._artifacts_view()
         if view is None:
             return None
@@ -100,27 +98,17 @@ class ArtifactsNavigationActionsMixin:
         pane = self._artifacts_entry_navigator()
         if pane is None:
             return ()
-        resolver = getattr(pane, "conditional_footer_entries", None)
-        if not callable(resolver):
-            return ()
-        return tuple(resolver())
+        return tuple(pane.conditional_footer_entries())
 
-    def _request_artifacts_entry(
-        self,
-        pane_key: ArtifactsPaneKey,
-        target: ArtifactEntryTarget,
-    ) -> None:
-        """Switch to a leaf pane and select *target* when its rows are ready."""
+    def _request_artifacts_entry(self, target: ArtifactEntryTarget) -> None:
+        """Switch to the target's owning pane and select it when ready."""
 
+        pane_key = target.pane_id
         self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
         pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:
             return
-        request = getattr(pane, "request_entry_target", None)
-        if callable(request):
-            request(target)
-        else:
-            pane.select_entry_target(target)
+        pane.request_entry_target(target)
         if self.current_tab == ARTIFACTS_TAB:
             self._sync_active_artifacts_entry_state()
 

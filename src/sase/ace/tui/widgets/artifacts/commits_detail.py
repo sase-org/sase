@@ -17,12 +17,12 @@ from sase.vcs_log.models import VcsLogResult
 
 from .commits_rendering import build_commit_detail, build_commit_view_spec
 from .commits_timeline import CommitsTimeline
-from .entry_navigation import ArtifactEntryTarget
+from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
 else:
-    _MixinBase = object
+    _MixinBase = ArtifactEntryNavigator
 
 
 CommitDiffLoader = Callable[[CommitViewSpec], str | None]
@@ -39,6 +39,7 @@ class CommitsDetailMixin(_MixinBase):
     _diff_cache: dict[tuple[str, str], str | None]
     _diff_loading_key: tuple[str, str] | None
     _syntax_render_cache: LazySyntaxRenderCache
+    _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
 
@@ -54,6 +55,7 @@ class CommitsDetailMixin(_MixinBase):
         self._diff_cache = {}
         self._diff_loading_key = None
         self._syntax_render_cache = LazySyntaxRenderCache()
+        self._pending_entry_target = None
 
     def move_selection(self, step: int) -> None:
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
@@ -82,6 +84,16 @@ class CommitsDetailMixin(_MixinBase):
             return False
         self._sync_timeline_selection(index)
         return True
+
+    def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        if self.select_entry_target(target):
+            self._pending_entry_target = None
+            return True
+        self._pending_entry_target = target
+        return False
+
+    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
+        return ()
 
     def apply_entry_jump_hints(
         self,
@@ -121,6 +133,20 @@ class CommitsDetailMixin(_MixinBase):
         self.result = result
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         self._selected_commit_index = timeline.update_result(result)
+        pending = self._pending_entry_target
+        if pending is not None:
+            resolved_index = timeline.select_entry_target(pending)
+            if resolved_index is not None:
+                self._pending_entry_target = None
+                self._selected_commit_index = resolved_index
+            else:
+                self._pending_entry_target = None
+                notify = getattr(self, "notify", None)
+                if callable(notify):
+                    notify(
+                        "Linked commit is no longer visible in Stitches",
+                        severity="warning",
+                    )
         self._refresh_info()
         if self._selected_commit_index is not None:
             if live_preview and self._detail_debouncer is not None:

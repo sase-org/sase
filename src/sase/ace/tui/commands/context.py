@@ -241,6 +241,10 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
 
     if tab == "agents":
         mark_count = _agents_mark_count(app)
+    elif tab == "artifacts":
+        pane_key = getattr(app, "current_artifacts_pane_key", "patches")
+        marks = getattr(app, "_artifacts_marked_targets", {}) or {}
+        mark_count = len(marks.get(pane_key, set()))
     else:
         mark_count = len(getattr(app, "marked_indices", set()) or set())
 
