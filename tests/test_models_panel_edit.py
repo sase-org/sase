@@ -22,6 +22,7 @@ from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from tests._models_panel_helpers import (
     ModelsPanelTestApp as _TestApp,
     make_alias_view as _view,
@@ -258,6 +259,108 @@ async def test_on_edit_custom_preserves_alias_selector_member_efforts(
         assert isinstance(screen, AliasEditPreviewModal)
         assert screen._op.value == value
         assert panel._pending_edit_raw_model == value
+
+
+async def test_on_edit_custom_rejects_pool_member_unknown_alias_before_preview(
+    monkeypatch: Any,
+) -> None:
+    target = _view("medium_worker", "role")
+    _patch_views(monkeypatch, [target])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_view = target
+        panel._pending_alias_selection = AliasSelectionContext(
+            (target,), target.name, "persistent"
+        )
+
+        panel._on_edit_custom_picked("@missing | claude/opus")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        panel.notify.assert_called_once()
+        assert "unknown alias" in panel.notify.call_args.args[0]
+
+
+async def test_on_edit_custom_rejects_pool_member_cycle_before_preview(
+    monkeypatch: Any,
+) -> None:
+    target = _view("medium_worker", "role")
+    dependent = _view(
+        "dependent",
+        "user",
+        configured=True,
+        configured_value="@medium_worker",
+    )
+    _patch_views(monkeypatch, [target, dependent])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_view = target
+        panel._pending_alias_selection = AliasSelectionContext(
+            (target, dependent), target.name, "persistent"
+        )
+
+        panel._on_edit_custom_picked("@dependent | claude/opus")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        panel.notify.assert_called_once()
+        assert "would create a cycle" in panel.notify.call_args.args[0]
+
+
+async def test_on_edit_custom_opens_prefilled_with_configured_value(
+    monkeypatch: Any,
+) -> None:
+    view = _view(
+        "blogger",
+        "user",
+        configured=True,
+        configured_value="claude/opus | codex/o3",
+        configured_source="custom",
+    )
+    _patch_views(monkeypatch, [view])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        panel._on_edit_model_picked(CUSTOM_SENTINEL)
+        await pilot.pause()
+
+        screen = pilot.app.screen
+        assert isinstance(screen, CustomModelInputModal)
+        input_widget = screen.query_one("#custom-model-input", SingleLineVimTextArea)
+        assert input_widget.text == "claude/opus | codex/o3"
+        assert input_widget.cursor_location == input_widget.document.end
+
+
+async def test_on_edit_custom_opens_empty_when_alias_has_no_value(
+    monkeypatch: Any,
+) -> None:
+    view = _view("medium_worker", "role")
+    _patch_views(monkeypatch, [view])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        panel._on_edit_model_picked(CUSTOM_SENTINEL)
+        await pilot.pause()
+
+        screen = pilot.app.screen
+        assert isinstance(screen, CustomModelInputModal)
+        input_widget = screen.query_one("#custom-model-input", SingleLineVimTextArea)
+        assert input_widget.text == ""
+        assert input_widget.placeholder == "e.g. claude/fable || codex/gpt-5.6-sol"
 
 
 async def test_on_edit_model_picked_cancel_is_noop(monkeypatch: Any) -> None:

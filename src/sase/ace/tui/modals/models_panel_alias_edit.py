@@ -30,6 +30,7 @@ from .models_panel_effort_cards import (
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
+from .models_panel_selector import member_rejection, parse_selector_for_display
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -123,6 +124,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                         "per-member effort: A@low | B@high"
                     ),
                     placeholder=("e.g. claude/fable || codex/gpt-5.6-sol"),
+                    initial=view.raw_value or "",
                 ),
                 callback=self._on_edit_custom_picked,
             )
@@ -136,7 +138,19 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         if view is None:
             return
         raw_model = result.strip()
-        if "|" in raw_model:
+        parsed = parse_selector_for_display(raw_model)
+        if parsed.error is not None:
+            self.notify(f"Cannot set @{view.name}: {parsed.error}", severity="warning")
+            return
+        if parsed.selector is not None:
+            for member in parsed.selector.members:
+                rejection = member_rejection(self._pending_alias_selection, member)
+                if rejection is not None:
+                    self.notify(
+                        f"Cannot set @{view.name} to {member}: {rejection}.",
+                        severity="warning",
+                    )
+                    return
             self._pending_edit_raw_model = raw_model
             self._open_model_edit_preview(view, raw_model)
             return
