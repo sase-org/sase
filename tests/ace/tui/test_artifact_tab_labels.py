@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.artifact_tabs import (
-    FIXED_ARTIFACTS_SUBTAB_ORDER,
-    _fixed_descriptor,
-    _provider_label,
-)
+from sase.ace.tui._artifact_tab_descriptors import _provider_label, fixed_descriptor
+from sase.ace.tui.artifact_tabs import FIXED_ARTIFACTS_SUBTAB_ORDER
 
 _EXPECTED_FIXED_LABELS = {
     "stitches": "Stitch",
@@ -18,7 +15,7 @@ _EXPECTED_FIXED_LABELS = {
 
 def test_fixed_artifact_labels_are_singular() -> None:
     labels = {
-        subtab: _fixed_descriptor(subtab).label
+        subtab: fixed_descriptor(subtab).label
         for subtab in FIXED_ARTIFACTS_SUBTAB_ORDER
     }
 

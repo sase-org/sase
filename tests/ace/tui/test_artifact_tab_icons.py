@@ -8,27 +8,26 @@ from typing import Any
 import pytest
 from rich.cells import cell_len
 
-from sase.ace.tui import artifact_tabs
-from sase.ace.tui.artifact_tabs import (
-    ARTIFACTS_ICONS,
-    DEFAULT_DOCUMENT_TAB_ICON,
-    _ProjectProviderRecord,
-    _fixed_descriptor,
-    _provider_descriptors,
+from sase.ace.tui import _artifact_tab_descriptors
+from sase.ace.tui._artifact_tab_descriptors import (
     _sanitize_tab_icon,
+    fixed_descriptor,
+    provider_descriptors,
 )
+from sase.ace.tui._artifact_tab_model import ProjectProviderRecord
+from sase.ace.tui.artifact_tabs import ARTIFACTS_ICONS, DEFAULT_DOCUMENT_TAB_ICON
 from sase.artifact_providers import builtin_plan_ref_provider_spec
 from sase.sidecar_ref_config import SidecarRefPolicy
 
 
 def test_fixed_artifact_pane_descriptors_carry_builtin_icons() -> None:
     assert {
-        subtab: _fixed_descriptor(subtab).icon for subtab in ARTIFACTS_ICONS
+        subtab: fixed_descriptor(subtab).icon for subtab in ARTIFACTS_ICONS
     } == ARTIFACTS_ICONS
 
 
 def test_provider_descriptor_takes_icon_from_spec() -> None:
-    descriptors = _provider_descriptors([_record("research", icon="∴")])
+    descriptors = provider_descriptors([_record("research", icon="∴")])
 
     assert len(descriptors) == 1
     assert descriptors[0].id == "ref:research"
@@ -45,7 +44,7 @@ def test_provider_descriptor_takes_icon_from_spec() -> None:
 def test_provider_descriptor_falls_back_to_generic_icon(
     ref_updates: dict[str, Any],
 ) -> None:
-    descriptors = _provider_descriptors([_record("notes", **ref_updates)])
+    descriptors = provider_descriptors([_record("notes", **ref_updates)])
 
     assert len(descriptors) == 1
     assert descriptors[0].icon == DEFAULT_DOCUMENT_TAB_ICON
@@ -59,7 +58,7 @@ def test_sanitize_tab_icon_rejects_malformed_input(raw: str) -> None:
 def test_sanitize_tab_icon_rejects_overwide_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(artifact_tabs, "cell_len", lambda _icon: 3)
+    monkeypatch.setattr(_artifact_tab_descriptors, "cell_len", lambda _icon: 3)
 
     assert _sanitize_tab_icon("✎") == ""
 
@@ -74,7 +73,7 @@ def test_repo_shipped_artifact_tab_icons_are_single_cell() -> None:
     assert {icon: cell_len(icon) for icon in icons} == dict.fromkeys(icons, 1)
 
 
-def _record(kind: str, **ref_updates: Any) -> _ProjectProviderRecord:
+def _record(kind: str, **ref_updates: Any) -> ProjectProviderRecord:
     spec = {
         "schema_version": 1,
         "provider": kind,
@@ -89,7 +88,7 @@ def _record(kind: str, **ref_updates: Any) -> _ProjectProviderRecord:
             **ref_updates,
         },
     }
-    return _ProjectProviderRecord(
+    return ProjectProviderRecord(
         project="proj",
         display_name="Proj",
         workspace_dir="/tmp/proj",

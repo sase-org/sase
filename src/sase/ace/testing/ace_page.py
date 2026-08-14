@@ -303,7 +303,7 @@ class AcePage:
         """Return the live digit shortcut for an Artifacts sub-tab id.
 
         Artifacts digits follow visual position (see
-        ``artifact_tabs._assign_artifacts_digit_shortcuts``), so tests must
+        ``_artifact_tab_descriptors.assign_artifacts_digit_shortcuts``), so tests must
         not hard-code them. The import is function-local because AcePage's
         fast startup overrides patch ``resolve_artifacts_subtabs`` on the
         ``artifact_tabs`` module; a module-level import would bind the

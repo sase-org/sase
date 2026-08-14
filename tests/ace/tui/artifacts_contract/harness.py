@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 
+from sase.ace.tui._artifact_tab_descriptors import _provider_accent_for_kind
 from sase.ace.tui.artifact_tabs import (
     ARTIFACTS_ACCENTS,
     ArtifactsTabDescriptor,
-    _provider_accent_for_kind,
     resolve_artifacts_subtabs,
 )
 

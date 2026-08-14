@@ -6,11 +6,13 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.tui._artifact_tab_descriptors import provider_descriptors
+from sase.ace.tui._artifact_tab_model import (
+    ProjectProviderRecord,
+    ProviderDiscoveryIssue,
+)
 from sase.ace.tui.artifact_tabs import (
     ARTIFACTS_ACCENTS,
-    _ProjectProviderRecord,
-    _ProviderDiscoveryIssue,
-    _provider_descriptors,
     reset_artifacts_subtabs_cache,
     resolve_artifacts_subtabs,
 )
@@ -18,10 +20,10 @@ from sase.sidecar_ref_config import SidecarRefPolicy
 
 
 def test_missing_ref_provider_creates_degraded_tab() -> None:
-    descriptors = _provider_descriptors(
+    descriptors = provider_descriptors(
         [],
         (
-            _ProviderDiscoveryIssue(
+            ProviderDiscoveryIssue(
                 message=(
                     "artifact ref provider 'research-docs' is not installed; "
                     "a cloned sidecar repo does not install a provider plugin"
@@ -44,7 +46,7 @@ def test_missing_ref_provider_creates_degraded_tab() -> None:
 
 
 def test_healthy_kind_is_not_removed_by_a_sibling_failure() -> None:
-    healthy = _ProjectProviderRecord(
+    healthy = ProjectProviderRecord(
         project="proj",
         display_name="Proj",
         workspace_dir="/tmp/proj",
@@ -57,10 +59,10 @@ def test_healthy_kind_is_not_removed_by_a_sibling_failure() -> None:
             spec={"ref": {"kind": "plan", "label": "Plan"}},
         ),
     )
-    descriptors = _provider_descriptors(
+    descriptors = provider_descriptors(
         [healthy],
         (
-            _ProviderDiscoveryIssue(
+            ProviderDiscoveryIssue(
                 message="artifact ref provider 'missing-provider' is not installed",
                 code="missing_ref_provider",
                 kind="research",
@@ -77,12 +79,12 @@ def test_healthy_kind_is_not_removed_by_a_sibling_failure() -> None:
 def test_discovery_failure_keeps_a_degraded_plan_tab(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.ace.tui import artifact_tabs
+    from sase.ace.tui import _artifact_tab_discovery
 
     def _boom(*_args: object, **_kwargs: object) -> list[object]:
         raise ImportError("sase_core_rs is not importable in this environment")
 
-    monkeypatch.setattr(artifact_tabs, "list_project_records", _boom)
+    monkeypatch.setattr(_artifact_tab_discovery, "list_project_records", _boom)
     reset_artifacts_subtabs_cache()
     first = resolve_artifacts_subtabs()
     reset_artifacts_subtabs_cache()

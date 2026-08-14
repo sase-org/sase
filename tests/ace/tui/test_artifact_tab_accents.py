@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.ace.tui.artifact_tabs import (
-    ARTIFACTS_ACCENTS,
-    _ProjectProviderRecord,
-    _provider_descriptors,
+from sase.ace.tui._artifact_tab_descriptors import (
     _provider_accent_for_kind,
+    provider_descriptors,
 )
+from sase.ace.tui._artifact_tab_model import ProjectProviderRecord
+from sase.ace.tui.artifact_tabs import ARTIFACTS_ACCENTS
 from sase.sidecar_ref_config import SidecarRefPolicy
 
 
-def _record(kind: str) -> _ProjectProviderRecord:
-    return _ProjectProviderRecord(
+def _record(kind: str) -> ProjectProviderRecord:
+    return ProjectProviderRecord(
         project="proj",
         display_name="Proj",
         workspace_dir="/tmp/proj",
@@ -47,7 +47,7 @@ def test_provider_accent_never_uses_a_builtin_colour() -> None:
 
 def test_provider_descriptors_do_not_write_artifacts_accents() -> None:
     before = dict(ARTIFACTS_ACCENTS)
-    descriptors = _provider_descriptors(
+    descriptors = provider_descriptors(
         [_record("zz_alpha_accent"), _record("zz_beta_accent")]
     )
     assert dict(ARTIFACTS_ACCENTS) == before

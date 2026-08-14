@@ -40,12 +40,16 @@ _ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
 def _fast_artifacts_subtabs() -> tuple[Any, ...]:
     """Expose a deterministic plan document provider in fast TUI tests."""
     from sase.ace.tui import artifact_tabs
+    from sase.ace.tui._artifact_tab_descriptors import (
+        assign_artifacts_digit_shortcuts,
+        fixed_descriptor,
+    )
 
-    return artifact_tabs._assign_artifacts_digit_shortcuts(
+    return assign_artifacts_digit_shortcuts(
         (
-            artifact_tabs._fixed_descriptor("stitches"),
-            artifact_tabs._fixed_descriptor("patches"),
-            artifact_tabs._fixed_descriptor("beads"),
+            fixed_descriptor("stitches"),
+            fixed_descriptor("patches"),
+            fixed_descriptor("beads"),
             artifact_tabs.ArtifactsTabDescriptor(
                 id="ref:plan",
                 label="Plan",
@@ -55,7 +59,7 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
                 provider_kind="plan",
                 provider_spec={},
             ),
-            artifact_tabs._fixed_descriptor("files"),
+            fixed_descriptor("files"),
         )
     )
 

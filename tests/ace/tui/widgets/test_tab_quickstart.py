@@ -9,6 +9,10 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui import artifact_tabs
+from sase.ace.tui._artifact_tab_descriptors import (
+    assign_artifacts_digit_shortcuts,
+    fixed_descriptor,
+)
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.tab_quickstart import (
     _CARD_CONTENT_WIDTH,
@@ -18,22 +22,22 @@ from sase.ace.tui.widgets.tab_quickstart import (
 
 
 def _fixed_only_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
-    return artifact_tabs._assign_artifacts_digit_shortcuts(
+    return assign_artifacts_digit_shortcuts(
         (
-            artifact_tabs._fixed_descriptor("stitches"),
-            artifact_tabs._fixed_descriptor("patches"),
-            artifact_tabs._fixed_descriptor("beads"),
-            artifact_tabs._fixed_descriptor("files"),
+            fixed_descriptor("stitches"),
+            fixed_descriptor("patches"),
+            fixed_descriptor("beads"),
+            fixed_descriptor("files"),
         )
     )
 
 
 def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
-    return artifact_tabs._assign_artifacts_digit_shortcuts(
+    return assign_artifacts_digit_shortcuts(
         (
-            artifact_tabs._fixed_descriptor("stitches"),
-            artifact_tabs._fixed_descriptor("patches"),
-            artifact_tabs._fixed_descriptor("beads"),
+            fixed_descriptor("stitches"),
+            fixed_descriptor("patches"),
+            fixed_descriptor("beads"),
             artifact_tabs.ArtifactsTabDescriptor(
                 id="ref:plan",
                 label="Plan",
@@ -42,7 +46,7 @@ def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, .
                 provider_kind="plan",
                 provider_spec={},
             ),
-            artifact_tabs._fixed_descriptor("files"),
+            fixed_descriptor("files"),
         )
     )
 
