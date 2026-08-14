@@ -48,6 +48,9 @@ class XPromptArgHintMixin(_MixinBase):
         @property
         def snippet_session_active(self) -> bool: ...
 
+        def _snippet_tabstop_jump_moves(self, *, retreat: bool) -> bool: ...
+        def _try_advance_tabstop(self) -> bool: ...
+        def _try_retreat_tabstop(self) -> bool: ...
         def _find_prompt_bar(self) -> Any: ...
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
@@ -344,6 +347,30 @@ class XPromptArgHintMixin(_MixinBase):
             has_optional_inputs=bool(entry.inputs),
         )
 
+    def _xprompt_completion_spacer_is_intact(
+        self,
+        pending: PendingXPromptCompletionSpacer,
+    ) -> bool:
+        """Return True while a pending spacer is still exactly as it was inserted.
+
+        The cursor must still sit immediately after the spacer, the spacer must
+        still be a space, and the reference text before it must be unchanged.
+        """
+        text = self.text
+        spacer_end = pending.spacer_offset + 1
+        if spacer_end > len(text):
+            return False
+        if self._absolute_offset(self.cursor_location) != spacer_end:
+            return False
+        if text[pending.spacer_offset] != " ":
+            return False
+        if (
+            text[pending.reference_start : pending.spacer_offset]
+            != pending.reference_text
+        ):
+            return False
+        return True
+
     def _consume_xprompt_completion_spacer(
         self,
         pending: PendingXPromptCompletionSpacer,
@@ -358,18 +385,40 @@ class XPromptArgHintMixin(_MixinBase):
         """
         if character != "," and not (character == ":" and pending.has_optional_inputs):
             return False
-        text = self.text
+        if not self._xprompt_completion_spacer_is_intact(pending):
+            return False
         spacer_end = pending.spacer_offset + 1
-        if spacer_end > len(text):
-            return False
-        if self._absolute_offset(self.cursor_location) != spacer_end:
-            return False
-        if text[pending.spacer_offset] != " ":
-            return False
-        if (
-            text[pending.reference_start : pending.spacer_offset]
-            != pending.reference_text
-        ):
-            return False
         self._replace_absolute_range(pending.spacer_offset, spacer_end, character)
+        return True
+
+    def _consume_xprompt_completion_spacer_for_tabstop(
+        self,
+        pending: PendingXPromptCompletionSpacer,
+        *,
+        retreat: bool,
+    ) -> bool:
+        """Delete a pending completion spacer on the way to a snippet tabstop.
+
+        An xprompt with no required inputs completes to ``#name ``; when the very
+        next key jumps to another tabstop the reference is finished and that
+        spacer is dead weight the user would otherwise delete by hand. Deleting
+        before the jump lets the session engine remap the target stop for the
+        one-character deletion, and keeps the placeholder completion that the jump
+        opens in sync with the final text. Returns False -- leaving the spacer and
+        the keystroke to the normal Tab path -- when no session is live, when the
+        spacer is no longer intact, or when the jump would have no target.
+        """
+        if not self.snippet_session_active:
+            return False
+        if not self._xprompt_completion_spacer_is_intact(pending):
+            return False
+        if not self._snippet_tabstop_jump_moves(retreat=retreat):
+            return False
+        self._replace_absolute_range(
+            pending.spacer_offset, pending.spacer_offset + 1, ""
+        )
+        if retreat:
+            self._try_retreat_tabstop()
+        else:
+            self._try_advance_tabstop()
         return True

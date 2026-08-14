@@ -105,6 +105,12 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             pending: PendingXPromptCompletionSpacer,
             character: str | None,
         ) -> bool: ...
+        def _consume_xprompt_completion_spacer_for_tabstop(
+            self,
+            pending: PendingXPromptCompletionSpacer,
+            *,
+            retreat: bool,
+        ) -> bool: ...
         def _delete_selected_file_completion(self) -> bool: ...
         def _completion_supports_delete(self) -> bool: ...
         def _enter_normal_mode(self) -> None: ...
@@ -174,8 +180,12 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         # A just-accepted no-required-input xprompt left a trailing spacer
         # (``#name ``). An immediate comma replaces it for both no-input and
         # optional-only entries; an immediate colon does so only for
-        # optional-only entries. The spacer is a one-shot convenience: any
-        # other key or invalidated text/cursor drops the pending state.
+        # optional-only entries. An immediate Tab / Shift+Tab that jumps to
+        # another snippet tabstop deletes the spacer instead of rewriting it,
+        # and is handled in the ``tab`` branch below rather than here because
+        # tabstop jumps are INSERT-mode only. The spacer is a one-shot
+        # convenience: any other key or invalidated text/cursor drops the
+        # pending state.
         pending_spacer = self._pending_xprompt_completion_spacer
         if pending_spacer is not None:
             self._pending_xprompt_completion_spacer = None
@@ -407,6 +417,13 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             event.stop()
             event.prevent_default()
             self._clear_soft_completion(cancel_timer=True)
+            if pending_spacer is not None and (
+                self._consume_xprompt_completion_spacer_for_tabstop(
+                    pending_spacer,
+                    retreat=event.key == "shift+tab",
+                )
+            ):
+                return
             if not self.snippet_session_active:
                 start, end = self.selection
                 if start == end:

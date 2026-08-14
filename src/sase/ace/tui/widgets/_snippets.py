@@ -207,6 +207,19 @@ class SnippetExpansionMixin(_MixinBase):
         self._try_auto_placeholder_completion()
         return True
 
+    def _snippet_tabstop_jump_moves(self, *, retreat: bool) -> bool:
+        """Return True when a tabstop jump would land on another stop.
+
+        The engine's transitions are pure, so this asks it for the answer and
+        discards the returned state rather than reimplementing "is there a next
+        stop?" in Python -- advancing off the last stop ends the session and
+        retreating at the first stop stays put, and both report no target.
+        """
+        if not self._snippet_session.is_active:
+            return False
+        move = retreat_snippet_session if retreat else advance_snippet_session
+        return move(self._snippet_session).cursor_offset is not None
+
     def _try_retreat_tabstop(self) -> bool:
         """Retreat to the previous snippet tabstop. Returns True if retreated."""
         if not self._snippet_session.is_active:

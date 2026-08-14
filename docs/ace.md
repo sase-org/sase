@@ -4625,6 +4625,9 @@ The same smart insertion rules apply to `#@` selections and `Ctrl+T` completions
 selected xprompt with no required inputs inserts a trailing space, a single required
 non-text input inserts colon syntax, a single required text input inserts double-colon
 shorthand, and multiple required inputs insert a parenthesized named-argument snippet.
+When that trailing space sits at a live snippet tabstop and the next keystroke is `Tab`
+or `Shift+Tab`, the jump removes the space on its way to the next tabstop; at the final
+tabstop, where the jump has nowhere to go, the space is kept.
 
 The same hint panel appears while typing narrow, known argument forms such as `#name:`,
 `#!name:`, `#ns/name:`, `#ns__name:`, `#name!!:`, `#name??:`, `#name(`, and
