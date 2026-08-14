@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.xprompt import extract_vcs_workflow_tag
+
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
 
@@ -82,7 +84,7 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
         return True
 
     def add_bottom_pane(self) -> None:
-        """Append a new empty bottom pane and drop into it (the ``g-`` keymap).
+        """Append a new bottom pane and drop into it (the ``g-`` keymap).
 
         Only meaningful in prompt mode; feedback / approve-prompt bars are not
         multi-agent surfaces, so it is a no-op elsewhere.  The new pane is
@@ -93,8 +95,18 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
             return
         self._sync_state_from_widgets()
         self._clear_active_completion_state()
-        self._stack.append_bottom("")
+        self._stack.append_bottom(self._added_bottom_pane_initial_text())
         self._rebuild_stack(enter_mode="insert")
+
+    def _added_bottom_pane_initial_text(self) -> str:
+        """Return the VCS workflow seed for a newly appended agent pane."""
+        selected = self._stack.selected_item
+        if selected.is_snippet_pane:
+            return ""
+        vcs_tag = extract_vcs_workflow_tag(f"{selected.text} ")
+        if vcs_tag is None:
+            return ""
+        return f"{vcs_tag.strip()} "
 
     def _clear_active_completion_state(self) -> None:
         """Drop transient active-pane state before stack focus/mutation."""
