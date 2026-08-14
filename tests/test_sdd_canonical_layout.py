@@ -35,7 +35,7 @@ def test_active_sources_and_docs_use_only_canonical_plan_paths() -> None:
         _ROOT / "src" / "sase" / "main" / "plan_links_handler.py",
         _ROOT / "src" / "sase" / "axe" / "run_agent_exec_plan_sdd.py",
         _ROOT / "src" / "sase" / "axe" / "run_agent_exec_plan_accept.py",
-        _ROOT / "src" / "sase" / "llm_provider" / "commit_finalizer_git.py",
+        _ROOT / "src" / "sase" / "llm_provider" / "commit_finalizer_git_autocommit.py",
         _ROOT / "src" / "sase" / "ace" / "tui" / "models" / "_diff_badge.py",
     ]
     current_docs = [

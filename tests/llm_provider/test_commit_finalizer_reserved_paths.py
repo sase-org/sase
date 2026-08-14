@@ -46,7 +46,7 @@ def test_changed_files_filter_only_root_scoped_reserved_paths() -> None:
         ]
     )
 
-    assert commit_finalizer_git._changed_files_from_git_status(status) == [
+    assert commit_finalizer_git.changed_files_from_git_status(status) == [
         "sasefoo/kept.txt",
         "src/sase/repos/kept.txt",
         "nested/.sase/kept.txt",

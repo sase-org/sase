@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.llm_provider import commit_finalizer_git as finalizer_git
+from sase.llm_provider import commit_finalizer_git_autocommit as finalizer_autocommit
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
 from sase.llm_provider.types import InvokeResult
 from sase.sdd.files import set_prompt_qa
@@ -126,7 +127,7 @@ def test_qa_only_prover_accepts_append_with_or_without_trailing_newline(
     repo, prompt = _create_prompt_repo(tmp_path, head_text)
     set_prompt_qa(prompt, _QA)
 
-    assert finalizer_git._has_only_sdd_prompt_qa_diff(
+    assert finalizer_autocommit._has_only_sdd_prompt_qa_diff(
         str(repo), "prompts/202607/test_plan.md"
     )
 
@@ -137,7 +138,7 @@ def test_qa_only_prover_accepts_multi_round_replacement(tmp_path: Path) -> None:
     _commit_all(repo, "add first Q&A round")
     set_prompt_qa(prompt, _UPDATED_QA)
 
-    assert finalizer_git._has_only_sdd_prompt_qa_diff(
+    assert finalizer_autocommit._has_only_sdd_prompt_qa_diff(
         str(repo), "prompts/202607/test_plan.md"
     )
 
@@ -152,7 +153,7 @@ def test_qa_only_prover_rejects_frontmatter_edit(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert not finalizer_git._has_only_sdd_prompt_qa_diff(
+    assert not finalizer_autocommit._has_only_sdd_prompt_qa_diff(
         str(repo), "prompts/202607/test_plan.md"
     )
 

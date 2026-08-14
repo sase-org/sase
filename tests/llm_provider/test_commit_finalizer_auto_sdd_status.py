@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.llm_provider import commit_finalizer_git as finalizer_git
+from sase.llm_provider import commit_finalizer_git_status as finalizer_git_status
 from sase.llm_provider.commit_finalizer import (
     CommitFinalizerError,
     _auto_commit_separate_sdd_store_if_possible,
@@ -164,7 +165,7 @@ def test_auto_commit_git_runner_recovers_stale_index_lock(
     lock.write_text("stale", encoding="utf-8")
     monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
 
-    result = finalizer_git._run_git(str(repo), ["add", "plan.md"])
+    result = finalizer_git_status.run_git(str(repo), ["add", "plan.md"])
 
     assert result is not None
     assert result.returncode == 0

@@ -63,7 +63,7 @@ def use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
             cwd=Path(project_dir),
             capture_output=True,
         )
-        return finalizer_git._changed_files_from_git_status(result.stdout)
+        return finalizer_git.changed_files_from_git_status(result.stdout)
 
     def git_head(repo_dir: str) -> str:
         try:
@@ -97,7 +97,7 @@ def use_git_dirty_details(monkeypatch: pytest.MonkeyPatch) -> None:
         build,
     )
     monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer_git._git_head_commit_id",
+        "sase.llm_provider.commit_finalizer_git_progress.git_head_commit_id",
         git_head,
     )
 
