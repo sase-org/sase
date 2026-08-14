@@ -2,198 +2,43 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any, cast
 
 import pytest
 from textual.worker import Worker, WorkerState
 
-from sase.ace.patch.models import DeltaEntry, DeltaLineStats
-from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
-from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.models.agent_associated_plan import PhaseBeadSummary
 from sase.ace.tui.widgets.prompt_panel import _agent_display_parts
-from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
-from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
-from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
-    AgentHintsDisplayMixin,
-)
-from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
-    ALL_DETAIL_CONTEXT_LANES,
-    LANE_RESOLUTION_BATCHES,
-)
-from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContextLane
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     _DetailHeaderSummary,
-    cache_detail_header_summary,
     get_cached_detail_header_summary,
 )
 from sase.ace.tui.widgets.prompt_panel._messages import AgentDetailHeaderEnriched
-from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
+from tests.ace.tui.widgets._agent_display_header_enrichment_helpers import (
+    HeaderEnrichmentPanel,
+    MessageHeaderEnrichmentPanel,
+    make_phase_summary,
+    make_summary,
+    patch_summary_builder,
+    set_context,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent, plain_of
-
-
-class _FakeWorker:
-    def __init__(self, result: object | None = None) -> None:
-        self.is_running = True
-        self.result = result
-        self.cancelled = False
-
-    def cancel(self) -> None:
-        self.cancelled = True
-        self.is_running = False
-
-
-class _HeaderEnrichmentPanel(AgentDisplayMixin, AgentHintsDisplayMixin):
-    def __init__(self) -> None:
-        self.captured: list[object] = []
-        self.worker = _FakeWorker()
-        self.worker_fn: Callable[[], object] | None = None
-
-    def update(self, renderable: object) -> None:
-        self.captured.append(renderable)
-
-    def run_worker(self, fn: Callable[[], object], *, thread: bool) -> _FakeWorker:
-        assert thread
-        self.worker_fn = fn
-        self.worker = _FakeWorker()
-        return self.worker
-
-
-class _MessageHeaderEnrichmentPanel(_HeaderEnrichmentPanel):
-    def __init__(self) -> None:
-        super().__init__()
-        self.messages: list[object] = []
-
-    def post_message(self, message: object) -> None:
-        self.messages.append(message)
-
-
-class _RecordingApp:
-    """Minimal ``call_from_thread`` stand-in: runs the callback inline.
-
-    Real Textual marshals the call onto the event loop from a worker
-    thread; these tests run everything on one thread, so calling straight
-    through is equivalent for exercising what gets published and when.
-    """
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[Any, ...]] = []
-
-    def call_from_thread(self, fn: Callable[..., object], *args: object) -> object:
-        self.calls.append(args)
-        return fn(*args)
-
-
-class _StreamingHeaderEnrichmentPanel(_MessageHeaderEnrichmentPanel):
-    """A panel with an ``app`` so the streaming worker can publish batches."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.app = _RecordingApp()
-
-
-def _set_context(
-    panel: AgentDisplayMixin,
-    agent_identity: tuple[Any, ...],
-    *,
-    current: bool,
-) -> None:
-    def is_current(
-        identity: tuple[Any, ...],
-        generation: int,
-        attempt_view_mode: str,
-        attempt_pinned_number: int | None,
-    ) -> bool:
-        return (
-            current
-            and identity == agent_identity
-            and generation == 7
-            and attempt_view_mode == "merged"
-            and attempt_pinned_number is None
-        )
-
-    panel.set_agent_detail_render_context(
-        generation=7,
-        attempt_view_mode="merged",
-        attempt_pinned_number=None,
-        is_current=is_current,
-    )
-
-
-def _summary() -> _DetailHeaderSummary:
-    return _DetailHeaderSummary(
-        delta_entries=[
-            DeltaEntry(
-                path="src/foo.py",
-                change_type="M",
-                line_stats=DeltaLineStats(modified=1),
-            )
-        ],
-        artifact_file_paths=[
-            ArtifactFilePath(
-                display_path="artifact.txt",
-                actual_path="/tmp/artifact.txt",
-            )
-        ],
-    )
-
-
-def _phase_summary(bead_id: str, *, notes: str | None = None) -> PhaseBeadSummary:
-    return PhaseBeadSummary(
-        id=bead_id,
-        phase_title="Deferred selected phase title",
-        description="Deferred selected phase description.",
-        actual_plan_path="/tmp/workspace/sase/repos/plans/epic.md",
-        display_plan_path="sase/repos/plans/epic.md",
-        plan_exists=True,
-        plan_readable=True,
-        epic_title="Deferred phase epic",
-        size="medium",
-        notes=notes,
-    )
-
-
-def _family_agent() -> Agent:
-    root = make_agent(
-        raw_suffix="family-root",
-        agent_name="family--plan",
-        agent_family="family",
-        agent_family_role="plan",
-        role_suffix="--plan",
-        plan_chain_root=True,
-    )
-    child = make_agent(
-        raw_suffix="family-child",
-        agent_name="family--code",
-        agent_family="family",
-        agent_family_role="code",
-        role_suffix="--code",
-    )
-    root.followup_agents = [child]
-    assert root.is_family_container_row
-    return root
 
 
 def test_update_display_schedules_header_enrichment_without_sync_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
+    panel = HeaderEnrichmentPanel()
+    set_context(panel, agent.identity, current=True)
     calls: list[object] = []
-    summary = _summary()
+    summary = make_summary()
 
     def build(agent_arg: object, *, lanes: object = None) -> _DetailHeaderSummary:
         del lanes
         calls.append(agent_arg)
         return summary
 
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
+    patch_summary_builder(monkeypatch, build)
 
     panel.update_display(agent)
 
@@ -214,14 +59,10 @@ def test_successful_header_enrichment_repaints_from_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    summary = _summary()
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        lambda _agent, *, lanes=None: summary,
-    )
+    panel = HeaderEnrichmentPanel()
+    set_context(panel, agent.identity, current=True)
+    summary = make_summary()
+    patch_summary_builder(monkeypatch, lambda _agent, *, lanes=None: summary)
 
     panel.update_display(agent)
     assert panel.worker_fn is not None
@@ -235,7 +76,7 @@ def test_successful_header_enrichment_repaints_from_cache(
 
     plain = plain_of(panel.captured[-1])
     assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain
-    assert "  Files:\n    \u2022 artifact.txt\n" in plain
+    assert "  Files:\n    • artifact.txt\n" in plain
 
 
 def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
@@ -247,19 +88,15 @@ def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
         epic_bead_id="sase-7",
         phase_bead_id="sase-7.2",
     )
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
+    panel = HeaderEnrichmentPanel()
+    set_context(panel, agent.identity, current=True)
     summary = _DetailHeaderSummary(
-        phase_bead=_phase_summary(
+        phase_bead=make_phase_summary(
             "sase-7.2",
             notes="[2026-08-01T14:10:00Z · reviewer] deferred note",
         )
     )
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        lambda _agent, *, lanes=None: summary,
-    )
+    patch_summary_builder(monkeypatch, lambda _agent, *, lanes=None: summary)
 
     panel.update_display(agent)
     assert "Bead:" not in plain_of(panel.captured[-1])
@@ -286,14 +123,10 @@ def test_successful_header_enrichment_posts_completion_message(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = make_agent(status="RUNNING")
-    panel = _MessageHeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    summary = _summary()
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        lambda _agent, *, lanes=None: summary,
-    )
+    panel = MessageHeaderEnrichmentPanel()
+    set_context(panel, agent.identity, current=True)
+    summary = make_summary()
+    patch_summary_builder(monkeypatch, lambda _agent, *, lanes=None: summary)
 
     panel.update_display(agent)
     assert panel.worker_fn is not None
@@ -317,14 +150,10 @@ def test_stale_header_enrichment_result_is_cached_without_repaint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=False)
-    summary = _summary()
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        lambda _agent, *, lanes=None: summary,
-    )
+    panel = HeaderEnrichmentPanel()
+    set_context(panel, agent.identity, current=False)
+    summary = make_summary()
+    patch_summary_builder(monkeypatch, lambda _agent, *, lanes=None: summary)
 
     panel.update_display(agent)
     assert panel.worker_fn is not None
@@ -337,155 +166,6 @@ def test_stale_header_enrichment_result_is_cached_without_repaint(
     )
 
     assert len(panel.captured) == captured_count
-    assert get_cached_detail_header_summary(panel, agent) is summary
-
-
-def test_hint_render_uses_cached_memory_read_summary() -> None:
-    agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    memory_read = MemoryReadDisplayEvent(
-        event=MemoryReadEvent(
-            schema_version=READ_LOG_SCHEMA_VERSION,
-            id="read-1",
-            timestamp="2026-07-16T14:22:08+00:00",
-            project="test",
-            cwd="/tmp/test",
-            canonical_path="tui_perf.md",
-            resolved_path="/tmp/test/memory/tui_perf.md",
-            agent_name="alpha",
-            agent_source="SASE_AGENT_NAME",
-            artifacts_dir="/tmp/test/artifacts",
-            reason="needed TUI performance rules",
-            byte_count=64,
-            frontmatter_stripped=True,
-        )
-    )
-    cache_detail_header_summary(
-        panel,
-        agent,
-        _DetailHeaderSummary(memory_reads=(memory_read,)),
-    )
-
-    result = panel.update_display_with_hints(agent)
-
-    plain = plain_of(panel.captured[-1])
-    assert "SASE CONTEXT" in plain
-    assert "◇ [1] tui_perf.md  ↩ frontmatter" in plain
-    assert result.file_hints == {1: "/tmp/test/memory/tui_perf.md"}
-    assert not result.header_enrichment_pending
-
-
-def test_cold_hint_render_schedules_enrichment_without_sync_build(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    calls: list[Agent] = []
-
-    def build(agent_arg: Agent, *, lanes: object = None) -> _DetailHeaderSummary:
-        del lanes
-        calls.append(agent_arg)
-        return _summary()
-
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
-
-    result = panel.update_display_with_hints(agent)
-
-    assert calls == []
-    assert panel.worker_fn is not None
-    assert result.header_enrichment_pending
-    assert "Deltas:" not in plain_of(panel.captured[-1])
-
-
-def test_cold_family_hint_render_stays_active_and_gains_enriched_mapping(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent = _family_agent()
-    panel = _MessageHeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    calls: list[Agent] = []
-    summary = _DetailHeaderSummary(
-        artifact_file_paths=[
-            ArtifactFilePath(
-                display_path="family-report.txt",
-                actual_path="/tmp/family-report.txt",
-            )
-        ]
-    )
-
-    def build(agent_arg: Agent, *, lanes: object = None) -> _DetailHeaderSummary:
-        del lanes
-        calls.append(agent_arg)
-        return summary
-
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
-
-    cold = panel.update_display_with_hints(agent)
-
-    assert calls == []
-    assert cold.header_enrichment_pending
-    assert panel._agent_hint_mode_rendered
-    assert panel.worker_fn is not None
-    assert "FAMILY MEMBERS" in plain_of(panel.captured[-1])
-
-    panel.worker.result = panel.worker_fn()
-    panel._apply_agent_detail_header_enrichment_result(
-        cast(Worker[Any], panel.worker),
-        WorkerState.SUCCESS,
-    )
-    # Three cheapest-first batches (bead sase-l6.4) for the default full
-    # lane set, each hitting the patched builder once.
-    assert calls == [agent, agent, agent]
-    assert isinstance(panel.messages[-1], AgentDetailHeaderEnriched)
-
-    enriched = panel.update_display_with_hints(agent)
-
-    assert enriched.file_hints == {1: "/tmp/family-report.txt"}
-    assert not enriched.header_enrichment_pending
-    assert "[1] family-report.txt" in plain_of(panel.captured[-1])
-
-
-def test_hint_request_replaces_same_agent_in_flight_render_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    summary = _summary()
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        lambda _agent, *, lanes=None: summary,
-    )
-
-    panel.update_display(agent)
-    first_worker = panel.worker
-    assert panel.worker_fn is not None
-
-    panel.set_agent_detail_render_context(
-        generation=8,
-        attempt_view_mode="merged",
-        attempt_pinned_number=None,
-        is_current=lambda _identity, generation, *_args: generation == 8,
-    )
-    panel.update_display_with_hints(agent)
-
-    assert panel.worker is first_worker
-    assert not first_worker.cancelled
-    first_worker.result = panel.worker_fn()
-    panel._apply_agent_detail_header_enrichment_result(
-        cast(Worker[Any], first_worker),
-        WorkerState.SUCCESS,
-    )
     assert get_cached_detail_header_summary(panel, agent) is summary
 
 
@@ -506,13 +186,12 @@ def test_completed_phase_enrichment_cannot_overwrite_new_phase_selection(
         epic_bead_id="sase-7",
         phase_bead_id="sase-7.2",
     )
-    panel = _HeaderEnrichmentPanel()
+    panel = HeaderEnrichmentPanel()
     selected_identity = first.identity
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
+    patch_summary_builder(
+        monkeypatch,
         lambda agent, *, lanes=None: _DetailHeaderSummary(
-            phase_bead=_phase_summary(agent.phase_bead_id or "missing")
+            phase_bead=make_phase_summary(agent.phase_bead_id or "missing")
         ),
     )
 
@@ -556,9 +235,9 @@ def test_fresh_header_summary_cache_skips_second_worker(
         lambda: now,
     )
     agent = make_agent(status="RUNNING")
-    panel = _HeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    summary = _summary()
+    panel = HeaderEnrichmentPanel()
+    set_context(panel, agent.identity, current=True)
+    summary = make_summary()
     build_calls: list[object] = []
 
     def build(agent_arg: object, *, lanes: object = None) -> _DetailHeaderSummary:
@@ -566,11 +245,7 @@ def test_fresh_header_summary_cache_skips_second_worker(
         build_calls.append(agent_arg)
         return summary
 
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
+    patch_summary_builder(monkeypatch, build)
 
     panel.update_display(agent)
     assert panel.worker_fn is not None
@@ -587,120 +262,3 @@ def test_fresh_header_summary_cache_skips_second_worker(
     assert panel.worker_fn is None
     assert build_calls == [agent, agent, agent]
     assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain_of(panel.captured[-1])
-
-
-def test_worker_resolves_lane_batches_cheapest_first_and_publishes_each(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Bead sase-l6.4: batches run in ``LANE_RESOLUTION_BATCHES`` order and
-    every batch but the last is handed to the main thread as it lands.
-    """
-    agent = make_agent(status="RUNNING")
-    panel = _StreamingHeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    seen_batches: list[frozenset[DetailContextLane]] = []
-
-    def build(
-        agent_arg: object, *, lanes: frozenset[DetailContextLane]
-    ) -> _DetailHeaderSummary:
-        del agent_arg
-        seen_batches.append(lanes)
-        return _DetailHeaderSummary(ready_lanes=lanes)
-
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
-
-    panel.update_display(agent)
-    assert panel.worker_fn is not None
-    result = cast(_DetailHeaderSummary, panel.worker_fn())
-
-    assert seen_batches == list(LANE_RESOLUTION_BATCHES)
-    assert result.ready_lanes == ALL_DETAIL_CONTEXT_LANES
-
-    # Every batch but the last publishes to the main thread as it lands;
-    # the final batch is left for the Worker.StateChanged SUCCESS path so
-    # completion has exactly one place that caches and posts.
-    assert len(panel.app.calls) == len(LANE_RESOLUTION_BATCHES) - 1
-    assert len(panel.messages) == len(LANE_RESOLUTION_BATCHES) - 1
-    assert all(isinstance(m, AgentDetailHeaderEnriched) for m in panel.messages)
-
-    # The cache already reflects the first two batches by the time the
-    # worker returns, ahead of the SUCCESS handler's own cache write.
-    cached = get_cached_detail_header_summary(panel, agent)
-    assert cached is not None
-    assert cached.ready_lanes == LANE_RESOLUTION_BATCHES[0] | LANE_RESOLUTION_BATCHES[1]
-
-
-def test_only_stale_lanes_are_resolved_when_summary_is_partially_fresh(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A cache with one stale lane should not re-resolve the fresh ones."""
-    agent = make_agent(status="RUNNING")
-    panel = _StreamingHeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=True)
-    cache_detail_header_summary(
-        panel,
-        agent,
-        _DetailHeaderSummary(ready_lanes=ALL_DETAIL_CONTEXT_LANES - {"memory"}),
-    )
-    seen_batches: list[frozenset[DetailContextLane]] = []
-
-    def build(
-        agent_arg: object, *, lanes: frozenset[DetailContextLane]
-    ) -> _DetailHeaderSummary:
-        del agent_arg
-        seen_batches.append(lanes)
-        return _DetailHeaderSummary(ready_lanes=lanes)
-
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
-
-    panel.update_display(agent)
-
-    assert panel.worker_fn is not None
-    result = cast(_DetailHeaderSummary, panel.worker_fn())
-
-    assert seen_batches == [frozenset({"memory"})]
-    assert result.ready_lanes == frozenset({"memory"})
-    # No intermediate publish: the one stale lane is also the last batch.
-    assert panel.app.calls == []
-
-
-def test_superseded_selection_intermediate_batch_caches_without_repaint(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A batch landing after the selection moved on must not repaint it."""
-    agent = make_agent(status="RUNNING")
-    panel = _StreamingHeaderEnrichmentPanel()
-    _set_context(panel, agent.identity, current=False)
-
-    def build(
-        agent_arg: object, *, lanes: frozenset[DetailContextLane]
-    ) -> _DetailHeaderSummary:
-        del agent_arg
-        return _DetailHeaderSummary(ready_lanes=lanes)
-
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
-        "build_detail_header_summary",
-        build,
-    )
-
-    panel.update_display(agent)
-    assert panel.worker_fn is not None
-    result = cast(_DetailHeaderSummary, panel.worker_fn())
-
-    assert result.ready_lanes == ALL_DETAIL_CONTEXT_LANES
-    # The now-stale intermediate batches still ran and still cached (same
-    # unconditional-cache-then-check-is_current shape as the SUCCESS
-    # handler), but none of them posted a repaint message.
-    assert panel.messages == []
-    cached = get_cached_detail_header_summary(panel, agent)
-    assert cached is not None
-    assert cached.ready_lanes == LANE_RESOLUTION_BATCHES[0] | LANE_RESOLUTION_BATCHES[1]
