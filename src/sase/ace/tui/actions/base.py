@@ -213,7 +213,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         if edited_description is None:
             return
 
-        # Non-interactive phase: submit reword as background task
+        # Non-interactive phase: submit reword as a proc
         cl_name = patch.name
         display_cl_name = humanize_cl_name(cl_name)
         project_file = patch.file_path
@@ -244,7 +244,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         This action:
         1. Validates PR is set and STATUS is editable
         2. Shows TagInputModal for tag name/value input
-        3. Submits background task that claims workspace, checks out Patch branch, adds tag
+        3. Submits a proc that claims workspace, checks out Patch branch, adds tag
         4. Shows toast notifications for start/completion/failure
         """
         # On agents tab, dispatch to wait-for action
@@ -322,7 +322,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         1. Validates STATUS is "Ready"
         2. Claims workspace and gets workspace directory
         3. Runs interactive prepare_mail in suspend() (y/n prompt)
-        4. If confirmed, submits execute_mail + status transition as background task
+        4. If confirmed, submits execute_mail + status transition as a proc
         5. Shows toast notifications for start/completion/failure
         """
         import os
@@ -385,8 +385,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             release_workspace(project_file, workspace_num, "mail", cl_name)
             return
 
-        # Non-interactive phase: submit execute_mail as background task
-        # The background task owns the workspace from here and releases in finally
+        # Non-interactive phase: submit execute_mail as a proc
+        # The proc owns the workspace from here and releases in finally
         def proc_callable() -> tuple[bool, str]:
             return mail_execute_task(patch, workspace_dir, workspace_num)
 

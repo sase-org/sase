@@ -16,7 +16,7 @@ TabName = Literal["artifacts", "agents", "axe"]
 
 
 def _revert_task(file_path: str, name: str) -> tuple[bool, str]:
-    """Execute revert workflow as a background task."""
+    """Execute revert workflow as a proc."""
     from rich.console import Console
 
     from sase.ace.patch import parse_project_file
@@ -35,7 +35,7 @@ def _revert_task(file_path: str, name: str) -> tuple[bool, str]:
 
 
 def _submit_task(file_path: str, name: str, project_basename: str) -> tuple[bool, str]:
-    """Execute submit workflow as a background task."""
+    """Execute submit workflow as a proc."""
     from rich.console import Console
 
     from sase.workspace_provider import submit_patch
@@ -48,7 +48,7 @@ def _submit_task(file_path: str, name: str, project_basename: str) -> tuple[bool
 
 
 def _archive_task(file_path: str, name: str) -> tuple[bool, str]:
-    """Execute archive workflow as a background task."""
+    """Execute archive workflow as a proc."""
     from rich.console import Console
 
     from sase.ace.archive import archive_patch
@@ -67,7 +67,7 @@ def _archive_task(file_path: str, name: str) -> tuple[bool, str]:
 
 
 def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, str]:
-    """Execute restore workflow as a background task.
+    """Execute restore workflow as a proc.
 
     Handles the full restore flow: restores from Reverted to WIP, then
     optionally transitions to Draft or Ready if target_status requires it.
@@ -118,7 +118,7 @@ def _restore_task(file_path: str, name: str, target_status: str) -> tuple[bool, 
 def _transition_with_siblings_task(
     file_path: str, name: str, new_status: str
 ) -> tuple[bool, str]:
-    """Execute status transition with potential sibling reverts as a background task."""
+    """Execute status transition with potential sibling reverts as a proc."""
     from rich.console import Console
 
     from sase.status_state_machine import transition_patch_status
@@ -206,7 +206,7 @@ class StatusActionsMixin:
         display_cl_name = humanize_cl_name(cl_name)
         project_file = patch.file_path
 
-        # Special handling for "Reverted" status → background task
+        # Special handling for "Reverted" status → proc
         if new_status == STATUS_REVERTED:
 
             def proc_callable() -> tuple[bool, str]:
@@ -219,7 +219,7 @@ class StatusActionsMixin:
                 self.notify(f"Reverting {display_cl_name}...")  # type: ignore[attr-defined]
             return
 
-        # Special handling for "Submitted" status (git/gh projects) → background task
+        # Special handling for "Submitted" status (git/gh projects) → proc
         if new_status == STATUS_SUBMITTED:
             from sase.workspace_provider import detect_workflow_type
 
@@ -239,7 +239,7 @@ class StatusActionsMixin:
                     self.notify(f"Submitting {display_cl_name}...")  # type: ignore[attr-defined]
                 return
 
-        # Special handling for "Archived" status → background task
+        # Special handling for "Archived" status → proc
         if new_status == STATUS_ARCHIVED:
 
             def proc_callable() -> tuple[bool, str]:
@@ -252,7 +252,7 @@ class StatusActionsMixin:
                 self.notify(f"Archiving {display_cl_name}...")  # type: ignore[attr-defined]
             return
 
-        # Special handling for transitioning FROM "Reverted" status → background task
+        # Special handling for transitioning FROM "Reverted" status → proc
         if patch.status == STATUS_REVERTED and new_status in (
             "WIP",
             "Draft",
@@ -286,7 +286,7 @@ class StatusActionsMixin:
         )
 
         if may_have_sibling_reverts:
-            # Sibling reverts involve git operations → background task
+            # Sibling reverts involve git operations → proc
 
             def proc_callable() -> tuple[bool, str]:
                 return _transition_with_siblings_task(project_file, cl_name, new_status)

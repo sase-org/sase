@@ -1,7 +1,7 @@
 """Shared display identity for SASE sessions.
 
 The chip built here is the visual thread tying a row to the TUI it came from:
-the same handle and the same color render in ``sase task list`` and in the
+the same handle and the same color render in ``sase proc list`` and in the
 Admin Center. Every helper is pure — no file reads, no process probes — so it
 is safe to call from a render or keystroke path.
 """

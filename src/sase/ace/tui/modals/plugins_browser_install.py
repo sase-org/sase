@@ -413,7 +413,7 @@ class PluginInstallActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_install_task(self, name: str, plan: InstallReady) -> None:
-        """Run ``execute_install`` in a tracked background task (never blocks)."""
+        """Run ``execute_install`` in a tracked proc (never blocks)."""
 
         def task(reporter: ProcReporter) -> TrackedProcResult[InstallOutcome]:
             try:
@@ -450,7 +450,7 @@ class PluginInstallActionsMixin:
     def _submit_install_many_task(
         self, names: tuple[str, ...], plan: InstallManyReady
     ) -> None:
-        """Run one combined marked-set install in a tracked background task."""
+        """Run one combined marked-set install in a tracked proc."""
 
         label = ", ".join(names)
         count = len(names)

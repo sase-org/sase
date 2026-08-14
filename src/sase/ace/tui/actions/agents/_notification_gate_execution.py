@@ -49,7 +49,7 @@ def submit_gate_execution_task(
     notification: Notification,
     submission: GateSubmission,
 ) -> bool:
-    """Execute a neutral gate through ACE's tracked background task queue."""
+    """Execute a neutral gate through ACE's tracked proc queue."""
     bundle_value = notification.action_data.get("bundle_path")
     if not bundle_value:
         app.notify("No neutral gate bundle in notification", severity="error")  # type: ignore[attr-defined]

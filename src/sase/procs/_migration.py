@@ -90,11 +90,7 @@ def _perform_migration(
 ) -> None:
     new_dir.mkdir(parents=True, exist_ok=True)
 
-    legacy_logs_dir = legacy_dir / PROC_LOGS_SUBDIR
-    new_logs_dir = new_dir / PROC_LOGS_SUBDIR
-    if legacy_logs_dir.is_dir() and not new_logs_dir.exists():
-        shutil.move(str(legacy_logs_dir), str(new_logs_dir))
-        os.symlink(new_logs_dir, legacy_logs_dir)
+    _relocate_legacy_logs(legacy_dir / PROC_LOGS_SUBDIR, new_dir / PROC_LOGS_SUBDIR)
 
     for lock_name in _LEGACY_LOCK_FILENAMES:
         legacy_lock = legacy_dir / lock_name
@@ -111,6 +107,41 @@ def _perform_migration(
     # Only remove the legacy source once the rewritten store is durably in
     # place, so a crash before this point leaves data for a clean retry.
     legacy_store.unlink()
+
+
+def _relocate_legacy_logs(legacy_logs_dir: Path, new_logs_dir: Path) -> None:
+    """Move the legacy logs under the canonical dir, then symlink the old one.
+
+    Every migrated row's ``log_path`` is rewritten into ``new_logs_dir``, so
+    the legacy files have to follow even when that directory already exists —
+    a partially migrated home that wrote canonical procs before this ran.
+    Merging entry by entry keeps an already-canonical log (the file live
+    writers hold open) as the winner instead of overwriting it.
+    """
+    if not legacy_logs_dir.is_dir() or legacy_logs_dir.is_symlink():
+        return
+
+    if new_logs_dir.exists():
+        for entry in legacy_logs_dir.iterdir():
+            destination = new_logs_dir / entry.name
+            if not destination.exists():
+                shutil.move(str(entry), str(destination))
+        leftovers = list(legacy_logs_dir.iterdir())
+        if leftovers:
+            # Symlinking now would hide these behind their canonical
+            # namesakes, so leave the real directory reachable instead.
+            _logger.warning(
+                "left %d legacy proc log(s) in %s: %s already holds that name",
+                len(leftovers),
+                legacy_logs_dir,
+                new_logs_dir,
+            )
+            return
+        legacy_logs_dir.rmdir()
+    else:
+        shutil.move(str(legacy_logs_dir), str(new_logs_dir))
+
+    os.symlink(new_logs_dir, legacy_logs_dir)
 
 
 def _read_legacy_records(legacy_store: Path) -> list[dict[str, Any]]:

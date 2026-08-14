@@ -192,11 +192,11 @@ class LifecycleMixin:
                 return
 
     def _count_running_tasks(self) -> int:
-        """Return the count of running background tasks."""
+        """Return the count of running procs."""
         return self._proc_queue.running_count  # type: ignore[attr-defined]
 
     def _kill_all_running_tasks(self) -> None:
-        """Kill all running background tasks."""
+        """Kill all running procs."""
         for task in self._proc_queue.get_all():  # type: ignore[attr-defined]
             if task.status == "running":
                 self._kill_proc(task.proc_id)  # type: ignore[attr-defined]

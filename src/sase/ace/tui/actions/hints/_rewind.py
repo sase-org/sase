@@ -17,7 +17,7 @@ def _rewind_task(
     selected_entry_num: int,
     skip_vcs: bool = False,
 ) -> tuple[bool, str]:
-    """Execute rewind workflow as a background task.
+    """Execute rewind workflow as a proc.
 
     Returns:
         Tuple of (success, message).

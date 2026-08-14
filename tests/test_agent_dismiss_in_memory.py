@@ -210,7 +210,7 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
     assert agent.identity in app._dismissed_agents
     assert agent in app._dismissed_agent_objects
     assert app._agents_with_children == []
-    # Persistence is submitted as exactly one tracked background task; no ad
+    # Persistence is submitted as exactly one tracked proc; no ad
     # hoc call_later coroutine remains.
     assert app._scheduled == []
     assert len(app.tracked_procs) == 1
@@ -329,7 +329,7 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
     assert app.refilter_count == 1
     assert app._agents_with_children == []
 
-    # Persistence rides a tracked background task, not a second call_later.
+    # Persistence rides a tracked proc, not a second call_later.
     assert len(app.tracked_procs) == 1
     task = app.tracked_procs[0]
     assert task["proc_type"] == "dismiss"

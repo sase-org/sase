@@ -20,7 +20,7 @@ _STORE_RELOAD_TICKS = 4
 
 
 class ProcsPaneStoreMixin(_MixinBase):
-    """Poll, merge, and operate on durable background-task rows."""
+    """Poll, merge, and operate on durable proc rows."""
 
     if TYPE_CHECKING:
         _all_sessions: bool

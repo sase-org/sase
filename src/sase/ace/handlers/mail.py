@@ -54,7 +54,7 @@ def mail_execute_task(
     workspace_dir: str,
     workspace_num: int,
 ) -> tuple[bool, str]:
-    """Non-interactive: execute_mail + status transition. Runs as background task.
+    """Non-interactive: execute_mail + status transition. Runs as a proc.
 
     Releases workspace in finally block.
 

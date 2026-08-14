@@ -219,7 +219,14 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     ),
     "src/sase/procs/_migration.py:_perform_migration": DirOpReview(
         exemption=(
-            "Relocates the legacy ~/.sase/tasks proc-store logs directory to "
+            "Creates ~/.sase/procs and relocates the legacy ~/.sase/tasks "
+            "proc-store launch locks during the one-shot rename migration, not "
+            "an agent artifact directory."
+        ),
+    ),
+    "src/sase/procs/_migration.py:_relocate_legacy_logs": DirOpReview(
+        exemption=(
+            "Moves the legacy ~/.sase/tasks proc-store logs directory under "
             "~/.sase/procs during the one-shot rename migration, not an agent "
             "artifact directory."
         ),

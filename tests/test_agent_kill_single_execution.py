@@ -74,7 +74,7 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
     assert app._agents == []
     assert agent.identity in app._dismissed_agents
     assert app.refresh_calls == [(True, True)]
-    # Persistence is submitted as one tracked background task; no ad hoc
+    # Persistence is submitted as one tracked proc; no ad hoc
     # call_later coroutine remains.
     assert app._scheduled == []
     assert len(app.tracked_procs) == 1

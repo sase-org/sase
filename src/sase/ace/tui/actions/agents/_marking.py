@@ -187,7 +187,7 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
         group: SavedAgentGroupWire,
         group_name: str | None = None,
     ) -> None:
-        """Submit marked-group save persistence as a tracked background task."""
+        """Submit marked-group save persistence as a tracked proc."""
         identities = {agent.identity for agent in agents}
         if identities & self._dismiss_persistence_inflight:
             return

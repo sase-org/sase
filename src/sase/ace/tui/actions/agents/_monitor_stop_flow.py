@@ -40,7 +40,7 @@ class MonitorStopActionFlowMixin:
         )
 
     def _do_stop_monitor(self, agent: Agent) -> None:
-        """Submit the blocking monitor stop as a tracked background task."""
+        """Submit the blocking monitor stop as a tracked proc."""
         artifacts_dir = agent.get_artifacts_dir()
         monitor_label = agent.monitor_label or agent.monitor_command or "monitor"
         if artifacts_dir is None or not agent.project_file:

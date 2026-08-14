@@ -1,4 +1,4 @@
-"""Quit confirmation modal with running background-task details."""
+"""Quit confirmation modal with running proc details."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _truncate_plain(value: str, max_cells: int) -> str:
 
 
 class QuitConfirmModal(ModalScreen[bool]):
-    """Confirm quitting when tracked background tasks are still running."""
+    """Confirm quitting when tracked procs are still running."""
 
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),

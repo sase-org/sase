@@ -41,7 +41,7 @@ class ProcsPane(
     ProcsPaneSelectionMixin,
     Vertical,
 ):
-    """Two-panel live background-task monitor inside the Admin Center."""
+    """Two-panel live proc monitor inside the Admin Center."""
 
     can_focus = False
 

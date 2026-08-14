@@ -2,7 +2,7 @@
 
 One running TUI process is one *session*. The canonical session id is the
 existing toast-session id (``<YYYYMMDDTHHMMSSZ>-<pid>``) so session-scoped
-records — background tasks, toast history — join on a single value.
+records — procs, toast history — join on a single value.
 
 This registry is deliberately Python rather than Rust core: it is OS
 process-liveness plumbing (pid plus process start time, ``/proc`` reads) with

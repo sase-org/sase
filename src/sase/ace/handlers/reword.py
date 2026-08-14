@@ -28,7 +28,7 @@ def _sync_description_bg(workspace_dir: str, file_path: str, name: str) -> None:
 
     Runs ``get_description`` to get the clean description from the commit
     message and writes it back to the ``.gp`` file.  Uses ``print()`` instead
-    of Rich console since this runs in a background task with captured stdout.
+    of Rich console since this runs in a proc with captured stdout.
 
     Args:
         workspace_dir: Path to the workspace directory.
@@ -190,7 +190,7 @@ def add_tag_task(
     tag_name: str,
     tag_value: str,
 ) -> tuple[bool, str]:
-    """Execute add-tag as a background task.
+    """Execute add-tag as a proc.
 
     Claims a workspace, checks out the Patch, runs sase_hg_reword --add-tag,
     and releases the workspace in a finally block.
@@ -319,7 +319,7 @@ def reword_execute_task(
     project_basename: str,
     edited_description: str,
 ) -> tuple[bool, str]:
-    """Non-interactive: claim workspace, checkout Patch branch, apply reword. Background task.
+    """Non-interactive: claim workspace, checkout Patch branch, apply reword. Runs as a proc.
 
     Claims a workspace, checks out the Patch, runs the reword with the edited
     description, syncs the description back to the project file, and releases

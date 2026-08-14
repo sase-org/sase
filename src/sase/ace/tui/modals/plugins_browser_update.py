@@ -329,7 +329,7 @@ class PluginUpdateActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_update_task(self, plan: UpdateReady) -> None:
-        """Run ``execute_update`` in a tracked background task (never blocks)."""
+        """Run ``execute_update`` in a tracked proc (never blocks)."""
 
         def task(reporter: ProcReporter) -> TrackedProcResult[UpdateOutcome]:
             try:

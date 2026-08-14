@@ -35,7 +35,7 @@ def _sync_task(
     patch_file_path: str,
     project_basename: str,
 ) -> tuple[bool, str]:
-    """Execute sync as a background task.
+    """Execute sync as a proc.
 
     This standalone function contains the body of the former run_handler().
     It claims a workspace, syncs via the VCS provider, and releases the
@@ -189,7 +189,7 @@ class SyncMixin:
         This action:
         1. Validates STATUS is not "Submitted", "Reverted", or "Archived"
         2. Checks per-Patch deduplication (handled by _submit_proc)
-        3. Submits a background task that claims/releases workspace
+        3. Submits a proc that claims/releases workspace
         4. Shows toast notifications for start/completion/failure
         """
         from ...patch import get_base_status
@@ -222,7 +222,7 @@ class SyncMixin:
 
             reset_dollar_hooks(project_file, cl_name)
 
-        # Submit background task (handles dedup automatically)
+        # Submit a proc (handles dedup automatically)
         submitted = self._submit_proc(  # type: ignore[attr-defined]
             "sync", cl_name, project_file, proc_callable, on_success=on_sync_success
         )

@@ -1403,7 +1403,7 @@ UpdatePinnedStashModal #update-pinned-stash-container.-narrow #update-pinned-sta
     width: 100%;
 }
 
-/* Quit confirmation with running background-task details */
+/* Quit confirmation with running proc details */
 QuitConfirmModal > #quit-confirm-container {
     width: 70;
     max-width: 95%;
@@ -6211,7 +6211,7 @@ StatisticsHelpModal #statistics-help-footer {
     text-align: center;
 }
 
-/* Tasks tab: live background-task monitor */
+/* Procs tab: live proc monitor */
 ProcsPane #procs-pane-title {
     text-style: bold;
     height: 1;

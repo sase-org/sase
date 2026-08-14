@@ -132,7 +132,7 @@ class PluginUninstallActionsMixin:
         actionable message when sase is not a managed ``uv tool`` install or the
         highlighted plugin is not installed, then plans the uninstall off-thread
         and opens the confirm-preview modal; the ``uv`` re-install (minus the
-        target) runs later, in a tracked background task, only if confirmed.
+        target) runs later, in a tracked proc, only if confirmed.
         """
         if self._loading or self._uninstall_plan_worker is not None:
             return
@@ -205,7 +205,7 @@ class PluginUninstallActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_uninstall_task(self, plan: UninstallReady) -> None:
-        """Run ``execute_uninstall`` in a tracked background task (never blocks)."""
+        """Run ``execute_uninstall`` in a tracked proc (never blocks)."""
 
         def task(reporter: ProcReporter) -> TrackedProcResult[UninstallOutcome]:
             try:

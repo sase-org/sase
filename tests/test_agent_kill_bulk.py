@@ -117,7 +117,7 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     # Phase 1: notification count refresh is now done in the async worker,
     # not synchronously in _do_bulk_kill_agents.
     assert app.notification_refreshes == 0
-    # Persistence is submitted as one tracked background task; no ad hoc
+    # Persistence is submitted as one tracked proc; no ad hoc
     # call_later coroutine remains.
     assert app._scheduled == []
     assert len(app.tracked_procs) == 1

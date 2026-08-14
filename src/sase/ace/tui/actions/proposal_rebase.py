@@ -31,7 +31,7 @@ def _rebase_task(
     new_parent_name: str,
     old_parent_name: str | None,
 ) -> tuple[bool, str]:
-    """Execute rebase as a background task.
+    """Execute rebase as a proc.
 
     Returns:
         Tuple of (success, message).
@@ -140,7 +140,7 @@ def _accept_task(
     mark_ready_to_mail: bool,
     skip_amend: bool,
 ) -> tuple[bool, str]:
-    """Execute accept workflow as a background task.
+    """Execute accept workflow as a proc.
 
     Returns:
         Tuple of (success, message).
@@ -379,7 +379,7 @@ class ProposalRebaseMixin:
         mark_ready_to_mail: bool = False,
         skip_amend: bool = False,
     ) -> None:
-        """Run the accept workflow as a background task.
+        """Run the accept workflow as a proc.
 
         Args:
             patch: The Patch to accept proposals for.
@@ -472,7 +472,7 @@ class ProposalRebaseMixin:
         self.push_screen(ParentSelectModal(eligible_parents), on_dismiss)  # type: ignore[attr-defined]
 
     def _run_rebase_workflow(self, patch: Patch, new_parent_name: str) -> None:
-        """Run the rebase workflow as a background task.
+        """Run the rebase workflow as a proc.
 
         Args:
             patch: The Patch being rebased

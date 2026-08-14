@@ -199,7 +199,7 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         added: set[AgentIdentity] | None = None,
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
-        """Submit a batch dismissal's persistence as a tracked background task."""
+        """Submit a batch dismissal's persistence as a tracked proc."""
         identities = {a.identity for a in agents}
         if identities & self._dismiss_persistence_inflight:
             return
@@ -329,7 +329,7 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         added: set[AgentIdentity] | None = None,
         recent_group: SavedAgentGroupWire | None = None,
     ) -> None:
-        """Submit single-agent dismiss persistence as a tracked background task."""
+        """Submit single-agent dismiss persistence as a tracked proc."""
         identity = agent.identity
         if identity in self._dismiss_persistence_inflight:
             return

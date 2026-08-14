@@ -284,7 +284,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
         text.append("\n")
 
-        # Background Tasks section (teal) - TUI background operations
+        # Procs section (teal) - TUI background operations
         self._add_section_header(text, "Procs", "#48CAE4")
         if self._background_procs:
             for proc in self._background_procs:

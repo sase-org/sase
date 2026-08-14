@@ -23,12 +23,12 @@ from .commits_timeline import CommitsTimeline
 
 
 def _default_collector(**kwargs: Any) -> VcsLogResult:
-    """Resolve the public collector seam when the background task runs."""
+    """Resolve the public collector seam when the proc runs."""
     return run_vcs_log(**kwargs)
 
 
 def _default_diff_loader(spec: CommitViewSpec) -> str | None:
-    """Resolve the public diff-loader seam when the background task runs."""
+    """Resolve the public diff-loader seam when the proc runs."""
     return load_commit_diff_text(spec)
 
 

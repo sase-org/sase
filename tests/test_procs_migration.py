@@ -128,6 +128,57 @@ def test_migration_symlinks_legacy_log_dir_for_a_live_writer(
     assert new_log_path.read_text() == "start\nmore\n"
 
 
+def test_migration_merges_logs_into_an_existing_canonical_logs_dir(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Legacy logs follow the rows even if ``procs/logs`` already exists."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    legacy_dir = _write_legacy_store(home, [_legacy_record("legacylog01")])
+    legacy_logs = legacy_dir / "logs"
+    legacy_logs.mkdir()
+    (legacy_logs / "legacylog01.log").write_text("legacy\n", encoding="utf-8")
+    # A partially migrated home already wrote canonical logs before the
+    # migration ran, so the destination directory is not free.
+    new_logs = home / "procs" / "logs"
+    new_logs.mkdir(parents=True)
+    (new_logs / "alreadyhere.log").write_text("canonical\n", encoding="utf-8")
+
+    ensure_procs_migrated()
+
+    # The rewritten row points into the canonical logs dir, so its log has to
+    # actually be there rather than stranded at the legacy location.
+    row = json.loads((home / "procs" / "procs.jsonl").read_text().strip())
+    assert row["log_path"] == str(new_logs / "legacylog01.log")
+    assert (new_logs / "legacylog01.log").read_text() == "legacy\n"
+    assert (new_logs / "alreadyhere.log").read_text() == "canonical\n"
+    assert legacy_logs.is_symlink()
+    assert legacy_logs.resolve() == new_logs.resolve()
+
+
+def test_migration_keeps_a_canonical_log_that_collides_with_a_legacy_one(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """A same-named canonical log wins and the legacy copy is not destroyed."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    legacy_dir = _write_legacy_store(home, [_legacy_record("collidelog1")])
+    legacy_logs = legacy_dir / "logs"
+    legacy_logs.mkdir()
+    (legacy_logs / "collidelog1.log").write_text("legacy\n", encoding="utf-8")
+    new_logs = home / "procs" / "logs"
+    new_logs.mkdir(parents=True)
+    (new_logs / "collidelog1.log").write_text("canonical\n", encoding="utf-8")
+
+    ensure_procs_migrated()
+
+    assert (new_logs / "collidelog1.log").read_text() == "canonical\n"
+    # Nothing is deleted, and the leftover stays reachable rather than being
+    # hidden behind a symlink to its canonical namesake.
+    assert not legacy_logs.is_symlink()
+    assert (legacy_logs / "collidelog1.log").read_text() == "legacy\n"
+
+
 def test_migration_is_idempotent(monkeypatch: Any, tmp_path: Path) -> None:
     home = tmp_path / "home"
     monkeypatch.setenv("SASE_HOME", str(home))

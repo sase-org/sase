@@ -95,7 +95,7 @@ class AcceptMailMixin(HintMixinBase):
 
         # Run the accept workflow (with mark_ready_to_mail flag if @ suffix was used).
         # When should_mail is True, _run_accept_workflow sets up an on_success
-        # callback that triggers action_mail() after the background task completes.
+        # callback that triggers action_mail() after the proc completes.
         self._run_accept_workflow(  # type: ignore[attr-defined]
             patch,
             entries,
