@@ -2595,17 +2595,17 @@ section and does not receive the ownership gutter.
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted
 alias:
 
-| Key                   | Action                                                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------ |
-| `l` / Right / `Enter` | **Open** the highlighted bucket                                                            |
-| `h` / Left            | **Back** to the top level from an open bucket                                              |
-| `o`                   | **Override** — set/change a time-bound temporary override (model picker → duration picker) |
-| `x`                   | **Clear** — remove the temporary override on this alias                                    |
-| `e`                   | **Edit** — change the persistent configured value (model picker / custom input → preview)  |
-| `r`                   | **Reset** — unset the configured value back to its implicit fallback                       |
-| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort   |
-| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit      |
-| `Esc` / `q`           | Close the panel                                                                            |
+| Key                   | Action                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `l` / Right / `Enter` | **Open** the highlighted bucket                                                                                          |
+| `h` / Left            | **Back** to the top level from an open bucket                                                                            |
+| `o`                   | **Override** — set/change a time-bound temporary override (model picker → duration picker)                               |
+| `x`                   | **Clear** — remove the temporary override on this alias                                                                  |
+| `e`                   | **Edit** — change the persistent configured value (model picker / custom input / guided pool-fallback builder → preview) |
+| `r`                   | **Reset** — unset the configured value back to its implicit fallback                                                     |
+| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                                 |
+| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                                    |
+| `Esc` / `q`           | Close the panel                                                                                                          |
 
 ### Default effort controls
 
@@ -2677,8 +2677,16 @@ provider-grouped concrete models. Alias rows show the exact `@name` token and it
 current effective provider/model; filter by either `@medium_worker` or `medium_worker`,
 an alias kind or description, or the displayed target. For persistent edits, the current
 alias and any alias that would introduce a direct or transitive cycle remain visible but
-unavailable with a concise reason. `Custom...` remains available for concrete model
-strings and applies the same safety check to free-form `@alias` values.
+unavailable with a concise reason. `Custom...` accepts a concrete model string,
+`provider/model` path, or bare `@alias` reference in both flows and applies the same
+safety check to free-form `@alias` values. In `Edit`, `Custom...` additionally accepts a
+typed `|` pool or `||` fallback expression and opens prefilled with the alias's current
+value, so changing one member of an existing selector no longer means retyping the whole
+expression; `Edit` also offers a guided `Pool / fallback...` row next to `Custom...`
+that builds a selector from the picker without typing `|` by hand (see
+[Persistent edits](#persistent-edits) below). In `Override`, a typed pool or fallback is
+refused outright with a message pointing at `e` — overrides are config-only and take a
+single target, so `Override`'s `Custom...` never shows the `Pool / fallback...` row.
 
 `Override` continues from the picker to the duration picker (`15m`, `30m`, `1h`, `2h`,
 `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Press `t` in
@@ -2758,6 +2766,21 @@ deleting the whole custom alias entry. The custom input also accepts a `|`-separ
 load-balanced pool or a `||`-separated ordered fallback. The editor rejects empty or
 mixed selectors and alias references that would reach any nested selector before opening
 the write preview.
+
+Choosing `Pool / fallback...` from the `e` picker opens a guided builder instead of
+typing an expression by hand. It seeds its state from the alias's current value — an
+existing `|` or `||` expression expands into its members and mode, a single target
+becomes a one-member list, and an empty value starts blank — and shows the live
+normalized expression as members change. `a` adds a member through the same model picker
+and effort ladder used elsewhere in the panel (its own `Custom...` accepts a bare model,
+`provider/model` path, or `@alias`, with an optional trailing `@effort`); `d` removes
+the highlighted member; `J` / `K` reorder it down and up; `E` sets or clears that
+member's effort; `t` toggles between round-robin pool and ordered fallback; `enter`
+confirms and routes the composed expression to the same preview/write path as a typed
+value; `esc` cancels back to the picker. As in the top-level Edit picker, an alias
+reference that would reach another pool or fallback is unselectable here. Confirm is
+blocked, with an inline reason, while the selector has fewer than two members or the
+live validation line reports an error.
 
 ### Examples
 

@@ -1140,11 +1140,14 @@ including candidate-specific trailing reasoning effort. Whitespace is trimmed an
 members are invalid. `|` and `||` cannot be mixed in one value, and a member may follow
 an ordinary alias chain but cannot reach another pool or fallback. Selector expressions
 are config-only: `%model` values, launch-scoped alias overrides, and temporary overrides
-remain single targets. An override on the alias that owns a selector bypasses that
-expression for the override's lifetime. The ACE Models panel shows every member's
-availability, an aggregate `pool <available>/<total>` chip for round-robin pools, and a
-`→` on the current selection; an active temporary override labels the member list
-suspended because it bypasses selection.
+remain single targets. The ACE Models panel's persistent Edit path authors selectors
+directly — hand-typed in the custom input or assembled with a guided pool/fallback
+builder — while its temporary Override path refuses a typed pool or fallback outright,
+pointing at Edit, rather than silently accepting and corrupting it. An override on the
+alias that owns a selector bypasses that expression for the override's lifetime. The ACE
+Models panel shows every member's availability, an aggregate `pool <available>/<total>`
+chip for round-robin pools, and a `→` on the current selection; an active temporary
+override labels the member list suspended because it bypasses selection.
 
 To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
 for agents whose metadata has `model_alias: "default"` or the explicit alias being
