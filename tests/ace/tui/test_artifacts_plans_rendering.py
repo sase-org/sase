@@ -9,6 +9,7 @@ from rich.console import Console
 from sase.ace.tui.widgets.artifacts.plans_detail import (
     active_plan_properties_header,
     archive_properties_header,
+    provider_detail_fields,
 )
 from sase.ace.tui.widgets.artifacts.plans_rendering import (
     active_plan_text,
@@ -59,6 +60,42 @@ def test_detail_headers_keep_document_properties_and_link_owner(tmp_path: Path) 
     assert "alpha-closed" in archived
     assert "Description" not in active
     assert "Dependencies" not in active
+
+
+def test_detail_headers_follow_provider_declared_fields(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    active = _render(
+        active_plan_properties_header(
+            snapshot.active[0],
+            project_name="Alpha",
+            detail_fields=("status", "create_time", "tier"),
+        )
+    )
+
+    status_index = active.index("Status")
+    create_index = active.index("Create time")
+    tier_index = active.index("Tier")
+    title_index = active.index("Title")
+
+    assert status_index < create_index < tier_index < title_index
+
+
+def test_provider_detail_fields_extracts_declared_order() -> None:
+    spec = {
+        "ref": {
+            "detail": {
+                "fields": ["status", "create_time", "status", "", "tags"],
+            },
+        },
+    }
+
+    assert provider_detail_fields(spec) == ("status", "create_time", "tags")
+
+
+def test_provider_detail_fields_ignores_missing_or_malformed_specs() -> None:
+    assert provider_detail_fields(None) == ()
+    assert provider_detail_fields({"ref": {"detail": {"fields": "status"}}}) == ()
+    assert provider_detail_fields({"ref": {"detail": []}}) == ()
 
 
 def test_status_summary_reports_only_three_document_sections(tmp_path: Path) -> None:

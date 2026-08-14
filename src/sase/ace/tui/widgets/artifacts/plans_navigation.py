@@ -19,6 +19,7 @@ from .plans_detail import (
     active_plan_properties_header,
     archive_preview_markdown,
     archive_properties_header,
+    provider_detail_fields,
     proposal_properties_header,
 )
 from .plans_list import PlanRow, plan_row_target
@@ -75,6 +76,7 @@ class PlansNavigationMixin(_MixinBase):
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
+    provider_spec: Mapping[str, Any] | None
 
     if TYPE_CHECKING:
 
@@ -255,6 +257,7 @@ class PlansNavigationMixin(_MixinBase):
         except Exception:
             return
         row = self.selected_row()
+        detail_fields = provider_detail_fields(getattr(self, "provider_spec", None))
         if row is None:
             properties.display = False
             properties.update("")
@@ -265,6 +268,7 @@ class PlansNavigationMixin(_MixinBase):
                 proposal_properties_header(
                     row.proposal,
                     project_name=self._project_name(row.project),
+                    detail_fields=detail_fields,
                 )
             )
             body.update(row.proposal.body or "_No plan body._")
@@ -274,6 +278,7 @@ class PlansNavigationMixin(_MixinBase):
                 active_plan_properties_header(
                     row.active,
                     project_name=self._project_name(row.project),
+                    detail_fields=detail_fields,
                 )
             )
             body.update(row.active.document.body or "_No plan body._")
@@ -285,6 +290,7 @@ class PlansNavigationMixin(_MixinBase):
                     project_name=self._project_name(row.project),
                     role=sidecar_role_ref_kind(row.archive_role or PLAN_REFERENCE_KIND),
                     owner=row.bead_link,
+                    detail_fields=detail_fields,
                 )
             )
             body.update(row.archive.plan.body or "_No plan body._")

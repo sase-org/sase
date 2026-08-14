@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from rich.console import Group, RenderableType
 from rich.table import Table
@@ -24,6 +26,7 @@ def proposal_properties_header(
     proposal: PlanProposal,
     *,
     project_name: str,
+    detail_fields: Sequence[str] | None = None,
 ) -> RenderableType:
     """Build a proposal title and complete property grid."""
     title = Text("◆ ", style="bold #FFD700")
@@ -40,7 +43,7 @@ def proposal_properties_header(
         ("Project", project_name),
         ("Path", proposal.plan_path),
     ]
-    properties.extend(_frontmatter_properties(proposal.frontmatter))
+    properties.extend(_frontmatter_properties(proposal.frontmatter, detail_fields))
     return _properties_header(title, properties)
 
 
@@ -48,6 +51,7 @@ def active_plan_properties_header(
     active: ActivePlanDocument,
     *,
     project_name: str,
+    detail_fields: Sequence[str] | None = None,
 ) -> RenderableType:
     """Build properties for one plan linked from a live bead."""
     document = active.document
@@ -55,7 +59,7 @@ def active_plan_properties_header(
     title.append(
         _document_title(document.path, document.frontmatter), style="bold white"
     )
-    properties = list(_frontmatter_properties(document.frontmatter))
+    properties = list(_frontmatter_properties(document.frontmatter, detail_fields))
     properties.extend(
         [
             ("Owning bead", active.owner.bead_id),
@@ -74,12 +78,13 @@ def archive_properties_header(
     project_name: str,
     role: str = PLAN_REFERENCE_KIND,
     owner: BeadPlanLink | None = None,
+    detail_fields: Sequence[str] | None = None,
 ) -> RenderableType:
     """Build an archived-plan title and complete property grid."""
     plan = match.plan
     title = Text("▤ ", style="bold #00D7AF")
     title.append(plan.title or plan.name, style="bold white")
-    properties = list(_frontmatter_properties(plan.frontmatter))
+    properties = list(_frontmatter_properties(plan.frontmatter, detail_fields))
     if owner is not None:
         properties.extend(
             [
@@ -154,10 +159,35 @@ def _property_text(value: str | Text) -> Text:
 
 def _frontmatter_properties(
     frontmatter: dict[str, str],
+    detail_fields: Sequence[str] | None = None,
 ) -> tuple[DetailProperty, ...]:
     return tuple(
         (plan_property_label(key), value)
-        for key, value in ordered_plan_property_items(frontmatter)
+        for key, value in ordered_plan_property_items(frontmatter, detail_fields)
+    )
+
+
+def provider_detail_fields(
+    provider_spec: Mapping[str, Any] | None,
+) -> tuple[str, ...]:
+    """Return the provider-declared frontmatter fields for the detail band."""
+    if provider_spec is None:
+        return ()
+    ref = provider_spec.get("ref")
+    if not isinstance(ref, Mapping):
+        return ()
+    detail = ref.get("detail")
+    if not isinstance(detail, Mapping):
+        return ()
+    fields = detail.get("fields")
+    if not isinstance(fields, Sequence) or isinstance(fields, (str, bytes, bytearray)):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            field.strip()
+            for field in fields
+            if isinstance(field, str) and field.strip()
+        )
     )
 
 
@@ -182,5 +212,6 @@ __all__ = [
     "active_plan_properties_header",
     "archive_preview_markdown",
     "archive_properties_header",
+    "provider_detail_fields",
     "proposal_properties_header",
 ]

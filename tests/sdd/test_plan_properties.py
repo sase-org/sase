@@ -29,6 +29,52 @@ def test_ordered_plan_property_items_puts_known_keys_before_alphabetical_tail():
     ]
 
 
+def test_ordered_plan_property_items_uses_declared_detail_fields_first():
+    frontmatter = {
+        "zeta": "last",
+        "title": "Example",
+        "status": "draft",
+        "create_time": "2026-08-14",
+        "tags": ["alpha"],
+    }
+
+    assert [
+        key
+        for key, _value in ordered_plan_property_items(
+            frontmatter,
+            detail_fields=("status", "create_time", "tags"),
+        )
+    ] == [
+        "status",
+        "create_time",
+        "tags",
+        "title",
+        "zeta",
+    ]
+
+
+def test_ordered_plan_property_items_empty_detail_fields_fall_back_to_plan_order():
+    frontmatter = {
+        "zeta": "last",
+        "goal": "Ship it",
+        "title": "Example",
+        "tier": "tale",
+    }
+
+    assert [
+        key
+        for key, _value in ordered_plan_property_items(
+            frontmatter,
+            detail_fields=("", "   "),
+        )
+    ] == [
+        "title",
+        "tier",
+        "goal",
+        "zeta",
+    ]
+
+
 @pytest.mark.parametrize(
     ("key", "expected"),
     [

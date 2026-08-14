@@ -25,9 +25,20 @@ def plan_property_label(key: str) -> str:
 
 def ordered_plan_property_items(
     frontmatter: Mapping[str, Any],
+    detail_fields: Sequence[str] | None = None,
 ) -> list[tuple[str, Any]]:
-    """Return all properties in canonical leading order, then alphabetically."""
-    known_order = {key: index for index, key in enumerate(PLAN_PROPERTY_ORDER)}
+    """Return all properties in declared/canonical leading order, then alphabetically."""
+    leading_order = (
+        tuple(
+            dict.fromkeys(
+                field.strip().casefold()
+                for field in (detail_fields or ())
+                if isinstance(field, str) and field.strip()
+            )
+        )
+        or PLAN_PROPERTY_ORDER
+    )
+    known_order = {key: index for index, key in enumerate(leading_order)}
     return sorted(
         frontmatter.items(),
         key=lambda item: (
