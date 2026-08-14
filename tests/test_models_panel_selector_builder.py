@@ -157,6 +157,48 @@ async def test_custom_member_rejects_unknown_alias() -> None:
         assert "unknown alias" in modal.notify.call_args.args[0]
 
 
+async def test_custom_member_rejects_typed_pool_expression() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal._on_member_custom_picked("claude/opus | codex/o3")
+        await pilot.pause()
+        assert modal._members == []
+        assert isinstance(pilot.app.screen, SelectorBuilderModal)
+        modal.notify.assert_called_once()
+        assert "single target" in modal.notify.call_args.args[0]
+
+
+async def test_custom_member_rejects_typed_fallback_expression() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal._on_member_custom_picked("claude/opus || codex/o3")
+        await pilot.pause()
+        assert modal._members == []
+        assert isinstance(pilot.app.screen, SelectorBuilderModal)
+        modal.notify.assert_called_once()
+        assert "single target" in modal.notify.call_args.args[0]
+
+
+async def test_custom_member_rejects_malformed_mixed_selector() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("")
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal._on_member_custom_picked("claude/opus | codex/o3 || claude/sonnet")
+        await pilot.pause()
+        assert modal._members == []
+        assert isinstance(pilot.app.screen, SelectorBuilderModal)
+        modal.notify.assert_called_once()
+        assert "cannot mix" in modal.notify.call_args.args[0]
+
+
 # ---------------------------------------------------------------------------
 # Remove / reorder
 # ---------------------------------------------------------------------------

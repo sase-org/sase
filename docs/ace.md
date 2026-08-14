@@ -2685,8 +2685,9 @@ value, so changing one member of an existing selector no longer means retyping t
 expression; `Edit` also offers a guided `Pool / fallback...` row next to `Custom...`
 that builds a selector from the picker without typing `|` by hand (see
 [Persistent edits](#persistent-edits) below). In `Override`, a typed pool or fallback is
-refused outright with a message pointing at `e` — overrides are config-only and take a
-single target, so `Override`'s `Custom...` never shows the `Pool / fallback...` row.
+refused outright with a message pointing at `e` — selectors are config-only and
+overrides take a single target, so `Override`'s `Custom...` never shows the
+`Pool / fallback...` row.
 
 `Override` continues from the picker to the duration picker (`15m`, `30m`, `1h`, `2h`,
 `4h`, `Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Press `t` in

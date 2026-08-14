@@ -39,7 +39,11 @@ from .base import OptionListNavigationMixin
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import CUSTOM_SENTINEL, AliasSelectionContext, ModelPickerModal
 from .models_panel_effort_cards import DefaultEffortLevelChoice, DefaultEffortLevelModal
-from .models_panel_selector import compose_selector, member_rejection
+from .models_panel_selector import (
+    compose_selector,
+    member_rejection,
+    parse_selector_for_display,
+)
 
 _MODE_LABELS: dict[ModelAliasSelectorMode, str] = {
     "round_robin": "round-robin pool",
@@ -263,6 +267,17 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         if result is None:
             return
         raw = result.strip()
+        parsed = parse_selector_for_display(raw)
+        if parsed.error is not None:
+            self.notify(parsed.error, severity="warning")
+            return
+        if parsed.selector is not None:
+            self.notify(
+                "Cannot add selector expression: a builder member must be a "
+                "single target.",
+                severity="warning",
+            )
+            return
         rejection = member_rejection(self._member_context, raw)
         if rejection is not None:
             self.notify(f"Cannot add {raw}: {rejection}.", severity="warning")
