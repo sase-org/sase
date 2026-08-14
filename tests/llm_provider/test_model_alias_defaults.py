@@ -11,6 +11,7 @@ from sase.llm_provider.load_balancing import (
     ModelAliasSelectorError,
     parse_model_alias_selector,
 )
+from sase.llm_provider import registry
 from sase.llm_provider.model_alias_policy import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     CHEAP_MODEL_ALIAS_NAME,
@@ -238,3 +239,32 @@ def test_parser_rejects_fallback_cycle_routed_through_default() -> None:
 
     with pytest.raises(RuntimeError, match="default.*cycle|cycle.*default"):
         _parse_fixture_aliases(aliases)
+
+
+def test_every_shipped_pool_member_names_a_registered_provider_model(
+    real_model_alias_defaults: None,
+) -> None:
+    """Every `provider/model` target member must name a real, published model.
+
+    Guards against typos like `grok/grok4.6` or a member pointing at a
+    provider the registry does not know about.
+    """
+    provider_names = set(registry.registered_provider_names())
+    model_to_provider = registry.model_to_provider_map()
+
+    for name, target in implicit_alias_targets().items():
+        selector = parse_model_alias_selector(target)
+        if selector is None:
+            continue
+        for member in selector.members:
+            clean_member, _effort = split_model_effort(member)
+            if "/" not in clean_member:
+                continue
+            provider, model = clean_member.split("/", 1)
+            assert provider in provider_names, (
+                f"'{name}' member {member!r} names unknown provider '{provider}'"
+            )
+            assert model_to_provider.get(model) == provider, (
+                f"'{name}' member {member!r} names a model '{model}' that "
+                f"provider '{provider}' does not publish"
+            )

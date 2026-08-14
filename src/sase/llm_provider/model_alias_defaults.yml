@@ -44,7 +44,7 @@ aliases:
       Extra-large bead phase agents that author an epic plan before
       implementation.
   smart:
-    target: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh"
+    target: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh | grok/grok-4.6@xhigh"
     description: "High-capability pool used automatically by medium phase agents."
   smarter:
     target: "codex/gpt-5.6-sol@xhigh | claude/opus@xhigh"
@@ -57,10 +57,10 @@ aliases:
       Highest-capability model used automatically by extra-large phase agents
       and large epic landers.
   cheap:
-    target: "claude/sonnet@high | codex/gpt-5.5@high"
+    target: "claude/sonnet@high | codex/gpt-5.5@high | grok/grok-4.6@high"
     description: "Load-balanced pool used automatically by small phase agents."
   cheaper:
-    target: "claude/sonnet@medium | codex/gpt-5.5@medium"
+    target: "claude/sonnet@medium | codex/gpt-5.5@medium | grok/grok-4.6@medium"
     description: >-
       Lower-cost load-balanced pool used automatically by extra-small phase
       agents.

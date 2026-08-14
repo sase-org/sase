@@ -3187,10 +3187,11 @@ Grok Build uses
 `grok --prompt-file /dev/stdin --output-format streaming-messages-json --permission-mode bypassPermissions --model <model> --cwd <cwd> --session-id <uuid> --no-plan --no-ask-user --no-auto-update --no-leader`
 and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is a
 generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
-deprecated regex tool, so Grok is explicit-only like Muse; see
-[llm_provider.provider](#llm_provider) above. Grok's `grok-4.6` model accepts only
-`low`/`medium`/`high`/`xhigh` for `--effort`; see
-[LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
+deprecated regex tool, so Grok never participates in autodetection like Muse; it is
+reached by explicit selection (see [llm_provider.provider](#llm_provider) above) or
+automatically through the shipped `@smart`/`@cheap`/`@cheaper` pools whenever the `grok`
+CLI is installed. Grok's `grok-4.6` model accepts only `low`/`medium`/`high`/`xhigh` for
+`--effort`; see [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider
 

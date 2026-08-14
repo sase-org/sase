@@ -169,9 +169,10 @@ provider = get_provider("claude")  # Explicit provider name
    their own priority. `agy` autodetects via the `agy` CLI name in the late-fallback
    slot. A provider that declares no priority never participates in autodetection:
    `muse` and `grok` deliberately omit one, because `muse` and `grok` are both generic
-   executable names and autodetect only checks `PATH` presence. Muse and Grok are
-   reachable only by explicit selection (see
-   [Muse Code Integration](#muse-code-integration) and
+   executable names and autodetect only checks `PATH` presence. Muse is reachable only
+   by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
+   never participates in autodetection either, but it is reached automatically by the
+   shipped `@smart`/`@cheap`/`@cheaper` pools whenever the `grok` CLI is installed (see
    [Grok Build Integration](#grok-build-integration)).
 
 ## Commit Finalization
@@ -814,12 +815,13 @@ The `GrokProvider` invokes xAI's Grok Build CLI (`grok`).
 
 ### Selection
 
-Grok is **explicit-only**. It publishes `llm_autodetect_cli_name` but deliberately no
-`llm_autodetect_priority`, so it never appears in autodetect candidates: `grok` is a
-generic executable name shared with a stale community CLI (`grok-dev`, which also uses
-`~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool. Reach Grok with
-`llm_provider.provider: grok`, `%model:grok/grok-4.6`, or by pointing `SASE_GROK_PATH`
-at the binary. When a `grok` on `PATH` does not identify itself as Grok Build,
+Grok publishes `llm_autodetect_cli_name` but deliberately no `llm_autodetect_priority`,
+so it never appears in autodetect candidates: `grok` is a generic executable name shared
+with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
+deprecated, unrelated `grok` regex tool. Reach Grok with `llm_provider.provider: grok`,
+`%model:grok/grok-4.6`, by pointing `SASE_GROK_PATH` at the binary, or automatically
+through the shipped `@smart`/`@cheap`/`@cheaper` load-balanced pools whenever the `grok`
+CLI is installed. When a `grok` on `PATH` does not identify itself as Grok Build,
 `sase doctor` reports a distinct wrong-binary advisory instead of silently launching it.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
@@ -1201,22 +1203,22 @@ independent built-in targets or pools. The current shipped defaults are generate
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias              | Description                                                                                     | Shipped default                                |
-| ------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| `@default`         | Model used when a prompt has no %model directive; delegates to @smarter unless configured.      | `@smarter`                                     |
-| `@epic_lander`     | Epic land agents that finalize and submit an epic.                                              | `@default`                                     |
-| `@big_epic_lander` | Epic land agents selected for plans at or above the configured phase-count threshold.           | `@smartest`                                    |
-| `@xsmall_worker`   | Extra-small bead phase agents that implement the simplest tasks directly.                       | `@cheaper`                                     |
-| `@small_worker`    | Small bead phase agents that implement directly.                                                | `@cheap`                                       |
-| `@medium_worker`   | Medium bead phase agents that implement directly.                                               | `@smart`                                       |
-| `@large_worker`    | Large bead phase agents that plan before implementation.                                        | `@smarter`                                     |
-| `@xlarge_worker`   | Extra-large bead phase agents that author an epic plan before implementation.                   | `@smartest`                                    |
-| `@smart`           | High-capability pool used automatically by medium phase agents.                                 | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh`   |
-| `@smarter`         | Higher-capability pool used automatically by large phase agents and by `@default`.              | `codex/gpt-5.6-sol@xhigh \| claude/opus@xhigh` |
-| `@smartest`        | Highest-capability model used automatically by extra-large phase agents and large epic landers. | `claude/opus@max`                              |
-| `@cheap`           | Load-balanced pool used automatically by small phase agents.                                    | `claude/sonnet@high \| codex/gpt-5.5@high`     |
-| `@cheaper`         | Lower-cost load-balanced pool used automatically by extra-small phase agents.                   | `claude/sonnet@medium \| codex/gpt-5.5@medium` |
-| `@cheapest`        | Lowest-cost load-balanced pool available for explicit use.                                      | `claude/haiku \| codex/gpt-5.3-codex-spark`    |
+| Alias              | Description                                                                                     | Shipped default                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `@default`         | Model used when a prompt has no %model directive; delegates to @smarter unless configured.      | `@smarter`                                                             |
+| `@epic_lander`     | Epic land agents that finalize and submit an epic.                                              | `@default`                                                             |
+| `@big_epic_lander` | Epic land agents selected for plans at or above the configured phase-count threshold.           | `@smartest`                                                            |
+| `@xsmall_worker`   | Extra-small bead phase agents that implement the simplest tasks directly.                       | `@cheaper`                                                             |
+| `@small_worker`    | Small bead phase agents that implement directly.                                                | `@cheap`                                                               |
+| `@medium_worker`   | Medium bead phase agents that implement directly.                                               | `@smart`                                                               |
+| `@large_worker`    | Large bead phase agents that plan before implementation.                                        | `@smarter`                                                             |
+| `@xlarge_worker`   | Extra-large bead phase agents that author an epic plan before implementation.                   | `@smartest`                                                            |
+| `@smart`           | High-capability pool used automatically by medium phase agents.                                 | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`    |
+| `@smarter`         | Higher-capability pool used automatically by large phase agents and by `@default`.              | `codex/gpt-5.6-sol@xhigh \| claude/opus@xhigh`                         |
+| `@smartest`        | Highest-capability model used automatically by extra-large phase agents and large epic landers. | `claude/opus@max`                                                      |
+| `@cheap`           | Load-balanced pool used automatically by small phase agents.                                    | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`       |
+| `@cheaper`         | Lower-cost load-balanced pool used automatically by extra-small phase agents.                   | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium` |
+| `@cheapest`        | Lowest-cost load-balanced pool available for explicit use.                                      | `claude/haiku \| codex/gpt-5.3-codex-spark`                            |
 
 <!-- END GENERATED: model-alias-defaults -->
 

@@ -135,13 +135,14 @@ Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-co
 
 ## Grok Build
 
-xAI's Grok Build CLI (`grok`). Grok is **explicit-only**: SASE never auto-detects it,
-because the executable name `grok` collides with `grok-dev` (a stale community CLI that
-also uses `~/.grok/`) and with Homebrew's deprecated, unrelated `grok` regex tool.
-Select it with `llm_provider.provider: grok`, `%model:grok/grok-4.6`, or
-`SASE_GROK_PATH`. If a `grok` on `PATH` does not identify itself as Grok Build,
-`sase doctor` reports it as a distinct, actionable finding rather than silently
-launching the wrong binary.
+xAI's Grok Build CLI (`grok`). SASE never auto-detects it, because the executable name
+`grok` collides with `grok-dev` (a stale community CLI that also uses `~/.grok/`) and
+with Homebrew's deprecated, unrelated `grok` regex tool. Select it explicitly with
+`llm_provider.provider: grok`, `%model:grok/grok-4.6`, or `SASE_GROK_PATH`, or reach it
+automatically through the shipped `@smart`/`@cheap`/`@cheaper` load-balanced pools
+whenever the `grok` CLI is installed. If a `grok` on `PATH` does not identify itself as
+Grok Build, `sase doctor` reports it as a distinct, actionable finding rather than
+silently launching the wrong binary.
 
 ### Install
 
