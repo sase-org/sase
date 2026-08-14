@@ -11,6 +11,10 @@ from sase.llm_provider.config import normalize_model_alias_reference
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
+# Sentinel returned when the user selects "Pool / fallback..." — only offered
+# when the caller opts in with ``include_selector_option`` (the persistent
+# Edit path). Selectors are config-only, so the Override picker never sets it.
+SELECTOR_SENTINEL = "__selector__"
 # Returned when the user selects "Follow-up default" and the caller opted
 # into ``distinct_default``. By default this row dismisses with ``None`` (the
 # same as cancel); callers that need to tell "use the follow-up default" apart
@@ -18,7 +22,7 @@ CUSTOM_SENTINEL = "__custom__"
 DEFAULT_SENTINEL = "__default__"
 _EMPTY_SENTINEL = "__empty__"
 
-AliasSelectionOperation = Literal["persistent", "temporary"]
+AliasSelectionOperation = Literal["persistent", "temporary", "member"]
 _RowKind = Literal[
     "alias_header",
     "alias",
@@ -26,6 +30,7 @@ _RowKind = Literal[
     "provider",
     "model",
     "custom",
+    "selector",
     "empty",
 ]
 
@@ -107,6 +112,17 @@ def _alias_dependencies(views: tuple[AliasView, ...]) -> dict[str, str]:
     return dependencies
 
 
+def _selector_reach_reason(view: AliasView) -> str | None:
+    """Return why *view* is unsafe as a selector member, or ``None``."""
+    if view.selector_mode is None:
+        return None
+    return (
+        "reaches a pool"
+        if view.selector_mode == "round_robin"
+        else "reaches a fallback"
+    )
+
+
 def _alias_disabled_reason(
     context: AliasSelectionContext,
     candidate: str,
@@ -118,6 +134,7 @@ def _alias_disabled_reason(
     if context.operation == "temporary":
         return None
 
+    views_by_name = {view.name: view for view in context.views}
     dependencies = _alias_dependencies(context.views)
     current = candidate
     visited: set[str] = set()
@@ -129,6 +146,12 @@ def _alias_disabled_reason(
         if current in visited:
             return "would create a cycle"
         visited.add(current)
+        if context.operation == "member":
+            view = views_by_name.get(current)
+            if view is not None:
+                reason = _selector_reach_reason(view)
+                if reason is not None:
+                    return reason
         dependency = dependencies.get(current)
         if dependency is None:
             return None
@@ -171,7 +194,7 @@ def _alias_row_text(
     if disabled_reason is not None:
         text.append(disabled_reason, style="bold #FF875F")
     else:
-        semantic = "dynamic ref" if operation == "persistent" else "snapshot"
+        semantic = "snapshot" if operation == "temporary" else "dynamic ref"
         if view.override is not None:
             semantic = f"override now · {semantic}"
         text.append(semantic, style="dim #A8A8A8")
@@ -217,6 +240,7 @@ def build_model_rows(
     *,
     include_default_option: bool = True,
     alias_context: AliasSelectionContext | None = None,
+    include_selector_option: bool = False,
 ) -> list[ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
     from sase.llm_provider.registry import (
@@ -288,6 +312,14 @@ def build_model_rows(
     if alias_context is not None:
         rows.extend(_build_alias_rows(alias_context))
 
+    if include_selector_option:
+        rows.append(
+            ModelPickerRow(
+                kind="selector",
+                label="  Pool / fallback...",
+                option_id=SELECTOR_SENTINEL,
+            )
+        )
     rows.append(
         ModelPickerRow(
             kind="custom",

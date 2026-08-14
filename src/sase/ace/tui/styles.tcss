@@ -2104,6 +2104,50 @@ ModelPickerModal {
 }
 
 
+/* Selector Builder Modal styling — pool / fallback authoring */
+SelectorBuilderModal {
+    align: center middle;
+}
+
+#selector-builder-container {
+    width: 78;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double #5FD7D7;
+    background: $surface;
+    padding: 1 2;
+}
+
+#selector-builder-header {
+    width: 100%;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#selector-builder-list {
+    height: auto;
+    max-height: 14;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#selector-builder-validation {
+    height: auto;
+    margin-top: 1;
+}
+
+#selector-builder-footer {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+    border-top: solid $secondary;
+    padding-top: 1;
+    margin-top: 1;
+}
+
+
 /* Agent Artifact Selection Modal styling */
 ArtifactFileSelectionModal {
     align: center middle;

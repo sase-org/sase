@@ -14,7 +14,9 @@ import pytest
 import sase.ace.tui.modals.models_panel_edit as models_panel_edit
 import sase.ace.tui.modals.models_panel_effort_edit as effort_edit
 import sase.ace.tui.modals.models_panel_runner_limit_edit as runner_limit_edit
+import sase.ace.tui.modals.models_panel_selector_builder as selector_builder
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.model_picker_modal import AliasSelectionContext
 from sase.ace.tui.modals.models_panel_edit import AliasEditPreviewModal
 from sase.ace.tui.modals.models_panel_effort_edit import (
     DefaultEffortEditPreviewModal,
@@ -22,8 +24,14 @@ from sase.ace.tui.modals.models_panel_effort_edit import (
 from sase.ace.tui.modals.models_panel_runner_limit_edit import (
     RunnerLimitEditPreviewModal,
 )
+from sase.ace.tui.modals.models_panel_selector_builder import SelectorBuilderModal
 from sase.config import ConfigEditOp
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
+from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
+    FROZEN_NOW,
+    calm_views,
+    effort_snapshot,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -250,4 +258,40 @@ async def test_models_panel_runner_limit_edit_preview_png_snapshot(
             page,
             "models_panel_runner_limit_edit_preview_120x40",
             title="ACE models panel — chezmoi runner-limit edit preview",
+        )
+
+
+async def test_models_panel_selector_builder_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        selector_builder, "resolved_target_is_available", lambda _target: True
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+
+        modal = SelectorBuilderModal(
+            alias="cheapest",
+            current_value="claude/haiku | codex/gpt-5.3-codex-spark",
+            alias_context=AliasSelectionContext(
+                views=tuple(calm_views()),
+                target_alias="cheapest",
+                operation="persistent",
+            ),
+            effort_snapshot=effort_snapshot(),
+            now=FROZEN_NOW,
+        )
+        page.app.push_screen(modal)
+        await page.expect_modal("SelectorBuilderModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_selector_builder_120x40",
+            title="ACE models panel — pool / fallback selector builder",
         )

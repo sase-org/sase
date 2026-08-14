@@ -303,7 +303,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-lz.3(compose_selector)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

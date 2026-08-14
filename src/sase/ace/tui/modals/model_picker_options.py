@@ -31,7 +31,9 @@ def filter_model_rows(
     if not query:
         return rows
 
-    special_rows = [row for row in rows if row.kind in {"default", "custom"}]
+    special_rows = [
+        row for row in rows if row.kind in {"default", "custom", "selector"}
+    ]
     filtered: list[ModelPickerRow] = []
     matched_targets = 0
     index = 0
@@ -96,7 +98,7 @@ def filter_model_rows(
                 option_id=_EMPTY_SENTINEL,
             )
         )
-    filtered.extend(row for row in special_rows if row.kind == "custom")
+    filtered.extend(row for row in special_rows if row.kind in {"selector", "custom"})
     return filtered
 
 
@@ -110,7 +112,7 @@ def rows_to_options(
     previous_kind: _RowKind | None = None
     for row in rows:
         if items and (
-            row.kind in {"provider", "alias_header"}
+            row.kind in {"provider", "alias_header", "selector"}
             or row.kind == "custom"
             or previous_kind == "default"
         ):

@@ -18,6 +18,7 @@ from .model_picker_options import (
 from .model_picker_rows import (
     CUSTOM_SENTINEL,
     DEFAULT_SENTINEL,
+    SELECTOR_SENTINEL,
     AliasSelectionContext,
     AliasSelectionOperation,
     alias_reference_rejection,
@@ -28,6 +29,7 @@ from .pane_entry_jump import KeyedPaneEntryJumpMixin
 __all__ = (
     "CUSTOM_SENTINEL",
     "DEFAULT_SENTINEL",
+    "SELECTOR_SENTINEL",
     "AliasSelectionContext",
     "AliasSelectionOperation",
     "ModelPickerModal",
@@ -114,6 +116,9 @@ class ModelPickerModal(
             ``None``). Only meaningful when ``include_default_option`` is True.
         alias_context: Optional Models-panel alias catalog and safety semantics.
             Callers that omit it retain the concrete-model-only picker.
+        include_selector_option: If True, add a ``"Pool / fallback..."`` row
+            that dismisses with :data:`SELECTOR_SENTINEL`. Only the persistent
+            Edit path opts in; selectors are config-only elsewhere.
     """
 
     _option_list_id = "model-picker-list"
@@ -131,6 +136,7 @@ class ModelPickerModal(
         include_default_option: bool = True,
         distinct_default: bool = False,
         alias_context: AliasSelectionContext | None = None,
+        include_selector_option: bool = False,
     ) -> None:
         super().__init__()
         self._title = title
@@ -140,6 +146,7 @@ class ModelPickerModal(
         self._all_rows = build_model_rows(
             include_default_option=include_default_option,
             alias_context=alias_context,
+            include_selector_option=include_selector_option,
         )
         self._visible_rows = self._all_rows
 

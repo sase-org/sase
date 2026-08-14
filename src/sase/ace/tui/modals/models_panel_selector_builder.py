@@ -1,0 +1,369 @@
+"""Guided pool / fallback selector builder for the Models panel Edit flow.
+
+Assembles a round-robin pool or ordered fallback chain from the existing
+model picker and effort ladder, so authoring a selector never requires typing
+``|`` / ``||`` by hand. This is presentation-only glue: parsing, composition,
+and validation all delegate to :mod:`sase.llm_provider.load_balancing` and
+:mod:`sase.llm_provider.model_alias_resolution` — no selector semantics live
+here.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from rich.text import Text
+from textual.app import ComposeResult
+from textual.binding import Binding
+from textual.containers import Container
+from textual.screen import ModalScreen
+from textual.widgets import OptionList, Static
+from textual.widgets._option_list import Option
+
+from sase.ace.tui.model_alias_styles import append_effort_suffix
+from sase.ace.tui.provider_styles import provider_model_badge_markup
+from sase.llm_provider import AliasView, EffectiveDefaultEffortSnapshot
+from sase.llm_provider.config import (
+    normalize_model_alias_reference,
+    validate_model_alias_selector_value,
+)
+from sase.llm_provider.load_balancing import (
+    ModelAliasSelectorError,
+    ModelAliasSelectorMode,
+    parse_model_alias_selector,
+)
+from sase.llm_provider.model_alias_resolution import resolved_target_is_available
+from sase.xprompt.effort import split_model_effort
+
+from .base import OptionListNavigationMixin
+from .custom_model_input_modal import CustomModelInputModal
+from .model_picker_modal import CUSTOM_SENTINEL, AliasSelectionContext, ModelPickerModal
+from .models_panel_effort_cards import DefaultEffortLevelChoice, DefaultEffortLevelModal
+from .models_panel_selector import compose_selector, member_rejection
+
+_MODE_LABELS: dict[ModelAliasSelectorMode, str] = {
+    "round_robin": "round-robin pool",
+    "fallback": "ordered fallback",
+}
+_AVAILABLE_STYLE = "#87D787"
+_UNAVAILABLE_STYLE = "#D78787"
+_INVALID_STYLE = "bold #FF875F"
+_KEYS_HINT = (
+    "a=add  d=remove  J/K=reorder  E=effort  t=toggle mode  enter=confirm  esc=cancel"
+)
+_MIN_MEMBERS = 2
+
+
+def _seed_selector(value: str) -> tuple[ModelAliasSelectorMode, list[str]]:
+    """Return the initial mode and member list for the builder."""
+    try:
+        selector = parse_model_alias_selector(value)
+    except ModelAliasSelectorError:
+        selector = None
+    if selector is not None:
+        return selector.mode, list(selector.members)
+    cleaned = value.strip()
+    return "round_robin", [cleaned] if cleaned else []
+
+
+def _resolved_target_text(
+    member: str, views_by_name: dict[str, AliasView]
+) -> str | None:
+    """Return a concrete ``provider/model`` (or bare model) string for *member*."""
+    cleaned = member.strip()
+    if not cleaned:
+        return None
+    if not cleaned.startswith("@"):
+        return cleaned
+    alias, _ = normalize_model_alias_reference(cleaned)
+    view = views_by_name.get(alias) if alias else None
+    if view is None:
+        return None
+    return f"{view.provider}/{view.model}" if view.provider else view.model
+
+
+def _member_option(
+    index: int, member: str, views_by_name: dict[str, AliasView]
+) -> Option:
+    """Render one member row: position, provider/model badge, effort, availability."""
+    raw_target, effort = split_model_effort(member)
+    resolved_target = _resolved_target_text(raw_target, views_by_name)
+    text = Text()
+    text.append(f"{index + 1}. ", style="bold #5FD7D7")
+    if resolved_target is not None:
+        text.append_text(
+            Text.from_markup(provider_model_badge_markup(None, resolved_target))
+        )
+        available = resolved_target_is_available(resolved_target)
+        text.append("  ")
+        text.append(
+            "✓" if available else "×",
+            style=_AVAILABLE_STYLE if available else _UNAVAILABLE_STYLE,
+        )
+    else:
+        text.append(member, style=_INVALID_STYLE)
+    append_effort_suffix(text, effort or "")
+    return Option(text, id=f"__member_{index}__")
+
+
+class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
+    """Assemble a pool/fallback selector from the picker and effort ladder."""
+
+    _option_list_id = "selector-builder-list"
+
+    BINDINGS = [
+        *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        Binding("a", "add_member", "Add", show=False),
+        Binding("d", "remove_member", "Remove", show=False),
+        Binding("J", "move_down", "Move down", show=False),
+        Binding("K", "move_up", "Move up", show=False),
+        Binding("E", "edit_effort", "Effort", show=False),
+        Binding("t", "toggle_mode", "Toggle mode", show=False),
+        Binding("enter", "confirm", "Confirm", show=False),
+    ]
+
+    def __init__(
+        self,
+        *,
+        alias: str,
+        current_value: str,
+        alias_context: AliasSelectionContext,
+        effort_snapshot: EffectiveDefaultEffortSnapshot,
+        now: float,
+    ) -> None:
+        super().__init__()
+        self._alias = alias
+        self._alias_context = alias_context
+        self._member_context = replace(alias_context, operation="member")
+        self._effort_snapshot = effort_snapshot
+        self._now = now
+        self._views_by_name = {view.name: view for view in alias_context.views}
+        mode, members = _seed_selector(current_value)
+        self._mode: ModelAliasSelectorMode = mode
+        self._members = members
+        self._pending_member = ""
+        self._pending_effort_index: int | None = None
+
+    # -- compose ----------------------------------------------------------
+
+    def compose(self) -> ComposeResult:
+        with Container(id="selector-builder-container"):
+            yield Static(self._header_text(), id="selector-builder-header")
+            yield OptionList(*self._render_options(), id=self._option_list_id)
+            yield Static(self._validation_text(), id="selector-builder-validation")
+            yield Static(_KEYS_HINT, id="selector-builder-footer")
+
+    def on_mount(self) -> None:
+        self.query_one(f"#{self._option_list_id}", OptionList).focus()
+
+    # -- rendering ----------------------------------------------------------
+
+    def _header_text(self) -> Text:
+        text = Text()
+        text.append(f"@{self._alias}  ", style="bold")
+        text.append(_MODE_LABELS[self._mode], style="bold #AF87FF")
+        text.append("\n")
+        if self._members:
+            text.append(compose_selector(self._mode, self._members), style="dim")
+        else:
+            text.append("(no members yet)", style="dim")
+        return text
+
+    def _render_options(self) -> list[Option]:
+        if not self._members:
+            return [
+                Option(
+                    Text("  (no members yet — press a to add one)", style="dim"),
+                    id="__empty__",
+                    disabled=True,
+                )
+            ]
+        return [
+            _member_option(index, member, self._views_by_name)
+            for index, member in enumerate(self._members)
+        ]
+
+    def _validation_errors(self) -> tuple[str, ...]:
+        if len(self._members) < _MIN_MEMBERS:
+            return ()
+        expression = compose_selector(self._mode, self._members)
+        return validate_model_alias_selector_value(self._alias, expression)
+
+    def _validation_text(self) -> Text:
+        if len(self._members) < _MIN_MEMBERS:
+            missing = _MIN_MEMBERS - len(self._members)
+            noun = "member" if missing == 1 else "members"
+            return Text(f"Add {missing} more {noun} to confirm", style="bold #FFD75F")
+        errors = self._validation_errors()
+        if errors:
+            text = Text()
+            for index, error in enumerate(errors):
+                if index:
+                    text.append("\n")
+                text.append(f"✗ {error}", style=_INVALID_STYLE)
+            return text
+        return Text("✓ ready to confirm", style="bold #87D787")
+
+    def _refresh_view(self, *, preferred_index: int | None = None) -> None:
+        self.query_one("#selector-builder-header", Static).update(self._header_text())
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        option_list.clear_options()
+        option_list.add_options(self._render_options())
+        if self._members:
+            index = 0 if preferred_index is None else preferred_index
+            index = max(0, min(index, len(self._members) - 1))
+            option_list.highlighted = index
+        self.query_one("#selector-builder-validation", Static).update(
+            self._validation_text()
+        )
+
+    def _highlighted_index(self) -> int | None:
+        if not self._members:
+            return None
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        return option_list.highlighted
+
+    # -- add member -----------------------------------------------------
+
+    def action_add_member(self) -> None:
+        self.app.push_screen(
+            ModelPickerModal(
+                title=f"Add Member — @{self._alias}",
+                include_default_option=False,
+                alias_context=self._member_context,
+            ),
+            callback=self._on_member_picked,
+        )
+
+    def _on_member_picked(self, result: str | None) -> None:
+        if result is None:
+            return
+        if result == CUSTOM_SENTINEL:
+            self.app.push_screen(
+                CustomModelInputModal(
+                    title="Custom Member",
+                    hint=(
+                        "Format: model, provider/model, or @alias; "
+                        "optional trailing @effort"
+                    ),
+                    placeholder="e.g. codex/gpt-5.6-sol@medium",
+                ),
+                callback=self._on_member_custom_picked,
+            )
+            return
+        rejection = member_rejection(self._member_context, result)
+        if rejection is not None:
+            self.notify(
+                f"Cannot add {result.strip()}: {rejection}.", severity="warning"
+            )
+            return
+        self._open_member_effort_picker(result)
+
+    def _on_member_custom_picked(self, result: str | None) -> None:
+        if result is None:
+            return
+        raw = result.strip()
+        rejection = member_rejection(self._member_context, raw)
+        if rejection is not None:
+            self.notify(f"Cannot add {raw}: {rejection}.", severity="warning")
+            return
+        _, effort = split_model_effort(raw)
+        if effort is not None:
+            self._append_member(raw)
+            return
+        self._open_member_effort_picker(raw)
+
+    def _open_member_effort_picker(self, raw_member: str) -> None:
+        self._pending_member = raw_member.strip()
+        self.app.push_screen(
+            DefaultEffortLevelModal(
+                "model",
+                self._effort_snapshot,
+                now=self._now,
+                model=self._pending_member,
+            ),
+            callback=self._on_member_effort_picked,
+        )
+
+    def _on_member_effort_picked(self, result: DefaultEffortLevelChoice | None) -> None:
+        if result is None:
+            return
+        member = self._pending_member
+        if result.effort is not None:
+            member = f"{member}@{result.effort}"
+        self._append_member(member)
+
+    def _append_member(self, member: str) -> None:
+        self._members.append(member)
+        self._refresh_view(preferred_index=len(self._members) - 1)
+
+    # -- remove / reorder -------------------------------------------------
+
+    def action_remove_member(self) -> None:
+        index = self._highlighted_index()
+        if index is None:
+            return
+        del self._members[index]
+        self._refresh_view(preferred_index=index)
+
+    def action_move_down(self) -> None:
+        self._reorder(1)
+
+    def action_move_up(self) -> None:
+        self._reorder(-1)
+
+    def _reorder(self, delta: int) -> None:
+        index = self._highlighted_index()
+        if index is None:
+            return
+        target = index + delta
+        if not (0 <= target < len(self._members)):
+            return
+        self._members[index], self._members[target] = (
+            self._members[target],
+            self._members[index],
+        )
+        self._refresh_view(preferred_index=target)
+
+    # -- effort -------------------------------------------------------------
+
+    def action_edit_effort(self) -> None:
+        index = self._highlighted_index()
+        if index is None:
+            return
+        self._pending_effort_index = index
+        target, _ = split_model_effort(self._members[index])
+        self.app.push_screen(
+            DefaultEffortLevelModal(
+                "model",
+                self._effort_snapshot,
+                now=self._now,
+                model=target,
+            ),
+            callback=self._on_member_effort_edited,
+        )
+
+    def _on_member_effort_edited(self, result: DefaultEffortLevelChoice | None) -> None:
+        if result is None:
+            return
+        index = self._pending_effort_index
+        self._pending_effort_index = None
+        if index is None or not (0 <= index < len(self._members)):
+            return
+        target, _ = split_model_effort(self._members[index])
+        self._members[index] = f"{target}@{result.effort}" if result.effort else target
+        self._refresh_view(preferred_index=index)
+
+    # -- mode / confirm -------------------------------------------------
+
+    def action_toggle_mode(self) -> None:
+        self._mode = "fallback" if self._mode == "round_robin" else "round_robin"
+        self._refresh_view(preferred_index=self._highlighted_index())
+
+    def action_confirm(self) -> None:
+        if len(self._members) < _MIN_MEMBERS or self._validation_errors():
+            return
+        self.dismiss(compose_selector(self._mode, self._members))
+
+
+__all__ = ["SelectorBuilderModal"]

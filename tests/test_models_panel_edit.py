@@ -13,6 +13,7 @@ import sase.ace.tui.modals.models_panel_edit as models_panel_edit
 from sase.ace.tui.modals.custom_model_input_modal import CustomModelInputModal
 from sase.ace.tui.modals.model_picker_modal import (
     CUSTOM_SENTINEL,
+    SELECTOR_SENTINEL,
     AliasSelectionContext,
     ModelPickerModal,
 )
@@ -22,6 +23,7 @@ from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
+from sase.ace.tui.modals.models_panel_selector_builder import SelectorBuilderModal
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from tests._models_panel_helpers import (
     ModelsPanelTestApp as _TestApp,
@@ -84,6 +86,77 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
         assert picker._alias_context.views == tuple(views)
         ids = {row.option_id for row in picker._all_rows}
         assert {"@bucketed_a", "@bucketed_b"} <= ids
+
+
+async def test_action_edit_picker_offers_selector_builder_row(monkeypatch: Any) -> None:
+    _patch_views(monkeypatch, [_view("medium_worker", "role")])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        await pilot.press("l", "e")
+        await pilot.pause()
+
+        picker = pilot.app.screen
+        assert isinstance(picker, ModelPickerModal)
+        assert any(row.option_id == SELECTOR_SENTINEL for row in picker._all_rows)
+
+
+async def test_on_edit_model_picked_selector_sentinel_opens_builder(
+    monkeypatch: Any,
+) -> None:
+    target = _view("medium_worker", "role")
+    other = _view("smartest", "role")
+    _patch_views(monkeypatch, [target, other])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = target
+        panel._pending_alias_selection = AliasSelectionContext(
+            (target, other), target.name, "persistent"
+        )
+        panel._on_edit_model_picked(SELECTOR_SENTINEL)
+        await pilot.pause()
+
+        screen = pilot.app.screen
+        assert isinstance(screen, SelectorBuilderModal)
+        assert screen._alias == "medium_worker"
+
+
+async def test_on_selector_built_routes_to_preview(monkeypatch: Any) -> None:
+    view = _view("medium_worker", "role")
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_edit_view = view
+        panel._on_selector_built("claude/opus | codex/o3")
+        await pilot.pause()
+
+        screen = pilot.app.screen
+        assert isinstance(screen, AliasEditPreviewModal)
+        assert screen._op.value == "claude/opus | codex/o3"
+        assert panel._pending_edit_raw_model == "claude/opus | codex/o3"
+
+
+async def test_on_selector_built_cancel_is_noop(monkeypatch: Any) -> None:
+    _patch_views(monkeypatch, [_view("medium_worker", "role")])
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._on_selector_built(None)
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, ModelsPanel)
 
 
 async def test_on_edit_model_picked_opens_preview_with_set_op(monkeypatch: Any) -> None:

@@ -6,10 +6,11 @@ from textual.widgets import Input, OptionList, Static
 
 from sase.ace.tui.modals.model_picker_modal import (
     CUSTOM_SENTINEL,
+    SELECTOR_SENTINEL,
     ModelPickerModal,
     alias_reference_rejection,
 )
-from sase.ace.tui.modals.model_picker_options import rows_to_options
+from sase.ace.tui.modals.model_picker_options import filter_model_rows, rows_to_options
 from sase.ace.tui.modals.model_picker_rows import (
     _alias_disabled_reason,
     build_model_rows,
@@ -317,3 +318,78 @@ async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() 
         assert isinstance(option.prompt, Text)
         assert "\n" not in option.prompt.plain
         assert option.prompt.no_wrap is True
+
+
+# ---------------------------------------------------------------------------
+# Pool / fallback builder entry point (selector-builder)
+# ---------------------------------------------------------------------------
+
+
+def test_include_selector_option_adds_row_next_to_custom() -> None:
+    without = build_model_rows(include_default_option=False)
+    assert not any(row.kind == "selector" for row in without)
+
+    with_flag = build_model_rows(
+        include_default_option=False, include_selector_option=True
+    )
+    assert with_flag[-1].kind == "custom"
+    assert with_flag[-2].kind == "selector"
+    assert with_flag[-2].option_id == SELECTOR_SENTINEL
+    assert with_flag[-2].label.strip() == "Pool / fallback..."
+
+
+def test_filter_keeps_selector_and_custom_rows_visible() -> None:
+    rows = build_model_rows(include_default_option=False, include_selector_option=True)
+    filtered = filter_model_rows(rows, "no-such-match-at-all")
+    kinds = [row.kind for row in filtered]
+    assert "selector" in kinds
+    assert "custom" in kinds
+
+
+async def test_model_picker_modal_selector_row_gated_by_flag() -> None:
+    async with ModelPickerTestApp().run_test():
+        without = ModelPickerModal(include_default_option=False)
+        assert not any(row.kind == "selector" for row in without._all_rows)
+
+        with_flag = ModelPickerModal(
+            include_default_option=False, include_selector_option=True
+        )
+        assert any(row.option_id == SELECTOR_SENTINEL for row in with_flag._all_rows)
+
+
+def test_member_operation_disables_selector_owning_aliases() -> None:
+    views = [
+        make_alias_view("target", "user"),
+        make_alias_view("pool_owner", "user", selector_mode="round_robin"),
+        make_alias_view("fallback_owner", "user", selector_mode="fallback"),
+        make_alias_view(
+            "safe", "user", configured=True, configured_value="claude/haiku"
+        ),
+    ]
+    context = make_alias_context(target="target", operation="member", views=views)
+
+    assert _alias_disabled_reason(context, "target") == "current alias"
+    assert _alias_disabled_reason(context, "pool_owner") == "reaches a pool"
+    assert _alias_disabled_reason(context, "fallback_owner") == "reaches a fallback"
+    assert _alias_disabled_reason(context, "safe") is None
+
+
+def test_member_operation_disables_alias_chain_reaching_selector() -> None:
+    views = [
+        make_alias_view("target", "user"),
+        make_alias_view("pool_owner", "user", selector_mode="round_robin"),
+        make_alias_view("hop", "user", configured=True, configured_value="@pool_owner"),
+    ]
+    context = make_alias_context(target="target", operation="member", views=views)
+
+    assert _alias_disabled_reason(context, "hop") == "reaches a pool"
+
+
+def test_persistent_operation_does_not_reject_selector_owning_alias() -> None:
+    views = [
+        make_alias_view("target", "user"),
+        make_alias_view("pool_owner", "user", selector_mode="round_robin"),
+    ]
+    context = make_alias_context(target="target", operation="persistent", views=views)
+
+    assert _alias_disabled_reason(context, "pool_owner") is None

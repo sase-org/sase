@@ -15,6 +15,7 @@ from .config_commit import push_config_commit_prompt, submit_config_commit_task
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import (
     CUSTOM_SENTINEL,
+    SELECTOR_SENTINEL,
     AliasSelectionContext,
     ModelPickerModal,
     alias_reference_rejection,
@@ -31,6 +32,7 @@ from .models_panel_effort_cards import (
     DefaultEffortLevelModal,
 )
 from .models_panel_selector import member_rejection, parse_selector_for_display
+from .models_panel_selector_builder import SelectorBuilderModal
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -75,6 +77,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 title=f"Edit Model — @{view.name}",
                 include_default_option=False,
                 alias_context=self._pending_alias_selection,
+                include_selector_option=True,
             ),
             callback=self._on_edit_model_picked,
         )
@@ -107,6 +110,21 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return
         view = self._pending_edit_view
         if view is None:
+            return
+        if result == SELECTOR_SENTINEL:
+            selection = self._pending_alias_selection
+            if selection is None:
+                return
+            self.app.push_screen(
+                SelectorBuilderModal(
+                    alias=view.name,
+                    current_value=view.raw_value or "",
+                    alias_context=selection,
+                    effort_snapshot=self._effort_snapshot,
+                    now=self._models_panel_now(),
+                ),
+                callback=self._on_selector_built,
+            )
             return
         rejection = alias_reference_rejection(self._pending_alias_selection, result)
         if rejection is not None:
@@ -194,6 +212,15 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             raw_model = f"{raw_model}@{result.effort}"
         self._pending_edit_raw_model = raw_model
         self._open_model_edit_preview(view, raw_model)
+
+    def _on_selector_built(self, result: str | None) -> None:
+        if result is None:
+            return
+        view = self._pending_edit_view
+        if view is None:
+            return
+        self._pending_edit_raw_model = result
+        self._open_model_edit_preview(view, result)
 
     def _open_model_edit_preview(self, view: AliasView, model: str) -> None:
         selector_errors = validate_model_alias_selector_value(view.name, model)
