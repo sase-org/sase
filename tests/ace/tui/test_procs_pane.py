@@ -180,7 +180,7 @@ async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
 
         assert isinstance(pilot.app.screen, ConfirmActionModal)
         confirm = cast(ConfirmActionModal, pilot.app.screen)
-        assert confirm._title == "Kill Task"
+        assert confirm._title == "Kill Proc"
         assert "sync sase-42" in confirm._message
 
         await pilot.press("y")
@@ -199,7 +199,7 @@ async def test_tasks_tab_empty_state_and_empty_output_guards() -> None:
 
         option_list = pane.query_one("#procs-list", OptionList)
         assert option_list.option_count == 0
-        assert "No background tasks yet." in output_plain(pane)
+        assert "No procs yet." in output_plain(pane)
 
         pane.action_edit_output()
         pane.action_copy_output()

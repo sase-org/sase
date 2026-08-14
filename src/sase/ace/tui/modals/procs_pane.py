@@ -93,7 +93,7 @@ class ProcsPane(
         yield Label(self._title_text(), id="procs-pane-title")
         with Horizontal(id="procs-panels"):
             with Vertical(id="procs-list-panel"):
-                yield Label("Tasks", classes="config-region-header")
+                yield Label("Procs", classes="config-region-header")
                 yield TaskList(id=self._option_list_id)
             with Vertical(id="procs-output-panel"):
                 yield Label(

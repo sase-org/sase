@@ -46,7 +46,7 @@ async def test_statistics_loads_only_after_its_tab_becomes_active(
         assert calls == []
         assert not modal.query("#statistics")
 
-        await page.press("4")
+        await page.press("5")
         await page.wait_for(lambda _state: bool(modal.query("#statistics")))
         pane = modal.query_one("#statistics", StatisticsPane)
         await page.wait_for(lambda _state: pane._loaded_once and not pane._loading)

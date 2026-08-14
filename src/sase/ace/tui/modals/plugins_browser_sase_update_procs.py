@@ -308,12 +308,9 @@ class SaseUpdateProcMixin:
         if running_procs:
             if not deferred:
                 count = len(running_procs)
-                noun = "task" if count == 1 else "tasks"
+                noun = "proc" if count == 1 else "procs"
                 verb = "finishes" if count == 1 else "finish"
-                self._notify(
-                    f"{message} - restart queued until {count} background "
-                    f"{noun} {verb}."
-                )
+                self._notify(f"{message} - restart queued until {count} {noun} {verb}.")
             set_timer = getattr(self.app, "set_timer", None)
             if callable(set_timer):
                 set_timer(

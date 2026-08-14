@@ -541,9 +541,9 @@ async def test_config_center_cycles_seven_tabs(
         # Tabs cycle alphabetically by their visible labels.
         for tab in (
             "logs",
+            "procs",
             "projects",
             "statistics",
-            "procs",
             "updates",
             "xprompts",
             "config",

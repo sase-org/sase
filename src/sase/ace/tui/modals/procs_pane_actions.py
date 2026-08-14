@@ -68,7 +68,7 @@ class ProcsPaneActionsMixin(_MixinBase):
 
         if task is None:
             title.update("Output")
-            content.update(Text("No background tasks yet.", style="dim italic"))
+            content.update(Text("No procs yet.", style="dim italic"))
             self._reset_output_scroll()
             return
 
@@ -127,7 +127,7 @@ class ProcsPaneActionsMixin(_MixinBase):
             return
         if task.store_backed:
             self.notify(
-                "Durable tasks age out with tasks.history_limit",
+                "Durable procs age out with procs.history_limit",
                 severity="warning",
             )
             return
@@ -173,8 +173,8 @@ class ProcsPaneActionsMixin(_MixinBase):
 
         self.app.push_screen(
             ConfirmActionModal(
-                title="Kill Task",
-                message=f"Kill running task: {task.label}?",
+                title="Kill Proc",
+                message=f"Kill running proc: {task.label}?",
                 kind=ConfirmKind.DANGER,
                 confirm_label="Kill",
                 cancel_label="Cancel",
@@ -260,7 +260,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         schedule_copy_delivery(
             self,
             output,
-            copied_label=f"task output ({line_count} lines)",
+            copied_label=f"proc output ({line_count} lines)",
             task_name="sase-copy-task-output",
         )
 

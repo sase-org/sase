@@ -188,7 +188,7 @@ class ProcActionsMixin:
             existing = self._proc_queue.get_running_for_scopes(exclusive_scopes)
         if existing is not None:
             msg = duplicate_message or (
-                f"A {existing.proc_type} task is already running for "
+                f"A {existing.proc_type} proc is already running for "
                 f"{humanize_cl_name(cl_name)}"
             )
             self.notify(msg, severity="warning")  # type: ignore[attr-defined]
@@ -297,7 +297,7 @@ class ProcActionsMixin:
                 self.notify(display_message)  # type: ignore[attr-defined]
             else:
                 self.notify(  # type: ignore[attr-defined]
-                    f"Task failed: {display_message}",
+                    f"Proc failed: {display_message}",
                     severity="error",
                 )
 
@@ -371,7 +371,7 @@ class ProcActionsMixin:
             )
             if config.notify_on_complete:
                 self.notify(  # type: ignore[attr-defined]
-                    f"Task failed: {error_msg}",
+                    f"Proc failed: {error_msg}",
                     severity="error",
                 )
             if config.on_complete is not None and proc_info is not None:

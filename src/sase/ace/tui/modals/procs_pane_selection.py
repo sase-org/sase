@@ -369,7 +369,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
         running = sum(1 for task in self._tasks if is_active(task))
         done = len(self._tasks) - running
         scope = "all sessions" if self._all_sessions else "this session"
-        return f"Tasks · {scope}  [{running} running · {done} done]"
+        return f"Procs · {scope}  [{running} running · {done} done]"
 
 
 __all__ = ["ProcsPaneSelectionMixin", "TaskList"]

@@ -98,5 +98,5 @@ async def test_config_center_procs_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_procs_tab_120x40",
-            title="ACE SASE Admin Center - Tasks tab",
+            title="ACE SASE Admin Center - Procs tab",
         )

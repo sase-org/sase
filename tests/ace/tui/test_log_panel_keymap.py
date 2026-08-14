@@ -68,9 +68,9 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
     assert _TAB_ORDER == (
         "config",
         "logs",
+        "procs",
         "projects",
         "statistics",
-        "procs",
         "updates",
         "xprompts",
     )
@@ -101,13 +101,13 @@ def test_keyless_tasks_command_opens_tasks_tab() -> None:
     assert not any(c.id == "leader.task_queue" for c in catalog)
     spec = next(c for c in catalog if c.id == "tasks")
 
-    assert spec.label == "Open tasks panel"
+    assert spec.label == "Open procs panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
     assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_tasks_panel"
-    assert "task queue" in spec.aliases
+    assert "proc queue" in spec.aliases
 
 
 def test_keyless_statistics_command_opens_statistics_tab() -> None:

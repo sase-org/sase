@@ -119,13 +119,13 @@ def test_tasks_command_is_keyless_and_global() -> None:
     assert not any(c.id == "leader.task_queue" for c in catalog)
     spec = next(c for c in catalog if c.id == "tasks")
 
-    assert spec.label == "Open tasks panel"
+    assert spec.label == "Open procs panel"
     assert spec.key_display == ""
     assert spec.key_sequence == ()
     assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "app_action"
     assert spec.executor.action == "open_tasks_panel"
-    assert "task queue" in spec.aliases
+    assert "proc queue" in spec.aliases
 
 
 def test_jump_to_next_unread_done_agent_leader_command_is_agents_only() -> None:

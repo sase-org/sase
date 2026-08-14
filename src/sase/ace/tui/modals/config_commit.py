@@ -126,7 +126,7 @@ def submit_config_commit_task(
     submit = getattr(app, "_submit_tracked_proc", None)
     if submit is None:
         app.notify(
-            "Could not commit: background task queue unavailable.",
+            "Could not commit: proc queue unavailable.",
             severity="error",
         )
         return

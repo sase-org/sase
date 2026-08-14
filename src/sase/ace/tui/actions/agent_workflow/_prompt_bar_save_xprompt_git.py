@@ -181,7 +181,7 @@ class PromptBarSaveXpromptGitMixin:
         submit = getattr(self, "_submit_tracked_proc", None)
         if submit is None:
             self.notify(  # type: ignore[attr-defined]
-                f"Could not commit {noun}: background task queue unavailable.",
+                f"Could not commit {noun}: proc queue unavailable.",
                 severity="error",
             )
             return
@@ -315,7 +315,7 @@ def _submit_post_write_action(
     submit = getattr(submit_owner, "_submit_tracked_proc", None)
     if not callable(submit):
         notifier.notify(
-            f"Could not run {offer.label}: background task queue unavailable.",
+            f"Could not run {offer.label}: proc queue unavailable.",
             severity="error",
         )
         return

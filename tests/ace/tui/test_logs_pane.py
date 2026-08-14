@@ -125,8 +125,8 @@ async def test_tab_switches_admin_center_tabs_and_brackets_do_not(
 
         await pilot.press("tab")
         await pilot.pause()
-        assert modal._active_tab == "projects"
-        assert switcher.current == "projects"
+        assert modal._active_tab == "procs"
+        assert switcher.current == "procs"
 
         await pilot.press("shift+tab")
         await pilot.pause()

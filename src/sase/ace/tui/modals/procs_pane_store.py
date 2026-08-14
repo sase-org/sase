@@ -210,7 +210,7 @@ class ProcsPaneStoreMixin(_MixinBase):
             prior_identity=prior_identity,
         )
         scope = "all sessions" if self._all_sessions else "this session"
-        self.notify(f"Tasks scope: {scope}")
+        self.notify(f"Procs scope: {scope}")
 
     def _kill_store_task(self, task: ProcInfo) -> None:
         """Signal a durable task off the event loop, then reload the store."""

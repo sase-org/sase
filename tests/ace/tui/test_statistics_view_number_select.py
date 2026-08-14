@@ -72,7 +72,7 @@ async def test_bare_digit_keeps_switching_admin_center_tabs(
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
 
-        await page.press("3")
+        await page.press("4")
         await page.wait_for(lambda _state: modal._active_tab == "projects")
 
         assert pane._view == "overview"

@@ -56,7 +56,7 @@ async def test_single_section_visited_leaves_opener_inert(
         modal = page.app.screen
         assert isinstance(modal, ConfigCenterModal)
 
-        await page.press("5")
+        await page.press("3")
         await page.wait_for(lambda _state: modal._active_tab == "procs")
         assert modal.check_action("alternate_center_tab", ()) is False
 

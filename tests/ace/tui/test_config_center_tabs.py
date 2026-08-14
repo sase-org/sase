@@ -53,9 +53,9 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
     assert [spec.description for spec in _TAB_SPECS] == [
         "Review and edit layered SASE settings with provenance and live previews.",
         "Inspect TUI activity, launch failures, and notification history.",
+        "Follow procs, inspect live output, and manage running jobs.",
         "Manage projects and inspect their repositories and workspaces.",
         "Explore runners, projects, activity, and trends over time.",
-        "Follow background work, inspect live output, and manage running jobs.",
         "Update SASE, plugins, and supported agent CLIs from one place.",
         "Find, preview, and load reusable prompts and workflows.",
     ]
@@ -159,8 +159,8 @@ def test_home_hint_explains_no_history_and_uses_catalog_resume_style() -> None:
     assert "1-7/click · Tab cycle" in no_history.plain
 
     resume_ready = _home_hint_text("procs", "f2", compact=False)
-    assert resume_ready.plain.startswith(" f2  resume Tasks")
-    target_offset = resume_ready.plain.index("resume Tasks")
+    assert resume_ready.plain.startswith(" f2  resume Procs")
+    target_offset = resume_ready.plain.index("resume Procs")
     assert any(
         span.start <= target_offset < span.end and str(span.style) == "bold #5FD75F"
         for span in resume_ready.spans
@@ -349,7 +349,7 @@ async def test_landing_is_keyboard_transparent_and_digits_work_immediately(
         landing_widgets = [landing, *landing.query("*")]
         assert all(not widget.can_focus for widget in landing_widgets)
 
-        await pilot.press("4")
+        await pilot.press("5")
         await wait_for(pilot, lambda: modal._active_tab == "statistics")
 
         assert calls == ["statistics"]

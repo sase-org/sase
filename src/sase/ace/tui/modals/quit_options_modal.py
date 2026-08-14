@@ -122,8 +122,8 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         )
 
     def _warning_text(self) -> str:
-        noun = "task" if self._running_task_count == 1 else "tasks"
-        return f"  {self._running_task_count} background {noun} will be stopped."
+        noun = "proc" if self._running_task_count == 1 else "procs"
+        return f"  {self._running_task_count} {noun} will be stopped."
 
     def action_choose_quit_stop_axe(self) -> None:
         """Quit and stop the axe daemon."""

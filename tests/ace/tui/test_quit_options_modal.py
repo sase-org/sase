@@ -18,8 +18,8 @@ def test_warning_text_singular_and_plural() -> None:
     single = QuitOptionsModal(running_task_count=1)
     plural = QuitOptionsModal(running_task_count=2)
 
-    assert single._warning_text() == "  1 background task will be stopped."
-    assert plural._warning_text() == "  2 background tasks will be stopped."
+    assert single._warning_text() == "  1 proc will be stopped."
+    assert plural._warning_text() == "  2 procs will be stopped."
 
 
 async def test_modal_keys_return_choices(monkeypatch) -> None:

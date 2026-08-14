@@ -262,7 +262,7 @@ class AgentTribeAssignmentMixin:
             _task,
             display_name=f"Persist tribes: {changed}",
             dedup_key="agent-directive-persist:tribes",
-            duplicate_message="A tribe persistence task is already running",
+            duplicate_message="A tribe persistence proc is already running",
             on_complete=_on_complete,
             reload_on_complete=False,
             notify_on_complete=False,

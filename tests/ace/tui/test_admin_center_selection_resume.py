@@ -55,14 +55,14 @@ class _ResumeCase:
 _CASES = (
     _ResumeCase("config", "1"),
     _ResumeCase("logs", "2"),
-    _ResumeCase("projects", "3"),
-    _ResumeCase("repos", "3", ("right_square_bracket",)),
+    _ResumeCase("projects", "4"),
+    _ResumeCase("repos", "4", ("right_square_bracket",)),
     _ResumeCase(
         "workspaces",
-        "3",
+        "4",
         ("right_square_bracket", "right_square_bracket"),
     ),
-    _ResumeCase("procs", "5"),
+    _ResumeCase("procs", "3"),
     _ResumeCase("plugins", "6", ("right_square_bracket",)),
     _ResumeCase(
         "agent-clis",

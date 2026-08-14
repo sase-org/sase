@@ -183,13 +183,21 @@ def _iter_tasks_command() -> Iterator[CommandSpec]:
     """
     yield CommandSpec(
         id="tasks",
-        label="Open tasks panel",
+        label="Open procs panel",
         key_sequence=(),
         key_display="",
         category="Display",
         tabs=ALL_TABS,
         executor=CommandExecutor(kind="app_action", action="open_tasks_panel"),
-        aliases=("tasks", "task queue", "background tasks", "jobs", "queue"),
+        aliases=(
+            "procs",
+            "proc queue",
+            "background procs",
+            "tasks",
+            "task queue",
+            "jobs",
+            "queue",
+        ),
     )
 
 

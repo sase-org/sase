@@ -559,6 +559,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
             "settings",
             "config",
             "configuration",
+            "procs",
+            "proc queue",
             "tasks",
             "task queue",
             "logs",

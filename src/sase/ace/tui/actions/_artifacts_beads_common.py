@@ -140,7 +140,7 @@ class ArtifactsBeadsCommonMixin:
             task,
             display_name=display_name,
             dedup_key=f"beads:{operation}:{project}:{bead_id}",
-            duplicate_message=f"A {operation} task is already running for {bead_id}",
+            duplicate_message=f"A {operation} proc is already running for {bead_id}",
             on_complete=completed,
             reload_on_complete=False,
         )

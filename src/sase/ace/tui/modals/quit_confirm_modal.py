@@ -154,7 +154,7 @@ class QuitConfirmModal(ModalScreen[bool]):
 
     def _summary_text(self) -> Text:
         count = len(self._tasks)
-        noun = "task" if count == 1 else "tasks"
+        noun = "proc" if count == 1 else "procs"
         verb = "is" if count == 1 else "are"
         target_object = "it" if count == 1 else "them"
         target_subject = "it" if count == 1 else "they"
@@ -162,7 +162,7 @@ class QuitConfirmModal(ModalScreen[bool]):
 
         text = Text()
         text.append("!  ", style="bold yellow")
-        text.append(f"{count} background {noun} {verb} still running.", style="bold")
+        text.append(f"{count} {noun} {verb} still running.", style="bold")
         text.append(
             "\n   Quitting now will kill "
             f"{target_object} before {target_subject} {finish}.",

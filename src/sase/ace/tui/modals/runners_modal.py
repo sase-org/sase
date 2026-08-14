@@ -285,7 +285,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         text.append("\n")
 
         # Background Tasks section (teal) - TUI background operations
-        self._add_section_header(text, "Background Tasks", "#48CAE4")
+        self._add_section_header(text, "Procs", "#48CAE4")
         if self._background_procs:
             for proc in self._background_procs:
                 dummy = RunnerInfo(
@@ -303,7 +303,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
                 self._jumpable_runners.append(_JumpableRunner(dummy, "proc"))
                 self._add_proc_entry(text, proc, "#48CAE4", hint_char=_next_hint())
         else:
-            self._add_empty_row(text, "No background tasks", "#48CAE4")
+            self._add_empty_row(text, "No procs", "#48CAE4")
         self._add_section_footer(text, "#48CAE4")
 
         return text

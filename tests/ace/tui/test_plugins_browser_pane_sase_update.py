@@ -215,7 +215,7 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
         assert restart_calls == []
         assert calls  # initial load happened; changed update does not need a reload
         assert any(
-            "restart queued until 1 background task finishes" in message
+            "restart queued until 1 proc finishes" in message
             for message, _severity in messages
         )
 

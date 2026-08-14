@@ -41,9 +41,9 @@ def test_format_summary_singular_and_plural() -> None:
     single = QuitConfirmModal([_task()])
     plural = QuitConfirmModal([_task("task-1"), _task("task-2", "mail")])
 
-    assert "1 background task is still running." in single._summary_text().plain
+    assert "1 proc is still running." in single._summary_text().plain
     assert "kill it before it finishes" in single._summary_text().plain
-    assert "2 background tasks are still running." in plural._summary_text().plain
+    assert "2 procs are still running." in plural._summary_text().plain
     assert "kill them before they finish" in plural._summary_text().plain
 
 

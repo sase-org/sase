@@ -74,7 +74,7 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         assert isinstance(first, ConfigCenterModal)
         assert first._active_tab is None
 
-        await page.press("5")
+        await page.press("3")
         await page.wait_for(lambda _state: first._active_tab == "procs")
         await page.press("escape")
         await page.expect_no_modal()
@@ -166,7 +166,7 @@ async def test_persisted_tab_seeds_home_and_repeated_opener_resume(
         assert modal._active_tab is None
         assert modal._panes == {}
         hint = modal.query_one("#admin-center-home-hint", Static).render().plain
-        assert "resume Tasks" in hint
+        assert "resume Procs" in hint
 
         await page.press("number_sign")
         await page.wait_for(lambda _state: modal._active_tab == "procs")
@@ -230,7 +230,7 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
             timeout=1.5,
         )
         try:
-            await page.press("5")
+            await page.press("3")
             await page.wait_for(lambda _state: modal._active_tab == "procs")
             await page.press("6")
             await page.wait_for(lambda _state: modal._active_tab == "updates")
@@ -346,7 +346,7 @@ async def test_custom_opener_opens_home_resumes_and_is_displayed(
         assert isinstance(modal, ConfigCenterModal)
         hint = modal.query_one("#admin-center-home-hint", Static).render().plain
         assert "f2" in hint
-        assert "resume Tasks" in hint
+        assert "resume Procs" in hint
         assert "#" not in hint
 
         await page.press("f2")

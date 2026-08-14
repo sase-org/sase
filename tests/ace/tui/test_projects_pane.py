@@ -85,11 +85,16 @@ async def test_admin_center_reaches_projects_tab_from_config(
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "config"
 
-        # ``Tab`` from Config lands on Logs, then Projects without switching
-        # the hidden ACE main tab.
+        # ``Tab`` from Config lands on Logs, then Procs, then Projects without
+        # switching the hidden ACE main tab.
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert switcher.current == "logs"
+        assert page.app.current_tab == "artifacts"
+
+        await page.press("tab")
+        await page.wait_for(lambda _s: modal._active_tab == "procs")
+        assert switcher.current == "procs"
         assert page.app.current_tab == "artifacts"
 
         await page.press("tab")
@@ -171,7 +176,7 @@ async def test_admin_center_digit_owns_hidden_member_jump_state(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
 
-        await page.press("3")
+        await page.press("4")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
 
         assert page.app._member_jump_pending_digit is None
@@ -193,10 +198,10 @@ async def test_admin_center_leaves_projects_tab_with_shift_tab(
         assert switcher.current == "projects"
 
         # With the list focused, the host modal's priority ``Shift+Tab`` binding
-        # leaves Projects for Logs (directly to its left).
+        # leaves Projects for Procs (directly to its left).
         await page.press("shift+tab")
-        await page.wait_for(lambda _s: modal._active_tab == "logs")
-        assert switcher.current == "logs"
+        await page.wait_for(lambda _s: modal._active_tab == "procs")
+        assert switcher.current == "procs"
         assert page.app.current_tab == "artifacts"
 
 
