@@ -17,6 +17,7 @@ from tests.ace.tui.visual._ace_png_snapshot_fixtures import (
     visual_agents as visual_agents,
 )
 from tests.ace.tui.visual._ace_png_snapshot_startup import (
+    DEFAULT_VISUAL_NOTIFICATION_BADGE as DEFAULT_VISUAL_NOTIFICATION_BADGE,
     patch_startup_loaders as patch_startup_loaders,
     wait_for_startup as wait_for_startup,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "agents",
     "agents_with_stopped_status",
     "axe_collected_data",
+    "DEFAULT_VISUAL_NOTIFICATION_BADGE",
     "patches",
     "hood_neighbor_agents",
     "mark_current_visual_frame_converged",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from importlib.resources import files as importlib_files
 from types import SimpleNamespace
 from typing import Any
 
@@ -14,8 +15,60 @@ from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
+from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
+from sase.config.loading import load_default_config
 from sase.memory.read_log import MemoryReadEvent
 from sase.skills.use_log import SkillUseEvent
+
+# Default visual-suite inbox: one Gates chip and one General chip. Goldens of
+# unrelated surfaces still show this badge, so startup waits for the exact
+# plain text rather than whatever the isolated SASE_HOME store last held.
+DEFAULT_VISUAL_NOTIFICATION_BADGE = " ⚑1 ✉18 "
+
+_VISUAL_NOTIFICATION_BADGE: str | None = None
+
+
+def _default_visual_notification_snapshot() -> SimpleNamespace:
+    """Return the deterministic two-tab inbox every visual page starts from."""
+    return SimpleNamespace(
+        notifications=[],
+        expired_ids=[],
+        counts=SimpleNamespace(priority=1, rest=18, muted=0, errors=0),
+        tabs=[
+            SimpleNamespace(
+                key="hitl",
+                kind="hitl",
+                count=1,
+                oldest_activity_at=None,
+                next_wake_at=None,
+                color=None,
+                icon=None,
+            ),
+            SimpleNamespace(
+                key="general",
+                kind="general",
+                count=18,
+                oldest_activity_at=None,
+                next_wake_at=None,
+                color=None,
+                icon=None,
+            ),
+        ],
+    )
+
+
+def _indicator_plain(page: AcePage) -> str | None:
+    """Return the top-bar badge text, or ``None`` when it is not mounted."""
+    try:
+        indicator = page.app.query_one("#notification-indicator", NotificationIndicator)
+    except Exception:
+        return None
+    return indicator.render().plain
+
+
+def _shipped_ace_config() -> dict[str, Any]:
+    """Load packaged defaults so host ``notification_tabs`` cannot restyle chips."""
+    return load_default_config(importlib_files)
 
 
 def patch_startup_loaders(
@@ -38,7 +91,7 @@ def patch_startup_loaders(
     from sase.ace.tui.actions.agents import _loading
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.patch_groups import PatchGroupingMode
-    from sase.ace.tui.widgets import llm_override_indicator
+    from sase.ace.tui.widgets import llm_override_indicator, notification_tab_style
     from sase.llm_provider import temporary_override
     from sase.updates import IncomingCommits
 
@@ -103,31 +156,7 @@ def patch_startup_loaders(
         app._prompt_catalog_rebuild_pending_config_dirty = False
 
     def _fake_notification_snapshot(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
-        return SimpleNamespace(
-            notifications=[],
-            expired_ids=[],
-            counts=SimpleNamespace(priority=1, rest=18, muted=0, errors=0),
-            # The indicator renders one chip per tab, so the fixture spends its
-            # 19 unread rows across two tabs rather than one opaque total.
-            tabs=[
-                SimpleNamespace(
-                    key="hitl",
-                    kind="hitl",
-                    count=1,
-                    oldest_activity_at=None,
-                    next_wake_at=None,
-                    color=None,
-                ),
-                SimpleNamespace(
-                    key="general",
-                    kind="general",
-                    count=18,
-                    oldest_activity_at=None,
-                    next_wake_at=None,
-                    color=None,
-                ),
-            ],
-        )
+        return _default_visual_notification_snapshot()
 
     def _fake_load_agent_grouping_mode(*_args: Any, **_kwargs: Any) -> GroupingMode:
         return GroupingMode.STANDARD
@@ -175,6 +204,17 @@ def patch_startup_loaders(
         notifications,
         "read_notification_snapshot",
         _fake_notification_snapshot,
+    )
+    monkeypatch.setattr(
+        notification_tab_style,
+        "load_merged_config",
+        _shipped_ace_config,
+    )
+    notification_tab_style._configured_tab_styles_for_token.cache_clear()
+    notification_tab_style._indicator_max_counts_for_token.cache_clear()
+    monkeypatch.setattr(
+        f"{__name__}._VISUAL_NOTIFICATION_BADGE",
+        DEFAULT_VISUAL_NOTIFICATION_BADGE,
     )
     monkeypatch.setattr(
         grouping_strategy,
@@ -229,11 +269,13 @@ def patch_startup_loaders(
 
 
 async def wait_for_startup(page: AcePage) -> None:
+    expected_badge = _VISUAL_NOTIFICATION_BADGE
     await page.wait_for(
         lambda _state: (
             page.app._patches_first_load_done
             and page.app._agents_first_load_done
             and page.app._axe_first_load_done
             and not page.app._agent_detail_debouncer.is_pending
+            and (expected_badge is None or _indicator_plain(page) == expected_badge)
         )
     )

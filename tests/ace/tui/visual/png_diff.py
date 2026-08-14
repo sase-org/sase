@@ -153,8 +153,10 @@ def render_svg_to_png(svg: str) -> bytes:
     it carries; resvg falls back within the bundled database only for a
     codepoint Fira Code lacks, which is how symbol marks such as the
     notification tab icons rasterize as themselves instead of ``.notdef``
-    boxes. Explicit tolerance overrides remain available when investigating
-    cross-host edge-rasterization drift.
+    boxes. ``font_files`` lists those faces explicitly because some
+    ``resvg-py`` wheels never scan ``font_dirs``. Explicit tolerance
+    overrides remain available when investigating cross-host
+    edge-rasterization drift.
     """
     try:
         import resvg_py
@@ -170,11 +172,23 @@ def render_svg_to_png(svg: str) -> bytes:
             svg_string=svg,
             skip_system_fonts=True,
             font_dirs=[str(_FONTS_DIR)],
+            # Some resvg-py wheels ignore font_dirs (CPython 3.14 manylinux).
+            # Listing faces makes Noto Emoji / DejaVu load on every wheel.
+            font_files=_bundled_font_files(),
             font_family="Fira Code",
             monospace_family="Fira Code",
             sans_serif_family="Fira Code",
             serif_family="Fira Code",
         )
+    )
+
+
+def _bundled_font_files() -> list[str]:
+    """Return paths to every bundled snapshot face."""
+    return sorted(
+        str(path)
+        for path in _FONTS_DIR.iterdir()
+        if path.is_file() and path.suffix.lower() in {".otf", ".ttf"}
     )
 
 

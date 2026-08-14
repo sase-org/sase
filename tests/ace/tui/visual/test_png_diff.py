@@ -522,3 +522,31 @@ def test_render_svg_to_png_uses_visual_renderer() -> None:
     )
 
     assert png.startswith(b"\x89PNG")
+
+
+def test_render_svg_to_png_passes_bundled_font_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every bundled face must be listed; font_dirs is not enough on all wheels."""
+    pytest.importorskip("resvg_py")
+    captured: dict[str, object] = {}
+
+    def _fake_svg_to_bytes(**kwargs: object) -> bytes:
+        captured.update(kwargs)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            b"\x00\x00\x00\rIHDR"
+            b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00"
+            b"\x90wS\xde\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+
+    import resvg_py
+
+    monkeypatch.setattr(resvg_py, "svg_to_bytes", _fake_svg_to_bytes)
+    render_svg_to_png("<svg xmlns='http://www.w3.org/2000/svg'/>")
+    font_files = captured.get("font_files")
+    assert isinstance(font_files, list)
+    names = {Path(path).name for path in font_files}
+    assert "FiraCode-Regular.ttf" in names
+    assert "NotoEmoji-Regular.ttf" in names
+    assert "DejaVuSans.ttf" in names

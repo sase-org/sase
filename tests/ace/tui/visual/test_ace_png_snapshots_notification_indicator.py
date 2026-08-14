@@ -27,6 +27,7 @@ from sase.ace.tui.modals.notification_modal_tags import (
 )
 from sase.ace.tui.widgets.notification_indicator import NotificationIndicator
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    DEFAULT_VISUAL_NOTIFICATION_BADGE,
     patches,
     patch_startup_loaders,
     wait_for_startup,
@@ -86,6 +87,18 @@ async def _drive_indicator(
     page.app.refresh(layout=True)
     await page.app.wait_for_refresh()
     await wait_for_visual_idle(page)
+
+
+async def test_default_visual_notification_indicator_is_deterministic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shared visual stub must land as ``⚑1 ✉18`` before any capture."""
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        indicator = page.app.query_one("#notification-indicator", NotificationIndicator)
+        assert indicator.render().plain == DEFAULT_VISUAL_NOTIFICATION_BADGE
 
 
 async def test_notification_indicator_chips_png_snapshot(
