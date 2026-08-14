@@ -228,3 +228,21 @@ def test_tab_quickstart_wrapped_descriptions_use_hanging_indent() -> None:
 def test_tab_quickstart_card_has_no_trailing_newline() -> None:
     for tab in ("agents", "patches"):
         assert not _card_plain(tab).endswith("\n")
+
+
+def test_tab_quickstart_refresh_before_children_composed_is_safe() -> None:
+    """A caller can reach ``is_mounted`` before ``compose()`` attaches children.
+
+    Reproduces the observed race: an external onboarding refresh queries this
+    widget by id (mounted at the DOM level) and immediately calls
+    ``refresh_content()``/``set_keymap_registry()`` before this widget's own
+    composed ``Static`` children are queryable, raising
+    ``NoMatches("#agent-quickstart-callout")``.
+    """
+    widget = TabQuickStart(tab="agents")
+    widget._is_mounted = True  # simulate mounted-but-not-yet-composed
+
+    widget.refresh_content()
+
+    registry = load_keymap_registry({})
+    widget.set_keymap_registry(registry)

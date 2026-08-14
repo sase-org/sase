@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 
 from sase.main.parser import _DEFAULT_LIST_GROUP_DEST, create_parser
-from tests.main.parser_help_helpers import flat_help, help_subcommand_rows, parser_for
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
+    flat_help,
+    help_subcommand_rows,
+    parser_for,
+)
 
 
 def test_monitor_group_help_lists_sorted_visible_subcommands() -> None:
@@ -41,11 +46,11 @@ def test_monitor_start_help_documents_required_flags_and_examples() -> None:
     start_help = flat_help(parser_for(("sase", "monitor", "start")).format_help())
 
     assert "usage: sase monitor start" in start_help
-    assert "-c, --command CMD" in start_help
-    assert "-i, --idle-timeout DURATION" in start_help
-    assert "-r, --reason TEXT" in start_help
-    assert "-t, --timeout DURATION" in start_help
-    assert "-n, --next TEXT" in start_help
+    assert_metavar_option_documented(start_help, "-c", "--command", "CMD")
+    assert_metavar_option_documented(start_help, "-i", "--idle-timeout", "DURATION")
+    assert_metavar_option_documented(start_help, "-r", "--reason", "TEXT")
+    assert_metavar_option_documented(start_help, "-t", "--timeout", "DURATION")
+    assert_metavar_option_documented(start_help, "-n", "--next", "TEXT")
     assert "sase monitor start -c 'just check-full'" in start_help
 
 

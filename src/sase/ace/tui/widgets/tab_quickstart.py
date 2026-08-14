@@ -8,6 +8,7 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
+from textual.css.query import NoMatches
 from textual.widgets import Static
 
 from ..keymaps import (
@@ -131,12 +132,22 @@ class TabQuickStart(VerticalScroll):
         self.refresh_content()
 
     def refresh_content(self) -> None:
-        """Refresh static sections from current state."""
+        """Refresh static sections from current state.
+
+        A caller can reach this after this widget is mounted but before its
+        own ``compose()`` children are attached (e.g. a parent-triggered
+        refresh racing this widget's own ``on_mount``). Skip silently in
+        that window; this widget's own ``on_mount`` repaints once its
+        children are queryable.
+        """
         if not self.is_mounted:
             return
-        for selector, content in self._cached_content().items():
-            self.query_one(selector, Static).update(content)
-        self._apply_callout_visibility()
+        try:
+            for selector, content in self._cached_content().items():
+                self.query_one(selector, Static).update(content)
+            self._apply_callout_visibility()
+        except NoMatches:
+            return
 
     def _cached_content(self) -> dict[str, Text]:
         key = (id(self._registry), self._no_match_total)

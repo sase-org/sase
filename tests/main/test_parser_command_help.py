@@ -3,24 +3,10 @@
 from __future__ import annotations
 
 from sase.main.parser import create_parser
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented as _assert_metavar_option_documented,
+)
 from tests.main.parser_help_helpers import flat_help, help_subcommand_rows, parser_for
-
-
-def _assert_metavar_option_documented(
-    help_text: str,
-    short_option: str,
-    long_option: str,
-    metavar: str,
-) -> None:
-    """Accept argparse's pre-3.13 and 3.13+ option-help renderings."""
-    expected_renderings = (
-        f"{short_option} {metavar}, {long_option} {metavar}",
-        f"{short_option}, {long_option} {metavar}",
-    )
-    assert any(rendering in help_text for rendering in expected_renderings), (
-        f"option was not documented using either supported rendering: "
-        f"{expected_renderings!r}"
-    )
 
 
 def test_agents_help_renders_sorted_subcommands() -> None:

@@ -116,3 +116,20 @@ def compact_common_command_rows(help_text: str) -> list[str]:
 
 def compact_common_commands(help_text: str) -> set[str]:
     return set(compact_common_command_rows(help_text))
+
+
+def assert_metavar_option_documented(
+    help_text: str,
+    short_option: str,
+    long_option: str,
+    metavar: str,
+) -> None:
+    """Accept argparse's pre-3.13 and 3.13+ option-help renderings."""
+    expected_renderings = (
+        f"{short_option} {metavar}, {long_option} {metavar}",
+        f"{short_option}, {long_option} {metavar}",
+    )
+    assert any(rendering in help_text for rendering in expected_renderings), (
+        f"option was not documented using either supported rendering: "
+        f"{expected_renderings!r}"
+    )
