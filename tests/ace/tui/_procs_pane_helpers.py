@@ -1,4 +1,4 @@
-"""Shared harness for Admin Center Tasks tab tests."""
+"""Shared harness for Admin Center Procs tab tests."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.procs_store_rows import StoreTasksSnapshot, _store_task_row
-from sase.ace.tui.task_queue import TaskInfo, TaskQueue
+from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
 from sase.ace.testing import wait_for
 from sase.procs import Proc
 
@@ -51,19 +51,19 @@ def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
 class ProcsTestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, task_queue: TaskQueue) -> None:
+    def __init__(self, proc_queue: ProcQueue) -> None:
         super().__init__()
-        self._task_queue = task_queue
+        self._proc_queue = proc_queue
         self.killed_task_ids: list[str] = []
         self.notifications: list[tuple[str, str | None]] = []
 
     def compose(self) -> ComposeResult:
         yield from ()
 
-    def _kill_background_task(self, task_id: str) -> bool:
-        self.killed_task_ids.append(task_id)
-        self._task_queue.complete(
-            task_id,
+    def _kill_proc(self, proc_id: str) -> bool:
+        self.killed_task_ids.append(proc_id)
+        self._proc_queue.complete(
+            proc_id,
             success=False,
             message="Killed by user",
             output="",
@@ -85,7 +85,7 @@ class ProcsTestApp(App[None]):
 
 
 def task(
-    task_id: str,
+    proc_id: str,
     *,
     label: str,
     status: str,
@@ -93,11 +93,11 @@ def task(
     output: str = "",
     error: str | None = None,
     live_output: str | None = None,
-) -> TaskInfo:
+) -> ProcInfo:
     started_at = datetime.now() - timedelta(seconds=age_seconds)
-    info = TaskInfo(
-        task_id=task_id,
-        task_type=label.split()[0],
+    info = ProcInfo(
+        proc_id=proc_id,
+        proc_type=label.split()[0],
         cl_name="",
         project_file="",
         status=status,
@@ -115,8 +115,8 @@ def task(
     return info
 
 
-def queue(*tasks: TaskInfo) -> TaskQueue:
-    return TaskQueue(_tasks={task.task_id: task for task in tasks})
+def queue(*tasks: ProcInfo) -> ProcQueue:
+    return ProcQueue(_procs={task.proc_id: task for task in tasks})
 
 
 async def open_procs_pane(
@@ -137,7 +137,7 @@ def output_plain(pane: ProcsPane) -> str:
 
 
 def store_task(
-    task_id: str,
+    proc_id: str,
     *,
     label: str,
     status: str,
@@ -147,7 +147,7 @@ def store_task(
     message: str = "",
 ) -> Proc:
     return Proc(
-        proc_id=task_id,
+        proc_id=proc_id,
         label=label,
         kind=kind,
         status=status,
@@ -159,7 +159,7 @@ def store_task(
         finished_at=None
         if status in {"pending", "running"}
         else "2026-06-26T11:59:00Z",
-        log_path=f"/tmp/{task_id}.log",
+        log_path=f"/tmp/{proc_id}.log",
         session_id=session_id,
         session_label=session_label,
         message=message or None,
@@ -198,7 +198,7 @@ def patch_store_loader(
             if all_sessions or store_task.session_id in (None, session_id)
         ]
         for row in rows:
-            if row.task_id == detail_task_id:
+            if row.proc_id == detail_task_id:
                 row.output = output
         return StoreTasksSnapshot(
             rows=rows,

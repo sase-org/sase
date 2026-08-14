@@ -188,10 +188,10 @@ def _submit_via_mobile(target: SurfaceTarget, submission: Submission) -> Surface
 
 
 class _StubReporter:
-    """The slice of ``TaskReporter`` the gate worker body actually calls."""
+    """The slice of ``ProcReporter`` the gate worker body actually calls."""
 
     def __init__(self) -> None:
-        self.task_info = _StubTaskInfo()
+        self.proc_info = _StubProcInfo()
 
     def phase(self, _text: str) -> None: ...
 
@@ -202,7 +202,7 @@ class _StubReporter:
     def log(self, _line: str, *, stream: str = "stdout") -> None: ...
 
 
-class _StubTaskInfo:
+class _StubProcInfo:
     def register_process(self, _process: Any) -> None: ...
 
     def unregister_process(self, _process: Any) -> None: ...

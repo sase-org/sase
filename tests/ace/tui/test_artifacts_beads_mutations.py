@@ -125,9 +125,9 @@ def test_descendant_preview_lists_every_unclosed_descendant_once() -> None:
 
 
 def test_tracked_submission_uses_operation_scoped_dedup_key() -> None:
-    submit = Mock(return_value=SimpleNamespace(task_id="task-1"))
+    submit = Mock(return_value=SimpleNamespace(proc_id="task-1"))
     refresh = Mock()
-    host = SimpleNamespace(_submit_tracked_task=submit)
+    host = SimpleNamespace(_submit_tracked_proc=submit)
     pane = SimpleNamespace(request_refresh=refresh)
     task = Mock()
 

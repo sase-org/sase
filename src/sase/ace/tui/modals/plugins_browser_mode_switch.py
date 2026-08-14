@@ -6,11 +6,11 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.config import load_merged_config
 from sase.dev_update.models import DevCommandResult
@@ -157,7 +157,7 @@ class ModeSwitchActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_mode_switch_task(self, plan: SwitchPlan) -> None:
-        def task(reporter: TaskReporter) -> TrackedTaskResult[ModeSwitchResult]:
+        def task(reporter: ProcReporter) -> TrackedProcResult[ModeSwitchResult]:
             start = time.monotonic()
             try:
                 reporter.phase("Switching install mode")
@@ -167,7 +167,7 @@ class ModeSwitchActionsMixin:
                     run_command_fn=_mode_switch_reporter_runner(reporter),
                 )
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=str(exc),
                     error=str(exc),
@@ -175,9 +175,9 @@ class ModeSwitchActionsMixin:
             elapsed = max(0.0, time.monotonic() - start)
             message = _mode_switch_success_message(result, elapsed)
             reporter.log(message, stream="result")
-            return TrackedTaskResult(success=True, message=message, payload=result)
+            return TrackedProcResult(success=True, message=message, payload=result)
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         submit(
@@ -194,7 +194,7 @@ class ModeSwitchActionsMixin:
         )
 
     def _on_mode_switch_complete(
-        self, completion: TrackedTaskCompletion[ModeSwitchResult]
+        self, completion: TrackedProcCompletion[ModeSwitchResult]
     ) -> None:
         if completion.success and completion.payload is not None:
             receipt = build_update_receipt(completion.payload)
@@ -221,7 +221,7 @@ def _mode_switch_details(plan: SwitchPlan) -> tuple[str, ...]:
     return tuple(details)
 
 
-def _mode_switch_reporter_runner(reporter: TaskReporter) -> Any:
+def _mode_switch_reporter_runner(reporter: ProcReporter) -> Any:
     def _run(argv: Any, *, cwd: Any = None) -> DevCommandResult:
         reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
         completed = reporter.run(argv, cwd=cwd)

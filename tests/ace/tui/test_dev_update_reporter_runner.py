@@ -9,7 +9,7 @@ from typing import Any, NoReturn
 
 import pytest
 
-from sase.ace.tui.modals.plugins_browser_sase_update_tasks import (
+from sase.ace.tui.modals.plugins_browser_sase_update_procs import (
     dev_update_reporter_runner,
 )
 

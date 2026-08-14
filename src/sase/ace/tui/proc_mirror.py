@@ -1,12 +1,12 @@
-"""Mirror in-TUI background tasks into the durable task store.
+"""Mirror in-TUI background procs into the durable proc store.
 
-Tasks are submitted from the Textual event loop, and a locked store append
+Procs are submitted from the Textual event loop, and a locked store append
 there would violate the "never block the event loop" rule. So this module
 follows :mod:`sase.logs.toast_log` exactly: the UI thread only mints an id
 and enqueues a record, while one daemon writer thread owns every store
-write, every task-log append, and the periodic orphan sweep.
+write, every proc-log append, and the periodic orphan sweep.
 
-The same thread also answers "how many active supervisor-owned tasks are in
+The same thread also answers "how many active supervisor-owned procs are in
 scope here?" for the top-bar indicator, so a global epic launch approved from
 Telegram shows up in every TUI without the event loop ever touching the store.
 """
@@ -41,13 +41,13 @@ from sase.procs import (
     update_proc,
 )
 
-from .task_queue import TaskInfo
+from .proc_queue import ProcInfo
 
 log = logging.getLogger(__name__)
 
 MIRROR_KIND = TUI_PROC_KIND
 MIRROR_ORIGIN = "ace"
-STATE_WRITE_CATEGORY = "tasks"
+STATE_WRITE_CATEGORY = "procs"
 
 POLL_SECONDS = 0.5
 DETACHED_POLL_SECONDS = 2.0
@@ -63,17 +63,17 @@ _STATUS_BY_TUI_STATUS = {
 
 @dataclass(frozen=True)
 class _TrackOp:
-    """Start mirroring one in-TUI task."""
+    """Start mirroring one in-TUI proc."""
 
-    info: TaskInfo
+    info: ProcInfo
     cl_name: str | None
 
 
 @dataclass(frozen=True)
 class _FinishOp:
-    """Write one task's terminal row."""
+    """Write one proc's terminal row."""
 
-    task_id: str
+    proc_id: str
     status: str
     message: str
     exit_code: int | None
@@ -86,10 +86,10 @@ class _StopOp:
 
 @dataclass
 class _Tracked:
-    """Writer-thread state for one mirrored task."""
+    """Writer-thread state for one mirrored proc."""
 
-    info: TaskInfo
-    task_id: str
+    info: ProcInfo
+    proc_id: str
     status: str
     phase: str | None = None
     emitted_lines: int = 0
@@ -107,8 +107,8 @@ class _MirrorContext:
 
 
 @dataclass
-class TaskMirror:
-    """Durable mirror for the in-memory :class:`~.task_queue.TaskQueue`."""
+class ProcMirror:
+    """Durable mirror for the in-memory :class:`~.proc_queue.ProcQueue`."""
 
     on_detached_count: Callable[[int], None] | None = None
     _queue: queue.Queue[object] = field(default_factory=queue.Queue, repr=False)
@@ -122,7 +122,7 @@ class TaskMirror:
 
     @property
     def detached_running_count(self) -> int:
-        """Return the last known count of active non-mirrored tasks in scope."""
+        """Return the last known count of active non-mirrored procs in scope."""
         return self._detached_count
 
     @property
@@ -142,7 +142,7 @@ class TaskMirror:
                 return True
             thread = threading.Thread(
                 target=self._writer_main,
-                name="sase-ace-task-mirror",
+                name="sase-ace-proc-mirror",
                 daemon=True,
             )
             self._thread = thread
@@ -160,48 +160,48 @@ class TaskMirror:
             self._queue.put(_StopOp())
             thread.join(timeout=timeout)
         except Exception:
-            log.debug("task mirror stop failed", exc_info=True)
+            log.debug("proc mirror stop failed", exc_info=True)
 
-    def track(self, info: TaskInfo, *, cl_name: str | None = None) -> str | None:
+    def track(self, info: ProcInfo, *, cl_name: str | None = None) -> str | None:
         """Mint a durable id for *info* and enqueue its store row.
 
-        Returns the durable task id, or ``None`` when mirroring is off. Never
+        Returns the durable proc id, or ``None`` when mirroring is off. Never
         raises and never blocks: this runs on the UI thread.
         """
         if not self.running:
             return None
         try:
-            task_id = new_proc_id()
-            info.durable_task_id = task_id
+            proc_id = new_proc_id()
+            info.durable_proc_id = proc_id
             self._queue.put(_TrackOp(info=info, cl_name=cl_name or None))
-            return task_id
+            return proc_id
         except Exception:
-            log.debug("task mirror enqueue failed", exc_info=True)
+            log.debug("proc mirror enqueue failed", exc_info=True)
             return None
 
     def finish(
         self,
-        info: TaskInfo,
+        info: ProcInfo,
         *,
         status: str,
         message: str,
         exit_code: int | None = None,
     ) -> None:
-        """Enqueue the terminal row for a mirrored task."""
-        task_id = info.durable_task_id
-        if task_id is None or not self.running:
+        """Enqueue the terminal row for a mirrored proc."""
+        proc_id = info.durable_proc_id
+        if proc_id is None or not self.running:
             return
         try:
             self._queue.put(
                 _FinishOp(
-                    task_id=task_id,
+                    proc_id=proc_id,
                     status=_STATUS_BY_TUI_STATUS.get(status, "error"),
                     message=message,
                     exit_code=exit_code,
                 )
             )
         except Exception:
-            log.debug("task mirror finish enqueue failed", exc_info=True)
+            log.debug("proc mirror finish enqueue failed", exc_info=True)
 
     def flush(self, timeout: float | None = None) -> bool:
         """Wait for queued mirror writes to drain.
@@ -233,7 +233,7 @@ class TaskMirror:
                     return
                 self._apply(op)
             except Exception:
-                log.debug("task mirror write failed", exc_info=True)
+                log.debug("proc mirror write failed", exc_info=True)
             finally:
                 self._queue.task_done()
 
@@ -245,15 +245,15 @@ class TaskMirror:
 
     def _handle_track(self, op: _TrackOp) -> None:
         info = op.info
-        task_id = info.durable_task_id
-        if task_id is None:
+        proc_id = info.durable_proc_id
+        if proc_id is None:
             return
         context = self._resolve_context()
         status = _STATUS_BY_TUI_STATUS.get(info.status, "running")
         created_at = _utc_timestamp(info.started_at)
         append_proc(
             Proc(
-                proc_id=task_id,
+                proc_id=proc_id,
                 label=info.label,
                 kind=MIRROR_KIND,
                 status=status,
@@ -265,30 +265,30 @@ class TaskMirror:
                 session_label=context.session_label,
                 origin=MIRROR_ORIGIN,
                 cl_name=op.cl_name or info.cl_name or None,
-                tags=sorted({MIRROR_ORIGIN, info.task_type} - {""}),
+                tags=sorted({MIRROR_ORIGIN, info.proc_type} - {""}),
                 pid=os.getpid(),
                 phase=info.phase,
                 message=info.message or None,
                 created_at=created_at,
                 started_at=created_at,
-                log_path=str(proc_log_path(task_id)),
+                log_path=str(proc_log_path(proc_id)),
             )
         )
         tracked = _Tracked(
             info=info,
-            task_id=task_id,
+            proc_id=proc_id,
             status=status,
             phase=info.phase,
         )
-        self._tracked[task_id] = tracked
+        self._tracked[proc_id] = tracked
         self._flush_log(tracked)
 
     def _handle_finish(self, op: _FinishOp) -> None:
-        tracked = self._tracked.pop(op.task_id, None)
+        tracked = self._tracked.pop(op.proc_id, None)
         if tracked is not None:
             self._flush_log(tracked)
         update_proc(
-            op.task_id,
+            op.proc_id,
             status=op.status,
             message=op.message or None,
             exit_code=op.exit_code,
@@ -302,7 +302,7 @@ class TaskMirror:
                 self._flush_log(tracked)
                 self._mirror_progress(tracked)
             except Exception:
-                log.debug("task mirror progress write failed", exc_info=True)
+                log.debug("proc mirror progress write failed", exc_info=True)
 
         now = time.monotonic()
         if now >= self._next_reconcile:
@@ -310,13 +310,13 @@ class TaskMirror:
             try:
                 reconcile_running_procs()
             except Exception:
-                log.debug("task reconciliation failed", exc_info=True)
+                log.debug("proc reconciliation failed", exc_info=True)
         if now >= self._next_detached_poll:
             self._next_detached_poll = now + DETACHED_POLL_SECONDS
             try:
                 self._refresh_detached_count()
             except Exception:
-                log.debug("detached task count refresh failed", exc_info=True)
+                log.debug("detached proc count refresh failed", exc_info=True)
 
     def _flush_log(self, tracked: _Tracked) -> None:
         """Append only the lines added since the previous flush."""
@@ -332,7 +332,7 @@ class TaskMirror:
         )
         tracked.emitted_lines = total
         append_proc_log_text(
-            tracked.task_id,
+            tracked.proc_id,
             "".join(f"{line.text}\n" for line in lines),
         )
 
@@ -345,10 +345,10 @@ class TaskMirror:
             return
         tracked.status = status
         tracked.phase = info.phase
-        update_proc(tracked.task_id, status=status, phase=info.phase)
+        update_proc(tracked.proc_id, status=status, phase=info.phase)
 
     def _refresh_detached_count(self) -> None:
-        """Count global detached tasks plus this session's command tasks."""
+        """Count global detached procs plus this session's command procs."""
         context = self._resolve_context()
         rows = read_procs(status=ACTIVE_PROC_STATUSES)
         count = sum(
@@ -421,5 +421,5 @@ __all__ = [
     "POLL_SECONDS",
     "RECONCILE_SECONDS",
     "STATE_WRITE_CATEGORY",
-    "TaskMirror",
+    "ProcMirror",
 ]

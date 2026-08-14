@@ -107,7 +107,7 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_store_loader(monkeypatch, [])
-    task_info = task(
+    proc_info = task(
         "local-task",
         label="sync local",
         status="running",
@@ -116,12 +116,12 @@ async def test_tasks_bookmark_rekeys_when_durable_id_is_minted(
     state = AdminCenterSessionState()
     state.procs.task.record("local-task", 0)
 
-    async with ProcsTestApp(queue(task_info)).run_test() as pilot:
+    async with ProcsTestApp(queue(proc_info)).run_test() as pilot:
         _, pane = await open_procs_pane(pilot, session_state=state)
         if pane._refresh_timer is not None:
             pane._refresh_timer.stop()
 
-        task_info.durable_task_id = "durable-task"
+        proc_info.durable_proc_id = "durable-task"
         pane._tasks = pane._merged_tasks()
         pane._rebuild_list()
         await pilot.pause()

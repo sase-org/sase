@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.dev_update.models import DevUpdatePlan
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
@@ -138,7 +138,7 @@ class PluginUpdateActionsMixin:
             receipt: object | None,
         ) -> DevUpdatePreview: ...
 
-        def _submit_dev_update_task(
+        def _submit_dev_update_proc(
             self,
             plan: DevUpdatePlan,
             *,
@@ -150,7 +150,7 @@ class PluginUpdateActionsMixin:
 
         def _handle_code_update_completion(
             self,
-            completion: TrackedTaskCompletion[Any],
+            completion: TrackedProcCompletion[Any],
             *,
             failure_prefix: str,
         ) -> None: ...
@@ -287,7 +287,7 @@ class PluginUpdateActionsMixin:
             if result is None:
                 return
             label = "editable plugins" if len(plan.actionable) > 1 else subject
-            self._submit_dev_update_task(
+            self._submit_dev_update_proc(
                 plan,
                 subject=subject,
                 display_name=f"update {label}",
@@ -331,24 +331,24 @@ class PluginUpdateActionsMixin:
     def _submit_update_task(self, plan: UpdateReady) -> None:
         """Run ``execute_update`` in a tracked background task (never blocks)."""
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[UpdateOutcome]:
+        def task(reporter: ProcReporter) -> TrackedProcResult[UpdateOutcome]:
             try:
                 label = plan.targets[0]
                 reporter.phase(f"Updating {label}")
                 outcome = self._execute_update(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False, message=str(exc), error=str(exc)
                 )
             message = update_success_message(outcome)
             reporter.log(message, stream="result")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=outcome,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         label = plan.targets[0]
@@ -366,7 +366,7 @@ class PluginUpdateActionsMixin:
         )
 
     def _on_update_complete(
-        self, completion: TrackedTaskCompletion[UpdateOutcome]
+        self, completion: TrackedProcCompletion[UpdateOutcome]
     ) -> None:
         """Toast/restart after update; no-op updates refresh in place."""
         self._handle_code_update_completion(

@@ -23,7 +23,7 @@ from sase.llm_provider import TemporaryLLMOverride
 # the whole order keeps future reorders intentional.
 EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
-    "task-indicator",
+    "proc-indicator",
     "updates-indicator",
     "agents-sync-indicator",
     "llm-override-indicator",

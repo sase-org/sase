@@ -87,7 +87,7 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
         def completed(_completion: Any) -> None:
             pane.request_refresh()
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             f"bead-issue-{operation}",
             row.issue.id,
             workspace,
@@ -145,9 +145,9 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 severity="warning",
             )
             return
-        from .task_actions import TrackedTaskResult
+        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedTaskResult[IssueWire]:
+        def task() -> TrackedProcResult[IssueWire]:
             from sase.ace.tui.external_issues import create_project_issue
             from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
             from sase.bead.mutation_commit import require_mutation_commit_message
@@ -169,7 +169,7 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 mutation.commit(
                     require_mutation_commit_message("update", [row.issue.id])
                 )
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 True,
                 f"Created issue #{created.number} and linked {row.issue.id}",
                 created,
@@ -209,7 +209,7 @@ def _update_issue_task(
     state: Literal["open", "closed"] | None = None,
     labels: tuple[str, ...] | None = None,
 ) -> Any:
-    from sase.ace.tui.actions.task_actions import TrackedTaskResult
+    from sase.ace.tui.actions.proc_actions import TrackedProcResult
     from sase.ace.tui.external_issues import update_project_issue
 
     if not link.issue_id.isdigit():
@@ -222,7 +222,7 @@ def _update_issue_task(
         state=state,
         labels=labels,
     )
-    return TrackedTaskResult(True, success_message, issue)
+    return TrackedProcResult(True, success_message, issue)
 
 
 def _attach_external_ref(

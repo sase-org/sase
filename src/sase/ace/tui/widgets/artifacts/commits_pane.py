@@ -34,7 +34,7 @@ from .commits_timeline import CommitsTimeline
 from .panes import ArtifactsPaneLifecycle
 
 if TYPE_CHECKING:
-    from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
+    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 
 
 class CommitsPane(
@@ -267,30 +267,30 @@ class CommitsPane(
         self._schedule_collection()
 
     def fetch_commits(self) -> None:
-        from sase.ace.tui.actions.task_actions import TrackedTaskResult
+        from sase.ace.tui.actions.proc_actions import TrackedProcResult
 
         spec = self._collection_spec()
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if not callable(submit):
             self._schedule_collection()
             return
 
-        def _task() -> TrackedTaskResult[VcsLogResult]:
+        def _proc() -> TrackedProcResult[VcsLogResult]:
             try:
                 result = self._collect(spec, force_fetch=True)
             except Exception as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=f"Commit fetch failed: {exc}",
                     error=str(exc),
                 )
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message="Commit refs fetched",
                 payload=result,
             )
 
-        def _complete(completion: TrackedTaskCompletion[VcsLogResult]) -> None:
+        def _complete(completion: TrackedProcCompletion[VcsLogResult]) -> None:
             if not completion.success or completion.payload is None:
                 return
             if spec.generation == self._generation:
@@ -308,7 +308,7 @@ class CommitsPane(
             "commit-fetch",
             f"commits:{scope}",
             project_file,
-            _task,
+            _proc,
             display_name=f"Fetch commits ({scope})",
             dedup_key=f"commit-fetch:{scope}",
             duplicate_message="A commit fetch is already running for this scope",

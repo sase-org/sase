@@ -1,4 +1,4 @@
-"""Streaming task reporting and subprocess helpers for ACE background tasks."""
+"""Streaming proc reporting and subprocess helpers for ACE background procs."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from .task_queue import TaskInfo, TaskLogStream
+from .proc_queue import ProcInfo, ProcLogStream
 
 if TYPE_CHECKING:
     from sase.uv_tool.runner import UvChangeSet
@@ -35,7 +35,7 @@ def _stream_subprocess(
     cwd: str | Path | None = None,
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
-    task_info: TaskInfo | None = None,
+    proc_info: ProcInfo | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run *argv* while streaming combined stdout/stderr lines to *on_line*."""
     args = [str(part) for part in argv]
@@ -55,8 +55,8 @@ def _stream_subprocess(
         bufsize=1,
         start_new_session=True,
     )
-    if task_info is not None:
-        task_info.register_process(process)
+    if proc_info is not None:
+        proc_info.register_process(process)
 
     def _read_output() -> None:
         assert process.stdout is not None
@@ -67,7 +67,7 @@ def _stream_subprocess(
 
     reader = threading.Thread(
         target=_read_output,
-        name=f"sase-task-output-{process.pid}",
+        name=f"sase-proc-output-{process.pid}",
         daemon=True,
     )
     reader.start()
@@ -89,8 +89,8 @@ def _stream_subprocess(
         returncode = process.wait()
     finally:
         reader.join(timeout=1.0)
-        if task_info is not None:
-            task_info.unregister_process(process)
+        if proc_info is not None:
+            proc_info.unregister_process(process)
 
     with output_lock:
         output = "".join(output_chunks)
@@ -101,28 +101,28 @@ def _stream_subprocess(
 
 
 @dataclass(frozen=True)
-class TaskReporter:
-    """Small reporting handle passed into tracked task bodies."""
+class ProcReporter:
+    """Small reporting handle passed into tracked proc bodies."""
 
-    task_info: TaskInfo
+    proc_info: ProcInfo
 
     def phase(self, label: str) -> None:
-        """Set the high-level task phase and append a visible marker line."""
-        self.task_info.phase = label
+        """Set the high-level proc phase and append a visible marker line."""
+        self.proc_info.phase = label
         self.log(f"==> {label}", stream="progress")
 
     def section(self, title: str) -> None:
-        """Append a visual divider for multi-step task output."""
+        """Append a visual divider for multi-step proc output."""
         self.log(f"--- {title}", stream="header")
 
-    def log(self, text: str, *, stream: TaskLogStream = "stdout") -> None:
-        """Append text to this task's log."""
-        self.task_info.log.append(text, stream=stream)
+    def log(self, text: str, *, stream: ProcLogStream = "stdout") -> None:
+        """Append text to this proc's log."""
+        self.proc_info.log.append(text, stream=stream)
 
     def set_command(self, argv: Sequence[object]) -> None:
-        """Set the command displayed in the task header."""
-        self.task_info.command = [str(part) for part in argv]
-        self.task_info.log.append(f"$ {command_display(argv)}", stream="header")
+        """Set the command displayed in the proc header."""
+        self.proc_info.command = [str(part) for part in argv]
+        self.proc_info.log.append(f"$ {command_display(argv)}", stream="header")
 
     def run(
         self,
@@ -131,20 +131,20 @@ class TaskReporter:
         cwd: str | Path | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
-        stream: TaskLogStream = "stdout",
+        stream: ProcLogStream = "stdout",
     ) -> subprocess.CompletedProcess[str]:
-        """Run a subprocess with live line streaming into this task."""
+        """Run a subprocess with live line streaming into this proc."""
         self.set_command(argv)
         result = _stream_subprocess(
             argv,
             on_line=lambda line: self.log(line, stream=stream),
-            cancel_event=self.task_info.cancel_event,
+            cancel_event=self.proc_info.cancel_event,
             cwd=cwd,
             env=env,
             timeout=timeout,
-            task_info=self.task_info,
+            proc_info=self.proc_info,
         )
-        self.task_info.exit_code = result.returncode
+        self.proc_info.exit_code = result.returncode
         return result
 
     def subprocess_run_fn(

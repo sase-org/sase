@@ -209,7 +209,7 @@ class AxeBgCmdMixin:
         """Start a background command.
 
         Workspace clean + VCS checkout + subprocess spawn run on a worker
-        thread via ``_submit_background_task`` so the TUI event loop stays
+        thread via ``_submit_proc`` so the TUI event loop stays
         responsive during potentially slow VCS operations.
 
         Args:
@@ -236,7 +236,7 @@ class AxeBgCmdMixin:
         is_synthetic_key = cl_name is None
         dedup_key = cl_name if cl_name is not None else f"bgcmd-slot-{slot}"
 
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return _bgcmd_launch_task(
                 slot, command, project, workspace_num, workspace_dir, cl_name
             )
@@ -252,11 +252,11 @@ class AxeBgCmdMixin:
         # window before the subprocess spawns can't pick the same slot.
         mark_slot_pending(slot)
 
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
             "bgcmd-launch",
             dedup_key,
             project_file,
-            task_callable,
+            proc_callable,
             on_success=on_success,
         )
         if not submitted:
@@ -266,7 +266,7 @@ class AxeBgCmdMixin:
             if is_synthetic_key:
                 # Soften the generic "A bgcmd-launch task is already running
                 # for bgcmd-slot-N" message for the synthetic-key path; the
-                # warning from _submit_background_task already fired.
+                # warning from _submit_proc already fired.
                 self.notify(  # type: ignore[attr-defined]
                     f"A bgcmd launch is already in flight for slot {slot}",
                     severity="warning",

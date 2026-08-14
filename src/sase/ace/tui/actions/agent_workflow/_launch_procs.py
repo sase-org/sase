@@ -1,4 +1,4 @@
-"""Tracked task helpers for TUI agent launches."""
+"""Tracked proc helpers for TUI agent launches."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from ..failure_messages import with_log_panel_hint
-from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ..proc_actions import TrackedProcCompletion, TrackedProcResult
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
@@ -18,8 +18,8 @@ LaunchSeverity = Literal["warning", "error"]
 
 
 @dataclass(frozen=True)
-class LaunchTaskOutcome:
-    """UI-thread effects to apply after a launch task completes."""
+class LaunchProcOutcome:
+    """UI-thread effects to apply after a launch proc completes."""
 
     message: str
     results: tuple[AgentLaunchResult, ...] = ()
@@ -32,13 +32,13 @@ class LaunchTaskOutcome:
 
     @property
     def success(self) -> bool:
-        """Return whether this outcome should be recorded as task success."""
+        """Return whether this outcome should be recorded as proc success."""
         return self.severity != "error"
 
     def with_warning_messages(
         self,
         warning_messages: Sequence[str],
-    ) -> LaunchTaskOutcome:
+    ) -> LaunchProcOutcome:
         """Return a copy carrying additional non-fatal warning toasts."""
         if not warning_messages:
             return self
@@ -53,58 +53,58 @@ def launch_results_tuple(
     return tuple(result for result in results if result is not None)
 
 
-class LaunchTaskMixin:
-    """Mixin that routes launch worker bodies through the central task queue."""
+class LaunchProcMixin:
+    """Mixin that routes launch worker bodies through the central proc queue."""
 
-    def _submit_launch_task(
+    def _submit_launch_proc(
         self,
         *,
         display_name: str,
         cl_name: str,
         project_file: str,
-        task_callable: Callable[[], LaunchTaskOutcome],
+        proc_callable: Callable[[], LaunchProcOutcome],
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
     ) -> bool:
-        """Submit a tracked launch task and return whether it was accepted.
+        """Submit a tracked launch proc and return whether it was accepted.
 
         ``submitted_prompt`` is launch-specific recovery metadata: if the worker
-        dies before returning a :class:`LaunchTaskOutcome` (a payloadless
+        dies before returning a :class:`LaunchProcOutcome` (a payloadless
         failure), the completion handler stashes this prompt so it stays
-        recoverable. It is kept off the generic task-queue contract.
+        recoverable. It is kept off the generic proc-queue contract.
         """
 
-        def _callable() -> TrackedTaskResult[LaunchTaskOutcome]:
-            outcome = task_callable()
-            return TrackedTaskResult(
+        def _callable() -> TrackedProcResult[LaunchProcOutcome]:
+            outcome = proc_callable()
+            return TrackedProcResult(
                 success=outcome.success,
                 message=outcome.message,
                 payload=outcome,
                 error=outcome.message if not outcome.success else None,
             )
 
-        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
             "launch",
             cl_name,
             project_file,
             _callable,
             display_name=display_name,
             dedup_key=dedup_key or f"launch:{uuid4().hex}",
-            on_complete=self._on_launch_task_complete,
+            on_complete=self._on_launch_proc_complete,
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        if task_info is not None and submitted_prompt is not None:
+        if proc_info is not None and submitted_prompt is not None:
             prompts = getattr(self, "_launch_submitted_prompts", None)
             if prompts is None:
                 prompts = {}
                 self._launch_submitted_prompts = prompts
-            prompts[task_info.task_id] = submitted_prompt
-        return task_info is not None
+            prompts[proc_info.proc_id] = submitted_prompt
+        return proc_info is not None
 
-    def _on_launch_task_complete(
+    def _on_launch_proc_complete(
         self,
-        completion: TrackedTaskCompletion[LaunchTaskOutcome],
+        completion: TrackedProcCompletion[LaunchProcOutcome],
     ) -> None:
         """Apply launch-specific completion effects on the UI thread."""
         # The launch worker has finished writing prompt history by now, so any
@@ -159,13 +159,13 @@ class LaunchTaskMixin:
 
     def _pop_launch_submitted_prompt(
         self,
-        completion: TrackedTaskCompletion[LaunchTaskOutcome],
+        completion: TrackedProcCompletion[LaunchProcOutcome],
     ) -> str | None:
-        """Remove and return the recovery prompt recorded for this launch task."""
+        """Remove and return the recovery prompt recorded for this launch proc."""
         prompts = getattr(self, "_launch_submitted_prompts", None)
         if not prompts:
             return None
-        return prompts.pop(completion.task_info.task_id, None)
+        return prompts.pop(completion.proc_info.proc_id, None)
 
 
 def _warm_common_placeholders_if_available(app: object) -> None:
@@ -182,9 +182,9 @@ def _refresh_notification_count_if_available(app: object) -> None:
 
 def _schedule_payloadless_launch_failure_log(
     app: Any,
-    completion: TrackedTaskCompletion[LaunchTaskOutcome],
+    completion: TrackedProcCompletion[LaunchProcOutcome],
 ) -> None:
-    """Write payloadless launch task failures off the Textual event loop."""
+    """Write payloadless launch proc failures off the Textual event loop."""
     import asyncio
 
     try:
@@ -205,28 +205,28 @@ def _schedule_payloadless_launch_failure_log(
 
 
 def _log_payloadless_launch_failure(
-    completion: TrackedTaskCompletion[LaunchTaskOutcome],
+    completion: TrackedProcCompletion[LaunchProcOutcome],
 ) -> None:
-    """Persist a launch task failure when the worker produced no outcome."""
+    """Persist a launch proc failure when the worker produced no outcome."""
     from sase.logs import log_launch_failure
 
-    task = completion.task_info
+    proc = completion.proc_info
     message = completion.error or completion.message or "Launch task failed"
     log_launch_failure(
         kind="single",
-        display_name=task.display_name or task.cl_name or "launch task",
+        display_name=proc.display_name or proc.cl_name or "launch task",
         exc=RuntimeError(message),
-        project=task.cl_name or None,
-        stage="launch_task",
-        task_id=task.task_id,
-        task_type=task.task_type,
-        project_file=task.project_file,
+        project=proc.cl_name or None,
+        stage="launch_proc",
+        proc_id=proc.proc_id,
+        proc_type=proc.proc_type,
+        project_file=proc.project_file,
         output=completion.output or None,
     )
 
 
 __all__ = [
-    "LaunchTaskMixin",
-    "LaunchTaskOutcome",
+    "LaunchProcMixin",
+    "LaunchProcOutcome",
     "launch_results_tuple",
 ]

@@ -61,9 +61,9 @@ class ArtifactsBeadsCommonMixin:
                 "The project workspace is unavailable", severity="warning"
             )
             return
-        from .task_actions import TrackedTaskResult
+        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedTaskResult[T]:
+        def task() -> TrackedProcResult[T]:
             from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
             from sase.bead.mutation_commit import (
                 close_mutation_commit_message,
@@ -101,7 +101,7 @@ class ArtifactsBeadsCommonMixin:
                     row.issue.id,
                     reason=settle_triage_reason,
                 )
-            return TrackedTaskResult(True, success_message, payload)
+            return TrackedProcResult(True, success_message, payload)
 
         self._submit_beads_task(
             pane,
@@ -133,7 +133,7 @@ class ArtifactsBeadsCommonMixin:
                 if callable(refresh):
                     refresh()
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             f"bead-{operation}",
             bead_id,
             workspace,

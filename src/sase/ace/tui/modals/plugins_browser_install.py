@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyInstalled,
@@ -206,7 +206,7 @@ class PluginInstallActionsMixin:
 
         def _handle_code_update_completion(
             self,
-            completion: TrackedTaskCompletion[Any],
+            completion: TrackedProcCompletion[Any],
             *,
             failure_prefix: str,
         ) -> None: ...
@@ -415,23 +415,23 @@ class PluginInstallActionsMixin:
     def _submit_install_task(self, name: str, plan: InstallReady) -> None:
         """Run ``execute_install`` in a tracked background task (never blocks)."""
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[InstallOutcome]:
+        def task(reporter: ProcReporter) -> TrackedProcResult[InstallOutcome]:
             try:
                 reporter.phase(f"Installing {name}")
                 outcome = self._execute_install(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False, message=str(exc), error=str(exc)
                 )
             message = install_success_message(outcome)
             reporter.log(message, stream="result")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=outcome,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         submit(
@@ -455,26 +455,26 @@ class PluginInstallActionsMixin:
         label = ", ".join(names)
         count = len(names)
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[InstallManyOutcome]:
+        def task(reporter: ProcReporter) -> TrackedProcResult[InstallManyOutcome]:
             try:
                 reporter.phase(f"Installing {count} marked plugin(s)")
                 outcome = self._execute_install_many(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False, message=str(exc), error=str(exc)
                 )
             message = install_many_success_message(outcome)
             reporter.log(message, stream="result")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=outcome,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
-        task_info = submit(
+        proc_info = submit(
             "plugin-install",
             label,
             "",
@@ -486,11 +486,11 @@ class PluginInstallActionsMixin:
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        if task_info is not None:
+        if proc_info is not None:
             self._clear_install_marks()
 
     def _on_install_complete(
-        self, completion: TrackedTaskCompletion[InstallOutcome]
+        self, completion: TrackedProcCompletion[InstallOutcome]
     ) -> None:
         """Toast/restart after install; no-op installs refresh in place."""
         self._handle_code_update_completion(
@@ -499,7 +499,7 @@ class PluginInstallActionsMixin:
         )
 
     def _on_install_many_complete(
-        self, completion: TrackedTaskCompletion[InstallManyOutcome]
+        self, completion: TrackedProcCompletion[InstallManyOutcome]
     ) -> None:
         """Toast/restart after a marked-set install."""
         self._handle_code_update_completion(

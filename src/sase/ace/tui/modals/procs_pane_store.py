@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.proc_queue import ProcInfo
 
 from .procs_pane_render import cached_body_version, is_active
 from .procs_store_rows import StoreTasksSnapshot
@@ -33,14 +33,14 @@ class ProcsPaneStoreMixin(_MixinBase):
         _store_loaded_once: bool
         _store_load_pending: bool
         _store_mtime: float | None
-        _store_rows: list[TaskInfo]
-        _tasks: list[TaskInfo]
+        _store_rows: list[ProcInfo]
+        _tasks: list[ProcInfo]
         _tick_count: int
         _user_scrolled: bool
 
-        def _display_task_live_output(self, task: TaskInfo) -> None: ...
+        def _display_task_live_output(self, task: ProcInfo) -> None: ...
 
-        def _get_selected_task(self) -> TaskInfo | None: ...
+        def _get_selected_task(self) -> ProcInfo | None: ...
 
         def _highlighted_row(self) -> int | None: ...
 
@@ -56,7 +56,7 @@ class ProcsPaneStoreMixin(_MixinBase):
             detail_task_id: str | None,
         ) -> StoreTasksSnapshot: ...
 
-        def _merged_tasks(self) -> list[TaskInfo]: ...
+        def _merged_tasks(self) -> list[ProcInfo]: ...
 
         def _rebuild_list(
             self,
@@ -78,11 +78,11 @@ class ProcsPaneStoreMixin(_MixinBase):
 
         def _selected_task_identity(self) -> str | None: ...
 
-        def _signal_store_task(self, task_id: str) -> str | None: ...
+        def _signal_store_task(self, proc_id: str) -> str | None: ...
 
         def _status_snapshot(self) -> dict[str, tuple[str, str | None, str]]: ...
 
-        def _task_identity(self, task: TaskInfo) -> str: ...
+        def _task_identity(self, task: ProcInfo) -> str: ...
 
         def _update_title(self) -> None: ...
 
@@ -195,7 +195,7 @@ class ProcsPaneStoreMixin(_MixinBase):
         task = self._get_selected_task()
         if task is None or not task.store_backed:
             return None, False
-        return (task.durable_task_id or task.task_id), is_active(task)
+        return (task.durable_proc_id or task.proc_id), is_active(task)
 
     def action_toggle_scope(self) -> None:
         """Toggle between this session's tasks and every session's."""
@@ -212,13 +212,13 @@ class ProcsPaneStoreMixin(_MixinBase):
         scope = "all sessions" if self._all_sessions else "this session"
         self.notify(f"Tasks scope: {scope}")
 
-    def _kill_store_task(self, task: TaskInfo) -> None:
+    def _kill_store_task(self, task: ProcInfo) -> None:
         """Signal a durable task off the event loop, then reload the store."""
-        task_id = task.durable_task_id or task.task_id
+        proc_id = task.durable_proc_id or task.proc_id
         label = task.label
 
         def _kill() -> None:
-            error = self._signal_store_task(task_id)
+            error = self._signal_store_task(proc_id)
             try:
                 self.app.call_from_thread(self._on_store_kill_finished, label, error)
             except Exception:

@@ -39,7 +39,7 @@ from sase.notifications import (
 )
 
 from ._agent_unread_helpers import make_agent
-from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
+from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
 
 
 @pytest.fixture()
@@ -94,7 +94,7 @@ def _interactive_notification(
     )
 
 
-class _E2EApp(TrackedTaskRecorderMixin, AgentsMixinCore):
+class _E2EApp(TrackedProcRecorderMixin, AgentsMixinCore):
     """Minimal stand-in app exercising the per-row helpers and finalize sync."""
 
     def __init__(self, agents: list[Agent]) -> None:

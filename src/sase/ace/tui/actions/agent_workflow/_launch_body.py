@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ._launch_body_impl import run_agent_launch_body
-from ._launch_tasks import LaunchTaskOutcome
+from ._launch_procs import LaunchProcOutcome
 from ._types import PromptContext
 from ..failure_messages import with_log_panel_hint
 
@@ -90,7 +90,7 @@ class AgentLaunchBodyMixin:
 
     def _run_agent_launch_body(
         self, prompt: str, ctx: PromptContext | None = None
-    ) -> LaunchTaskOutcome:
+    ) -> LaunchProcOutcome:
         """Heavy body of ``_finish_agent_launch``, run in a worker thread.
 
         Executes blocking I/O (VCS resolution, history writes, xprompt

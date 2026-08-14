@@ -89,7 +89,7 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
     monkeypatch.setattr(AceApp, "_kill_agent_process_group", kill_process)
     monkeypatch.setattr(
         AceApp,
-        "_submit_bulk_kill_persistence_task",
+        "_submit_bulk_kill_persistence_proc",
         lambda _self, *args, **_kwargs: persistence_submissions.append(args),
     )
 

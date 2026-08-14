@@ -7,7 +7,7 @@ import os
 import time
 from typing import TYPE_CHECKING
 
-from ._launch_tasks import LaunchSeverity, LaunchTaskOutcome, launch_results_tuple
+from ._launch_procs import LaunchSeverity, LaunchProcOutcome, launch_results_tuple
 from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
@@ -63,15 +63,15 @@ class BulkLaunchMixin:
         n = len(patches)
 
         self.notify(f"Launching {n} agent(s)...")  # type: ignore[attr-defined]
-        self._submit_launch_task(  # type: ignore[attr-defined]
+        self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch bulk {n} Patches",
             cl_name=f"bulk {n} Patches",
             project_file="",
-            task_callable=lambda: self._run_bulk_launch(prompt, patches),
+            proc_callable=lambda: self._run_bulk_launch(prompt, patches),
             submitted_prompt=prompt,
         )
 
-    def _run_bulk_launch(self, prompt: str, patches: list[Patch]) -> LaunchTaskOutcome:
+    def _run_bulk_launch(self, prompt: str, patches: list[Patch]) -> LaunchProcOutcome:
         """Worker-thread body for :meth:`_launch_bulk_agents`."""
         try:
             from sase.agent.launch_timing import LaunchTimingRecorder
@@ -181,7 +181,7 @@ class BulkLaunchMixin:
                 msg = f"Started {launched_count} agent(s)"
                 severity = None
             timer.finish(outcome="ok", launched=launched_count, failed=failed_count)
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 msg,
                 results=launch_results_tuple(launch_results),
                 severity=severity,
@@ -203,7 +203,7 @@ class BulkLaunchMixin:
             )
             # A mid-loop failure may have already spawned earlier Patches;
             # without results, only a refresh makes them visible.
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint("Bulk launch failed"),
                 severity="error",
                 request_agents_refresh=True,

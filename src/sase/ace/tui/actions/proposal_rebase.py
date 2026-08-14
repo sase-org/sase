@@ -410,7 +410,7 @@ class ProposalRebaseMixin:
             else:
                 msg = f"Accepting proposals {ids}{suffix}..."
 
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return _accept_task(
                 entries, cl_name, project_file, mark_ready_to_mail, skip_amend
             )
@@ -424,8 +424,8 @@ class ProposalRebaseMixin:
 
             on_success = on_accept_success
 
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
-            "accept", cl_name, project_file, task_callable, on_success=on_success
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
+            "accept", cl_name, project_file, proc_callable, on_success=on_success
         )
 
         if submitted:
@@ -486,7 +486,7 @@ class ProposalRebaseMixin:
         old_parent_name = patch.parent
         new_parent_display = _format_parent_for_timestamp(new_parent_name)
 
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return _rebase_task(
                 cl_name,
                 project_file,
@@ -495,8 +495,8 @@ class ProposalRebaseMixin:
                 old_parent_name,
             )
 
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
-            "rebase", cl_name, project_file, task_callable
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
+            "rebase", cl_name, project_file, proc_callable
         )
 
         if submitted:

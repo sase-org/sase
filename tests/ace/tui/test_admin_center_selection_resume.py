@@ -272,7 +272,7 @@ async def test_real_opener_resume_restores_visible_selection(
     ]
 
     async with AcePage(initial_tab="agents") as page:
-        page.app._task_queue = _queue(*tasks)
+        page.app._proc_queue = _queue(*tasks)
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen

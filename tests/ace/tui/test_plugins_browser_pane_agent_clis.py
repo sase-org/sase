@@ -291,7 +291,7 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
             submitted.update(kwargs)
             return object()
 
-        monkeypatch.setattr(page.app, "_submit_tracked_task", submit)
+        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
         pane.action_update_agent_clis()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen

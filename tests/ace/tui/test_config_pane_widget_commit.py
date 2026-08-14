@@ -109,7 +109,7 @@ async def test_config_pane_declining_or_dismissing_commit_submits_no_task(
     async with AcePage() as page:
         pane = await _open_config_pane(page)
         submit = MagicMock()
-        monkeypatch.setattr(page.app, "_submit_tracked_task", submit)
+        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
 
         for key in ("n", "escape"):
             pane._on_edit_dismissed(_config_applied(offer.file_path))
@@ -137,7 +137,7 @@ async def test_config_pane_confirm_submits_actual_written_source(
     async with AcePage() as page:
         pane = await _open_config_pane(page)
         submit = MagicMock()
-        monkeypatch.setattr(page.app, "_submit_tracked_task", submit)
+        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
         pane._on_edit_dismissed(_config_applied(offer.file_path))
         await page.expect_modal("ConfirmActionModal")
         await page.press("y")
@@ -219,7 +219,7 @@ async def test_config_pane_commit_task_reports_established_outcomes(
         pane = await _open_config_pane(page)
         submit = MagicMock()
         notifications: list[tuple[str, str]] = []
-        monkeypatch.setattr(page.app, "_submit_tracked_task", submit)
+        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
         monkeypatch.setattr(
             page.app,
             "notify",

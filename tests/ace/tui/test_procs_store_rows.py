@@ -33,7 +33,7 @@ def _sandboxed_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 
 def _append(
-    task_id: str,
+    proc_id: str,
     *,
     session_id: str | None,
     status: str = "running",
@@ -41,15 +41,15 @@ def _append(
     kind: str = "command",
 ) -> Proc:
     task = Proc(
-        proc_id=task_id,
-        label=label or f"task {task_id}",
+        proc_id=proc_id,
+        label=label or f"task {proc_id}",
         kind=kind,
         status=status,
         command=["sleep", "5"],
         cwd="/tmp",
         origin="cli",
-        created_at=f"2026-07-25T12:0{len(task_id)}:00Z",
-        log_path=str(proc_log_path(task_id)),
+        created_at=f"2026-07-25T12:0{len(proc_id)}:00Z",
+        log_path=str(proc_log_path(proc_id)),
         session_id=session_id,
         session_label="ace·sase#7" if session_id else None,
     )
@@ -64,7 +64,7 @@ def test_default_scope_keeps_this_session_and_unattributed_rows() -> None:
 
     snapshot = load_store_task_rows(session_id="session-mine", all_sessions=False)
 
-    assert {row.task_id for row in snapshot.rows} == {"aaa111", "ccc333"}
+    assert {row.proc_id for row in snapshot.rows} == {"aaa111", "ccc333"}
     assert snapshot.mtime is not None
     assert all(row.store_backed for row in snapshot.rows)
 
@@ -81,8 +81,8 @@ def test_default_scope_keeps_detached_rows_globally() -> None:
 
     snapshot = load_store_task_rows(session_id="session-mine", all_sessions=False)
 
-    assert [row.task_id for row in snapshot.rows] == ["aaa111"]
-    assert snapshot.rows[0].task_type == "detached"
+    assert [row.proc_id for row in snapshot.rows] == ["aaa111"]
+    assert snapshot.rows[0].proc_type == "detached"
 
 
 def test_all_sessions_scope_marks_dead_sessions() -> None:
@@ -91,7 +91,7 @@ def test_all_sessions_scope_marks_dead_sessions() -> None:
 
     snapshot = load_store_task_rows(session_id="session-mine", all_sessions=True)
 
-    by_id = {row.task_id: row for row in snapshot.rows}
+    by_id = {row.proc_id: row for row in snapshot.rows}
     assert set(by_id) == {"bbb222", "ddd444"}
     assert by_id["ddd444"].session_live is True
     # ``session-other`` is not in the live registry, so its rows render dead.
@@ -128,7 +128,7 @@ def test_only_the_detail_row_loads_its_log_tail() -> None:
         detail_task_id="aaa111",
     )
 
-    by_id = {row.task_id: row for row in snapshot.rows}
+    by_id = {row.proc_id: row for row in snapshot.rows}
     assert by_id["aaa111"].output == "detail output\n"
     assert by_id["bbb222"].output == ""
 
@@ -159,6 +159,6 @@ def test_store_task_row_carries_display_state() -> None:
     assert row.status == "killed"
     assert row.error == "task killed"
     assert row.command == ["sase", "bead", "work"]
-    assert row.durable_task_id == "eee555"
+    assert row.durable_proc_id == "eee555"
     assert row.session_live is True
     assert row.finished_at is not None

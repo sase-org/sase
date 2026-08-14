@@ -14,13 +14,13 @@ from sase.ace.tui.actions.agents._revive import AgentRevivalMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.agent.names import find_named_agent
 
-from tests._agent_cleanup_task_helpers import (
-    TrackedTaskRecorderMixin,
-    run_tracked_task,
+from tests._agent_cleanup_proc_helpers import (
+    TrackedProcRecorderMixin,
+    run_tracked_proc,
 )
 
 
-class FakeFullApp(TrackedTaskRecorderMixin, AgentDismissingMixin, AgentRevivalMixin):
+class FakeFullApp(TrackedProcRecorderMixin, AgentDismissingMixin, AgentRevivalMixin):
     """App stub that exposes both the dismiss and revive flows."""
 
     def __init__(self) -> None:
@@ -134,14 +134,14 @@ def _make_artifact_dir(tmp_path: Path, project: str, ts: str) -> Path:
 
 def _flush_persistence(app: FakeFullApp) -> None:
     """Drain pending ``call_later`` callbacks and tracked cleanup tasks."""
-    while app._scheduled or app.tracked_tasks:
+    while app._scheduled or app.tracked_procs:
         while app._scheduled:
             callback, args = app._scheduled.pop(0)
             result = callback(*args)
             if asyncio.iscoroutine(result):
                 asyncio.run(result)
-        while app.tracked_tasks:
-            run_tracked_task(app, app.tracked_tasks.pop(0))
+        while app.tracked_procs:
+            run_tracked_proc(app, app.tracked_procs.pop(0))
 
 
 # ---------------------------------------------------------------------------

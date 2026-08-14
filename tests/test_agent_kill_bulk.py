@@ -9,9 +9,9 @@ from sase.ace.tui.actions.agents._kill_persistence import BulkKillItem
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.notification_store_wire import NotificationUpdateOutcomeWire
 
-from tests._agent_cleanup_task_helpers import (
-    TrackedTaskRecorderMixin,
-    run_tracked_task,
+from tests._agent_cleanup_proc_helpers import (
+    TrackedProcRecorderMixin,
+    run_tracked_proc,
 )
 
 
@@ -25,7 +25,7 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     """Bulk kill should remove all rows immediately with one refresh/task."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -120,9 +120,9 @@ def test_do_bulk_kill_agents_refreshes_and_schedules_once() -> None:
     # Persistence is submitted as one tracked background task; no ad hoc
     # call_later coroutine remains.
     assert app._scheduled == []
-    assert len(app.tracked_tasks) == 1
-    task = app.tracked_tasks[0]
-    assert task["task_type"] == "kill"
+    assert len(app.tracked_procs) == 1
+    task = app.tracked_procs[0]
+    assert task["proc_type"] == "kill"
     assert task["display_name"] == "kill 2 agents"
     assert app._kill_persistence_inflight == {a1.identity, a2.identity}
 
@@ -131,7 +131,7 @@ def test_do_bulk_kill_agents_removes_workflow_children_immediately() -> None:
     """Killing a workflow parent should hide its step rows in the same refresh."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -209,7 +209,7 @@ def test_do_bulk_kill_agents_failed_pid_stays_visible() -> None:
     """A failed process-group kill should not remove that agent."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -294,7 +294,7 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
     """Successful bulk cleanup should not schedule a redundant full reload."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -333,8 +333,8 @@ def test_run_bulk_kill_persistence_does_not_refresh_on_success() -> None:
     with patch(
         "sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects"
     ) as mock_persist:
-        app._submit_bulk_kill_persistence_task([item], [], dismissed_snapshot, [agent])
-        run_tracked_task(app, app.tracked_tasks[0])
+        app._submit_bulk_kill_persistence_proc([item], [], dismissed_snapshot, [agent])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
     assert app.refresh_schedules == 0
@@ -347,7 +347,7 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
     """Failed bulk cleanup still schedules a reload to reconcile with disk."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -387,8 +387,8 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
         "sase.ace.tui.actions.agents._killing.persist_bulk_kill_side_effects",
         side_effect=RuntimeError("boom"),
     ) as mock_persist:
-        app._submit_bulk_kill_persistence_task([item], [], dismissed_snapshot, [agent])
-        run_tracked_task(app, app.tracked_tasks[0])
+        app._submit_bulk_kill_persistence_proc([item], [], dismissed_snapshot, [agent])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
     assert app.refresh_schedules == 1

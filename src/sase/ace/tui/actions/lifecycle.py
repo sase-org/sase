@@ -71,9 +71,9 @@ class LifecycleMixin:
         from sase.logs import flush_toasts
 
         flush_toasts(timeout=1.0)
-        stop_task_mirror = getattr(self, "_stop_task_mirror", None)
-        if stop_task_mirror is not None:
-            stop_task_mirror()
+        stop_proc_mirror = getattr(self, "_stop_proc_mirror", None)
+        if stop_proc_mirror is not None:
+            stop_proc_mirror()
         shutdown_loader_executor()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_file_tmux_decoration", None
@@ -193,13 +193,13 @@ class LifecycleMixin:
 
     def _count_running_tasks(self) -> int:
         """Return the count of running background tasks."""
-        return self._task_queue.running_count  # type: ignore[attr-defined]
+        return self._proc_queue.running_count  # type: ignore[attr-defined]
 
     def _kill_all_running_tasks(self) -> None:
         """Kill all running background tasks."""
-        for task in self._task_queue.get_all():  # type: ignore[attr-defined]
+        for task in self._proc_queue.get_all():  # type: ignore[attr-defined]
             if task.status == "running":
-                self._kill_background_task(task.task_id)  # type: ignore[attr-defined]
+                self._kill_proc(task.proc_id)  # type: ignore[attr-defined]
 
     def action_dismiss_toasts(self) -> None:
         """Dismiss all currently-visible toast notifications.
@@ -222,7 +222,7 @@ class LifecycleMixin:
 
             running = [
                 task
-                for task in self._task_queue.get_all()  # type: ignore[attr-defined]
+                for task in self._proc_queue.get_all()  # type: ignore[attr-defined]
                 if task.status == "running"
             ]
             if not running:
@@ -355,8 +355,8 @@ class LifecycleMixin:
 
             flush_toasts(timeout=1.0)
 
-        def stop_durable_task_mirror() -> None:
-            stop_mirror = getattr(self, "_stop_task_mirror", None)
+        def stop_durable_proc_mirror() -> None:
+            stop_mirror = getattr(self, "_stop_proc_mirror", None)
             if stop_mirror is not None:
                 stop_mirror()
 
@@ -388,7 +388,7 @@ class LifecycleMixin:
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)
-            cleanup(stop_durable_task_mirror)
+            cleanup(stop_durable_proc_mirror)
             cleanup(unregister_live_session)
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_file_tmux_decoration)

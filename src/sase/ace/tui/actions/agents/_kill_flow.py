@@ -93,7 +93,7 @@ class AgentKillFlowMixin:
         dismissed_snapshot.update(immediate_identities)
         self._apply_killed_agents_in_memory(immediate_identities)  # type: ignore[attr-defined]
 
-        self._submit_kill_persistence_task(  # type: ignore[attr-defined]
+        self._submit_kill_persistence_proc(  # type: ignore[attr-defined]
             agent,
             kind,
             agents_with_children_snapshot,
@@ -197,7 +197,7 @@ class AgentKillFlowMixin:
         if kill_items or dismiss_candidates:
             from ....dismissed_agents import snapshot_dismissed_agents
 
-            self._submit_bulk_kill_persistence_task(  # type: ignore[attr-defined]
+            self._submit_bulk_kill_persistence_proc(  # type: ignore[attr-defined]
                 kill_items,
                 dismiss_candidates,
                 snapshot_dismissed_agents(self._dismissed_agents),

@@ -75,16 +75,16 @@ def submit_neutral_plan_response(
     if choice is None:
         choice = "feedback" if result.feedback else "reject"
 
-    submit = getattr(app, "_submit_tracked_task", None)
+    submit = getattr(app, "_submit_tracked_proc", None)
     if not callable(submit):
         app.notify("Tracked plan execution is unavailable", severity="error")  # type: ignore[attr-defined]
         return False
 
-    from ...actions.task_actions import TrackedTaskResult
+    from ...actions.proc_actions import TrackedProcResult
     from sase.main.plan_pending import plan_context_from_notification
     from sase.plan_approval_actions import execute_plan_approval_response
 
-    def work() -> TrackedTaskResult[object]:
+    def work() -> TrackedProcResult[object]:
         try:
             action_result = execute_plan_approval_response(
                 plan_context_from_notification(notification),
@@ -99,12 +99,12 @@ def submit_neutral_plan_response(
                 option_inputs=result.option_inputs or None,
             )
         except Exception as exc:
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=False,
                 message=str(exc),
                 error=str(exc),
             )
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=True,
             message=action_result.message,
             payload=action_result,

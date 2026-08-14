@@ -52,7 +52,7 @@ from .axe_add_modals import AxeNewEntryIdentityModal as AxeNewEntryIdentityModal
 from .axe_add_modals import AxeScriptChoice as AxeScriptChoice
 from .axe_add_modals import AxeScriptPickerModal as AxeScriptPickerModal
 from .axe_entry_editor_modal import AxeWritableScope as AxeWritableScope
-from .runners_modal import BackgroundTaskEntry as BackgroundTaskEntry
+from .runners_modal import BackgroundProcEntry as BackgroundProcEntry
 from .bead_close_modal import BeadCloseModal as BeadCloseModal
 from .bead_close_modal import BeadCloseResult as BeadCloseResult
 from .bead_create_modal import BeadCreateModal as BeadCreateModal

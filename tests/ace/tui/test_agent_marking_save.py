@@ -18,7 +18,7 @@ from tests.ace.tui._agent_marking_helpers import (
     _confirm_save_modal,
     _make_agent,
 )
-from tests._agent_cleanup_task_helpers import run_tracked_task
+from tests._agent_cleanup_proc_helpers import run_tracked_proc
 
 
 def test_save_marked_agent_group_warns_when_no_agents_marked() -> None:
@@ -81,9 +81,9 @@ def test_save_marked_running_agents_hides_without_kill() -> None:
     assert app._marked_agents == set()
     assert app._agents == []
     assert app._scheduled == []
-    assert len(app.tracked_tasks) == 1
-    task = app.tracked_tasks[0]
-    assert task["task_type"] == "save"
+    assert len(app.tracked_procs) == 1
+    task = app.tracked_procs[0]
+    assert task["proc_type"] == "save"
     assert task["display_name"] == "save 1 agent"
 
 
@@ -99,9 +99,9 @@ def test_save_marked_group_uses_tracked_task_and_refreshes_on_success() -> None:
     identities = {a1.identity, a2.identity}
     assert app._scheduled == []
     assert app._dismiss_persistence_inflight == identities
-    assert len(app.tracked_tasks) == 1
-    task = app.tracked_tasks[0]
-    assert task["task_type"] == "save"
+    assert len(app.tracked_procs) == 1
+    task = app.tracked_procs[0]
+    assert task["proc_type"] == "save"
     assert task["display_name"] == "save 2 agents"
     optimistic_notifications = [("Saved and dismissed 2 agents", "information")]
     assert app.notifications == optimistic_notifications
@@ -115,7 +115,7 @@ def test_save_marked_group_uses_tracked_task_and_refreshes_on_success() -> None:
             "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
         ),
     ):
-        completion = run_tracked_task(app, task)
+        completion = run_tracked_proc(app, task)
 
     assert completion.success is True
     assert app._dismiss_persistence_inflight == set()
@@ -132,14 +132,14 @@ def test_save_marked_group_tracked_task_failure_toasts_and_refreshes() -> None:
     app.action_save_marked_agents()
     _confirm_save_modal(app, name="broken")
 
-    assert len(app.tracked_tasks) == 1
+    assert len(app.tracked_procs) == 1
     assert app._dismiss_persistence_inflight == {running.identity}
 
     with patch(
         "sase.ace.tui.actions.agents._marking._persist_marked_agent_group_save",
         side_effect=RuntimeError("boom"),
     ):
-        completion = run_tracked_task(app, app.tracked_tasks[0])
+        completion = run_tracked_proc(app, app.tracked_procs[0])
 
     assert completion.success is False
     assert app._dismiss_persistence_inflight == set()
@@ -202,8 +202,8 @@ def test_save_marked_group_persists_refs_in_display_order() -> None:
         ),
     ):
         mock_bundle.side_effect = lambda agent: saved_bundles.append(agent) or True
-        assert len(app.tracked_tasks) == 1
-        run_tracked_task(app, app.tracked_tasks[0])
+        assert len(app.tracked_procs) == 1
+        run_tracked_proc(app, app.tracked_procs[0])
 
     assert [agent.identity for agent in saved_bundles] == [
         parent.identity,
@@ -249,8 +249,8 @@ def test_blank_save_preserves_generated_group_title() -> None:
             "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index"
         ),
     ):
-        assert len(app.tracked_tasks) == 1
-        run_tracked_task(app, app.tracked_tasks[0])
+        assert len(app.tracked_procs) == 1
+        run_tracked_proc(app, app.tracked_procs[0])
 
     assert len(saved_groups) == 1
     assert saved_groups[0].title == "1 agent in test_cl"

@@ -11,7 +11,7 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _launch_repeat
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
-from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
+from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 
 
@@ -27,7 +27,7 @@ class _FakeApp(AgentLaunchMixin):
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str | None]] = []
         self.launched: list[dict[str, object]] = []
-        self.outcomes: list[LaunchTaskOutcome] = []
+        self.outcomes: list[LaunchProcOutcome] = []
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -40,21 +40,21 @@ class _FakeApp(AgentLaunchMixin):
         if asyncio.iscoroutine(result):
             asyncio.run(result)
 
-    def _submit_launch_task(
+    def _submit_launch_proc(
         self,
         *,
         display_name: str,
         cl_name: str,
         project_file: str,
-        task_callable: object,
+        proc_callable: object,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
     ) -> bool:
         del display_name, cl_name, project_file, dedup_key, submitted_prompt
-        if not callable(task_callable):
+        if not callable(proc_callable):
             return False
-        outcome = task_callable()
-        if isinstance(outcome, LaunchTaskOutcome):
+        outcome = proc_callable()
+        if isinstance(outcome, LaunchProcOutcome):
             self.outcomes.append(outcome)
             if outcome.notify:
                 self.notify(outcome.message, severity=outcome.severity)

@@ -1,4 +1,4 @@
-"""Tracked task helpers for TUI agent kill/dismiss persistence."""
+"""Tracked proc helpers for TUI agent kill/dismiss persistence."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import uuid4
 
-from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ..proc_actions import TrackedProcCompletion, TrackedProcResult
 
 CleanupSeverity = Literal["warning", "error"]
 
 
 @dataclass(frozen=True)
-class CleanupTaskOutcome:
-    """UI-thread effects to apply after a cleanup task completes."""
+class CleanupProcOutcome:
+    """UI-thread effects to apply after a cleanup proc completes."""
 
     message: str
     severity: CleanupSeverity | None = None
@@ -24,51 +24,51 @@ class CleanupTaskOutcome:
 
     @property
     def success(self) -> bool:
-        """Return whether this outcome should be recorded as task success."""
+        """Return whether this outcome should be recorded as proc success."""
         return self.severity != "error"
 
 
-class CleanupTaskMixin:
-    """Mixin that routes kill/dismiss persistence through the central task queue."""
+class CleanupProcMixin:
+    """Mixin that routes kill/dismiss persistence through the central proc queue."""
 
-    def _submit_cleanup_task(
+    def _submit_cleanup_proc(
         self,
         *,
-        task_type: str,
+        proc_type: str,
         display_name: str,
         cl_name: str,
         project_file: str,
-        task_callable: Callable[[], CleanupTaskOutcome],
+        proc_callable: Callable[[], CleanupProcOutcome],
     ) -> bool:
-        """Submit a tracked cleanup task and return whether it was accepted."""
+        """Submit a tracked cleanup proc and return whether it was accepted."""
 
-        def _callable() -> TrackedTaskResult[CleanupTaskOutcome]:
-            outcome = task_callable()
-            return TrackedTaskResult(
+        def _callable() -> TrackedProcResult[CleanupProcOutcome]:
+            outcome = proc_callable()
+            return TrackedProcResult(
                 success=outcome.success,
                 message=outcome.message,
                 payload=outcome,
                 error=outcome.message if not outcome.success else None,
             )
 
-        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
-            task_type,
+        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
+            proc_type,
             cl_name,
             project_file,
             _callable,
             display_name=display_name,
-            # Cleanup tasks must never collide with Patch per-Patch dedup
+            # Cleanup procs must never collide with Patch per-Patch dedup
             # (get_running_for_cl) for the same Patch name.
-            dedup_key=f"{task_type}:{uuid4().hex}",
-            on_complete=self._on_cleanup_task_complete,
+            dedup_key=f"{proc_type}:{uuid4().hex}",
+            on_complete=self._on_cleanup_proc_complete,
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        return task_info is not None
+        return proc_info is not None
 
-    def _on_cleanup_task_complete(
+    def _on_cleanup_proc_complete(
         self,
-        completion: TrackedTaskCompletion[CleanupTaskOutcome],
+        completion: TrackedProcCompletion[CleanupProcOutcome],
     ) -> None:
         """Apply cleanup-specific completion effects on the UI thread."""
         outcome = completion.payload
@@ -116,6 +116,6 @@ class CleanupTaskMixin:
 
 
 __all__ = [
-    "CleanupTaskMixin",
-    "CleanupTaskOutcome",
+    "CleanupProcMixin",
+    "CleanupProcOutcome",
 ]

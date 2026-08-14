@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from sase.core.paths import sase_subdir
 
-from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
+from ._launch_procs import LaunchProcOutcome, launch_results_tuple
 from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
@@ -58,11 +58,11 @@ class MultiModelLaunchMixin:
         self.notify(  # type: ignore[attr-defined]
             f"Launching {slot_count} agent(s) for {snap.display_name}..."
         )
-        self._submit_launch_task(  # type: ignore[attr-defined]
+        self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch fanout {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
-            task_callable=lambda: self._run_multi_model_launch(
+            proc_callable=lambda: self._run_multi_model_launch(
                 model_prompts,
                 snap,
                 vcs_ref,
@@ -87,7 +87,7 @@ class MultiModelLaunchMixin:
         submitted_xprompt: str | None = None,
         fanout_plan: LaunchFanoutPlanWire | None = None,
         extra_env: dict[str, str] | None = None,
-    ) -> LaunchTaskOutcome:
+    ) -> LaunchProcOutcome:
         """Worker-thread body for :meth:`_launch_multi_model_agents`."""
         from sase.agent.launch_timing import LaunchTimingRecorder
 
@@ -132,7 +132,7 @@ class MultiModelLaunchMixin:
 
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(results))
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 msg,
                 results=launch_results_tuple(results),
             )
@@ -152,7 +152,7 @@ class MultiModelLaunchMixin:
                 slot_count=slot_count,
                 submitted_xprompt=submitted_xprompt,
             )
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint(
                     "Prompt fan-out launch failed; spawned agents terminated"
                 ),
@@ -173,7 +173,7 @@ class MultiModelLaunchMixin:
                 slot_count=slot_count,
                 submitted_xprompt=submitted_xprompt,
             )
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint("Prompt fan-out launch failed"),
                 severity="error",
                 refresh_notifications=True,

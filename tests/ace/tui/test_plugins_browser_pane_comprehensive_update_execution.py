@@ -60,7 +60,7 @@ class _SubmitApp:
     def __init__(self) -> None:
         self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
-    def _submit_tracked_task(self, *args: Any, **kwargs: Any) -> object:
+    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
         self.submitted = (args, kwargs)
         return object()
 

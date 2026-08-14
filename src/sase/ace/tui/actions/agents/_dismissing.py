@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 # in attribute declarations (not just in function signatures).
 from ....patch import Patch
 
-from ._cleanup_tasks import CleanupTaskMixin, CleanupTaskOutcome
+from ._cleanup_procs import CleanupProcMixin, CleanupProcOutcome
 from ._dismiss_cleanup import (
     AgentIdentity,
     agent_identity_from_wire,
@@ -55,7 +55,7 @@ _plan_dismissal_side_effects = plan_dismissal_side_effects
 _agents_related_to_dismissal = agents_related_to_dismissal
 
 
-class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
+class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
     """Mixin providing agent dismissal methods.
 
     Type hints below declare attributes that are defined at runtime by AceApp.
@@ -208,7 +208,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
         count = len(agents)
         s = "s" if count != 1 else ""
 
-        def _worker() -> CleanupTaskOutcome:
+        def _worker() -> CleanupProcOutcome:
             started = time.perf_counter()
             register_expected_deletion = None
             if hasattr(self, "_expected_agent_artifact_deletions_lock"):
@@ -226,7 +226,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
                     register_expected_deletion=register_expected_deletion,
                 )
             except Exception as exc:
-                return CleanupTaskOutcome(
+                return CleanupProcOutcome(
                     message=(
                         f"Dismissed {count} agent{s} in memory, but cleanup "
                         f"failed: {exc}. Refresh recommended."
@@ -242,17 +242,17 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
                     count,
                     time.perf_counter() - started,
                 )
-            return CleanupTaskOutcome(
+            return CleanupProcOutcome(
                 message=f"Dismissed {count} agent{s}",
                 refresh_notifications=True,
             )
 
-        if not self._submit_cleanup_task(
-            task_type="dismiss",
+        if not self._submit_cleanup_proc(
+            proc_type="dismiss",
             display_name=f"dismiss {count} agent{s}",
             cl_name="",
             project_file="",
-            task_callable=_worker,
+            proc_callable=_worker,
         ):
             self._dismiss_persistence_inflight.difference_update(identities)
 
@@ -335,7 +335,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
             return
         self._dismiss_persistence_inflight.add(identity)
 
-        def _worker() -> CleanupTaskOutcome:
+        def _worker() -> CleanupProcOutcome:
             started = time.perf_counter()
             register_expected_deletion = None
             if hasattr(self, "_expected_agent_artifact_deletions_lock"):
@@ -353,7 +353,7 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
                     register_expected_deletion=register_expected_deletion,
                 )
             except Exception as exc:
-                return CleanupTaskOutcome(
+                return CleanupProcOutcome(
                     message=(
                         f"Dismissed {agent.display_name} in memory, but cleanup "
                         f"failed: {exc}. Refresh recommended."
@@ -370,17 +370,17 @@ class AgentDismissingMixin(CleanupTaskMixin, AgentDismissMemoryMixin):
                     identity,
                     time.perf_counter() - started,
                 )
-            return CleanupTaskOutcome(
+            return CleanupProcOutcome(
                 message=f"Dismissed {agent.display_name}",
                 refresh_notifications=True,
             )
 
-        if not self._submit_cleanup_task(
-            task_type="dismiss",
+        if not self._submit_cleanup_proc(
+            proc_type="dismiss",
             display_name=f"dismiss {agent.display_name}",
             cl_name=agent.cl_name,
             project_file=agent.project_file,
-            task_callable=_worker,
+            proc_callable=_worker,
         ):
             self._dismiss_persistence_inflight.discard(identity)
 

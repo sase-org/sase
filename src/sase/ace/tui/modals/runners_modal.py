@@ -19,7 +19,7 @@ from .base import CopyModeForwardingMixin
 
 # Re-export for public API
 __all__ = [
-    "BackgroundTaskEntry",
+    "BackgroundProcEntry",
     "RunnersModal",
     "RunnerJumpTarget",
     "get_runner_count",
@@ -27,10 +27,10 @@ __all__ = [
 
 
 @dataclass
-class BackgroundTaskEntry:
-    """Background task info for display in the runners modal."""
+class BackgroundProcEntry:
+    """Background proc info for display in the runners modal."""
 
-    task_type: str
+    proc_type: str
     cl_name: str
     project_file: str
     status: str  # "running", "success", "error"
@@ -68,7 +68,7 @@ class _JumpableRunner:
     """Internal: a runner entry with its section category."""
 
     runner: RunnerInfo
-    section: Literal["manual", "axe", "process", "task"]
+    section: Literal["manual", "axe", "process", "proc"]
 
 
 def _abbreviate_agent_type(agent_type: str) -> str:
@@ -140,11 +140,11 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
     def __init__(
         self,
-        background_tasks: list[BackgroundTaskEntry] | None = None,
+        background_procs: list[BackgroundProcEntry] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        self._background_tasks = background_tasks or []
+        self._background_procs = background_procs or []
 
     def _compute_box_width(self) -> int:
         """Compute box width dynamically based on terminal size.
@@ -286,22 +286,22 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
         # Background Tasks section (teal) - TUI background operations
         self._add_section_header(text, "Background Tasks", "#48CAE4")
-        if self._background_tasks:
-            for task in self._background_tasks:
+        if self._background_procs:
+            for proc in self._background_procs:
                 dummy = RunnerInfo(
                     runner_type="agent",
-                    cl_name=task.cl_name,
+                    cl_name=proc.cl_name,
                     project_name="",
-                    project_file=task.project_file,
+                    project_file=proc.project_file,
                     hook_command=None,
                     agent_type=None,
                     pid=None,
-                    start_time=task.started_at,
+                    start_time=proc.started_at,
                     reviewer=None,
                     raw_suffix=None,
                 )
-                self._jumpable_runners.append(_JumpableRunner(dummy, "task"))
-                self._add_task_entry(text, task, "#48CAE4", hint_char=_next_hint())
+                self._jumpable_runners.append(_JumpableRunner(dummy, "proc"))
+                self._add_proc_entry(text, proc, "#48CAE4", hint_char=_next_hint())
         else:
             self._add_empty_row(text, "No background tasks", "#48CAE4")
         self._add_section_footer(text, "#48CAE4")
@@ -488,19 +488,19 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         text.append(" \u2502", style=f"dim {color}")
         text.append("\n")
 
-    def _add_task_entry(
+    def _add_proc_entry(
         self,
         text: Text,
-        task: BackgroundTaskEntry,
+        proc: BackgroundProcEntry,
         color: str,
         *,
         hint_char: str | None = None,
     ) -> None:
-        """Add a single background task entry.
+        """Add a single background proc entry.
 
         Args:
             text: The Text object to append to.
-            task: The background task info to display.
+            proc: The background proc info to display.
             color: The color for the box drawing border.
             hint_char: Optional hint character to display for jump mode.
         """
@@ -514,30 +514,30 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
             content_len += len(hint_str)
 
         # Patch name
-        cl_name = humanize_cl_name(task.cl_name)
+        cl_name = humanize_cl_name(proc.cl_name)
         parts.append((cl_name, "bold #87D7FF"))
         parts.append((" ", ""))
         content_len += len(cl_name) + 1
 
         # Type badge with status-dependent background color
-        match task.status:
+        match proc.status:
             case "running":
                 badge_style = "bold #1a1a1a on #48CAE4"
-                badge_text = f"(bg:{task.task_type})"
+                badge_text = f"(bg:{proc.proc_type})"
             case "success":
                 badge_style = "bold #1a1a1a on #2ECC71"
-                badge_text = f"(bg:{task.task_type} \u2713)"
+                badge_text = f"(bg:{proc.proc_type} \u2713)"
             case _:  # error
                 badge_style = "bold #FFFFFF on #E74C3C"
-                badge_text = f"(bg:{task.task_type} \u2717)"
+                badge_text = f"(bg:{proc.proc_type} \u2717)"
         parts.append((badge_text, badge_style))
         content_len += len(badge_text)
 
         # Duration (elapsed for running, total for completed)
-        if task.status == "running":
-            duration = _format_duration(task.started_at)
-        elif task.finished_at:
-            delta = task.finished_at - task.started_at
+        if proc.status == "running":
+            duration = _format_duration(proc.started_at)
+        elif proc.finished_at:
+            delta = proc.finished_at - proc.started_at
             total_seconds = int(delta.total_seconds())
             if total_seconds < 60:
                 duration = f"{total_seconds}s"
@@ -580,8 +580,8 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
         text.append("\n")
 
         # Show error message on second line for failed tasks
-        if task.status == "error" and task.message:
-            self._add_prompt_preview_row(text, task.message, color)
+        if proc.status == "error" and proc.message:
+            self._add_prompt_preview_row(text, proc.message, color)
 
     def _refresh_content(self, *, show_hints: bool = False) -> None:
         """Refresh the content display.

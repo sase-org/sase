@@ -81,7 +81,7 @@ class _LoaderApplyApp(_CleanupApp):
         self.applied.set()
 
 
-async def _drain_cleanup_tasks(app: _CleanupApp) -> None:
+async def _drain_cleanup_procs(app: _CleanupApp) -> None:
     for _ in range(200):
         tasks = tuple(app._loader_cleanup_async_tasks)
         if not app._loader_cleanup_running and not tasks:
@@ -149,7 +149,7 @@ async def test_rows_apply_and_loading_clears_while_cleanup_is_blocked() -> None:
         assert cleanup_release.is_set() is False
 
         cleanup_release.set()
-        await _drain_cleanup_tasks(app)
+        await _drain_cleanup_procs(app)
 
 
 @pytest.mark.asyncio
@@ -188,7 +188,7 @@ async def test_loader_cleanup_burst_runs_one_trailing_latest_request() -> None:
             {agents[2].identity}, [agents[2]], source="three", load_kind="full"
         )
         release.set()
-        await _drain_cleanup_tasks(app)
+        await _drain_cleanup_procs(app)
 
     assert calls == [{agents[0].identity}, {agents[2].identity}]
 
@@ -209,7 +209,7 @@ async def test_cleanup_applies_orphan_and_cache_bookkeeping_after_await() -> Non
         app._schedule_loader_cleanup(
             {agent.identity}, [agent], source="test", load_kind="full"
         )
-        await _drain_cleanup_tasks(app)
+        await _drain_cleanup_procs(app)
 
     assert agent.identity not in app._dismissed_agents
     assert "/tmp/cleaned" in _loading._CLEANED_ARTIFACT_DIRS
@@ -237,7 +237,7 @@ async def test_slow_loader_stage_writes_durable_telemetry(
         stages={"disk": 2.25, "prep": 0.1, "apply": 0.01},
         agents=7,
     )
-    await _drain_cleanup_tasks(app)
+    await _drain_cleanup_procs(app)
 
     record = json.loads(path.read_text().strip())
     assert record["event"] == "tui_agent_load_slow"
@@ -261,7 +261,7 @@ async def test_slow_loader_stage_threshold_is_env_overridable(
         load_kind="full",
         stages={"disk": 0.1, "prep": 0.01},
     )
-    await _drain_cleanup_tasks(app)
+    await _drain_cleanup_procs(app)
 
     record = json.loads(path.read_text().strip())
     assert record["threshold_seconds"] == 0.05
@@ -283,7 +283,7 @@ async def test_slow_loader_stage_threshold_ignores_invalid_env(
         load_kind="full",
         stages={"disk": 2.25},
     )
-    await _drain_cleanup_tasks(app)
+    await _drain_cleanup_procs(app)
 
     record = json.loads(path.read_text().strip())
     assert record["threshold_seconds"] == 2.0

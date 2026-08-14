@@ -6,7 +6,7 @@ import importlib.metadata as importlib_metadata
 import time
 from typing import Any
 
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.main.update_state import rust_prebuild_summary
 from sase.main.update_types import CombinedUpdateResult
 from sase.dev_update.timings import slowest_reconcile_command
@@ -163,7 +163,7 @@ def plural(count: int, singular: str) -> str:
 
 
 def log_update_summary(
-    reporter: TaskReporter, summary: UpdateSummary, message: str
+    reporter: ProcReporter, summary: UpdateSummary, message: str
 ) -> None:
     """Write a managed-update result to a tracked task reporter."""
     reporter.section("Summary")
@@ -181,7 +181,7 @@ def log_update_summary(
 
 
 def log_combined_update_result(
-    reporter: TaskReporter,
+    reporter: ProcReporter,
     result: CombinedUpdateResult,
     message: str,
 ) -> None:

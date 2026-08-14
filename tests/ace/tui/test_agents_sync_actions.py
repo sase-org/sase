@@ -65,7 +65,7 @@ class _Harness(AgentsSyncActionsMixin):
     def query_one(self, *_args: object) -> _Indicator:
         return self.indicator
 
-    def _submit_tracked_task(self, *args: Any, **kwargs: Any) -> object:
+    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
         self.submitted = (args, kwargs)
         return object()
 

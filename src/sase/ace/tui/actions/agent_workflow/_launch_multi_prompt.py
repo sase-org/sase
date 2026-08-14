@@ -6,7 +6,7 @@ import dataclasses
 import logging
 from typing import TYPE_CHECKING
 
-from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
+from ._launch_procs import LaunchProcOutcome, launch_results_tuple
 from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
@@ -47,11 +47,11 @@ class MultiPromptLaunchMixin:
         n = len(multi.segments)
         self.notify(f"Launching {n} agent(s) for {snap.display_name}...")  # type: ignore[attr-defined]
 
-        self._submit_launch_task(  # type: ignore[attr-defined]
+        self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch multi-prompt {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
-            task_callable=lambda: self._run_multi_prompt_launch(
+            proc_callable=lambda: self._run_multi_prompt_launch(
                 multi, snap, vcs_ref, submitted_prompt, segment_extra_env
             ),
             submitted_prompt=submitted_prompt,
@@ -64,7 +64,7 @@ class MultiPromptLaunchMixin:
         vcs_ref: tuple[str, str] | None,
         submitted_prompt: str | None = None,
         segment_extra_env: Sequence[dict[str, str] | None] | None = None,
-    ) -> LaunchTaskOutcome:
+    ) -> LaunchProcOutcome:
         """Worker-thread body for :meth:`_launch_multi_prompt_agents`."""
         from sase.agent.multi_prompt import MultiPrompt
         from sase.agent.multi_prompt_launcher import (
@@ -94,7 +94,7 @@ class MultiPromptLaunchMixin:
                 ),
             )
             msg = f"Started {len(results)} agent(s) for {ctx.display_name}"
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 msg,
                 results=launch_results_tuple(results),
             )
@@ -105,7 +105,7 @@ class MultiPromptLaunchMixin:
             _record_failed_multi_prompt_history(multi, submitted_prompt)
             log.exception("Partial multi-prompt launch failed; children terminated")
             _log_multi_prompt_failure(exc, ctx, multi, submitted_prompt, partial=True)
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint(
                     "Partial multi-prompt launch failed; spawned agents terminated"
                 ),
@@ -116,7 +116,7 @@ class MultiPromptLaunchMixin:
             _record_failed_multi_prompt_history(multi, submitted_prompt)
             log.exception("Multi-prompt launch failed")
             _log_multi_prompt_failure(exc, ctx, multi, submitted_prompt)
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint("Multi-prompt launch failed"),
                 severity="error",
             )

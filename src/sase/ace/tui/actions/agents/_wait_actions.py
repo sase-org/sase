@@ -14,7 +14,7 @@ from sase.ace.tui.agent_completion import (
 from sase.project_display_names import humanize_cl_name
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
 
-from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ..proc_actions import TrackedProcCompletion, TrackedProcResult
 from ._directive_persistence import (
     AgentDirectivePersistenceResult,
     AgentDirectivePersistenceSpec,
@@ -188,16 +188,16 @@ class AgentWaitActionsMixin:
             prior_priority = agent.wait_priority
             prior_priority_explicit = agent.wait_priority_explicit
 
-            def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+            def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
                 payload = persist_agent_directive_update(spec)
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=True,
                     message="Wait persisted",
                     payload=payload,
                 )
 
             def _on_complete(
-                completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+                completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
             ) -> None:
                 if completion.success:
                     return
@@ -215,7 +215,7 @@ class AgentWaitActionsMixin:
                 if callable(refresh):
                     refresh(source="agent-wait-persist-failed")
 
-            task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+            proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
                 "agent-directive",
                 agent.cl_name or agent.display_name or "agent",
                 artifacts_dir,
@@ -227,7 +227,7 @@ class AgentWaitActionsMixin:
                 reload_on_complete=False,
                 notify_on_complete=False,
             )
-            if task_info is None:
+            if proc_info is None:
                 return
             agent.waiting_for = wait_names
             agent.waiting_for_beads = wait_beads
@@ -258,16 +258,16 @@ class AgentWaitActionsMixin:
                 ),
             )
 
-            def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+            def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
                 payload = persist_agent_directive_update(spec)
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=True,
                     message="Run-now persisted",
                     payload=payload,
                 )
 
             def _on_complete(
-                completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+                completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
             ) -> None:
                 if completion.success:
                     return
@@ -282,7 +282,7 @@ class AgentWaitActionsMixin:
             display_name = humanize_cl_name(
                 agent.display_name or agent.cl_name or "agent"
             )
-            task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+            proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
                 "agent-directive",
                 agent.cl_name or agent.display_name or "agent",
                 artifacts_dir,
@@ -294,7 +294,7 @@ class AgentWaitActionsMixin:
                 reload_on_complete=False,
                 notify_on_complete=False,
             )
-            if task_info is None:
+            if proc_info is None:
                 return
             agent.waiting_for = []
             agent.waiting_for_beads = []
@@ -355,16 +355,16 @@ class AgentWaitActionsMixin:
         prior_priority = agent.wait_priority
         prior_priority_explicit = agent.wait_priority_explicit
 
-        def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+        def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
             payload = persist_agent_directive_update(spec)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message="Runner wait persisted",
                 payload=payload,
             )
 
         def _on_complete(
-            completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+            completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
         ) -> None:
             if completion.success:
                 return
@@ -384,7 +384,7 @@ class AgentWaitActionsMixin:
             if callable(refresh):
                 refresh(source="agent-runner-wait-persist-failed")
 
-        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
             "agent-directive",
             agent.cl_name or agent.display_name or "agent",
             artifacts_dir,
@@ -396,7 +396,7 @@ class AgentWaitActionsMixin:
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        if task_info is None:
+        if proc_info is None:
             return
         agent.waiting_for = list(result.agents)
         agent.waiting_for_beads = list(result.beads)

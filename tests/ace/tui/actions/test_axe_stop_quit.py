@@ -21,7 +21,7 @@ class _StopQuitApp(AxeMixin):
         order: list[str] | None = None,
     ) -> None:
         self.axe_running = axe_running
-        self._kill_tasks_raises = kill_tasks_raises
+        self._kill_procs_raises = kill_tasks_raises
         self._running_task_count = running_task_count
         self.order = order if order is not None else []
         self.did_quit = False
@@ -52,7 +52,7 @@ class _StopQuitApp(AxeMixin):
     def _kill_all_running_tasks(self) -> None:
         self.kill_task_calls += 1
         self.order.append("kill-tasks")
-        if self._kill_tasks_raises:
+        if self._kill_procs_raises:
             raise RuntimeError("task kill failed")
 
     def _do_quit(self) -> None:

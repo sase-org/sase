@@ -22,13 +22,13 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.tui.actions.agent_workflow._launch_tasks import (
-    LaunchTaskMixin,
-    LaunchTaskOutcome,
+from sase.ace.tui.actions.agent_workflow._launch_procs import (
+    LaunchProcMixin,
+    LaunchProcOutcome,
 )
 from sase.ace.tui.actions.agent_workflow._prompt_bar_stash import PromptBarStashMixin
-from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+from sase.ace.tui.proc_queue import ProcInfo
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 
 from ._agent_launch_helpers import (
@@ -54,7 +54,7 @@ def _entries(path: Path) -> list:
     return list(read_prompt_stash_snapshot(path).entries)
 
 
-class _CompletionApp(LaunchTaskMixin, PromptBarStashMixin):
+class _CompletionApp(LaunchProcMixin, PromptBarStashMixin):
     """Real launch-completion + stash-badge glue without a live Textual DOM."""
 
     def __init__(self) -> None:
@@ -91,13 +91,13 @@ async def _drain_async_tasks(app: object) -> None:
 def _completion(
     *,
     success: bool,
-    payload: LaunchTaskOutcome | None,
-    task_id: str = "task-1",
-) -> TrackedTaskCompletion[LaunchTaskOutcome]:
-    return TrackedTaskCompletion(
-        task_info=TaskInfo(
-            task_id=task_id,
-            task_type="launch",
+    payload: LaunchProcOutcome | None,
+    proc_id: str = "task-1",
+) -> TrackedProcCompletion[LaunchProcOutcome]:
+    return TrackedProcCompletion(
+        proc_info=ProcInfo(
+            proc_id=proc_id,
+            proc_type="launch",
             cl_name="cl",
             project_file="/tmp/proj.sase",
             status="error" if not success else "success",
@@ -141,7 +141,7 @@ async def test_payloadless_failure_with_metadata_stashes_and_refreshes_badge(
     lost = "#al:thing build the entire feature, this is a long prompt"
     app._launch_submitted_prompts = {"task-1": lost}
 
-    app._on_launch_task_complete(_completion(success=False, payload=None))
+    app._on_launch_proc_complete(_completion(success=False, payload=None))
     await _drain_async_tasks(app)
 
     entries = _entries(stash_path)
@@ -161,7 +161,7 @@ async def test_payloadless_failure_without_metadata_does_not_stash(
     _point_store_at(monkeypatch, stash_path)
 
     app = _CompletionApp()
-    app._on_launch_task_complete(_completion(success=False, payload=None))
+    app._on_launch_proc_complete(_completion(success=False, payload=None))
     await _drain_async_tasks(app)
 
     assert not stash_path.exists()
@@ -184,10 +184,10 @@ async def test_error_outcome_refreshes_badge_for_worker_stashed_row(
     stash_failed_launch_prompt("already stashed by the worker thread")
 
     app = _CompletionApp()
-    app._on_launch_task_complete(
+    app._on_launch_proc_complete(
         _completion(
             success=False,
-            payload=LaunchTaskOutcome("Launch failed", severity="error"),
+            payload=LaunchProcOutcome("Launch failed", severity="error"),
         )
     )
     await _drain_async_tasks(app)

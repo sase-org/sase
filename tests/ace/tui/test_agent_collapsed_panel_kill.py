@@ -310,7 +310,7 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
     persistence_submissions: list[tuple[Any, ...]] = []
     monkeypatch.setattr(
         AceApp,
-        "_submit_bulk_kill_persistence_task",
+        "_submit_bulk_kill_persistence_proc",
         lambda _self, *args, **_kwargs: persistence_submissions.append(args),
     )
 

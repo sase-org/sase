@@ -188,7 +188,7 @@ class SyncMixin:
 
         This action:
         1. Validates STATUS is not "Submitted", "Reverted", or "Archived"
-        2. Checks per-Patch deduplication (handled by _submit_background_task)
+        2. Checks per-Patch deduplication (handled by _submit_proc)
         3. Submits a background task that claims/releases workspace
         4. Shows toast notifications for start/completion/failure
         """
@@ -213,7 +213,7 @@ class SyncMixin:
         project_file = patch.file_path
 
         # Build the task callable (closure capturing all needed data)
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return _sync_task(cl_name, project_file, project_basename)
 
         # Build on_success callback
@@ -223,8 +223,8 @@ class SyncMixin:
             reset_dollar_hooks(project_file, cl_name)
 
         # Submit background task (handles dedup automatically)
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
-            "sync", cl_name, project_file, task_callable, on_success=on_sync_success
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
+            "sync", cl_name, project_file, proc_callable, on_success=on_sync_success
         )
 
         if submitted:

@@ -114,7 +114,7 @@ async def test_submit_commit_task_uses_app_queue(monkeypatch: Any) -> None:
         pilot.app.push_screen(panel)
         await pilot.pause()
         submit = MagicMock()
-        pilot.app._submit_tracked_task = submit  # type: ignore[attr-defined]
+        pilot.app._submit_tracked_proc = submit  # type: ignore[attr-defined]
         panel._submit_commit_task(offer)
         await pilot.pause()
         submit.assert_called_once()

@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from rich.console import RenderableType
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -273,8 +273,8 @@ class AgentCliBrowserActionsMixin:
         from . import plugins_browser_pane as pane_module
 
         def task(
-            reporter: TaskReporter,
-        ) -> TrackedTaskResult[tuple[AgentCliUpdateResult, ...]]:
+            reporter: ProcReporter,
+        ) -> TrackedProcResult[tuple[AgentCliUpdateResult, ...]]:
             reporter.phase("Updating agent CLIs")
 
             def task_runner(
@@ -302,14 +302,14 @@ class AgentCliBrowserActionsMixin:
             failed = any(
                 result.status is UpdateResultStatus.FAILED for result in results
             )
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=not failed,
                 message=message,
                 payload=results,
                 error=message if failed else None,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         submit(
@@ -328,7 +328,7 @@ class AgentCliBrowserActionsMixin:
 
     def _on_agent_cli_update_complete(
         self,
-        completion: TrackedTaskCompletion[tuple[AgentCliUpdateResult, ...]],
+        completion: TrackedProcCompletion[tuple[AgentCliUpdateResult, ...]],
     ) -> None:
         results = completion.payload or ()
         for result in results:

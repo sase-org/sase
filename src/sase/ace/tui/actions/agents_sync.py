@@ -30,13 +30,13 @@ from ._agents_sync_config import (
     DEFAULT_AGENTS_SYNC_CHECK_INTERVAL_SECONDS,
     DEFAULT_AGENTS_SYNC_RECOMPUTE_INTERVAL_SECONDS,
 )
-from .task_actions import TrackedTaskCompletion, TrackedTaskResult
+from .proc_actions import TrackedProcCompletion, TrackedProcResult
 from ..util.shutdown import is_shutdown_requested
 
 if TYPE_CHECKING:
     from textual.timer import Timer
 
-    from ..task_subprocess import TaskReporter
+    from ..proc_subprocess import ProcReporter
 
 log = logging.getLogger(__name__)
 
@@ -190,8 +190,8 @@ class AgentsSyncActionsMixin:
         """Submit synchronization of every enabled agents repo as a tracked task."""
 
         def task(
-            reporter: TaskReporter,
-        ) -> TrackedTaskResult[tuple[SyncOutcome, ...]]:
+            reporter: ProcReporter,
+        ) -> TrackedProcResult[tuple[SyncOutcome, ...]]:
             reporter.phase("Synchronizing agents repositories")
             outcomes = sync_agents()
             reporter.section("Agents repository results")
@@ -199,7 +199,7 @@ class AgentsSyncActionsMixin:
                 reporter.log(agents_sync_outcome_line(outcome), stream="result")
             message = f"Agents repos: {summarize_agents_sync_outcomes(outcomes)}"
             failed = any(outcome.error for outcome in outcomes)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=not failed,
                 message=message,
                 payload=outcomes,
@@ -207,12 +207,12 @@ class AgentsSyncActionsMixin:
             )
 
         def on_complete(
-            _completion: TrackedTaskCompletion[tuple[SyncOutcome, ...]],
+            _completion: TrackedProcCompletion[tuple[SyncOutcome, ...]],
         ) -> None:
             self._schedule_agents_sync_indicator_revalidation()
             self._schedule_agents_refresh_after_sync(source="agents_full_sync")
 
-        submit = getattr(self, "_submit_tracked_task", None)
+        submit = getattr(self, "_submit_tracked_proc", None)
         if not callable(submit):
             return
         submit(
@@ -244,8 +244,8 @@ class AgentsSyncActionsMixin:
             return
 
         def task(
-            reporter: TaskReporter,
-        ) -> TrackedTaskResult[tuple[CachedIntegrationResult, ...]]:
+            reporter: ProcReporter,
+        ) -> TrackedProcResult[tuple[CachedIntegrationResult, ...]]:
             reporter.phase("Importing cached incoming agent hoods")
             results = integrate_cached_agent_updates(captured_items)
             reporter.section("Cached incoming hood results")
@@ -253,7 +253,7 @@ class AgentsSyncActionsMixin:
                 reporter.log(cached_agents_result_line(result), stream="result")
             message = "Cached agents: " + summarize_cached_agents_results(results)
             failed = any(not result.ok for result in results)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=not failed,
                 message=message,
                 payload=results,
@@ -261,12 +261,12 @@ class AgentsSyncActionsMixin:
             )
 
         def on_complete(
-            _completion: TrackedTaskCompletion[tuple[CachedIntegrationResult, ...]],
+            _completion: TrackedProcCompletion[tuple[CachedIntegrationResult, ...]],
         ) -> None:
             self._schedule_agents_sync_indicator_revalidation()
             self._schedule_agents_refresh_after_sync(source="agents_cached_integration")
 
-        submit = getattr(self, "_submit_tracked_task", None)
+        submit = getattr(self, "_submit_tracked_proc", None)
         if not callable(submit):
             return
         submit(

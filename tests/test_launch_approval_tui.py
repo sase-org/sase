@@ -11,9 +11,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.actions.agents._notification_modals import handle_launch_approval
-from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 from sase.ace.tui.modals import LaunchApprovalResult
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.proc_queue import ProcInfo
 from sase.agent.launch_preview import LAUNCH_REQUEST_FILE
 from sase.agent.launch_request import create_launch_approval_request
 from sase.agent.launch_types import AgentLaunchResult
@@ -29,7 +29,7 @@ class _TuiLaunchApprovalApp:
         self.pushed_screens: list[tuple[object, object]] = []
         self.refresh_count = 0
         self.agent_refresh_sources: list[str] = []
-        self.tracked_tasks: list[dict[str, Any]] = []
+        self.tracked_procs: list[dict[str, Any]] = []
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
@@ -43,12 +43,12 @@ class _TuiLaunchApprovalApp:
     def request_agents_refresh(self, source: str) -> None:
         self.agent_refresh_sources.append(source)
 
-    def _submit_tracked_task(
+    def _submit_tracked_proc(
         self,
-        task_type: str,
+        proc_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
@@ -56,11 +56,11 @@ class _TuiLaunchApprovalApp:
         on_complete: Any = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
-    ) -> TaskInfo:
+    ) -> ProcInfo:
         del duplicate_message, reload_on_complete, notify_on_complete
-        task_info = TaskInfo(
-            task_id=f"task-{len(self.tracked_tasks)}",
-            task_type=task_type,
+        proc_info = ProcInfo(
+            proc_id=f"task-{len(self.tracked_procs)}",
+            proc_type=proc_type,
             cl_name=cl_name,
             project_file=project_file,
             status="running",
@@ -69,24 +69,24 @@ class _TuiLaunchApprovalApp:
             display_name=display_name,
             dedup_key=dedup_key,
         )
-        self.tracked_tasks.append(
+        self.tracked_procs.append(
             {
-                "task_type": task_type,
+                "proc_type": proc_type,
                 "cl_name": cl_name,
                 "project_file": project_file,
                 "display_name": display_name,
                 "dedup_key": dedup_key,
-                "task_info": task_info,
+                "proc_info": proc_info,
             }
         )
-        result = task_callable()
-        task_info.status = "success" if result.success else "error"
-        task_info.message = result.message
-        task_info.error = result.error
+        result = proc_callable()
+        proc_info.status = "success" if result.success else "error"
+        proc_info.message = result.message
+        proc_info.error = result.error
         if on_complete is not None:
             on_complete(
-                TrackedTaskCompletion(
-                    task_info=task_info,
+                TrackedProcCompletion(
+                    proc_info=proc_info,
                     success=result.success,
                     message=result.message,
                     output="",
@@ -94,7 +94,7 @@ class _TuiLaunchApprovalApp:
                     error=result.error,
                 )
             )
-        return task_info
+        return proc_info
 
 
 def _write_tui_launch_request(
@@ -275,9 +275,9 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
         "dispatch_status": "launched",
         "launched_count": 1,
     }
-    assert app.tracked_tasks[0]["task_type"] == "launch"
-    assert app.tracked_tasks[0]["dedup_key"] == "launch-approval:launch-dispatch"
-    assert app.tracked_tasks[0]["task_info"].cl_name == "demo"
+    assert app.tracked_procs[0]["proc_type"] == "launch"
+    assert app.tracked_procs[0]["dedup_key"] == "launch-approval:launch-dispatch"
+    assert app.tracked_procs[0]["proc_info"].cl_name == "demo"
     assert app.notifications == [
         ("Approving launch...", None),
         ("Launch approved and dispatched 1 agent", None),
@@ -333,12 +333,12 @@ def test_tui_launch_approval_projects_completed_task_label_only(
             LaunchApprovalResult(action="approve"),
         )
 
-    task_info = app.tracked_tasks[0]["task_info"]
+    proc_info = app.tracked_procs[0]["proc_info"]
     assert (
-        task_info.display_name == f"approve launch {project_display_case.patch_label}"
+        proc_info.display_name == f"approve launch {project_display_case.patch_label}"
     )
-    assert task_info.cl_name == canonical_cl
-    assert task_info.project_file == str(launch_cwd / f"{canonical}.sase")
+    assert proc_info.cl_name == canonical_cl
+    assert proc_info.project_file == str(launch_cwd / f"{canonical}.sase")
     stored_request = json.loads(
         (response_dir / LAUNCH_REQUEST_FILE).read_text(encoding="utf-8")
     )

@@ -32,7 +32,7 @@ class _ActionApp(AgentsMixin):
     def _get_selected_agent(self) -> Agent | None:
         return self._agents[self.current_idx] if self._agents else None
 
-    def _submit_background_task(self, *args: object, **kwargs: object) -> bool:
+    def _submit_proc(self, *args: object, **kwargs: object) -> bool:
         self.submitted.append(args)
         return True
 
@@ -135,8 +135,8 @@ def test_confirming_stop_submits_background_task(tmp_path: Path) -> None:
     callback(True)
 
     assert len(app.submitted) == 1
-    task_type, dedup_key, project_file, _task_callable = app.submitted[0]
-    assert task_type == "monitor-stop"
+    proc_type, dedup_key, project_file, _task_callable = app.submitted[0]
+    assert proc_type == "monitor-stop"
     assert dedup_key == "alpha--mon"
     assert project_file == "/tmp/project/monitor.sase"
 
@@ -161,8 +161,8 @@ def test_stop_monitor_task_callable_stops_and_reports_success(
     app.action_kill_agent()
     _modal, callback = app.pushed[0]
     callback(True)
-    _task_type, _dedup_key, _project_file, task_callable = app.submitted[0]
-    assert callable(task_callable)
+    _task_type, _dedup_key, _project_file, proc_callable = app.submitted[0]
+    assert callable(proc_callable)
 
     fake_record = object()
     fake_updated = type("Rec", (), {"monitor_state": "stopped"})()
@@ -172,7 +172,7 @@ def test_stop_monitor_task_callable_stops_and_reports_success(
             "sase.monitor.store.stop_monitor", return_value=fake_updated
         ) as mock_stop,
     ):
-        success, message = task_callable()  # type: ignore[operator]
+        success, message = proc_callable()  # type: ignore[operator]
 
     mock_get.assert_called_once_with("project", str(tmp_path))
     mock_stop.assert_called_once_with(fake_record)
@@ -188,11 +188,11 @@ def test_stop_monitor_task_callable_reports_missing_record(tmp_path: Path) -> No
     app.action_kill_agent()
     _modal, callback = app.pushed[0]
     callback(True)
-    _task_type, _dedup_key, _project_file, task_callable = app.submitted[0]
-    assert callable(task_callable)
+    _task_type, _dedup_key, _project_file, proc_callable = app.submitted[0]
+    assert callable(proc_callable)
 
     with patch("sase.monitor.store.get_monitor", return_value=None):
-        success, message = task_callable()  # type: ignore[operator]
+        success, message = proc_callable()  # type: ignore[operator]
 
     assert success is False
     assert "not found" in message

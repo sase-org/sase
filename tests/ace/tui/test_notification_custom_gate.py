@@ -149,7 +149,7 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
     }
 
 
-class _TaskInfo:
+class _ProcInfo:
     def __init__(self) -> None:
         self.running: set[Any] = set()
 
@@ -162,7 +162,7 @@ class _TaskInfo:
 
 class _Reporter:
     def __init__(self) -> None:
-        self.task_info = _TaskInfo()
+        self.proc_info = _ProcInfo()
         self.phases: list[str] = []
         self.lines: list[tuple[str, str]] = []
         self.commands: list[tuple[str, ...]] = []
@@ -193,11 +193,11 @@ class _TrackedSubmissionApp:
     def _refresh_notification_count(self) -> None:
         self.refresh_count += 1
 
-    def _submit_tracked_task(self, *args: Any, **kwargs: Any) -> object:
+    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
         self.task_types.append(str(args[0]))
         completion = args[3](self.reporter)
         kwargs["on_complete"](completion)
-        return SimpleNamespace(task_id="gate-task")
+        return SimpleNamespace(proc_id="gate-task")
 
 
 class _NotificationFlowApp(AgentNotificationModalMixin):
@@ -371,7 +371,7 @@ def test_tracked_executor_reports_terminal_and_extra_commands_live(
         "Running option: Approve",
         "Running option: Write audit record",
     ]
-    assert reporter.task_info.running == set()
+    assert reporter.proc_info.running == set()
     assert any('"approved": true' in line for _stream, line in reporter.lines)
     assert any('"audited": true' in line for _stream, line in reporter.lines)
     assert (created.bundle_path / "response.json").is_file()

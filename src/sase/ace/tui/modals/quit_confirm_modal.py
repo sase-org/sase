@@ -14,7 +14,7 @@ from textual.widgets import Button, Static
 
 from sase.core.time import local_now
 
-from ..task_queue import TaskInfo
+from ..proc_queue import ProcInfo
 
 _TASK_CARD_WIDTH = 52
 _CHIP_TEXT_WIDTH = 6
@@ -88,7 +88,7 @@ class QuitConfirmModal(ModalScreen[bool]):
         Binding("up", "scroll_tasks_up", "Scroll up", priority=True),
     ]
 
-    def __init__(self, tasks: list[TaskInfo]) -> None:
+    def __init__(self, tasks: list[ProcInfo]) -> None:
         super().__init__()
         self.add_class("confirm-dialog")
         self._tasks = list(tasks)
@@ -170,9 +170,9 @@ class QuitConfirmModal(ModalScreen[bool]):
         )
         return text
 
-    def _task_card_text(self, task: TaskInfo) -> Text:
-        task_type = task.task_type.strip().lower() or "task"
-        chip = _truncate_plain(task_type.upper(), _CHIP_TEXT_WIDTH)
+    def _task_card_text(self, task: ProcInfo) -> Text:
+        proc_type = task.proc_type.strip().lower() or "task"
+        chip = _truncate_plain(proc_type.upper(), _CHIP_TEXT_WIDTH)
         elapsed = _format_elapsed(task.started_at)
 
         fixed_cells = 3 + 1 + _CHIP_CELL_WIDTH + 1 + cell_len(elapsed)
@@ -189,7 +189,7 @@ class QuitConfirmModal(ModalScreen[bool]):
         line.append(" " * max(1, label_width - cell_len(label) + 1))
         line.append(
             f" {chip:<{_CHIP_TEXT_WIDTH}} ",
-            style=_TYPE_CHIP_STYLES.get(task_type, _DEFAULT_TYPE_CHIP_STYLE),
+            style=_TYPE_CHIP_STYLES.get(proc_type, _DEFAULT_TYPE_CHIP_STYLE),
         )
         line.append(" ")
         line.append(" " * max(1, _TASK_CARD_WIDTH - line.cell_len - cell_len(elapsed)))

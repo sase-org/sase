@@ -10,7 +10,7 @@ from sase.ace.tui.models.agent import AgentType
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.running_field import ClaimResult, WorkspaceClaim
 
-from tests._agent_cleanup_task_helpers import run_tracked_task
+from tests._agent_cleanup_proc_helpers import run_tracked_proc
 from tests._agent_dismiss_helpers import FakeDismissApp, make_agent
 
 
@@ -188,7 +188,7 @@ def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # t
             "sase.ace.dismissed_agents.record_recent_dismissed_agent_group"
         ) as mock_record_recent,
     ):
-        run_tracked_task(app, app.tracked_tasks[0])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [agent]
@@ -218,7 +218,7 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
         "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
-        run_tracked_task(app, app.tracked_tasks[0])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     # The failure-path notification-count refresh now rides the same
     # off-thread async path as success.
@@ -263,7 +263,7 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
-        run_tracked_task(app, app.tracked_tasks[0])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [parent, child]
@@ -275,9 +275,9 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
 
 
 def _find_bulk_persistence_task(app: FakeDismissApp) -> dict[str, Any]:
-    for task in app.tracked_tasks:
+    for task in app.tracked_procs:
         display_name = task["display_name"] or ""
-        if task["task_type"] == "dismiss" and display_name.endswith(
+        if task["proc_type"] == "dismiss" and display_name.endswith(
             ("agent", "agents")
         ):
             return task
@@ -305,7 +305,7 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
-        run_tracked_task(app, _find_bulk_persistence_task(app))
+        run_tracked_proc(app, _find_bulk_persistence_task(app))
 
     mock_persist_intents.assert_called_once()
     assert mock_persist_intents.call_args[0][1] == [a1, a2]
@@ -329,7 +329,7 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
         "sase.ace.tui.actions.agents._dismissing._persist_bulk_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
-        run_tracked_task(app, _find_bulk_persistence_task(app))
+        run_tracked_proc(app, _find_bulk_persistence_task(app))
 
     assert app.async_refreshes == 1
     assert app.notification_refreshes_async == 0
@@ -359,7 +359,7 @@ def test_bulk_dismiss_passes_added_to_artifact_index_sync() -> None:
         ) as mock_sync_index,
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
-        run_tracked_task(app, _find_bulk_persistence_task(app))
+        run_tracked_proc(app, _find_bulk_persistence_task(app))
 
     mock_sync_index.assert_called_once()
     kwargs = mock_sync_index.call_args.kwargs

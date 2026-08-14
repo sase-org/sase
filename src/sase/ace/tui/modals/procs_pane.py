@@ -18,7 +18,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label, Static
 
 from ..actions.navigation.jump_hints import normalize_jump_key
-from ..task_queue import TaskInfo, TaskQueue
+from ..proc_queue import ProcInfo, ProcQueue
 from ..util.selection import ProgrammaticSelectionGuard
 from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
@@ -73,7 +73,7 @@ class ProcsPane(
     ) -> None:
         super().__init__(**kwargs)
         self._session_state = session_state or ProcsSessionState()
-        self._tasks: list[TaskInfo] = []
+        self._tasks: list[ProcInfo] = []
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
         self._selection_guard = ProgrammaticSelectionGuard()
@@ -82,7 +82,7 @@ class ProcsPane(
         self._body_cache: BodyCache = {}
         self._all_sessions = self._session_state.all_sessions
         self._session_id: str | None = None
-        self._store_rows: list[TaskInfo] = []
+        self._store_rows: list[ProcInfo] = []
         self._store_mtime: float | None = None
         self._store_detail_id: str | None = None
         self._store_load_pending = False
@@ -104,7 +104,7 @@ class ProcsPane(
         yield Static(self._hints(), id="procs-hints", markup=False)
 
     def on_mount(self) -> None:
-        queue = self._task_queue()
+        queue = self._proc_queue()
         if queue is not None:
             queue.prune_old()
         self._session_id = current_tui_session_id()
@@ -159,12 +159,12 @@ class ProcsPane(
         except Exception:
             pass
 
-    def _task_queue(self) -> TaskQueue | None:
-        queue = getattr(self.app, "_task_queue", None)
-        return queue if isinstance(queue, TaskQueue) else None
+    def _proc_queue(self) -> ProcQueue | None:
+        queue = getattr(self.app, "_proc_queue", None)
+        return queue if isinstance(queue, ProcQueue) else None
 
     def _kill_callback(self) -> Callable[[str], bool] | None:
-        callback = getattr(self.app, "_kill_background_task", None)
+        callback = getattr(self.app, "_kill_proc", None)
         return callback if callable(callback) else None
 
     def _is_active_tab(self) -> bool:
@@ -191,9 +191,9 @@ class ProcsPane(
             detail_task_id=detail_task_id,
         )
 
-    def _signal_store_task(self, task_id: str) -> str | None:
+    def _signal_store_task(self, proc_id: str) -> str | None:
         """Call the facade's patchable durable-task kill helper."""
-        return kill_store_task(task_id)
+        return kill_store_task(proc_id)
 
     @staticmethod
     def _run_editor(editor_args: list[str]) -> None:

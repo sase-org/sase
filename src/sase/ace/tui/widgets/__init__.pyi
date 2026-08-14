@@ -64,7 +64,7 @@ from .stashed_prompts_indicator import (
 )
 from .tab_bar import TabBar as TabBar
 from .tab_quickstart import TabQuickStart as TabQuickStart
-from .task_indicator import TaskIndicator as TaskIndicator
+from .proc_indicator import ProcIndicator as ProcIndicator
 from .tools_panel import ToolDetailLevel as ToolDetailLevel
 from .tools_panel import ToolsVisibilityChanged as ToolsVisibilityChanged
 from .updates_indicator import UpdatesAvailableIndicator as UpdatesAvailableIndicator

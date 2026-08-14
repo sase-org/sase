@@ -80,7 +80,7 @@ def test_multi_model_dispatch_snapshots_xprompts_without_broad_refresh() -> None
         "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
         side_effect=_capture_launch,
     ):
-        app._run_submitted_launch_tasks()
+        app._run_submitted_launch_procs()
 
     assert set(captured["local_xprompts"]) == {"_epic"}
 

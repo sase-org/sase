@@ -10,7 +10,7 @@ from ._launch_history import (
     record_launched_vcs_xprompt_usage,
     record_prompt_file_references,
 )
-from ._launch_tasks import LaunchTaskOutcome
+from ._launch_procs import LaunchProcOutcome
 from ._types import PromptContext
 from ..failure_messages import with_log_panel_hint
 
@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 def run_agent_launch_body(
     app: Any, prompt: str, ctx: PromptContext | None = None
-) -> LaunchTaskOutcome:
+) -> LaunchProcOutcome:
     """Run the blocking body for a single submitted prompt."""
     owns_context = ctx is None
     if ctx is None:
@@ -27,7 +27,7 @@ def run_agent_launch_body(
     if ctx is None:
         # Context was cleared between the submit and the worker tick
         # (e.g. another launch path ran); nothing to do.
-        return LaunchTaskOutcome(
+        return LaunchProcOutcome(
             "Launch skipped: prompt context is no longer available",
             severity="warning",
         )
@@ -45,8 +45,8 @@ def run_agent_launch_body(
     )
 
     def _with_unresolved_warnings(
-        outcome: LaunchTaskOutcome,
-    ) -> LaunchTaskOutcome:
+        outcome: LaunchProcOutcome,
+    ) -> LaunchProcOutcome:
         return outcome.with_warning_messages(unresolved_warning_messages)
 
     from sase.agent.launch_validation import (
@@ -77,7 +77,7 @@ def run_agent_launch_body(
             if owns_context:
                 app._prompt_context = None
             return _with_unresolved_warnings(
-                LaunchTaskOutcome(str(exc), severity="error")
+                LaunchProcOutcome(str(exc), severity="error")
             )
         force_reuse_names = force_reuse_owner_names(force_reuse_prompts)
         force_reuse_bead_associations = force_reuse_bead_associations_by_prompt(
@@ -107,7 +107,7 @@ def run_agent_launch_body(
             if owns_context:
                 app._prompt_context = None
             return _with_unresolved_warnings(
-                LaunchTaskOutcome(
+                LaunchProcOutcome(
                     with_log_panel_hint("Agent name reuse failed"),
                     severity="error",
                 )
@@ -163,7 +163,7 @@ def run_agent_launch_body(
             if owns_context:
                 app._prompt_context = None
             return _with_unresolved_warnings(
-                LaunchTaskOutcome(
+                LaunchProcOutcome(
                     "Multi-prompt is not supported with bulk launch",
                     severity="error",
                 )
@@ -172,7 +172,7 @@ def run_agent_launch_body(
         # callbacks; the launched work itself never runs on the app pump.
         app.call_later(app._launch_bulk_agents, prompt)
         return _with_unresolved_warnings(
-            LaunchTaskOutcome("Bulk launch queued", notify=False)
+            LaunchProcOutcome("Bulk launch queued", notify=False)
         )
 
     from sase.workspace_provider import get_ref_patterns
@@ -279,7 +279,7 @@ def run_agent_launch_body(
                     app._prompt_context = None
                 timer.finish(dispatch="multi_prompt", outcome="cancelled")
                 return _with_unresolved_warnings(
-                    LaunchTaskOutcome(err_msg, severity="error")
+                    LaunchProcOutcome(err_msg, severity="error")
                 )
             add_or_update_prompt(
                 submitted_xprompt,
@@ -305,7 +305,7 @@ def run_agent_launch_body(
             force_reuse_segment_envs,
         )
         return _with_unresolved_warnings(
-            LaunchTaskOutcome(
+            LaunchProcOutcome(
                 f"Multi-prompt launch queued for {ctx.display_name}",
                 notify=False,
             )

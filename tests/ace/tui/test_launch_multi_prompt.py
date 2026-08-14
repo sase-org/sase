@@ -44,7 +44,7 @@ def test_multi_prompt_burst_collapses_to_single_refresh() -> None:
             side_effect=_fake_launch,
         ):
             app._launch_multi_prompt_agents(multi, _ctx(), None)
-            app._run_submitted_launch_tasks()
+            app._run_submitted_launch_procs()
 
     assert app.refresh_requests == []
     assert len(app.launch_delta_batches) == 1
@@ -77,7 +77,7 @@ def test_multi_prompt_launch_context_is_immutable_snapshot() -> None:
             app._launch_multi_prompt_agents(multi, ctx, None)
             # Mutate the original ctx; the worker must not see this.
             ctx.display_name = "MUTATED"
-            app._run_submitted_launch_tasks()
+            app._run_submitted_launch_procs()
     assert captured["display_name"] == "cl"
 
 
@@ -97,7 +97,7 @@ def test_multi_prompt_launch_forwards_submitted_prompt_text() -> None:
             side_effect=_capture,
         ):
             app._launch_multi_prompt_agents(multi, _ctx(), None, submitted)
-            app._run_submitted_launch_tasks()
+            app._run_submitted_launch_procs()
 
     assert captured["multi_agent_prompt_text"] == submitted
 
@@ -123,7 +123,7 @@ def test_multi_prompt_launch_forwards_segment_extra_env() -> None:
                 None,
                 segment_extra_env=segment_extra_env,
             )
-            app._run_submitted_launch_tasks()
+            app._run_submitted_launch_procs()
 
     assert captured["segment_extra_env"] == segment_extra_env
 
@@ -144,7 +144,7 @@ def test_multi_prompt_launch_forwards_swarm_provenance() -> None:
             side_effect=_capture,
         ):
             app._launch_multi_prompt_agents(multi, _ctx(), None)
-            app._run_submitted_launch_tasks()
+            app._run_submitted_launch_procs()
 
     assert captured["segment_swarm_xprompts"] == [
         ("outer",),

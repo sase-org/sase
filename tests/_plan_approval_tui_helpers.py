@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+from sase.ace.tui.proc_queue import ProcInfo
 from sase.notifications import Notification
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 
@@ -43,15 +43,15 @@ def make_approval_app_and_notification(
     return app, notification, response_dir, mock_agent
 
 
-def run_tracked_tasks_immediately(app: MagicMock) -> list[dict[str, Any]]:
+def run_tracked_procs_immediately(app: MagicMock) -> list[dict[str, Any]]:
     """Configure an app to execute submitted tracked tasks synchronously."""
     submitted: list[dict[str, Any]] = []
 
     def submit(
-        task_type: str,
+        proc_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
@@ -59,11 +59,11 @@ def run_tracked_tasks_immediately(app: MagicMock) -> list[dict[str, Any]]:
         on_complete: Any = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
-    ) -> TaskInfo:
+    ) -> ProcInfo:
         del duplicate_message, reload_on_complete, notify_on_complete
-        task_info = TaskInfo(
-            task_id=f"task-{len(submitted)}",
-            task_type=task_type,
+        proc_info = ProcInfo(
+            proc_id=f"task-{len(submitted)}",
+            proc_type=proc_type,
             cl_name=cl_name,
             project_file=project_file,
             status="running",
@@ -74,22 +74,22 @@ def run_tracked_tasks_immediately(app: MagicMock) -> list[dict[str, Any]]:
         )
         submitted.append(
             {
-                "task_type": task_type,
+                "proc_type": proc_type,
                 "cl_name": cl_name,
                 "project_file": project_file,
                 "display_name": display_name,
                 "dedup_key": dedup_key,
-                "task_callable": task_callable,
+                "proc_callable": proc_callable,
             }
         )
-        result = task_callable()
-        task_info.status = "success" if result.success else "error"
-        task_info.message = result.message
-        task_info.error = result.error
+        result = proc_callable()
+        proc_info.status = "success" if result.success else "error"
+        proc_info.message = result.message
+        proc_info.error = result.error
         if on_complete is not None:
             on_complete(
-                TrackedTaskCompletion(
-                    task_info=task_info,
+                TrackedProcCompletion(
+                    proc_info=proc_info,
                     success=result.success,
                     message=result.message,
                     output="",
@@ -97,7 +97,7 @@ def run_tracked_tasks_immediately(app: MagicMock) -> list[dict[str, Any]]:
                     error=result.error,
                 )
             )
-        return task_info
+        return proc_info
 
-    app._submit_tracked_task.side_effect = submit
+    app._submit_tracked_proc.side_effect = submit
     return submitted

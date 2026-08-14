@@ -61,7 +61,7 @@ def init_runtime_state(
     self._admin_center_tab_completed_generation = 0
     self._admin_center_tab_save_pending = None
     self._admin_center_tab_save_task = None
-    self._init_task_queue()
+    self._init_proc_queue()
     self.theme = ACE_THEME_NAME
     self._auto_start_axe = auto_start_axe
     self._restart_axe = restart_axe

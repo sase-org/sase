@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from sase.notification_gates.model_operations import GateOperation
     from sase.notifications import Notification
 
-    from ...task_subprocess import TaskReporter
+    from ...proc_subprocess import ProcReporter
 
 
 def load_gate_actions(bundle_path: Path, envelope: dict[str, Any]) -> GateActionsData:
@@ -136,17 +136,17 @@ class NotificationGateActionRunner:
         self, operation_id: str, on_done: Callable[[GateCommandOutcome], None]
     ) -> bool:
         """Run one ``run_command`` action through ACE's tracked task queue."""
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if not callable(submit):
             return False
-        from ...actions.task_actions import TrackedTaskResult
+        from ...actions.proc_actions import TrackedProcResult
 
         operation = self._operation(operation_id)
         label = operation_id if operation is None else operation.label
 
-        def work(reporter: TaskReporter) -> TrackedTaskResult[GateCommandOutcome]:
+        def work(reporter: ProcReporter) -> TrackedProcResult[GateCommandOutcome]:
             outcome = self._execute_action(operation_id, reporter)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=outcome.success,
                 message=outcome.summary or outcome.message or label,
                 payload=outcome,
@@ -200,7 +200,7 @@ class NotificationGateActionRunner:
             return None
 
     def _execute_action(
-        self, operation_id: str, reporter: TaskReporter
+        self, operation_id: str, reporter: ProcReporter
     ) -> GateCommandOutcome:
         from sase.notification_gates.models import GateError
         from sase.notification_gates.operations import execute_gate_operation
@@ -217,9 +217,9 @@ class NotificationGateActionRunner:
 
         def process_state(process: Any, running: bool) -> None:
             if running:
-                reporter.task_info.register_process(process)
+                reporter.proc_info.register_process(process)
             else:
-                reporter.task_info.unregister_process(process)
+                reporter.proc_info.unregister_process(process)
 
         try:
             result = execute_gate_operation(

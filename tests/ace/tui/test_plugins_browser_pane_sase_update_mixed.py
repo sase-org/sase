@@ -237,7 +237,7 @@ async def test_updates_pane_mixed_cancel_is_non_mutating(
         pane = await _open_plugins_pane(page)
         submitted: list[int] = []
         monkeypatch.setattr(
-            pane, "_submit_combined_update_task", lambda _preview: submitted.append(1)
+            pane, "_submit_combined_update_proc", lambda _preview: submitted.append(1)
         )
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")

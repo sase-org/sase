@@ -74,10 +74,10 @@ class _StashHarness(PromptBarStashMixin):
         self.applied_counts.append(count)
         self.applied_pinned_counts.append(pinned_count)
 
-    def _submit_tracked_task(self, *args: object, **kwargs: object) -> object:
-        task_callable = args[3]
-        assert callable(task_callable)
-        result = task_callable()
+    def _submit_tracked_proc(self, *args: object, **kwargs: object) -> object:
+        proc_callable = args[3]
+        assert callable(proc_callable)
+        result = proc_callable()
         on_complete = kwargs["on_complete"]
         assert callable(on_complete)
         on_complete(
@@ -128,7 +128,7 @@ def test_capture_handler_submits_store_write_without_running_it_inline() -> None
             super().__init__()
             self.submissions: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
-        def _submit_tracked_task(self, *args: object, **kwargs: object) -> object:
+        def _submit_tracked_proc(self, *args: object, **kwargs: object) -> object:
             self.submissions.append((args, kwargs))
             return object()
 

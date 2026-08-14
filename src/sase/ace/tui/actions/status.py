@@ -209,11 +209,11 @@ class StatusActionsMixin:
         # Special handling for "Reverted" status → background task
         if new_status == STATUS_REVERTED:
 
-            def task_callable() -> tuple[bool, str]:
+            def proc_callable() -> tuple[bool, str]:
                 return _revert_task(project_file, cl_name)
 
-            submitted = self._submit_background_task(  # type: ignore[attr-defined]
-                "revert", cl_name, project_file, task_callable
+            submitted = self._submit_proc(  # type: ignore[attr-defined]
+                "revert", cl_name, project_file, proc_callable
             )
             if submitted:
                 self.notify(f"Reverting {display_cl_name}...")  # type: ignore[attr-defined]
@@ -229,11 +229,11 @@ class StatusActionsMixin:
 
                 project_basename = project_spec_basename(project_file)
 
-                def task_callable() -> tuple[bool, str]:
+                def proc_callable() -> tuple[bool, str]:
                     return _submit_task(project_file, cl_name, project_basename)
 
-                submitted = self._submit_background_task(  # type: ignore[attr-defined]
-                    "submit", cl_name, project_file, task_callable
+                submitted = self._submit_proc(  # type: ignore[attr-defined]
+                    "submit", cl_name, project_file, proc_callable
                 )
                 if submitted:
                     self.notify(f"Submitting {display_cl_name}...")  # type: ignore[attr-defined]
@@ -242,11 +242,11 @@ class StatusActionsMixin:
         # Special handling for "Archived" status → background task
         if new_status == STATUS_ARCHIVED:
 
-            def task_callable() -> tuple[bool, str]:
+            def proc_callable() -> tuple[bool, str]:
                 return _archive_task(project_file, cl_name)
 
-            submitted = self._submit_background_task(  # type: ignore[attr-defined]
-                "archive", cl_name, project_file, task_callable
+            submitted = self._submit_proc(  # type: ignore[attr-defined]
+                "archive", cl_name, project_file, proc_callable
             )
             if submitted:
                 self.notify(f"Archiving {display_cl_name}...")  # type: ignore[attr-defined]
@@ -259,11 +259,11 @@ class StatusActionsMixin:
             "Ready",
         ):
 
-            def task_callable() -> tuple[bool, str]:
+            def proc_callable() -> tuple[bool, str]:
                 return _restore_task(project_file, cl_name, new_status)
 
-            submitted = self._submit_background_task(  # type: ignore[attr-defined]
-                "restore", cl_name, project_file, task_callable
+            submitted = self._submit_proc(  # type: ignore[attr-defined]
+                "restore", cl_name, project_file, proc_callable
             )
             if submitted:
                 self.notify(f"Restoring {display_cl_name}...")  # type: ignore[attr-defined]
@@ -288,11 +288,11 @@ class StatusActionsMixin:
         if may_have_sibling_reverts:
             # Sibling reverts involve git operations → background task
 
-            def task_callable() -> tuple[bool, str]:
+            def proc_callable() -> tuple[bool, str]:
                 return _transition_with_siblings_task(project_file, cl_name, new_status)
 
-            submitted = self._submit_background_task(  # type: ignore[attr-defined]
-                "status", cl_name, project_file, task_callable
+            submitted = self._submit_proc(  # type: ignore[attr-defined]
+                "status", cl_name, project_file, proc_callable
             )
             if submitted:
                 self.notify(f"Transitioning {display_cl_name} to {new_status}...")  # type: ignore[attr-defined]

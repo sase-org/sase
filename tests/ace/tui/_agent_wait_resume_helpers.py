@@ -6,9 +6,9 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
-from sase.ace.tui.actions.task_actions import TrackedTaskCompletion, TrackedTaskResult
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.proc_queue import ProcInfo
 
 
 def make_waiting_agent(**overrides: object) -> Agent:
@@ -50,12 +50,12 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
     def push_screen(self, screen: object, callback: object = None) -> None:
         self.pushed_screens.append((screen, callback))
 
-    def _submit_tracked_task(
+    def _submit_tracked_proc(
         self,
-        task_type: str,
+        proc_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
@@ -63,11 +63,11 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
         on_complete: Any = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
-    ) -> TaskInfo:
+    ) -> ProcInfo:
         del duplicate_message, reload_on_complete, notify_on_complete
-        task_info = TaskInfo(
-            task_id="task-0",
-            task_type=task_type,
+        proc_info = ProcInfo(
+            proc_id="task-0",
+            proc_type=proc_type,
             cl_name=cl_name,
             project_file=project_file,
             status="running",
@@ -77,20 +77,20 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
             dedup_key=dedup_key,
         )
         try:
-            result = task_callable()
+            result = proc_callable()
         except Exception as exc:
-            result = TrackedTaskResult(
+            result = TrackedProcResult(
                 success=False,
                 message=str(exc),
                 error=str(exc),
             )
-        task_info.status = "success" if result.success else "error"
-        task_info.message = result.message
-        task_info.error = result.error
+        proc_info.status = "success" if result.success else "error"
+        proc_info.message = result.message
+        proc_info.error = result.error
         if on_complete is not None:
             on_complete(
-                TrackedTaskCompletion(
-                    task_info=task_info,
+                TrackedProcCompletion(
+                    proc_info=proc_info,
                     success=result.success,
                     message=result.message,
                     output="",
@@ -98,7 +98,7 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
                     error=result.error,
                 )
             )
-        return task_info
+        return proc_info
 
     def _do_kill_agent(self, agent: Agent) -> None:
         self.killed_agents.append(agent)

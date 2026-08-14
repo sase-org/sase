@@ -216,14 +216,14 @@ class ArtifactsBeadsIssueActionsMixin(ArtifactsBeadsIssueMutationActionsMixin):
                 severity="warning",
             )
             return
-        from .task_actions import TrackedTaskResult
+        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedTaskResult[str]:
+        def task() -> TrackedProcResult[str]:
             import webbrowser
 
             url = _resolved_issue_url(link)
             opened = webbrowser.open(url)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 opened,
                 (
                     f"Opened issue #{link.issue_id}"
@@ -237,7 +237,7 @@ class ArtifactsBeadsIssueActionsMixin(ArtifactsBeadsIssueMutationActionsMixin):
         def completed(_completion: Any) -> None:
             return
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             "bead-issue-open",
             row.issue.id,
             workspace,

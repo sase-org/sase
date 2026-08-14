@@ -215,20 +215,20 @@ class _FakeApp(AxeBgCmdMixin):
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
 
-    def _submit_background_task(
+    def _submit_proc(
         self,
-        task_type: str,
+        proc_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         on_success: Any = None,
     ) -> bool:
         self.submit_calls.append(
             {
-                "task_type": task_type,
+                "proc_type": proc_type,
                 "cl_name": cl_name,
                 "project_file": project_file,
-                "task_callable": task_callable,
+                "proc_callable": proc_callable,
                 "on_success": on_success,
             }
         )
@@ -266,10 +266,10 @@ def test_start_bgcmd_submits_task_and_returns_without_running_vcs() -> None:
 
     assert len(app.submit_calls) == 1
     call = app.submit_calls[0]
-    assert call["task_type"] == "bgcmd-launch"
+    assert call["proc_type"] == "bgcmd-launch"
     assert call["cl_name"] == "CL-1"
     assert call["project_file"].endswith("/projects/proj/proj.sase")
-    assert callable(call["task_callable"])
+    assert callable(call["proc_callable"])
     assert callable(call["on_success"])
 
     # "Starting:" toast only — no success/failure toast yet.
@@ -364,7 +364,7 @@ def test_start_bgcmd_dedup_rejection_with_cl_key_skips_synthetic_warning() -> No
         AxeBgCmdMixin._start_bgcmd(app, 4, "make", "proj", 1, cl_name="CL-42")
         assert not bgcmd_module._is_slot_pending(4)
 
-    # No synthetic warning — the stock _submit_background_task warning (fired
+    # No synthetic warning — the stock _submit_proc warning (fired
     # inside the real impl) is the user-visible dedup message.
     assert not any(
         "bgcmd launch is already in flight" in msg for msg, _ in app.notifications

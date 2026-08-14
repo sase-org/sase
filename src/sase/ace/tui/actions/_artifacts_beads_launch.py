@@ -76,9 +76,9 @@ class ArtifactsBeadsLaunchActionsMixin(ArtifactsBeadsCommonMixin):
                 "The project workspace is unavailable", severity="warning"
             )
             return
-        from .task_actions import TrackedTaskResult
+        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedTaskResult[str]:
+        def task() -> TrackedProcResult[str]:
             from sase.bead.task_gate import cancel_task_triage
             from sase.bead.task_launch import submit_task_launch_for_project
 
@@ -90,7 +90,7 @@ class ArtifactsBeadsLaunchActionsMixin(ArtifactsBeadsCommonMixin):
                 row.issue.id,
                 reason="launched_from_ace",
             )
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 True,
                 f"Submitted work for {row.issue.id}",
                 str(launched.proc_id),
@@ -118,13 +118,13 @@ class ArtifactsBeadsLaunchActionsMixin(ArtifactsBeadsCommonMixin):
                 "The project bead store is unavailable", severity="warning"
             )
             return
-        from .task_actions import TrackedTaskResult
+        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedTaskResult[bool]:
+        def task() -> TrackedProcResult[bool]:
             from .artifacts_beads import _launch_scoped_epic
 
             launched = _launch_scoped_epic(Path(beads_dir), row.issue.id)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 True,
                 (
                     f"Launched phase agents for {row.issue.id}"

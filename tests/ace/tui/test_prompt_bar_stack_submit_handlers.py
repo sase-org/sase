@@ -257,7 +257,7 @@ def test_keep_bar_launch_clones_context_and_preserves_base() -> None:
 
     # The worker received an independent snapshot with a fresh timestamp.
     assert len(app.launch_tasks) == 1
-    app.launch_tasks[0]["task_callable"]()
+    app.launch_tasks[0]["proc_callable"]()
     assert app.body_calls == ["pane one"]
     snapshot = app.body_call_contexts[0]
     assert snapshot is not None
@@ -274,7 +274,7 @@ def test_back_to_back_keep_bar_launches_use_distinct_contexts() -> None:
 
     assert app._prompt_context is base  # base never mutated
     for task in app.launch_tasks:
-        task["task_callable"]()
+        task["proc_callable"]()
 
     assert app.body_calls == ["pane one", "pane two"]
     first, second = app.body_call_contexts
@@ -294,5 +294,5 @@ def test_keep_bar_false_launch_unmounts_like_today() -> None:
     assert app.unmount_calls == ["submit"]
     assert len(app.launch_tasks) == 1
     # keep_bar=False threads ``None`` so the worker consumes the app context.
-    app.launch_tasks[0]["task_callable"]()
+    app.launch_tasks[0]["proc_callable"]()
     assert app.body_call_contexts == [None]

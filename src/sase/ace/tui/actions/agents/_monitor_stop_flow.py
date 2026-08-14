@@ -51,7 +51,7 @@ class MonitorStopActionFlowMixin:
 
         project_name = Path(agent.project_file).parent.name
 
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             from sase.monitor.store import get_monitor, stop_monitor
 
             record = get_monitor(project_name, artifacts_dir)
@@ -63,11 +63,11 @@ class MonitorStopActionFlowMixin:
             return True, f"Stopped {monitor_label} ({updated.monitor_state})"
 
         dedup_key = agent.agent_name or agent.monitor_id or artifacts_dir
-        self._submit_background_task(  # type: ignore[attr-defined]
+        self._submit_proc(  # type: ignore[attr-defined]
             "monitor-stop",
             dedup_key,
             agent.project_file,
-            task_callable,
+            proc_callable,
         )
 
 

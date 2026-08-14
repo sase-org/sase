@@ -13,7 +13,7 @@ from typing import Any
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agent_workflow._agent_launch import AgentLaunchMixin
-from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
+from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.agent.launch_types import AgentLaunchResult
 
@@ -57,18 +57,18 @@ class _FakeApp(AgentLaunchMixin):
 
     def _run_agent_launch_body(
         self, prompt: str, ctx: PromptContext | None = None
-    ) -> LaunchTaskOutcome:
+    ) -> LaunchProcOutcome:
         self.body_calls.append(prompt)
         self.body_call_contexts.append(ctx)
-        return LaunchTaskOutcome("done", notify=False)
+        return LaunchProcOutcome("done", notify=False)
 
-    def _submit_launch_task(
+    def _submit_launch_proc(
         self,
         *,
         display_name: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
     ) -> bool:
@@ -78,7 +78,7 @@ class _FakeApp(AgentLaunchMixin):
                 "cl_name": cl_name,
                 "project_file": project_file,
                 "dedup_key": dedup_key,
-                "task_callable": task_callable,
+                "proc_callable": proc_callable,
                 "submitted_prompt": submitted_prompt,
             }
         )
@@ -182,7 +182,7 @@ def _launch_body_context() -> PromptContext:
 
 def _run_launch_body_with_common_patches(
     app: _LaunchBodyApp, prompt: str
-) -> LaunchTaskOutcome:
+) -> LaunchProcOutcome:
     with ExitStack() as stack:
         stack.enter_context(
             patch(

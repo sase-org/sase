@@ -112,9 +112,9 @@ async def test_tasks_tab_live_refresh_updates_output_and_rebuilds_status() -> No
         age_seconds=3,
         live_output="line 1\n",
     )
-    task_queue = queue(running)
+    proc_queue = queue(running)
 
-    async with ProcsTestApp(task_queue).run_test() as pilot:
+    async with ProcsTestApp(proc_queue).run_test() as pilot:
         _, pane = await open_procs_pane(pilot)
 
         assert running._live_buffer is not None
@@ -122,7 +122,7 @@ async def test_tasks_tab_live_refresh_updates_output_and_rebuilds_status() -> No
         pane._refresh_running_output()
         assert "line 2" in output_plain(pane)
 
-        task_queue.complete("run", success=True, message="done", output="finished\n")
+        proc_queue.complete("run", success=True, message="done", output="finished\n")
         pane._refresh_running_output()
 
         option = pane.query_one("#procs-list", OptionList).get_option_at_index(0)
@@ -146,20 +146,20 @@ async def test_tasks_tab_dismisses_selected_and_all_completed() -> None:
         age_seconds=240,
         error="merge conflict",
     )
-    task_queue = queue(error, success, running)
+    proc_queue = queue(error, success, running)
 
-    async with ProcsTestApp(task_queue).run_test() as pilot:
+    async with ProcsTestApp(proc_queue).run_test() as pilot:
         _, pane = await open_procs_pane(pilot)
         await pilot.press("j")
         await pilot.pause()
 
         pane.action_dismiss_task()
-        assert task_queue.get("ok") is None
+        assert proc_queue.get("ok") is None
         assert pane.query_one("#procs-list", OptionList).option_count == 2
 
         pane.action_dismiss_all_done()
-        assert task_queue.get("err") is None
-        assert task_queue.get("run") is running
+        assert proc_queue.get("err") is None
+        assert proc_queue.get("run") is running
         assert pane.query_one("#procs-list", OptionList).option_count == 1
 
 
@@ -427,9 +427,9 @@ async def test_tasks_tab_jump_mode_takes_g_and_shift_g_from_the_output_scroller(
 async def test_tasks_tab_refresh_removing_hinted_task_clears_jump_mode() -> None:
     running = task("run", label="sync sase-42", status="running", age_seconds=3)
     success = task("ok", label="mail sase-41", status="success", age_seconds=120)
-    task_queue = queue(success, running)
+    proc_queue = queue(success, running)
 
-    async with ProcsTestApp(task_queue).run_test() as pilot:
+    async with ProcsTestApp(proc_queue).run_test() as pilot:
         _, pane = await open_procs_pane(pilot)
         option_list = pane.query_one("#procs-list", OptionList)
 
@@ -437,7 +437,7 @@ async def test_tasks_tab_refresh_removing_hinted_task_clears_jump_mode() -> None
         await pilot.pause()
         assert pane.jump_mode_active is True
 
-        task_queue.remove("run")
+        proc_queue.remove("run")
         pane._refresh_running_output()
         await pilot.pause()
 

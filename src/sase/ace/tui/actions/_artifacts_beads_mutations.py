@@ -235,9 +235,9 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         workspace = None if snapshot is None else snapshot.workspace_dirs.get(project)
         if not workspace:
             return
-        from .task_actions import TrackedTaskResult
+        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedTaskResult[Issue]:
+        def task() -> TrackedProcResult[Issue]:
             from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
             from sase.bead.mutation_commit import require_mutation_commit_message
 
@@ -253,7 +253,7 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
                 if result.ready:
                     issue = mutation.project.update(issue.id, status=Status.READY.value)
                 mutation.commit(require_mutation_commit_message("create", [issue.id]))
-            return TrackedTaskResult(True, f"Created task bead {issue.id}", issue)
+            return TrackedProcResult(True, f"Created task bead {issue.id}", issue)
 
         self._submit_beads_task(
             pane,

@@ -7,7 +7,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
-from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
+from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
 
 
 def make_agent(**overrides: object) -> Agent:
@@ -24,7 +24,7 @@ def make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class FakeDismissApp(TrackedTaskRecorderMixin, AgentDismissingMixin):
+class FakeDismissApp(TrackedProcRecorderMixin, AgentDismissingMixin):
     """Minimal app implementing just what the dismiss flow touches."""
 
     def __init__(self) -> None:

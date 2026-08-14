@@ -160,13 +160,13 @@ class RewindMixin(HintMixinBase):
         cl_name = patch.name
         project_file = patch.file_path
 
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return _rewind_task(
                 cl_name, project_file, selected_entry_num, skip_vcs=skip_vcs
             )
 
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
-            "rewind", cl_name, project_file, task_callable
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
+            "rewind", cl_name, project_file, proc_callable
         )
 
         if submitted:

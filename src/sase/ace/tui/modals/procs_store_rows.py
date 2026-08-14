@@ -5,7 +5,7 @@ tails — so it must only ever run off the Textual event loop. The pane calls
 :func:`load_store_task_rows` from a thread worker and applies the result on
 the UI thread.
 
-Store rows are converted into :class:`~..task_queue.TaskInfo` records so the
+Store rows are converted into :class:`~..proc_queue.ProcInfo` records so the
 pane renders one homogeneous list: in-memory tasks stay authoritative for
 live output, and rows this process does not own arrive with
 ``store_backed=True``.
@@ -27,7 +27,7 @@ from sase.procs import (
     read_procs,
 )
 
-from ..task_queue import TaskInfo
+from ..proc_queue import ProcInfo
 
 DETAIL_LOG_LINES = 400
 
@@ -36,7 +36,7 @@ DETAIL_LOG_LINES = 400
 class StoreTasksSnapshot:
     """One off-thread read of the durable store."""
 
-    rows: list[TaskInfo] = field(default_factory=list)
+    rows: list[ProcInfo] = field(default_factory=list)
     live_session_ids: frozenset[str] = frozenset()
     mtime: float | None = None
     detail_task_id: str | None = None
@@ -107,15 +107,15 @@ def _store_task_row(
     *,
     live_session_ids: frozenset[str] = frozenset(),
     with_output: bool = False,
-) -> TaskInfo:
+) -> ProcInfo:
     """Adapt one durable task row into a pane row."""
     started_at = _local_datetime(task.started_at or task.created_at) or local_now()
     output = ""
     if with_output:
         output = _read_log_tail(task.proc_id)
-    return TaskInfo(
-        task_id=task.proc_id,
-        task_type=task.kind,
+    return ProcInfo(
+        proc_id=task.proc_id,
+        proc_type=task.kind,
         cl_name=task.cl_name or "",
         project_file="",
         status=task.status,
@@ -128,7 +128,7 @@ def _store_task_row(
         command=list(task.command) or None,
         phase=task.phase,
         exit_code=task.exit_code,
-        durable_task_id=task.proc_id,
+        durable_proc_id=task.proc_id,
         store_backed=True,
         session_id=task.session_id,
         session_label=task.session_label,
@@ -136,10 +136,10 @@ def _store_task_row(
     )
 
 
-def kill_store_task(task_id: str) -> str | None:
+def kill_store_task(proc_id: str) -> str | None:
     """Kill a store-backed task, returning an error message on failure."""
     try:
-        kill_proc(task_id)
+        kill_proc(proc_id)
     except Exception as exc:
         return " ".join(str(exc).splitlines()) or type(exc).__name__
     return None
@@ -174,9 +174,9 @@ def _live_session_ids() -> frozenset[str]:
         return frozenset()
 
 
-def _read_log_tail(task_id: str) -> str:
+def _read_log_tail(proc_id: str) -> str:
     try:
-        return read_proc_log_tail(task_id, DETAIL_LOG_LINES)
+        return read_proc_log_tail(proc_id, DETAIL_LOG_LINES)
     except (OSError, ValueError):
         return ""
 

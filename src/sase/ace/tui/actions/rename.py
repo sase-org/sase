@@ -16,7 +16,7 @@ from .agents._directive_persistence import (
     AgentMetaPatch,
     persist_agent_directive_update,
 )
-from .task_actions import TrackedTaskCompletion, TrackedTaskResult
+from .proc_actions import TrackedProcCompletion, TrackedProcResult
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -310,9 +310,9 @@ class RenameMixin:
                 meta_patch=AgentMetaPatch(set_values={"name": durable_name}),
             )
 
-            def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+            def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
                 result = persist_agent_directive_update(spec)
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=True,
                     message=f"Agent name persisted: {new_name}",
                     payload=result,
@@ -326,7 +326,7 @@ class RenameMixin:
                     self._reload_and_reposition()  # type: ignore[attr-defined]
 
             def _on_complete(
-                completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+                completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
             ) -> None:
                 if completion.success:
                     return
@@ -336,7 +336,7 @@ class RenameMixin:
                 )
                 _refresh_from_disk()
 
-            task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+            proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
                 "agent-directive",
                 agent.cl_name or agent.display_name or "agent",
                 artifacts_dir,
@@ -348,7 +348,7 @@ class RenameMixin:
                 reload_on_complete=False,
                 notify_on_complete=False,
             )
-            if task_info is None:
+            if proc_info is None:
                 return
 
             # Find the current agent by identity (may have been replaced by

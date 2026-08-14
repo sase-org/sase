@@ -20,7 +20,7 @@
     background: $surface;
 }
 
-#task-indicator {
+#proc-indicator {
     width: auto;
     content-align: right middle;
 }

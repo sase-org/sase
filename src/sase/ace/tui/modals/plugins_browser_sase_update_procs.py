@@ -1,4 +1,4 @@
-"""Tracked-task execution and restart handling for SASE self-updates."""
+"""Tracked-proc execution and restart handling for SASE self-updates."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
@@ -35,8 +35,8 @@ from .plugins_browser_sase_update_summary import (
 )
 
 
-class SaseUpdateTaskMixin:
-    """Execute SASE updates through the shared tracked-task system."""
+class SaseUpdateProcMixin:
+    """Execute SASE updates through the shared tracked-proc system."""
 
     if TYPE_CHECKING:
         _loading: bool
@@ -69,11 +69,11 @@ class SaseUpdateTaskMixin:
 
         def _start_load(self, *, force: bool) -> None: ...
 
-    def _submit_sase_update_task(self) -> None:
-        """Run the self-update engine in the shared tracked-task system."""
+    def _submit_sase_update_proc(self) -> None:
+        """Run the self-update engine in the shared tracked-proc system."""
         install = self._uv_tool
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[UpdateSummary]:
+        def proc(reporter: ProcReporter) -> TrackedProcResult[UpdateSummary]:
             try:
                 reporter.phase("Resolving sase update")
                 summary, elapsed = self._run_sase_update_summary(
@@ -81,27 +81,27 @@ class SaseUpdateTaskMixin:
                     run_fn=reporter.uv_runner(),
                 )
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=str(exc),
                     error=str(exc),
                 )
             message = sase_update_success_message(summary, elapsed)
             log_update_summary(reporter, summary, message)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=summary,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         submit(
             "sase-update",
             "sase",
             "",
-            task,
+            proc,
             display_name="sase update",
             dedup_key="sase-update",
             exclusive_scopes=("sase-update",),
@@ -112,7 +112,7 @@ class SaseUpdateTaskMixin:
         )
 
     def _on_sase_update_complete(
-        self, completion: TrackedTaskCompletion[UpdateSummary]
+        self, completion: TrackedProcCompletion[UpdateSummary]
     ) -> None:
         """Toast the outcome and refresh installed/latest versions in place."""
         self._handle_code_update_completion(
@@ -122,7 +122,7 @@ class SaseUpdateTaskMixin:
             unchanged_severity="error",
         )
 
-    def _submit_dev_update_task(
+    def _submit_dev_update_proc(
         self,
         plan: DevUpdatePlan,
         *,
@@ -131,9 +131,9 @@ class SaseUpdateTaskMixin:
         dedup_key: str,
         duplicate_message: str,
     ) -> None:
-        """Run a dev-update plan in the shared tracked-task system."""
+        """Run a dev-update plan in the shared tracked-proc system."""
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[DevUpdateResult]:
+        def proc(reporter: ProcReporter) -> TrackedProcResult[DevUpdateResult]:
             start = time.monotonic()
             reporter.phase("Fetching editable checkouts")
             result = self._execute_dev_update(
@@ -144,7 +144,7 @@ class SaseUpdateTaskMixin:
             elapsed = max(0.0, time.monotonic() - start)
             if dev_update_failed(result):
                 reason = dev_update_failure_message(result)
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=reason,
                     error=reason,
@@ -154,20 +154,20 @@ class SaseUpdateTaskMixin:
                 result, subject=subject, elapsed=elapsed
             )
             reporter.log(message, stream="result")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=result,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         submit(
             "dev-update",
             subject,
             "",
-            task,
+            proc,
             display_name=display_name,
             dedup_key=dedup_key,
             exclusive_scopes=("sase-update",),
@@ -177,12 +177,12 @@ class SaseUpdateTaskMixin:
             notify_on_complete=False,
         )
 
-    def _submit_combined_update_task(self, preview: DevUpdatePreview) -> None:
-        """Run editable and managed legs as one tracked comprehensive task."""
+    def _submit_combined_update_proc(self, preview: DevUpdatePreview) -> None:
+        """Run editable and managed legs as one tracked comprehensive proc."""
         assert preview.plan is not None
         plan = preview.plan
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[CombinedUpdateResult]:
+        def proc(reporter: ProcReporter) -> TrackedProcResult[CombinedUpdateResult]:
             start = time.monotonic()
             reporter.phase("Checking editable SASE checkouts")
             dev_result = self._execute_dev_update(
@@ -192,7 +192,7 @@ class SaseUpdateTaskMixin:
             append_dev_update_journal(plan, dev_result)
             if dev_update_failed(dev_result):
                 reason = dev_update_failure_message(dev_result)
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=reason,
                     error=reason,
@@ -213,7 +213,7 @@ class SaseUpdateTaskMixin:
                     )
                 )
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=str(exc),
                     error=str(exc),
@@ -231,16 +231,16 @@ class SaseUpdateTaskMixin:
             )
             message = combined_sase_update_success_message(result)
             log_combined_update_result(reporter, result, message)
-            return TrackedTaskResult(success=True, message=message, payload=result)
+            return TrackedProcResult(success=True, message=message, payload=result)
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         submit(
             "sase-update",
             "sase",
             "",
-            task,
+            proc,
             display_name="sase update",
             dedup_key="sase-update",
             exclusive_scopes=("sase-update",),
@@ -251,16 +251,16 @@ class SaseUpdateTaskMixin:
         )
 
     def _on_dev_update_complete(
-        self, completion: TrackedTaskCompletion[DevUpdateResult]
+        self, completion: TrackedProcCompletion[DevUpdateResult]
     ) -> None:
-        """Toast/restart after an editable-checkout update task."""
+        """Toast/restart after an editable-checkout update proc."""
         self._handle_code_update_completion(
             completion,
             failure_prefix="dev update failed",
         )
 
     def _on_combined_update_complete(
-        self, completion: TrackedTaskCompletion[CombinedUpdateResult]
+        self, completion: TrackedProcCompletion[CombinedUpdateResult]
     ) -> None:
         """Toast, receipt, and restart once for a comprehensive mixed update."""
         self._handle_code_update_completion(
@@ -272,7 +272,7 @@ class SaseUpdateTaskMixin:
 
     def _handle_code_update_completion(
         self,
-        completion: TrackedTaskCompletion[Any],
+        completion: TrackedProcCompletion[Any],
         *,
         failure_prefix: str,
         unchanged_message: str | None = None,
@@ -303,11 +303,11 @@ class SaseUpdateTaskMixin:
         self._restart_after_update_when_ready(message, deferred=False)
 
     def _restart_after_update_when_ready(self, message: str, *, deferred: bool) -> None:
-        """Restart after tracked background tasks have finished."""
-        running_tasks = running_background_tasks(self.app)
-        if running_tasks:
+        """Restart after tracked background procs have finished."""
+        running_procs = running_background_procs(self.app)
+        if running_procs:
             if not deferred:
-                count = len(running_tasks)
+                count = len(running_procs)
                 noun = "task" if count == 1 else "tasks"
                 verb = "finishes" if count == 1 else "finish"
                 self._notify(
@@ -330,8 +330,8 @@ class SaseUpdateTaskMixin:
             restart(restart_axe=True)
 
 
-def dev_update_reporter_runner(reporter: TaskReporter) -> Any:
-    """Adapt a tracked task reporter to the dev-update command interface."""
+def dev_update_reporter_runner(reporter: ProcReporter) -> Any:
+    """Adapt a tracked proc reporter to the dev-update command interface."""
     from sase.dev_update.models import DevCommandResult
 
     def _run(argv: Any, *, cwd: Any = None, env: Any = None) -> DevCommandResult:
@@ -353,14 +353,14 @@ def dev_update_reporter_runner(reporter: TaskReporter) -> Any:
     return _run
 
 
-def running_background_tasks(app: Any) -> list[Any]:
-    """Return tracked tasks that must finish before ACE can restart."""
-    task_queue = getattr(app, "_task_queue", None)
-    get_all = getattr(task_queue, "get_all", None)
+def running_background_procs(app: Any) -> list[Any]:
+    """Return tracked procs that must finish before ACE can restart."""
+    proc_queue = getattr(app, "_proc_queue", None)
+    get_all = getattr(proc_queue, "get_all", None)
     if not callable(get_all):
         return []
     try:
-        tasks = get_all()
+        procs = get_all()
     except Exception:  # noqa: BLE001 - restart checks must not break update flow.
         return []
-    return [task for task in tasks if getattr(task, "status", None) == "running"]
+    return [proc for proc in procs if getattr(proc, "status", None) == "running"]

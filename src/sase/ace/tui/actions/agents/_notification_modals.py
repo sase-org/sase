@@ -390,14 +390,14 @@ def _submit_legacy_epic_launch_task(
     response_dir: Path,
 ) -> bool:
     """Run legacy epic launch preflight/submission as tracked TUI work."""
-    from ...actions.task_actions import TrackedTaskResult
+    from ...actions.proc_actions import TrackedProcResult
     from sase.main.plan_pending import plan_context_from_notification
     from sase.plan_approval_actions import (
         PlanApprovalActionError,
         prepare_epic_launch,
     )
 
-    def work() -> TrackedTaskResult[object]:
+    def work() -> TrackedProcResult[object]:
         try:
             task = prepare_epic_launch(
                 plan_context_from_notification(notification),
@@ -407,19 +407,19 @@ def _submit_legacy_epic_launch_task(
                 origin="ace",
             )
         except PlanApprovalActionError as exc:
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=False,
                 message=str(exc),
                 error=str(exc),
             )
         except Exception as exc:
             log.exception("Legacy epic launch task failed")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=False,
                 message=str(exc),
                 error=str(exc),
             )
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=True,
             message="Epic launch submitted",
             payload=task,
@@ -435,7 +435,7 @@ def _submit_legacy_epic_launch_task(
             timeout=15,
         )
 
-    submit = getattr(app, "_submit_tracked_task", None)
+    submit = getattr(app, "_submit_tracked_proc", None)
     if not callable(submit):
         app.notify(  # type: ignore[attr-defined]
             "Tracked epic launch execution is unavailable",
@@ -454,7 +454,7 @@ def _submit_legacy_epic_launch_task(
         or notification.action_data.get("project_dir")
         or plan_file
     )
-    task_info = submit(
+    proc_info = submit(
         "launch",
         cl_name,
         project_file,
@@ -466,7 +466,7 @@ def _submit_legacy_epic_launch_task(
         reload_on_complete=False,
         notify_on_complete=False,
     )
-    return task_info is not None
+    return proc_info is not None
 
 
 def _start_plan_approval_background_worker(

@@ -17,7 +17,7 @@ from sase.xprompt.directive_edit import (
 )
 
 from ...models.agent_pin import DEFAULT_PINNED_TRIBE
-from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ..proc_actions import TrackedProcCompletion, TrackedProcResult
 from ._directive_persistence import (
     AgentDirectivePersistenceResult,
     AgentDirectivePersistenceSpec,
@@ -224,7 +224,7 @@ class AgentTribeAssignmentMixin:
             )
             return
 
-        def _task() -> TrackedTaskResult[list[AgentDirectivePersistenceResult]]:
+        def _task() -> TrackedProcResult[list[AgentDirectivePersistenceResult]]:
             payload = [persist_agent_directive_update(spec) for spec in specs]
             suffix = "agent" if changed == 1 else "agents"
             if result.action == "set":
@@ -232,7 +232,7 @@ class AgentTribeAssignmentMixin:
                 message = f"Set @{result.tribe} on {changed} {suffix}"
             else:
                 message = f"Cleared tribe on {changed} {suffix}"
-            return TrackedTaskResult(success=True, message=message, payload=payload)
+            return TrackedProcResult(success=True, message=message, payload=payload)
 
         def _rollback_visible_tribes() -> None:
             for candidates in (self._agents, self._agents_with_children):
@@ -242,7 +242,7 @@ class AgentTribeAssignmentMixin:
                         candidate.clan_tribe = prior_clan_tribes[candidate.identity]
 
         def _on_complete(
-            completion: TrackedTaskCompletion[list[AgentDirectivePersistenceResult]],
+            completion: TrackedProcCompletion[list[AgentDirectivePersistenceResult]],
         ) -> None:
             if completion.success:
                 return
@@ -255,7 +255,7 @@ class AgentTribeAssignmentMixin:
             if callable(refresh):
                 refresh(source="agent-tribe-persist-failed")
 
-        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
             "agent-directive",
             "agent-tribes",
             "agent-tribes",
@@ -267,7 +267,7 @@ class AgentTribeAssignmentMixin:
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        if task_info is None:
+        if proc_info is None:
             return
 
         for agent in affected:

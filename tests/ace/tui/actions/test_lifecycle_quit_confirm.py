@@ -9,12 +9,12 @@ import pytest
 from sase.ace.tui.util import shutdown
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.modals import QuitConfirmModal
-from sase.ace.tui.task_queue import TaskInfo, TaskQueue
+from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
 
 
 class _QuitApp(LifecycleMixin):
-    def __init__(self, task_queue: TaskQueue | None = None) -> None:
-        self._task_queue = task_queue or TaskQueue()
+    def __init__(self, proc_queue: ProcQueue | None = None) -> None:
+        self._proc_queue = proc_queue or ProcQueue()
         self.pushed: list[tuple[Any, Any]] = []
         self.did_quit = False
         self.killed_task_ids: list[str] = []
@@ -22,8 +22,8 @@ class _QuitApp(LifecycleMixin):
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         self.pushed.append((modal, callback))
 
-    def _kill_background_task(self, task_id: str) -> bool:
-        self.killed_task_ids.append(task_id)
+    def _kill_proc(self, proc_id: str) -> bool:
+        self.killed_task_ids.append(proc_id)
         return True
 
     def _do_quit(self) -> None:
@@ -31,8 +31,8 @@ class _QuitApp(LifecycleMixin):
 
 
 class _FlushQuitApp(_QuitApp):
-    def __init__(self, task_queue: TaskQueue | None = None) -> None:
-        super().__init__(task_queue)
+    def __init__(self, proc_queue: ProcQueue | None = None) -> None:
+        super().__init__(proc_queue)
         self.exit_events: list[str] = []
         self.scheduled: list[asyncio.Task[None]] = []
 
@@ -51,28 +51,28 @@ class _FlushQuitApp(_QuitApp):
 
 
 def _task(
-    task_id: str,
-    task_type: str,
+    proc_id: str,
+    proc_type: str,
     status: str = "running",
     *,
     display_name: str | None = None,
-) -> TaskInfo:
-    return TaskInfo(
-        task_id=task_id,
-        task_type=task_type,
-        cl_name=f"{task_type}-cl",
+) -> ProcInfo:
+    return ProcInfo(
+        proc_id=proc_id,
+        proc_type=proc_type,
+        cl_name=f"{proc_type}-cl",
         project_file="/tmp/project.sase",
         status=status,
-        message=f"{task_type} in progress",
+        message=f"{proc_type} in progress",
         started_at=datetime(2026, 6, 23, 12, 0, 0),
         display_name=display_name,
     )
 
 
-def _queue(*tasks: TaskInfo) -> TaskQueue:
-    queue = TaskQueue()
+def _queue(*tasks: ProcInfo) -> ProcQueue:
+    queue = ProcQueue()
     for task in tasks:
-        queue._tasks[task.task_id] = task
+        queue._procs[task.proc_id] = task
     return queue
 
 

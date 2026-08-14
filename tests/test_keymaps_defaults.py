@@ -195,7 +195,7 @@ def test_leader_mode_drops_log_panel_key() -> None:
 
 
 def test_leader_mode_drops_task_queue_key() -> None:
-    """The ``,t`` task queue leader key was retired in the Tasks-tab cutover."""
+    """The ``,t`` task queue leader key was retired in the Procs-tab cutover."""
     reg = load_keymap_registry({})
     assert "task_queue" not in reg.leader_mode.keys
     assert "task_queue" not in LeaderModeKeymaps().keys

@@ -14,7 +14,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals import plugins_browser_sase_update as pbsu
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
-from sase.ace.tui.task_queue import TaskInfo, TaskQueue
+from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind
@@ -34,37 +34,37 @@ from tests.ace.tui._plugins_browser_pane_update_helpers import (
 
 
 def _task(
-    task_id: str,
-    task_type: str,
+    proc_id: str,
+    proc_type: str,
     status: str = "running",
-) -> TaskInfo:
-    return TaskInfo(
-        task_id=task_id,
-        task_type=task_type,
-        cl_name=f"{task_type}-cl",
+) -> ProcInfo:
+    return ProcInfo(
+        proc_id=proc_id,
+        proc_type=proc_type,
+        cl_name=f"{proc_type}-cl",
         project_file="/tmp/project.sase",
         status=status,
-        message=f"{task_type} task",
+        message=f"{proc_type} task",
         started_at=datetime(2026, 7, 9, 12, 0, 0),
     )
 
 
-def _queue(*tasks: TaskInfo) -> TaskQueue:
-    queue = TaskQueue()
-    for task in tasks:
-        queue._tasks[task.task_id] = task
+def _queue(*procs: ProcInfo) -> ProcQueue:
+    queue = ProcQueue()
+    for proc in procs:
+        queue._procs[proc.proc_id] = proc
     return queue
 
 
-class _FailingTaskQueue:
-    def get_all(self) -> list[TaskInfo]:
+class _FailingProcQueue:
+    def get_all(self) -> list[ProcInfo]:
         raise RuntimeError("queue unavailable")
 
 
-def test_restart_blockers_include_running_tracked_background_tasks() -> None:
-    blockers = pbsu._running_background_tasks(
+def test_restart_blockers_include_running_tracked_background_procs() -> None:
+    blockers = pbsu._running_background_procs(
         SimpleNamespace(
-            _task_queue=_queue(
+            _proc_queue=_queue(
                 _task("run-sync", "sync"),
                 _task("run-mail", "mail"),
                 _task("run-launch", "launch"),
@@ -75,7 +75,7 @@ def test_restart_blockers_include_running_tracked_background_tasks() -> None:
         )
     )
 
-    assert {task.task_id for task in blockers} == {
+    assert {proc.proc_id for proc in blockers} == {
         "run-sync",
         "run-mail",
         "run-launch",
@@ -84,16 +84,16 @@ def test_restart_blockers_include_running_tracked_background_tasks() -> None:
 
 def test_restart_blockers_fail_open_when_queue_cannot_be_inspected() -> None:
     assert (
-        pbsu._running_background_tasks(SimpleNamespace(_task_queue=_FailingTaskQueue()))
+        pbsu._running_background_procs(SimpleNamespace(_proc_queue=_FailingProcQueue()))
         == []
     )
     assert (
-        pbsu._running_background_tasks(
-            SimpleNamespace(_task_queue=SimpleNamespace(get_all=None))
+        pbsu._running_background_procs(
+            SimpleNamespace(_proc_queue=SimpleNamespace(get_all=None))
         )
         == []
     )
-    assert pbsu._running_background_tasks(SimpleNamespace()) == []
+    assert pbsu._running_background_procs(SimpleNamespace()) == []
 
 
 async def test_updates_pane_sase_update_opens_preview_modal(
@@ -199,7 +199,7 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             return SimpleNamespace(stop=lambda: None)
 
         monkeypatch.setattr(page.app, "set_timer", _set_timer)
-        background = page.app._task_queue.submit(
+        background = page.app._proc_queue.submit(
             "sync",
             "feature_a",
             "/tmp/project.sase",
@@ -219,8 +219,8 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             for message, _severity in messages
         )
 
-        page.app._task_queue.complete(
-            background.task_id,
+        page.app._proc_queue.complete(
+            background.proc_id,
             success=True,
             message="sync done",
             output="sync done",
@@ -266,7 +266,7 @@ async def test_updates_pane_sase_update_noop_closes_without_restart(
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        # Confirming closes the Admin Center immediately; the no-op task then
+        # Confirming closes the Admin Center immediately; the no-op proc then
         # completes on the main TUI without a restart.
         await page.wait_for(lambda _s: bool(executed) and bool(messages))
         await page.expect_no_modal()
@@ -289,7 +289,7 @@ async def test_updates_pane_sase_update_managed_confirm_closes_admin_center(
         pane = await _open_plugins_pane(page)
         submitted: list[int] = []
         monkeypatch.setattr(
-            pane, "_submit_sase_update_task", lambda: submitted.append(1)
+            pane, "_submit_sase_update_proc", lambda: submitted.append(1)
         )
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")
@@ -297,7 +297,7 @@ async def test_updates_pane_sase_update_managed_confirm_closes_admin_center(
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        # The task is submitted first, then the Admin Center closes immediately.
+        # The proc is submitted first, then the Admin Center closes immediately.
         await page.wait_for(lambda _s: bool(submitted))
         await page.expect_no_modal()
         assert submitted == [1]
@@ -313,7 +313,7 @@ async def test_updates_pane_sase_update_cancel_keeps_admin_center_open(
         pane = await _open_plugins_pane(page)
         submitted: list[int] = []
         monkeypatch.setattr(
-            pane, "_submit_sase_update_task", lambda: submitted.append(1)
+            pane, "_submit_sase_update_proc", lambda: submitted.append(1)
         )
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")

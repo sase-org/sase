@@ -5,11 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyAbsent,
@@ -120,7 +120,7 @@ class PluginUninstallActionsMixin:
 
         def _handle_code_update_completion(
             self,
-            completion: TrackedTaskCompletion[Any],
+            completion: TrackedProcCompletion[Any],
             *,
             failure_prefix: str,
         ) -> None: ...
@@ -207,23 +207,23 @@ class PluginUninstallActionsMixin:
     def _submit_uninstall_task(self, plan: UninstallReady) -> None:
         """Run ``execute_uninstall`` in a tracked background task (never blocks)."""
 
-        def task(reporter: TaskReporter) -> TrackedTaskResult[UninstallOutcome]:
+        def task(reporter: ProcReporter) -> TrackedProcResult[UninstallOutcome]:
             try:
                 reporter.phase(f"Uninstalling {plan.display_name}")
                 outcome = self._execute_uninstall(plan, run_fn=reporter.uv_runner())
             except UvToolError as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False, message=str(exc), error=str(exc)
                 )
             message = uninstall_success_message(outcome)
             reporter.log(message, stream="result")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=outcome,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return
         name = plan.display_name
@@ -241,7 +241,7 @@ class PluginUninstallActionsMixin:
         )
 
     def _on_uninstall_complete(
-        self, completion: TrackedTaskCompletion[UninstallOutcome]
+        self, completion: TrackedProcCompletion[UninstallOutcome]
     ) -> None:
         """Toast/restart after uninstall; no-op uninstalls refresh in place."""
         self._handle_code_update_completion(

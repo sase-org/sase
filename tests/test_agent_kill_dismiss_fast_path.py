@@ -19,7 +19,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets.agent_list import AgentList
 
-from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
+from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +72,7 @@ def _agent(
 
 
 def _build_kill_app(panel_widget: AgentList | None) -> Any:
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []

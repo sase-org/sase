@@ -11,7 +11,7 @@ from sase.ace.tui.modals.plan_approval_results import (
 from sase.plan_approval_actions import PlanApprovalActionError
 from tests._plan_approval_tui_helpers import (
     make_approval_app_and_notification,
-    run_tracked_tasks_immediately,
+    run_tracked_procs_immediately,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
@@ -59,7 +59,7 @@ def test_tui_epic_approval_uses_shared_detached_launch(
     notification.action_data["project_dir"] = str(tmp_path / "workspace")
     plan_response_path = response_dir / "plan_response.json"
     order: list[str] = []
-    tracked_tasks = run_tracked_tasks_immediately(app)
+    tracked_procs = run_tracked_procs_immediately(app)
 
     def submit(*_args: object, **_kwargs: object) -> object:
         response = json.loads(plan_response_path.read_text(encoding="utf-8"))
@@ -88,8 +88,8 @@ def test_tui_epic_approval_uses_shared_detached_launch(
 
     response = json.loads(plan_response_path.read_text(encoding="utf-8"))
     assert order == ["detached"]
-    assert [task["task_type"] for task in tracked_tasks] == ["launch"]
-    assert tracked_tasks[0]["dedup_key"] == "legacy-epic-launch:test-notif"
+    assert [task["proc_type"] for task in tracked_procs] == ["launch"]
+    assert tracked_procs[0]["dedup_key"] == "legacy-epic-launch:test-notif"
     assert response["epic_launch_owner"] == "host"
 
 
@@ -104,24 +104,24 @@ def test_tui_epic_launch_preflight_runs_only_inside_tracked_task(
     submitted: list[dict[str, Any]] = []
 
     def capture_task(
-        task_type: str,
+        proc_type: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         **kwargs: Any,
     ) -> object:
         submitted.append(
             {
-                "task_type": task_type,
+                "proc_type": proc_type,
                 "cl_name": cl_name,
                 "project_file": project_file,
-                "task_callable": task_callable,
+                "proc_callable": proc_callable,
                 "kwargs": kwargs,
             }
         )
         return object()
 
-    app._submit_tracked_task.side_effect = capture_task
+    app._submit_tracked_proc.side_effect = capture_task
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,
@@ -143,7 +143,7 @@ def test_tui_epic_launch_preflight_runs_only_inside_tracked_task(
 
     response = json.loads((response_dir / "plan_response.json").read_text())
     assert response["epic_launch_owner"] == "host"
-    assert submitted[0]["task_type"] == "launch"
+    assert submitted[0]["proc_type"] == "launch"
     assert submitted[0]["kwargs"]["dedup_key"] == "legacy-epic-launch:test-notif"
 
 
@@ -155,7 +155,7 @@ def test_tui_epic_submission_failure_is_loud_and_keeps_host_owner(
     )
     Path(notification.files[0]).write_text(VALID_EPIC_PLAN, encoding="utf-8")
     notification.action_data["project_dir"] = str(tmp_path / "workspace")
-    run_tracked_tasks_immediately(app)
+    run_tracked_procs_immediately(app)
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,

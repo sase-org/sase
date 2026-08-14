@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ._prompt_bar_save_xprompt_git import PromptBarSaveXpromptGitMixin
-from ._prompt_bar_save_xprompt_tasks import PromptBarSaveXpromptTaskMixin
+from ._prompt_bar_save_xprompt_procs import PromptBarSaveXpromptTaskMixin
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals.unified_xprompt_save_modal import (

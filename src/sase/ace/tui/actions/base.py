@@ -218,7 +218,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         display_cl_name = humanize_cl_name(cl_name)
         project_file = patch.file_path
 
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return reword_execute_task(
                 cl_name,
                 project_file,
@@ -231,8 +231,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
             reset_dollar_hooks(project_file, cl_name)
 
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
-            "reword", cl_name, project_file, task_callable, on_success=on_success
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
+            "reword", cl_name, project_file, proc_callable, on_success=on_success
         )
 
         if submitted:
@@ -290,7 +290,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             display_cl_name = humanize_cl_name(cl_name)
             project_file = patch.file_path
 
-            def task_callable() -> tuple[bool, str]:
+            def proc_callable() -> tuple[bool, str]:
                 return add_tag_task(
                     cl_name,
                     project_file,
@@ -304,8 +304,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
                 reset_dollar_hooks(project_file, cl_name)
 
-            submitted = self._submit_background_task(  # type: ignore[attr-defined]
-                "add_tag", cl_name, project_file, task_callable, on_success=on_success
+            submitted = self._submit_proc(  # type: ignore[attr-defined]
+                "add_tag", cl_name, project_file, proc_callable, on_success=on_success
             )
 
             if submitted:
@@ -387,11 +387,11 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
 
         # Non-interactive phase: submit execute_mail as background task
         # The background task owns the workspace from here and releases in finally
-        def task_callable() -> tuple[bool, str]:
+        def proc_callable() -> tuple[bool, str]:
             return mail_execute_task(patch, workspace_dir, workspace_num)
 
-        submitted = self._submit_background_task(  # type: ignore[attr-defined]
-            "mail", cl_name, project_file, task_callable
+        submitted = self._submit_proc(  # type: ignore[attr-defined]
+            "mail", cl_name, project_file, proc_callable
         )
 
         if submitted:

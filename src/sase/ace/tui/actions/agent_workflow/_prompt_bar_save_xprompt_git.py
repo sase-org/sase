@@ -8,9 +8,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.noninteractive_subprocess import run_noninteractive
@@ -143,20 +143,20 @@ class PromptBarSaveXpromptGitMixin:
     ) -> None:
         """Run the git commit/push flow through the tracked task queue."""
 
-        def _task() -> TrackedTaskResult[bool]:
+        def _task() -> TrackedProcResult[bool]:
             result = run_git_commit_push_sync(
                 git_root=git_root,
                 file_path=file_path,
                 commit_message=message,
             )
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=result.success,
                 message=result.message,
                 payload=result.index_lock_removed,
                 error=None if result.success else result.message,
             )
 
-        def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
+        def _on_complete(completion: TrackedProcCompletion[bool]) -> None:
             if completion.success:
                 self.notify(completion.message)  # type: ignore[attr-defined]
                 if refresh_config_on_success:
@@ -178,7 +178,7 @@ class PromptBarSaveXpromptGitMixin:
                     severity="warning",
                 )
 
-        submit = getattr(self, "_submit_tracked_task", None)
+        submit = getattr(self, "_submit_tracked_proc", None)
         if submit is None:
             self.notify(  # type: ignore[attr-defined]
                 f"Could not commit {noun}: background task queue unavailable.",
@@ -312,7 +312,7 @@ def _submit_post_write_action(
     noun: str,
     on_success: Callable[[], None],
 ) -> None:
-    submit = getattr(submit_owner, "_submit_tracked_task", None)
+    submit = getattr(submit_owner, "_submit_tracked_proc", None)
     if not callable(submit):
         notifier.notify(
             f"Could not run {offer.label}: background task queue unavailable.",
@@ -320,16 +320,16 @@ def _submit_post_write_action(
         )
         return
 
-    def _task() -> TrackedTaskResult[bool]:
+    def _task() -> TrackedProcResult[bool]:
         result = _run_post_write_action_sync(offer)
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=result.success,
             message=result.message,
             payload=result.index_lock_removed,
             error=None if result.success else result.message,
         )
 
-    def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
+    def _on_complete(completion: TrackedProcCompletion[bool]) -> None:
         notifier.notify(
             completion.message,
             severity="information" if completion.success else "error",
@@ -344,7 +344,7 @@ def _submit_post_write_action(
 
     metadata = _post_write_task_metadata(offer, noun=noun)
     submit(
-        metadata["task_type"],
+        metadata["proc_type"],
         metadata["cl_name"],
         metadata["project_file"],
         _task,
@@ -413,7 +413,7 @@ def _post_write_task_metadata(
     if offer.kind is PostWriteActionKind.COMMIT_PUSH:
         git_root = offer.git_root or ""
         return {
-            "task_type": f"{noun}-commit",
+            "proc_type": f"{noun}-commit",
             "cl_name": offer.rel_path,
             "project_file": git_root,
             "display_name": f"commit {noun} {offer.rel_path}",
@@ -425,7 +425,7 @@ def _post_write_task_metadata(
     if offer.kind is PostWriteActionKind.APPLY_CHEZMOI:
         target = offer.apply_target or offer.file_path
         return {
-            "task_type": f"{noun}-chezmoi-apply",
+            "proc_type": f"{noun}-chezmoi-apply",
             "cl_name": offer.rel_path,
             "project_file": target,
             "display_name": f"apply chezmoi {target}",
@@ -434,7 +434,7 @@ def _post_write_task_metadata(
         }
     if offer.kind is PostWriteActionKind.MEMORY_INIT:
         return {
-            "task_type": "xprompt-memory-init",
+            "proc_type": "xprompt-memory-init",
             "cl_name": offer.rel_path,
             "project_file": offer.file_path,
             "display_name": "run sase memory init",
@@ -442,7 +442,7 @@ def _post_write_task_metadata(
             "duplicate_message": "Another sase memory init is already running.",
         }
     return {
-        "task_type": "xprompt-skill-init",
+        "proc_type": "xprompt-skill-init",
         "cl_name": offer.rel_path,
         "project_file": offer.file_path,
         "display_name": "run sase skill init",

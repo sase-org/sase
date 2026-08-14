@@ -100,7 +100,7 @@ def _submit_launch_approval_task(
     feedback: str | None,
 ) -> None:
     """Submit launch approval work through the task queue when available."""
-    from sase.ace.tui.actions.task_actions import TrackedTaskResult
+    from sase.ace.tui.actions.proc_actions import TrackedProcResult
 
     request_id = str(notification.action_data.get("request_id") or notification.id)
     response_dir = str(notification.action_data.get("response_dir") or "")
@@ -111,19 +111,19 @@ def _submit_launch_approval_task(
     def task_body() -> _LaunchApprovalTaskOutcome:
         return _run_launch_approval_task(notification, action, feedback)
 
-    def tracked_body() -> TrackedTaskResult[_LaunchApprovalTaskOutcome]:
+    def tracked_body() -> TrackedProcResult[_LaunchApprovalTaskOutcome]:
         outcome = task_body()
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=outcome.success,
             message=outcome.message,
             payload=outcome,
             error=outcome.message if not outcome.success else None,
         )
 
-    submit = getattr(app, "_submit_tracked_task", None)
+    submit = getattr(app, "_submit_tracked_proc", None)
     if callable(submit):
         try:
-            task_info = submit(
+            proc_info = submit(
                 "launch",
                 cl_name,
                 response_dir,
@@ -137,7 +137,7 @@ def _submit_launch_approval_task(
                 reload_on_complete=False,
                 notify_on_complete=False,
             )
-            if task_info is not None:
+            if proc_info is not None:
                 return
             return
         except Exception:
@@ -267,14 +267,14 @@ def _finish_launch_approval_task(app: object, completion: object) -> None:
         _refresh_notification_count_if_available(app)
         return
 
-    task_info = getattr(completion, "task_info", None)
-    if task_info is not None:
+    proc_info = getattr(completion, "proc_info", None)
+    if proc_info is not None:
         if outcome.display_name:
-            task_info.display_name = outcome.display_name
+            proc_info.display_name = outcome.display_name
         if outcome.cl_name:
-            task_info.cl_name = outcome.cl_name
+            proc_info.cl_name = outcome.cl_name
         if outcome.project_file:
-            task_info.project_file = outcome.project_file
+            proc_info.project_file = outcome.project_file
     _finish_launch_approval_outcome(app, outcome)
 
 

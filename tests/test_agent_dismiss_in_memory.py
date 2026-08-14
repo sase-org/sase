@@ -213,9 +213,9 @@ def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None: 
     # Persistence is submitted as exactly one tracked background task; no ad
     # hoc call_later coroutine remains.
     assert app._scheduled == []
-    assert len(app.tracked_tasks) == 1
-    task = app.tracked_tasks[0]
-    assert task["task_type"] == "dismiss"
+    assert len(app.tracked_procs) == 1
+    task = app.tracked_procs[0]
+    assert task["proc_type"] == "dismiss"
     assert task["display_name"] == f"dismiss {agent.display_name}"
     assert agent.identity in app._dismiss_persistence_inflight
 
@@ -267,8 +267,8 @@ def test_dismiss_done_workflow_parent_removes_children(tmp_path) -> None:  # typ
     assert child.identity in app._dismissed_agents
     assert app._agents_with_children == []
     assert app._scheduled == []
-    assert len(app.tracked_tasks) == 1
-    assert app.tracked_tasks[0]["task_type"] == "dismiss"
+    assert len(app.tracked_procs) == 1
+    assert app.tracked_procs[0]["proc_type"] == "dismiss"
     assert len(app._recent_dismissed_agent_groups) == 1
     recent = app._recent_dismissed_agent_groups[0]
     assert recent.source == "recent_dismissal"
@@ -300,7 +300,7 @@ def test_dismiss_done_patch_agent_does_not_full_reload() -> None:
     assert app.refilter_count == 1
     assert agent.identity in app._dismissed_agents
     assert app._scheduled == []
-    assert len(app.tracked_tasks) == 1
+    assert len(app.tracked_procs) == 1
 
 
 def test_do_dismiss_all_batch_does_not_full_reload() -> None:
@@ -330,9 +330,9 @@ def test_do_dismiss_all_batch_does_not_full_reload() -> None:
     assert app._agents_with_children == []
 
     # Persistence rides a tracked background task, not a second call_later.
-    assert len(app.tracked_tasks) == 1
-    task = app.tracked_tasks[0]
-    assert task["task_type"] == "dismiss"
+    assert len(app.tracked_procs) == 1
+    task = app.tracked_procs[0]
+    assert task["proc_type"] == "dismiss"
     assert task["display_name"] == "dismiss 2 agents"
     assert {a1.identity, a2.identity}.issubset(app._dismiss_persistence_inflight)
 

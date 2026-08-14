@@ -398,7 +398,7 @@ async def test_updates_pane_sase_update_dev_confirm_closes_admin_center(
         submitted: list[int] = []
         monkeypatch.setattr(
             pane,
-            "_submit_dev_update_task",
+            "_submit_dev_update_proc",
             lambda *_a, **_kw: submitted.append(1),
         )
         pane.action_update_sase()

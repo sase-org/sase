@@ -267,7 +267,7 @@ def test_snooze_callback_with_timedelta_calls_mark_snoozed() -> None:
         patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
-        mock_app._submit_tracked_task = None
+        mock_app._submit_tracked_proc = None
         mock_app.screen = modal
         mock_mark.return_value = True
         modal.action_snooze()
@@ -307,7 +307,7 @@ def test_snooze_callback_with_datetime_uses_until_label() -> None:
         patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
-        mock_app._submit_tracked_task = None
+        mock_app._submit_tracked_proc = None
         mock_app.screen = modal
         mock_mark.return_value = True
         modal.action_snooze()
@@ -360,16 +360,16 @@ def test_single_snooze_submits_tracked_background_write() -> None:
         patch("sase.ace.tui.modals.notification_modal.mark_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
-        mock_app._submit_tracked_task.return_value = object()
+        mock_app._submit_tracked_proc.return_value = object()
         modal.action_snooze()
         captured_callback[0](timedelta(minutes=15))
 
     mock_mark.assert_not_called()
     assert notification.muted is False
     assert notification.snooze_until is None
-    mock_app._submit_tracked_task.assert_called_once()
-    args = mock_app._submit_tracked_task.call_args.args
-    kwargs = mock_app._submit_tracked_task.call_args.kwargs
+    mock_app._submit_tracked_proc.assert_called_once()
+    args = mock_app._submit_tracked_proc.call_args.args
+    kwargs = mock_app._submit_tracked_proc.call_args.kwargs
     assert callable(args[3])
     assert kwargs["dedup_key"] == "notification-state"
     assert kwargs["exclusive_scopes"] == ("notification-state",)
@@ -394,7 +394,7 @@ def test_single_snooze_stale_row_does_not_show_false_success() -> None:
         ),
     ):
         mock_app.push_screen = fake_push_screen
-        mock_app._submit_tracked_task = None
+        mock_app._submit_tracked_proc = None
         mock_app.screen = modal
         modal.action_snooze()
         captured_callback[0](timedelta(minutes=15))
@@ -445,7 +445,7 @@ def test_snooze_with_marks_uses_one_picker_and_bulk_call() -> None:
         patch("sase.ace.tui.modals.notification_modal.mark_many_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
-        mock_app._submit_tracked_task = None
+        mock_app._submit_tracked_proc = None
         mock_app.screen = modal
         mock_mark.return_value = 2
         modal.action_snooze()
@@ -479,7 +479,7 @@ def test_snooze_with_marks_cancellation_keeps_marks_and_state() -> None:
         patch("sase.ace.tui.modals.notification_modal.mark_many_snoozed") as mock_mark,
     ):
         mock_app.push_screen = fake_push_screen
-        mock_app._submit_tracked_task = None
+        mock_app._submit_tracked_proc = None
         modal.action_snooze()
         captured_callback[0](None)
 
@@ -524,14 +524,14 @@ def test_bulk_state_task_rejects_overlapping_mutation() -> None:
         patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app,
         patch("sase.ace.tui.modals.notification_modal.mark_many_muted") as mock_mark,
     ):
-        mock_app._submit_tracked_task.return_value = None
+        mock_app._submit_tracked_proc.return_value = None
         modal.action_toggle_mute()
 
     mock_mark.assert_not_called()
     assert all(n.muted is False for n in (n1, n2))
     assert modal._marked_notification_ids == {"n1", "n2"}
-    mock_app._submit_tracked_task.assert_called_once()
-    kwargs = mock_app._submit_tracked_task.call_args.kwargs
+    mock_app._submit_tracked_proc.assert_called_once()
+    kwargs = mock_app._submit_tracked_proc.call_args.kwargs
     assert kwargs["dedup_key"] == "notification-state"
     assert kwargs["exclusive_scopes"] == ("notification-state",)
 

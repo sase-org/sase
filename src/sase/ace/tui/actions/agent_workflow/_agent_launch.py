@@ -12,7 +12,7 @@ from ._launch_multi_model import MultiModelLaunchMixin
 from ._launch_multi_prompt import MultiPromptLaunchMixin
 from ._launch_repeat import RepeatLaunchMixin
 from ._launch_start import AgentLaunchStartMixin
-from ._launch_tasks import LaunchTaskMixin
+from ._launch_procs import LaunchProcMixin
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class AgentLaunchMixin(
     AgentLaunchBodyMixin,
     BackgroundAgentLaunchMixin,
     LaunchDeltaMixin,
-    LaunchTaskMixin,
+    LaunchProcMixin,
     MultiModelLaunchMixin,
     RepeatLaunchMixin,
     MultiPromptLaunchMixin,

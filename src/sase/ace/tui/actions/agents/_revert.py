@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     )
     from ...models import Agent
     from ...models.agent import AgentType
-    from ..task_actions import TrackedTaskCompletion
+    from ..proc_actions import TrackedProcCompletion
 
 
 class AgentRevertMixin:
@@ -97,18 +97,18 @@ class AgentRevertMixin:
 
     def _submit_revert_preview(self, agent: Agent, intent: RevertIntent) -> None:
         from ....revert_agent import preview_agent_revert_intent
-        from ..task_actions import TrackedTaskResult
+        from ..proc_actions import TrackedProcResult
 
-        def _callable() -> TrackedTaskResult[RevertPreview]:
+        def _callable() -> TrackedProcResult[RevertPreview]:
             preview = preview_agent_revert_intent(intent)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=preview.error
                 or f"Found {preview.commit_count} commit(s) to revert",
                 payload=preview,
             )
 
-        def _on_complete(completion: TrackedTaskCompletion[RevertPreview]) -> None:
+        def _on_complete(completion: TrackedProcCompletion[RevertPreview]) -> None:
             preview = completion.payload
             if preview is None:
                 self.notify(  # type: ignore[attr-defined]
@@ -124,7 +124,7 @@ class AgentRevertMixin:
                 return
             self._open_confirm_revert_modal(preview, agent, intent.artifacts_dir)
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             "revert_preview",
             agent.cl_name,
             agent.project_file,
@@ -163,28 +163,28 @@ class AgentRevertMixin:
             build_revert_execute_intent,
             execute_agent_revert_intent,
         )
-        from ..task_actions import TrackedTaskResult
+        from ..proc_actions import TrackedProcResult
 
         intent = build_revert_execute_intent(agent, preview, artifacts_dir)
         agent_name = preview.agent_name
 
-        def _callable() -> TrackedTaskResult[RevertResult]:
+        def _callable() -> TrackedProcResult[RevertResult]:
             result = execute_agent_revert_intent(preview, intent)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=result.success,
                 message=result.message,
                 payload=result,
                 error=result.error,
             )
 
-        def _on_complete(completion: TrackedTaskCompletion[RevertResult]) -> None:
+        def _on_complete(completion: TrackedProcCompletion[RevertResult]) -> None:
             # Refresh on success or when a local revert commit was created even
             # though the post-commit push failed (the worktree state changed).
             payload = completion.payload
             if completion.success or (payload is not None and payload.reverted_shas):
                 self._schedule_agents_async_refresh(source="revert_agent")  # type: ignore[attr-defined]
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             "revert_agent",
             agent.cl_name,
             agent.project_file,
@@ -305,11 +305,11 @@ class AgentRevertMixin:
         representative: Agent,
     ) -> None:
         from ....revert_agent import preview_agents_revert_intent
-        from ..task_actions import TrackedTaskResult
+        from ..proc_actions import TrackedProcResult
 
-        def _callable() -> TrackedTaskResult[BulkRevertPreview]:
+        def _callable() -> TrackedProcResult[BulkRevertPreview]:
             preview = preview_agents_revert_intent(intent)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message=preview.error
                 or f"Found {preview.commit_count} commit(s) to revert",
@@ -317,7 +317,7 @@ class AgentRevertMixin:
             )
 
         def _on_complete(
-            completion: TrackedTaskCompletion[BulkRevertPreview],
+            completion: TrackedProcCompletion[BulkRevertPreview],
         ) -> None:
             preview = completion.payload
             if preview is None:
@@ -334,7 +334,7 @@ class AgentRevertMixin:
                 return
             self._open_confirm_bulk_revert_modal(preview, representative)
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             "revert_preview",
             representative.cl_name,
             representative.project_file,
@@ -371,13 +371,13 @@ class AgentRevertMixin:
             build_bulk_revert_execute_intent,
             execute_agents_revert_intent,
         )
-        from ..task_actions import TrackedTaskResult
+        from ..proc_actions import TrackedProcResult
 
         intent = build_bulk_revert_execute_intent(representative, preview)
 
-        def _callable() -> TrackedTaskResult[BulkRevertResult]:
+        def _callable() -> TrackedProcResult[BulkRevertResult]:
             result = execute_agents_revert_intent(preview, intent)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=result.success,
                 message=result.message,
                 payload=result,
@@ -385,7 +385,7 @@ class AgentRevertMixin:
             )
 
         def _on_complete(
-            completion: TrackedTaskCompletion[BulkRevertResult],
+            completion: TrackedProcCompletion[BulkRevertResult],
         ) -> None:
             # Refresh on success or when a local revert commit was created even
             # though the post-commit push failed (the worktree state changed).
@@ -393,7 +393,7 @@ class AgentRevertMixin:
             if completion.success or (payload is not None and payload.reverted_shas):
                 self._schedule_agents_async_refresh(source="revert_agent")  # type: ignore[attr-defined]
 
-        self._submit_tracked_task(  # type: ignore[attr-defined]
+        self._submit_tracked_proc(  # type: ignore[attr-defined]
             "revert_agent",
             representative.cl_name,
             representative.project_file,

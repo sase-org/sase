@@ -8,7 +8,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import Button, Static
 
 from sase.ace.tui.modals import QuitConfirmModal
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.proc_queue import ProcInfo
 
 
 class _TestApp(App[None]):
@@ -19,15 +19,15 @@ class _TestApp(App[None]):
 
 
 def _task(
-    task_id: str = "task-1",
-    task_type: str = "sync",
+    proc_id: str = "task-1",
+    proc_type: str = "sync",
     message: str = "Syncing visual-auth...",
     *,
     display_name: str | None = "Sync visual-auth",
-) -> TaskInfo:
-    return TaskInfo(
-        task_id=task_id,
-        task_type=task_type,
+) -> ProcInfo:
+    return ProcInfo(
+        proc_id=proc_id,
+        proc_type=proc_type,
         cl_name="visual-auth",
         project_file="/tmp/project.sase",
         status="running",
@@ -52,7 +52,7 @@ def test_task_card_renders_label_type_message_and_elapsed(monkeypatch) -> None:
 
     monkeypatch.setattr(quit_confirm_modal, "_format_elapsed", lambda _dt: "12s")
     task = _task(
-        task_type="accept",
+        proc_type="accept",
         message="Accepting proposal visual-auth with a useful status line",
         display_name="Accept visual-auth",
     )

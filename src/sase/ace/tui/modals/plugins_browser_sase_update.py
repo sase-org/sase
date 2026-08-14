@@ -35,14 +35,14 @@ from .plugins_browser_sase_update_summary import (
     run_sase_update_summary,
     sase_update_success_message,
 )
-from .plugins_browser_sase_update_tasks import (
-    SaseUpdateTaskMixin,
+from .plugins_browser_sase_update_procs import (
+    SaseUpdateProcMixin,
     dev_update_reporter_runner as _dev_update_reporter_runner,
-    running_background_tasks as _running_background_tasks,
+    running_background_procs as _running_background_procs,
 )
 
 
-class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
+class SaseUpdateActionsMixin(SaseUpdateProcMixin):
     """Plan, confirm, and run ``sase update`` from the Updates tab."""
 
     if TYPE_CHECKING:
@@ -161,7 +161,7 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
         def _on_confirmed(result: PluginActionConfirmResult | None) -> None:
             if result is None:
                 return
-            self._submit_sase_update_task()
+            self._submit_sase_update_proc()
             self._close_admin_center_after_sase_update()
 
         self.app.push_screen(modal, _on_confirmed)
@@ -208,9 +208,9 @@ class SaseUpdateActionsMixin(SaseUpdateTaskMixin):
             if result is None:
                 return
             if mixed:
-                self._submit_combined_update_task(preview)
+                self._submit_combined_update_proc(preview)
             else:
-                self._submit_dev_update_task(
+                self._submit_dev_update_proc(
                     plan,
                     subject=subject,
                     display_name="sase update",

@@ -29,9 +29,9 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
-from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
-from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcOutcome
+from sase.ace.tui.proc_queue import ProcInfo
 from tests.ace.tui._agent_launch_helpers import _FakeApp
 from tests.ace.tui._agent_launch_helpers import _LaunchBodyApp
 
@@ -47,13 +47,13 @@ class _SubmitLaunchBodyApp(_LaunchBodyApp):
     def _unmount_prompt_bar_after_submit(self) -> None:
         self.unmount_calls.append("submit")
 
-    def _submit_launch_task(
+    def _submit_launch_proc(
         self,
         *,
         display_name: str,
         cl_name: str,
         project_file: str,
-        task_callable: Any,
+        proc_callable: Any,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
     ) -> bool:
@@ -63,7 +63,7 @@ class _SubmitLaunchBodyApp(_LaunchBodyApp):
                 "cl_name": cl_name,
                 "project_file": project_file,
                 "dedup_key": dedup_key,
-                "task_callable": task_callable,
+                "proc_callable": proc_callable,
                 "submitted_prompt": submitted_prompt,
             }
         )
@@ -111,11 +111,11 @@ def _enter_launch_body_base_patches(stack: ExitStack) -> None:
 
 
 def _complete_launch_task(app: _SubmitLaunchBodyApp, outcome: Any) -> None:
-    app._on_launch_task_complete(
-        TrackedTaskCompletion(
-            task_info=TaskInfo(
-                task_id="task",
-                task_type="launch",
+    app._on_launch_proc_complete(
+        TrackedProcCompletion(
+            proc_info=ProcInfo(
+                proc_id="task",
+                proc_type="launch",
                 cl_name="test",
                 project_file="/tmp/test.sase",
                 status="error" if not outcome.success else "success",
@@ -133,7 +133,7 @@ def _complete_launch_task(app: _SubmitLaunchBodyApp, outcome: Any) -> None:
 
 def test_launch_task_completion_emits_warning_messages() -> None:
     app = _SubmitLaunchBodyApp()
-    outcome = LaunchTaskOutcome(
+    outcome = LaunchProcOutcome(
         "done",
         notify=False,
         warning_messages=("Unknown xprompt reference(s): #reviewww",),
@@ -221,7 +221,7 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     # The body itself was NOT called synchronously.
     assert app.body_calls == []
     assert app.notifications == [("Launching agent for test...", None)]
-    task["task_callable"]()
+    task["proc_callable"]()
     assert app.body_calls == ["the prompt"]
 
 
@@ -264,7 +264,7 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
         assert app._prompt_context.timestamp == "forced-ts"
         assert app._prompt_context.workflow_name == "ace(run)-forced-ts"
 
-        outcome = task["task_callable"]()
+        outcome = task["proc_callable"]()
 
     wipe_names.assert_called_once_with(["foo"])
     for call in validate_names.call_args_list:
@@ -307,7 +307,7 @@ def test_finish_agent_launch_forced_family_attach_wipes_exact_member() -> None:
         )
 
         app._finish_agent_launch(prompt)
-        outcome = app.launch_tasks[0]["task_callable"]()
+        outcome = app.launch_tasks[0]["proc_callable"]()
 
     wipe_names.assert_called_once_with(["foo--code"])
     for call in validate_names.call_args_list:
@@ -349,7 +349,7 @@ def test_finish_agent_launch_force_reuse_threads_segment_bead_markers() -> None:
         stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
 
         app._finish_agent_launch(prompt)
-        outcome = app.launch_tasks[0]["task_callable"]()
+        outcome = app.launch_tasks[0]["proc_callable"]()
 
     wipe_names.assert_called_once_with(["a", "crew.b"])
     validate_names.assert_called_once_with(
@@ -409,7 +409,7 @@ def test_finish_agent_launch_force_reuse_wipes_every_multi_prompt_name() -> None
         assert len(app.launch_tasks) == 1
         assert app.launch_tasks[0]["submitted_prompt"] == prompt
 
-        outcome = app.launch_tasks[0]["task_callable"]()
+        outcome = app.launch_tasks[0]["proc_callable"]()
 
     wipe_names.assert_called_once_with(["foo", "bar", "baz"])
     validate_names.assert_called_once_with(rewritten_segments)
@@ -446,7 +446,7 @@ def test_finish_agent_launch_force_reuse_split_protects_fenced_separator() -> No
         stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
 
         app._finish_agent_launch(prompt)
-        outcome = app.launch_tasks[0]["task_callable"]()
+        outcome = app.launch_tasks[0]["proc_callable"]()
 
     wipe_names.assert_called_once_with(["foo", "bar"])
     assert outcome.success is True
@@ -470,7 +470,7 @@ def test_finish_agent_launch_force_reuse_early_parse_failure_does_not_wipe() -> 
         app._finish_agent_launch(prompt)
 
         with pytest.raises(ValueError, match="must start with '_'"):
-            app.launch_tasks[0]["task_callable"]()
+            app.launch_tasks[0]["proc_callable"]()
 
     wipe_names.assert_not_called()
     assert app.scheduled == []
@@ -490,7 +490,7 @@ def test_finish_agent_launch_invalid_forced_family_name_does_not_wipe() -> None:
         patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
     ):
         app._finish_agent_launch(prompt)
-        outcome = app.launch_tasks[0]["task_callable"]()
+        outcome = app.launch_tasks[0]["proc_callable"]()
 
     wipe.assert_not_called()
     record_failed.assert_called_once_with(prompt)
@@ -524,7 +524,7 @@ def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> 
         assert app.launched == []
         assert app.notifications == [("Launching agent for test...", None)]
 
-        outcome = app.launch_tasks[0]["task_callable"]()
+        outcome = app.launch_tasks[0]["proc_callable"]()
 
     wipe_names.assert_called_once_with(["foo"])
     record_failed.assert_called_once_with("%id:!foo\nDo work")

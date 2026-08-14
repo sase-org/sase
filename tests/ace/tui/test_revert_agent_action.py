@@ -35,8 +35,8 @@ class _FakeApp(AgentRevertMixin):
     def notify(self, message: str, severity: str = "information", **_: Any) -> None:
         self.notifications.append((message, severity))
 
-    def _submit_tracked_task(self, task_type: str, *args: Any, **kwargs: Any) -> object:
-        self.submitted.append({"task_type": task_type, "kwargs": kwargs})
+    def _submit_tracked_proc(self, proc_type: str, *args: Any, **kwargs: Any) -> object:
+        self.submitted.append({"proc_type": proc_type, "kwargs": kwargs})
         return object()
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
@@ -122,7 +122,7 @@ def test_submits_preview_task_for_done_agent(tmp_path: Path) -> None:
 
     assert len(app.submitted) == 1
     submitted = app.submitted[0]
-    assert submitted["task_type"] == "revert_preview"
+    assert submitted["proc_type"] == "revert_preview"
     assert "foo" in submitted["kwargs"]["dedup_key"]
     assert submitted["kwargs"]["reload_on_complete"] is False
 
@@ -161,7 +161,7 @@ def test_failed_retried_agent_is_revertable(tmp_path: Path) -> None:
     app = _FakeApp(_agent("FAILED (RETRIED)", name="foo", ws=str(tmp_path)))
     app._start_revert_selected_agent()
     assert len(app.submitted) == 1
-    assert app.submitted[0]["task_type"] == "revert_preview"
+    assert app.submitted[0]["proc_type"] == "revert_preview"
 
 
 def test_confirm_modal_submits_revert_and_callback_refreshes(tmp_path: Path) -> None:
@@ -185,7 +185,7 @@ def test_confirm_modal_submits_revert_and_callback_refreshes(tmp_path: Path) -> 
     # Confirm -> a revert task is submitted.
     app.modal_callbacks[0](True)
     assert len(app.submitted) == 1
-    assert app.submitted[0]["task_type"] == "revert_agent"
+    assert app.submitted[0]["proc_type"] == "revert_agent"
 
     # Simulate task completion success -> Agents tab refresh scheduled.
     on_complete = app.submitted[0]["kwargs"]["on_complete"]
@@ -280,7 +280,7 @@ def test_marks_route_to_single_bulk_preview(tmp_path: Path) -> None:
 
     assert len(app.submitted) == 1
     submitted = app.submitted[0]
-    assert submitted["task_type"] == "revert_preview"
+    assert submitted["proc_type"] == "revert_preview"
     dedup = submitted["kwargs"]["dedup_key"]
     assert dedup.startswith("revert_preview:bulk:")
     assert "bar,foo" in dedup  # sorted agent names
@@ -345,7 +345,7 @@ def test_non_revertable_marks_skipped_with_feedback(tmp_path: Path) -> None:
 
     # The running agent is skipped (with feedback) but the done one proceeds.
     assert len(app.submitted) == 1
-    assert app.submitted[0]["task_type"] == "revert_preview"
+    assert app.submitted[0]["proc_type"] == "revert_preview"
     assert any("Skipping" in msg and sev == "warning" for msg, sev in app.notifications)
 
 
@@ -422,7 +422,7 @@ def test_confirm_bulk_preview_submits_execute_and_refreshes(tmp_path: Path) -> N
     # Confirm -> one bulk execute task is submitted.
     app.modal_callbacks[0](True)
     assert len(app.submitted) == 1
-    assert app.submitted[0]["task_type"] == "revert_agent"
+    assert app.submitted[0]["proc_type"] == "revert_agent"
     assert app.submitted[0]["kwargs"]["dedup_key"].startswith("revert_agent:bulk:")
 
     on_complete = app.submitted[0]["kwargs"]["on_complete"]

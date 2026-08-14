@@ -104,28 +104,28 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
         previous_counts: tuple[int, int],
     ) -> None:
         """Append one entry in the tracked task queue and reconcile the badge."""
-        from ..task_actions import (
-            TrackedTaskCompletion,
-            TrackedTaskResult,
+        from ..proc_actions import (
+            TrackedProcCompletion,
+            TrackedProcResult,
         )
 
-        def _persist() -> TrackedTaskResult[PromptStashSnapshotWire]:
+        def _persist() -> TrackedProcResult[PromptStashSnapshotWire]:
             try:
                 snapshot = self._append_prompt_stash_entry(entry)
             except Exception as exc:
-                return TrackedTaskResult(
+                return TrackedProcResult(
                     success=False,
                     message=str(exc),
                     error=str(exc),
                 )
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message="Prompt stashed",
                 payload=snapshot,
             )
 
         def _completed(
-            completion: TrackedTaskCompletion[PromptStashSnapshotWire],
+            completion: TrackedProcCompletion[PromptStashSnapshotWire],
         ) -> None:
             if completion.success and completion.payload is not None:
                 self._reconcile_prompt_stash_snapshot_counts(completion.payload)
@@ -137,7 +137,7 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
                 severity="error",
             )
 
-        submit = getattr(self, "_submit_tracked_task", None)
+        submit = getattr(self, "_submit_tracked_proc", None)
         if not callable(submit):
             self._spawn_prompt_stash_task(
                 self._persist_prompt_stash_entry_async(

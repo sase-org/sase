@@ -1,8 +1,8 @@
-"""Tracked-task tests for Agents-tab kill/dismiss persistence.
+"""Tracked-proc tests for Agents-tab kill/dismiss persistence.
 
 Kill (``x``) and cleanup-panel (``X``) persistence must run as first-class
-task-queue tasks: visible in the queue with readable labels, counted by the
-quit flow, completed without a broad reload, and killable from the Task Queue
+proc-queue procs: visible in the queue with readable labels, counted by the
+quit flow, completed without a broad reload, and killable from the proc queue
 modal without leaking inflight identities.
 """
 
@@ -16,7 +16,7 @@ from unittest.mock import patch
 from textual.css.query import NoMatches
 
 from sase.ace.tui.actions.agents import AgentsMixin
-from sase.ace.tui.actions.task_actions import TaskActionsMixin
+from sase.ace.tui.actions.proc_actions import ProcActionsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
 
@@ -35,11 +35,11 @@ def _make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class _CleanupTaskApp(AgentsMixin, TaskActionsMixin):
-    """Harness driving the real task queue with deferred worker execution."""
+class _CleanupProcApp(AgentsMixin, ProcActionsMixin):
+    """Harness driving the real proc queue with deferred worker execution."""
 
     def __init__(self, agents: list[Agent]) -> None:
-        self._init_task_queue()
+        self._init_proc_queue()
         self.current_tab = "agents"
         self.current_idx = 0
         self._agents = list(agents)
@@ -90,7 +90,7 @@ class _CleanupTaskApp(AgentsMixin, TaskActionsMixin):
         self.reloads += 1
 
     def run_worker(self, fn: Any, *, thread: bool = False) -> Any:
-        """Defer the worker body so tests can observe the running task."""
+        """Defer the worker body so tests can observe the running proc."""
         assert thread is True
         worker = SimpleNamespace(result=None, error=None, _fn=fn, cancelled=False)
 
@@ -105,7 +105,7 @@ class _CleanupTaskApp(AgentsMixin, TaskActionsMixin):
         """Run a deferred worker body and dispatch its completion."""
         worker = self.pending_workers[idx]
         worker.result = worker._fn()
-        self._on_task_worker_completed(worker)
+        self._on_proc_worker_completed(worker)
 
 
 _KILL_PATCHES = (
@@ -116,20 +116,20 @@ _KILL_PATCHES = (
 )
 
 
-def test_kill_agent_submits_tracked_task_counted_by_quit_flow() -> None:
-    """``x`` persistence appears as a running task until the worker completes."""
+def test_kill_agent_submits_tracked_proc_counted_by_quit_flow() -> None:
+    """``x`` persistence appears as a running proc until the worker completes."""
     agent = _make_agent()
-    app = _CleanupTaskApp([agent])
+    app = _CleanupProcApp([agent])
 
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(agent)
 
-    # Optimistic stage already ran; persistence is a visible running task.
+    # Optimistic stage already ran; persistence is a visible running proc.
     assert app._agents == []
-    assert app._task_queue.running_count == 1
-    task = app._task_queue.get_all()[0]
-    assert task.task_type == "kill"
-    assert task.label == f"kill {agent.display_name}"
+    assert app._proc_queue.running_count == 1
+    proc = app._proc_queue.get_all()[0]
+    assert proc.proc_type == "kill"
+    assert proc.label == f"kill {agent.display_name}"
     toasts_before_completion = list(app.notifications)
 
     with (
@@ -140,8 +140,8 @@ def test_kill_agent_submits_tracked_task_counted_by_quit_flow() -> None:
     ):
         app.run_pending_worker()
 
-    assert app._task_queue.running_count == 0
-    assert task.status == "success"
+    assert app._proc_queue.running_count == 0
+    assert proc.status == "success"
     # Success stays quiet (the optimistic toast already fired) and performs
     # no broad reload; only the off-thread notification refresh is scheduled.
     assert app.notifications == toasts_before_completion
@@ -161,26 +161,26 @@ def test_bulk_kill_mixed_cleanup_uses_combined_label() -> None:
         workflow=None,
         raw_suffix="20260101120000",
     )
-    app = _CleanupTaskApp([running, done])
+    app = _CleanupProcApp([running, done])
 
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_bulk_kill_agents([running], [done])
 
-    assert app._task_queue.running_count == 1
-    assert app._task_queue.get_all()[0].label == "kill 1 + dismiss 1 agents"
+    assert app._proc_queue.running_count == 1
+    assert app._proc_queue.get_all()[0].label == "kill 1 + dismiss 1 agents"
 
 
-def test_dismiss_done_agent_submits_tracked_dismiss_task() -> None:
-    """Single dismiss-only cleanup runs as a tracked ``dismiss`` task."""
+def test_dismiss_done_agent_submits_tracked_dismiss_proc() -> None:
+    """Single dismiss-only cleanup runs as a tracked ``dismiss`` proc."""
     agent = _make_agent(status="DONE", pid=None, workflow=None)
-    app = _CleanupTaskApp([agent])
+    app = _CleanupProcApp([agent])
 
     app._dismiss_done_agent(agent)
 
-    assert app._task_queue.running_count == 1
-    task = app._task_queue.get_all()[0]
-    assert task.task_type == "dismiss"
-    assert task.label == f"dismiss {agent.display_name}"
+    assert app._proc_queue.running_count == 1
+    proc = app._proc_queue.get_all()[0]
+    assert proc.proc_type == "dismiss"
+    assert proc.label == f"dismiss {agent.display_name}"
 
     with patch(
         "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction"
@@ -188,13 +188,13 @@ def test_dismiss_done_agent_submits_tracked_dismiss_task() -> None:
         app.run_pending_worker()
 
     mock_persist.assert_called_once()
-    assert app._task_queue.running_count == 0
-    assert task.status == "success"
+    assert app._proc_queue.running_count == 0
+    assert proc.status == "success"
     assert app._dismiss_persistence_inflight == set()
 
 
-def test_do_dismiss_all_submits_tracked_bulk_dismiss_task() -> None:
-    """Bulk dismiss-done runs as one tracked ``dismiss N agents`` task."""
+def test_do_dismiss_all_submits_tracked_bulk_dismiss_proc() -> None:
+    """Bulk dismiss-done runs as one tracked ``dismiss N agents`` proc."""
     a1 = _make_agent(cl_name="a", status="DONE", pid=None, workflow=None)
     a2 = _make_agent(
         cl_name="b",
@@ -203,18 +203,18 @@ def test_do_dismiss_all_submits_tracked_bulk_dismiss_task() -> None:
         workflow=None,
         raw_suffix="20260101130000",
     )
-    app = _CleanupTaskApp([a1, a2])
+    app = _CleanupProcApp([a1, a2])
 
     app._do_dismiss_all([a1, a2])
 
-    assert app._task_queue.running_count == 1
-    assert app._task_queue.get_all()[0].label == "dismiss 2 agents"
+    assert app._proc_queue.running_count == 1
+    assert app._proc_queue.get_all()[0].label == "dismiss 2 agents"
 
 
 def test_kill_persistence_failure_preserves_toast_and_recovery_refresh() -> None:
     """Worker failure keeps today's error toast and recovery refresh."""
     agent = _make_agent()
-    app = _CleanupTaskApp([agent])
+    app = _CleanupProcApp([agent])
 
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(agent)
@@ -225,8 +225,8 @@ def test_kill_persistence_failure_preserves_toast_and_recovery_refresh() -> None
     ):
         app.run_pending_worker()
 
-    task = app._task_queue.get_all()[0]
-    assert task.status == "error"
+    proc = app._proc_queue.get_all()[0]
+    assert proc.status == "error"
     assert (
         f"Kill cleanup failed for {agent.display_name}: boom",
         "error",
@@ -238,33 +238,33 @@ def test_kill_persistence_failure_preserves_toast_and_recovery_refresh() -> None
 def test_duplicate_submission_for_inflight_identity_is_skipped() -> None:
     """A second submission for an inflight identity is silently dropped."""
     agent = _make_agent()
-    app = _CleanupTaskApp([agent])
+    app = _CleanupProcApp([agent])
 
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(agent)
     toasts = list(app.notifications)
 
-    app._submit_kill_persistence_task(agent, "hook", [agent], {agent.identity})
+    app._submit_kill_persistence_proc(agent, "hook", [agent], {agent.identity})
 
-    assert app._task_queue.running_count == 1
+    assert app._proc_queue.running_count == 1
     assert app.notifications == toasts
 
 
-def test_killing_cleanup_task_from_modal_releases_inflight() -> None:
-    """Task-queue kill marks the task killed, fires no completion effects,
+def test_killing_cleanup_proc_from_modal_releases_inflight() -> None:
+    """Proc-queue kill marks the proc killed, fires no completion effects,
     and the worker body's finally still releases the inflight identity."""
     agent = _make_agent()
-    app = _CleanupTaskApp([agent])
+    app = _CleanupProcApp([agent])
 
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(agent)
-    task = app._task_queue.get_all()[0]
+    proc = app._proc_queue.get_all()[0]
     toasts = list(app.notifications)
 
-    assert app._kill_background_task(task.task_id)
-    assert task.status == "error"
-    assert task.error == "Killed by user"
-    assert app._task_queue.running_count == 0
+    assert app._kill_proc(proc.proc_id)
+    assert proc.status == "error"
+    assert proc.error == "Killed by user"
+    assert app._proc_queue.running_count == 0
 
     # Thread cancellation is cooperative: the worker body still runs to
     # completion, releasing the inflight identity without completion effects.
@@ -281,5 +281,5 @@ def test_killing_cleanup_task_from_modal_releases_inflight() -> None:
     assert app.reloads == 0
 
     # The same agent can be cleaned up again once the identity is released.
-    app._submit_kill_persistence_task(agent, "hook", [agent], {agent.identity})
-    assert app._task_queue.running_count == 1
+    app._submit_kill_persistence_proc(agent, "hook", [agent], {agent.identity})
+    assert app._proc_queue.running_count == 1

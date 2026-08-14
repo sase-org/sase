@@ -7,11 +7,11 @@ from collections.abc import Collection
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.ace.comprehensive_update import ComprehensiveUpdateResult
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.agent_clis.models import AgentCliStatus
 from sase.agents_sync import get_agents_sync_status
@@ -310,8 +310,8 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         """Submit exactly one task claiming all update mutation scopes."""
 
         def task(
-            reporter: TaskReporter,
-        ) -> TrackedTaskResult[ComprehensiveUpdateResult]:
+            reporter: ProcReporter,
+        ) -> TrackedProcResult[ComprehensiveUpdateResult]:
             start = time.monotonic()
             provider_results, provider_error = self._execute_provider_leg(
                 preview, reporter
@@ -329,17 +329,17 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             message = comprehensive_update_summary(result)
             reporter.section("Summary")
             reporter.log(message, stream="result")
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=not result.has_failures,
                 message=message,
                 payload=result,
                 error=message if result.has_failures else None,
             )
 
-        submit = getattr(self.app, "_submit_tracked_task", None)
+        submit = getattr(self.app, "_submit_tracked_proc", None)
         if submit is None:
             return False
-        task_info = submit(
+        proc_info = submit(
             "comprehensive-update",
             "sase + agent CLIs + cached hoods",
             "",
@@ -354,11 +354,11 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        return task_info is not None
+        return proc_info is not None
 
     def _on_comprehensive_update_complete(
         self,
-        completion: TrackedTaskCompletion[ComprehensiveUpdateResult],
+        completion: TrackedProcCompletion[ComprehensiveUpdateResult],
     ) -> None:
         # Even an unexpected task-wrapper failure should promptly reconcile
         # the shared snapshot and badge from local state.

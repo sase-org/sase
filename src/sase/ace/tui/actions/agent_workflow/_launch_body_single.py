@@ -11,7 +11,7 @@ from ._launch_history import (
     record_resolved_vcs_xprompt_usage,
     save_replayable_vcs_selection,
 )
-from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
+from ._launch_procs import LaunchProcOutcome, launch_results_tuple
 from ._ref_resolution import strip_all_vcs_refs
 from ._types import PromptContext
 from ..failure_messages import with_log_panel_hint
@@ -35,7 +35,7 @@ def run_single_agent_launch_body(
     unresolved_warning_messages: Sequence[str],
     timer: Any,
     extra_env: dict[str, str] | None = None,
-) -> LaunchTaskOutcome:
+) -> LaunchProcOutcome:
     """Run single-prompt, fan-out, repeat, workflow, and spawn launch paths."""
     from sase.project_display_names import project_display_name_for
     from sase.workspace_provider import get_ref_patterns, get_workflow_names
@@ -47,8 +47,8 @@ def run_single_agent_launch_body(
     from sase.xprompt.directives import has_deferred_start_directive
 
     def _with_unresolved_warnings(
-        outcome: LaunchTaskOutcome,
-    ) -> LaunchTaskOutcome:
+        outcome: LaunchProcOutcome,
+    ) -> LaunchProcOutcome:
         return outcome.with_warning_messages(unresolved_warning_messages)
 
     # Capture these *before* normalization/resolution can mutate them.
@@ -167,7 +167,7 @@ def run_single_agent_launch_body(
             timer.finish(dispatch="single", outcome="cancelled")
             err_msg = f"Cannot resolve {leading_tag.strip()}; not launching"
             return _with_unresolved_warnings(
-                LaunchTaskOutcome(err_msg, severity="error")
+                LaunchProcOutcome(err_msg, severity="error")
             )
 
     # Save prompt after launch validation; validation failures are recorded
@@ -184,7 +184,7 @@ def run_single_agent_launch_body(
                 app._prompt_context = None
             timer.finish(dispatch="single", outcome="cancelled")
             return _with_unresolved_warnings(
-                LaunchTaskOutcome(err_msg, severity="error")
+                LaunchProcOutcome(err_msg, severity="error")
             )
         add_or_update_prompt(prompt)
         record_prompt_file_references(prompt)
@@ -250,7 +250,7 @@ def run_single_agent_launch_body(
                 app._prompt_context = None
             timer.finish(dispatch="workflow")
             return _with_unresolved_warnings(
-                LaunchTaskOutcome(
+                LaunchProcOutcome(
                     "Workflow launch queued",
                     notify=False,
                     schedule_agents_refresh=True,
@@ -323,7 +323,7 @@ def run_single_agent_launch_body(
             extra_env,
         )
         return _with_unresolved_warnings(
-            LaunchTaskOutcome(
+            LaunchProcOutcome(
                 "Prompt fan-out launch queued for "
                 f"{project_display_name_for(ctx.display_name)}",
                 notify=False,
@@ -348,7 +348,7 @@ def run_single_agent_launch_body(
             extra_env,
         )
         return _with_unresolved_warnings(
-            LaunchTaskOutcome(
+            LaunchProcOutcome(
                 "Repeat launch queued for "
                 f"{project_display_name_for(ctx.display_name)}",
                 notify=False,
@@ -421,7 +421,7 @@ def run_single_agent_launch_body(
             )
         timer.finish(dispatch="single")
         return _with_unresolved_warnings(
-            LaunchTaskOutcome(
+            LaunchProcOutcome(
                 f"Agent started for {project_display_name_for(display_name)}",
                 results=launch_results_tuple(execution.results),
             )
@@ -442,7 +442,7 @@ def run_single_agent_launch_body(
             vcs_ref=None if vcs_ref is None else f"{vcs_ref[0]}:{vcs_ref[1]}",
         )
         return _with_unresolved_warnings(
-            LaunchTaskOutcome(
+            LaunchProcOutcome(
                 with_log_panel_hint("Agent launch failed"),
                 severity="error",
             )

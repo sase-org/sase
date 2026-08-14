@@ -15,7 +15,7 @@ from sase.ace.tui.actions.agent_workflow._launch_multi_prompt import (
     MultiPromptLaunchMixin,
 )
 from sase.ace.tui.actions.agent_workflow._launch_repeat import RepeatLaunchMixin
-from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskOutcome
+from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcOutcome
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
 from sase.ace.tui.util.nav_gate import NavigationGate
@@ -120,13 +120,13 @@ class _FanOutHarness:
     def _refresh_notification_count(self) -> None:
         self.notification_refresh_count += 1
 
-    def _submit_launch_task(
+    def _submit_launch_proc(
         self,
         *,
         display_name: str,
         cl_name: str,
         project_file: str,
-        task_callable: Callable[[], LaunchTaskOutcome],
+        proc_callable: Callable[[], LaunchProcOutcome],
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
     ) -> bool:
@@ -135,14 +135,14 @@ class _FanOutHarness:
                 "display_name": display_name,
                 "cl_name": cl_name,
                 "project_file": project_file,
-                "task_callable": task_callable,
+                "proc_callable": proc_callable,
                 "dedup_key": dedup_key,
                 "submitted_prompt": submitted_prompt,
             }
         )
         return True
 
-    def _apply_launch_outcome(self, outcome: LaunchTaskOutcome) -> None:
+    def _apply_launch_outcome(self, outcome: LaunchProcOutcome) -> None:
         if outcome.results:
             self._handle_launch_results_delta(list(outcome.results))
         if outcome.request_agents_refresh:
@@ -152,10 +152,10 @@ class _FanOutHarness:
         if outcome.notify:
             self.notify(outcome.message, severity=outcome.severity)
 
-    def _run_submitted_launch_tasks(self) -> None:
+    def _run_submitted_launch_procs(self) -> None:
         while self.launch_tasks:
             task = self.launch_tasks.pop(0)
-            self._apply_launch_outcome(task["task_callable"]())
+            self._apply_launch_outcome(task["proc_callable"]())
 
     def _launch_background_agent(self, **kwargs: Any) -> AgentLaunchResult:
         self.launched.append(kwargs)

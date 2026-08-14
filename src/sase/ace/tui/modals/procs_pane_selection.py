@@ -9,7 +9,7 @@ from textual import events
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
-from ..task_queue import TaskInfo, TaskQueue
+from ..proc_queue import ProcInfo, ProcQueue
 from ..util.selection import restore_selection_by_identity
 from .pane_entry_jump import apply_jump_hint_prefix
 from .procs_pane_render import is_active, task_row_label
@@ -95,17 +95,17 @@ class ProcsPaneSelectionMixin(_MixinBase):
         _session_state: object
         _store_loaded_once: bool
         _store_load_pending: bool
-        _store_rows: list[TaskInfo]
-        _tasks: list[TaskInfo]
+        _store_rows: list[ProcInfo]
+        _tasks: list[ProcInfo]
         _user_scrolled: bool
 
-        def _display_output(self, task: TaskInfo | None) -> None: ...
+        def _display_output(self, task: ProcInfo | None) -> None: ...
 
         def _is_active_tab(self) -> bool: ...
 
         def _request_store_reload(self, *, force: bool = False) -> None: ...
 
-        def _task_queue(self) -> TaskQueue | None: ...
+        def _proc_queue(self) -> ProcQueue | None: ...
 
         def invalidate_jump_hints(
             self, *, identities_changed: bool, target_count: int
@@ -113,14 +113,14 @@ class ProcsPaneSelectionMixin(_MixinBase):
 
         def jump_hint_for(self, index: int) -> str | None: ...
 
-    def _merged_tasks(self) -> list[TaskInfo]:
+    def _merged_tasks(self) -> list[ProcInfo]:
         """Merge in-memory tasks with the store rows they do not shadow."""
-        queue = self._task_queue()
+        queue = self._proc_queue()
         memory = queue.get_all() if queue is not None else []
-        mirrored = {task.durable_task_id for task in memory if task.durable_task_id}
+        mirrored = {task.durable_proc_id for task in memory if task.durable_proc_id}
         merged = [
             *memory,
-            *(row for row in self._store_rows if row.task_id not in mirrored),
+            *(row for row in self._store_rows if row.proc_id not in mirrored),
         ]
         merged.sort(key=lambda task: task.started_at, reverse=True)
         return merged
@@ -148,7 +148,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
             for index, task in enumerate(self._tasks)
         ]
 
-    def _render_task_label(self, index: int, task: TaskInfo) -> Text:
+    def _render_task_label(self, index: int, task: ProcInfo) -> Text:
         label = task_row_label(task)
         hint = self.jump_hint_for(index)
         if hint is None:
@@ -161,7 +161,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
         except Exception:
             return None
 
-    def _get_selected_task(self) -> TaskInfo | None:
+    def _get_selected_task(self) -> ProcInfo | None:
         """Return the task for the currently highlighted option."""
         option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
@@ -178,7 +178,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
             candidate = self._tasks[highlighted]
             if option_id in {
                 self._option_id_for_task(candidate),
-                f"{_TASK_OPTION_PREFIX}{candidate.task_id}",
+                f"{_TASK_OPTION_PREFIX}{candidate.proc_id}",
             }:
                 return candidate
         idx = self._task_index_for_option_id(option_id)
@@ -189,10 +189,10 @@ class ProcsPaneSelectionMixin(_MixinBase):
         return None
 
     @staticmethod
-    def _task_identity(task: TaskInfo) -> str:
-        return task.durable_task_id or task.task_id
+    def _task_identity(task: ProcInfo) -> str:
+        return task.durable_proc_id or task.proc_id
 
-    def _option_id_for_task(self, task: TaskInfo) -> str:
+    def _option_id_for_task(self, task: ProcInfo) -> str:
         return f"{_TASK_OPTION_PREFIX}{self._task_identity(task)}"
 
     def _task_index_for_option_id(self, option_id: str) -> int | None:
@@ -200,9 +200,9 @@ class ProcsPaneSelectionMixin(_MixinBase):
             return None
         identity = option_id.removeprefix(_TASK_OPTION_PREFIX)
         for index, task in enumerate(self._tasks):
-            # ``task_id`` remains a safe alias during the one rebuild where a
+            # ``proc_id`` remains a safe alias during the one rebuild where a
             # task has just gained its durable id.
-            if self._task_identity(task) == identity or task.task_id == identity:
+            if self._task_identity(task) == identity or task.proc_id == identity:
                 return index
         return None
 
@@ -210,9 +210,9 @@ class ProcsPaneSelectionMixin(_MixinBase):
         if identity is None:
             return None
         for task in self._tasks:
-            if task.task_id == identity and task.durable_task_id:
-                self._session_state.task.rekey(identity, task.durable_task_id)  # type: ignore[attr-defined]
-                return task.durable_task_id
+            if task.proc_id == identity and task.durable_proc_id:
+                self._session_state.task.rekey(identity, task.durable_proc_id)  # type: ignore[attr-defined]
+                return task.durable_proc_id
         return identity
 
     def _highlighted_row(self) -> int | None:
@@ -259,7 +259,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
             event_option_id = str(event.option.id)
             if event_option_id not in {
                 self._option_id_for_task(current),
-                f"{_TASK_OPTION_PREFIX}{current.task_id}",
+                f"{_TASK_OPTION_PREFIX}{current.proc_id}",
             }:
                 return
             identity = self._task_identity(current)

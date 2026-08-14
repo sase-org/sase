@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
 
-from tests._agent_cleanup_task_helpers import (
-    TrackedTaskRecorderMixin,
-    run_tracked_task,
+from tests._agent_cleanup_proc_helpers import (
+    TrackedProcRecorderMixin,
+    run_tracked_proc,
 )
 from tests._agent_kill_single_helpers import cleanup_plan
 
@@ -18,7 +18,7 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
     """Kill path should update UI state immediately and defer persistence work."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -77,9 +77,9 @@ def test_do_kill_agent_removes_in_memory_before_background_persistence() -> None
     # Persistence is submitted as one tracked background task; no ad hoc
     # call_later coroutine remains.
     assert app._scheduled == []
-    assert len(app.tracked_tasks) == 1
-    task = app.tracked_tasks[0]
-    assert task["task_type"] == "kill"
+    assert len(app.tracked_procs) == 1
+    task = app.tracked_procs[0]
+    assert task["proc_type"] == "kill"
     assert task["display_name"] == f"kill {agent.display_name}"
     assert agent.identity in app._kill_persistence_inflight
 
@@ -88,7 +88,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
     """Planner-backed child kills should leave the parent and siblings visible."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -191,7 +191,7 @@ def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None
         AgentCleanupRequestWire,
     )
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self, agents: list[Agent]) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -284,7 +284,7 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
     """Hook project-file writes are deferred to the tracked persistence task."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -347,5 +347,5 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
         patch("sase.ace.dismissed_agents.save_dismissed_agents"),
         patch("sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"),
     ):
-        run_tracked_task(app, app.tracked_tasks[0])
+        run_tracked_proc(app, app.tracked_procs[0])
         mock_persist_hook.assert_called_once_with(agent)

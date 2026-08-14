@@ -292,7 +292,7 @@ async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
         await page.wait_for(lambda _state: pane.filters.project == "widgets")
         monkeypatch.setattr(
             page.app,
-            "_submit_tracked_task",
+            "_submit_tracked_proc",
             lambda *args, **kwargs: submissions.append((args, kwargs)),
         )
 

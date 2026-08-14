@@ -10,7 +10,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 
-from ._cleanup_tasks import CleanupTaskOutcome
+from ._cleanup_procs import CleanupProcOutcome
 from ._dismiss_cleanup import AgentIdentity
 from ._marking_kill import AgentMarkedKillMixin
 from ._recent_dismissal_groups import cache_recent_dismissed_agent_group
@@ -195,7 +195,7 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
 
         count = len(agents)
 
-        def _worker() -> CleanupTaskOutcome:
+        def _worker() -> CleanupProcOutcome:
             started = time.perf_counter()
             try:
                 _persist_marked_agent_group_save(
@@ -206,7 +206,7 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
                     group_name,
                 )
             except Exception as exc:
-                return CleanupTaskOutcome(
+                return CleanupProcOutcome(
                     message=(
                         f"Saved {count} {plural_agent(count)} in memory, but group "
                         f"archive failed: {exc}. Refresh recommended."
@@ -222,16 +222,16 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
                     count,
                     time.perf_counter() - started,
                 )
-            return CleanupTaskOutcome(
+            return CleanupProcOutcome(
                 message=f"Saved {count} {plural_agent(count)}",
                 refresh_notifications=True,
             )
 
-        if not self._submit_cleanup_task(  # type: ignore[attr-defined]
-            task_type="save",
+        if not self._submit_cleanup_proc(  # type: ignore[attr-defined]
+            proc_type="save",
             display_name=f"save {count} {plural_agent(count)}",
             cl_name="",
             project_file="",
-            task_callable=_worker,
+            proc_callable=_worker,
         ):
             self._dismiss_persistence_inflight.difference_update(identities)

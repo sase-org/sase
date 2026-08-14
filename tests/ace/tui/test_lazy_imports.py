@@ -20,7 +20,7 @@ def test_widget_submodule_import_does_not_import_app_or_all_widgets() -> None:
     _run_probe(
         """
         import sys
-        import sase.ace.tui.widgets.task_indicator
+        import sase.ace.tui.widgets.proc_indicator
 
         assert "sase.ace.tui.app" not in sys.modules
         assert "sase.ace.tui.widgets.agent_detail" not in sys.modules

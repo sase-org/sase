@@ -11,7 +11,7 @@ _STASH_ACCENT = "#00D7AF"
 class StashedPromptsIndicator(Static):
     """Top-bar badge showing how many prompt drafts are stashed.
 
-    Mirrors :class:`TaskIndicator`: visible only when at least one prompt is
+    Mirrors :class:`ProcIndicator`: visible only when at least one prompt is
     stashed, hidden (empty) otherwise so it never adds clutter when the stash
     is empty.  The snowflake glyph + green-teal accent reads as "set aside,
     frozen for later" (git-stash for prompts) and is visually distinct from the

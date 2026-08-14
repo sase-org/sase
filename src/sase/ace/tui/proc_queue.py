@@ -1,7 +1,7 @@
-"""Background task queue for the ace TUI.
+"""Background proc queue for the ace TUI.
 
-Provides TaskInfo (state for a single background task), TaskQueue (thread-safe
-registry with per-Patch deduplication), and task-local output storage.
+Provides ProcInfo (state for a single background proc), ProcQueue (thread-safe
+registry with per-Patch deduplication), and proc-local output storage.
 """
 
 from __future__ import annotations
@@ -22,37 +22,37 @@ from typing import Literal
 from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
-TaskLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
+ProcLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
 
-_MAX_TASK_LOG_LINES = 5_000
-_MAX_TASK_LOG_CHARS = 512 * 1024
+_MAX_PROC_LOG_LINES = 5_000
+_MAX_PROC_LOG_CHARS = 512 * 1024
 
 
 @dataclass(frozen=True)
-class TaskLogLine:
-    """One append-only task log line."""
+class ProcLogLine:
+    """One append-only proc log line."""
 
     text: str
-    stream: TaskLogStream
+    stream: ProcLogStream
     ts: datetime
 
 
 @dataclass(frozen=True)
-class _TaskLogSnapshot:
-    """Immutable view of a task log."""
+class _ProcLogSnapshot:
+    """Immutable view of a proc log."""
 
-    lines: tuple[TaskLogLine, ...]
+    lines: tuple[ProcLogLine, ...]
     version: int
     trimmed_count: int
 
 
 @dataclass
-class _TaskLog:
-    """Thread-safe, bounded log for one background task."""
+class _ProcLog:
+    """Thread-safe, bounded log for one background proc."""
 
-    max_lines: int = _MAX_TASK_LOG_LINES
-    max_chars: int = _MAX_TASK_LOG_CHARS
-    _lines: list[TaskLogLine] = field(default_factory=list, init=False, repr=False)
+    max_lines: int = _MAX_PROC_LOG_LINES
+    max_chars: int = _MAX_PROC_LOG_CHARS
+    _lines: list[ProcLogLine] = field(default_factory=list, init=False, repr=False)
     _chars: int = field(default=0, init=False, repr=False)
     _trimmed_count: int = field(default=0, init=False, repr=False)
     _version: int = field(default=0, init=False, repr=False)
@@ -66,7 +66,7 @@ class _TaskLog:
         with self._lock:
             return self._version
 
-    def append(self, text: str, *, stream: TaskLogStream = "stdout") -> None:
+    def append(self, text: str, *, stream: ProcLogStream = "stdout") -> None:
         """Append text to the log, splitting multi-line chunks into log lines."""
         if text == "":
             return
@@ -77,10 +77,10 @@ class _TaskLog:
             self._trim_locked()
             self._version += 1
 
-    def snapshot(self) -> _TaskLogSnapshot:
+    def snapshot(self) -> _ProcLogSnapshot:
         """Return an immutable log snapshot."""
         with self._lock:
-            return _TaskLogSnapshot(
+            return _ProcLogSnapshot(
                 lines=tuple(self._lines),
                 version=self._version,
                 trimmed_count=self._trimmed_count,
@@ -97,8 +97,8 @@ class _TaskLog:
             return ""
         return "\n".join(lines) + "\n"
 
-    def _append_locked(self, text: str, *, stream: TaskLogStream) -> None:
-        self._lines.append(TaskLogLine(text=text, stream=stream, ts=local_now()))
+    def _append_locked(self, text: str, *, stream: ProcLogStream) -> None:
+        self._lines.append(ProcLogLine(text=text, stream=stream, ts=local_now()))
         self._chars += len(text)
 
     def _trim_locked(self) -> None:
@@ -110,10 +110,10 @@ class _TaskLog:
             self._trimmed_count += 1
 
 
-class _TaskLogWriter(io.TextIOBase):
-    """Text writer that forwards print-style chunks into a task log."""
+class _ProcLogWriter(io.TextIOBase):
+    """Text writer that forwards print-style chunks into a proc log."""
 
-    def __init__(self, log: _TaskLog, *, stream: TaskLogStream) -> None:
+    def __init__(self, log: _ProcLog, *, stream: ProcLogStream) -> None:
         self._log = log
         self._stream = stream
         self._pending = ""
@@ -137,11 +137,11 @@ class _TaskLogWriter(io.TextIOBase):
 
 
 @dataclass
-class TaskInfo:
-    """State for a single background task."""
+class ProcInfo:
+    """State for a single background proc."""
 
-    task_id: str
-    task_type: str  # "sync", "mail", "accept"
+    proc_id: str
+    proc_type: str  # "sync", "mail", "accept"
     cl_name: str
     project_file: str
     status: str  # "running", "success", "error"
@@ -153,15 +153,15 @@ class TaskInfo:
     finished_at: datetime | None = None
     output: str = ""
     error: str | None = None
-    log: _TaskLog = field(default_factory=_TaskLog)
+    log: _ProcLog = field(default_factory=_ProcLog)
     command: list[str] | None = None
     phase: str | None = None
     exit_code: int | None = None
-    # Durable-store attribution. ``durable_task_id`` is minted when the task
-    # mirror starts tracking an in-TUI task; store-backed rows (tasks this
+    # Durable-store attribution. ``durable_proc_id`` is minted when the proc
+    # mirror starts tracking an in-TUI proc; store-backed rows (procs this
     # process does not own) carry ``store_backed=True`` plus the session they
     # came from, so the pane can render a chip and route ``K`` correctly.
-    durable_task_id: str | None = None
+    durable_proc_id: str | None = None
     store_backed: bool = False
     session_id: str | None = None
     session_label: str | None = None
@@ -175,12 +175,12 @@ class TaskInfo:
 
     @property
     def label(self) -> str:
-        """Return the user-facing task label."""
+        """Return the user-facing proc label."""
         if self.display_name:
             return self.display_name
         if self.cl_name:
-            return f"{self.task_type} {humanize_cl_name(self.cl_name)}"
-        return self.task_type
+            return f"{self.proc_type} {humanize_cl_name(self.cl_name)}"
+        return self.proc_type
 
     def get_live_output(self) -> str:
         """Return retained log output, falling back to legacy/final output."""
@@ -194,7 +194,7 @@ class TaskInfo:
         return self.output
 
     def register_process(self, process: subprocess.Popen[str]) -> None:
-        """Register a live child process owned by this task."""
+        """Register a live child process owned by this proc."""
         with self._process_lock:
             self._processes[process.pid] = process
 
@@ -204,7 +204,7 @@ class TaskInfo:
             self._processes.pop(process.pid, None)
 
     def terminate_processes(self, *, grace_seconds: float = 1.0) -> None:
-        """Terminate all registered child process groups for this task."""
+        """Terminate all registered child process groups for this proc."""
         self.cancel_event.set()
         with self._process_lock:
             processes = list(self._processes.values())
@@ -231,32 +231,32 @@ class TaskInfo:
 
 
 @dataclass
-class TaskQueue:
-    """Thread-safe registry of background tasks with per-Patch deduplication."""
+class ProcQueue:
+    """Thread-safe registry of background procs with per-Patch deduplication."""
 
-    _tasks: dict[str, TaskInfo] = field(default_factory=dict)
+    _procs: dict[str, ProcInfo] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def submit(
         self,
-        task_type: str,
+        proc_type: str,
         cl_name: str,
         project_file: str,
         *,
         display_name: str | None = None,
         dedup_key: str | None = None,
         exclusive_scopes: Collection[str] = (),
-    ) -> TaskInfo:
-        """Create and register a new running task.
+    ) -> ProcInfo:
+        """Create and register a new running proc.
 
-        Returns the new TaskInfo. Callers should check get_running_for_cl()
+        Returns the new ProcInfo. Callers should check get_running_for_cl()
         first to enforce deduplication.
         """
-        label = display_name or f"{task_type} {humanize_cl_name(cl_name)}".strip()
-        task_id = uuid.uuid4().hex
-        info = TaskInfo(
-            task_id=task_id,
-            task_type=task_type,
+        label = display_name or f"{proc_type} {humanize_cl_name(cl_name)}".strip()
+        proc_id = uuid.uuid4().hex
+        info = ProcInfo(
+            proc_id=proc_id,
+            proc_type=proc_type,
             cl_name=cl_name,
             project_file=project_file,
             status="running",
@@ -267,21 +267,21 @@ class TaskQueue:
             exclusive_scopes=frozenset(exclusive_scopes),
         )
         with self._lock:
-            self._tasks[task_id] = info
+            self._procs[proc_id] = info
         return info
 
     def complete(
         self,
-        task_id: str,
+        proc_id: str,
         *,
         success: bool,
         message: str,
         output: str,
         error: str | None = None,
     ) -> None:
-        """Mark a task as completed (success or error)."""
+        """Mark a proc as completed (success or error)."""
         with self._lock:
-            info = self._tasks.get(task_id)
+            info = self._procs.get(proc_id)
             if info is None:
                 return
             info.status = "success" if success else "error"
@@ -292,15 +292,15 @@ class TaskQueue:
             if success:
                 info.exit_code = 0 if info.exit_code is None else info.exit_code
 
-    def get_running_for_cl(self, cl_name: str) -> TaskInfo | None:
-        """Return the running per-Patch-deduped task for *cl_name*, or None.
+    def get_running_for_cl(self, cl_name: str) -> ProcInfo | None:
+        """Return the running per-Patch-deduped proc for *cl_name*, or None.
 
-        Tasks submitted with a custom dedup key (agent launches, kill/dismiss
+        Procs submitted with a custom dedup key (agent launches, kill/dismiss
         cleanup) opt out of per-Patch dedup and are never returned here, so they
         cannot block Patch actions for the same Patch.
         """
         with self._lock:
-            for info in self._tasks.values():
+            for info in self._procs.values():
                 if (
                     info.cl_name == cl_name
                     and info.dedup_key == cl_name
@@ -309,68 +309,68 @@ class TaskQueue:
                     return info
         return None
 
-    def get_running_for_key(self, dedup_key: str) -> TaskInfo | None:
-        """Return the running task for *dedup_key*, or None."""
+    def get_running_for_key(self, dedup_key: str) -> ProcInfo | None:
+        """Return the running proc for *dedup_key*, or None."""
         with self._lock:
-            for info in self._tasks.values():
+            for info in self._procs.values():
                 if info.dedup_key == dedup_key and info.status == "running":
                     return info
         return None
 
     def get_running_for_scopes(
         self, exclusive_scopes: Collection[str]
-    ) -> TaskInfo | None:
-        """Return a running task claiming any requested exclusive scope."""
+    ) -> ProcInfo | None:
+        """Return a running proc claiming any requested exclusive scope."""
         requested = frozenset(exclusive_scopes)
         if not requested:
             return None
         with self._lock:
-            for info in self._tasks.values():
+            for info in self._procs.values():
                 if info.status == "running" and requested & info.exclusive_scopes:
                     return info
         return None
 
-    def get(self, task_id: str) -> TaskInfo | None:
-        """Return a task by id, or None."""
+    def get(self, proc_id: str) -> ProcInfo | None:
+        """Return a proc by id, or None."""
         with self._lock:
-            return self._tasks.get(task_id)
+            return self._procs.get(proc_id)
 
     @property
     def running_count(self) -> int:
-        """Return the number of currently running tasks."""
+        """Return the number of currently running procs."""
         with self._lock:
-            return sum(1 for t in self._tasks.values() if t.status == "running")
+            return sum(1 for t in self._procs.values() if t.status == "running")
 
-    def get_all(self) -> list[TaskInfo]:
-        """Return a snapshot of all tasks (newest first)."""
+    def get_all(self) -> list[ProcInfo]:
+        """Return a snapshot of all procs (newest first)."""
         with self._lock:
             return sorted(
-                self._tasks.values(),
+                self._procs.values(),
                 key=lambda t: t.started_at,
                 reverse=True,
             )
 
-    def remove(self, task_id: str) -> None:
-        """Remove a task from the registry."""
+    def remove(self, proc_id: str) -> None:
+        """Remove a proc from the registry."""
         with self._lock:
-            self._tasks.pop(task_id, None)
+            self._procs.pop(proc_id, None)
 
     def remove_completed(self) -> None:
-        """Remove all completed (non-running) tasks from the registry."""
+        """Remove all completed (non-running) procs from the registry."""
         with self._lock:
-            self._tasks = {
+            self._procs = {
                 tid: info
-                for tid, info in self._tasks.items()
+                for tid, info in self._procs.items()
                 if info.status == "running"
             }
 
     def prune_old(self, max_age_seconds: int = 3600) -> None:
-        """Remove completed tasks older than *max_age_seconds*."""
+        """Remove completed procs older than *max_age_seconds*."""
         cutoff = local_now()
         with self._lock:
-            self._tasks = {
+            self._procs = {
                 tid: info
-                for tid, info in self._tasks.items()
+                for tid, info in self._procs.items()
                 if info.status == "running"
                 or (
                     info.finished_at is not None
@@ -380,10 +380,10 @@ class TaskQueue:
 
 
 @contextmanager
-def redirect_print_to(log: _TaskLog) -> Generator[None, None, None]:
-    """Best-effort legacy print capture into a task-local log."""
-    out = _TaskLogWriter(log, stream="stdout")
-    err = _TaskLogWriter(log, stream="stderr")
+def redirect_print_to(log: _ProcLog) -> Generator[None, None, None]:
+    """Best-effort legacy print capture into a proc-local log."""
+    out = _ProcLogWriter(log, stream="stdout")
+    err = _ProcLogWriter(log, stream="stderr")
     with redirect_stdout(out), redirect_stderr(err):
         try:
             yield

@@ -10,9 +10,9 @@ from typing import Any
 
 import pytest
 
-import sase.ace.tui.task_mirror as tm
-from sase.ace.tui.task_mirror import TaskMirror
-from sase.ace.tui.task_queue import TaskInfo
+import sase.ace.tui.proc_mirror as tm
+from sase.ace.tui.proc_mirror import ProcMirror
+from sase.ace.tui.proc_queue import ProcInfo
 from sase.procs import read_proc_log_tail, read_procs
 from sase.sessions import SessionIdentity
 
@@ -36,10 +36,10 @@ def sandboxed_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return home
 
 
-def _task_info(task_id: str = "local-1", *, label: str = "sync sase-42") -> TaskInfo:
-    return TaskInfo(
-        task_id=task_id,
-        task_type="sync",
+def _task_info(proc_id: str = "local-1", *, label: str = "sync sase-42") -> ProcInfo:
+    return ProcInfo(
+        proc_id=proc_id,
+        proc_type="sync",
         cl_name="sase-42",
         project_file="",
         status="running",
@@ -50,7 +50,7 @@ def _task_info(task_id: str = "local-1", *, label: str = "sync sase-42") -> Task
     )
 
 
-def _stop(mirror: TaskMirror) -> None:
+def _stop(mirror: ProcMirror) -> None:
     mirror.stop(timeout=5.0)
 
 
@@ -70,22 +70,22 @@ def test_mirror_defers_every_store_write_to_the_writer_thread(
     monkeypatch.setattr(
         tm,
         "update_proc",
-        lambda task_id, **changes: writes.append(("update", threading.get_ident())),
+        lambda proc_id, **changes: writes.append(("update", threading.get_ident())),
     )
     monkeypatch.setattr(
         tm,
         "append_proc_log_text",
-        lambda task_id, text: writes.append(("log", threading.get_ident())),
+        lambda proc_id, text: writes.append(("log", threading.get_ident())),
     )
 
-    mirror = TaskMirror()
+    mirror = ProcMirror()
     assert mirror.start() is True
     try:
         info = _task_info()
         info.log.append("first line")
-        task_id = mirror.track(info)
-        assert task_id is not None
-        assert info.durable_task_id == task_id
+        proc_id = mirror.track(info)
+        assert proc_id is not None
+        assert info.durable_proc_id == proc_id
         # Submitting from the UI thread must not have written anything yet.
         assert writes == []
 
@@ -102,17 +102,17 @@ def test_mirror_defers_every_store_write_to_the_writer_thread(
 
 def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None:
     del sandboxed_home
-    mirror = TaskMirror()
+    mirror = ProcMirror()
     assert mirror.start() is True
     try:
         info = _task_info()
         info.log.append("remote: counting objects")
-        task_id = mirror.track(info)
-        assert task_id is not None
+        proc_id = mirror.track(info)
+        assert proc_id is not None
         assert mirror.flush(timeout=5.0) is True
 
         rows = read_procs()
-        assert [row.proc_id for row in rows] == [task_id]
+        assert [row.proc_id for row in rows] == [proc_id]
         row = rows[0]
         assert row.kind == "tui"
         assert row.origin == "ace"
@@ -124,7 +124,7 @@ def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None
         assert row.cl_name == "sase-42"
         assert row.tags == ["ace", "sync"]
         assert row.pid == os.getpid()
-        assert "remote: counting objects" in read_proc_log_tail(task_id, 10)
+        assert "remote: counting objects" in read_proc_log_tail(proc_id, 10)
 
         info.log.append("second line")
         info.status = "success"
@@ -144,13 +144,13 @@ def test_mirror_writes_row_log_and_terminal_update(sandboxed_home: Path) -> None
 
 def test_mirror_flushes_only_new_log_lines(sandboxed_home: Path) -> None:
     del sandboxed_home
-    mirror = TaskMirror()
+    mirror = ProcMirror()
     assert mirror.start() is True
     try:
         info = _task_info()
         info.log.append("line 1")
-        task_id = mirror.track(info)
-        assert task_id is not None
+        proc_id = mirror.track(info)
+        assert proc_id is not None
         assert mirror.flush(timeout=5.0) is True
 
         info.log.append("line 2")
@@ -159,7 +159,7 @@ def test_mirror_flushes_only_new_log_lines(sandboxed_home: Path) -> None:
     finally:
         _stop(mirror)
 
-    assert read_proc_log_tail(str(task_id), 10) == "line 1\nline 2\n"
+    assert read_proc_log_tail(str(proc_id), 10) == "line 1\nline 2\n"
     row = read_procs()[0]
     assert row.status == "error"
     assert row.exit_code == 2
@@ -176,12 +176,12 @@ def test_progress_tick_does_not_terminalize_before_finish(
     final completion write.
     """
     del sandboxed_home
-    mirror = TaskMirror()
+    mirror = ProcMirror()
     assert mirror.start() is True
     try:
         info = _task_info()
-        task_id = mirror.track(info)
-        assert task_id is not None
+        proc_id = mirror.track(info)
+        assert proc_id is not None
         assert mirror.flush(timeout=5.0) is True
 
         info.status = "error"
@@ -229,7 +229,7 @@ def test_mirror_counts_global_detached_and_this_sessions_command_tasks(
         )
 
     counts: list[int] = []
-    mirror = TaskMirror(on_detached_count=counts.append)
+    mirror = ProcMirror(on_detached_count=counts.append)
     mirror._refresh_detached_count()
 
     assert counts == [2]
@@ -261,7 +261,7 @@ def test_mirror_counts_global_detached_tasks_without_a_tui_session(
     )
 
     counts: list[int] = []
-    mirror = TaskMirror(on_detached_count=counts.append)
+    mirror = ProcMirror(on_detached_count=counts.append)
     mirror._refresh_detached_count()
 
     assert counts == [1]
@@ -278,7 +278,7 @@ def test_mirror_start_is_refused_without_an_isolated_state_root(
         "best_effort_test_state_write_allowed",
         lambda target, category: False,
     )
-    mirror = TaskMirror()
+    mirror = ProcMirror()
     assert mirror.start() is False
     assert mirror.running is False
     assert mirror.track(_task_info()) is None
@@ -299,20 +299,20 @@ def test_mirror_tick_reconciles_and_mirrors_progress(
     monkeypatch.setattr(tm, "reconcile_running_procs", reconcile)
     updates: list[dict[str, Any]] = []
 
-    def update(task_id: str, **changes: Any) -> None:
+    def update(proc_id: str, **changes: Any) -> None:
         if threading.get_ident() == caller:
-            updates.append({"task_id": task_id, **changes})
+            updates.append({"proc_id": proc_id, **changes})
 
     monkeypatch.setattr(tm, "update_proc", update)
 
-    mirror = TaskMirror()
+    mirror = ProcMirror()
     info = _task_info()
-    task_id = "mirrored-progress"
-    info.durable_task_id = task_id
+    proc_id = "mirrored-progress"
+    info.durable_proc_id = proc_id
     mirror._handle_track(tm._TrackOp(info=info, cl_name=None))
 
     info.phase = "Fetching"
     mirror._tick()
 
     assert reconciled == ["swept"]
-    assert updates == [{"task_id": task_id, "status": "running", "phase": "Fetching"}]
+    assert updates == [{"proc_id": proc_id, "status": "running", "phase": "Fetching"}]

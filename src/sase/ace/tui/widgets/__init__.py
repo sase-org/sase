@@ -75,7 +75,7 @@ _LAZY_EXPORTS = {
     ),
     "TabBar": (".tab_bar", "TabBar"),
     "TabQuickStart": (".tab_quickstart", "TabQuickStart"),
-    "TaskIndicator": (".task_indicator", "TaskIndicator"),
+    "ProcIndicator": (".proc_indicator", "ProcIndicator"),
     "ToolDetailLevel": (".tools_panel", "ToolDetailLevel"),
     "ToolsVisibilityChanged": (".tools_panel", "ToolsVisibilityChanged"),
     "UpdatesAvailableIndicator": (
@@ -147,7 +147,7 @@ __all__ = [
     "StashedPromptsIndicator",
     "TabBar",
     "TabQuickStart",
-    "TaskIndicator",
+    "ProcIndicator",
     "ToolsVisibilityChanged",
     "UpdatesAvailableIndicator",
     "XPromptAssistEntry",

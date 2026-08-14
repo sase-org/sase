@@ -36,7 +36,7 @@ from ._kill_persistence import (
 )
 from ._kill_persistence import persist_kill_side_effects as persist_kill_side_effects
 from ._kill_processes import AgentKillProcessMixin
-from ._kill_tasks import AgentKillPersistenceTaskMixin
+from ._kill_procs import AgentKillPersistenceProcMixin
 from ._kill_transactions import bulk_kill_summary as _bulk_kill_summary
 from ._kill_transactions import (
     bulk_kill_task_display_name as _bulk_kill_task_display_name,
@@ -63,7 +63,7 @@ class AgentKillingMixin(
     AgentKillFlowMixin,
     AgentKillAllActionsMixin,
     AgentKillIdentityMixin,
-    AgentKillPersistenceTaskMixin,
+    AgentKillPersistenceProcMixin,
     AgentKillProcessMixin,
     AgentDismissingMixin,
 ):

@@ -150,7 +150,7 @@ def test_footer_omits_log_panel_after_cutover() -> None:
 
 def test_footer_omits_task_queue_after_cutover() -> None:
     """The ``,t`` tasks entry was retired when the panel moved to the
-    Admin Center's Tasks tab, so the leader footer no longer surfaces it."""
+    Admin Center's Procs tab, so the leader footer no longer surfaces it."""
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 

@@ -30,8 +30,8 @@ from sase.ace.tui.modals.statistics_pane_projects import (
 )
 from sase.ace.tui.modals.procs_pane_render import _elapsed, _relative_time
 from sase.ace.tui.modals.procs_store_rows import _local_datetime
-from sase.ace.tui.task_mirror import _utc_timestamp
-from sase.ace.tui.task_queue import TaskInfo, TaskQueue, _TaskLog
+from sase.ace.tui.proc_mirror import _utc_timestamp
+from sase.ace.tui.proc_queue import ProcInfo, ProcQueue, _ProcLog
 from sase.ace.tui.tools.cache import (
     ToolsCacheEntry,
     cached_tool_calls_end_reference,
@@ -138,9 +138,9 @@ def test_task_rows_and_default_references_share_configured_wall_time(
     monkeypatch.setattr(
         "sase.ace.tui.modals.procs_pane_render.local_now", lambda: later
     )
-    task = TaskInfo(
-        task_id="task",
-        task_type="sync",
+    task = ProcInfo(
+        proc_id="task",
+        proc_type="sync",
         cl_name="change",
         project_file="project.sase",
         status="running",
@@ -166,24 +166,24 @@ def test_quit_confirm_elapsed_uses_configured_wall_time(
     assert _format_elapsed(started_at) == "12s"
 
 
-def test_task_queue_mints_configured_wall_times(
+def test_proc_queue_mints_configured_wall_times(
     tz_divergence: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     local = datetime(2026, 7, 3, 6, 24, 49)
-    monkeypatch.setattr("sase.ace.tui.task_queue.local_now", lambda: local)
-    log = _TaskLog()
+    monkeypatch.setattr("sase.ace.tui.proc_queue.local_now", lambda: local)
+    log = _ProcLog()
     log.append("hello")
-    queue = TaskQueue()
+    queue = ProcQueue()
     task = queue.submit("sync", "change", "project.sase")
-    queue.complete(task.task_id, success=True, message="done", output="")
+    queue.complete(task.proc_id, success=True, message="done", output="")
 
     assert log.snapshot().lines[0].ts == local
     assert task.started_at == local
     assert task.finished_at == local
 
 
-def test_task_mirror_treats_naive_input_as_configured_wall_time(
+def test_proc_mirror_treats_naive_input_as_configured_wall_time(
     tz_divergence: None,
 ) -> None:
     assert _utc_timestamp(datetime(2026, 7, 3, 6, 24, 49)) == ("2026-07-03T10:24:49Z")

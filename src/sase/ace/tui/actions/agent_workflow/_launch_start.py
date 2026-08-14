@@ -188,12 +188,12 @@ class AgentLaunchStartMixin:
         )
 
         launch_ctx = ctx if keep_bar else None
-        self._submit_launch_task(  # type: ignore[attr-defined]
+        self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {ctx.display_name}",
             cl_name=ctx.display_name,
             project_file=ctx.project_file,
             dedup_key=f"launch:{ctx.workflow_name}",
-            task_callable=lambda: self._run_agent_launch_body(prompt, launch_ctx),  # type: ignore[attr-defined]
+            proc_callable=lambda: self._run_agent_launch_body(prompt, launch_ctx),  # type: ignore[attr-defined]
             # Recovery metadata: if the body raises before an inner failed-launch
             # branch runs (e.g. a project-alias canonicalization conflict), the
             # completion handler stashes this prompt so it stays recoverable.

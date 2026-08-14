@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from sase.ace.tui.actions.task_actions import (
-    TrackedTaskCompletion,
-    TrackedTaskResult,
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
 )
 
 from .notification_modal_action_types import (
@@ -54,9 +54,9 @@ class NotificationActionSupportMixin:
     ) -> bool:
         """Run a notification state write through the app task queue when present."""
 
-        def _task() -> TrackedTaskResult[NotificationMutationResult]:
+        def _task() -> TrackedProcResult[NotificationMutationResult]:
             result = task()
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=result.success,
                 message=result.message,
                 payload=result,
@@ -64,7 +64,7 @@ class NotificationActionSupportMixin:
             )
 
         def _on_complete(
-            completion: TrackedTaskCompletion[NotificationMutationResult],
+            completion: TrackedProcCompletion[NotificationMutationResult],
         ) -> None:
             result = completion.payload
             if result is None:
@@ -80,9 +80,9 @@ class NotificationActionSupportMixin:
             app = self.app
         except Exception:
             app = None
-        submit = getattr(app, "_submit_tracked_task", None)
+        submit = getattr(app, "_submit_tracked_proc", None)
         if callable(submit):
-            task_info = submit(
+            proc_info = submit(
                 "notification",
                 "notifications",
                 "",
@@ -95,7 +95,7 @@ class NotificationActionSupportMixin:
                 reload_on_complete=False,
                 notify_on_complete=False,
             )
-            return task_info is not None
+            return proc_info is not None
 
         result = _task()
         if result.payload is not None:

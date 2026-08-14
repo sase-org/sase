@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
-    from ...task_subprocess import TaskReporter
+    from ...proc_subprocess import ProcReporter
 
 
 _GateTaskSeverity = Literal["warning", "error"]
@@ -54,23 +54,23 @@ def submit_gate_execution_task(
     if not bundle_value:
         app.notify("No neutral gate bundle in notification", severity="error")  # type: ignore[attr-defined]
         return False
-    submit = getattr(app, "_submit_tracked_task", None)
+    submit = getattr(app, "_submit_tracked_proc", None)
     if not callable(submit):
         app.notify("Tracked gate execution is unavailable", severity="error")  # type: ignore[attr-defined]
         return False
 
-    from ...actions.task_actions import TrackedTaskResult
+    from ...actions.proc_actions import TrackedProcResult
 
     request_id = str(notification.action_data.get("request_id") or notification.id)
     bundle_path = Path(bundle_value)
 
-    def work(reporter: TaskReporter) -> TrackedTaskResult[_GateTaskOutcome]:
+    def work(reporter: ProcReporter) -> TrackedProcResult[_GateTaskOutcome]:
         outcome = _execute_gate_submission(
             bundle_path,
             submission,
             reporter=reporter,
         )
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=outcome.success,
             message=outcome.message,
             payload=outcome,
@@ -108,7 +108,7 @@ def _execute_gate_submission(
     bundle_path: Path,
     submission: GateSubmission,
     *,
-    reporter: TaskReporter,
+    reporter: ProcReporter,
 ) -> _GateTaskOutcome:
     from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.models import GateError
@@ -134,9 +134,9 @@ def _execute_gate_submission(
 
     def process_state(process: Any, running: bool) -> None:
         if running:
-            reporter.task_info.register_process(process)
+            reporter.proc_info.register_process(process)
         else:
-            reporter.task_info.unregister_process(process)
+            reporter.proc_info.unregister_process(process)
 
     try:
         result = execute_gate_selection(

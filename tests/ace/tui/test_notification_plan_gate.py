@@ -74,10 +74,10 @@ class _TrackedPlanApp:
     def _refresh_notification_count(self) -> None:
         self.refresh_count += 1
 
-    def _submit_tracked_task(self, *args: Any, **kwargs: Any) -> object:
+    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
         self.completion = args[3]()
         kwargs["on_complete"](self.completion)
-        return SimpleNamespace(task_id="plan-gate-task")
+        return SimpleNamespace(proc_id="plan-gate-task")
 
 
 class _PlanModalApp(App[None]):

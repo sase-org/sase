@@ -16,7 +16,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 
-from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
+from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
 
 
 def _running_agent(*, cl_name: str, pid: int) -> Agent:
@@ -44,7 +44,7 @@ def _done_agent(*, cl_name: str, suffix: str) -> Agent:
     )
 
 
-class _MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+class _MockApp(TrackedProcRecorderMixin, AgentsMixin):
     def __init__(self, agents: list[Agent]) -> None:
         self._init_tracked_task_recorder()
         self._agents = agents

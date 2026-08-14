@@ -9,7 +9,7 @@ import pytest
 import sase.ace.tui.modals.quit_confirm_modal as quit_confirm_modal
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import QuitConfirmModal
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.proc_queue import ProcInfo
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -34,17 +34,17 @@ def _frozen_elapsed(started_at: datetime) -> str:
 
 
 def _task(
-    task_id: str,
-    task_type: str,
+    proc_id: str,
+    proc_type: str,
     cl_name: str,
     message: str,
     *,
     started_at: str,
     display_name: str | None = None,
-) -> TaskInfo:
-    return TaskInfo(
-        task_id=task_id,
-        task_type=task_type,
+) -> ProcInfo:
+    return ProcInfo(
+        proc_id=proc_id,
+        proc_type=proc_type,
         cl_name=cl_name,
         project_file="/tmp/visual_project.sase",
         status="running",
@@ -54,7 +54,7 @@ def _task(
     )
 
 
-def _tasks() -> list[TaskInfo]:
+def _tasks() -> list[ProcInfo]:
     return [
         _task(
             "sync-1",

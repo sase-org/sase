@@ -6,13 +6,13 @@ import io
 from datetime import datetime, timedelta
 from typing import Any
 
-from sase.ace.tui.task_queue import TaskInfo
+from sase.ace.tui.proc_queue import ProcInfo
 
 _FIXED_TASK_NOW = datetime(2026, 6, 26, 12, 0, 0)
 
 
 def _task(
-    task_id: str,
+    proc_id: str,
     *,
     label: str,
     status: str,
@@ -20,11 +20,11 @@ def _task(
     output: str = "",
     error: str | None = None,
     live_output: str | None = None,
-) -> TaskInfo:
+) -> ProcInfo:
     started_at = _FIXED_TASK_NOW.replace(tzinfo=None) - timedelta(seconds=age_seconds)
-    info = TaskInfo(
-        task_id=task_id,
-        task_type=label.split()[0],
+    info = ProcInfo(
+        proc_id=proc_id,
+        proc_type=label.split()[0],
         cl_name="",
         project_file="",
         status=status,
@@ -41,9 +41,9 @@ def _task(
 
 
 def _seed_tasks_tab_queue(app: Any) -> None:
-    queue = app._task_queue
-    queue._tasks = {
-        task.task_id: task
+    queue = app._proc_queue
+    queue._procs = {
+        task.proc_id: task
         for task in (
             _task(
                 "sync",

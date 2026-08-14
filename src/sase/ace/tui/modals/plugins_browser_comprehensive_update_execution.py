@@ -11,7 +11,7 @@ from sase.ace.comprehensive_update import (
     ComprehensiveUpdateResult,
     SaseUpdateResultStatus,
 )
-from sase.ace.tui.task_subprocess import TaskReporter
+from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliUpdateResult,
@@ -44,7 +44,7 @@ from .plugins_browser_sase_update_summary import (
     combined_sase_update_success_message,
     sase_update_success_message,
 )
-from .plugins_browser_sase_update_tasks import dev_update_reporter_runner
+from .plugins_browser_sase_update_procs import dev_update_reporter_runner
 
 
 class ComprehensiveUpdateExecutionMixin:
@@ -60,7 +60,7 @@ class ComprehensiveUpdateExecutionMixin:
     def _execute_provider_leg(
         self,
         preview: ComprehensiveUpdatePreview,
-        reporter: TaskReporter,
+        reporter: ProcReporter,
     ) -> tuple[tuple[AgentCliUpdateResult, ...], str | None]:
         """Execute provider commands first, preserving skips and drops."""
         plan = preview.provider_plan
@@ -123,7 +123,7 @@ class ComprehensiveUpdateExecutionMixin:
     def _execute_comprehensive_sase_leg(
         self,
         preview: ComprehensiveUpdatePreview,
-        reporter: TaskReporter,
+        reporter: ProcReporter,
     ) -> ComprehensiveSaseUpdateResult:
         """Attempt the selected SASE leg after all provider commands finish."""
         if preview.sase_current:
@@ -231,7 +231,7 @@ class ComprehensiveUpdateExecutionMixin:
     def _execute_agents_leg(
         self,
         preview: ComprehensiveUpdatePreview,
-        reporter: TaskReporter,
+        reporter: ProcReporter,
     ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
         """Import only the cached agent hoods captured by the preview."""
         if not preview.agents_runnable:

@@ -6,7 +6,7 @@ import dataclasses
 import logging
 from typing import TYPE_CHECKING
 
-from ._launch_tasks import LaunchTaskOutcome, launch_results_tuple
+from ._launch_procs import LaunchProcOutcome, launch_results_tuple
 from ..failure_messages import with_log_panel_hint
 
 log = logging.getLogger(__name__)
@@ -48,11 +48,11 @@ class RepeatLaunchMixin:
         snap = dataclasses.replace(ctx)
 
         self.notify(f"Launching repeat agents for {snap.display_name}...")  # type: ignore[attr-defined]
-        self._submit_launch_task(  # type: ignore[attr-defined]
+        self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch repeat {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
-            task_callable=lambda: self._run_repeat_launch(
+            proc_callable=lambda: self._run_repeat_launch(
                 prompt, snap, vcs_ref, has_wait, extra_env
             ),
             submitted_prompt=prompt,
@@ -65,7 +65,7 @@ class RepeatLaunchMixin:
         vcs_ref: tuple[str, str] | None,
         has_wait: bool,
         extra_env: dict[str, str] | None = None,
-    ) -> LaunchTaskOutcome:
+    ) -> LaunchProcOutcome:
         """Worker-thread body for :meth:`_launch_repeat_agents`."""
         from sase.agent.repeat_launcher import (
             NameCollisionError,
@@ -187,7 +187,7 @@ class RepeatLaunchMixin:
 
             msg = f"Started {len(specs)} repeat agent(s) for {ctx.display_name}"
             timer.finish(outcome="ok", launched=len(specs))
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 msg,
                 results=launch_results_tuple(execution.results),
             )
@@ -198,7 +198,7 @@ class RepeatLaunchMixin:
             _log_repeat_failure(e, ctx, prompt, name_collision=True)
             # A mid-plan failure may have already spawned some slots;
             # without results, only a refresh makes them visible.
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint(str(e)),
                 severity="error",
                 request_agents_refresh=True,
@@ -209,7 +209,7 @@ class RepeatLaunchMixin:
             record_failed_launch_prompt(prompt)
             log.exception("Repeat launch failed")
             _log_repeat_failure(exc, ctx, prompt)
-            return LaunchTaskOutcome(
+            return LaunchProcOutcome(
                 with_log_panel_hint("Repeat launch failed"),
                 severity="error",
                 request_agents_refresh=True,

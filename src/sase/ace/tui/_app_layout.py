@@ -28,7 +28,7 @@ from .widgets import (
     StashedPromptsIndicator,
     TabBar,
     TabQuickStart,
-    TaskIndicator,
+    ProcIndicator,
     UpdatesAvailableIndicator,
 )
 
@@ -62,7 +62,7 @@ class AppLayoutMixin:
         yield Header()
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
-            yield TaskIndicator(id="task-indicator")
+            yield ProcIndicator(id="proc-indicator")
             yield UpdatesAvailableIndicator(id="updates-indicator")
             yield AgentsSyncIndicator(id="agents-sync-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")

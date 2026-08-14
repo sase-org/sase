@@ -329,11 +329,11 @@ def test_chop_failure_persists_record() -> None:
 
 
 def test_payloadless_launch_task_failure_persists_record() -> None:
-    from sase.ace.tui.actions.agent_workflow._launch_tasks import LaunchTaskMixin
-    from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
-    from sase.ace.tui.task_queue import TaskInfo
+    from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
+    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+    from sase.ace.tui.proc_queue import ProcInfo
 
-    class _TaskApp(LaunchTaskMixin):
+    class _TaskApp(LaunchProcMixin):
         def __init__(self) -> None:
             self.notifications: list[tuple[str, str | None]] = []
 
@@ -341,11 +341,11 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
             self.notifications.append((msg, severity))
 
     app = _TaskApp()
-    app._on_launch_task_complete(
-        TrackedTaskCompletion(
-            task_info=TaskInfo(
-                task_id="task-1",
-                task_type="launch",
+    app._on_launch_proc_complete(
+        TrackedProcCompletion(
+            proc_info=ProcInfo(
+                proc_id="task-1",
+                proc_type="launch",
                 cl_name="cl",
                 project_file="/tmp/proj.sase",
                 status="error",
@@ -366,8 +366,8 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
     ]
     record = _assert_persisted("single")
     assert record["display_name"] == "launch cl"
-    assert record["stage"] == "launch_task"
-    assert record["task_id"] == "task-1"
+    assert record["stage"] == "launch_proc"
+    assert record["proc_id"] == "task-1"
     assert record["output"] == "captured output"
 
 

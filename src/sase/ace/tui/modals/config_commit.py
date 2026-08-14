@@ -94,25 +94,25 @@ def submit_config_commit_task(
         git_index_lock_retry_message,
         run_git_commit_push_sync,
     )
-    from sase.ace.tui.actions.task_actions import (
-        TrackedTaskCompletion,
-        TrackedTaskResult,
+    from sase.ace.tui.actions.proc_actions import (
+        TrackedProcCompletion,
+        TrackedProcResult,
     )
 
-    def _task() -> TrackedTaskResult[bool]:
+    def _task() -> TrackedProcResult[bool]:
         result: GitCommitPushResult = run_git_commit_push_sync(
             git_root=offer.git_root,
             file_path=offer.file_path,
             commit_message=offer.message,
         )
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=result.success,
             message=result.message,
             payload=result.index_lock_removed,
             error=None if result.success else result.message,
         )
 
-    def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
+    def _on_complete(completion: TrackedProcCompletion[bool]) -> None:
         app.notify(
             completion.message,
             severity="information" if completion.success else "error",
@@ -123,7 +123,7 @@ def submit_config_commit_task(
                 severity="warning",
             )
 
-    submit = getattr(app, "_submit_tracked_task", None)
+    submit = getattr(app, "_submit_tracked_proc", None)
     if submit is None:
         app.notify(
             "Could not commit: background task queue unavailable.",

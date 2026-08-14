@@ -8,7 +8,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import procs_pane as tp
 from sase.ace.tui.modals import procs_pane_render as tpr
 from sase.ace.tui.modals.procs_store_rows import _store_task_row
-from sase.ace.tui.task_queue import TaskQueue
+from sase.ace.tui.proc_queue import ProcQueue
 from sase.procs import Proc
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
@@ -77,7 +77,7 @@ async def test_config_center_procs_tab_png_snapshot(
         "load_store_task_rows",
         lambda **_kwargs: tp.StoreTasksSnapshot(rows=[detached], mtime=1.0),
     )
-    monkeypatch.setattr(TaskQueue, "prune_old", lambda self: None)
+    monkeypatch.setattr(ProcQueue, "prune_old", lambda self: None)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)

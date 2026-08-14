@@ -9,9 +9,9 @@ from unittest.mock import patch
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.notifications import Notification, append_notification, load_notifications
 
-from tests._agent_cleanup_task_helpers import (
-    TrackedTaskRecorderMixin,
-    run_tracked_task,
+from tests._agent_cleanup_proc_helpers import (
+    TrackedProcRecorderMixin,
+    run_tracked_proc,
 )
 from tests._agent_kill_single_helpers import cleanup_plan
 
@@ -115,7 +115,7 @@ def test_run_kill_persistence_does_not_refresh_on_success() -> None:
     """Successful cleanup should not schedule a redundant full agent reload."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -161,8 +161,8 @@ def test_run_kill_persistence_does_not_refresh_on_success() -> None:
             "sase.ace.tui.actions.agents._killing.dismiss_notifications_for_agents"
         ) as mock_dismiss_notifs,
     ):
-        app._submit_kill_persistence_task(agent, "hook", [agent])
-        run_tracked_task(app, app.tracked_tasks[0])
+        app._submit_kill_persistence_proc(agent, "hook", [agent])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist.assert_called_once_with(agent, "hook", [agent])
     mock_save.assert_called_once_with({agent.identity})
@@ -177,7 +177,7 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
     """Failed cleanup still schedules a reload to reconcile with disk."""
     from sase.ace.tui.actions.agents import AgentsMixin
 
-    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+    class MockApp(TrackedProcRecorderMixin, AgentsMixin):
         def __init__(self) -> None:
             self._init_tracked_task_recorder()
             self._notifications: list[tuple[str, str]] = []
@@ -220,8 +220,8 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
         ) as mock_persist,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
     ):
-        app._submit_kill_persistence_task(agent, "hook", [agent])
-        run_tracked_task(app, app.tracked_tasks[0])
+        app._submit_kill_persistence_proc(agent, "hook", [agent])
+        run_tracked_proc(app, app.tracked_procs[0])
 
     mock_persist.assert_called_once_with(agent, "hook", [agent])
     mock_save.assert_not_called()

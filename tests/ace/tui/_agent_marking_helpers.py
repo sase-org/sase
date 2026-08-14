@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sase.ace.tui.actions.agents._cleanup_tasks import CleanupTaskMixin
+from sase.ace.tui.actions.agents._cleanup_procs import CleanupProcMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.agents._wait_resume import AgentWaitResumeMixin
@@ -16,7 +16,7 @@ from sase.ace.tui.modals.save_agent_group_modal import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
-from tests._agent_cleanup_task_helpers import TrackedTaskRecorderMixin
+from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -36,8 +36,8 @@ def _make_agent(**overrides: object) -> Agent:
 
 class _FakeMarkApp(
     AgentMarkingMixin,
-    CleanupTaskMixin,
-    TrackedTaskRecorderMixin,
+    CleanupProcMixin,
+    TrackedProcRecorderMixin,
     AgentUnreadMixin,
     MarkingMixin,
 ):

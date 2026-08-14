@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Literal
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.xprompt.directive_edit import set_prompt_auto_mode
 
-from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
+from ..proc_actions import TrackedProcCompletion, TrackedProcResult
 from ._directive_persistence import (
     AgentDirectivePersistenceResult,
     AgentDirectivePersistenceSpec,
@@ -149,9 +149,9 @@ class AgentApproveMixin:
             ),
         )
 
-        def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+        def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
             result = persist_agent_directive_update(spec)
-            return TrackedTaskResult(
+            return TrackedProcResult(
                 success=True,
                 message="Auto-approve persisted",
                 payload=result,
@@ -164,7 +164,7 @@ class AgentApproveMixin:
                 self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         def _on_complete(
-            completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+            completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
         ) -> None:
             if completion.success:
                 return
@@ -174,7 +174,7 @@ class AgentApproveMixin:
                 severity="error",
             )
 
-        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
             "agent-directive",
             agent.cl_name or agent.display_name or "agent",
             artifacts_dir,
@@ -186,7 +186,7 @@ class AgentApproveMixin:
             reload_on_complete=False,
             notify_on_complete=False,
         )
-        if task_info is None:
+        if proc_info is None:
             return
 
         agent.approve = new_approve

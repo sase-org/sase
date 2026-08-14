@@ -14,7 +14,7 @@ from textual.widgets import Label, Static
 from sase.ace.hints import build_editor_args
 
 from ..actions.clipboard import schedule_copy_delivery
-from ..task_queue import TaskInfo, TaskQueue
+from ..proc_queue import ProcInfo, ProcQueue
 from .procs_pane_render import (
     BodyCache,
     is_active,
@@ -35,18 +35,18 @@ class ProcsPaneActionsMixin(_MixinBase):
     if TYPE_CHECKING:
         _body_cache: BodyCache
         _spinner_index: int
-        _tasks: list[TaskInfo]
+        _tasks: list[ProcInfo]
         _user_scrolled: bool
 
-        def _get_selected_task(self) -> TaskInfo | None: ...
+        def _get_selected_task(self) -> ProcInfo | None: ...
 
         def _highlighted_row(self) -> int | None: ...
 
         def _kill_callback(self) -> Callable[[str], bool] | None: ...
 
-        def _kill_store_task(self, task: TaskInfo) -> None: ...
+        def _kill_store_task(self, task: ProcInfo) -> None: ...
 
-        def _merged_tasks(self) -> list[TaskInfo]: ...
+        def _merged_tasks(self) -> list[ProcInfo]: ...
 
         def _rebuild_list(
             self,
@@ -59,9 +59,9 @@ class ProcsPaneActionsMixin(_MixinBase):
 
         def _selected_task_identity(self) -> str | None: ...
 
-        def _task_queue(self) -> TaskQueue | None: ...
+        def _proc_queue(self) -> ProcQueue | None: ...
 
-    def _display_output(self, task: TaskInfo | None) -> None:
+    def _display_output(self, task: ProcInfo | None) -> None:
         """Render task output in the right pane."""
         title = self.query_one("#procs-output-title", Label)
         content = self.query_one("#procs-output-content", Static)
@@ -79,7 +79,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         elif not is_active(task):
             self._reset_output_scroll()
 
-    def _output_text(self, task: TaskInfo) -> Text:
+    def _output_text(self, task: ProcInfo) -> Text:
         out = Text()
         out.append_text(output_header(task, spinner_index=self._spinner_index))
         body = output_body(task, self._body_cache)
@@ -112,7 +112,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         except Exception:
             pass
 
-    def _display_task_live_output(self, task: TaskInfo) -> None:
+    def _display_task_live_output(self, task: ProcInfo) -> None:
         """Update the output pane with live output and scroll to bottom."""
         content = self.query_one("#procs-output-content", Static)
         content.update(self._output_text(task))
@@ -122,7 +122,7 @@ class ProcsPaneActionsMixin(_MixinBase):
     def action_dismiss_task(self) -> None:
         """Remove the selected completed task from the queue."""
         task = self._get_selected_task()
-        queue = self._task_queue()
+        queue = self._proc_queue()
         if task is None or queue is None or is_active(task):
             return
         if task.store_backed:
@@ -131,14 +131,14 @@ class ProcsPaneActionsMixin(_MixinBase):
                 severity="warning",
             )
             return
-        queue.remove(task.task_id)
+        queue.remove(task.proc_id)
         highlighted = self._highlighted_row()
         self._tasks = self._merged_tasks()
         self._rebuild_list(highlight_index=highlighted)
 
     def action_dismiss_all_done(self) -> None:
         """Remove all completed tasks from the queue."""
-        queue = self._task_queue()
+        queue = self._proc_queue()
         if queue is None:
             return
         queue.remove_completed()
@@ -165,7 +165,7 @@ class ProcsPaneActionsMixin(_MixinBase):
             if task.store_backed:
                 self._kill_store_task(task)
                 return
-            if kill_callback is not None and kill_callback(task.task_id):
+            if kill_callback is not None and kill_callback(task.proc_id):
                 highlighted = self._highlighted_row()
                 self._tasks = self._merged_tasks()
                 self._rebuild_list(highlight_index=highlighted)
@@ -223,7 +223,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         safe_label = task.label.replace("/", "_").replace(" ", "_")
         fd, path = tempfile.mkstemp(
             suffix=".log",
-            prefix=f"task_{task.task_type}_{safe_label}_",
+            prefix=f"task_{task.proc_type}_{safe_label}_",
             dir=get_sase_managed_tmpdir("editors"),
         )
         try:

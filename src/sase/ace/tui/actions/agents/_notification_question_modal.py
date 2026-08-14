@@ -184,7 +184,7 @@ def _submit_question_response_task(
     on_response_written: Callable[[], None] | None,
 ) -> None:
     """Run the hashed question command as tracked background work in ACE."""
-    from sase.ace.tui.actions.task_actions import TrackedTaskResult
+    from sase.ace.tui.actions.proc_actions import TrackedProcResult
 
     request_id = action_data.get("request_id") or response_dir.name
     dedup_key = f"question-response:{request_id}"
@@ -219,9 +219,9 @@ def _submit_question_response_task(
             return _QuestionResponseTaskOutcome(message, False, severity)
         return _QuestionResponseTaskOutcome(result.message, True)
 
-    def tracked_body() -> TrackedTaskResult[_QuestionResponseTaskOutcome]:
+    def tracked_body() -> TrackedProcResult[_QuestionResponseTaskOutcome]:
         outcome = task_body()
-        return TrackedTaskResult(
+        return TrackedProcResult(
             success=outcome.success,
             message=outcome.message,
             payload=outcome,
@@ -239,7 +239,7 @@ def _submit_question_response_task(
             return
         _finish_question_response_task(app, outcome, on_response_written)
 
-    submit = getattr(app, "_submit_tracked_task", None)
+    submit = getattr(app, "_submit_tracked_proc", None)
     if callable(submit):
         try:
             submit(

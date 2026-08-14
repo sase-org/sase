@@ -22,6 +22,6 @@ from .repro import ReproActionsMixin as ReproActionsMixin
 from .startup import StartupMixin as StartupMixin
 from .status import StatusActionsMixin as StatusActionsMixin
 from .sync import SyncMixin as SyncMixin
-from .task_actions import TaskActionsMixin as TaskActionsMixin
+from .proc_actions import ProcActionsMixin as ProcActionsMixin
 from .update_toast import UpdateToastMixin as UpdateToastMixin
 from .workspace import WorkspaceActionsMixin as WorkspaceActionsMixin

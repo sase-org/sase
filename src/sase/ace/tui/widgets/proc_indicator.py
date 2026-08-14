@@ -1,4 +1,4 @@
-"""Background task indicator widget for the ace TUI."""
+"""Background proc indicator widget for the ace TUI."""
 
 from typing import Any
 
@@ -6,10 +6,10 @@ from rich.text import Text
 from textual.widgets import Static
 
 
-class TaskIndicator(Static):
-    """Shows the count of running background tasks in the top-bar.
+class ProcIndicator(Static):
+    """Shows the count of running background procs in the top-bar.
 
-    Visible only when at least one task is running; hides itself
+    Visible only when at least one proc is running; hides itself
     otherwise to avoid clutter.
     """
 
@@ -18,10 +18,10 @@ class TaskIndicator(Static):
         self._count = 0
 
     def set_count(self, count: int) -> None:
-        """Update the displayed running task count.
+        """Update the displayed running proc count.
 
         Args:
-            count: Number of currently running background tasks.
+            count: Number of currently running background procs.
         """
         if self._count != count:
             self._count = count
