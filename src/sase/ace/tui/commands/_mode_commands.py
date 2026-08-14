@@ -81,6 +81,7 @@ _LEADER_LABELS: dict[str, str] = {
 _BANG_LABELS: dict[str, str] = {
     "run_cmd": "Run command (bang)",
     "toggle_axe": "Toggle AXE (bang)",
+    "mark_pr_origin": "Mark PR origin (bang)",
 }
 
 _BEAD_ISSUE_LABELS: dict[str, str] = {

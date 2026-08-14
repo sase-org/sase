@@ -186,6 +186,13 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        mark_pr_origin_key = bang_keys.get("mark_pr_origin")
+        if mark_pr_origin_key == key:
+            # !o → mark PR origin (moved off app-level `o` so grouping can use it)
+            self.action_mark_pr_origin()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True

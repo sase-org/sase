@@ -2,19 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from sase.ace.tui.artifact_tabs import (
-    _PROVIDER_ACCENTS,
-    ARTIFACTS_ACCENTS,
     ArtifactsTabDescriptor,
-    _ProjectProviderRecord,
-    _provider_descriptors,
     _assign_artifacts_digit_shortcuts,
 )
-from sase.sidecar_ref_config import SidecarRefPolicy
 
 
 def _descriptor(id_: str, *, is_provider: bool = False) -> ArtifactsTabDescriptor:
@@ -124,30 +117,3 @@ def test_overflow_at_ten_panes_files_still_gets_ninth_digit() -> None:
     assert len(assigned) == len(set(assigned)) == 9
     assert digits[:8] == ["1", "2", "3", "4", "5", "6", "7", "8"]
     assert digits[8] is None
-
-
-def test_provider_accents_are_unchanged_by_the_digit_refactor() -> None:
-    def _record(kind: str) -> _ProjectProviderRecord:
-        return _ProjectProviderRecord(
-            project="proj",
-            display_name="Proj",
-            workspace_dir="/tmp/proj",
-            role=kind,
-            root=Path("/tmp/proj"),
-            policy=SidecarRefPolicy(role=kind, ref_kind=kind, is_document=True),
-        )
-
-    kinds = ["zz_alpha_digit_test", "zz_beta_digit_test"]
-    for kind in kinds:
-        ARTIFACTS_ACCENTS.pop(f"ref:{kind}", None)
-    try:
-        descriptors = _provider_descriptors([_record(kind) for kind in kinds])
-        assert [descriptor.accent for descriptor in descriptors] == [
-            _PROVIDER_ACCENTS[0],
-            _PROVIDER_ACCENTS[1],
-        ]
-    finally:
-        for kind in kinds:
-            ARTIFACTS_ACCENTS.pop(f"ref:{kind}", None)
-
-    assert ARTIFACTS_ACCENTS["ref:plan"] == "#AF87FF"

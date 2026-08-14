@@ -352,7 +352,7 @@ ace:
       rename_cl: "n"
       # Patch edits
       edit_hooks: "f"
-      mark_pr_origin: "o"
+      mark_pr_origin: "unbound"
       # Proposals & sync
       accept_proposal: "A"
       rebase: "b"
@@ -568,6 +568,7 @@ ace:
         keys:
           run_cmd: "exclamation_mark"
           toggle_axe: "x"
+          mark_pr_origin: "o"
       bead_issue_mode:
         prefix: "b"
         keys:

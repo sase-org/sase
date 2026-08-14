@@ -635,7 +635,7 @@ launch routing uses the same `@small_worker` fallback.
 | `M`             | Mail PR                                                                       |
 | `m`             | Mark / unmark current PR (auto-advances to next)                              |
 | `n`             | Rename PR (non-Sub/Rev PRs only)                                              |
-| `o`             | Mark PR origin (`sase`/`external`/`unknown`)                                  |
+| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                  |
 | `R`             | Rewind to previous commit (`!` suffix skips VCS operations)                   |
 | `s`             | Change status (opens status modal)                                            |
 | `S`             | Bulk status change for all marked PRs                                         |
@@ -3071,7 +3071,7 @@ sub-tab list and in the detail panel: nothing for the default `sase` origin (a P
 created through the tracked PR workflow), `external` for a PR SASE adopted but did not
 create, and `origin?` for `unknown` (no evidence either way). The detail panel adds a
 one-line note for `external` Patches, since AXE excludes external-origin Patches from
-its candidate selection entirely (see [AXE](axe.md)). Press `o` on a PR row (see
+its candidate selection entirely (see [AXE](axe.md)). Press `!o` on a PR row (see
 [PR Actions](#pr-actions) above) to open the Mark PR Origin modal and set it explicitly,
 or run `sase patch set-origin <name> <sase|external|unknown>` (see
 [CLI Reference](cli.md#work-tracking-and-planning)). See

@@ -8,6 +8,7 @@ from sase.ace.tui.keymaps.scopes import load_gate_keymaps, load_statistics_keyma
 from sase.ace.tui.keymaps.app_keymaps import AppKeymaps
 from sase.ace.tui.keymaps.key_validation import (
     canonicalize_key_binding,
+    is_unbound_key,
     is_valid_key,
     normalize_key_binding,
     split_key_alternatives,
@@ -326,6 +327,8 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
     key_to_actions: dict[str, list[str]] = {}
     for fname, key_val in app_kwargs.items():
+        if is_unbound_key(key_val):
+            continue
         for key_part in split_key_alternatives(key_val):
             key_to_actions.setdefault(key_part, []).append(fname)
 

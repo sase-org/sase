@@ -1,6 +1,7 @@
 """Human-readable formatting for configured Textual key names."""
 
 from sase.ace.tui.keymaps.key_validation import (
+    UNBOUND_KEY,
     _KEY_DISPLAY,
     canonicalize_single_key,
     split_key_alternatives,
@@ -22,6 +23,8 @@ def key_display_name(textual_key: str) -> str:
     if len(alternatives) > 1:
         return " / ".join(key_display_name(alternative) for alternative in alternatives)
     textual_key = canonicalize_single_key(alternatives[0])
+    if textual_key == UNBOUND_KEY:
+        return ""
     if textual_key == "ctrl+@":
         return "Ctrl+Space"
     if textual_key in _KEY_DISPLAY:

@@ -1,0 +1,44 @@
+{
+  "parent_chain": {
+    "patches": [
+      {"name": "root", "parent": null, "status": "Ready"},
+      {"name": "child", "parent": "root", "status": "WIP"},
+      {"name": "grandchild", "parent": "child", "status": "Draft"}
+    ],
+    "from": "grandchild",
+    "ancestors": ["child", "root"],
+    "children": [],
+    "siblings": []
+  },
+  "cycle": {
+    "patches": [
+      {"name": "a", "parent": "b", "status": "Ready"},
+      {"name": "b", "parent": "a", "status": "Ready"}
+    ],
+    "from": "a",
+    "ancestors": ["b", "a"],
+    "children": ["b"],
+    "siblings": []
+  },
+  "missing_parent": {
+    "patches": [
+      {"name": "orphan", "parent": "ghost", "status": "WIP"}
+    ],
+    "from": "orphan",
+    "ancestors": ["ghost"],
+    "children": [],
+    "siblings": []
+  },
+  "family": {
+    "patches": [
+      {"name": "foo", "parent": null, "status": "Ready"},
+      {"name": "foo__1", "parent": null, "status": "Reverted"},
+      {"name": "foo__2", "parent": null, "status": "Reverted"}
+    ],
+    "from": "foo",
+    "ancestors": [],
+    "children": [],
+    "siblings": ["foo__1", "foo__2"]
+  },
+  "cross_kind_edges": []
+}

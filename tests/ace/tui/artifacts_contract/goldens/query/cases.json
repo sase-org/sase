@@ -1,0 +1,139 @@
+{
+  "canonical": {
+    "\"alpha\"": "\"alpha\"",
+    "c\"Alpha\"": "c\"Alpha\"",
+    "\"feature\"": "\"feature\"",
+    "alpha": "\"alpha\"",
+    "\"alpha\" \"beta\"": "\"alpha\" AND \"beta\"",
+    "\"alpha\" AND \"beta\"": "\"alpha\" AND \"beta\"",
+    "\"alpha\" OR \"beta\"": "\"alpha\" OR \"beta\"",
+    "NOT \"beta\"": "NOT \"beta\"",
+    "(\"alpha\" OR \"beta\") AND \"feature\"": "(\"alpha\" OR \"beta\") AND \"feature\"",
+    "\"foo\\\\bar\"": "\"foo\\\\bar\"",
+    "\"line\\nbreak\"": "\"line\\nbreak\"",
+    "!!!": "!!!",
+    "!": "!!!",
+    "@@@": "@@@",
+    "@": "@@@",
+    "$$$": "$$$",
+    "$": "$$$",
+    "*": "!!! OR @@@ OR $$$",
+    "!!": "NOT !!!",
+    "!@": "NOT @@@",
+    "!$": "NOT $$$",
+    "status:Ready": "status:Ready",
+    "status:Reverted OR status:Submitted": "status:Reverted OR status:Submitted",
+    "project:myproj": "project:myproj",
+    "ancestor:alpha": "ancestor:alpha",
+    "name:beta": "name:beta",
+    "sibling:beta": "sibling:beta",
+    "origin:unknown": "origin:unknown",
+    "ancestor:alpha AND NOT \"beta\"": "ancestor:alpha AND NOT \"beta\"",
+    "%d": "status:DRAFT",
+    "%m": "status:MAILED",
+    "%r": "status:REVERTED",
+    "%s": "status:SUBMITTED",
+    "%w": "status:WIP",
+    "%y": "status:READY",
+    "+myproj": "project:myproj",
+    "^alpha": "ancestor:alpha",
+    "~beta": "sibling:beta",
+    "&beta": "name:beta"
+  },
+  "evaluation": {
+    "\"alpha\"": ["alpha", "beta", "beta__260102_010101"],
+    "c\"Alpha\"": [],
+    "\"feature\"": ["alpha", "beta", "gamma"],
+    "alpha": ["alpha", "beta", "beta__260102_010101"],
+    "\"alpha\" \"beta\"": ["beta", "beta__260102_010101"],
+    "\"alpha\" AND \"beta\"": ["beta", "beta__260102_010101"],
+    "\"alpha\" OR \"beta\"": ["alpha", "beta", "beta__260102_010101"],
+    "NOT \"beta\"": ["alpha", "gamma"],
+    "(\"alpha\" OR \"beta\") AND \"feature\"": ["alpha", "beta"],
+    "\"foo\\\\bar\"": [],
+    "\"line\\nbreak\"": [],
+    "!!!": ["alpha"],
+    "!": ["alpha"],
+    "@@@": ["gamma"],
+    "@": ["gamma"],
+    "$$$": [],
+    "$": [],
+    "*": ["alpha", "gamma"],
+    "!!": ["beta", "beta__260102_010101", "gamma"],
+    "!@": ["alpha", "beta", "beta__260102_010101"],
+    "!$": ["alpha", "beta", "beta__260102_010101", "gamma"],
+    "status:Ready": ["gamma"],
+    "status:Reverted OR status:Submitted": ["alpha", "beta__260102_010101"],
+    "project:myproj": [],
+    "ancestor:alpha": ["alpha", "beta", "beta__260102_010101"],
+    "name:beta": ["beta"],
+    "sibling:beta": ["beta"],
+    "origin:unknown": ["alpha", "beta", "beta__260102_010101", "gamma"],
+    "ancestor:alpha AND NOT \"beta\"": ["alpha"],
+    "%d": [],
+    "%m": [],
+    "%r": ["beta__260102_010101"],
+    "%s": ["alpha"],
+    "%w": ["beta"],
+    "%y": ["gamma"],
+    "+myproj": [],
+    "^alpha": ["alpha", "beta", "beta__260102_010101"],
+    "~beta": ["beta"],
+    "&beta": ["beta"]
+  },
+  "errors": {
+    "": {"position": 0, "message": "Empty query (at position 0)"},
+    "\"unterminated": {
+      "position": 0,
+      "message": "Unterminated string at position 0 (at position 0)"
+    },
+    "\"\\x\"": {
+      "position": 1,
+      "message": "Invalid escape sequence: \\x at position 1 (at position 1)"
+    },
+    "AND": {
+      "position": 0,
+      "message": "Expected string or '(', got AND (at position 0)"
+    },
+    "(": {
+      "position": 1,
+      "message": "Expected string or '(', got EOF (at position 1)"
+    },
+    ")": {
+      "position": 0,
+      "message": "Expected string or '(', got ) (at position 0)"
+    },
+    "alpha AND": {
+      "position": 9,
+      "message": "Expected string or '(', got EOF (at position 9)"
+    },
+    "%q": {
+      "position": 0,
+      "message": "Invalid status shorthand (use %d, %m, %r, %s, %w, or %y) at position 0 (at position 0)"
+    },
+    "+": {
+      "position": 0,
+      "message": "Expected project name after '+' at position 0 (at position 0)"
+    },
+    "+1abc": {
+      "position": 0,
+      "message": "Expected project name after '+' at position 0 (at position 0)"
+    },
+    "unknown:value": {
+      "position": 0,
+      "message": "Unknown property key: unknown (valid keys: status, project, ancestor, name, sibling, origin) at position 0 (at position 0)"
+    },
+    "@bad": {
+      "position": 0,
+      "message": "Unexpected character: @ at position 0 (at position 0)"
+    },
+    "$bad": {
+      "position": 0,
+      "message": "Unexpected character: $ at position 0 (at position 0)"
+    },
+    "*bad": {
+      "position": 0,
+      "message": "Unexpected character: * at position 0 (at position 0)"
+    }
+  }
+}

@@ -24,7 +24,7 @@ from .commits import CommitsPane
 from .entry_navigation import ArtifactEntryNavigator
 from .files_pane import ArtifactsFilesPane
 from .lifecycle import ArtifactsPaneLifecycle
-from .panes import ArtifactPlaceholderPane, ArtifactsPatchesPane
+from .panes import ArtifactPlaceholderPane, ArtifactsDegradedPane, ArtifactsPatchesPane
 from .plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 from .split_badge import ArtifactsSplitBadge
 from .types import (
@@ -136,6 +136,17 @@ class ArtifactsView(Vertical):
         )
 
     def _compose_pane(self, descriptor: ArtifactsTabDescriptor) -> ComposeResult:
+        if descriptor.is_degraded:
+            yield ArtifactsDegradedPane(
+                provider_kind=descriptor.provider_kind or descriptor.id,
+                provider_label=descriptor.label,
+                error=descriptor.error or "Provider failed to load",
+                error_code=descriptor.error_code,
+                error_source=descriptor.error_source,
+                id=descriptor.pane_id,
+                classes="artifacts-degraded-pane",
+            )
+            return
         if descriptor.id == "patches":
             yield ArtifactsPatchesPane(id=descriptor.pane_id)
         elif descriptor.id == "stitches":

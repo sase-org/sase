@@ -38,6 +38,7 @@ from sase.ace.tui.keymaps import (
     KeymapRegistry,
     load_keymap_registry,
 )
+from sase.ace.tui.keymaps.key_validation import is_unbound_key
 
 
 def _registry() -> KeymapRegistry:
@@ -172,6 +173,9 @@ def test_every_command_spec_has_label_and_key_display() -> None:
             continue
         assert spec.key_sequence, f"{spec.id}: empty key sequence"
         assert all(spec.key_sequence), f"{spec.id}: empty key in sequence"
+        if all(is_unbound_key(part) for part in spec.key_sequence):
+            assert spec.key_display == "", f"{spec.id}: unbound key should be blank"
+            continue
         assert spec.key_display, f"{spec.id}: empty key display"
 
 

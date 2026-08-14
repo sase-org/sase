@@ -5,6 +5,7 @@ from dataclasses import fields
 from sase.ace.tui.bindings import DEFAULT_BINDINGS
 from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.keymaps import AppKeymaps, build_app_bindings
+from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from tests._keymaps_helpers import default_app_keymaps
 
 
@@ -15,7 +16,13 @@ def test_build_app_bindings_count() -> None:
         descriptor.digit_shortcut is not None
         for descriptor in resolve_artifacts_subtabs()
     )
-    assert len(bindings) == len(fields(AppKeymaps)) + artifact_jump_count
+    app_km = default_app_keymaps()
+    bound_actions = sum(
+        1
+        for field in fields(AppKeymaps)
+        if not is_unbound_key(getattr(app_km, field.name))
+    )
+    assert len(bindings) == bound_actions + artifact_jump_count
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:

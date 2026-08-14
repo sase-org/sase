@@ -428,6 +428,8 @@ class KeybindingModesMixin:
             (k("run_cmd"), "run cmd"),
             (k("toggle_axe"), "start/stop axe"),
         ]
+        if "mark_pr_origin" in keys:
+            bindings.append((k("mark_pr_origin"), "mark PR origin"))
         self._update_display(bindings, mode_label="BANG")
 
     def update_saved_query_bindings(self) -> None:

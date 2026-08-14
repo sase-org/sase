@@ -1,5 +1,8 @@
 """Textual key canonicalization, display names, and validation."""
 
+# Reserved spelling that leaves an app action configured but unbound.
+UNBOUND_KEY = "unbound"
+
 # Textual special key names -> display characters.
 _KEY_DISPLAY: dict[str, str] = {
     "full_stop": ".",
@@ -76,7 +79,10 @@ def split_key_alternatives(key: str) -> tuple[str, ...]:
 def canonicalize_single_key(key: str) -> str:
     """Return the internal Textual key spelling for one configured key."""
     key = key.strip()
-    return _KEY_ALIASES.get(key.lower(), key)
+    folded = key.casefold()
+    if folded == UNBOUND_KEY:
+        return UNBOUND_KEY
+    return _KEY_ALIASES.get(folded, key)
 
 
 def canonicalize_key_binding(key: str) -> str:
@@ -97,10 +103,17 @@ def _canonical_key_alternatives(key: str) -> tuple[str, ...]:
     return tuple(canonicalize_single_key(part) for part in split_key_alternatives(key))
 
 
+def is_unbound_key(key: str) -> bool:
+    """Return True when *key* is the reserved unbound sentinel."""
+    return canonicalize_key_binding(key) == UNBOUND_KEY
+
+
 def _is_valid_single_key(key: str) -> bool:
     """Check whether *key* is a recognised single Textual key name."""
     if not key:
         return False
+    if key == UNBOUND_KEY:
+        return True
     if key == _CTRL_SPACE_KEY:
         return True
     # Single alphanumeric character.

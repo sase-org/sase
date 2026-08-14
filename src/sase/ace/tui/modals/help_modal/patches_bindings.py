@@ -68,7 +68,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.rename_cl), "Rename Patch (non-Sub/Rev)"),
                 (d(a.start_rewind), "Rewind to prev commit (! skip VCS)"),
                 (d(a.change_status), "Change status"),
-                (d(a.mark_pr_origin), "Mark PR origin"),
+                (
+                    key_sequence_display(bm.prefix, sk(bm.keys, "mark_pr_origin")),
+                    "Mark PR origin",
+                ),
                 (d(a.bulk_change_status), "Bulk status change (marked Patches)"),
                 (d(a.start_tmux_mode), "Checkout + tmux (prompts ws#)"),
                 (d(a.clear_marks), "Clear all marks"),
@@ -166,6 +169,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(bm.prefix)}{d(sk(bm.keys, 'toggle_axe'))}",
                     "Start / stop axe (or select process)",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'mark_pr_origin'))}",
+                    "Mark PR origin",
                 ),
             ],
         ),

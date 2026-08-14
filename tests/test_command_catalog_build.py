@@ -16,6 +16,7 @@ from sase.ace.tui.keymaps import (
     load_builtin_app_defaults,
     load_keymap_registry,
 )
+from sase.ace.tui.keymaps.key_validation import is_unbound_key
 
 
 def _registry() -> KeymapRegistry:
@@ -300,6 +301,9 @@ def test_command_specs_are_well_formed() -> None:
             assert spec.key_display == ""
             continue
         assert spec.key_sequence and all(spec.key_sequence)
+        if all(is_unbound_key(part) for part in spec.key_sequence):
+            assert spec.key_display == ""
+            continue
         assert spec.key_display
 
 

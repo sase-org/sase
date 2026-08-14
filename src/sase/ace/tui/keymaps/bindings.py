@@ -9,6 +9,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     GateModalKeymaps,
     StatisticsPaneKeymaps,
 )
+from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.keymaps.metadata import (
     _BINDING_META,
     _GATE_BINDING_META,
@@ -43,6 +44,8 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     bindings: list[Binding] = []
     for action, desc, priority in _BINDING_META:
         key = getattr(app_km, action)
+        if is_unbound_key(key):
+            continue
         bindings.append(Binding(key, action, desc, show=False, priority=priority))
     bindings.extend(_artifact_subtab_bindings())
     return bindings

@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+import hashlib
 from pathlib import Path
 import re
 from typing import Any
 
 from rich.cells import cell_len
 
+from sase.content_layout import LayoutCollisionError
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import effective_project_name
@@ -23,7 +25,8 @@ from sase.sidecar_ref_config import (
     DEFAULT_DOCUMENT_TAB_ICON,
     REF_ICON_CONFIG_KEY,
     SidecarRefPolicy,
-    effective_sidecar_ref_policies,
+    sidecar_ref_policy_report,
+    sidecar_role_ref_kind,
 )
 
 
@@ -85,6 +88,18 @@ _PROVIDER_ACCENTS: tuple[str, ...] = (
 
 _ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 10))
 
+# Operational failures during provider discovery. Narrower than ``Exception``
+# so programming errors (TypeError, NameError, AssertionError) still escape.
+_PROVIDER_DISCOVERY_ERRORS: tuple[type[BaseException], ...] = (
+    AttributeError,
+    ImportError,
+    KeyError,
+    LayoutCollisionError,
+    OSError,
+    RuntimeError,
+    ValueError,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ArtifactsTabDescriptor:
@@ -99,10 +114,17 @@ class ArtifactsTabDescriptor:
     provider_spec_digest: str | None = None
     provider_spec: Mapping[str, Any] | None = None
     digit_shortcut: str | None = None
+    error: str | None = None
+    error_code: str | None = None
+    error_source: str | None = None
 
     @property
     def is_provider(self) -> bool:
         return self.provider_kind is not None
+
+    @property
+    def is_degraded(self) -> bool:
+        return self.error is not None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +149,23 @@ class _ProjectProviderRecord:
     policy: SidecarRefPolicy
 
 
+@dataclass(frozen=True, slots=True)
+class _ProviderDiscoveryIssue:
+    """A provider-discovery failure that must stay visible on a tab."""
+
+    message: str
+    code: str
+    kind: str | None = None
+    role: str | None = None
+    source: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _ProviderLoadResult:
+    records: tuple[_ProjectProviderRecord, ...]
+    issues: tuple[_ProviderDiscoveryIssue, ...]
+
+
 _ARTIFACTS_TAB_CACHE: tuple[object, tuple[ArtifactsTabDescriptor, ...]] | None = None
 _PROVIDER_ROOTS_CACHE: dict[
     tuple[str, str | None], tuple[DocumentProviderProjectRoot, ...]
@@ -139,6 +178,27 @@ def reset_artifacts_subtabs_cache() -> None:
     global _ARTIFACTS_TAB_CACHE
     _ARTIFACTS_TAB_CACHE = None
     _PROVIDER_ROOTS_CACHE.clear()
+
+
+def _provider_accent_for_kind(kind: str) -> str:
+    """Return a stable provider accent derived from ``ref_kind``.
+
+    Pinned built-in kinds (``plan``) keep their ``ARTIFACTS_ACCENTS`` colour.
+    Every other kind hashes onto the provider palette after reserved built-in
+    colours are removed, so installing an unrelated sidecar cannot repaint an
+    existing tab and a provider can never draw a built-in's colour.
+    """
+
+    tab_id = f"ref:{kind}"
+    pinned = ARTIFACTS_ACCENTS.get(tab_id)
+    if pinned is not None:
+        return pinned
+    reserved = frozenset(ARTIFACTS_ACCENTS.values())
+    palette = [color for color in _PROVIDER_ACCENTS if color not in reserved]
+    if not palette:
+        palette = list(_PROVIDER_ACCENTS)
+    digest = hashlib.sha256(kind.encode("utf-8")).digest()
+    return palette[int.from_bytes(digest[:8], "big") % len(palette)]
 
 
 def _assign_artifacts_digit_shortcuts(
@@ -198,11 +258,15 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
 
     global _ARTIFACTS_TAB_CACHE
     token = _provider_source_token()
-    if _ARTIFACTS_TAB_CACHE is not None and _ARTIFACTS_TAB_CACHE[0] == token:
+    if (
+        token is not None
+        and _ARTIFACTS_TAB_CACHE is not None
+        and _ARTIFACTS_TAB_CACHE[0] == token
+    ):
         return _ARTIFACTS_TAB_CACHE[1]
 
-    provider_records = _load_project_provider_records(project=None)
-    providers = _provider_descriptors(provider_records)
+    loaded = _load_project_provider_records(project=None)
+    providers = _provider_descriptors(loaded.records, loaded.issues)
     descriptors = _assign_artifacts_digit_shortcuts(
         (
             _fixed_descriptor("stitches"),
@@ -212,7 +276,8 @@ def resolve_artifacts_subtabs() -> tuple[ArtifactsTabDescriptor, ...]:
             _fixed_descriptor("files"),
         )
     )
-    _ARTIFACTS_TAB_CACHE = (token, descriptors)
+    if token is not None:
+        _ARTIFACTS_TAB_CACHE = (token, descriptors)
     return descriptors
 
 
@@ -254,7 +319,7 @@ def document_provider_roots(
             root=record.root,
             policy=record.policy,
         )
-        for record in _load_project_provider_records(project=project)
+        for record in _load_project_provider_records(project=project).records
         if record.policy.ref_kind == provider_kind
     )
     _PROVIDER_ROOTS_CACHE[key] = roots
@@ -316,60 +381,82 @@ def _fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
 
 def _provider_descriptors(
     provider_records: Iterable[_ProjectProviderRecord],
+    issues: Iterable[_ProviderDiscoveryIssue] = (),
 ) -> tuple[ArtifactsTabDescriptor, ...]:
     by_kind: dict[str, list[_ProjectProviderRecord]] = {}
     for record in provider_records:
         by_kind.setdefault(record.policy.ref_kind, []).append(record)
 
+    issues_by_kind: dict[str, list[_ProviderDiscoveryIssue]] = {}
+    for issue in issues:
+        kind = issue.kind or "plan"
+        issues_by_kind.setdefault(kind, []).append(issue)
+
+    kinds = set(by_kind) | set(issues_by_kind)
     descriptors: list[ArtifactsTabDescriptor] = []
-    for index, kind in enumerate(sorted(by_kind, key=_natural_label_key)):
-        records = by_kind[kind]
-        policy = records[0].policy
-        spec = policy.spec or {}
-        ref = spec.get("ref")
-        tab_id = f"ref:{kind}"
-        accent = (
-            ARTIFACTS_ACCENTS.get(tab_id)
-            or _PROVIDER_ACCENTS[index % len(_PROVIDER_ACCENTS)]
-        )
-        icon = (
-            _sanitize_tab_icon(ref.get(REF_ICON_CONFIG_KEY))
-            if isinstance(ref, Mapping)
-            else ""
-        ) or DEFAULT_DOCUMENT_TAB_ICON
-        digest = "|".join(
-            sorted(
-                {
-                    value
-                    for record in records
-                    if (value := record.policy.digest) is not None
-                }
-            )
-        )
-        descriptors.append(
-            ArtifactsTabDescriptor(
-                id=tab_id,
-                label=_provider_label(kind, spec),
-                accent=accent,
-                pane_id=(
-                    "artifacts-plans-pane"
-                    if kind == "plan"
-                    else f"artifacts-ref-{_slug(kind)}-pane"
-                ),
-                icon=icon,
-                provider_kind=kind,
-                provider_spec_digest=digest or policy.digest,
-                provider_spec=spec,
-            )
-        )
-        ARTIFACTS_ACCENTS.setdefault(tab_id, accent)
+    for kind in sorted(kinds, key=_natural_label_key):
+        records = by_kind.get(kind, [])
+        kind_issues = issues_by_kind.get(kind, [])
+        descriptors.append(_descriptor_for_provider_kind(kind, records, kind_issues))
     return tuple(descriptors)
+
+
+def _descriptor_for_provider_kind(
+    kind: str,
+    records: Sequence[_ProjectProviderRecord],
+    issues: Sequence[_ProviderDiscoveryIssue],
+) -> ArtifactsTabDescriptor:
+    healthy = [record for record in records if record.policy.spec is not None]
+    policy = (healthy[0].policy if healthy else None) or (
+        records[0].policy if records else None
+    )
+    spec = dict(policy.spec) if policy is not None and policy.spec is not None else None
+    if spec is None and kind == "plan":
+        from sase.artifact_providers import builtin_plan_ref_provider_spec
+
+        spec = builtin_plan_ref_provider_spec()
+    ref = spec.get("ref") if isinstance(spec, Mapping) else None
+    icon = (
+        _sanitize_tab_icon(ref.get(REF_ICON_CONFIG_KEY))
+        if isinstance(ref, Mapping)
+        else ""
+    ) or DEFAULT_DOCUMENT_TAB_ICON
+    digest = "|".join(
+        sorted(
+            {value for record in records if (value := record.policy.digest) is not None}
+        )
+    )
+    error: str | None = None
+    error_code: str | None = None
+    error_source: str | None = None
+    if not healthy and issues:
+        issue = issues[0]
+        error = issue.message
+        error_code = issue.code
+        error_source = issue.source
+    return ArtifactsTabDescriptor(
+        id=f"ref:{kind}",
+        label=_provider_label(kind, spec or {}),
+        accent=_provider_accent_for_kind(kind),
+        pane_id=(
+            "artifacts-plans-pane"
+            if kind == "plan"
+            else f"artifacts-ref-{_slug(kind)}-pane"
+        ),
+        icon=icon,
+        provider_kind=kind,
+        provider_spec_digest=digest or (policy.digest if policy is not None else None),
+        provider_spec=spec,
+        error=error,
+        error_code=error_code,
+        error_source=error_source,
+    )
 
 
 def _load_project_provider_records(
     *,
     project: str | None,
-) -> tuple[_ProjectProviderRecord, ...]:
+) -> _ProviderLoadResult:
     try:
         records = list_project_records(
             sase_projects_dir(),
@@ -377,8 +464,18 @@ def _load_project_provider_records(
             include_home=False,
             projects_only=True,
         )
-    except Exception:
-        records = []
+    except _PROVIDER_DISCOVERY_ERRORS as exc:
+        return _ProviderLoadResult(
+            records=(),
+            issues=(
+                _ProviderDiscoveryIssue(
+                    message=str(exc),
+                    code="provider_discovery_failed",
+                    kind="plan",
+                    source="list_project_records",
+                ),
+            ),
+        )
     project_records = tuple(
         record
         for record in records
@@ -387,63 +484,117 @@ def _load_project_provider_records(
     )
     selected = _select_project_records(project_records, project)
     loaded: list[_ProjectProviderRecord] = []
+    issues: list[_ProviderDiscoveryIssue] = []
     for record in selected:
         workspace_dir = getattr(record, "workspace_dir", None)
         if not workspace_dir:
             continue
         workspace = Path(str(workspace_dir)).expanduser().resolve(strict=False)
-        try:
-            from sase._linked_repo_config import resolution_config
-            from sase.content_layout import resolve_project_config_read_path
-            from sase.sdd.store import document_sidecar_roles, resolve_sdd_store
+        issues.extend(_load_workspace_provider_records(record, workspace, loaded))
+    return _ProviderLoadResult(
+        records=tuple(
+            sorted(
+                loaded,
+                key=lambda item: (
+                    item.policy.ref_kind.casefold(),
+                    item.display_name.casefold(),
+                    item.project,
+                    item.role,
+                    str(item.root),
+                ),
+            )
+        ),
+        issues=tuple(issues),
+    )
 
-            store = resolve_sdd_store(workspace, 1)
-            roles = document_sidecar_roles(
-                store.split_sidecar_roles(),
-                include_plans=True,
-            )
-            try:
-                source_path = resolve_project_config_read_path(workspace)
-            except Exception:
-                source_path = None
-            policies = effective_sidecar_ref_policies(
-                resolution_config(str(workspace), None),
-                primary_workspace_dir=workspace,
-                roles=roles,
-                source_path=source_path,
-            )
-        except Exception:
-            continue
-        for role in roles:
-            policy = policies.get(role)
-            if policy is None or not policy.is_document:
-                continue
-            try:
-                root = store.kind_root(role)
-            except (KeyError, OSError, ValueError):
-                continue
-            loaded.append(
-                _ProjectProviderRecord(
-                    project=str(record.project_name),
-                    display_name=effective_project_name(record),
-                    workspace_dir=str(workspace_dir),
-                    role=role,
-                    root=root,
-                    policy=policy,
-                )
-            )
-    return tuple(
-        sorted(
-            loaded,
-            key=lambda item: (
-                item.policy.ref_kind.casefold(),
-                item.display_name.casefold(),
-                item.project,
-                item.role,
-                str(item.root),
+
+def _load_workspace_provider_records(
+    record: Any,
+    workspace: Path,
+    loaded: list[_ProjectProviderRecord],
+) -> tuple[_ProviderDiscoveryIssue, ...]:
+    from sase._linked_repo_config import resolution_config
+    from sase.content_layout import resolve_project_config_read_path
+    from sase.sdd.store import document_sidecar_roles, resolve_sdd_store
+
+    issues: list[_ProviderDiscoveryIssue] = []
+    try:
+        store = resolve_sdd_store(workspace, 1)
+        roles = document_sidecar_roles(
+            store.split_sidecar_roles(),
+            include_plans=True,
+        )
+    except _PROVIDER_DISCOVERY_ERRORS as exc:
+        return (
+            _ProviderDiscoveryIssue(
+                message=str(exc),
+                code="provider_store_failed",
+                kind="plan",
+                source=str(workspace),
             ),
         )
-    )
+    try:
+        source_path = resolve_project_config_read_path(workspace)
+    except _PROVIDER_DISCOVERY_ERRORS as exc:
+        source_path = None
+        issues.append(
+            _ProviderDiscoveryIssue(
+                message=str(exc),
+                code="provider_config_unavailable",
+                kind="plan",
+                source=str(workspace),
+            )
+        )
+    try:
+        report = sidecar_ref_policy_report(
+            resolution_config(str(workspace), None),
+            primary_workspace_dir=workspace,
+            roles=roles,
+            source_path=source_path,
+        )
+    except _PROVIDER_DISCOVERY_ERRORS as exc:
+        issues.append(
+            _ProviderDiscoveryIssue(
+                message=str(exc),
+                code="provider_policy_failed",
+                kind="plan",
+                source=str(source_path or workspace),
+            )
+        )
+        return tuple(issues)
+
+    for diagnostic in report.diagnostics:
+        role = diagnostic.role
+        if role is None or role in report.policies:
+            continue
+        issues.append(
+            _ProviderDiscoveryIssue(
+                message=diagnostic.message,
+                code=diagnostic.code,
+                kind=sidecar_role_ref_kind(role),
+                role=role,
+                source=None if source_path is None else str(source_path),
+            )
+        )
+    for role in roles:
+        policy = report.policies.get(role)
+        if policy is None or not policy.is_document:
+            continue
+        try:
+            root = store.kind_root(role)
+        except (KeyError, OSError, ValueError):
+            continue
+        loaded.append(
+            _ProjectProviderRecord(
+                project=str(record.project_name),
+                display_name=effective_project_name(record),
+                workspace_dir=str(getattr(record, "workspace_dir", workspace)),
+                role=role,
+                root=root,
+                policy=policy,
+            )
+        )
+    return tuple(issues)
 
 
 def _select_project_records(
@@ -472,7 +623,14 @@ def _select_project_records(
     )
 
 
-def _provider_source_token() -> tuple[object, ...]:
+def _provider_source_token() -> tuple[object, ...] | None:
+    """Return a cache key for configured providers, or ``None`` if listing failed.
+
+    A ``None`` token is uncacheable so a transient discovery failure cannot
+    pin a degraded four-tab answer the way the old ``("unavailable",)``
+    sentinel did.
+    """
+
     try:
         records = list_project_records(
             sase_projects_dir(),
@@ -480,8 +638,8 @@ def _provider_source_token() -> tuple[object, ...]:
             include_home=False,
             projects_only=True,
         )
-    except Exception:
-        return ("unavailable",)
+    except _PROVIDER_DISCOVERY_ERRORS:
+        return None
     token: list[object] = []
     for record in records:
         if not bool(getattr(record, "is_project", False)) or bool(
@@ -512,7 +670,7 @@ def _provider_source_token() -> tuple[object, ...]:
                         config_stat.st_mtime_ns,
                         config_stat.st_size,
                     )
-            except Exception:
+            except _PROVIDER_DISCOVERY_ERRORS:
                 config_token = None
         token.append(
             (

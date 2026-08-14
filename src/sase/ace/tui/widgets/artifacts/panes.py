@@ -192,8 +192,54 @@ class ArtifactPlaceholderPane(ArtifactsPaneLifecycle, Vertical):
         del marks
 
 
+class ArtifactsDegradedPane(ArtifactsPaneLifecycle, Vertical):
+    """Visible failure state for a provider tab that could not be resolved."""
+
+    def __init__(
+        self,
+        *,
+        provider_kind: str,
+        provider_label: str,
+        error: str,
+        error_code: str | None = None,
+        error_source: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.provider_kind = provider_kind
+        self.provider_label = provider_label
+        self.error = error
+        self.error_code = error_code
+        self.error_source = error_source
+        self._init_artifacts_lifecycle()
+
+    def compose(self) -> ComposeResult:
+        hero = Static(self._hero_text(), classes="artifacts-degraded-hero")
+        card = Static(self._card_text(), classes="artifacts-degraded-card")
+        card.border_title = "Provider unavailable"
+        yield hero
+        yield card
+
+    def _hero_text(self) -> Text:
+        text = Text()
+        text.append(self.provider_label, style="bold")
+        text.append(f"  ({self.provider_kind})", style="dim")
+        return text
+
+    def _card_text(self) -> Text:
+        text = Text()
+        if self.error_code:
+            text.append(f"{self.error_code}\n", style="bold")
+        text.append(self.error)
+        if self.error_source:
+            text.append("\n")
+            text.append(f"source: {self.error_source}", style="dim")
+        return text
+
+
 __all__ = [
     "ArtifactPlaceholderPane",
+    "ArtifactsDegradedPane",
     "ArtifactsPaneLifecycle",
     "ArtifactsPatchesPane",
 ]

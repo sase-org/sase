@@ -111,6 +111,10 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(bm.prefix)}{d(sk(bm.keys, 'toggle_axe'))}",
                     "Start / stop axe (or select process)",
                 ),
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'mark_pr_origin'))}",
+                    "Mark PR origin",
+                ),
             ],
         ),
         (

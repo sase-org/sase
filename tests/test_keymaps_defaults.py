@@ -8,6 +8,7 @@ import yaml
 
 from sase.ace.tui.keymaps import (
     AppKeymaps,
+    BangModeKeymaps,
     BeadIssueModeKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
@@ -55,6 +56,16 @@ def test_copy_mode_dataclass_defaults_match_default_config() -> None:
     )
     configured = config["ace"]["keymaps"]["modes"]["copy_mode"]
     defaults = CopyModeKeymaps()
+
+    assert configured == {"prefix": defaults.prefix, "keys": defaults.keys}
+
+
+def test_bang_mode_dataclass_defaults_match_default_config() -> None:
+    config = yaml.safe_load(
+        Path("src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    configured = config["ace"]["keymaps"]["modes"]["bang_mode"]
+    defaults = BangModeKeymaps()
 
     assert configured == {"prefix": defaults.prefix, "keys": defaults.keys}
 

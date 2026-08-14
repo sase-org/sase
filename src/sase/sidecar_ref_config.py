@@ -144,6 +144,23 @@ def sidecar_role_ref_kind(role: str) -> str:
     return _BUILTIN_SIDECAR_REF_KIND.get(role, role)
 
 
+def sidecar_ref_policy_report(
+    config: Mapping[str, Any],
+    *,
+    primary_workspace_dir: str | Path,
+    roles: Iterable[str] = (),
+    source_path: str | Path | None = None,
+) -> _SidecarRefPolicyReport:
+    """Return sidecar ref policies together with fail-soft diagnostics."""
+
+    return _sidecar_ref_policy_report(
+        config,
+        primary_workspace_dir=primary_workspace_dir,
+        roles=roles,
+        source_path=source_path,
+    )
+
+
 def effective_sidecar_ref_policies(
     config: Mapping[str, Any],
     *,
@@ -157,7 +174,7 @@ def effective_sidecar_ref_policies(
     by repository resolution.  Extra *roles* cover implicit/materialized store
     roles such as plans when the sidecar has no explicit config entry.
     """
-    report = _sidecar_ref_policy_report(
+    report = sidecar_ref_policy_report(
         config,
         primary_workspace_dir=primary_workspace_dir,
         roles=roles,
@@ -606,5 +623,6 @@ __all__ = [
     "SIDECAR_REF_CONFIG_SOURCE_PREFIX",
     "SidecarRefPolicy",
     "effective_sidecar_ref_policies",
+    "sidecar_ref_policy_report",
     "sidecar_role_ref_kind",
 ]

@@ -22,6 +22,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
+from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.commands._app_metadata import (
     APP_COMMAND_META as _APP_COMMAND_META,
     ensure_metadata_covers_app_keymaps,
@@ -58,11 +59,12 @@ def iter_app_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     """Yield one :class:`CommandSpec` per :class:`AppKeymaps` field."""
     for action, label, category, tabs, aliases in _APP_COMMAND_META:
         key = getattr(registry.app, action)
+        unbound = is_unbound_key(key)
         yield CommandSpec(
             id=f"app.{action}",
             label=label,
             key_sequence=(key,),
-            key_display=_format_key_sequence((key,)),
+            key_display="" if unbound else _format_key_sequence((key,)),
             category=category,
             tabs=tabs,
             executor=CommandExecutor(kind="app_action", action=action),
