@@ -120,6 +120,7 @@ docs-pdf = [
     "mkdocs-material>=9.7,<10",
     "mkdocs-rss-plugin>=1.18,<2",
     "mkdocs-exporter>=6.2,<7",
+    "pillow",
     "pypdf>=5,<7",
 ]
 

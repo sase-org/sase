@@ -1987,6 +1987,7 @@ docs-pdf = [
     { name = "mkdocs-exporter" },
     { name = "mkdocs-material" },
     { name = "mkdocs-rss-plugin" },
+    { name = "pillow" },
     { name = "pypdf" },
 ]
 terminal-smoke = [
@@ -2043,6 +2044,7 @@ requires-dist = [
     { name = "packaging" },
     { name = "pexpect", marker = "extra == 'terminal-smoke'", specifier = ">=4.9,<5" },
     { name = "pillow" },
+    { name = "pillow", marker = "extra == 'docs-pdf'" },
     { name = "pillow", marker = "extra == 'visual'", specifier = "==12.2.0" },
     { name = "pluggy" },
     { name = "pygments", marker = "extra == 'visual'", specifier = "==2.19.2" },

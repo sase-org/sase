@@ -689,7 +689,7 @@ docs-check: _venv
 # core package required by editable `sase` installs. Keep versions in sync with
 # the `docs-pdf` optional dependency group in pyproject.toml.
 docs-pdf-check: _venv
-    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2" "mkdocs-exporter>=6.2,<7" "pypdf>=5,<7"
+    uv pip install --python {{ venv_bin }}/python --no-sources "mkdocs-material>=9.7,<10" "mkdocs-rss-plugin>=1.18,<2" "mkdocs-exporter>=6.2,<7" "pillow" "pypdf>=5,<7"
     @if [ "${CI:-}" = "true" ]; then \
         {{ venv_bin }}/python -m playwright install --with-deps chromium; \
     else \

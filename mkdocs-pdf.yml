@@ -1,5 +1,10 @@
 INHERIT: mkdocs.yml
 
+theme:
+  # Keep PDF generation independent of rotating remote Google Font assets.
+  # Browser fetch failures are fatal because the PDF build runs in strict mode.
+  font: false
+
 extra:
   pdf_handbook:
     build_date: !ENV [SASE_PDF_BUILD_DATE, ""]
