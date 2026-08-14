@@ -5,15 +5,17 @@ tests without needing a real monitor supervisor or spawned process.
 
 The composed prompt is launched as another agent's initial chat message, so
 it goes through the same xprompt/directive expansion as any user-typed
-prompt. Two things in this module exist specifically to defend that
-boundary: ``Command``/``Directory`` are rendered as genuine fenced-code
-literal zones (an inline single-backtick span is not a literal zone in the
-xprompt processor, only fenced code and ``%xprompts_enabled`` regions are),
-and the retained command output is explicitly labeled as untrusted data
-immediately before its own fence.
+prompt. The routing prefix (``#fork:``, ``%model:``, ``%effort:``) is
+deliberately live so the follow-up inherits conversation and model routing.
+The rest of the body is enclosed in a disabled xprompt region so monitor
+reason, next-action text, table cells, and output are delivered as literal
+data. ``Command``/``Directory`` and retained output still use genuine fences
+as defense in depth and to keep persisted prompts readable.
 """
 
 from __future__ import annotations
+
+from sase.xprompt._disabled_regions import wrap_disabled_region
 
 #: Values for ``--next-output`` / ``monitor_next_output``.
 NEXT_OUTPUT_CHOICES = ("none", "tail", "file")
@@ -242,7 +244,7 @@ def compose_followup_prompt(
             next_action,
         ]
     )
-    body = "\n".join(sections)
+    body = wrap_disabled_region("\n".join(sections))
     prefix = _routing_prefix(starter_name, model, reasoning_effort)
     return f"{prefix}\n{body}" if prefix else body
 

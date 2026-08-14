@@ -13,6 +13,7 @@ _DISABLED_REGION_RE = re.compile(
     re.MULTILINE,
 )
 _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
+_MARKER_TEXT_RE = re.compile(r"%(xprompts_enabled:(?:false|true))")
 _PLACEHOLDER_PREFIX = "\x00XPD_"
 _PLACEHOLDER_SUFFIX = "\x00"
 
@@ -28,6 +29,17 @@ def ensure_disabled_region_at_line_start(content: str, is_at_line_start: bool) -
     if content and not is_at_line_start and _DISABLED_REGION_START_RE.match(content):
         return "\n" + content
     return content
+
+
+def _escape_disabled_region_markers(text: str) -> str:
+    """Neutralize marker-shaped text so it cannot open or close a region."""
+    return _MARKER_TEXT_RE.sub(r"% \1", text)
+
+
+def wrap_disabled_region(text: str) -> str:
+    """Return *text* enclosed in a disabled region, marker-escaped first."""
+    escaped = _escape_disabled_region_markers(text)
+    return f"%xprompts_enabled:false\n{escaped}\n%xprompts_enabled:true"
 
 
 def protect_disabled_regions(text: str, regions: list[str]) -> str:

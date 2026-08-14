@@ -369,7 +369,9 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
     assert "follow-up prompt saved to" in meta["monitor_followup_error"]
     prompt_path = Path(result.prompt_path or "")
     assert prompt_path.name == "monitor_followup_prompt.md"
-    assert prompt_path.read_text(encoding="utf-8").endswith("Report that it finished.")
+    persisted_prompt = prompt_path.read_text(encoding="utf-8")
+    assert "Report that it finished." in persisted_prompt
+    assert persisted_prompt.endswith("%xprompts_enabled:true")
     artifacts = list_explicit_artifact_files(Path(monitor_dir))
     assert [artifact.label for artifact in artifacts] == [
         "Unlaunched monitor follow-up prompt"

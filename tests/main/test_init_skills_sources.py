@@ -249,6 +249,7 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
                 "path to the retained captured log",
                 "--idle-timeout DURATION",
                 "--next-output none|tail|file",
+                "`--reason` and `--next` text reaches the follow-up literally",
                 "If the command fails or times out, the follow-up still launches",
             ),
         ),

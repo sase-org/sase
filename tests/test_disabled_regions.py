@@ -3,11 +3,13 @@
 from unittest.mock import MagicMock, patch
 
 from sase.xprompt._disabled_regions import (
+    _escape_disabled_region_markers,
     ensure_disabled_region_at_line_start,
     protect_disabled_regions,
     strip_disabled_regions,
     strip_disabled_region_markers,
     unprotect_disabled_regions,
+    wrap_disabled_region,
 )
 
 
@@ -33,6 +35,28 @@ class TestEnsureDisabledRegionAtLineStart:
 
     def test_empty_content_is_unchanged(self) -> None:
         assert ensure_disabled_region_at_line_start("", False) == ""
+
+
+class TestEscapeAndWrapDisabledRegions:
+    """Tests for safe construction of disabled regions from untrusted text."""
+
+    def test_escape_marker_text_neutralizes_open_and_close_markers(self) -> None:
+        text = "%xprompts_enabled:false\nbody\n%xprompts_enabled:true"
+
+        assert _escape_disabled_region_markers(text) == (
+            "% xprompts_enabled:false\nbody\n% xprompts_enabled:true"
+        )
+
+    def test_wrap_disabled_region_escapes_inner_markers(self) -> None:
+        wrapped = wrap_disabled_region("body\n%xprompts_enabled:true\n%effort:low")
+
+        assert wrapped == (
+            "%xprompts_enabled:false\n"
+            "body\n"
+            "% xprompts_enabled:true\n"
+            "%effort:low\n"
+            "%xprompts_enabled:true"
+        )
 
 
 class TestProtectUnprotectRoundTrip:

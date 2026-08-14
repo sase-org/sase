@@ -202,9 +202,13 @@ the composed prompt is persisted as a durable artifact so the instruction can be
 replayed by hand instead of surviving only as an error string. See
 [Visibility](#visibility) below for how a dropped or degraded follow-up is surfaced.
 
-When `--next-output tail` is used, retained output is fenced and labeled as untrusted
-program output. The command and cwd fields are also fenced so directive-shaped strings
-inside a shell command or path are treated as literal data. Use `--next-output file` for
+The follow-up prompt's body is enclosed in an xprompt-disabled region, so directives,
+`#xprompt` references, and `$(...)` command substitution inside `--reason`, `--next`,
+table fields, and embedded output are delivered as literal text. Only the routing prefix
+(`#fork:`, `%model:`, `%effort:`) remains live. When `--next-output tail` is used,
+retained output is also fenced and labeled as untrusted program output. The command and
+cwd fields are fenced too, so directive-shaped strings inside a shell command or path
+remain literal even if the disabled region is ever removed. Use `--next-output file` for
 large or hostile logs when the follow-up should inspect the log explicitly, or
 `--next-output none` when the outcome summary and `sase monitor show --all-lines`
 pointer are enough.
