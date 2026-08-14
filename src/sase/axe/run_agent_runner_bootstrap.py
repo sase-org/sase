@@ -79,6 +79,23 @@ def _write_bootstrap_agent_meta(
     write_agent_meta(artifacts_dir, agent_meta)
 
 
+def _capture_commit_finalizer_baseline(artifacts_dir: str) -> None:
+    """Snapshot already-dirty paths before this agent's first turn.
+
+    Deferred imports avoid a module-load cycle between ``sase.axe`` and
+    ``sase.llm_provider``, the same constraint ``_invoke.py`` works around
+    with its own lazy ``run_agent_helpers`` imports.
+    """
+    if os.environ.get("SASE_DISABLE_COMMIT_STOP_HOOK"):
+        return
+    from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
+    from sase.llm_provider.commit_finalizer_config import (
+        resolve_finalizer_project_dir,
+    )
+
+    capture_dirty_baseline(resolve_finalizer_project_dir(), artifacts_dir)
+
+
 def _load_submitted_prompt(state: RunnerRunState) -> None:
     """Read the one-shot prompt file and persist the launch-boundary artifact."""
     refreshed_prompt_fallback: str | None = None
@@ -227,6 +244,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
     enter_agent_workspace(state.workspace_dir, state.workspace_num)
+    _capture_commit_finalizer_baseline(state.artifacts_dir)
 
     info = extract_directives_and_write_meta(
         state.prompt,

@@ -437,6 +437,73 @@ def _git_status_records(repo_dir: str) -> list[_GitStatusRecord]:
     return records
 
 
+def dirty_path_fingerprints(repo_dir: str) -> dict[str, tuple[str, str | None]]:
+    """Map each currently dirty path in *repo_dir* to an ``(xy, content_hash)`` pair.
+
+    Used to compare a run-start baseline against the live worktree: a path is
+    provably unchanged since the baseline only when both its git status code
+    and its content hash still match.
+    """
+    repo_dir = normalize_path(repo_dir)
+    fingerprints: dict[str, tuple[str, str | None]] = {}
+    for record in _git_status_records(repo_dir):
+        key = _normalize_status_path(record.path)
+        fingerprints[key] = (record.xy, _git_hash_object(repo_dir, key))
+    return fingerprints
+
+
+def split_pre_existing_changed_files(
+    repo_dir: str,
+    changed_files: list[str],
+    baseline_fingerprints: dict[str, tuple[str, str | None]] | None,
+) -> tuple[list[str], list[str]]:
+    """Split *changed_files* into (still relevant, unchanged-since-baseline).
+
+    A path that was dirty at baseline and has since been edited again keeps
+    its current status/hash and so stays on the "still relevant" side.
+    """
+    if not baseline_fingerprints:
+        return list(changed_files), []
+
+    current_fingerprints: dict[str, tuple[str, str | None]] | None = None
+    still: list[str] = []
+    pre_existing: list[str] = []
+    for entry in changed_files:
+        key = _normalize_status_path(entry)
+        baseline_fp = baseline_fingerprints.get(key)
+        if baseline_fp is None:
+            still.append(entry)
+            continue
+        if current_fingerprints is None:
+            current_fingerprints = dirty_path_fingerprints(repo_dir)
+        if current_fingerprints.get(key) == tuple(baseline_fp):
+            pre_existing.append(entry)
+        else:
+            still.append(entry)
+    return still, pre_existing
+
+
+def _normalize_status_path(path: str) -> str:
+    target = path.split(" -> ", 1)[-1]
+    return _unquote_git_path(target)
+
+
+def _git_hash_object(repo_dir: str, rel_path: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "hash-object", "--", rel_path],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_AUTO_COMMIT_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def _should_stage_modified_tracked_record(record: _GitStatusRecord) -> bool | None:
     if " -> " in record.path:
         return None

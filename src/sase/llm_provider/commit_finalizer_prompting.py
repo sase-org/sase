@@ -43,15 +43,7 @@ def build_dirty_details(
     if repos:
         lines.append("Uncommitted changes detected in repositories:")
         for repo in repos:
-            if repo.kind == "main":
-                label = "main workspace"
-            elif repo.kind == "sibling":
-                label = f"linked repo {repo.name}"
-            elif repo.kind == "external":
-                label = f"external repo `{repo.name}`"
-            else:
-                label = f"SDD sidecar repo {repo.name}"
-            lines.append(f"- {label}: {repo.path}")
+            lines.append(f"- {_repo_label(repo)}: {repo.path}")
             lines.extend(f"  - {path}" for path in repo.changed_files[:20])
             if len(repo.changed_files) > 20:
                 lines.append(f"  - ... ({len(repo.changed_files)} total)")
@@ -81,6 +73,45 @@ def build_dirty_details(
         )
 
     return "\n".join(lines)
+
+
+def _repo_label(repo: DirtyRepo) -> str:
+    if repo.kind == "main":
+        return "main workspace"
+    if repo.kind == "sibling":
+        return f"linked repo {repo.name}"
+    if repo.kind == "external":
+        return f"external repo `{repo.name}`"
+    return f"SDD sidecar repo {repo.name}"
+
+
+def build_pre_existing_details(
+    details: str,
+    pre_existing_repos: tuple[DirtyRepo, ...],
+) -> str:
+    """Append a report of paths dirty before this run started to *details*.
+
+    These paths are excluded from the must-commit set built into *details*
+    (see ``build_dirty_details``); listing them here tells the agent they
+    are not its responsibility instead of leaving it to guess, the fix for
+    the incident where a finalizer pass told an agent it had to commit
+    another agent's in-flight edit.
+    """
+    if not pre_existing_repos:
+        return details
+
+    lines = [
+        "Pre-existing changes detected before this run started "
+        "(not from this run — do not commit these):",
+    ]
+    for repo in pre_existing_repos:
+        lines.append(f"- {_repo_label(repo)}: {repo.path}")
+        lines.extend(f"  - {path}" for path in repo.changed_files[:20])
+        if len(repo.changed_files) > 20:
+            lines.append(f"  - ... ({len(repo.changed_files)} total)")
+
+    section = "\n".join(lines)
+    return f"{details}\n\n{section}" if details else section
 
 
 def _sibling_commit_instruction() -> str:

@@ -17,12 +17,14 @@ from sase.linked_repos import (
 )
 
 from . import commit_finalizer_git as finalizer_git
+from .commit_finalizer_baseline import DirtyBaseline, load_dirty_baseline
 from .commit_finalizer_git import (
     filter_sase_reserved_paths,
     git_changed_files,
     is_prompt_archive_path,
+    split_pre_existing_changed_files,
 )
-from .commit_finalizer_prompting import build_dirty_details
+from .commit_finalizer_prompting import build_dirty_details, build_pre_existing_details
 from .commit_finalizer_types import (
     DirtyRepo,
     DirtyState,
@@ -81,6 +83,21 @@ def collect_dirty_state(
     repos.extend(sibling_repos)
     repos.extend(external_repos)
     repos.extend(sdd_repos)
+
+    repos, pre_existing_repos = _exclude_pre_existing_baseline(
+        repos, load_dirty_baseline(artifact_root)
+    )
+    main_repo = next((repo for repo in repos if repo.kind == "main"), None)
+    if main_repo is None:
+        main_details = ""
+    elif main_repo.changed_files != tuple(main_files):
+        main_details = _render_main_details(
+            list(main_repo.changed_files), main_instruction
+        )
+    sibling_repos = tuple(repo for repo in repos if repo.kind == "sibling")
+    external_repos = tuple(repo for repo in repos if repo.kind == "external")
+    sdd_repos = tuple(repo for repo in repos if repo.kind == "sdd")
+
     details = build_dirty_details(
         main_details=main_details,
         main_instruction=main_instruction,
@@ -89,11 +106,62 @@ def collect_dirty_state(
         external_repos=external_repos,
         sdd_repos=sdd_repos,
     )
+    details = build_pre_existing_details(details, pre_existing_repos)
     return DirtyState(
         project_dir=finalizer_git.normalize_path(project_dir),
         repos=tuple(repos),
         details=details,
     )
+
+
+def _exclude_pre_existing_baseline(
+    repos: list[DirtyRepo],
+    baseline: DirtyBaseline | None,
+) -> tuple[list[DirtyRepo], tuple[DirtyRepo, ...]]:
+    """Split *repos* into (still relevant, unchanged-since-baseline).
+
+    Only paths whose git status and content hash are provably unchanged
+    since the baseline are excluded; a baseline-dirty path this run edited
+    again keeps its current fingerprint and so stays in the must-commit set.
+    """
+    if not baseline:
+        return repos, ()
+
+    still: list[DirtyRepo] = []
+    pre_existing: list[DirtyRepo] = []
+    for repo in repos:
+        baseline_fingerprints = baseline.get(finalizer_git.normalize_path(repo.path))
+        still_files, pre_existing_files = split_pre_existing_changed_files(
+            repo.path, list(repo.changed_files), baseline_fingerprints
+        )
+        if still_files:
+            still.append(
+                repo
+                if still_files == list(repo.changed_files)
+                else DirtyRepo(
+                    name=repo.name,
+                    path=repo.path,
+                    changed_files=tuple(still_files),
+                    kind=repo.kind,
+                )
+            )
+        if pre_existing_files:
+            pre_existing.append(
+                DirtyRepo(
+                    name=repo.name,
+                    path=repo.path,
+                    changed_files=tuple(pre_existing_files),
+                    kind=repo.kind,
+                )
+            )
+    return still, tuple(pre_existing)
+
+
+def _render_main_details(changed_files: list[str], instruction: str) -> str:
+    details = "Uncommitted changes detected:\n" + "\n".join(changed_files)
+    if instruction:
+        details += f"\n\n{instruction}"
+    return details
 
 
 def _dirty_opened_external_repos(
@@ -224,10 +292,7 @@ def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
     if filtered == changed_files:
         return (has_changes, changed_files, instruction, details)
 
-    filtered_details = "Uncommitted changes detected:\n" + "\n".join(filtered)
-    if instruction:
-        filtered_details += f"\n\n{instruction}"
-    return (True, filtered, instruction, filtered_details)
+    return (True, filtered, instruction, _render_main_details(filtered, instruction))
 
 
 def _dirty_configured_sibling_repos(
