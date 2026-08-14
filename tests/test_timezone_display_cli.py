@@ -7,7 +7,7 @@ from io import StringIO
 
 from rich.console import Console
 
-from sase.main.task_render import task_detail, task_show_json
+from sase.main.proc_render import proc_detail, proc_show_json
 from sase.memory.cli_log import (
     _events_panel as memory_events_panel,
     _proposal_events_panel,
@@ -41,12 +41,12 @@ def _render_plain(renderable: object, *, width: int = 200) -> str:
     return output.getvalue()
 
 
-def test_task_detail_uses_configured_timezone_but_json_stays_raw(
+def test_proc_detail_uses_configured_timezone_but_json_stays_raw(
     tz_divergence: None,
 ) -> None:
-    task = Proc(
-        proc_id="task-1",
-        label="Timezone task",
+    proc = Proc(
+        proc_id="proc-1",
+        label="Timezone proc",
         kind="command",
         status="success",
         command=["true"],
@@ -55,15 +55,15 @@ def test_task_detail_uses_configured_timezone_but_json_stays_raw(
         created_at="2026-07-03T10:24:49Z",
         started_at="2026-07-03T10:25:49Z",
         finished_at="2026-07-03T10:26:49Z",
-        log_path="/tmp/task.log",
+        log_path="/tmp/proc.log",
     )
 
-    rendered = _render_plain(task_detail(task))
+    rendered = _render_plain(proc_detail(proc))
 
     assert "2026-07-03 06:24:49" in rendered
     assert "2026-07-03 06:25:49" in rendered
     assert "2026-07-03 06:26:49" in rendered
-    assert task_show_json(task, log="")["task"]["created_at"] == task.created_at
+    assert proc_show_json(proc, log="")["proc"]["created_at"] == proc.created_at
 
 
 def test_repo_log_detail_uses_configured_timezone(tz_divergence: None) -> None:

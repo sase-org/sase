@@ -39,13 +39,13 @@ from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_monitor import register_monitor_parser
 from sase.main.parser_plan import register_plan_parser
 from sase.main.parser_plugin import register_plugin_parser
+from sase.main.parser_proc import register_proc_parser
 from sase.main.parser_project import register_project_parser
 from sase.main.parser_prompt import register_prompt_parser
 from sase.main.parser_repo import register_repo_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_skills import register_skills_parser
 from sase.main.parser_stitch import register_stitch_parser
-from sase.main.parser_task import register_task_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_update import register_update_parser
 from sase.main.parser_validate import register_validate_parser
@@ -90,6 +90,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_patch_parser,
         register_plan_parser,
         register_plugin_parser,
+        register_proc_parser,
         register_project_parser,
         register_prompt_parser,
         register_questions_parser,
@@ -101,7 +102,6 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_run_parser,
         register_skills_parser,
         register_stitch_parser,
-        register_task_parser,
         register_telemetry_parser,
         register_update_parser,
         register_validate_parser,

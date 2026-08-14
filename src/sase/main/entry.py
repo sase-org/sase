@@ -403,11 +403,11 @@ def main() -> NoReturn:
 
         handle_skills_command(args)
 
-    # --- task ---
-    if args.command == "task":
-        from .task_handler import handle_task_command
+    # --- proc / task ---
+    if args.command in {"proc", "task"}:  # legacy command alias
+        from .proc_handler import handle_proc_command
 
-        handle_task_command(args)
+        handle_proc_command(args)
 
     # --- telemetry ---
     if args.command == "telemetry":

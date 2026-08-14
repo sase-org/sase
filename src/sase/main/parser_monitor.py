@@ -119,7 +119,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "Show one monitor by id (or unique id prefix), member agent "
             "name, or lane name, followed by the tail of its captured "
             "output. `--follow` streams new output until the monitor "
-            "reaches a terminal state, exactly like `sase task show "
+            "reaches a terminal state, exactly like `sase proc show "
             "--follow`."
         ),
         epilog=(

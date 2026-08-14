@@ -1,4 +1,4 @@
-"""Behavior tests for the ``sase task run`` handler."""
+"""Behavior tests for the ``sase proc run`` handler."""
 
 from __future__ import annotations
 
@@ -10,21 +10,21 @@ from pathlib import Path
 import pytest
 
 from sase.sessions import SessionIdentity
-from tests.main.task_handler_helpers import (
+from tests.main.proc_handler_helpers import (
     NOOP,
     dispatch,
-    task_home,
+    proc_home,
     use_sessions,
 )
 
-__all__ = ["task_home"]
+__all__ = ["proc_home"]
 
 
 def test_run_without_a_command_is_a_usage_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``sase task run`` with nothing after ``--`` explains the syntax."""
-    assert dispatch(["task", "run"]) == 2
+    """``sase proc run`` with nothing after ``--`` explains the syntax."""
+    assert dispatch(["proc", "run"]) == 2
 
     assert "pass it after --" in capsys.readouterr().err
 
@@ -33,29 +33,29 @@ def test_run_prints_the_id_and_the_follow_hint(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     """A detached submit reports the new id plus how to watch it."""
-    assert dispatch(["task", "run", "-c", str(tmp_path), "--", *NOOP]) == 0
+    assert dispatch(["proc", "run", "-c", str(tmp_path), "--", *NOOP]) == 0
 
     out = capsys.readouterr().out.splitlines()
     assert len(out[0]) == 12
-    assert out[1] == f"monitor with: sase task show {out[0][:6]} --follow"
+    assert out[1] == f"monitor with: sase proc show {out[0][:6]} --follow"
 
 
-def test_run_quiet_prints_only_the_task_id(
+def test_run_quiet_prints_only_the_proc_id(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     """``--quiet`` is the scriptable form."""
-    assert dispatch(["task", "run", "-q", "-c", str(tmp_path), "--", *NOOP]) == 0
+    assert dispatch(["proc", "run", "-q", "-c", str(tmp_path), "--", *NOOP]) == 0
 
     assert len(capsys.readouterr().out.strip()) == 12
 
 
-def test_run_json_emits_the_created_task(
+def test_run_json_emits_the_created_proc(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """``--json`` describes the submitted task with its label and tags."""
+    """``--json`` describes the submitted proc with its label and tags."""
     exit_code = dispatch(
         [
-            "task",
+            "proc",
             "run",
             "-j",
             "-l",
@@ -71,28 +71,28 @@ def test_run_json_emits_the_created_task(
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["task"]["label"] == "Nightly"
-    assert payload["task"]["tags"] == ["docs"]
-    assert payload["task"]["origin"] == "cli"
+    assert payload["proc"]["label"] == "Nightly"
+    assert payload["proc"]["tags"] == ["docs"]
+    assert payload["proc"]["origin"] == "cli"
 
 
 def test_run_derives_a_label_from_the_command(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """Without ``--label`` the command itself names the task."""
-    dispatch(["task", "run", "-j", "-c", str(tmp_path), "--", "echo", "hi"])
+    """Without ``--label`` the command itself names the proc."""
+    dispatch(["proc", "run", "-j", "-c", str(tmp_path), "--", "echo", "hi"])
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["task"]["label"] == "echo hi"
+    assert payload["proc"]["label"] == "echo hi"
 
 
 def test_run_truncates_a_very_long_derived_label(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     """A derived label stays short enough to render in one table column."""
-    dispatch(["task", "run", "-j", "-c", str(tmp_path), "--", "echo", "x" * 200])
+    dispatch(["proc", "run", "-j", "-c", str(tmp_path), "--", "echo", "x" * 200])
 
-    label = json.loads(capsys.readouterr().out)["task"]["label"]
+    label = json.loads(capsys.readouterr().out)["proc"]["label"]
     assert len(label) == 72
     assert label.endswith("\u2026")
 
@@ -103,7 +103,7 @@ def test_run_rejects_a_missing_working_directory(
     """A bad ``--cwd`` fails before anything is spawned."""
     missing = tmp_path / "nope"
 
-    assert dispatch(["task", "run", "-c", str(missing), "--", "true"]) == 1
+    assert dispatch(["proc", "run", "-c", str(missing), "--", "true"]) == 1
 
     assert "is not an existing directory" in capsys.readouterr().err
 
@@ -118,10 +118,10 @@ def test_run_wait_streams_output_and_propagates_the_exit_code(
     script: str,
     expected: int,
 ) -> None:
-    """``--wait`` mirrors the task's output and its exit status."""
+    """``--wait`` mirrors the proc's output and its exit status."""
     exit_code = dispatch(
         [
-            "task",
+            "proc",
             "run",
             "-w",
             "-c",
@@ -143,7 +143,7 @@ def test_run_wait_reports_a_signalled_command_like_a_shell(
     """A child killed by a signal exits ``128 + N`` instead of a negative code."""
     exit_code = dispatch(
         [
-            "task",
+            "proc",
             "run",
             "-w",
             "-c",
@@ -164,7 +164,7 @@ def test_run_wait_json_keeps_stdout_parseable(
     """``--json --wait`` streams the log to stderr and finishes on stdout."""
     exit_code = dispatch(
         [
-            "task",
+            "proc",
             "run",
             "-j",
             "-w",
@@ -180,7 +180,7 @@ def test_run_wait_json_keeps_stdout_parseable(
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "streamed" in captured.err
-    assert json.loads(captured.out)["task"]["status"] == "success"
+    assert json.loads(captured.out)["proc"]["status"] == "success"
 
 
 def test_run_wait_json_quiet_still_emits_only_the_envelope(
@@ -188,19 +188,19 @@ def test_run_wait_json_quiet_still_emits_only_the_envelope(
 ) -> None:
     """``--quiet`` must not prepend a bare ID to ``--json --wait`` output."""
     exit_code = dispatch(
-        ["task", "run", "-j", "-w", "-q", "-c", str(tmp_path), "--", *NOOP]
+        ["proc", "run", "-j", "-w", "-q", "-c", str(tmp_path), "--", *NOOP]
     )
 
     assert exit_code == 0
-    assert json.loads(capsys.readouterr().out)["task"]["status"] == "success"
+    assert json.loads(capsys.readouterr().out)["proc"]["status"] == "success"
 
 
-def test_run_attributes_the_task_to_the_resolved_session(
+def test_run_attributes_the_proc_to_the_resolved_session(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    """With no explicit reference a task lands in the newest live session."""
+    """With no explicit reference a proc lands in the newest live session."""
     identity = SessionIdentity(
         session_id="20260725T120000Z-99",
         kind="ace",
@@ -211,15 +211,15 @@ def test_run_attributes_the_task_to_the_resolved_session(
     )
     use_sessions(monkeypatch, [identity])
 
-    dispatch(["task", "run", "-j", "-c", str(tmp_path), "--", *NOOP])
+    dispatch(["proc", "run", "-j", "-c", str(tmp_path), "--", *NOOP])
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["task"]["session_id"] == identity.session_id
-    assert payload["task"]["session_label"] == "ace\u00b7sase#16"
-    assert payload["task"]["session_live"] is True
+    assert payload["proc"]["session_id"] == identity.session_id
+    assert payload["proc"]["session_label"] == "ace\u00b7sase#16"
+    assert payload["proc"]["session_live"] is True
 
 
-def test_run_session_none_leaves_the_task_unattributed(
+def test_run_session_none_leaves_the_proc_unattributed(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
@@ -233,9 +233,9 @@ def test_run_session_none_leaves_the_task_unattributed(
     )
     use_sessions(monkeypatch, [identity])
 
-    dispatch(["task", "run", "-j", "-s", "none", "-c", str(tmp_path), "--", *NOOP])
+    dispatch(["proc", "run", "-j", "-s", "none", "-c", str(tmp_path), "--", *NOOP])
 
-    assert json.loads(capsys.readouterr().out)["task"]["session_id"] is None
+    assert json.loads(capsys.readouterr().out)["proc"]["session_id"] is None
 
 
 def test_run_detached_creates_a_global_detached_kind(
@@ -255,7 +255,7 @@ def test_run_detached_creates_a_global_detached_kind(
     assert (
         dispatch(
             [
-                "task",
+                "proc",
                 "run",
                 "--detached",
                 "--json",
@@ -268,8 +268,8 @@ def test_run_detached_creates_a_global_detached_kind(
         == 0
     )
 
-    task = json.loads(capsys.readouterr().out)["task"]
-    assert task["kind"] == "detached"
-    assert task["detached"] is True
-    assert task["session_id"] is None
-    assert task["session_label"] is None
+    proc = json.loads(capsys.readouterr().out)["proc"]
+    assert proc["kind"] == "detached"
+    assert proc["detached"] is True
+    assert proc["session_id"] is None
+    assert proc["session_label"] is None

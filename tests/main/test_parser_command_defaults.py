@@ -68,7 +68,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase plan links",
         "sase prompt",
         "sase skill",
-        "sase task",
+        "sase proc",
         "sase telemetry",
         "sase var",
         "sase stitch",

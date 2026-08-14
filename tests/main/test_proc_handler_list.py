@@ -1,4 +1,4 @@
-"""Behavior tests for the ``sase task list`` handler."""
+"""Behavior tests for the ``sase proc list`` handler."""
 
 from __future__ import annotations
 
@@ -9,14 +9,14 @@ import sys
 import pytest
 
 from sase.procs import get_proc
-from tests.main.task_handler_helpers import (
+from tests.main.proc_handler_helpers import (
     dead_pid,
     dispatch,
     stored,
-    task_home,
+    proc_home,
 )
 
-__all__ = ["task_home"]
+__all__ = ["proc_home"]
 
 
 def test_list_renders_a_row_and_glyph_for_every_status(
@@ -25,7 +25,7 @@ def test_list_renders_a_row_and_glyph_for_every_status(
 ) -> None:
     """Each lifecycle state gets its own glyph in the newest-first table."""
     # Give Rich enough deterministic width for every full label under xdist;
-    # otherwise the live-duration column can squeeze "Task pending" to an
+    # otherwise the live-duration column can squeeze "Proc pending" to an
     # ellipsis depending on the wall clock when the worker renders the table.
     monkeypatch.setenv("COLUMNS", "120")
     monkeypatch.setattr(
@@ -45,7 +45,7 @@ def test_list_renders_a_row_and_glyph_for_every_status(
             pid=os.getpid() if active else None,
         )
 
-    assert dispatch(["task", "list"]) == 0
+    assert dispatch(["proc", "list"]) == 0
 
     out = capsys.readouterr().out
     for glyph in ("◌", "●", "✓", "✗", "⊘"):
@@ -53,32 +53,32 @@ def test_list_renders_a_row_and_glyph_for_every_status(
     assert out.index("killed") < out.index("pending")
 
 
-def test_bare_task_command_announces_the_list_delegation(
+def test_bare_proc_command_announces_the_list_delegation(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """``sase task`` reaches the list view through the shared delegation."""
+    """``sase proc`` reaches the list view through the shared delegation."""
     from sase.main import entry
 
-    monkeypatch.setattr(sys, "argv", ["sase", "task"])
+    monkeypatch.setattr(sys, "argv", ["sase", "proc"])
 
     with pytest.raises(SystemExit) as exit_info:
         entry.main()
 
     assert exit_info.value.code == 0
     out = capsys.readouterr().out
-    notice = "No subcommand provided for 'sase task'; delegating to 'sase task list'."
+    notice = "No subcommand provided for 'sase proc'; delegating to 'sase proc list'."
     assert notice in out
-    assert out.index(notice) < out.index("sase task run -- <command>")
+    assert out.index(notice) < out.index("sase proc run -- <command>")
 
 
 def test_list_empty_store_renders_the_run_hint(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """An empty store gets a friendly panel that names ``sase task run``."""
-    assert dispatch(["task", "list"]) == 0
+    """An empty store gets a friendly panel that names ``sase proc run``."""
+    assert dispatch(["proc", "list"]) == 0
 
     out = capsys.readouterr().out
-    assert "sase task run -- <command>" in out
+    assert "sase proc run -- <command>" in out
     assert "hidden" not in out
 
 
@@ -88,14 +88,14 @@ def test_list_scopes_to_this_session_and_unattributed(
     """Other sessions' rows are hidden by default and named in the hint."""
     stored("aaaaaaaaaaaa", label="Other session", session_id="20260725T120000Z-42")
 
-    assert dispatch(["task", "list"]) == 0
+    assert dispatch(["proc", "list"]) == 0
 
     out = capsys.readouterr().out
     assert "Other session" not in out
-    assert "1 task from other sessions is hidden; pass -a/--all." in out
+    assert "1 proc from other sessions is hidden; pass -a/--all." in out
 
 
-def test_list_keeps_detached_tasks_global_even_for_an_explicit_session(
+def test_list_keeps_detached_procs_global_even_for_an_explicit_session(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Detached ownership ignores session scope while other sessions stay hidden."""
@@ -111,7 +111,7 @@ def test_list_keeps_detached_tasks_global_even_for_an_explicit_session(
         session_id="20260725T120000Z-42",
     )
 
-    assert dispatch(["task", "list", "--session", "none"]) == 0
+    assert dispatch(["proc", "list", "--session", "none"]) == 0
 
     out = capsys.readouterr().out
     assert "Global launch" in out
@@ -130,7 +130,7 @@ def test_list_all_includes_other_sessions_with_a_dead_chip(
         session_label="ace·sase#3",
     )
 
-    assert dispatch(["task", "list", "--all"]) == 0
+    assert dispatch(["proc", "list", "--all"]) == 0
 
     out = capsys.readouterr().out
     assert "all sessions" in out
@@ -139,7 +139,7 @@ def test_list_all_includes_other_sessions_with_a_dead_chip(
 
 def test_list_all_and_session_conflict(capsys: pytest.CaptureFixture[str]) -> None:
     """``--all`` and ``--session`` are mutually exclusive scopes."""
-    assert dispatch(["task", "list", "--all", "-s", "latest"]) == 2
+    assert dispatch(["proc", "list", "--all", "-s", "latest"]) == 2
 
     assert "--all cannot be combined with --session" in capsys.readouterr().err
 
@@ -148,7 +148,7 @@ def test_list_unknown_session_reference_is_a_usage_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unresolvable ``--session`` reference reports the live candidates."""
-    assert dispatch(["task", "list", "-s", "nope"]) == 2
+    assert dispatch(["proc", "list", "-s", "nope"]) == 2
 
     assert "no live session matches" in capsys.readouterr().err
 
@@ -175,19 +175,19 @@ def test_list_applies_status_project_tag_query_and_limit(
         created_at="2026-07-25T12:02:00Z",
     )
 
-    assert dispatch(["task", "list", "-S", "error"]) == 0
+    assert dispatch(["proc", "list", "-S", "error"]) == 0
     errors = capsys.readouterr().out
     assert "Broken" in errors and "Docs" not in errors
 
-    assert dispatch(["task", "list", "-p", "other"]) == 0
+    assert dispatch(["proc", "list", "-p", "other"]) == 0
     projects = capsys.readouterr().out
     assert "Elsewhere" in projects and "Broken" not in projects
 
-    assert dispatch(["task", "list", "-t", "docs", "-n", "1"]) == 0
+    assert dispatch(["proc", "list", "-t", "docs", "-n", "1"]) == 0
     limited = capsys.readouterr().out
     assert "Broken" in limited and "Docs" not in limited
 
-    assert dispatch(["task", "list", "-q", "elsew"]) == 0
+    assert dispatch(["proc", "list", "-q", "elsew"]) == 0
     assert "Elsewhere" in capsys.readouterr().out
 
 
@@ -195,24 +195,24 @@ def test_list_filters_by_repeated_kind_and_detached_shorthand(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """``--kind`` composes, while ``--detached`` selects only global work."""
-    stored("aaaaaaaaaaaa", label="Command task")
-    stored("bbbbbbbbbbbb", label="Detached task", kind="detached")
-    stored("cccccccccccc", label="TUI task", kind="tui")
+    stored("aaaaaaaaaaaa", label="Command proc")
+    stored("bbbbbbbbbbbb", label="Detached proc", kind="detached")
+    stored("cccccccccccc", label="TUI proc", kind="tui")
 
-    assert dispatch(["task", "list", "--detached"]) == 0
+    assert dispatch(["proc", "list", "--detached"]) == 0
     detached = capsys.readouterr().out
-    assert "Detached task" in detached
+    assert "Detached proc" in detached
     assert "◆" in detached
-    assert "Command task" not in detached
-    assert "TUI task" not in detached
+    assert "Command proc" not in detached
+    assert "TUI proc" not in detached
 
-    assert dispatch(["task", "list", "-k", "command", "-k", "tui"]) == 0
+    assert dispatch(["proc", "list", "-k", "command", "-k", "tui"]) == 0
     combined = capsys.readouterr().out
-    assert "Command task" in combined
+    assert "Command proc" in combined
     assert "⌘" in combined
-    assert "TUI task" in combined
+    assert "TUI proc" in combined
     assert "▣" in combined
-    assert "Detached task" not in combined
+    assert "Detached proc" not in combined
 
 
 def test_list_running_filter_matches_pending_and_running(
@@ -241,7 +241,7 @@ def test_list_running_filter_matches_pending_and_running(
     )
     stored("cccccccccccc", label="Finished")
 
-    assert dispatch(["task", "list", "-r"]) == 0
+    assert dispatch(["proc", "list", "-r"]) == 0
 
     out = capsys.readouterr().out
     assert "Waiting" in out and "Working" in out and "Finished" not in out
@@ -251,7 +251,7 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     """The JSON envelope carries schema, scope, count, and derived fields."""
     stored("aaaaaaaaaaaa", label="Docs", tags=["docs"])
 
-    assert dispatch(["task", "list", "--json"]) == 0
+    assert dispatch(["proc", "list", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == 1
@@ -263,13 +263,13 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
         "ref": None,
         "session_id": None,
     }
-    task = payload["tasks"][0]
-    assert task["proc_id"] == "aaaaaaaaaaaa"
-    assert task["short_id"] == "aaaaaa"
-    assert task["is_terminal"] is True
-    assert task["detached"] is False
-    assert task["duration_seconds"] == 5.0
-    assert task["session_handle"] is None
+    proc = payload["procs"][0]
+    assert proc["proc_id"] == "aaaaaaaaaaaa"
+    assert proc["short_id"] == "aaaaaa"
+    assert proc["is_terminal"] is True
+    assert proc["detached"] is False
+    assert proc["duration_seconds"] == 5.0
+    assert proc["session_handle"] is None
 
 
 def test_list_reconciles_a_supervisor_that_never_reported(
@@ -285,7 +285,7 @@ def test_list_reconciles_a_supervisor_that_never_reported(
         pid=dead_pid(),
     )
 
-    assert dispatch(["task", "list"]) == 0
+    assert dispatch(["proc", "list"]) == 0
 
     assert "✗" in capsys.readouterr().out
     reconciled = get_proc("aaaaaaaaaaaa")

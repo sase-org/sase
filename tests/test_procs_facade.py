@@ -151,7 +151,7 @@ def test_resolve_proc_ref_handles_unique_short_unknown_and_ambiguous() -> None:
     assert resolve_proc_ref("ABC0", procs) is first
     with pytest.raises(ProcRefError, match="at least 3"):
         resolve_proc_ref("ab", procs)
-    with pytest.raises(ProcRefError, match="no task"):
+    with pytest.raises(ProcRefError, match="no proc"):
         resolve_proc_ref("zzz", procs)
     with pytest.raises(ProcRefError, match=r"abc012.*First.*abc112.*Second"):
         resolve_proc_ref("abc", procs)

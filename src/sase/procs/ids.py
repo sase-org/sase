@@ -32,18 +32,18 @@ def resolve_proc_ref(prefix: str, procs: Sequence[Proc]) -> Proc:
     ref = prefix.strip().lower()
     if len(ref) < MIN_PROC_REF_LENGTH:
         raise ProcRefError(
-            f"task reference must be at least {MIN_PROC_REF_LENGTH} characters"
+            f"proc reference must be at least {MIN_PROC_REF_LENGTH} characters"
         )
     matches = [proc for proc in procs if proc.proc_id.startswith(ref)]
     if len(matches) == 1:
         return matches[0]
     if not matches:
-        raise ProcRefError(f"no task matches reference {prefix!r}")
+        raise ProcRefError(f"no proc matches reference {prefix!r}")
     candidates = ", ".join(
         f"{short_proc_id(proc.proc_id)} ({proc.label})" for proc in matches
     )
     raise ProcRefError(
-        f"task reference {prefix!r} is ambiguous; candidates: {candidates}"
+        f"proc reference {prefix!r} is ambiguous; candidates: {candidates}"
     )
 
 

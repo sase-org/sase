@@ -119,6 +119,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "patch": ("sase.main.parser_patch", "register_patch_parser"),
     "plan": ("sase.main.parser_plan", "register_plan_parser"),
     "plugin": ("sase.main.parser_plugin", "register_plugin_parser"),
+    "proc": ("sase.main.parser_proc", "register_proc_parser"),
     "project": ("sase.main.parser_project", "register_project_parser"),
     "prompt": ("sase.main.parser_prompt", "register_prompt_parser"),
     "questions": ("sase.main.parser_commands", "register_questions_parser"),
@@ -130,7 +131,8 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "run": ("sase.main.parser_commands", "register_run_parser"),
     "skill": ("sase.main.parser_skills", "register_skills_parser"),
     "stitch": ("sase.main.parser_stitch", "register_stitch_parser"),
-    "task": ("sase.main.parser_task", "register_task_parser"),
+    # Legacy command alias for the proc parser.
+    "task": ("sase.main.parser_proc", "register_proc_parser"),
     "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
     "update": ("sase.main.parser_update", "register_update_parser"),
     "validate": ("sase.main.parser_validate", "register_validate_parser"),
