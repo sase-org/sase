@@ -967,14 +967,15 @@ map kinds to notification actions:
 | `launch`      | `LaunchApproval`    | Agent-initiated `sase launch request`             |
 | `custom`      | `CustomGate`        | `sase gate create`                                |
 
-`TaskTriage` uses `launch OR close`, with Launch as the primary branch. Launch accepts
-optional feedback and submits or reuses one globally visible detached proc whose command
-is `sase bead work <bead-id> --yes-to-all`; the gate response records that proc ID.
-Close requires feedback, closes the task bead with `resolution=canceled`, and uses the
-feedback as its close reason. The gate preview is generated from the bead's title,
-description, and notes, with the notes section present only when the bead has notes.
-Automatic resolution is forbidden, and all client surfaces use the same host-side side
-effects.
+`TaskTriage` uses `launch OR close OR snooze`, with Launch as the primary branch. Launch
+accepts optional feedback and submits or reuses one globally visible detached proc whose
+command is `sase bead work <bead-id> --yes-to-all`; the gate response records that proc
+ID. Close requires feedback, closes the task bead with `resolution=canceled`, and uses
+the feedback as its close reason. Snooze requires a wake-time expression and moves the
+task to `snoozed`, after which reconciliation replaces this gate with a `BeadSnooze`
+gate. The gate preview is generated from the bead's title, description, and notes, with
+the notes section present only when the bead has notes. Automatic resolution is
+forbidden, and all client surfaces use the same host-side side effects.
 
 Workflow `HITL` remains a legacy producer, but a HITL notification that references a
 neutral bundle is resolved through the same hash-verified executor in ACE and Telegram.

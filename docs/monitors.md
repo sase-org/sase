@@ -153,8 +153,12 @@ counting) is tracked separately from the label, from `monitor_state`:
 | `completed`     | Done    | stop status                                        |
 | `failed`        | Failed  | stop status (+ exit code or supervisor error)      |
 | `timeout`       | Failed  | stop status (+ total-timeout or idle-timeout note) |
-| `stopped`       | Done    | `STOPPED`                                          |
+| `stopped`       | Done    | stop status                                        |
 | `lost`          | Failed  | stop status; command outcome is unknown            |
+
+The stop-status label is descriptive text, not a success condition. It is reused for
+every terminal state, including an explicit stop; use the bucket, `monitor_state`, exit
+code, and output to decide what happened.
 
 A monitor is terminal only after it is settled: the command has exited or been
 reconciled, the log has been finalized, the workspace claim has been released or
@@ -305,15 +309,19 @@ dropped `--next` appends a notification row. The badges and flags above, plus
 ## Example: approved epic launches
 
 Launching an approved epic (`sase bead work <plan> --yes-to-all …`) is itself a
-long-running command, so it runs under a monitor rather than a bare detached proc: the
-planner's `EPIC APPROVED` status becomes `EPIC CREATED` once `sase bead work` finishes
-launching every phase. The monitor takes a zero workspace claim (the launch runs in the
-project's primary workspace, not the planner's), and no follow-up agent is recorded —
-`sase bead work` launches the phase agents itself. If the planner's lane cannot be
-resolved (a very old artifacts layout, a wiped agent), the launch falls back to the
-original global `detached` proc submission rather than silently dropping the approval.
-See [Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that
-handoff.
+long-running command, so it normally runs under a monitor rather than a bare detached
+proc. Its monitor member reads `EPIC APPROVED` while running and uses the configured
+`EPIC CREATED` label after every terminal state, even failure, timeout, stop, or loss;
+check the state and exit details instead of treating that label as success. A successful
+launch attempts to back-fill the epic ID; when that metadata lands, the planner row
+itself moves to `EPIC CREATED`, and otherwise it remains `EPIC APPROVED`. The monitor
+takes a zero workspace claim (the launch runs in the project's primary workspace, not
+the planner's), and no follow-up agent is recorded — `sase bead work` launches the phase
+agents itself. If the planner's lane cannot be resolved (a very old artifacts layout, a
+wiped agent), the launch falls back to the original global `detached` proc submission
+rather than silently dropping the approval. Other monitor-start errors fail the approval
+instead of using the proc fallback. See
+[Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that handoff.
 
 ## See also
 

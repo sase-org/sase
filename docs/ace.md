@@ -99,16 +99,16 @@ Stitch, Patch, and Bead are always **1**, **2**, **3**; configured document-prov
 tabs such as Plan and Research take the next digits; and File, which always renders
 last, always carries the highest digit — **4** with no provider tabs configured, **6**
 with two. Digits stop at `9`, and File keeps its digit even then. Use `[` / `]` to cycle
-through the complete runtime strip. The strip reflows to fit rather than clipping: as
-horizontal space tightens it steps down a full → compact → micro ladder and keeps the
-narrowest tier that still fits, re-rendering only when the tier actually changes. Each
-step tightens the padding and separators, and the narrowest tier also drops the labels
-of inactive tabs so they stand on their icons and digits alone — but only when **every**
-tab in the strip carries an icon, so a document provider whose `ref.icon` is missing or
-invalid keeps labels on the whole strip rather than leaving a tab blank. These keys act
-only while Artifacts is visible. Press `p` in Stitch, Bead, provider document panes, or
-File to change the shared project scope, or use the command palette to jump directly to
-a top-level view. Patches remains query-scoped and retains the existing Patch workflow.
+through the complete runtime strip. As horizontal space tightens, the strip chooses the
+widest tier that fits from a full → compact → micro ladder and re-renders only when the
+tier changes. Compact removes outer padding; micro also tightens the separators and
+hides inactive labels, leaving their digits and icons visible. If even micro is wider
+than the available space, micro remains selected. Every Artifacts tab has an icon,
+including provider tabs whose missing or invalid `ref.icon` falls back to the generic
+`◆`, so the micro tier never leaves an inactive tab unidentified. These keys act only
+while Artifacts is visible. Press `p` in Stitch, Bead, provider document panes, or File
+to change the shared project scope, or use the command palette to jump directly to a
+top-level view. Patches remains query-scoped and retains the existing Patch workflow.
 
 ### Split Modes in Artifacts Panes
 
@@ -398,8 +398,8 @@ and `ref:research`, so a missing provider falls back to Stitch instead of crashi
 startup. Each pane renders an icon before its label — the four fixed marks (`◉` Stitch,
 `⎇` Patch, `◈` Bead, `▤` File) are built in, and a provider pane's mark comes from its
 sidecar `ref.icon`. The active tab's icon takes that pane's accent color; inactive icons
-render dim. A `ref.icon` that fails validation or is wider than two terminal cells is
-dropped, and that pane simply renders label-only.
+render dim. A missing `ref.icon`, one that fails validation, or one wider than two
+terminal cells uses the generic `◆` provider icon instead.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
 existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
@@ -1304,9 +1304,9 @@ even for a single artifact, so the label, kind, and path are visible before laun
 the terminal viewer.
 
 The prompt/detail header includes those non-chat entries in the plan-adjacent
-`SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Commits`, `Deltas`, and `Artifacts`
-stay in that order when present. Paths are made workspace-relative when possible, and
-hint mode assigns numbers to those paths so they can be opened with the normal file-hint
+`SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Commits`, `Deltas`, and `Files` stay
+in that order when present. Paths are made workspace-relative when possible, and hint
+mode assigns numbers to those paths so they can be opened with the normal file-hint
 flow.
 
 Artifact panel controls:
@@ -3071,10 +3071,11 @@ all procs complete.
 
 Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information
 including hook runners, agent runners, and a **Procs** section listing active and
-recently completed procs — Patch operations such as `sync`, `rebase`, `accept`, `mail`,
-`submit`, `archive`, `revert`, `rewind`, `reword`, and `restore`, plus `monitor-stop`
-and notification-gate work. Each proc entry shows its type, target, status, timestamps,
-and live output when the proc reports it.
+recently completed TUI procs from the current ACE session. These include Patch actions,
+agent launch and cleanup work, `monitor-stop`, and notification updates. Each row shows
+the target, proc type and status, and elapsed or total duration; a failed row also shows
+its error message. This modal does not show proc output. Use the Admin Center's
+[Procs tab](#procs-tab) or `sase proc show ID` for durable records and captured output.
 
 ## File Panel Rendering
 
@@ -3211,7 +3212,7 @@ and completed (the agent has finished).
 | **EPIC**           | Orchid          | An authored epic is waiting for user review                            |
 | **PLAN**           | Pink/magenta    | A legacy or unreadable-tier plan is waiting for user review            |
 | **PLAN APPROVED**  | Cyan            | Plan was approved; follow-up agent has been spawned                    |
-| **EPIC APPROVED**  | Cyan            | Plan was approved as an epic; `--epic` follow-up is running            |
+| **EPIC APPROVED**  | Cyan            | Epic was approved, but no created epic ID has been back-filled yet     |
 | **PLAN COMMITTED** | Cyan            | Plan was approved with auto-commit; `--commit` follow-up is running    |
 | **QUESTION**       | Amber           | Agent is asking the user a question (via `/sase_questions`)            |
 | **RETRYING**       | Orange          | Agent hit a retryable error and is in a countdown before retrying      |
@@ -3264,13 +3265,20 @@ if the mount signal never fires.
 
 ### Completed Statuses
 
-| Status           | Color | Description                                                                    |
-| ---------------- | ----- | ------------------------------------------------------------------------------ |
-| **DONE**         | Green | Agent completed successfully                                                   |
-| **PLAN DONE**    | Green | Plan workflow fully completed (all steps)                                      |
-| **TALE DONE**    | Green | Tale plan workflow fully completed (all follow-ups)                            |
-| **EPIC CREATED** | Green | Plan workflow completed and its latest `-epic` follow-up finished successfully |
-| **FAILED**       | Red   | Agent exited with an error                                                     |
+| Status           | Color | Description                                                      |
+| ---------------- | ----- | ---------------------------------------------------------------- |
+| **DONE**         | Green | Agent completed successfully                                     |
+| **PLAN DONE**    | Green | Plan workflow fully completed (all steps)                        |
+| **TALE DONE**    | Green | Tale plan workflow fully completed (all follow-ups)              |
+| **EPIC CREATED** | Green | A created epic ID is known, or a legacy epic follow-up completed |
+| **FAILED**       | Red   | Agent exited with an error                                       |
+
+Monitor members are the exception to this status table's success-oriented labels: a
+gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as
+its stop label for every terminal state. A failed, timed-out, stopped, or lost monitor
+can therefore display `EPIC CREATED` in its state-dependent color. Inspect the monitor
+state, bucket, exit code, and output; on the planner row itself, `EPIC CREATED` means
+the created epic ID was successfully back-filled.
 
 Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup
 panel for focused-panel, global, tribe, clan, marked, group, and custom planner-backed
@@ -3443,18 +3451,18 @@ pinned attempt view resets the cursor.
   `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve and
   still-resolving lanes holding their slot with a dim `resolving…` row.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
-  `Deltas`, and `Artifacts` as compact fields, preserves that internal order, and
-  summarizes only the present fields in its header. Commits persisted by the selected
-  agent's post-run steps are grouped by repository; primary workspace, linked-repo,
-  sidecar, and external-repo commits retain their repository identity. Deltas preserve
-  their green `+`, gold `~`, and red `-` change glyphs and group linked or external
-  files by repository. Artifact type remains visible through its icon shape, while every
-  artifact icon and path uses the shared blue output-lane/file-path palette. This lane
-  starts painting on the very first navigation frame: `Commits` is derived from the
-  selected agent's in-memory step metadata and needs no disk reads, so it renders
-  immediately, while `Deltas` and `Artifacts` — which do need store reads — fill in when
-  the debounced enrichment resolves the lane. The immediate commit-only view is
-  deliberately not cached, so the full lane still resolves on its normal schedule.
+  `Deltas`, and `Files` as compact fields, preserves that internal order, and summarizes
+  only the present fields in its header. Commits persisted by the selected agent's
+  post-run steps are grouped by repository; primary workspace, linked-repo, sidecar, and
+  external-repo commits retain their repository identity. Deltas preserve their green
+  `+`, gold `~`, and red `-` change glyphs and group linked or external files by
+  repository. Artifact type remains visible through its icon shape, while every artifact
+  icon and path uses the shared blue output-lane/file-path palette. This lane starts
+  painting on the very first navigation frame: `Commits` is derived from the selected
+  agent's in-memory step metadata and needs no disk reads, so it renders immediately,
+  while `Deltas` and `Files` — which do need store reads — fill in when the debounced
+  enrichment resolves the lane. The immediate commit-only view is deliberately not
+  cached, so the full lane still resolves on its normal schedule.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or
   longer, ordered by start time and capped at 8 rows (an overflow line points to the
   full [Tools panel](#agents-tab-tools-panel) timeline via `]`). Level 1 is a compact
@@ -4892,9 +4900,10 @@ Procs the TUI runs itself are **mirrored** into the durable proc store
 (`~/.sase/procs/procs.jsonl`, with one combined output log per proc under
 `~/.sase/procs/logs/`), so their outcome survives the session that produced them and is
 visible from `sase proc list` / `sase proc show`. Supervisor-backed procs — commands
-submitted with `sase proc run`, epic launches started from a gate approval, and
-programmatic detached procs — are read back out of that store and rendered here, so work
-that this process never owned still shows up on the tab.
+submitted with `sase proc run`, programmatic detached procs, and the detached fallback
+for an epic approval whose planner lane cannot be resolved — are read back out of that
+store and rendered here, so work that this process never owned still shows up on the
+tab.
 
 The pane defaults to **this session** plus unattributed procs and every global
 `detached` proc; press `a` to widen it to every session. Detached procs remain visible
@@ -4913,8 +4922,8 @@ oldest-first, and running procs are never pruned. Because the store owns that re
 `d` / `D` only dismiss this session's in-memory rows.
 
 The top-bar proc indicator counts this session's active `command` procs plus **every
-active `detached` proc globally**, so an epic approved from Telegram is reflected in
-every TUI.
+active `detached` proc globally**, including an approved epic that had to use the
+detached-proc fallback.
 
 ### Layout
 
@@ -4937,8 +4946,8 @@ right. Running procs refresh their output every second while the Procs tab is vi
 Procs are durable records shared by every SASE surface, not just rows in this pane. They
 live in `~/.sase/procs/procs.jsonl`, with one combined stdout/stderr log per proc under
 `~/.sase/procs/logs/<proc_id>.log`. Because the records outlive the process that
-produced them, `sase proc` can list and inspect work started anywhere — including an
-epic launch approved from Telegram or from a second terminal.
+produced them, `sase proc` can list and inspect work started anywhere — including a
+TaskTriage launch or detached command submitted from another client.
 
 Each proc carries a 12-character id resolvable by unique prefix (three characters
 minimum, like a git short SHA), so `sase proc show k7m2` works. Statuses are `pending`,
@@ -4949,11 +4958,11 @@ killed.
 
 **Kinds and ownership.**
 
-| Kind       | Typical producer                                           | Owner and scope                                                     |
-| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------------- |
-| `tui`      | Work run and mirrored by ACE                               | The ACE process; scoped to its session                              |
-| `command`  | `sase proc run` or `sase.procs.submit_proc()`              | The proc supervisor; attributed to one session or left unattributed |
-| `detached` | `sase proc run --detached`, epic launches, or detached API | The proc supervisor; global because no interactive session owns it  |
+| Kind       | Typical producer                                                  | Owner and scope                                                     |
+| ---------- | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `tui`      | Work run and mirrored by ACE                                      | The ACE process; scoped to its session                              |
+| `command`  | `sase proc run` or `sase.procs.submit_proc()`                     | The proc supervisor; attributed to one session or left unattributed |
+| `detached` | `sase proc run --detached`, epic-launch fallback, or detached API | The proc supervisor; global because no interactive session owns it  |
 
 The programmatic detached API is `sase.procs.submit_detached_proc()`. It requires an
 explicit `origin` argument, uses the same detached supervisor and validation as
@@ -4982,8 +4991,8 @@ limit removes the oldest finished rows and their log files. The legacy
 The CLI equivalents are `sase proc list` (`--kind` / `--detached` to filter),
 `sase proc show ID` (`--follow` to stream), `sase proc run [--detached] -- COMMAND`
 (`--wait` to stream and inherit the exit code), and `sase proc kill ID`. Approved epics
-launch as detached procs, so they survive every submitting surface and remain in scope
-everywhere. See the [CLI reference](cli.md#daily-operation).
+normally launch as [monitor members](monitors.md); only an unresolvable planner lane
+uses a detached proc. See the [CLI reference](cli.md#daily-operation).
 
 ### Keybindings
 
