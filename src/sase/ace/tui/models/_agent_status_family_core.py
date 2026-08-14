@@ -243,3 +243,53 @@ def has_later_family_continuation(
 
 def root_child_suffix(parent: Agent) -> str:
     return canonical_plan_chain_suffix(parent.role_suffix) or PLAN_CHAIN_PLAN_SUFFIX
+
+
+def _loaded_family_root_identity(agent: Agent) -> tuple[str, str | None, str] | None:
+    """Return the durable identity key for one loaded family-root row."""
+    if not agent.is_family_root_entry or not agent.raw_suffix or not agent.agent_family:
+        return None
+    return (agent.project_file, agent.agent_clan_generation, agent.agent_family)
+
+
+def normalize_monitor_family_display_parents(all_agents: list[Agent]) -> None:
+    """Reroot monitor-member rows onto their loaded family root for display.
+
+    A monitor started by a mid-family continuation (e.g. an approved coder)
+    persists a direct ``parent_timestamp`` back to that continuation instead
+    of to the family root -- durable data monitor follow-up settlement relies
+    on to fork the starter safely. The Agents tab treats ``parent_timestamp``
+    as the display-containment link though, so left alone the monitor is
+    nested under an already-completed child row instead of surfacing as a
+    live family member, and the collapsed root wrongly appears terminal while
+    the monitor is still running.
+
+    This rewrites only the in-memory ``parent_timestamp`` used for display
+    grouping; the persisted monitor/starter metadata on disk is never
+    touched. It is a no-op for monitors already parented directly to their
+    root, for monitors outside any loaded family, and whenever the family
+    identity does not resolve to exactly one loaded root (including
+    same-name families in different projects or clan generations) -- always
+    failing safe rather than attaching a monitor to an unrelated row.
+    Idempotent: repeated calls over the same (possibly cached) agent objects
+    recompute the same fixed point.
+    """
+    roots: dict[tuple[str, str | None, str], Agent | None] = {}
+    for agent in all_agents:
+        identity = _loaded_family_root_identity(agent)
+        if identity is None:
+            continue
+        roots[identity] = None if identity in roots else agent
+
+    for agent in all_agents:
+        if (
+            not agent.is_monitor
+            or agent.parent_timestamp is None
+            or not agent.agent_family
+        ):
+            continue
+        identity = (agent.project_file, agent.agent_clan_generation, agent.agent_family)
+        root = roots.get(identity)
+        if root is None or root.raw_suffix is None:
+            continue
+        agent.parent_timestamp = root.raw_suffix

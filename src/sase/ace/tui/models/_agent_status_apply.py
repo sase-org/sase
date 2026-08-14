@@ -38,6 +38,7 @@ from ._agent_status_family import (
     latest_non_workflow_child_launch_by_parent,
     mark_derived_plan_family_roots,
     merge_feedback_plan_paths,
+    normalize_monitor_family_display_parents,
     pending_plan_status_for_agent,
     pull_plan_metadata_from_family_members,
     root_child_suffix,
@@ -94,6 +95,14 @@ def apply_status_overrides(
     for agent in all_agents:
         agent.followup_agents.clear()
         agent.wait_display_source = None
+
+    # A monitor started by a mid-family continuation persists a direct
+    # parent link back to that continuation, not to the family root (see
+    # normalize_monitor_family_display_parents). Reroot it for display before
+    # any family relationship index or root mirroring below is built, so the
+    # rest of this pass can keep treating parent_timestamp as the sole
+    # display-containment link without further special-casing monitors.
+    normalize_monitor_family_display_parents(all_agents)
 
     completed_statuses = {"DONE", "FAILED", "FAILED (RETRIED)", "PLAN REJECTED"}
 
