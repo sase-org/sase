@@ -1441,7 +1441,7 @@ Directives use the same argument syntax as xprompt references:
 %model(claude-sonnet)        # Parenthesis syntax (single value only)
 %model:`claude-sonnet-4`     # Backtick syntax (for values with special chars)
 %model:codex/o3              # Provider/model syntax — switches both provider and model
-%m:agy/gemini-3.6-flash-high # Provider/model value with a stable Antigravity slug
+%m:agy/gemini-3.7-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
 %model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
 %model:grok/grok-4.6         # xAI Grok Build — explicit-only, never auto-detected

@@ -108,7 +108,7 @@ def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
     assert '#{{ "_" }}article_search_agent' not in source
     assert source.count("#_article_search_agent") == 3
     assert "%model:agy/flash35h" not in source
-    assert "%model:agy/gemini-3.6-flash-high" in source
+    assert "%model:agy/gemini-3.7-flash-high" in source
 
     reads = load_xprompt_from_file(reads_path)
     assert reads is not None

@@ -97,7 +97,7 @@ This distinction matters because provider names show up in commands, config, mod
 routing, skills, and ACE rows.
 
 Provider and model selection is still flexible per prompt. You can write
-`%model:codex/o3`, `%model:claude/opus`, `%m:agy/gemini-3.6-flash-high`,
+`%model:codex/o3`, `%model:claude/opus`, `%m:agy/gemini-3.7-flash-high`,
 `%model:opencode/anthropic/claude-sonnet-4-5`, or `%model:muse/muse-spark-1.2`. Known
 model names auto-map to providers, and when no provider is configured SASE auto-detects
 installed built-ins with unambiguous CLI names in priority order: `claude`, `codex`,

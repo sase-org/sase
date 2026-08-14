@@ -35,8 +35,8 @@ from sase.main import init_skills_handler
 from sase.main.init_skills_handler import _get_target_path
 from sase.main.parser import create_parser
 
-_AGY_LARGE = "gemini-3.6-flash-high"
-_AGY_SMALL = "gemini-3.6-flash-low"
+_AGY_LARGE = "gemini-3.7-flash-high"
+_AGY_SMALL = "gemini-3.7-flash-low"
 _AGY_FLASH35_HIGH = "gemini-3.5-flash-high"
 
 
@@ -48,8 +48,8 @@ def test_provider_metadata_aggregation_includes_agy() -> None:
     assert models[_AGY_LARGE] == "agy"
     assert models[_AGY_SMALL] == "agy"
     assert provider_shorts["agy"] == "agy"
-    assert model_aliases[_AGY_LARGE] == "flash36h"
-    assert model_aliases[_AGY_SMALL] == "flash36l"
+    assert model_aliases[_AGY_LARGE] == "flash37h"
+    assert model_aliases[_AGY_SMALL] == "flash37l"
     # A distinct Antigravity indigo, deliberately not the old Gemini-CLI blue.
     color = provider_cli_status_color_map()["agy"]
     assert color == "#6E5DE7"

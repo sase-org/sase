@@ -33,8 +33,8 @@ async def test_model_picker_jump_hints_follow_filtered_visible_order() -> None:
         # Antigravity (agy) Gemini slugs lead the filtered list.
         assert visible_ids[:3] == [
             "__default__",
-            "gemini-3.6-flash-high",
-            "gemini-3.6-flash-medium",
+            "gemini-3.7-flash-high",
+            "gemini-3.7-flash-medium",
         ]
         hints = modal.jump_hints_by_key()
         assert hints[visible_ids[0]] == "0"

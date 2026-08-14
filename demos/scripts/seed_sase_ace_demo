@@ -65,9 +65,9 @@ llm_provider:
       gpt53:
         model: codex/gpt-5.3-codex
         description: Codex model used by the multi-model fan-out demo.
-      flash36h:
-        model: agy/gemini-3.6-flash-high
-        description: Antigravity Gemini 3.6 Flash model used by the multi-model fan-out demo.
+      flash37h:
+        model: agy/gemini-3.7-flash-high
+        description: Antigravity Gemini 3.7 Flash model used by the multi-model fan-out demo.
 
 xprompts:
   add_tests:
@@ -542,7 +542,7 @@ cat >"$sase_home/prompt_history/2607.json" <<'JSON'
       "cancelled": false
     },
     {
-      "text": "#gh:acme/nova %{%m:opus | %m:@gpt53 | %m:@flash36h} Harden the command parser against malformed input and add regression tests.",
+      "text": "#gh:acme/nova %{%m:opus | %m:@gpt53 | %m:@flash37h} Harden the command parser against malformed input and add regression tests.",
       "timestamp": "260701_103000",
       "last_used": "260701_103000",
       "cancelled": false

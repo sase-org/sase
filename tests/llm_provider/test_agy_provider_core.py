@@ -18,6 +18,9 @@ from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.types import LLMInvocationError
 
 _AGY_MODELS = [
+    "gemini-3.7-flash-high",
+    "gemini-3.7-flash-medium",
+    "gemini-3.7-flash-low",
     "gemini-3.6-flash-high",
     "gemini-3.6-flash-medium",
     "gemini-3.6-flash-low",
@@ -39,9 +42,9 @@ def test_agy_provider_is_llm_provider() -> None:
 
 def test_agy_provider_resolve_model_name() -> None:
     provider = AgyProvider()
-    assert provider.resolve_model_name() == "gemini-3.6-flash-high"
-    assert provider.resolve_model_name("large") == "gemini-3.6-flash-high"
-    assert provider.resolve_model_name("small") == "gemini-3.6-flash-low"
+    assert provider.resolve_model_name() == "gemini-3.7-flash-high"
+    assert provider.resolve_model_name("large") == "gemini-3.7-flash-high"
+    assert provider.resolve_model_name("small") == "gemini-3.7-flash-low"
 
 
 def test_agy_provider_metadata_hooks() -> None:
@@ -58,6 +61,9 @@ def test_agy_provider_metadata_hooks() -> None:
     assert provider.llm_known_model_names() == _AGY_MODELS
     aliases = provider.llm_model_short_aliases()
     assert aliases == {
+        "gemini-3.7-flash-high": "flash37h",
+        "gemini-3.7-flash-medium": "flash37m",
+        "gemini-3.7-flash-low": "flash37l",
         "gemini-3.6-flash-high": "flash36h",
         "gemini-3.6-flash-medium": "flash36m",
         "gemini-3.6-flash-low": "flash36l",
@@ -98,7 +104,7 @@ def test_agy_provider_command_construction(
     assert "--print-timeout" in cmd
     assert cmd[cmd.index("--print-timeout") + 1] == "24h"
     assert "--model" in cmd
-    assert cmd[cmd.index("--model") + 1] == "gemini-3.6-flash-high"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3.7-flash-high"
     assert "--dangerously-skip-permissions" in cmd
     assert "--add-dir" in cmd
     assert cmd[cmd.index("--add-dir") + 1] == str(Path.cwd().resolve())
@@ -134,7 +140,7 @@ def test_agy_provider_model_override_preserves_slug(
 
     cmd = mock_popen.call_args.args[0]
     assert cmd[cmd.index("--model") + 1] == "claude-opus-4-6-thinking"
-    assert "gemini-3.6-flash-high" not in cmd
+    assert "gemini-3.7-flash-high" not in cmd
 
 
 @patch.dict(os.environ, {"SASE_AGY_PATH": "/opt/antigravity/bin/agy"})
@@ -240,7 +246,7 @@ def test_agy_provider_extra_args_from_env_small(
 
     cmd = mock_popen.call_args.args[0]
     assert "--sandbox" in cmd
-    assert cmd[cmd.index("--model") + 1] == "gemini-3.6-flash-low"
+    assert cmd[cmd.index("--model") + 1] == "gemini-3.7-flash-low"
 
 
 @patch.dict(
@@ -406,4 +412,17 @@ def test_agy_model_resolution_preserves_nested_provider_model() -> None:
     assert resolve_model_provider("gemini-3.6-flash-high") == (
         "agy",
         "gemini-3.6-flash-high",
+    )
+
+
+def test_agy_model_resolution_preserves_nested_provider_model_gemini_37() -> None:
+    # Explicit provider/model syntax keeps the model slug after the first slash.
+    assert resolve_model_provider("agy/gemini-3.7-flash-high") == (
+        "agy",
+        "gemini-3.7-flash-high",
+    )
+    # Bare known model name resolves to the agy provider.
+    assert resolve_model_provider("gemini-3.7-flash-high") == (
+        "agy",
+        "gemini-3.7-flash-high",
     )

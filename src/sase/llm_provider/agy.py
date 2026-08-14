@@ -44,8 +44,8 @@ if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "gemini-3.6-flash-high",
-    "small": "gemini-3.6-flash-low",
+    "large": "gemini-3.7-flash-high",
+    "small": "gemini-3.7-flash-low",
 }
 _AGY_PATH_ENV = "SASE_AGY_PATH"
 _AGY_PRINT_TIMEOUT_ENV = "SASE_AGY_PRINT_TIMEOUT"
@@ -274,6 +274,9 @@ class AgyProvider(LLMProvider):
     def llm_known_model_names(self) -> list[str]:
         # Exact stable slugs reported by `agy models`; keep CLI ordering.
         return [
+            "gemini-3.7-flash-high",
+            "gemini-3.7-flash-medium",
+            "gemini-3.7-flash-low",
             "gemini-3.6-flash-high",
             "gemini-3.6-flash-medium",
             "gemini-3.6-flash-low",
@@ -291,6 +294,9 @@ class AgyProvider(LLMProvider):
     def llm_model_short_aliases(self) -> dict[str, str]:
         # Compact aliases for model picker labels and same-provider fan-out ids.
         return {
+            "gemini-3.7-flash-high": "flash37h",
+            "gemini-3.7-flash-medium": "flash37m",
+            "gemini-3.7-flash-low": "flash37l",
             "gemini-3.6-flash-high": "flash36h",
             "gemini-3.6-flash-medium": "flash36m",
             "gemini-3.6-flash-low": "flash36l",

@@ -43,7 +43,7 @@ xprompts:
 
 %id:reads-{@1}.agy
 %clan:reads-{@1}
-%model:agy/gemini-3.6-flash-high
+%model:agy/gemini-3.7-flash-high
 #_article_search_agent
 
 ---

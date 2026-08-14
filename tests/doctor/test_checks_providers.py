@@ -83,13 +83,13 @@ def _agy_payload() -> dict[str, object]:
         "providers": {
             "agy": {
                 "known_model_names": [
-                    "gemini-3.6-flash-high",
-                    "gemini-3.6-flash-low",
+                    "gemini-3.7-flash-high",
+                    "gemini-3.7-flash-low",
                 ],
                 "autodetect_cli_name": "agy",
                 "model_resolutions": {
-                    "large": "gemini-3.6-flash-high",
-                    "small": "gemini-3.6-flash-low",
+                    "large": "gemini-3.7-flash-high",
+                    "small": "gemini-3.7-flash-low",
                 },
             }
         },
@@ -392,7 +392,7 @@ def test_llm_default_accepts_configured_agy_executable_path(
     assert check.data["ready"] is True
     # Model resolutions for tiers are reported so
     # `sase doctor -C llm.default -v` can show them.
-    assert check.data["model_resolutions"]["large"] == "gemini-3.6-flash-high"
+    assert check.data["model_resolutions"]["large"] == "gemini-3.7-flash-high"
     assert check.data["auth_status"] == "not_verified"
 
 
