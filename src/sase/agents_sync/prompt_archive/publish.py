@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 
-from sase.agent_lanes import lane_ref_for_agent
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.git_ops import (
@@ -34,6 +33,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.sase_agent import sase_agent_ref_for_shell
 
 
 log = logging.getLogger(__name__)
@@ -129,15 +129,15 @@ def _publish_prompt_archive(
         normalize_owned_agent_name(agent_name, identity)
     )
     global_agent = globalize_owned_agent_name(local_agent, identity)
-    lane = lane_ref_for_agent(local_agent, identity)
+    agent_ref = sase_agent_ref_for_shell(local_agent, identity)
     enqueue_agent_publication(
         AgentPublicationOutboxItem(
             project_key=target.project_key,
             project=target.project,
-            local_agent=lane.local_name,
-            global_agent=lane.global_name,
+            local_agent=agent_ref.local_name,
+            global_agent=agent_ref.global_name,
             primary_revision=primary_revision,
-            local_hood=agent_local_hood(lane.local_name),
+            local_hood=agent_local_hood(agent_ref.local_name),
         )
     )
 

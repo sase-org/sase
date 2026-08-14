@@ -10,7 +10,6 @@ from pathlib import Path
 import re
 from typing import Any
 
-from sase.agent_lanes import lane_name
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_import_package import (
@@ -30,6 +29,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.sase_agent import sase_agent_name
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tags
 
 _FALLBACK_START = datetime(2000, 1, 1, tzinfo=UTC)
@@ -244,15 +244,15 @@ def _matching_primary_commit_evidence(
                 continue
             for expected_global_name in expected[sha]:
                 try:
-                    same_lane = lane_name(global_name) == lane_name(
+                    same_sase_agent = sase_agent_name(global_name) == sase_agent_name(
                         expected_global_name
                     )
                 except (ValueError, RuntimeError):
-                    same_lane = False
-                if global_name == expected_global_name or same_lane:
+                    same_sase_agent = False
+                if global_name == expected_global_name or same_sase_agent:
                     # Evidence is indexed under the imported run identity, not
-                    # under the footer's lane label, so callers can resolve the
-                    # exact member payload that the lane proves.
+                    # under the footer's sase-agent label, so callers can resolve
+                    # the exact member payload that the sase agent proves.
                     matched.add((expected_global_name, sha))
         unresolved -= present
     return frozenset(matched)

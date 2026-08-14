@@ -150,12 +150,12 @@ class HostedLinkResolver:
         """Return the agents sidecar page URL for *agent_name*."""
 
         from sase.core.agent_identity_facade import (
+            AgentFamilyNameKind,
             agent_link_target,
             normalize_owned_agent_name,
             parse_agent_family_name,
         )
-        from sase.agent_lanes import lane_page_path, lane_ref_for_lane_name
-        from sase.core.agent_identity_facade import AgentFamilyNameKind
+        from sase.sase_agent import sase_agent_page_path, sase_agent_ref_for_name
 
         snapshot = self._agent_identity()
         owner = None if snapshot is None else snapshot.owner
@@ -171,15 +171,15 @@ class HostedLinkResolver:
                 link_target = agent_link_target(local_name, owner)
                 path = link_target.path
             else:
-                lane_ref = lane_ref_for_lane_name(
+                agent_ref = sase_agent_ref_for_name(
                     local_name,
                     snapshot,
                     reserved_family_names=self._reserved_family_names,
                 )
-                path = lane_page_path(lane_ref, owner)
-                family_path = f"families/{lane_ref.global_name}.md"
+                path = sase_agent_page_path(agent_ref, owner)
+                family_path = f"families/{agent_ref.global_name}.md"
                 if (
-                    not lane_ref.is_family
+                    not agent_ref.is_family
                     and self._agents_sidecar_path is not None
                     and (self._agents_sidecar_path / family_path).is_file()
                 ):

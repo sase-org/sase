@@ -11,7 +11,6 @@ import shutil
 import tempfile
 from typing import Any
 
-from sase.agent_lanes import lane_name
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.prompt_archive.index import render_prompt_month_index
@@ -33,6 +32,7 @@ from sase.core.prompt_artifact_staging import (
     PromptArtifactRecord,
 )
 from sase.repo_inventory import collect_repo_inventory
+from sase.sase_agent import sase_agent_name
 from sase.sdd.hosted_links import HostedLinkResolver
 from sase.sdd.plan_header_block import (
     PlanHeaderSectionKind,
@@ -90,7 +90,7 @@ def prepare_prompt_archive(
     reusable = _prompt_names_for_agent(month_dir, global_agent)
     resolved_prompt_name = resolve_prompt_name(
         prompt_name or plan_slug,
-        lane_name(global_agent),
+        sase_agent_name(global_agent),
         month_dir.glob("*.md"),
         reusable_names=reusable,
     )

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.agent_lanes import AgentLaneRef, lane_ref_for_lane_name
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.inventory import (
     ProjectHoodInventory,
@@ -22,6 +21,7 @@ from sase.core.agent_identity_facade import (
     normalize_agent_archive_name,
     normalize_owned_agent_name,
 )
+from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_name
 
 
 def publish_agent_hood(
@@ -33,12 +33,12 @@ def publish_agent_hood(
     inventory: ProjectHoodInventory | None = None,
     git_runner: GitRunner = run_git,
 ) -> V2PublicationCounts:
-    """Refresh exactly the committing lane's complete top-level local hood.
+    """Refresh exactly the committing sase agent's complete top-level local hood.
 
-    ``committing_agent`` names an agent *lane*: either a solo agent, which is
+    ``committing_agent`` names a sase agent: either a solo agent, which is
     also a run, or a family container, which never is. Both spellings are
-    accepted deliberately, and a concrete member name is still tolerated for
-    legacy callers.
+    accepted deliberately, and a concrete agent-shell name is still tolerated
+    for legacy callers.
     """
 
     snapshot = identity or AgentIdentitySnapshot.current()
@@ -49,11 +49,11 @@ def publish_agent_hood(
     project_inventory = inventory or build_project_hood_inventory(
         target, snapshot, git_runner=git_runner
     )
-    lane: AgentLaneRef = lane_ref_for_lane_name(local_name, snapshot)
-    hood = agent_local_hood(lane.local_name)
-    if lane.is_family:
-        # A family lane is a container, not a run, so only its hood decides
-        # whether there is anything to publish.
+    agent_ref: SaseAgentRef = sase_agent_ref_for_name(local_name, snapshot)
+    hood = agent_local_hood(agent_ref.local_name)
+    if agent_ref.is_family:
+        # A family sase agent is a container, not a run, so only its hood
+        # decides whether there is anything to publish.
         publishable = bool(project_inventory.hood_runs(hood))
     else:
         publishable = any(

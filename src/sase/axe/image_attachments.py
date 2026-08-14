@@ -297,19 +297,20 @@ def _agent_tag_matches(
 ) -> bool:
     """Return whether the ``AGENT`` tag *tagged_agent* attributes *agent_name*.
 
-    A commit footer names the committing agent's *lane*, so a family member's
-    own commits carry the family container's name rather than the member
-    spelling this scan was handed.  Both sides are therefore also compared as
-    lanes, while the literal spellings keep being compared so legacy
-    member-name tags -- and neighbors inside the same hood -- still match.
+    A commit footer names the committing agent's sase-agent projection, so a
+    family member's own commits carry the family container's name rather than
+    the concrete agent-shell spelling this scan was handed.  Both sides are
+    therefore also compared as sase agents, while the literal spellings keep
+    being compared so legacy member-name tags -- and neighbors inside the same
+    hood -- still match.
     """
     if not tagged_agent:
         return False
     if _names_match(tagged_agent, agent_name):
         return True
     return _names_match(
-        _lane_of(tagged_agent, identity),
-        _lane_of(agent_name, identity),
+        _sase_agent_of(tagged_agent, identity),
+        _sase_agent_of(agent_name, identity),
     )
 
 
@@ -319,17 +320,17 @@ def _names_match(tagged_agent: str, agent_name: str) -> bool:
     )
 
 
-def _lane_of(name: str, identity: AgentIdentitySnapshot | None) -> str:
-    """Return the bare local lane of *name*, or *name* when unresolvable.
+def _sase_agent_of(name: str, identity: AgentIdentitySnapshot | None) -> str:
+    """Return the bare local sase agent of *name*, or *name* when unresolvable.
 
     Attachment discovery is a best-effort boundary that must never fail
     because agent identity is unavailable, so every projection error degrades
     to the raw spelling.
     """
     try:
-        from sase.agent_lanes import lane_ref_for_agent
+        from sase.sase_agent import sase_agent_ref_for_shell
 
-        return lane_ref_for_agent(name, identity).local_name
+        return sase_agent_ref_for_shell(name, identity).local_name
     except Exception:
         return name
 

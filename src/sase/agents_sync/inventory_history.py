@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from sase.agent_lanes import AgentLaneRef, lane_ref_for_lane_name
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory_io import (
     canonical_local_name as _canonical_local_name,
@@ -21,6 +20,7 @@ from sase.core.agent_identity_facade import (
     parse_agent_family_name,
 )
 from sase.core.commit_footer_facade import CommitTagValue, LinkedCommitTagValue
+from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_name
 from sase.workflows.commit.runtime_tags import parse_trailing_commit_tag_values
 
 
@@ -37,7 +37,7 @@ def historical_associations(
     identity: AgentIdentitySnapshot,
     git_runner: GitRunner,
 ) -> HistoricalAssociations:
-    """Associate tagged primary-repository commits with runs and lanes."""
+    """Associate tagged primary-repository commits with runs and sase agents."""
 
     result = git_runner(
         target.primary_checkout,
@@ -78,20 +78,20 @@ def historical_associations(
         commit = CommitRecord(sha, subject, committed_at)
         if parsed.member_role is not None:
             # Legacy footers named the concrete family member. Preserve that
-            # exact run attribution forever; only lane-valued footers belong
-            # to the family container.
+            # exact run attribution forever; only sase-agent-valued footers
+            # belong to the family container.
             exact_runs[local_name][sha] = commit
             continue
         try:
-            lane = lane_ref_for_lane_name(local_name, identity)
+            agent_ref = sase_agent_ref_for_name(local_name, identity)
         except Exception:  # noqa: BLE001 - best-effort history boundary.
             continue
         if value is None:
             continue
-        is_family = _lane_tag_is_family(value, lane)
-        lanes[lane.local_name][sha] = commit
-        family_lanes[lane.local_name] = (
-            family_lanes.get(lane.local_name, False) or is_family
+        is_family = _sase_agent_footer_is_family(value, agent_ref)
+        lanes[agent_ref.local_name][sha] = commit
+        family_lanes[agent_ref.local_name] = (
+            family_lanes.get(agent_ref.local_name, False) or is_family
         )
 
     lane_commits = tuple(
@@ -132,12 +132,14 @@ def _destination_is_family_page(destination: str) -> bool:
     return "families" in {part for part in path.split("/") if part}
 
 
-def _lane_tag_is_family(value: CommitTagValue, lane: AgentLaneRef) -> bool:
-    """Classify an ambiguous lane label from its own footer evidence first."""
+def _sase_agent_footer_is_family(
+    value: CommitTagValue, agent_ref: SaseAgentRef
+) -> bool:
+    """Classify an ambiguous sase-agent label from its own footer evidence first."""
 
     if isinstance(value, LinkedCommitTagValue):
         return _destination_is_family_page(value.destination)
-    return lane.is_family
+    return agent_ref.is_family
 
 
 def primary_remote_url(

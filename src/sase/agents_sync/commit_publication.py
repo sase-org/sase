@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.agent_lanes import lane_ref_for_agent
 from sase.agents_sync.bundles import repository_root
 from sase.agents_sync.commit_publication_transaction import (
     DrainResult,
@@ -39,6 +38,7 @@ from sase.core.agent_identity_facade import (
     normalize_owned_agent_name,
 )
 from sase.repo_inventory import collect_repo_inventory
+from sase.sase_agent import sase_agent_ref_for_shell
 from sase.sdd.plan_header_refresh import (
     PlanHeaderRefreshOutcome,
     refresh_committed_plan_header,
@@ -124,19 +124,19 @@ def _enqueue_committed_agent_publication(
     normalized = normalize_agent_archive_name(
         normalize_owned_agent_name(local_agent, identity)
     )
-    # The request's identity is the committing agent's *lane*: a family member
-    # publishes as its family, a solo agent as itself.  The publication scope is
-    # unchanged either way -- it was already whole-hood, and a member and its
-    # lane share a hood -- but the recorded identity flows into the request's
-    # logical key and notification subject.
-    lane = lane_ref_for_agent(normalized, identity)
+    # The request's identity is the committing agent's sase-agent projection:
+    # a family member publishes as its family, a solo agent as itself.  The
+    # publication scope is unchanged either way -- it was already whole-hood,
+    # and a member and its sase agent share a hood -- but the recorded identity
+    # flows into the request's logical key and notification subject.
+    agent_ref = sase_agent_ref_for_shell(normalized, identity)
     item = AgentPublicationOutboxItem(
         project_key=target.project_key,
         project=target.project,
-        local_agent=lane.local_name,
-        global_agent=lane.global_name,
+        local_agent=agent_ref.local_name,
+        global_agent=agent_ref.global_name,
         primary_revision=primary_revision,
-        local_hood=agent_local_hood(lane.local_name),
+        local_hood=agent_local_hood(agent_ref.local_name),
     )
     try:
         enqueue_agent_publication(item)

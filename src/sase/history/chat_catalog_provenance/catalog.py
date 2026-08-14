@@ -5,12 +5,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from sase.agent_lanes import lane_name
 from sase.config import get_agent_owner_identity
 from sase.core.machine_hood_facade import (
     machine_qualify_v1_transport_agent_name,
 )
 from sase.history.chat_catalog import ChatTranscriptInfo
+from sase.sase_agent import sase_agent_name
 
 from .artifacts import load_agent_links
 from .cache import load_transcript_index, open_catalog_cache
@@ -223,14 +223,14 @@ def _publication_status(
 ) -> PublicationBacklogItem | None:
     if link is None:
         return None
-    # A publication request records the committing agent's lane, so a family
-    # member's own name only matches legacy member-anchored requests; its lane
-    # is what current requests carry.
+    # A publication request records the committing sase agent, so a family
+    # member's own name only matches legacy member-anchored requests; its
+    # sase-agent projection is what current requests carry.
     candidates: list[str] = []
     for name in (link.global_name, link.local_name):
         if name is None:
             continue
-        for candidate in (name, lane_name(name)):
+        for candidate in (name, sase_agent_name(name)):
             if candidate not in candidates:
                 candidates.append(candidate)
     for candidate in candidates:

@@ -6,13 +6,13 @@ import os
 from pathlib import Path
 
 from sase._git_remote import github_blob_url, parse_hosted_git_remote
-from sase.agent_lanes import lane_page_path, lane_ref_for_agent
 from sase.agents_sync.git import GitRunner, run_git
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
+from sase.sase_agent import sase_agent_page_path, sase_agent_ref_for_shell
 from sase.sdd.checkout_anchor import resolve_checkout_anchor
 from sase.sdd.hosted_links import resolve_hosted_branch
 
@@ -33,43 +33,43 @@ def resolve_agent_commit_tag(
 
     snapshot = identity or AgentIdentitySnapshot.current()
     owner = snapshot.owner
-    lane_ref = lane_ref_for_agent(agent_name, snapshot)
+    agent_ref = sase_agent_ref_for_shell(agent_name, snapshot)
     if owner is None:
-        return lane_ref.global_name
+        return agent_ref.global_name
 
     current = Path(cwd or os.getcwd()).resolve(strict=False)
     anchor = resolve_checkout_anchor(current)
     project = anchor.project_name
     if not project:
-        return lane_ref.global_name
+        return agent_ref.global_name
 
     try:
         selection = resolve_sync_targets((project,))
     except Exception:
-        return lane_ref.global_name
+        return agent_ref.global_name
     if len(selection.targets) != 1:
-        return lane_ref.global_name
+        return agent_ref.global_name
     target = selection.targets[0]
     if target.primary_roots and not any(
         anchor.primary_root == root or anchor.primary_root.is_relative_to(root)
         for root in target.primary_roots
     ):
-        return lane_ref.global_name
+        return agent_ref.global_name
     if not (target.sidecar_path / ".git").exists():
-        return lane_ref.global_name
+        return agent_ref.global_name
     branch = resolve_hosted_branch(target.sidecar_path, git_runner=git_runner)
     if branch is None:
-        return lane_ref.global_name
+        return agent_ref.global_name
 
     destination = github_blob_url(
         target.remote_url,
         provider=hosted_provider(target.remote_url),
         branch=branch,
-        path=lane_page_path(lane_ref, owner),
+        path=sase_agent_page_path(agent_ref, owner),
     )
     if destination is None:
-        return lane_ref.global_name
-    return LinkedCommitTagValue(lane_ref.global_name, destination)
+        return agent_ref.global_name
+    return LinkedCommitTagValue(agent_ref.global_name, destination)
 
 
 def hosted_provider(remote_url: str) -> str | None:

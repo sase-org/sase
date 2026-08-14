@@ -169,7 +169,7 @@ def _agent_provenance_matches(recorded_agent: str | None, agent_name: str) -> bo
         return False
     if _names_match(recorded_agent, agent_name):
         return True
-    return _names_match(_lane_of(recorded_agent), _lane_of(agent_name))
+    return _names_match(_sase_agent_of(recorded_agent), _sase_agent_of(agent_name))
 
 
 def _names_match(recorded_agent: str, agent_name: str) -> bool:
@@ -178,11 +178,13 @@ def _names_match(recorded_agent: str, agent_name: str) -> bool:
     )
 
 
-def _lane_of(name: str) -> str:
+def _sase_agent_of(name: str) -> str:
     try:
-        from sase.agent_lanes import lane_ref_for_agent
         from sase.core.agent_identity_facade import AgentIdentitySnapshot
+        from sase.sase_agent import sase_agent_ref_for_shell
 
-        return lane_ref_for_agent(name, AgentIdentitySnapshot.current()).local_name
+        return sase_agent_ref_for_shell(
+            name, AgentIdentitySnapshot.current()
+        ).local_name
     except Exception:
         return name

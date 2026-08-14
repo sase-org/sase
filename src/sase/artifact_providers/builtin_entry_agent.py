@@ -56,11 +56,12 @@ def _agent_entry(name: str, resolved_path: Path) -> ArtifactEntry | None:
     _add_state_properties(page_dir / "state.json", properties)
 
     try:
-        from sase.agent_lanes import lane_name
+        from sase.sase_agent import sase_agent_name
 
-        properties["lane"] = lane_name(name)
+        # ``lane`` is the serialized compatibility key for the sase-agent name.
+        properties["lane"] = sase_agent_name(name)
     except Exception:
-        log.debug("Unable to derive agent lane for %r", name, exc_info=True)
+        log.debug("Unable to derive sase-agent name for %r", name, exc_info=True)
 
     return validate_builtin_entry(
         ArtifactEntry(

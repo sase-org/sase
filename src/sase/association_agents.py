@@ -1,16 +1,16 @@
-"""Lane-normalized agent association hints shared by plan and bead pages."""
+"""Sase-agent-normalized association hints shared by plan and bead pages."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Protocol
 
-from sase.agent_lanes import AgentLaneRef, lane_ref_for_agent
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     globalize_owned_agent_name,
 )
 from sase.core.commit_footer_facade import LinkedCommitTagValue
+from sase.sase_agent import SaseAgentRef, sase_agent_ref_for_shell
 
 
 class _AgentAssociationLinkResolver(Protocol):
@@ -21,7 +21,7 @@ class _AgentAssociationLinkResolver(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class AgentAssociationRef:
-    """One lane label plus the strongest available link evidence."""
+    """One sase-agent label plus the strongest available link evidence."""
 
     label: str
     member_local_name: str | None = None
@@ -32,19 +32,19 @@ def artifact_agent_association(
     value: str | None,
     identity: AgentIdentitySnapshot,
 ) -> AgentAssociationRef | None:
-    """Project a concrete artifact agent to its lane."""
+    """Project a concrete artifact agent shell to its sase agent."""
 
     raw = _nonempty(value)
     if raw is None:
         return None
     try:
-        ref = lane_ref_for_agent(raw, identity)
+        ref = sase_agent_ref_for_shell(raw, identity)
     except (ImportError, RuntimeError, TypeError, ValueError):
         return AgentAssociationRef(_global_name(raw, identity))
-    return _artifact_association_from_lane(ref)
+    return _artifact_association_from_sase_agent(ref)
 
 
-def _artifact_association_from_lane(ref: AgentLaneRef) -> AgentAssociationRef:
+def _artifact_association_from_sase_agent(ref: SaseAgentRef) -> AgentAssociationRef:
     return AgentAssociationRef(
         label=ref.global_name,
         member_local_name=ref.member_local_name,
@@ -55,7 +55,7 @@ def commit_agent_association(
     value: object,
     identity: AgentIdentitySnapshot,
 ) -> AgentAssociationRef | None:
-    """Project a commit tag to its lane without discarding its destination."""
+    """Project a commit tag to its sase agent without discarding its destination."""
 
     if isinstance(value, LinkedCommitTagValue):
         raw = _nonempty(value.label)
@@ -68,7 +68,7 @@ def commit_agent_association(
     if raw is None:
         return None
     try:
-        label = lane_ref_for_agent(raw, identity).global_name
+        label = sase_agent_ref_for_shell(raw, identity).global_name
     except (ImportError, RuntimeError, TypeError, ValueError):
         label = _global_name(raw, identity)
     return AgentAssociationRef(label, footer_destination=destination)
@@ -78,12 +78,12 @@ def merge_agent_associations(
     left: AgentAssociationRef | None,
     right: AgentAssociationRef,
 ) -> AgentAssociationRef:
-    """Merge two records for the same lane using deterministic evidence."""
+    """Merge two records for the same sase agent using deterministic evidence."""
 
     if left is None:
         return right
     if left.label != right.label:
-        raise ValueError(f"cannot merge agent lanes {left.label!r} and {right.label!r}")
+        raise ValueError(f"cannot merge sase agents {left.label!r} and {right.label!r}")
     return AgentAssociationRef(
         label=left.label,
         member_local_name=_preferred(left.member_local_name, right.member_local_name),
@@ -98,7 +98,7 @@ def resolve_agent_association_url(
     association: AgentAssociationRef,
     resolver: _AgentAssociationLinkResolver,
 ) -> str | None:
-    """Resolve an association using member, footer, then lane evidence."""
+    """Resolve an association using shell, footer, then sase-agent evidence."""
 
     if association.member_local_name is not None:
         target = resolver.agent_url(association.member_local_name)

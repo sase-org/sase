@@ -313,10 +313,11 @@ def test_auto_commit_tags_with_runtime_adds_agent_when_name_set(
     assert "MACHINE" not in tags
 
 
-def test_auto_commit_tags_with_runtime_projects_family_member_to_lane(
+def test_auto_commit_tags_with_runtime_projects_family_member_to_sase_agent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """``SASE_AGENT_NAME`` is the concrete shell; ``SASE_AGENT=`` is the sase agent."""
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"name": "foo.bar--code", "workflow_name": "foo.bar"}),
         encoding="utf-8",
@@ -332,9 +333,23 @@ def test_auto_commit_tags_with_runtime_projects_family_member_to_lane(
         lambda path: SimpleNamespace(primary_root=path, project_name=None),
     )
 
+    assert resolve_local_agent_name() == "foo.bar--code"
     assert apply_auto_commit_tags_with_runtime("Fix bug", "sdd") == (
         "Fix bug\n\nSASE_TYPE=sdd\nSASE_AGENT=alice.athena.foo.bar"
     )
+
+
+def test_sase_agent_name_env_is_the_concrete_shell_and_footer_is_the_sase_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT_NAME", "pc--code")
+    monkeypatch.setattr(
+        _OWNER_TARGET,
+        lambda: AgentOwnerIdentity("alice", "athena"),
+    )
+
+    assert resolve_local_agent_name() == "pc--code"
+    assert _resolve_runtime_commit_tags() == {"AGENT": "alice.athena.pc"}
 
 
 def test_runtime_producer_removes_inherited_legacy_machine(

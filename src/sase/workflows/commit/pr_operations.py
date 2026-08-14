@@ -145,11 +145,12 @@ def build_pr_body(payload: dict) -> None:
     elif agent_value:
         lines.append(f"**Agent:** `{agent_value}`")
     elif name := meta.get("name"):
-        # The footer names a lane, so the metadata fallback -- which records
-        # the concrete family member -- is projected to its lane too.
-        from sase.agent_lanes import lane_name
+        # The footer names a sase agent, so the metadata fallback -- which
+        # records the concrete agent shell -- is projected to its sase agent
+        # too.
+        from sase.sase_agent import sase_agent_name
 
-        lines.append(f"**Agent:** `{lane_name(str(name))}`")
+        lines.append(f"**Agent:** `{sase_agent_name(str(name))}`")
 
     if lines:
         from sase.core.commit_footer_facade import append_body_suffix_before_footer

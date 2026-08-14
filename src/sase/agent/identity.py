@@ -74,9 +74,11 @@ def resolve_local_agent_name(env: Mapping[str, str] | None = None) -> str | None
 
     Unlike :func:`discover_agent_identity`, this resolver is metadata-first:
     family members can replace one another inside a single process, leaving
-    ``SASE_AGENT_NAME`` set to the lane while this run's ``agent_meta.json``
-    carries the concrete member. Only the metadata ``name`` key is consulted,
-    so commit provenance keeps its narrow behavior.
+    ``SASE_AGENT_NAME`` set to the family/container while this run's
+    ``agent_meta.json`` carries the concrete agent shell. Only the metadata
+    ``name`` key is consulted, so commit provenance keeps its narrow behavior.
+    The returned name is the concrete agent shell; the ``SASE_AGENT=`` footer
+    projects that shell to its sase agent.
     """
     current_env = env if env is not None else os.environ
     meta = _agent_meta_from_dir(_clean_value(current_env.get("SASE_ARTIFACTS_DIR")))

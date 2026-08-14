@@ -11,31 +11,31 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.agent_lanes import lane_ref_for_agent
 from sase.agents_sync.git import GitRunner
 from sase.agents_sync.inventory import ProjectHoodInventory
 from sase.agents_sync.inventory_models import InventoryRun
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_outbox import AgentPublicationOutboxItem
 from sase.core.agent_identity_facade import AgentIdentitySnapshot
+from sase.sase_agent import sase_agent_ref_for_shell
 
 
 def prompt_runs_by_request(
     inventory: ProjectHoodInventory,
     identity: AgentIdentitySnapshot,
 ) -> dict[tuple[str, str], InventoryRun]:
-    """Index local runs by the (lane, revision) pair a request names."""
+    """Index local runs by the (sase-agent, revision) pair a request names."""
 
     indexed: dict[tuple[str, str], InventoryRun] = {}
     for run in inventory.runs:
         local_name = getattr(run, "local_name", None)
         if not isinstance(local_name, str):
             continue
-        lane = lane_ref_for_agent(local_name, identity).local_name
+        agent_name = sase_agent_ref_for_shell(local_name, identity).local_name
         for commit in getattr(run, "commits", ()):
             sha = getattr(commit, "sha", None)
             if isinstance(sha, str):
-                indexed.setdefault((lane, sha), run)
+                indexed.setdefault((agent_name, sha), run)
     return indexed
 
 

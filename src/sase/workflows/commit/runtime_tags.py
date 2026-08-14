@@ -144,10 +144,12 @@ def apply_auto_commit_tags_with_runtime(message: str, auto_commit_type: str) -> 
 
     When a SASE agent identity is available (``SASE_AGENT_NAME`` or an
     ``agent_meta.json`` ``name``), the resulting tag block also carries linked
-    lane-derived ``AGENT=`` provenance so raw SDD auto-commits can be
-    associated with the lane that produced them. Legacy ``MACHINE=`` is removed
-    but never produced. Without an agent identity the result carries only
-    ``TYPE=<kind>`` after stale runtime provenance is removed.
+    sase-agent ``AGENT=`` provenance so raw SDD auto-commits can be associated
+    with the sase agent that produced them. ``SASE_AGENT_NAME`` names the
+    concrete agent shell; ``SASE_AGENT=`` records the sase-agent projection.
+    Legacy ``MACHINE=`` is removed but never produced. Without an agent
+    identity the result carries only ``TYPE=<kind>`` after stale runtime
+    provenance is removed.
     """
     return apply_auto_commit_tags(message, auto_commit_type, include_runtime=True)
 
