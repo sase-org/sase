@@ -67,6 +67,9 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@cheapest",
         "@fast",
         "@worker",
+        "claude/",
+        "codex/",
+        "opencode/",
     ]
     assert "@other" not in values
     assert "Custom Model (Preview)" not in values
@@ -78,6 +81,12 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert fable.description == "Claude (fable)"
 
     by_value = {entry.value: entry for entry in entries}
+    assert by_value["claude/"].kind == "provider"
+    assert by_value["claude/"].description == "Claude"
+    assert by_value["claude/"].provider == "claude"
+    assert by_value["claude/"].provider_model_count == 2
+    assert by_value["codex/"].provider_model_count == 3
+    assert by_value["opencode/"].provider_model_count == 1
     assert by_value["@default"].kind == "implicit_alias"
     assert by_value["@default"].aliases == ("default",)
     assert by_value["@big_epic_lander"].aliases == ("big_epic_lander",)
@@ -99,9 +108,7 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
     monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
 
     entries = model_completion.build_model_completion_catalog()
-    model_entries = {
-        entry.value: entry for entry in entries if not entry.value.startswith("@")
-    }
+    model_entries = {entry.value: entry for entry in entries if entry.kind == "model"}
 
     assert "claude-opus-5" not in model_entries
     assert "claude-sonnet-5" not in model_entries
@@ -158,9 +165,13 @@ def test_model_completion_catalog_filters_hidden_provider_by_metadata_flag(
     values = {entry.value for entry in entries}
 
     assert "hiddenprov-large" not in values
+    assert "hiddenprov/" not in values
     assert "@hiddenprov_coder" not in values
     # Non-hidden providers remain unaffected.
     assert "gpt-5.6-sol" in values
+    assert (
+        model_completion.filter_model_completion_entries(entries, "hiddenprov/") == []
+    )
 
 
 def test_model_completion_configured_retired_coder_alias_is_user_alias(
@@ -311,6 +322,79 @@ def test_model_completion_filter_matches_values_and_short_aliases(
     ] == ["@default"]
 
 
+def test_model_completion_provider_scoped_filter_derives_qualified_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+
+    scoped = model_completion.filter_model_completion_entries(entries, "claude/")
+    assert [entry.value for entry in scoped] == [
+        "claude/claude-fable-5",
+        "claude/opus",
+    ]
+    assert [entry.kind for entry in scoped] == ["model", "model"]
+    assert [entry.provider for entry in scoped] == ["claude", "claude"]
+    assert not any(entry.kind == "provider" for entry in scoped)
+    assert not any(entry.value.startswith("@") for entry in scoped)
+
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "claude/op"
+        )
+    ] == ["claude/opus"]
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "claude/fa"
+        )
+    ] == ["claude/claude-fable-5"]
+
+
+def test_model_completion_provider_scope_uses_first_slash_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "opencode/anthropic/"
+        )
+    ] == ["opencode/anthropic/claude-sonnet-4-5"]
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "anthropic/"
+        )
+    ] == ["anthropic/claude-sonnet-4-5"]
+
+
+def test_model_completion_provider_scope_is_case_insensitive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(model_completion, "get_llm_metadata_payload", _metadata_payload)
+    monkeypatch.setattr(model_completion, "get_model_aliases", lambda: {})
+    monkeypatch.setattr(model_completion, "build_alias_views", lambda **_kwargs: [])
+
+    entries = model_completion.build_model_completion_catalog()
+
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_completion_entries(
+            entries, "Claude/"
+        )
+    ] == ["claude/claude-fable-5", "claude/opus"]
+
+
 def test_model_completion_catalog_payload_round_trips_entries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -323,7 +407,9 @@ def test_model_completion_catalog_payload_round_trips_entries(
     assert payload["schema_version"] == (
         model_completion.MODEL_COMPLETION_CATALOG_SCHEMA_VERSION
     )
-    first = payload["entries"][0]  # type: ignore[index]
+    entries = payload["entries"]
+    assert isinstance(entries, list)
+    first = entries[0]
     assert first == {
         "value": "claude-fable-5",
         "display": "claude-fable-5",
@@ -345,6 +431,31 @@ def test_model_completion_catalog_payload_round_trips_entries(
         "bucket": "",
         "advisory_label": "",
         "advisory_severity": "",
+        "provider_model_count": 0,
+    }
+    provider = next(entry for entry in entries if entry["value"] == "claude/")
+    assert provider == {
+        "value": "claude/",
+        "display": "claude/",
+        "description": "Claude",
+        "kind": "provider",
+        "provider": "claude",
+        "aliases": [],
+        "alias_kind": "",
+        "target_provider": "",
+        "target_model": "",
+        "target_effort": "",
+        "provenance": "",
+        "reference": "",
+        "reference_effort": "",
+        "selector_mode": "",
+        "pool_available": 0,
+        "pool_total": 0,
+        "config_source": "",
+        "bucket": "",
+        "advisory_label": "",
+        "advisory_severity": "",
+        "provider_model_count": 2,
     }
 
 
@@ -381,6 +492,8 @@ def test_model_completion_override_overlay_rewrites_only_alias_target(
     )
     static_default = next(entry for entry in static if entry.value == "@default")
     live_default = next(entry for entry in overlaid if entry.value == "@default")
+    static_provider = next(entry for entry in static if entry.value == "claude/")
+    live_provider = next(entry for entry in overlaid if entry.value == "claude/")
 
     assert static_default.provenance == "implicit"
     assert (static_default.target_provider, static_default.target_model) == (
@@ -394,6 +507,7 @@ def test_model_completion_override_overlay_rewrites_only_alias_target(
         live_default.target_effort,
     ) == ("codex", "gpt-5.6-sol", "medium")
     assert live_default.reference == ""
+    assert live_provider == static_provider
 
 
 def test_configured_provider_coder_alias_gets_ordinary_override_metadata(

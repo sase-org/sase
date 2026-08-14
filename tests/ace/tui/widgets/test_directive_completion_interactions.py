@@ -17,6 +17,7 @@ from ._directive_completion_helpers import (
     MODEL_CATALOG_PATCH,
     agent_candidate,
     model_entries,
+    model_entries_with_providers,
 )
 
 
@@ -461,6 +462,60 @@ async def test_model_arg_completion_replaces_partial_with_canonical_value() -> N
 
     assert ta.text == "%model:claude-fable-5"
     assert ta._file_completion_active is False
+
+
+async def test_model_provider_row_acceptance_drills_down_to_scoped_menu() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%model:cl")
+        ta.cursor_location = (0, len("%model:cl"))
+
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(MODEL_CATALOG_PATCH, return_value=model_entries_with_providers()),
+        ):
+            await pilot.press("ctrl+t")
+            assert [c.insertion for c in ta._file_completion_candidates] == [
+                "claude-fable-5",
+                "claude/",
+            ]
+            await pilot.press("down")
+            await pilot.press("ctrl+l")
+
+    assert ta.text == "%model:claude/"
+    assert ta._file_completion_active is True
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "claude/claude-fable-5"
+    ]
+
+
+async def test_ctrl_t_unique_model_provider_row_drills_down() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%model:cod")
+        ta.cursor_location = (0, len("%model:cod"))
+
+        with (
+            patch.object(
+                type(ta),
+                "_ace_app",
+                new_callable=lambda: property(lambda _s: app),
+            ),
+            patch(MODEL_CATALOG_PATCH, return_value=model_entries_with_providers()),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%model:codex/"
+    assert ta._file_completion_active is True
+    assert [c.insertion for c in ta._file_completion_candidates] == [
+        "codex/gpt-5.6-sol"
+    ]
 
 
 async def test_model_at_effort_completion_replaces_only_suffix() -> None:

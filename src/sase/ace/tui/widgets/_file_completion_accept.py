@@ -49,6 +49,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
     if TYPE_CHECKING:
 
         def _try_file_completion_tab(self) -> bool: ...
+        def _try_auto_directive_arg_completion(self) -> bool: ...
         def _try_vcs_repo_completion(self) -> bool: ...
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
 
@@ -376,12 +377,21 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         )
         if not used_xprompt_skeleton:
             self._replace_token_text(row, start, end, selected.insertion)
-        # Directory drill-down: open completion for the accepted directory.
-        if selected.is_dir and self._completion_kind in ("file", "xprompt_arg_path"):
+        # Directory drill-down: open completion for the accepted directory/provider.
+        if selected.is_dir and self._completion_kind in (
+            "file",
+            "xprompt_arg_path",
+            "directive_arg",
+        ):
             self._file_completion_active = False
             self._file_completion_candidates = []
             self._file_completion_index = 0
-            if not self._try_file_completion_tab():
+            reopened = (
+                self._try_auto_directive_arg_completion()
+                if self._completion_kind == "directive_arg"
+                else self._try_file_completion_tab()
+            )
+            if not reopened:
                 self._clear_file_completion()
         else:
             self._clear_file_completion(clear_xprompt_arg_hint=False)

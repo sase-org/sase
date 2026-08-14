@@ -1553,8 +1553,8 @@ The `%model` directive also supports automatic provider resolution: known model 
 provider. See [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for
 the full model-to-provider mapping. ACE and the xprompt LSP complete `%model:` / `%m:`
 values from the same model catalog used for provider resolution. The inserted value is a
-canonical model name or configured alias; provider short aliases are only filter/display
-hints.
+canonical model name, a configured alias, or a qualified `provider/model` value selected
+from a provider-scoped menu; provider short aliases are only filter/display hints.
 
 Model aliases are listed beneath the concrete model names. Each alias row shows its kind
 (`default`, `role`, or `custom`), the `PROVIDER(model)` target it currently resolves to
@@ -1566,6 +1566,13 @@ name, but always after the model rows. The ACE menu reflects active temporary al
 overrides, while the LSP's catalog is a launch-time snapshot that does not — restart the
 LSP to pick up config changes, and use the ACE [Models panel](ace.md#models-panel)
 (`,m`) to inspect live override state.
+
+Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in
+the broad `%model:` menu. Accepting one drills into that provider and reopens completion
+for qualified values such as `claude/opus`; typing the slash directly behaves the same.
+The provider scope splits only on the first slash, so `%m:opencode/anthropic/` narrows
+OpenCode's nested `anthropic/...` model names. Hidden providers stay out of completion
+menus even though their explicit `provider/model` values remain routable.
 
 When the final `%model` value was written as `@<alias>` — including an xprompt-expanded
 reference such as `%model:@#agy_flash` — SASE records the expanded bare alias name in

@@ -71,6 +71,7 @@ class ModelCompletionMetadata:
     pool_total: int = 0
     description: str = ""
     config_source: str = ""
+    provider_model_count: int = 0
 
 
 class _ModelEntryDisplay(Protocol):
@@ -448,7 +449,7 @@ def _build_model_arg_completion_candidates(
         CompletionCandidate(
             display=entry.display,
             insertion=entry.value,
-            is_dir=False,
+            is_dir=entry.kind == "provider",
             name=entry.value,
             metadata=ModelCompletionMetadata(
                 value=entry.value,
@@ -469,6 +470,7 @@ def _build_model_arg_completion_candidates(
                 pool_total=entry.pool_total,
                 description=entry.description,
                 config_source=entry.config_source,
+                provider_model_count=entry.provider_model_count,
             ),
         )
         for entry in entries
@@ -491,6 +493,8 @@ def _build_model_arg_completion_candidates(
 
 def _model_provider_display(entry: _ModelEntryDisplay) -> str:
     """Extract the provider display label retained in a model entry."""
+    if entry.kind == "provider":
+        return entry.description
     if entry.kind != "model":
         return ""
     if not entry.aliases:

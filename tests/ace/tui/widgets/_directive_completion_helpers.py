@@ -61,6 +61,28 @@ def model_entries() -> list[_ModelCompletionEntry]:
     ]
 
 
+def model_entries_with_providers() -> list[_ModelCompletionEntry]:
+    return [
+        *model_entries(),
+        _ModelCompletionEntry(
+            value="claude/",
+            display="claude/",
+            description="Claude",
+            kind="provider",
+            provider="claude",
+            provider_model_count=1,
+        ),
+        _ModelCompletionEntry(
+            value="codex/",
+            display="codex/",
+            description="Codex",
+            kind="provider",
+            provider="codex",
+            provider_model_count=1,
+        ),
+    ]
+
+
 def agent_candidate(
     name: str,
     *,

@@ -132,6 +132,11 @@ def append_model_completion_row(
             candidate.display, style="bold magenta" if is_selected else "magenta"
         )
         return
+    if metadata.kind == "provider":
+        _append_provider_completion_row(
+            content, candidate, metadata, is_selected, widths
+        )
+        return
     if _model_completion_is_degraded_alias(metadata):
         content.append(
             candidate.display,
@@ -177,7 +182,40 @@ def append_model_completion_row(
         content.append_text(state)
 
 
+def _append_provider_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    metadata: ModelCompletionMetadata,
+    is_selected: bool,
+    widths: tuple[int, int],
+) -> None:
+    name_width, target_width = widths
+    provider_style = provider_name_style(metadata.provider)
+    name = Text(
+        candidate.display,
+        style=provider_style if is_selected else provider_style.removeprefix("bold "),
+    )
+    name.truncate(name_width, overflow="ellipsis", pad=True)
+    content.append_text(name)
+    content.append("  ")
+
+    kind = Text("models", style="bold magenta")
+    kind.truncate(_MODEL_KIND_CELL, overflow="ellipsis", pad=True)
+    content.append_text(kind)
+    content.append("  ")
+
+    target = _model_completion_target_text(metadata)
+    target.truncate(target_width, overflow="ellipsis", pad=True)
+    content.append_text(target)
+
+
 def _model_completion_target_text(metadata: ModelCompletionMetadata) -> Text:
+    if metadata.kind == "provider":
+        label = metadata.provider_display or metadata.description or metadata.provider
+        if metadata.provider_model_count:
+            noun = "model" if metadata.provider_model_count == 1 else "models"
+            label = f"{label} ({metadata.provider_model_count} {noun})"
+        return Text(label, style=provider_name_style(metadata.provider))
     if metadata.kind == "model":
         return Text(
             metadata.provider_display or metadata.description,
@@ -193,7 +231,7 @@ def _model_completion_target_text(metadata: ModelCompletionMetadata) -> Text:
 def _model_completion_is_degraded_alias(
     metadata: ModelCompletionMetadata,
 ) -> bool:
-    return metadata.kind != "model" and not (
+    return metadata.kind not in {"model", "provider"} and not (
         metadata.alias_kind and metadata.target_model and metadata.provenance
     )
 

@@ -1165,7 +1165,9 @@ panel shows descriptions from config; a user alias without one shows the
 The same alias vocabulary appears in the `%model:` / `%m:` completion menu in ACE and in
 editors through the xprompt LSP: alias rows sit beneath the concrete model names with
 their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
-after the colon narrows the menu to aliases only. See
+after the colon narrows the menu to aliases only. Provider rows such as `claude/` sit at
+the bottom of the broad menu; accepting one opens that provider's scoped model list and
+inserts qualified values such as `claude/opus`. See
 [xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion menu
 is read-only; the ACE Models panel (`,m`) remains the authoritative place to edit alias
 targets and to set or clear temporary overrides.
@@ -1306,6 +1308,13 @@ Use `provider/model` to specify both explicitly:
 %model:grok/grok-4.6
 %model:fakey/fakey-large
 ```
+
+In ACE and xprompt-aware editors, `%model:` completion includes provider rows such as
+`claude/`, `codex/`, and `opencode/` after concrete models and aliases. Typing or
+accepting a visible provider prefix scopes the menu to that provider, so `%m:claude/`
+offers `claude/opus`, `claude/sonnet`, and the rest of Claude's model catalog while
+`%m:opencode/anthropic/` continues narrowing inside OpenCode's slash-bearing model
+names.
 
 ### Automatic Provider Resolution
 

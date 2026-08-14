@@ -44,6 +44,8 @@ def completion_panel_title(
     if kinds.directive_arg_agent:
         return "wait targets"
     if kinds.model:
+        if scoped_title := _model_completion_provider_scope_title(token, rows):
+            return scoped_title
         return "model aliases" if token.startswith("@") else "%model values"
     if kinds.directive_arg:
         return "directive values"
@@ -118,6 +120,9 @@ def model_completion_subtitle(
         return Text()
     if metadata.kind == "model":
         subtitle = "[@] model aliases"
+    elif metadata.kind == "provider":
+        label = metadata.provider_display or metadata.description or metadata.provider
+        subtitle = f"[Enter] show {label} models"
     elif metadata.description:
         subtitle = metadata.description
     elif metadata.alias_kind == "user":
@@ -130,6 +135,26 @@ def model_completion_subtitle(
         return text
     text.truncate(inner_width, overflow="ellipsis")
     return text
+
+
+def _model_completion_provider_scope_title(
+    token: str,
+    rows: list[CompletionCandidate],
+) -> str:
+    head, separator, _remainder = token.partition("/")
+    if not separator or not head:
+        return ""
+    scoped_prefix = f"{head.casefold()}/"
+    for candidate in rows:
+        metadata = candidate.metadata
+        if (
+            isinstance(metadata, ModelCompletionMetadata)
+            and metadata.kind == "model"
+            and metadata.provider.casefold() == head.casefold()
+            and metadata.value.casefold().startswith(scoped_prefix)
+        ):
+            return f"{metadata.provider}/ models"
+    return ""
 
 
 def artifact_ref_completion_subtitle(

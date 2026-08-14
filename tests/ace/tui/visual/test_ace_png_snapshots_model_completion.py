@@ -35,6 +35,7 @@ def _model_row(
     provider: str,
     provider_display: str,
     short_alias: str = "",
+    description: str | None = None,
 ) -> CompletionCandidate:
     return _candidate(
         ModelCompletionMetadata(
@@ -43,7 +44,7 @@ def _model_row(
             provider=provider,
             provider_display=provider_display,
             short_alias=short_alias,
-            description=f"{provider_display} ({short_alias or value})",
+            description=description or f"{provider_display} ({short_alias or value})",
         )
     )
 
@@ -157,6 +158,28 @@ _ALIAS_ROWS = [
     ),
 ]
 
+_SCOPED_CLAUDE_ROWS = [
+    _model_row(
+        "claude/opus",
+        provider="claude",
+        provider_display="Claude",
+        description="Claude",
+    ),
+    _model_row(
+        "claude/sonnet",
+        provider="claude",
+        provider_display="Claude",
+        description="Claude",
+    ),
+    _model_row(
+        "claude/claude-fable-5",
+        provider="claude",
+        provider_display="Claude",
+        short_alias="fable",
+        description="Claude (fable)",
+    ),
+]
+
 
 async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
     await page.app.mount(
@@ -243,4 +266,40 @@ async def test_model_completion_alias_only_menu_png_snapshot(
             page,
             "prompt_model_completion_aliases_120x40",
             title="ACE prompt input — %model alias-only menu",
+        )
+
+
+async def test_model_completion_provider_scoped_menu_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await _mount_prompt_bar(page, "%model:claude/")
+
+        bar.show_file_completions(
+            "claude/",
+            _SCOPED_CLAUDE_ROWS,
+            selected_index=0,
+            completion_kind="directive_arg",
+        )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="provider-scoped model completion visibility",
+        )
+        await wait_for_svg_contains(page, "claude/sonnet")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_completion_provider_scoped_120x40",
+            title="ACE prompt input — provider-scoped %model values",
         )

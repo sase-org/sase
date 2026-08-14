@@ -11,6 +11,9 @@ from sase.ace.tui.widgets.directive_completion import (
     build_agent_arg_completion_candidates,
     build_directive_arg_completion_candidates,
 )
+from sase.ace.tui.widgets._directive_completion_tokens import (
+    extract_directive_arg_token_around_cursor,
+)
 from sase.xprompt._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
@@ -22,6 +25,7 @@ from ._directive_completion_helpers import (
     directive_arg_metadata,
     model_metadata,
     model_entries,
+    model_entries_with_providers,
 )
 
 
@@ -251,6 +255,100 @@ def test_directive_arg_completion_filters_model_candidates_by_short_alias() -> N
     assert shared == ""
 
 
+def test_directive_arg_completion_filters_provider_scoped_models() -> None:
+    with patch(MODEL_CATALOG_PATCH, return_value=model_entries_with_providers()):
+        m_candidates, m_shared = build_directive_arg_completion_candidates(
+            "m", "claude/"
+        )
+        model_candidates, model_shared = build_directive_arg_completion_candidates(
+            "model", "claude/"
+        )
+
+    assert [candidate.insertion for candidate in m_candidates] == [
+        "claude/claude-fable-5"
+    ]
+    assert [candidate.insertion for candidate in model_candidates] == [
+        "claude/claude-fable-5"
+    ]
+    assert m_shared == ""
+    assert model_shared == ""
+
+
+def test_directive_arg_completion_filters_provider_scope_in_paren_forms() -> None:
+    lines = [
+        "%model(claude/)",
+        "%model(opus, alias=claude/)",
+    ]
+
+    with patch(MODEL_CATALOG_PATCH, return_value=model_entries_with_providers()):
+        insertions = []
+        for line in lines:
+            token = extract_directive_arg_token_around_cursor(line, line.index(")"))
+            assert token is not None
+            _start, _end, directive_name, partial = token
+            candidates, shared = build_directive_arg_completion_candidates(
+                directive_name, partial
+            )
+            insertions.append([candidate.insertion for candidate in candidates])
+            assert shared == ""
+
+    assert insertions == [
+        ["claude/claude-fable-5"],
+        ["claude/claude-fable-5"],
+    ]
+
+
+def test_directive_arg_completion_marks_provider_candidates_as_directories() -> None:
+    with patch(MODEL_CATALOG_PATCH, return_value=model_entries_with_providers()):
+        candidates, shared = build_directive_arg_completion_candidates("model", "cl")
+
+    provider = next(
+        candidate for candidate in candidates if candidate.insertion == "claude/"
+    )
+    assert provider.is_dir is True
+    metadata = model_metadata(provider)
+    assert metadata.kind == "provider"
+    assert metadata.provider_display == "Claude"
+    assert metadata.provider_model_count == 1
+    assert shared == "aude"
+
+
+def test_provider_scoped_model_completion_has_no_shared_extension() -> None:
+    catalog = [
+        _ModelCompletionEntry(
+            value="opus",
+            display="opus",
+            description="Claude",
+            provider="claude",
+        ),
+        _ModelCompletionEntry(
+            value="sonnet",
+            display="sonnet",
+            description="Claude",
+            provider="claude",
+        ),
+        _ModelCompletionEntry(
+            value="claude/",
+            display="claude/",
+            description="Claude",
+            kind="provider",
+            provider="claude",
+            provider_model_count=2,
+        ),
+    ]
+
+    with patch(MODEL_CATALOG_PATCH, return_value=catalog):
+        candidates, shared = build_directive_arg_completion_candidates(
+            "model", "claude/"
+        )
+
+    assert [candidate.insertion for candidate in candidates] == [
+        "claude/opus",
+        "claude/sonnet",
+    ]
+    assert shared == ""
+
+
 def test_directive_arg_completion_filters_leading_at_to_model_aliases() -> None:
     catalog = [
         *model_entries(),
@@ -269,6 +367,18 @@ def test_directive_arg_completion_filters_leading_at_to_model_aliases() -> None:
 
     assert [candidate.insertion for candidate in candidates] == ["@default"]
     assert all(candidate.insertion.startswith("@") for candidate in candidates)
+    assert shared == ""
+
+
+def test_qualified_model_at_suffix_routes_to_effort_completion() -> None:
+    line = "%m:claude/opus@"
+    token = extract_directive_arg_token_around_cursor(line, len(line))
+
+    assert token == (len("%m:claude/opus@"), len(line), "effort", "")
+    candidates, shared = build_directive_arg_completion_candidates("effort", "")
+    assert [candidate.insertion for candidate in candidates] == list(
+        EFFORT_LEVELS_ORDERED
+    )
     assert shared == ""
 
 

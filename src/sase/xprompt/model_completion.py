@@ -92,6 +92,7 @@ class _ModelCompletionEntry:
     bucket: str = ""
     advisory_label: str = ""
     advisory_severity: str = ""
+    provider_model_count: int = 0
 
 
 _CatalogCache = tuple[tuple[object, ...], tuple[_ModelCompletionEntry, ...]]
@@ -155,6 +156,7 @@ def model_completion_catalog_payload() -> dict[str, object]:
                 "bucket": entry.bucket,
                 "advisory_label": entry.advisory_label,
                 "advisory_severity": entry.advisory_severity,
+                "provider_model_count": entry.provider_model_count,
             }
             for entry in build_model_completion_catalog(overrides={})
         ],
@@ -185,6 +187,18 @@ def filter_model_completion_entries(
                     f"@{alias.lstrip('@')}".lower().startswith(needle)
                     for alias in entry.aliases
                 )
+            )
+        ]
+    if scope := _provider_scope(entries, needle):
+        provider, remainder = scope
+        return [
+            _qualified_entry(entry, provider)
+            for entry in entries
+            if entry.kind == "model"
+            and entry.provider.casefold() == provider.casefold()
+            and (
+                entry.value.lower().startswith(remainder)
+                or any(alias.lower().startswith(remainder) for alias in entry.aliases)
             )
         ]
     return [
@@ -248,6 +262,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
 
     entries: list[_ModelCompletionEntry] = []
     seen: set[str] = set()
+    contributing_providers: dict[str, tuple[str, int]] = {}
     for provider in provider_order:
         provider_metadata = _dict(providers.get(provider))
         known_models = _str_list(provider_metadata.get("known_model_names"))
@@ -255,7 +270,7 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
         for model in known_models:
             if model_to_provider.get(model) != provider:
                 continue
-            _append_model_entry(
+            if _append_model_entry(
                 entries,
                 seen,
                 model=model,
@@ -263,7 +278,9 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
                 provider_display=provider_display,
                 short_alias=short_aliases.get(model, ""),
                 advisory=advisories.get(model, ("", "")),
-            )
+            ):
+                _, count = contributing_providers.get(provider, (provider_display, 0))
+                contributing_providers[provider] = (provider_display, count + 1)
 
     # Include any model_to_provider entries missing from provider metadata so
     # the catalog follows the actual resolution map even if plugin metadata is
@@ -272,15 +289,18 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
         if model in seen or provider in hidden_providers:
             continue
         provider_metadata = _dict(providers.get(provider))
-        _append_model_entry(
+        provider_display = _provider_display(provider, provider_metadata)
+        if _append_model_entry(
             entries,
             seen,
             model=model,
             provider=provider,
-            provider_display=_provider_display(provider, provider_metadata),
+            provider_display=provider_display,
             short_alias=short_aliases.get(model, ""),
             advisory=advisories.get(model, ("", "")),
-        )
+        ):
+            _, count = contributing_providers.get(provider, (provider_display, 0))
+            contributing_providers[provider] = (provider_display, count + 1)
 
     user_aliases = get_model_aliases()
     _append_implicit_alias_entries(
@@ -301,7 +321,60 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
             kind="user_alias",
         )
 
+    provider_row_order = [
+        *provider_order,
+        *sorted(
+            provider
+            for provider in contributing_providers
+            if provider not in provider_order
+        ),
+    ]
+    for provider in provider_row_order:
+        provider_contribution = contributing_providers.get(provider)
+        if provider_contribution is None:
+            continue
+        provider_display, model_count = provider_contribution
+        _append_provider_entry(
+            entries,
+            seen,
+            provider=provider,
+            provider_display=provider_display,
+            model_count=model_count,
+        )
+
     return entries
+
+
+def _provider_scope(
+    entries: list[_ModelCompletionEntry],
+    needle: str,
+) -> tuple[str, str] | None:
+    head, separator, remainder = needle.partition("/")
+    if not separator or not head:
+        return None
+    provider_entry = next(
+        (
+            entry
+            for entry in entries
+            if entry.kind == "provider" and entry.value.casefold() == f"{head}/"
+        ),
+        None,
+    )
+    if provider_entry is None:
+        return None
+    return provider_entry.provider or head, remainder
+
+
+def _qualified_entry(
+    entry: _ModelCompletionEntry,
+    provider: str,
+) -> _ModelCompletionEntry:
+    prefix = f"{provider}/"
+    return replace(
+        entry,
+        value=f"{prefix}{entry.value}",
+        display=f"{prefix}{entry.display}",
+    )
 
 
 def _append_implicit_alias_entries(
@@ -339,9 +412,9 @@ def _append_model_entry(
     provider_display: str,
     short_alias: str,
     advisory: tuple[str, str] = ("", ""),
-) -> None:
+) -> bool:
     if model in seen or not _is_inline_completable(model):
-        return
+        return False
     aliases = (short_alias,) if short_alias else ()
     description = provider_display
     if short_alias:
@@ -365,6 +438,31 @@ def _append_model_entry(
         )
     )
     seen.add(model)
+    return True
+
+
+def _append_provider_entry(
+    entries: list[_ModelCompletionEntry],
+    seen: set[str],
+    *,
+    provider: str,
+    provider_display: str,
+    model_count: int,
+) -> None:
+    value = f"{provider}/"
+    if value in seen or not _is_inline_completable(value):
+        return
+    entries.append(
+        _ModelCompletionEntry(
+            value=value,
+            display=value,
+            description=provider_display,
+            kind="provider",
+            provider=provider,
+            provider_model_count=model_count,
+        )
+    )
+    seen.add(value)
 
 
 def _advisory_labels(value: object) -> dict[str, tuple[str, str]]:

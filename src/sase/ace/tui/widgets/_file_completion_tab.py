@@ -61,6 +61,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         def _try_vcs_ref_completion(self, *, force: bool = False) -> bool: ...
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
         def _try_artifact_ref_completion_tab(self) -> bool: ...
+        def _try_auto_directive_arg_completion(self) -> bool: ...
         def _try_file_history_completion(self) -> bool: ...
 
     def _try_file_completion_tab(self) -> bool:
@@ -165,6 +166,13 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             )
             if not used_xprompt_skeleton:
                 self._replace_token_text(row, start, end, selected.insertion)
+            if selected.is_dir and accepted_kind == "directive_arg":
+                self._file_completion_active = False
+                self._file_completion_candidates = []
+                self._file_completion_index = 0
+                if not self._try_auto_directive_arg_completion():
+                    self._clear_file_completion(clear_xprompt_arg_hint=False)
+                return True
             self._clear_file_completion(clear_xprompt_arg_hint=False)
             if accepted_kind == "xprompt":
                 if used_xprompt_skeleton:

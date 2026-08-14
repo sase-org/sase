@@ -9,6 +9,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_model_completion_row,
     model_completion_column_widths,
 )
+from sase.ace.tui.provider_styles import provider_name_style
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
@@ -31,6 +32,7 @@ def _candidate(
     pool_total: int = 0,
     description: str = "",
     config_source: str = "",
+    provider_model_count: int = 0,
 ) -> CompletionCandidate:
     return CompletionCandidate(
         display=value,
@@ -54,6 +56,7 @@ def _candidate(
             pool_total=pool_total,
             description=description,
             config_source=config_source,
+            provider_model_count=provider_model_count,
         ),
     )
 
@@ -92,6 +95,32 @@ def test_model_completion_row_uses_model_columns_and_styles() -> None:
     assert text.plain.split() == ["claude-fable-5", "model", "Claude", "fable"]
     assert text.spans[0].start == 0
     assert "bold magenta" in str(text.spans[0].style).lower()
+
+
+def test_provider_completion_row_uses_model_grid_and_provider_style() -> None:
+    candidate = _candidate(
+        "claude/",
+        kind="provider",
+        alias_kind="",
+        provider="claude",
+        provider_display="Claude",
+        target_provider="",
+        target_model="",
+        provenance="",
+        description="Claude",
+        provider_model_count=2,
+    )
+
+    text = _render(candidate, selected=True)
+    widths = model_completion_column_widths([candidate])
+
+    assert "claude/" in text.plain
+    assert "models" in text.plain
+    assert "Claude (2 models)" in text.plain
+    assert len("models") <= 7
+    assert widths[1] == Text("Claude (2 models)").cell_len
+    provider_color = provider_name_style("claude").split()[-1].lower()
+    assert provider_color in str(text.spans[0].style).lower()
 
 
 @pytest.mark.parametrize(
