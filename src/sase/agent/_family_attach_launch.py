@@ -65,28 +65,76 @@ def prepare_family_attach_launch(
         context_updates["deferred_workspace"] = True
         context_updates["use_preallocated_workspace"] = False
         if plan.parent_workspace_dir:
-            context_updates["workspace_dir"] = plan.parent_workspace_dir
-            env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_DIR"] = plan.parent_workspace_dir
-        if plan.parent_workspace_num is not None and plan.parent_workspace_num > 0:
-            context_updates["workspace_num"] = plan.parent_workspace_num
-            env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] = str(
-                plan.parent_workspace_num
+            workspace_dir, workspace_num = _resolve_family_attach_workspace_pair(
+                context.project_name,
+                plan.parent_workspace_dir,
+                plan.parent_workspace_num,
             )
-    elif (
-        plan.parent_workspace_dir
-        and plan.parent_workspace_num is not None
-        and plan.parent_workspace_num > 0
-        and not context.is_home_mode
-    ):
+            context_updates["workspace_dir"] = workspace_dir
+            env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_DIR"] = workspace_dir
+            if workspace_num > 0:
+                context_updates["workspace_num"] = workspace_num
+                env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] = str(workspace_num)
+    elif plan.parent_workspace_dir and not context.is_home_mode:
+        workspace_dir, workspace_num = _resolve_family_attach_workspace_pair(
+            context.project_name,
+            plan.parent_workspace_dir,
+            plan.parent_workspace_num,
+        )
         context_updates.update(
-            workspace_dir=plan.parent_workspace_dir,
-            workspace_num=plan.parent_workspace_num,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
             use_preallocated_workspace=True,
             deferred_workspace=False,
         )
     if context_updates:
         context = replace(context, **context_updates)
     return context, env
+
+
+def _resolve_family_attach_workspace_pair(
+    project_name: str,
+    workspace_dir: str,
+    workspace_num: int | None,
+) -> tuple[str, int]:
+    """Repair a family-attach ``(workspace_dir, workspace_num)`` pair.
+
+    Enforces the corollary that ``workspace_num == 0`` may only ever be
+    paired with the primary checkout (Phase `followup` of plan
+    ``202608/workspace_claim_invariant.md``): a numbered directory arriving
+    with a missing or zero number is repaired through the workspace
+    registry. Raises ``FamilyAttachError`` when the pair cannot be made
+    self-consistent, rather than silently launching an unclaimed occupant
+    of a numbered checkout.
+    """
+    if workspace_num:
+        return workspace_dir, workspace_num
+
+    from sase.running_field import get_workspace_directory_for_num
+    from sase.workspace_provider import resolve_consistent_workspace_pair
+
+    try:
+        primary_workspace_dir, _ = get_workspace_directory_for_num(
+            0, project_name, clean=False
+        )
+    except (RuntimeError, OSError, ValueError) as exc:
+        raise _types.FamilyAttachError(
+            f"Family attach plan named workspace directory {workspace_dir!r} with no "
+            "workspace number, and the primary checkout could not be resolved to "
+            f"repair it: {exc}"
+        ) from exc
+
+    resolved = resolve_consistent_workspace_pair(
+        primary_workspace_dir, workspace_dir, workspace_num
+    )
+    if resolved is None:
+        raise _types.FamilyAttachError(
+            f"Family attach plan named workspace directory {workspace_dir!r} with no "
+            "workspace number, and the workspace registry does not recognize it as "
+            "a managed checkout. Refusing to launch into a numbered workspace "
+            "directory without a claim."
+        )
+    return resolved
 
 
 def load_family_attach_plan_from_env(

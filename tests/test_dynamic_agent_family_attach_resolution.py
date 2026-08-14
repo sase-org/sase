@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
+
 import pytest
 
 from sase.agent.family_attach import (
@@ -259,6 +261,116 @@ def test_family_attach_resolves_in_batch_parent_without_artifact_meta(
     assert plan.parent_workspace_dir == "/tmp/sase_8"
     assert plan.parent_workspace_num == 8
     assert plan.agent_name == "foo--reviewer"
+
+
+def test_family_attach_launch_repairs_a_numbered_directory_missing_its_number(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The parent's own meta can still record a numbered ``workspace_dir``
+    with no ``workspace_num`` (the monitor-claim defect this epic tracks
+    separately); the launch must repair the pair via the registry lookup
+    rather than leaving the child paired with workspace ``0``."""
+    _patch_attach_snapshot(
+        monkeypatch,
+        [_artifact_record(name="foo", workspace_dir="/tmp/sase_9", workspace_num=None)],
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/tmp/sase_primary", None),
+        ),
+        patch(
+            "sase.workspace_provider.resolve_consistent_workspace_pair",
+            return_value=("/tmp/sase_9", 9),
+        ),
+    ):
+        context, _ = prepare_family_attach_launch(
+            "%i(reviewer, family=foo)\nReview",
+            LaunchExecutionContext(
+                cl_name="launcher",
+                project_file="/tmp/sase.sase",
+                project_name="sase",
+            ),
+            {},
+        )
+
+    assert context.workspace_dir == "/tmp/sase_9"
+    assert context.workspace_num == 9
+
+
+def test_family_attach_launch_repairs_a_deferred_running_parent_pairing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(
+        monkeypatch,
+        [
+            _artifact_record(
+                name="foo",
+                workspace_dir="/tmp/sase_9",
+                workspace_num=None,
+                has_done_marker=False,
+            )
+        ],
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/tmp/sase_primary", None),
+        ),
+        patch(
+            "sase.workspace_provider.resolve_consistent_workspace_pair",
+            return_value=("/tmp/sase_9", 9),
+        ),
+    ):
+        context, env = prepare_family_attach_launch(
+            "%i(reviewer, family=foo)\nReview",
+            LaunchExecutionContext(
+                cl_name="launcher",
+                project_file="/tmp/sase.sase",
+                project_name="sase",
+            ),
+            {},
+        )
+
+    assert context.deferred_workspace is True
+    assert context.use_preallocated_workspace is False
+    assert context.workspace_dir == "/tmp/sase_9"
+    assert context.workspace_num == 9
+    assert env is not None
+    assert env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_DIR"] == "/tmp/sase_9"
+    assert env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] == "9"
+
+
+def test_family_attach_launch_fails_loudly_when_pairing_is_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(
+        monkeypatch,
+        [_artifact_record(name="foo", workspace_dir="/tmp/sase_9", workspace_num=None)],
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory_for_num",
+            return_value=("/tmp/sase_primary", None),
+        ),
+        patch(
+            "sase.workspace_provider.resolve_consistent_workspace_pair",
+            return_value=None,
+        ),
+        pytest.raises(FamilyAttachError, match="Refusing to launch"),
+    ):
+        prepare_family_attach_launch(
+            "%i(reviewer, family=foo)\nReview",
+            LaunchExecutionContext(
+                cl_name="launcher",
+                project_file="/tmp/sase.sase",
+                project_name="sase",
+            ),
+            {},
+        )
 
 
 def test_family_attach_prefers_in_batch_parent_over_older_persisted_parent(

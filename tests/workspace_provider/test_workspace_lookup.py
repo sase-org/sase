@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from sase.workspace_provider.lookup import resolve_workspace_num_for_dir
+from sase.workspace_provider.lookup import (
+    resolve_consistent_workspace_pair,
+    resolve_workspace_num_for_dir,
+)
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import WorkspaceStore
 
@@ -103,3 +106,81 @@ class TestResolveWorkspaceNumForDir:
     def test_empty_directory_returns_none(self, tmp_path: Path) -> None:
         store = _make_store(tmp_path)
         assert _resolve(store, "", tmp_path=tmp_path) is None
+
+
+class TestResolveConsistentWorkspacePair:
+    def test_truthy_number_is_returned_unchanged(self, tmp_path: Path) -> None:
+        store = _make_store(tmp_path)
+
+        assert resolve_consistent_workspace_pair(
+            store.primary_workspace_dir,
+            "/some/unregistered/dir",
+            7,
+            config=_config(tmp_path),
+            env={},
+        ) == ("/some/unregistered/dir", 7)
+
+    def test_falsy_number_with_primary_dir_is_consistent(self, tmp_path: Path) -> None:
+        store = _make_store(tmp_path)
+
+        assert resolve_consistent_workspace_pair(
+            store.primary_workspace_dir,
+            store.primary_workspace_dir,
+            0,
+            config=_config(tmp_path),
+            env={},
+        ) == (store.primary_workspace_dir, 0)
+        assert resolve_consistent_workspace_pair(
+            store.primary_workspace_dir,
+            store.primary_workspace_dir,
+            None,
+            config=_config(tmp_path),
+            env={},
+        ) == (store.primary_workspace_dir, 0)
+
+    def test_falsy_number_with_registered_dir_is_repaired(self, tmp_path: Path) -> None:
+        store = _make_store(tmp_path)
+        workspace_path = store.resolve(15)
+        Path(workspace_path.checkout_dir).mkdir(parents=True)
+        record_workspace(store, workspace_path)
+
+        assert resolve_consistent_workspace_pair(
+            store.primary_workspace_dir,
+            workspace_path.checkout_dir,
+            0,
+            config=_config(tmp_path),
+            env={},
+        ) == (workspace_path.checkout_dir, 15)
+
+    def test_falsy_number_with_unregistered_dir_is_unresolvable(
+        self, tmp_path: Path
+    ) -> None:
+        store = _make_store(tmp_path)
+        workspace_path = store.resolve(16)
+        Path(workspace_path.checkout_dir).mkdir(parents=True)
+        # Deliberately not recorded in the registry.
+
+        assert (
+            resolve_consistent_workspace_pair(
+                store.primary_workspace_dir,
+                workspace_path.checkout_dir,
+                None,
+                config=_config(tmp_path),
+                env={},
+            )
+            is None
+        )
+
+    def test_falsy_number_with_empty_dir_is_unresolvable(self, tmp_path: Path) -> None:
+        store = _make_store(tmp_path)
+
+        assert (
+            resolve_consistent_workspace_pair(
+                store.primary_workspace_dir,
+                "",
+                0,
+                config=_config(tmp_path),
+                env={},
+            )
+            is None
+        )

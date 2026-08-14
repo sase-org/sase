@@ -36,6 +36,7 @@ from sase.running_field import (
     get_workspace_directory_for_num,
 )
 from sase.workflows.utils import get_project_file_path
+from sase.workspace_provider import resolve_consistent_workspace_pair
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
 from .logs import monitor_log_path
@@ -119,9 +120,39 @@ def launch_followup_agent(
         "model": _clean_str(meta.get("model")),
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
     }
+    raw_workspace_num = meta.get("workspace_num")
+    raw_workspace_dir = str(meta.get("workspace_dir") or "")
+    initial_degraded_reason: str | None = None
+    if isinstance(raw_workspace_num, int) and raw_workspace_num:
+        original_workspace_dir = raw_workspace_dir
+        original_workspace_num = raw_workspace_num
+    else:
+        # Defensive default matching pre-repair behavior, in case resolving the
+        # primary workspace directory itself fails below.
+        original_workspace_dir = raw_workspace_dir
+        original_workspace_num = 0
+        try:
+            primary_workspace_dir: str | None = _workspace_dir_for_num(project_name, 0)
+        except (RuntimeError, OSError, ValueError):
+            primary_workspace_dir = None
+        if primary_workspace_dir is not None:
+            resolved_pair = resolve_consistent_workspace_pair(
+                primary_workspace_dir,
+                raw_workspace_dir,
+                None,
+            )
+            if resolved_pair is None:
+                original_workspace_dir = primary_workspace_dir
+                initial_degraded_reason = _meta_pairing_degraded_reason(
+                    raw_workspace_dir,
+                    primary_workspace_dir,
+                )
+            else:
+                original_workspace_dir, original_workspace_num = resolved_pair
+
     prompt = compose_followup_prompt(
         **prompt_kwargs,
-        workspace_degraded_reason=None,
+        workspace_degraded_reason=initial_degraded_reason,
     )
 
     try:
@@ -132,8 +163,6 @@ def launch_followup_agent(
     except FamilyAttachError as exc:
         return _record_not_launchable(artifacts_dir, meta, str(exc), prompt)
 
-    original_workspace_num = int(meta.get("workspace_num") or 0)
-    original_workspace_dir = str(meta.get("workspace_dir") or "")
     transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid
     try:
         result = _spawn_followup(
@@ -158,6 +187,7 @@ def launch_followup_agent(
             artifacts_dir,
             meta,
             result.agent_name or plan.agent_name,
+            degraded_reason=initial_degraded_reason,
         )
 
     degraded_prompt = compose_followup_prompt(
@@ -182,9 +212,11 @@ def launch_followup_agent(
                 f"with degraded reason: {fresh_reason}"
             )
             return _record_not_launchable(artifacts_dir, meta, error, degraded_prompt)
+        zero_workspace_dir = _workspace_dir_for_num(project_name, 0)
         zero_reason = _workspace_zero_degraded_reason(
             original_workspace_num,
             claim_exc,
+            zero_workspace_dir,
         )
         zero_prompt = compose_followup_prompt(
             **prompt_kwargs,
@@ -197,7 +229,7 @@ def launch_followup_agent(
                 starter_role=starter_role,
                 project_name=project_name,
                 prompt=zero_prompt,
-                workspace_dir=_workspace_dir_for_num(project_name, 0),
+                workspace_dir=zero_workspace_dir,
                 workspace_num=0,
                 transfer_from_pid=None,
             )
@@ -333,13 +365,29 @@ def _fresh_claim_degraded_reason(
 def _workspace_zero_degraded_reason(
     workspace_num: int,
     error: BaseException,
+    workspace_dir: str,
 ) -> str:
     return (
         f"The monitor workspace claim transfer failed, and workspace #{workspace_num} "
         f"could not be freshly claimed because it is already claimed: {error}. "
-        "The follow-up was launched in workspace #0 instead. Do not assume the "
-        "monitored command's workspace files are present; use the monitor artifacts "
-        "and log paths in this prompt."
+        f"The follow-up was launched in workspace #0 ({workspace_dir}) instead. Do not "
+        "assume the monitored command's workspace files are present; use the monitor "
+        "artifacts and log paths in this prompt."
+    )
+
+
+def _meta_pairing_degraded_reason(
+    original_workspace_dir: str,
+    primary_workspace_dir: str,
+) -> str:
+    return (
+        "The monitor member's own metadata did not record a claimed workspace "
+        f"number for its directory ({original_workspace_dir or '<empty>'}), and that "
+        "directory is not a checkout the workspace registry recognizes, so it could "
+        f"not be repaired. The follow-up was launched in workspace #0 "
+        f"({primary_workspace_dir}) instead. Do not assume the monitored command's "
+        "workspace files are present; use the monitor artifacts and log paths in "
+        "this prompt."
     )
 
 

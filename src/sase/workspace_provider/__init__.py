@@ -24,7 +24,7 @@ from ._hookspec import (
     hookspec,
 )
 from ._plugin_manager import WorkspacePluginManager
-from .lookup import resolve_workspace_num_for_dir
+from .lookup import resolve_consistent_workspace_pair, resolve_workspace_num_for_dir
 from .marker import (
     CheckoutMarker,
     find_marker_from_cwd,
@@ -126,6 +126,7 @@ __all__ = [
     "record_workspace",
     "remove_workspace",
     "reset_workflow_metadata_caches",
+    "resolve_consistent_workspace_pair",
     "resolve_ref",
     "resolve_workspace_num_for_dir",
     "save_registry",

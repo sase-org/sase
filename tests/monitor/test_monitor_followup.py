@@ -197,6 +197,110 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     assert on_disk["monitor_followup_agent"] == "acme--1"
 
 
+def test_launch_followup_agent_repairs_a_meta_workspace_num_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """meta["workspace_num"] can still read ``0`` while the monitor's cwd is a
+    numbered directory (the monitor-claim defect this epic tracks separately);
+    the follow-up must repair the pair via the registry lookup instead of
+    defaulting to ``0`` and squatting in the numbered directory unclaimed."""
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["workspace_num"] = 0
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+    monkeypatch.setattr(
+        followup_module,
+        "_workspace_dir_for_num",
+        lambda project_name, workspace_num: str(tmp_path / "primary"),
+    )
+    monkeypatch.setattr(
+        followup_module,
+        "resolve_consistent_workspace_pair",
+        lambda primary_dir, workspace_dir, workspace_num: (workspace_dir, 3),
+    )
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is None
+    # Repaired to the real number the directory maps to -- never 0 paired
+    # with the numbered directory.
+    assert captured["workspace_dir"] == str(tmp_path)
+    assert captured["workspace_num"] == 3
+
+
+def test_launch_followup_agent_falls_back_to_primary_when_meta_pairing_is_unresolvable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["workspace_num"] = 0
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    primary = tmp_path / "primary"
+    primary.mkdir()
+
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result(workspace_num=0, workspace_dir=str(primary))
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+    monkeypatch.setattr(
+        followup_module,
+        "_workspace_dir_for_num",
+        lambda project_name, workspace_num: str(primary),
+    )
+    monkeypatch.setattr(
+        followup_module,
+        "resolve_consistent_workspace_pair",
+        lambda primary_dir, workspace_dir, workspace_num: None,
+    )
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is not None
+    assert "workspace #0" in result.degraded_reason
+    assert str(primary) in result.degraded_reason
+    # Never squats in the numbered directory with a 0 claim: both the spawn
+    # call and the prompt name the primary checkout.
+    assert captured["workspace_dir"] == str(primary)
+    assert captured["workspace_num"] == 0
+    assert "## Follow-up workspace" in captured["prompt"]
+    assert str(primary) in captured["prompt"]
+
+
 def test_launch_followup_agent_falls_back_to_fresh_claim_after_transfer_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

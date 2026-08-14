@@ -70,6 +70,48 @@ def resolve_workspace_num_for_dir(
     return None
 
 
+def resolve_consistent_workspace_pair(
+    primary_workspace_dir: str,
+    workspace_dir: str,
+    workspace_num: int | None,
+    *,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> tuple[str, int] | None:
+    """Repair a ``(workspace_dir, workspace_num)`` pair against the corollary
+    that ``workspace_num == 0`` may only ever be paired with the primary
+    checkout directory (see Phase `followup` of plan
+    ``202608/workspace_claim_invariant.md``). Pairing ``0`` with a numbered
+    checkout is a bug, never a degradation.
+
+    A truthy *workspace_num* is returned unchanged alongside *workspace_dir*
+    -- a caller that already has an authoritative number needs no repair.
+    A falsy *workspace_num* (``0`` or ``None``) is self-consistent only when
+    *workspace_dir* is the primary checkout; otherwise *workspace_dir* is
+    looked up in the project's workspace registry to recover its real
+    number. Returns ``None`` when the pair cannot be made self-consistent
+    -- *workspace_dir* is empty, or names a checkout the registry does not
+    recognize -- leaving the decision of how to handle an unresolvable pair
+    to the caller.
+    """
+    if workspace_num:
+        return workspace_dir, workspace_num
+    if not workspace_dir:
+        return None
+    if _normalize_checkout_path(workspace_dir) == _normalize_checkout_path(
+        primary_workspace_dir
+    ):
+        return workspace_dir, PRIMARY_WORKSPACE_NUM
+
+    resolved = resolve_workspace_num_for_dir(
+        primary_workspace_dir, workspace_dir, config=config, env=env
+    )
+    if resolved:
+        return workspace_dir, resolved
+    return None
+
+
 __all__ = [
+    "resolve_consistent_workspace_pair",
     "resolve_workspace_num_for_dir",
 ]
