@@ -9,6 +9,7 @@ from typing import Any, Final
 from sase.core.wire import known_field_kwargs
 
 PROC_WIRE_SCHEMA_VERSION: Final = 2
+SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, PROC_WIRE_SCHEMA_VERSION})
 
 ACTIVE_PROC_STATUSES: Final = frozenset({"pending", "running"})
 TERMINAL_PROC_STATUSES: Final = frozenset({"success", "error", "killed"})
@@ -53,7 +54,9 @@ class Proc:
     def from_dict(cls, data: Mapping[str, Any]) -> Proc:
         """Rehydrate a proc while ignoring additive wire fields."""
         values = known_field_kwargs(cls, data)
-        values["proc_id"] = str(data["proc_id"])
+        values["proc_id"] = str(
+            data["proc_id"] if "proc_id" in data else data["task_id"]
+        )
         values["label"] = str(data["label"])
         values["kind"] = str(data["kind"])
         values["status"] = str(data["status"])
@@ -140,9 +143,12 @@ class ProcStoreSnapshot:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcStoreSnapshot:
         _require_schema(data)
+        raw_procs = data.get("procs")
+        if raw_procs is None:
+            raw_procs = data.get("tasks")
         return cls(
             schema_version=int(data["schema_version"]),
-            procs=[Proc.from_dict(item) for item in data.get("procs") or []],
+            procs=[Proc.from_dict(item) for item in raw_procs or []],
             stats=ProcStoreStats.from_dict(data.get("stats") or {}),
         )
 
@@ -159,7 +165,15 @@ class ProcAppendOutcome:
         return cls(
             schema_version=int(data["schema_version"]),
             snapshot=ProcStoreSnapshot.from_dict(data["snapshot"]),
-            pruned_proc_ids=[str(item) for item in data.get("pruned_proc_ids") or []],
+            pruned_proc_ids=[
+                str(item)
+                for item in (
+                    data.get("pruned_proc_ids")
+                    if data.get("pruned_proc_ids") is not None
+                    else data.get("pruned_task_ids")
+                )
+                or []
+            ],
         )
 
 
@@ -223,7 +237,7 @@ class ProcUpdateOutcome:
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcUpdateOutcome:
         _require_schema(data)
-        raw_proc = data.get("proc")
+        raw_proc = data.get("proc") if "proc" in data else data.get("task")
         return cls(
             schema_version=int(data["schema_version"]),
             proc=(Proc.from_dict(raw_proc) if isinstance(raw_proc, Mapping) else None),
@@ -243,16 +257,24 @@ class ProcPruneOutcome:
         return cls(
             schema_version=int(data["schema_version"]),
             snapshot=ProcStoreSnapshot.from_dict(data["snapshot"]),
-            pruned_proc_ids=[str(item) for item in data.get("pruned_proc_ids") or []],
+            pruned_proc_ids=[
+                str(item)
+                for item in (
+                    data.get("pruned_proc_ids")
+                    if data.get("pruned_proc_ids") is not None
+                    else data.get("pruned_task_ids")
+                )
+                or []
+            ],
         )
 
 
 def _require_schema(data: Mapping[str, Any]) -> None:
     schema = int(data["schema_version"])
-    if schema != PROC_WIRE_SCHEMA_VERSION:
+    if schema not in SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS:
         raise ValueError(
             f"proc wire schema mismatch: got {schema}, "
-            f"expected {PROC_WIRE_SCHEMA_VERSION}"
+            f"expected one of {sorted(SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS)}"
         )
 
 
@@ -262,6 +284,7 @@ __all__ = [
     "DETACHED_PROC_KIND",
     "PROC_KINDS",
     "PROC_WIRE_SCHEMA_VERSION",
+    "SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS",
     "TERMINAL_PROC_STATUSES",
     "TUI_PROC_KIND",
     "UNSET",

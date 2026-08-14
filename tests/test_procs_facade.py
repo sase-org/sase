@@ -18,8 +18,12 @@ from sase.procs import (
     PROC_WIRE_SCHEMA_VERSION,
     TUI_PROC_KIND,
     Proc,
+    ProcAppendOutcome,
+    ProcPruneOutcome,
     ProcRefError,
+    ProcStoreSnapshot,
     ProcUpdate,
+    ProcUpdateOutcome,
     append_proc,
     delete_proc_logs,
     filter_procs,
@@ -76,6 +80,45 @@ def test_proc_wire_round_trip_ignores_unknown_fields() -> None:
 
     assert restored == proc
     assert restored.to_dict()["project"] == "sase"
+
+
+def test_legacy_task_wire_payloads_parse_as_proc_models() -> None:
+    proc = _proc("0123456789ab")
+    task_payload = proc.to_dict()
+    task_payload["task_id"] = task_payload.pop("proc_id")
+    snapshot_payload = {
+        "schema_version": 1,
+        "tasks": [task_payload],
+        "stats": {},
+    }
+
+    snapshot = ProcStoreSnapshot.from_dict(snapshot_payload)
+    appended = ProcAppendOutcome.from_dict(
+        {
+            "schema_version": 1,
+            "snapshot": snapshot_payload,
+            "pruned_task_ids": ["old-task"],
+        }
+    )
+    updated = ProcUpdateOutcome.from_dict(
+        {
+            "schema_version": 1,
+            "task": task_payload,
+            "matched": True,
+        }
+    )
+    pruned = ProcPruneOutcome.from_dict(
+        {
+            "schema_version": 1,
+            "snapshot": snapshot_payload,
+            "pruned_task_ids": ["old-task"],
+        }
+    )
+
+    assert snapshot.procs == [proc]
+    assert appended.pruned_proc_ids == ["old-task"]
+    assert updated.proc == proc
+    assert pruned.pruned_proc_ids == ["old-task"]
 
 
 def test_proc_update_distinguishes_omitted_from_explicit_null() -> None:
