@@ -23,6 +23,20 @@ from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
 def init_git_repo(path: Path) -> None:
     path.mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=path,
+        check=True,
+    )
+    (path / "README.md").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=path, check=True)
+
+
+def commit_all(repo: Path, message: str = "finalize dirty work") -> None:
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", message], cwd=repo, check=True)
 
 
 def init_bare_remote(path: Path) -> Path:

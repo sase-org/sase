@@ -11,7 +11,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 import time
-from typing import Protocol
+from typing import Literal, Protocol
 
 from sase.workspace_provider.registry import (
     WorkspaceEntry,
@@ -321,6 +321,7 @@ def handle_open_clean(
         workspace_num,
         reason=reason,
         resolve_checkout=resolve_checkout,
+        preparation="runner",
     )
     if path is None:
         return 1
@@ -341,8 +342,9 @@ def prepare_opened_checkout(
     *,
     reason: str,
     resolve_checkout: _CheckoutResolver,
+    preparation: Literal["none", "runner"] = "runner",
 ) -> str | None:
-    """Materialize, prepare, and marker-record a repository checkout.
+    """Materialize and marker-record a repository checkout.
 
     Stdout is reserved for the prepared path printed by callers, so the
     preparation machinery's progress output is rerouted to stderr here.
@@ -372,18 +374,19 @@ def prepare_opened_checkout(
             print(str(exc), file=sys.stderr)
             return None
 
-        from sase.axe.runner_workspace import prepare_workspace
-        from sase.vcs_provider import VCS_DEFAULT_REVISION
+        if preparation == "runner":
+            from sase.axe.runner_workspace import prepare_workspace
+            from sase.vcs_provider import VCS_DEFAULT_REVISION
 
-        clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
-        if not prepare_workspace(
-            path,
-            clean_label,
-            VCS_DEFAULT_REVISION,
-            backup_suffix="workspace-open",
-            project_basename=ctx.project_name,
-        ):
-            return None
+            clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
+            if not prepare_workspace(
+                path,
+                clean_label,
+                VCS_DEFAULT_REVISION,
+                backup_suffix="workspace-open",
+                project_basename=ctx.project_name,
+            ):
+                return None
 
         if ctx.is_sibling or _is_configured_linked_repo(ctx.project_name):
             from sase.linked_repos import record_opened_linked_repo

@@ -165,14 +165,15 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
 
     open_parser = repo_sub.add_parser(
         "open",
-        help="Prepare a repository checkout and print its path",
+        help="Open a repository checkout without cleaning it and print its path",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Resolve a repository in three tiers: a primary, sidecar, or linked "
             "repository in the host project; another registered SASE project; "
             "or an external provider ref such as gh:owner/repo (owner/repo is "
-            "GitHub shorthand). Prepare it in one workspace context and print "
-            "only the prepared path. The workspace defaults to the checkout "
+            "GitHub shorthand). Materialize it in one workspace context without "
+            "cleaning, resetting, or synchronizing an existing checkout, then "
+            "print only the opened path. The workspace defaults to the checkout "
             "that contains the current directory."
         ),
         epilog=(

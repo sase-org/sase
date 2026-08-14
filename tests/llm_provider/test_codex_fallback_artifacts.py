@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -11,9 +11,12 @@ from sase.llm_provider._subprocess import stream_and_parse_codex_json_output
 from sase.llm_provider.codex import CodexProvider
 from tests.llm_provider._codex_fallback_helpers import (
     codex_tool_turn_events,
+    commit_all,
+    init_dirty_project,
     isolate_fallback_markers,
     set_sase_session,
     start_fixture_codex_process,
+    use_git_dirty_details,
 )
 
 
@@ -24,18 +27,12 @@ def test_codex_finalizer_parser_cycle_appends_tool_artifacts(
     """Commit finalizer turns append Codex tool rows to the same artifact."""
     isolate_fallback_markers(monkeypatch, tmp_path)
     set_sase_session(monkeypatch, "260511_130500")
+    project_dir = tmp_path / "project"
+    init_dirty_project(project_dir)
+    use_git_dirty_details(monkeypatch)
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
-    monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
-        MagicMock(
-            side_effect=[
-                (True, ["src/foo.py"], "commit", "details body"),
-                (False, [], "", ""),
-            ]
-        ),
-    )
 
     turns = [
         codex_tool_turn_events("primary_cmd", "primary reply"),
@@ -47,6 +44,8 @@ def test_codex_finalizer_parser_cycle_appends_tool_artifacts(
         args: list[str], prompt: str, suppress_output: bool
     ) -> tuple[str, str, int]:
         prompts.append(prompt)
+        if len(prompts) == 2:
+            commit_all(project_dir)
         process = start_fixture_codex_process(turns[len(prompts) - 1])
         return stream_and_parse_codex_json_output(process, suppress_output=True)
 

@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.llm_provider import commit_finalizer_git as finalizer_git
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
 from sase.llm_provider.types import InvokeResult
+from tests.llm_provider._codex_fallback_helpers import commit_all, init_dirty_project
 
 
 def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
@@ -30,7 +32,7 @@ def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
     clean_parent = tmp_path / "parent-clean"
     dirty_workspace = tmp_path / "child-dirty"
     clean_parent.mkdir()
-    dirty_workspace.mkdir()
+    init_dirty_project(dirty_workspace)
     monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(clean_parent))
     monkeypatch.setenv("CODEX_PROJECT_DIR", str(clean_parent))
 
@@ -95,22 +97,25 @@ def test_finalizer_inspects_spawn_workspace_when_parent_env_stale(
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260512_183950")
 
     inspected: dict[str, str] = {}
-    calls = 0
 
     def fake_build(project_dir: str) -> tuple[bool, list[str], str, str]:
-        nonlocal calls
-        calls += 1
         inspected["project_dir"] = project_dir
-        if calls == 1:
-            return (True, ["src/foo.py"], "commit", "details body")
-        return (False, [], "", "")
+        changed_files = finalizer_git.git_changed_files(project_dir)
+        if not changed_files:
+            return (False, [], "", "")
+        return (True, changed_files, "commit", "details body")
 
     monkeypatch.setattr(
         "sase.llm_provider.commit_finalizer.build_commit_details",
         fake_build,
     )
     provider = MagicMock()
-    provider.invoke.return_value = InvokeResult(content="follow-up")
+
+    def invoke(*_args: object, **_kwargs: object) -> InvokeResult:
+        commit_all(dirty_workspace)
+        return InvokeResult(content="follow-up")
+
+    provider.invoke.side_effect = invoke
 
     result = run_commit_finalizer(
         provider=provider,

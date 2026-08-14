@@ -12,6 +12,7 @@ from sase.llm_provider.types import InvokeResult
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
+    commit_all,
     init_git_repo,
     read_result_json,
     run_finalizer,
@@ -75,7 +76,7 @@ def test_new_linked_record_is_blocking(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(linked)
         return InvokeResult(content="finalized linked repo")
 
     provider.invoke.side_effect = invoke

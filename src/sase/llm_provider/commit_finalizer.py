@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 from sase.commit_instructions import build_commit_details
 from sase.core.commit_finalizer_prompt_artifacts import (
@@ -25,6 +26,8 @@ from .commit_finalizer_config import (
 from .commit_finalizer_git import (
     auto_commit_sdd_prompt_qa_candidate,
     auto_commit_done_sdd_plan_status,
+    discarded_dirty_work_evidence,
+    discarded_dirty_work_message,
     git_changed_files,
     progress_fingerprint,
     sdd_prompt_qa_auto_commit_candidates,
@@ -256,6 +259,7 @@ def run_commit_finalizer(
             follow_up_prompt,
         )
 
+        dirty_state_before_pass = dirty_state
         fingerprint_before = progress_fingerprint(dirty_state)
 
         follow_up = provider.invoke(
@@ -297,6 +301,20 @@ def run_commit_finalizer(
             artifact_root,
         )
         done_plan_auto_committed = done_auto_committed or done_plan_auto_committed
+
+        discarded = discarded_dirty_work_evidence(
+            dirty_state_before_pass,
+            dirty_state,
+            fingerprint_before=fingerprint_before,
+        )
+        if discarded:
+            _fail_on_discarded_dirty_work(
+                discarded,
+                artifact_root=artifact_root,
+                project_dir=project_dir,
+                passes=pass_number,
+                no_progress_passes=no_progress_passes,
+            )
 
         fingerprint_after = progress_fingerprint(dirty_state)
         previous_pass_stalled = fingerprint_after == fingerprint_before
@@ -507,6 +525,33 @@ def _fail_on_unpublished_bead_state(
         ),
     )
     raise _CommitFinalizerError(publication_error)
+
+
+def _fail_on_discarded_dirty_work(
+    evidence: tuple[Any, ...],
+    *,
+    artifact_root: Path | None,
+    project_dir: str,
+    passes: int,
+    no_progress_passes: int,
+) -> None:
+    error = discarded_dirty_work_message(evidence)
+    changed_files: list[str] = []
+    for item in evidence:
+        changed_files.extend(f"{item.repo_name}:{path}" for path in item.changed_files)
+    _write_result(
+        artifact_root,
+        _CommitFinalizerResult(
+            status="failed",
+            reason="dirty_work_discarded",
+            project_dir=project_dir,
+            passes=passes,
+            changed_files=changed_files,
+            error=error,
+            no_progress_passes=no_progress_passes,
+        ),
+    )
+    raise _CommitFinalizerError(error)
 
 
 def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:

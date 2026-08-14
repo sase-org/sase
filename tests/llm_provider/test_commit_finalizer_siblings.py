@@ -18,6 +18,7 @@ from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
     add_origin,
+    commit_all,
     init_bare_remote,
     init_git_repo,
     mark_opened_sibling,
@@ -62,7 +63,7 @@ def test_dirty_configured_sibling_without_open_marker_triggers_follow_up_turn(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(sibling)
         return InvokeResult(content="finalized sibling")
 
     provider.invoke.side_effect = invoke
@@ -74,7 +75,7 @@ def test_dirty_configured_sibling_without_open_marker_triggers_follow_up_turn(
     assert "linked repo core" in prompts[0]
     assert "dirty.txt" in prompts[0]
     assert f"cd {sibling.resolve()}" in prompts[0]
-    assert not dirty_file.exists()
+    assert dirty_file.exists()
     result_json = read_result_json(artifacts_dir)
     assert result_json["status"] == "finalized"
     assert result_json["reason"] == "clean_after_pass"
@@ -114,7 +115,7 @@ def test_dirty_configured_sibling_triggers_follow_up_turn(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(sibling)
         return InvokeResult(content="finalized sibling")
 
     provider.invoke.side_effect = invoke
@@ -151,7 +152,7 @@ def test_opened_dirty_sibling_uses_recorded_path_when_config_omits_it(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(sibling)
         return InvokeResult(content="finalized recorded sibling")
 
     provider.invoke.side_effect = invoke
@@ -279,8 +280,8 @@ def test_multiple_dirty_configured_siblings_are_listed_and_rechecked(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        alpha_file.unlink()
-        beta_file.unlink()
+        commit_all(alpha)
+        commit_all(beta)
         return InvokeResult(content="finalized siblings")
 
     provider.invoke.side_effect = invoke
@@ -330,8 +331,8 @@ def test_dirty_configured_suffix_siblings_are_listed_without_open_marker(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        alpha_file.unlink()
-        beta_file.unlink()
+        commit_all(alpha)
+        commit_all(beta)
         return InvokeResult(content="finalized siblings")
 
     provider.invoke.side_effect = invoke
@@ -343,4 +344,4 @@ def test_dirty_configured_suffix_siblings_are_listed_without_open_marker(
     assert "alpha.txt" in prompts[0]
     assert "linked repo beta" in prompts[0]
     assert "beta.txt" in prompts[0]
-    assert not beta_file.exists()
+    assert beta_file.exists()

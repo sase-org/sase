@@ -164,6 +164,108 @@ def test_committing_on_first_pass_emits_no_escalation(
     assert result["no_progress_passes"] == 0
 
 
+def test_resetting_dirty_work_without_commit_fails_as_discarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    _init_repo_with_dirty_file(repo)
+    set_agent_env(monkeypatch, repo)
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        _run_git(repo, "checkout", "--", "tracked.txt")
+        return InvokeResult(content="reset dirty work")
+
+    provider.invoke.side_effect = invoke
+    artifacts_dir = tmp_path / "artifacts"
+
+    with pytest.raises(CommitFinalizerError) as exc_info:
+        _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    message = str(exc_info.value)
+    assert "dirty work vanished without an attributable commit" in message
+    assert "main" in message
+    assert "tracked.txt" in message
+    result = read_result_json(artifacts_dir)
+    assert result["status"] == "failed"
+    assert result["reason"] == "dirty_work_discarded"
+    assert result["changed_files"] == ["main:tracked.txt"]
+
+
+def test_foreign_agent_commit_does_not_satisfy_clean_after_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    _init_repo_with_dirty_file(repo)
+    set_agent_env(monkeypatch, repo)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        _run_git(repo, "add", "-A")
+        _run_git(
+            repo,
+            "commit",
+            "-q",
+            "-m",
+            "commit dirty file\n\nSASE_AGENT=other-agent",
+        )
+        return InvokeResult(content="committed as a different agent")
+
+    provider.invoke.side_effect = invoke
+    artifacts_dir = tmp_path / "artifacts"
+
+    with pytest.raises(CommitFinalizerError) as exc_info:
+        _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    message = str(exc_info.value)
+    assert "dirty work vanished without an attributable commit" in message
+    assert "no newly reachable commit was attributed to this agent" in message
+    result = read_result_json(artifacts_dir)
+    assert result["status"] == "failed"
+    assert result["reason"] == "dirty_work_discarded"
+
+
+def test_current_agent_commit_satisfies_clean_after_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "sase_10"
+    _init_repo_with_dirty_file(repo)
+    set_agent_env(monkeypatch, repo)
+    monkeypatch.setenv("SASE_AGENT_NAME", "current-agent")
+    _use_git_dirty_details(monkeypatch)
+    provider = MagicMock()
+
+    def invoke(*_: object, **__: object) -> InvokeResult:
+        _run_git(repo, "add", "-A")
+        _run_git(
+            repo,
+            "commit",
+            "-q",
+            "-m",
+            "commit dirty file\n\nSASE_AGENT=current-agent",
+        )
+        return InvokeResult(content="committed as current agent")
+
+    provider.invoke.side_effect = invoke
+    artifacts_dir = tmp_path / "artifacts"
+
+    result = _run_finalizer(provider, artifacts_dir)
+
+    assert provider.invoke.call_count == 1
+    assert result.content.endswith("committed as current agent")
+    result_json = read_result_json(artifacts_dir)
+    assert result_json["status"] == "finalized"
+    assert result_json["reason"] == "clean_after_pass"
+
+
 def test_partial_progress_without_a_commit_is_not_a_stall(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

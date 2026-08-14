@@ -8,6 +8,11 @@ import pytest
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.codex import CodexProvider
 from sase.llm_provider.types import LLMInvocationError
+from tests.llm_provider._codex_fallback_helpers import (
+    commit_all,
+    init_dirty_project,
+    use_git_dirty_details,
+)
 
 
 def _codex_popen_call_count(mock_popen: MagicMock) -> int:
@@ -30,22 +35,24 @@ def test_codex_finalizer_runs_from_invoke_agent_when_dirty(
 ) -> None:
     """Dirty worktree triggers a provider-neutral follow-up Codex turn."""
     artifacts_dir = tmp_path / "artifacts"
+    project_dir = tmp_path / "project"
+    init_dirty_project(project_dir)
+    use_git_dirty_details(monkeypatch)
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260511_130000")
-    monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
-    dirty = (
-        True,
-        ["src/foo.py"],
-        "commit",
-        "Uncommitted changes detected:\nsrc/foo.py\n\ncommit using /sase_git_commit",
-    )
-    clean = (False, [], "", "")
-    monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
-        MagicMock(side_effect=[dirty, clean]),
-    )
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
 
     mock_popen.return_value = MagicMock()
-    mock_stream.side_effect = [("primary-response", "", 0), ("final-response", "", 0)]
+    stream_calls = 0
+
+    def stream(*_args: object, **_kwargs: object) -> tuple[str, str, int]:
+        nonlocal stream_calls
+        stream_calls += 1
+        if stream_calls == 2:
+            commit_all(project_dir)
+            return ("final-response", "", 0)
+        return ("primary-response", "", 0)
+
+    mock_stream.side_effect = stream
     provider = CodexProvider()
 
     with (
@@ -107,32 +114,26 @@ def test_codex_finalizer_includes_bead_close_when_bead_id_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Bead-close instruction still propagates through the shared helper."""
-    from sase.commit_instructions import build_commit_instruction_message
-
     artifacts_dir = tmp_path / "artifacts"
+    project_dir = tmp_path / "project"
+    init_dirty_project(project_dir)
+    use_git_dirty_details(monkeypatch)
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "260511_170000")
     monkeypatch.setenv("SASE_BEAD_ID", "sase-31.2")
-    monkeypatch.setenv("CODEX_PROJECT_DIR", str(tmp_path))
-    instr = build_commit_instruction_message(
-        "/sase_git_commit", "create_commit", "sase-31.2"
-    )
-    monkeypatch.setattr(
-        "sase.llm_provider.commit_finalizer.build_commit_details",
-        MagicMock(
-            side_effect=[
-                (
-                    True,
-                    ["src/foo.py"],
-                    instr,
-                    "Uncommitted changes detected:\n" + instr,
-                ),
-                (False, [], "", ""),
-            ]
-        ),
-    )
+    monkeypatch.setenv("CODEX_PROJECT_DIR", str(project_dir))
 
     mock_popen.return_value = MagicMock()
-    mock_stream.side_effect = [("primary", "", 0), ("final", "", 0)]
+    stream_calls = 0
+
+    def stream(*_args: object, **_kwargs: object) -> tuple[str, str, int]:
+        nonlocal stream_calls
+        stream_calls += 1
+        if stream_calls == 2:
+            commit_all(project_dir)
+            return ("final", "", 0)
+        return ("primary", "", 0)
+
+    mock_stream.side_effect = stream
     provider = CodexProvider()
 
     with (

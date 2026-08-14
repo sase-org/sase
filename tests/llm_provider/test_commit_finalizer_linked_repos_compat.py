@@ -13,6 +13,7 @@ from sase.llm_provider.types import InvokeResult
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
+    commit_all,
     init_git_repo,
     mark_opened_linked,
     read_result_json,
@@ -58,7 +59,7 @@ def test_dirty_configured_linked_env_triggers_follow_up_turn(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(linked)
         return InvokeResult(content="finalized linked")
 
     provider.invoke.side_effect = invoke
@@ -108,7 +109,7 @@ def test_dirty_configured_linked_env_without_open_marker_triggers_follow_up_turn
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(linked)
         return InvokeResult(content="finalized linked")
 
     provider.invoke.side_effect = invoke
@@ -167,7 +168,7 @@ def test_legacy_sibling_env_and_legacy_only_marker_drive_finalizer(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(linked)
         return InvokeResult(content="finalized via legacy marker")
 
     provider.invoke.side_effect = invoke

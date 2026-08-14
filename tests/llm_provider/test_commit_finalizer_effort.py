@@ -18,6 +18,7 @@ from sase.llm_provider.types import InvokeResult, LLMInvocationOptions
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV
 
 from ._commit_finalizer_sibling_helpers import (
+    commit_all,
     init_git_repo,
     mark_opened_sibling,
     set_agent_env,
@@ -57,7 +58,7 @@ def test_finalizer_follow_up_preserves_reasoning_effort(
     provider = MagicMock()
 
     def invoke(prompt: str, **_: object) -> InvokeResult:  # noqa: ARG001
-        dirty_file.unlink()
+        commit_all(sibling)
         return InvokeResult(content="finalized")
 
     provider.invoke.side_effect = invoke

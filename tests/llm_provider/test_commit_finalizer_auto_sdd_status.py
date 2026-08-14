@@ -189,8 +189,7 @@ def test_additional_dirty_file_uses_provider_path(
     provider = MagicMock()
 
     def invoke(*_: object, **__: object) -> InvokeResult:
-        plan.write_text(_PLAN_WIP, encoding="utf-8")
-        extra.write_text("VALUE = 1\n", encoding="utf-8")
+        _commit_all(repo, "provider finalized dirty files")
         return InvokeResult(content="provider finalized")
 
     provider.invoke.side_effect = invoke
@@ -199,7 +198,9 @@ def test_additional_dirty_file_uses_provider_path(
 
     assert provider.invoke.call_count == 1
     assert result.content == "primary response\n\nprovider finalized"
-    assert _run_git(repo, "log", "-1", "--pretty=%s") == "add extra\n"
+    assert _run_git(repo, "log", "-1", "--pretty=%s") == (
+        "provider finalized dirty files\n"
+    )
 
 
 def test_non_status_sdd_markdown_change_uses_provider_path(
@@ -215,7 +216,7 @@ def test_non_status_sdd_markdown_change_uses_provider_path(
     provider = MagicMock()
 
     def invoke(*_: object, **__: object) -> InvokeResult:
-        plan.write_text(_PLAN_WIP, encoding="utf-8")
+        _commit_all(repo, "provider finalized plan body")
         return InvokeResult(content="provider finalized")
 
     provider.invoke.side_effect = invoke
@@ -223,7 +224,9 @@ def test_non_status_sdd_markdown_change_uses_provider_path(
     _run_finalizer(provider, tmp_path / "artifacts")
 
     assert provider.invoke.call_count == 1
-    assert _run_git(repo, "log", "-1", "--pretty=%s") == "initial\n"
+    assert _run_git(repo, "log", "-1", "--pretty=%s") == (
+        "provider finalized plan body\n"
+    )
 
 
 def test_sibling_done_status_change_uses_provider_path(
@@ -247,7 +250,7 @@ def test_sibling_done_status_change_uses_provider_path(
     provider = MagicMock()
 
     def invoke(*_: object, **__: object) -> InvokeResult:
-        plan.write_text(_PLAN_WIP, encoding="utf-8")
+        _commit_all(sibling, "provider finalized sibling plan")
         return InvokeResult(content="provider finalized")
 
     provider.invoke.side_effect = invoke
@@ -255,7 +258,9 @@ def test_sibling_done_status_change_uses_provider_path(
     _run_finalizer(provider, artifacts_dir)
 
     assert provider.invoke.call_count == 1
-    assert _run_git(sibling, "log", "-1", "--pretty=%s") == "initial\n"
+    assert _run_git(sibling, "log", "-1", "--pretty=%s") == (
+        "provider finalized sibling plan\n"
+    )
 
 
 def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(

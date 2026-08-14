@@ -223,10 +223,7 @@ def test_unsafe_external_sdd_changes_use_normal_finalizer_prompting(
     provider = MagicMock()
 
     def invoke(*_args: object, **_kwargs: object) -> InvokeResult:
-        if unsafe_change == "untracked":
-            dirty_path.unlink()
-        else:
-            dirty_path.write_text(_BASE_PROMPT, encoding="utf-8")
+        _commit_all(plans, "provider finalized unsafe SDD change")
         return InvokeResult(content="provider finalized")
 
     provider.invoke.side_effect = invoke
@@ -236,7 +233,7 @@ def test_unsafe_external_sdd_changes_use_normal_finalizer_prompting(
     assert provider.invoke.call_count == 1
     assert result.content == "primary response\n\nprovider finalized"
     assert _run_git(plans, "status", "--short") == ""
-    expected_commits = "2" if unsafe_change == "non_prompt" else "1"
+    expected_commits = "3" if unsafe_change == "non_prompt" else "2"
     assert _run_git(plans, "rev-list", "--count", "HEAD").strip() == expected_commits
 
 

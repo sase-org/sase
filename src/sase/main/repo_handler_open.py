@@ -121,6 +121,7 @@ def handle_open_command(
         workspace_num,
         reason=reason,
         resolve_checkout=resolve_checkout,
+        preparation="none",
     )
     if path is None:
         return 1

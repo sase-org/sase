@@ -12,6 +12,7 @@ from sase.linked_repos import OPENED_LINKED_FILENAME
 from sase.llm_provider.types import InvokeResult
 
 from ._commit_finalizer_sibling_helpers import (
+    commit_all,
     init_git_repo,
     mark_opened_external,
     read_result_json,
@@ -47,7 +48,7 @@ def test_dirty_external_repo_triggers_correctly_labeled_follow_up(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(external)
         return InvokeResult(content="finalized external repo")
 
     provider.invoke.side_effect = invoke
@@ -115,7 +116,7 @@ def test_v2_marker_without_kind_remains_a_linked_repo(
 
     def invoke(prompt: str, **_: object) -> InvokeResult:
         prompts.append(prompt)
-        dirty_file.unlink()
+        commit_all(linked)
         return InvokeResult(content="finalized linked repo")
 
     provider.invoke.side_effect = invoke
