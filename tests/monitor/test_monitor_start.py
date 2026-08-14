@@ -10,16 +10,29 @@ import json
 import os
 import signal
 import threading
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+import sase.monitor.followup as followup_module
+import sase.monitor.spawn as spawn_module
+from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
+from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorError, MonitorRecord
+from sase.monitor.output import OutputCapture
 from sase.monitor.start import StartMonitorRequest, start_monitor
-from sase.running_field import WorkspaceClaim, get_claimed_workspaces
+from sase.monitor.transaction import monitor_started_path, write_json_marker_atomic
+from sase.running_field import (
+    WorkspaceClaim,
+    claim_next_axe_workspace,
+    get_claimed_workspaces,
+    transfer_workspace_claim,
+)
 
 from ._fixtures import (
     make_starter_agent,
@@ -139,6 +152,151 @@ def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
             except ProcessLookupError:
                 pass
         wait_for_done(record.artifacts_dir, timeout=10.0)
+
+
+def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 10)
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(primary),
+        running_claims=[WorkspaceClaim(10, "ace-run", "acme", pid=111111)],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=workspace_dir,
+        pid=111111,
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    supervisor_pid = 222222
+
+    def fake_spawn_supervisor(artifacts_dir: str) -> spawn_module.DetachedSupervisor:
+        write_json_marker_atomic(
+            monitor_started_path(artifacts_dir),
+            {"pid": supervisor_pid},
+        )
+        return spawn_module.DetachedSupervisor(supervisor_pid, None)
+
+    monkeypatch.setattr(
+        "sase.monitor.start.spawn_detached_supervisor",
+        fake_spawn_supervisor,
+    )
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="sleep 30",
+            reason="verify claim invariant replay",
+            timeout_seconds=30.0,
+            cwd=workspace_dir,
+            project_name="proj",
+            lane="acme",
+            next_action="Inspect the result.",
+        )
+    )
+
+    (Path(starter_dir) / "done.json").write_text(
+        json.dumps({"outcome": "monitored"}),
+        encoding="utf-8",
+    )
+    claims = get_claimed_workspaces(project_file)
+    assert [(claim.workspace_num, claim.pid, claim.workflow) for claim in claims] == [
+        (10, supervisor_pid, MONITOR_WORKSPACE_CLAIM_WORKFLOW)
+    ]
+
+    monkeypatch.setattr(
+        "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+        lambda: [project_file],
+    )
+    monkeypatch.setattr(
+        "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+        lambda pid: pid == supervisor_pid,
+    )
+
+    assert cleanup_stale_running_entries() == 0
+    allocated = claim_next_axe_workspace(
+        project_file,
+        "ace(run)-260814_121212",
+        pid=444444,
+        cl_name="new-agent",
+        artifacts_timestamp="260814_121212",
+        min_workspace=10,
+        max_workspace=11,
+    )
+    assert allocated == 11
+
+    @dataclass(frozen=True)
+    class FollowupPlan:
+        agent_name: str = "acme--1"
+        parent_is_running: bool = False
+        agent_family_role: str = "root"
+        parent_workspace_dir: str = workspace_dir
+        parent_workspace_num: int = 10
+
+    followup_pid = 333333
+    captured_spawn: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured_spawn.update(kwargs)
+        result = transfer_workspace_claim(
+            project_file,
+            10,
+            from_pid=kwargs["retry_transfer_from_pid"],
+            to_pid=followup_pid,
+            new_workflow=kwargs["workflow_name"],
+            new_artifacts_timestamp=kwargs["timestamp"],
+            cl_name=kwargs["cl_name"],
+        )
+        assert result.success, result.error
+        return AgentLaunchResult(
+            pid=followup_pid,
+            workspace_num=10,
+            workspace_dir=workspace_dir,
+            output_path=str(tmp_path / "followup.out"),
+            agent_name="acme--1",
+        )
+
+    monkeypatch.setattr(
+        followup_module,
+        "resolve_family_attach_plan",
+        lambda *_args, **_kwargs: FollowupPlan(),
+    )
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    monitor_meta = json.loads(
+        (Path(record.artifacts_dir) / "agent_meta.json").read_text()
+    )
+    capture = OutputCapture()
+    result = followup_module.launch_followup_agent(
+        record.artifacts_dir,
+        monitor_meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.0,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=0.0,
+        transfer_from_pid=supervisor_pid,
+    )
+
+    assert result.launched is True
+    assert captured_spawn["workspace_dir"] == workspace_dir
+    assert captured_spawn["workspace_num"] == 10
+    assert captured_spawn["retry_transfer_from_pid"] == supervisor_pid
+    claims_by_num = {
+        claim.workspace_num: claim for claim in get_claimed_workspaces(project_file)
+    }
+    assert claims_by_num[10].pid == followup_pid
+    assert claims_by_num[11].workflow.startswith("ace(run)-")
 
 
 def test_start_monitor_refuses_a_numbered_cwd_claimed_by_another_live_agent(

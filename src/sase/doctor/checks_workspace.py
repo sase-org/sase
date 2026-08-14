@@ -54,6 +54,12 @@ def workspace_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: _check_missing_workspace_checkouts(context),
         ),
         CheckSpec(
+            id="workspace.occupancy",
+            group="workspace",
+            title="Workspace occupancy",
+            runner=lambda: _check_workspace_occupancy(context),
+        ),
+        CheckSpec(
             id="workspace.legacy_artifact_home",
             group="workspace",
             title="Legacy prompt artifact home",
@@ -124,7 +130,12 @@ def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticChec
 
     missing = [record for record in inventory.records if not record.exists]
     visible_missing = missing[:_MAX_DETAIL_ROWS]
-    visible_issues = inventory.issues[: max(0, _MAX_DETAIL_ROWS - len(visible_missing))]
+    non_occupancy_issues = [
+        issue for issue in inventory.issues if not _is_occupancy_issue(issue)
+    ]
+    visible_issues = non_occupancy_issues[
+        : max(0, _MAX_DETAIL_ROWS - len(visible_missing))
+    ]
     details = [
         (
             f"{record.project} workspace #{record.workspace_num} is missing: "
@@ -139,8 +150,8 @@ def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticChec
 
     if missing:
         summary = f"{len(missing)} registered workspace checkout(s) are missing"
-    elif inventory.issues:
-        summary = f"workspace inventory has {len(inventory.issues)} warning(s)"
+    elif non_occupancy_issues:
+        summary = f"workspace inventory has {len(non_occupancy_issues)} warning(s)"
     else:
         summary = f"all {len(inventory.records)} registered workspace checkout(s) exist"
 
@@ -149,7 +160,7 @@ def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticChec
         f"Preview repair with `sase workspace repair -p {project} -n`."
         for project in repair_projects
     )
-    if inventory.issues:
+    if non_occupancy_issues:
         next_steps = (
             *next_steps,
             "Inspect inventory warnings with `sase workspace list --all --json`.",
@@ -158,7 +169,7 @@ def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticChec
     return DiagnosticCheck(
         id="workspace.missing_checkouts",
         group="workspace",
-        status="WARN" if missing or inventory.issues else "OK",
+        status="WARN" if missing or non_occupancy_issues else "OK",
         title="Missing workspace checkouts",
         summary=summary,
         details=tuple(details),
@@ -177,14 +188,83 @@ def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticChec
                 }
                 for record in visible_missing
             ],
-            "inventory_issue_count": len(inventory.issues),
+            "inventory_issue_count": len(non_occupancy_issues),
             "inventory_issues": [
                 {"project": issue.project, "message": issue.message}
                 for issue in visible_issues
             ],
-            "details_truncated": (len(missing) + len(inventory.issues) > len(details)),
+            "details_truncated": (
+                len(missing) + len(non_occupancy_issues) > len(details)
+            ),
         },
     )
+
+
+def _check_workspace_occupancy(context: DoctorContext) -> DiagnosticCheck:
+    """Report live processes occupying numbered workspaces without exclusivity."""
+
+    projects_root = context.sase_home / "projects"
+    try:
+        inventory = _collect_workspace_inventory(projects_root)
+    except Exception as exc:  # noqa: BLE001 - doctor reports inventory failures.
+        error = f"{type(exc).__name__}: {exc}"
+        return DiagnosticCheck(
+            id="workspace.occupancy",
+            group="workspace",
+            status="ERROR",
+            title="Workspace occupancy",
+            summary="workspace inventory could not be loaded",
+            details=(error,),
+            next_steps=("Run `sase workspace list --all --json` for details.",),
+            data={"projects_root": str(projects_root), "error": error},
+        )
+
+    occupancy_issues = [
+        issue for issue in inventory.issues if _is_occupancy_issue(issue)
+    ]
+    visible = occupancy_issues[:_MAX_DETAIL_ROWS]
+    next_steps: tuple[str, ...]
+    if occupancy_issues:
+        status: CheckStatus = "WARN"
+        summary = f"{len(occupancy_issues)} workspace occupancy problem(s) found"
+        next_steps = (
+            "Inspect RUNNING claims with `sase agent list -j` and stop or dismiss the duplicate live agent.",
+            "Rerun `sase workspace list --all --json` to confirm each numbered checkout has exactly one live owner.",
+        )
+    else:
+        status = "OK"
+        summary = "numbered workspaces have no unclaimed or duplicate live occupants"
+        next_steps = ()
+
+    return DiagnosticCheck(
+        id="workspace.occupancy",
+        group="workspace",
+        status=status,
+        title="Workspace occupancy",
+        summary=summary,
+        details=tuple(f"{issue.project}: {issue.message}" for issue in visible),
+        next_steps=next_steps,
+        data={
+            "projects_root": str(projects_root),
+            "occupancy_issue_count": len(occupancy_issues),
+            "occupancy_issues": [
+                {
+                    "project": issue.project,
+                    "message": issue.message,
+                    "code": getattr(issue, "code", None),
+                }
+                for issue in visible
+            ],
+            "details_truncated": len(occupancy_issues) > len(visible),
+        },
+    )
+
+
+def _is_occupancy_issue(issue: Any) -> bool:
+    return getattr(issue, "code", None) in {
+        "unclaimed_occupied_workspace",
+        "double_occupied_workspace",
+    }
 
 
 def _check_workspace_registry(context: DoctorContext) -> DiagnosticCheck:

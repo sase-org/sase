@@ -175,3 +175,98 @@ def test_inventory_joins_claims_staleness_missing_and_disabled_projects(
         "Multiple RUNNING claims reference workspace #0" in issue.message
         for issue in inventory.issues
     )
+
+
+def test_inventory_reports_live_numbered_cwd_without_matching_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project(tmp_path, "proj")
+    primary = project.workspace_dir or ""
+    store = WorkspaceStore(primary, config=_config(tmp_path, primary), env={})
+    registry = load_or_init_registry(store)
+    save_registry(store, registry)
+    claimed_path = store.resolve(10)
+    checkout = Path(claimed_path.checkout_dir.rstrip("/"))
+    checkout.mkdir(parents=True)
+    record_workspace(store, claimed_path, role="claim")
+
+    monkeypatch.setattr(
+        "sase.workspace_provider.inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.inventory.resolution_config",
+        lambda *_args, **_kwargs: _config(tmp_path, primary),
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.inventory.list_workspace_claims_from_content",
+        lambda _content: [
+            WorkspaceClaim(0, "ace(run)-260814_120000", "proj", pid=1234)
+        ],
+    )
+
+    inventory = collect_workspace_inventory(
+        now=100.0,
+        process_running=lambda pid: pid == 1234,
+        process_cwd=lambda pid: str(checkout) if pid == 1234 else None,
+    )
+
+    row = next(record for record in inventory.records if record.workspace_num == 10)
+    assert row.claimed is False
+    assert row.cwd_occupant_pids == (1234,)
+    assert row.cwd_occupant_agents == ("ace(run)-260814_120000",)
+    issue = next(
+        issue
+        for issue in inventory.issues
+        if issue.code == "unclaimed_occupied_workspace"
+    )
+    assert "Workspace #10 is occupied" in issue.message
+    assert "PID 1234" in issue.message
+
+
+def test_inventory_reports_double_occupied_numbered_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project(tmp_path, "proj")
+    primary = project.workspace_dir or ""
+    store = WorkspaceStore(primary, config=_config(tmp_path, primary), env={})
+    registry = load_or_init_registry(store)
+    save_registry(store, registry)
+    claimed_path = store.resolve(10)
+    checkout = Path(claimed_path.checkout_dir.rstrip("/"))
+    checkout.mkdir(parents=True)
+    record_workspace(store, claimed_path, role="claim")
+
+    monkeypatch.setattr(
+        "sase.workspace_provider.inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.inventory.resolution_config",
+        lambda *_args, **_kwargs: _config(tmp_path, primary),
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.inventory.list_workspace_claims_from_content",
+        lambda _content: [
+            WorkspaceClaim(10, "ace(run)-260814_120000", "proj", pid=1234),
+            WorkspaceClaim(0, "ace(run)-260814_120001", "proj", pid=5678),
+        ],
+    )
+
+    inventory = collect_workspace_inventory(
+        now=100.0,
+        process_running=lambda pid: pid in {1234, 5678},
+        process_cwd=lambda pid: str(checkout) if pid in {1234, 5678} else None,
+    )
+
+    row = next(record for record in inventory.records if record.workspace_num == 10)
+    assert row.claim_pid == 1234
+    assert row.cwd_occupant_pids == (1234, 5678)
+    issue = next(
+        issue for issue in inventory.issues if issue.code == "double_occupied_workspace"
+    )
+    assert "Multiple live agent processes" in issue.message
+    assert "PID 1234" in issue.message
+    assert "PID 5678" in issue.message

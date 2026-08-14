@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
+import os
 from pathlib import Path
+import sys
 import time
 
 from sase._linked_repo_config import resolution_config
@@ -31,6 +33,10 @@ from sase.workspace_provider.registry import (
 from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM, WorkspaceStore
 
 ProcessRunningProbe = Callable[[int], bool]
+ProcessCwdProbe = Callable[[int], str | None]
+
+_ISSUE_UNCLAIMED_OCCUPIED = "unclaimed_occupied_workspace"
+_ISSUE_DOUBLE_OCCUPIED = "double_occupied_workspace"
 
 
 @dataclass(frozen=True)
@@ -75,6 +81,8 @@ class WorkspaceInventoryRecord:
     claim_cl_name: str | None = None
     claim_timestamp: str | None = None
     claim_pinned: bool = False
+    cwd_occupant_pids: tuple[int, ...] = ()
+    cwd_occupant_agents: tuple[str, ...] = ()
 
     @property
     def claimed(self) -> bool:
@@ -92,8 +100,9 @@ class WorkspaceInventoryIssue:
 
     project: str
     message: str
+    code: str | None = None
 
-    def to_json_dict(self) -> dict[str, str]:
+    def to_json_dict(self) -> dict[str, str | None]:
         return asdict(self)
 
 
@@ -124,6 +133,7 @@ def collect_workspace_inventory(
     include_disabled: bool = False,
     now: float | None = None,
     process_running: ProcessRunningProbe | None = None,
+    process_cwd: ProcessCwdProbe | None = None,
 ) -> WorkspaceInventory:
     """Collect registered workspaces across projects.
 
@@ -161,6 +171,7 @@ def collect_workspace_inventory(
 
     current_time = time.time() if now is None else now
     process_probe = process_running or _default_process_running
+    cwd_probe = process_cwd or _default_process_cwd
     records: list[WorkspaceInventoryRecord] = []
     project_infos: list[_WorkspaceProjectInfo] = []
     issues: list[WorkspaceInventoryIssue] = []
@@ -170,6 +181,7 @@ def collect_workspace_inventory(
             project_record,
             now=current_time,
             process_running=process_probe,
+            process_cwd=cwd_probe,
         )
         records.extend(project_records)
         if project_info is not None:
@@ -196,6 +208,7 @@ def _collect_project_workspaces(
     *,
     now: float,
     process_running: ProcessRunningProbe,
+    process_cwd: ProcessCwdProbe,
 ) -> tuple[
     list[WorkspaceInventoryRecord],
     _WorkspaceProjectInfo | None,
@@ -266,6 +279,7 @@ def _collect_project_workspaces(
             continue
         claims_by_num[claim.workspace_num] = claim
 
+    workspace_num_by_checkout: dict[str, int] = {}
     rows: list[WorkspaceInventoryRecord] = []
     registered_nums: set[int] = set()
     for raw_num, entry in registry.workspaces.items():
@@ -281,6 +295,26 @@ def _collect_project_workspaces(
             continue
 
         registered_nums.add(workspace_num)
+        workspace_num_by_checkout[_canonical_path(entry.checkout_dir)] = workspace_num
+
+    cwd_occupants = _claim_cwd_occupants(
+        claims,
+        workspace_num_by_checkout=workspace_num_by_checkout,
+        process_running=process_running,
+        process_cwd=process_cwd,
+    )
+    _record_occupancy_issues(
+        project,
+        cwd_occupants=cwd_occupants,
+        claims_by_num=claims_by_num,
+        issues=issues,
+    )
+
+    for raw_num, entry in registry.workspaces.items():
+        try:
+            workspace_num = int(raw_num)
+        except (TypeError, ValueError):
+            continue
         joined_claim = claims_by_num.get(workspace_num)
         checkout_dir = entry.checkout_dir.rstrip("/") or entry.checkout_dir
         claim_alive = _claim_liveness(
@@ -310,6 +344,7 @@ def _collect_project_workspaces(
                 ttl_days=store.cleanup_ttl_days,
                 claim=joined_claim,
                 claim_alive=claim_alive,
+                cwd_occupants=cwd_occupants.get(workspace_num, ()),
             )
         )
 
@@ -376,6 +411,7 @@ def _workspace_record(
     ttl_days: int,
     claim: WorkspaceClaim | None,
     claim_alive: bool | None,
+    cwd_occupants: tuple[WorkspaceClaim, ...],
 ) -> WorkspaceInventoryRecord:
     return WorkspaceInventoryRecord(
         workspace_num=workspace_num,
@@ -399,7 +435,79 @@ def _workspace_record(
         claim_cl_name=claim.cl_name if claim is not None else None,
         claim_timestamp=claim.artifacts_timestamp if claim is not None else None,
         claim_pinned=claim.pinned if claim is not None else False,
+        cwd_occupant_pids=tuple(claim.pid for claim in cwd_occupants),
+        cwd_occupant_agents=tuple(claim.workflow for claim in cwd_occupants),
     )
+
+
+def _claim_cwd_occupants(
+    claims: Sequence[WorkspaceClaim],
+    *,
+    workspace_num_by_checkout: dict[str, int],
+    process_running: ProcessRunningProbe,
+    process_cwd: ProcessCwdProbe,
+) -> dict[int, tuple[WorkspaceClaim, ...]]:
+    if not workspace_num_by_checkout:
+        return {}
+
+    occupants: dict[int, list[WorkspaceClaim]] = {}
+    for claim in claims:
+        try:
+            if not process_running(claim.pid):
+                continue
+            cwd = process_cwd(claim.pid)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if not cwd:
+            continue
+        workspace_num = workspace_num_by_checkout.get(_canonical_path(cwd))
+        if workspace_num is None:
+            continue
+        occupants.setdefault(workspace_num, []).append(claim)
+    return {num: tuple(rows) for num, rows in occupants.items()}
+
+
+def _record_occupancy_issues(
+    project: str,
+    *,
+    cwd_occupants: dict[int, tuple[WorkspaceClaim, ...]],
+    claims_by_num: dict[int, WorkspaceClaim],
+    issues: list[WorkspaceInventoryIssue],
+) -> None:
+    for workspace_num, occupants in sorted(cwd_occupants.items()):
+        if workspace_num == PRIMARY_WORKSPACE_NUM:
+            continue
+        if occupants and workspace_num not in claims_by_num:
+            issues.append(
+                WorkspaceInventoryIssue(
+                    project,
+                    (
+                        f"Workspace #{workspace_num} is occupied by live agent "
+                        f"process(es) but has no RUNNING claim: "
+                        f"{_claim_list(occupants)}"
+                    ),
+                    _ISSUE_UNCLAIMED_OCCUPIED,
+                )
+            )
+        if len(occupants) > 1:
+            issues.append(
+                WorkspaceInventoryIssue(
+                    project,
+                    (
+                        f"Multiple live agent processes have cwd at workspace "
+                        f"#{workspace_num}: {_claim_list(occupants)}"
+                    ),
+                    _ISSUE_DOUBLE_OCCUPIED,
+                )
+            )
+
+
+def _claim_list(claims: Sequence[WorkspaceClaim]) -> str:
+    return ", ".join(f"PID {claim.pid} ({claim.workflow})" for claim in claims)
+
+
+def _canonical_path(path: str) -> str:
+    return str(Path(path).expanduser().resolve(strict=False))
 
 
 def _record_matches_project(record: ProjectRecordWire, project: str) -> bool:
@@ -417,8 +525,24 @@ def _default_process_running(pid: int) -> bool:
     return is_process_running(pid)
 
 
+def _default_process_cwd(pid: int) -> str | None:
+    if sys.platform != "linux":
+        return None
+    try:
+        return _canonical_path(os.readlink(f"/proc/{pid}/cwd"))
+    except (
+        FileNotFoundError,
+        NotADirectoryError,
+        PermissionError,
+        ProcessLookupError,
+        OSError,
+    ):
+        return None
+
+
 __all__ = [
     "ProcessRunningProbe",
+    "ProcessCwdProbe",
     "WorkspaceInventory",
     "WorkspaceInventoryIssue",
     "WorkspaceInventoryProjectNotFoundError",

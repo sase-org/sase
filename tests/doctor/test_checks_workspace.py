@@ -14,6 +14,7 @@ from sase.core.project_lifecycle_wire import (
 from sase.doctor.checks_workspace import (
     _check_legacy_artifact_home,
     _check_missing_workspace_checkouts,
+    _check_workspace_occupancy,
     _check_workspace_registry,
     workspace_check_specs,
 )
@@ -231,6 +232,90 @@ def test_missing_workspace_checkouts_surfaces_inventory_issues(
     assert check.details == ("alpha: inventory warning: registry is corrupt",)
 
 
+def test_workspace_occupancy_surfaces_unclaimed_and_double_occupied_issues(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    inventory = SimpleNamespace(
+        records=(_inventory_record(tmp_path, 0), _inventory_record(tmp_path, 10)),
+        projects=(),
+        issues=(
+            SimpleNamespace(
+                project="alpha",
+                message="Workspace #10 is occupied by live agent process(es)",
+                code="unclaimed_occupied_workspace",
+            ),
+            SimpleNamespace(
+                project="alpha",
+                message="Multiple live agent processes have cwd at workspace #11",
+                code="double_occupied_workspace",
+            ),
+            SimpleNamespace(
+                project="alpha",
+                message="registry is corrupt",
+                code=None,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_workspace._collect_workspace_inventory",
+        lambda *_args: inventory,
+    )
+
+    check = _check_workspace_occupancy(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["occupancy_issue_count"] == 2
+    assert len(check.data["occupancy_issues"]) == 2
+    assert "Workspace #10 is occupied" in check.details[0]
+    assert "workspace #11" in check.details[1]
+    assert "sase agent list -j" in check.next_steps[0]
+
+
+def test_workspace_occupancy_ok_when_no_occupancy_issues(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_workspace._collect_workspace_inventory",
+        lambda *_args: SimpleNamespace(
+            records=(_inventory_record(tmp_path, 0),),
+            projects=(),
+            issues=(SimpleNamespace(project="alpha", message="registry warning"),),
+        ),
+    )
+
+    check = _check_workspace_occupancy(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["occupancy_issue_count"] == 0
+
+
+def test_missing_workspace_checkouts_ignores_occupancy_issues(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        "sase.doctor.checks_workspace._collect_workspace_inventory",
+        lambda *_args: SimpleNamespace(
+            records=(_inventory_record(tmp_path, 0),),
+            projects=(),
+            issues=(
+                SimpleNamespace(
+                    project="alpha",
+                    message="Workspace #10 is occupied",
+                    code="unclaimed_occupied_workspace",
+                ),
+            ),
+        ),
+    )
+
+    check = _check_missing_workspace_checkouts(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["inventory_issue_count"] == 0
+
+
 def test_workspace_check_specs_registers_missing_checkout_check(
     tmp_path: Path,
 ) -> None:
@@ -239,6 +324,7 @@ def test_workspace_check_specs_registers_missing_checkout_check(
     assert ids == [
         "workspace.registry",
         "workspace.missing_checkouts",
+        "workspace.occupancy",
         "workspace.legacy_artifact_home",
     ]
 
