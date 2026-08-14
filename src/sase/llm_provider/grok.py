@@ -8,7 +8,7 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sase.output import provider_timer
 
@@ -209,10 +209,6 @@ class GrokProvider(LLMProvider):
                 "SASE_LLM_SMALL_ARGS", os.environ.get("SASE_GROK_SMALL_ARGS")
             )
 
-        timer_context = (
-            provider_timer("Waiting for Grok") if not suppress_output else None
-        )
-
         current_prompt = prompt
         accumulated_response = ""
         total_usage: dict[str, int] = {
@@ -232,7 +228,6 @@ class GrokProvider(LLMProvider):
             model=model,
             effort_args=effort_args,
             extra_args_env=extra_args_env,
-            timer_context=timer_context,
             suppress_output=suppress_output,
         )
 
@@ -247,7 +242,6 @@ class GrokProvider(LLMProvider):
         model: str,
         effort_args: list[str],
         extra_args_env: str | None,
-        timer_context: Any,
         suppress_output: bool,
     ) -> InvokeResult:
         while True:
@@ -276,8 +270,8 @@ class GrokProvider(LLMProvider):
                 for arg in extra_args_env.split():
                     command_args.append(arg)
 
-            if timer_context:
-                with timer_context:
+            if not suppress_output:
+                with provider_timer("Waiting for Grok"):
                     content, stderr_content, return_code, usage = self._run_subprocess(
                         command_args, current_prompt, suppress_output
                     )

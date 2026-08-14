@@ -327,6 +327,21 @@ def test_grok_nonzero_exit_raises_called_process_error(
 def test_grok_interrupt_preserves_partial_output_and_continues() -> None:
     provider = GrokProvider()
     prompts: list[str] = []
+    timer_entries: list[str] = []
+
+    class SingleUseTimer:
+        def __init__(self, label: str) -> None:
+            self.label = label
+            self.entered = False
+
+        def __enter__(self) -> None:
+            if self.entered:
+                raise AssertionError("timer context was reused")
+            self.entered = True
+            timer_entries.append(self.label)
+
+        def __exit__(self, *args: object) -> None:
+            return None
 
     def _fake_run(
         args: list[str],
@@ -341,16 +356,20 @@ def test_grok_interrupt_preserves_partial_output_and_continues() -> None:
         return ("second pass", "", 0, {"output_tokens": 3})
 
     with (
-        patch("sase.llm_provider.grok.provider_timer"),
+        patch(
+            "sase.llm_provider.grok.provider_timer",
+            side_effect=lambda label: SingleUseTimer(label),
+        ),
         patch.object(GrokProvider, "_run_subprocess", side_effect=_fake_run),
     ):
         result = provider.invoke(
-            "original task", model_tier="large", suppress_output=True
+            "original task", model_tier="large", suppress_output=False
         )
 
     assert prompts[0] == "original task"
     assert "--- Work So Far ---\nfirst pass" in prompts[1]
     assert "--- User Message ---\nalso update the tests" in prompts[1]
+    assert timer_entries == ["Waiting for Grok", "Waiting for Grok"]
     assert result.content == "first pass\n\nsecond pass"
     assert result.usage["input_tokens"] == 2
     assert result.usage["output_tokens"] == 3
