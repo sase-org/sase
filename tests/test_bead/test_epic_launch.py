@@ -225,6 +225,89 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     assert request.inherit_lane_workspace_claim is False
 
 
+def test_start_epic_launch_monitor_uses_clan_member_name_as_lane(
+    tmp_path: Path,
+) -> None:
+    request = _start_epic_launch_monitor_request(
+        tmp_path,
+        agent_meta={"name": "sase-m6.6", "agent_clan": "sase-m6"},
+    )
+
+    assert request.lane == "sase-m6.6"
+
+
+def test_start_epic_launch_monitor_treats_legacy_parallel_family_as_clan(
+    tmp_path: Path,
+) -> None:
+    request = _start_epic_launch_monitor_request(
+        tmp_path,
+        agent_meta={
+            "name": "sase-m6.6",
+            "agent_family": "sase-m6",
+            "agent_family_parallel": True,
+        },
+    )
+
+    assert request.lane == "sase-m6.6"
+
+
+def test_start_epic_launch_monitor_uses_explicit_family_lane(
+    tmp_path: Path,
+) -> None:
+    request = _start_epic_launch_monitor_request(
+        tmp_path,
+        agent_meta={"name": "auth--plan", "agent_family": "auth"},
+    )
+
+    assert request.lane == "auth"
+
+
+def test_start_epic_launch_monitor_parses_name_when_group_metadata_is_absent(
+    tmp_path: Path,
+) -> None:
+    request = _start_epic_launch_monitor_request(
+        tmp_path,
+        agent_meta={"name": "sase-m6.6"},
+    )
+
+    assert request.lane == "sase-m6"
+
+
+def _start_epic_launch_monitor_request(
+    tmp_path: Path,
+    *,
+    agent_meta: dict[str, object],
+) -> object:
+    plan = tmp_path / "child epic.md"
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps(agent_meta) + "\n",
+        encoding="utf-8",
+    )
+    monitor = SimpleNamespace(monitor_id="m7k2xyz")
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch(
+            "sase.bead.project_name.infer_project_name_from_cwd",
+            return_value="sase",
+        ),
+        patch(
+            "sase.monitor.start.start_monitor",
+            return_value=monitor,
+        ) as start_monitor,
+    ):
+        submitted = start_epic_launch_monitor(
+            plan,
+            cwd=tmp_path,
+            host_action_data={"agent_name": "sase-m6.6"},
+            artifacts_dir=artifacts,
+        )
+
+    assert submitted is monitor
+    return start_monitor.call_args.args[0]
+
+
 def test_start_epic_launch_monitor_falls_back_to_detached_task_when_lane_missing(
     tmp_path: Path,
 ) -> None:

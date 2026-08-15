@@ -197,16 +197,33 @@ def _epic_launch_lane(
     artifacts_dir: str | Path | None,
 ) -> str | None:
     meta = _read_agent_meta_best_effort(artifacts_dir)
-    raw_family = meta.get("agent_family")
-    if isinstance(raw_family, str) and raw_family.strip():
-        return raw_family.strip()
-    raw_name = meta.get("name")
-    if isinstance(raw_name, str) and raw_name.strip():
-        return agent_family_base(raw_name) or raw_name.strip()
+    exact_name = _optional_text(meta.get("name"))
+    if _uses_exact_agent_lane(meta):
+        return exact_name or _optional_text(host_action_data.get("agent_name"))
+    raw_family = _optional_text(meta.get("agent_family"))
+    if raw_family:
+        return raw_family
+    if exact_name:
+        return agent_family_base(exact_name) or exact_name
 
     raw_action_name = host_action_data.get("agent_name")
     if raw_action_name:
         return agent_family_base(raw_action_name) or raw_action_name
+    return None
+
+
+def _uses_exact_agent_lane(meta: dict[str, Any]) -> bool:
+    """Return whether clan (or legacy parallel-family) metadata pins the lane."""
+    if _optional_text(meta.get("agent_clan")):
+        return True
+    return meta.get("agent_family_parallel") is True
+
+
+def _optional_text(value: object) -> str | None:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped:
+            return stripped
     return None
 
 
