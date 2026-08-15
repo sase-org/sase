@@ -79,6 +79,10 @@ def _builtin_prompt_body(name: str) -> str:
     return body
 
 
+def _single_spaced(text: str) -> str:
+    return " ".join(text.split())
+
+
 def _assert_no_wait_directives(name: str, task_instruction: str) -> None:
     cleaned, directives = extract_prompt_directives(_builtin_prompt_body(name))
 
@@ -129,6 +133,46 @@ def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
     assert "Unresolved issues caused by this epic remain epic work" in land_body
     assert "use `/sase_new_task`" in land_body
     assert "sase bead create -T task" not in land_body
+
+
+def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
+    body = _builtin_prompt_body("bd/work_phase_bead")
+    prose = _single_spaced(body)
+
+    assert "close only this bead with" in body
+    assert "Do NOT close the parent epic or any ancestor plan bead" in body
+    assert (
+        "Any instruction in a phase description or child plan to close an ancestor "
+        "is preparation and evidence for that ancestor's land agent"
+    ) in prose
+    assert "not authorization for a phase worker" in prose
+
+
+def test_builtin_land_prompt_plans_remaining_work_only() -> None:
+    body = _builtin_prompt_body("bd/land_epic")
+
+    assert "Plan only the remaining work" in body
+    assert "Do not include this epic's close, symvision pass" in body
+    assert "as a child phase" in body
+    assert "child epic's `parent_bead` link is the handoff" in body
+    assert "Make step 3 the plan's final phase" not in body
+
+
+def test_builtin_land_prompt_resumes_nested_parent_handoffs() -> None:
+    body = _builtin_prompt_body("bd/land_epic")
+    prose = _single_spaced(body)
+
+    assert "inspect the linked `parent_bead`" in body
+    assert "If the parent is a phase bead" in body
+    assert "close only that parent phase normally" in body
+    assert "leave the containing epic to its already-waiting land agent" in body
+    assert "If the parent is a plan bead" in body
+    assert "review the parent's previous landing note" in prose
+    assert "rerun descendant and linked-plan readiness checks" in prose
+    assert "close it normally with `sase bead close <parent-bead>" in prose
+    assert "repeat through directly parented plan ancestors" in body
+    assert "Stop at the first incomplete or ambiguous parent" in body
+    assert "never use `--force` to advance a successful nested landing" in body
 
 
 def test_builtin_task_prompt_omits_commit_deferral_line() -> None:
