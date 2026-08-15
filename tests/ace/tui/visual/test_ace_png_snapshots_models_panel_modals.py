@@ -189,6 +189,28 @@ async def test_models_panel_duration_picker_png_snapshot(
         )
 
 
+async def test_models_panel_provider_duration_picker_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(models_panel_providers._provider_duration_modal("claude"))
+        await page.expect_modal("DurationPickerModal")
+        await wait_for_svg_contains(page, "Disable CLAUDE")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_duration_picker_120x40",
+            title="ACE provider-disable duration picker",
+        )
+
+
 async def test_models_panel_provider_routing_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -233,6 +255,96 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
             page,
             "models_panel_provider_routing_modal_120x40",
             title="ACE models panel — provider routing modal",
+        )
+
+
+async def test_models_panel_provider_routing_until_cleared_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    disable = provider_disable("codex", expires_at=None)
+    snapshot = _ProviderRoutingSnapshot(
+        statuses=(
+            provider_status(
+                "codex",
+                model_count=7,
+                active_disable=disable,
+                affected_aliases=("medium_worker", "cheaper", "legacy_blog"),
+            ),
+            provider_status("claude", model_count=11),
+        ),
+        provider_disables={"codex": disable},
+        alias_views=(),
+        provider_colors={"claude": "#D97757", "codex": "#10A37F"},
+        captured_at=FROZEN_NOW,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(
+            _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+        )
+        await page.expect_modal("_ProviderRoutingModal")
+        await wait_for_svg_contains(page, "until cleared")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_routing_until_cleared_120x40",
+            title="ACE models panel — provider routing until cleared",
+        )
+
+
+async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    snapshot = _ProviderRoutingSnapshot(
+        statuses=(
+            provider_status(
+                "codex",
+                model_count=7,
+                active_disable=disable,
+                affected_aliases=("medium_worker", "cheaper"),
+            ),
+            provider_status("claude", model_count=11),
+            provider_status("gemini", model_count=2, cli_available=False),
+            provider_status("opencode", model_count=3),
+        ),
+        provider_disables={"codex": disable},
+        alias_views=(),
+        provider_colors={
+            "claude": "#D97757",
+            "codex": "#10A37F",
+            "gemini": "#87D7FF",
+            "opencode": "#B48EAD",
+        },
+        captured_at=FROZEN_NOW,
+    )
+
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 32)) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(
+            _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+        )
+        await page.expect_modal("_ProviderRoutingModal")
+        await wait_for_svg_contains(page, "Provider Routing")
+        await wait_for_svg_contains(page, "disabled · 42m left")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_routing_modal_narrow_70x32",
+            title="ACE models panel — narrow provider routing modal",
         )
 
 

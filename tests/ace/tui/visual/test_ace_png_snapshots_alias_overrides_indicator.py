@@ -160,3 +160,32 @@ async def test_provider_disables_indicator_single_png_snapshot(
             "provider_disables_indicator_single_120x40",
             title="ACE CLAUDE disabled provider pill",
         )
+
+
+async def test_provider_disables_indicator_multiple_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_disables",
+        lambda: {
+            "claude": _disable("claude"),
+            "codex": _disable("codex"),
+            "gemini": _disable("gemini"),
+        },
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "provider_disables_indicator_multiple_120x40",
+            title="ACE multiple disabled provider pill",
+        )

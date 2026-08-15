@@ -54,8 +54,9 @@ def test_provider_disable_fresh_process_smoke_matrix(tmp_path: Path) -> None:
 
     _run_python(
         code="""
+from sase.llm_provider.model_alias_policy import MEDIUM_MODEL_ALIAS_NAME
 from sase.llm_provider.temporary_override import set_alias_override
-set_alias_override("medium_worker", "claude/opus", None, source="smoke")
+set_alias_override(MEDIUM_MODEL_ALIAS_NAME, "claude/opus", None, source="smoke")
 """,
         env=env,
     )
@@ -76,6 +77,10 @@ disable_provider(PROVIDER, DURATION, source="smoke", now=1000.0)
 import json
 
 from sase.llm_provider.alias_view import build_alias_views
+from sase.llm_provider.model_alias_policy import (
+    MEDIUM_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
+)
 from sase.llm_provider.provider_disable import (
     disable_provider_until,
     enable_provider,
@@ -89,19 +94,19 @@ from sase.llm_provider.registry import (
 
 disables = get_active_provider_disables(1001.0)
 out = {"initial_disables": sorted(disables)}
-out["smarter"] = resolve_model_provider_with_effort(
-    "@smarter",
+out["medium"] = resolve_model_provider_with_effort(
+    f"@{MEDIUM_MODEL_ALIAS_NAME}",
     provider_disables=disables,
 )
-out["smartest"] = resolve_model_provider_with_effort(
-    "@smartest",
+out["xlarge"] = resolve_model_provider_with_effort(
+    f"@{XLARGE_MODEL_ALIAS_NAME}",
     provider_disables=disables,
 )
 
 view = next(
     view
     for view in build_alias_views(now=1001.0, provider_disables=disables)
-    if view.name == "medium_worker"
+    if view.name == MEDIUM_MODEL_ALIAS_NAME
 )
 out["paused_override"] = {
     "paused": view.is_override_paused,
@@ -118,8 +123,8 @@ else:
 
 enable_provider("claude")
 disables = get_active_provider_disables(1002.0)
-out["after_clear_smartest"] = resolve_model_provider_with_effort(
-    "@smartest",
+out["after_clear_xlarge"] = resolve_model_provider_with_effort(
+    f"@{XLARGE_MODEL_ALIAS_NAME}",
     provider_disables=disables,
 )
 
@@ -134,14 +139,14 @@ print(json.dumps(out, sort_keys=True))
     out = json.loads(result.stdout)
 
     assert out["initial_disables"] == ["claude", "grok"]
-    assert out["smarter"][0] == "codex"
-    assert out["smartest"][0] == "codex"
+    assert out["medium"][0] == "codex"
+    assert out["xlarge"][0] == "codex"
     assert out["paused_override"] == {
         "paused": True,
         "provider": "codex",
         "model": "gpt-5.5",
     }
     assert "LLM provider 'claude' is temporarily disabled" in out["direct_error"]
-    assert out["after_clear_smartest"][0] == "claude"
+    assert out["after_clear_xlarge"][0] == "claude"
     assert out["before_expiry"] == ["claude"]
     assert out["at_expiry"] == []
