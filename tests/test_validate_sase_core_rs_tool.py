@@ -5,6 +5,7 @@ import json
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any
 
 
 import pytest
@@ -110,6 +111,111 @@ def test_validate_sase_core_rs_requires_proc_store_bindings() -> None:
         assert not validator._validate_bindings(
             _module_with_required_bindings(validator, missing={binding})
         )
+
+
+def test_validate_sase_core_rs_requires_proc_lifecycle_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    proc_lifecycle_bindings = {
+        "reserve_proc",
+        "claim_proc_supervisor",
+        "request_proc_stop",
+        "begin_proc_settlement",
+        "finish_proc",
+    }
+
+    assert proc_lifecycle_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in proc_lifecycle_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def _proc_lifecycle_proc(**overrides: Any) -> dict[str, Any]:
+    proc = {
+        "schema_version": 3,
+        "proc_id": "validator-proc",
+        "status": "pending",
+        "phase": "reserved",
+        "lifecycle": "proc-shell",
+        "reserved_by": "validate_sase_core_rs",
+        "reserved_at": "2026-08-15T00:00:00Z",
+        "request_fingerprint": "validator-fingerprint",
+    }
+    proc.update(overrides)
+    return proc
+
+
+def test_validate_proc_lifecycle_contract_passes_for_schema_v3_transitions() -> None:
+    validator = _load_validate_sase_core_rs()
+
+    module = SimpleNamespace(
+        reserve_proc=lambda *_args: {
+            "schema_version": 3,
+            "reserved": True,
+            "replayed": False,
+            "proc": _proc_lifecycle_proc(),
+        },
+        claim_proc_supervisor=lambda *_args: {
+            "schema_version": 3,
+            "matched": True,
+            "proc": _proc_lifecycle_proc(
+                status="running",
+                started_at="2026-08-15T00:00:01Z",
+                supervisor_id="validator-supervisor",
+                supervisor_claimed_at="2026-08-15T00:00:01Z",
+                pid=123,
+                pgid=123,
+            ),
+        },
+        request_proc_stop=lambda *_args: {
+            "schema_version": 3,
+            "matched": True,
+            "proc": _proc_lifecycle_proc(
+                status="running",
+                stop_requested_by="validate_sase_core_rs",
+                stop_requested_at="2026-08-15T00:00:02Z",
+                stop_reason="probe",
+            ),
+        },
+        begin_proc_settlement=lambda *_args: {
+            "schema_version": 3,
+            "matched": True,
+            "proc": _proc_lifecycle_proc(
+                status="settling",
+                exit_code=0,
+                message="settling",
+                settling_started_at="2026-08-15T00:00:03Z",
+            ),
+        },
+        finish_proc=lambda *_args: {
+            "schema_version": 3,
+            "matched": True,
+            "proc": _proc_lifecycle_proc(
+                status="success",
+                finished_at="2026-08-15T00:00:04Z",
+                finished_by="validator-supervisor",
+                settled_at="2026-08-15T00:00:04Z",
+                settled_by="validator-supervisor",
+                result={"ok": True},
+            ),
+        },
+    )
+
+    assert validator._validate_proc_lifecycle_contract(module)
+
+
+def test_validate_proc_lifecycle_contract_fails_on_stale_reserve_schema() -> None:
+    validator = _load_validate_sase_core_rs()
+    module = SimpleNamespace(
+        reserve_proc=lambda *_args: {
+            "schema_version": 2,
+            "reserved": True,
+            "replayed": False,
+            "proc": _proc_lifecycle_proc(schema_version=2),
+        }
+    )
+
+    assert not validator._validate_proc_lifecycle_contract(module)
 
 
 def test_validate_sase_core_rs_requires_agent_stats_work_bindings() -> None:

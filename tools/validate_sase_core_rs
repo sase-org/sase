@@ -124,6 +124,11 @@ REQUIRED_BINDINGS = (
     "append_proc",
     "update_proc",
     "prune_procs",
+    "reserve_proc",
+    "claim_proc_supervisor",
+    "request_proc_stop",
+    "begin_proc_settlement",
+    "finish_proc",
     "telemetry_record_batch",
     "telemetry_query_instant",
     "telemetry_query_range",
@@ -403,7 +408,8 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
         _error("agent statistics work-schema probe payload has no work dict")
         return False
     if not isinstance(work.get("projects"), list) or not isinstance(
-        work.get("changespecs"), list  # legacy stats wire key
+        work.get("changespecs"),
+        list,  # legacy stats wire key
     ):
         _error("agent statistics work-schema probe payload has invalid work rows")
         return False
@@ -597,6 +603,238 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     return True
 
 
+def _proc_lifecycle_probe_reserve() -> dict[str, Any]:
+    return {
+        "schema_version": 3,
+        "proc_id": "validator-proc",
+        "label": "Validator proc",
+        "kind": "command",
+        "argv": ["bash", "-lc", "true"],
+        "cwd": "/tmp",
+        "created_at": "2026-08-15T00:00:00Z",
+        "log_path": "validator-proc.log",
+        "request_fingerprint": "validator-fingerprint",
+        "reserved_by": "validate_sase_core_rs",
+        "project": None,
+        "workspace_num": None,
+        "session_id": None,
+        "session_label": None,
+        "origin": "proc-shell",
+        "cl_name": None,
+        "tags": ["validator"],
+        "log_owner": "proc-store",
+        "shell_name": "validator",
+        "shell_kind": "proc",
+        "concurrency_keys": ["validator-key"],
+        "timeout_seconds": None,
+        "idle_timeout_seconds": None,
+    }
+
+
+def _proc_from_outcome(outcome: Any, binding_name: str) -> dict[str, Any] | None:
+    if not isinstance(outcome, dict):
+        _error(f"{binding_name} probe returned a non-dict payload")
+        return None
+    if outcome.get("schema_version") != 3:
+        _error(
+            f"{binding_name} probe returned stale schema: "
+            f"got {outcome.get('schema_version')!r}, expected 3"
+        )
+        return None
+    proc = outcome.get("proc")
+    if not isinstance(proc, dict):
+        _error(f"{binding_name} probe payload has no proc dict")
+        return None
+    if proc.get("schema_version") != 3:
+        _error(
+            f"{binding_name} probe returned stale proc schema: "
+            f"got {proc.get('schema_version')!r}, expected 3"
+        )
+        return None
+    return proc
+
+
+def _expect_proc_fields(
+    proc: dict[str, Any], binding_name: str, expected: dict[str, Any]
+) -> bool:
+    mismatches = [
+        f"{name}={proc.get(name)!r} (expected {value!r})"
+        for name, value in expected.items()
+        if proc.get(name) != value
+    ]
+    if mismatches:
+        _error(
+            f"{binding_name} probe returned stale proc fields: " + "; ".join(mismatches)
+        )
+        return False
+    return True
+
+
+def _call_proc_lifecycle_binding(
+    module: ModuleType, binding_name: str, *args: Any
+) -> Any | None:
+    binding = getattr(module, binding_name, None)
+    if not callable(binding):
+        _error(f"{binding_name} binding missing; cannot probe proc lifecycle")
+        return None
+    try:
+        return binding(*args)
+    except Exception as exc:
+        _error(f"{binding_name} probe failed: {exc}")
+        return None
+
+
+def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
+    """Exercise the schema-v3 proc-shell lifecycle used by the Python service."""
+    with tempfile.TemporaryDirectory(
+        prefix="sase-core-rs-proc-lifecycle-probe-"
+    ) as tmp:
+        store = Path(tmp) / "procs.jsonl"
+        reserve = _call_proc_lifecycle_binding(
+            module,
+            "reserve_proc",
+            str(store),
+            _proc_lifecycle_probe_reserve(),
+            10,
+        )
+        proc = _proc_from_outcome(reserve, "reserve_proc")
+        if proc is None or not isinstance(reserve, dict):
+            return False
+        valid = True
+        if reserve.get("reserved") is not True or reserve.get("replayed") is not False:
+            _error(
+                "reserve_proc probe did not report a fresh reservation: "
+                f"reserved={reserve.get('reserved')!r}, replayed={reserve.get('replayed')!r}"
+            )
+            valid = False
+        valid &= _expect_proc_fields(
+            proc,
+            "reserve_proc",
+            {
+                "status": "pending",
+                "phase": "reserved",
+                "lifecycle": "proc-shell",
+                "reserved_by": "validate_sase_core_rs",
+                "reserved_at": "2026-08-15T00:00:00Z",
+                "request_fingerprint": "validator-fingerprint",
+            },
+        )
+
+        claim = _call_proc_lifecycle_binding(
+            module,
+            "claim_proc_supervisor",
+            str(store),
+            {
+                "proc_id": "validator-proc",
+                "supervisor_id": "validator-supervisor",
+                "claimed_at": "2026-08-15T00:00:01Z",
+                "pid": 123,
+                "pgid": 123,
+            },
+        )
+        proc = _proc_from_outcome(claim, "claim_proc_supervisor")
+        if proc is None or not isinstance(claim, dict):
+            return False
+        valid &= claim.get("matched") is True
+        valid &= _expect_proc_fields(
+            proc,
+            "claim_proc_supervisor",
+            {
+                "status": "running",
+                "started_at": "2026-08-15T00:00:01Z",
+                "supervisor_id": "validator-supervisor",
+                "supervisor_claimed_at": "2026-08-15T00:00:01Z",
+                "pid": 123,
+                "pgid": 123,
+            },
+        )
+
+        stop = _call_proc_lifecycle_binding(
+            module,
+            "request_proc_stop",
+            str(store),
+            {
+                "proc_id": "validator-proc",
+                "requested_by": "validate_sase_core_rs",
+                "requested_at": "2026-08-15T00:00:02Z",
+                "reason": "probe",
+            },
+        )
+        proc = _proc_from_outcome(stop, "request_proc_stop")
+        if proc is None or not isinstance(stop, dict):
+            return False
+        valid &= stop.get("matched") is True
+        valid &= _expect_proc_fields(
+            proc,
+            "request_proc_stop",
+            {
+                "status": "running",
+                "stop_requested_by": "validate_sase_core_rs",
+                "stop_requested_at": "2026-08-15T00:00:02Z",
+                "stop_reason": "probe",
+            },
+        )
+
+        settlement = _call_proc_lifecycle_binding(
+            module,
+            "begin_proc_settlement",
+            str(store),
+            {
+                "proc_id": "validator-proc",
+                "supervisor_id": "validator-supervisor",
+                "settling_at": "2026-08-15T00:00:03Z",
+                "exit_code": 0,
+                "message": "settling",
+            },
+        )
+        proc = _proc_from_outcome(settlement, "begin_proc_settlement")
+        if proc is None or not isinstance(settlement, dict):
+            return False
+        valid &= settlement.get("matched") is True
+        valid &= _expect_proc_fields(
+            proc,
+            "begin_proc_settlement",
+            {
+                "status": "settling",
+                "exit_code": 0,
+                "message": "settling",
+                "settling_started_at": "2026-08-15T00:00:03Z",
+            },
+        )
+
+        finish = _call_proc_lifecycle_binding(
+            module,
+            "finish_proc",
+            str(store),
+            {
+                "proc_id": "validator-proc",
+                "supervisor_id": "validator-supervisor",
+                "status": "success",
+                "finished_at": "2026-08-15T00:00:04Z",
+                "exit_code": 0,
+                "message": "done",
+                "result": {"ok": True},
+            },
+        )
+        proc = _proc_from_outcome(finish, "finish_proc")
+        if proc is None or not isinstance(finish, dict):
+            return False
+        valid &= finish.get("matched") is True
+        valid &= _expect_proc_fields(
+            proc,
+            "finish_proc",
+            {
+                "status": "success",
+                "finished_at": "2026-08-15T00:00:04Z",
+                "finished_by": "validator-supervisor",
+                "settled_at": "2026-08-15T00:00:04Z",
+                "settled_by": "validator-supervisor",
+                "result": {"ok": True},
+            },
+        )
+    return valid
+
+
 _CONFIG_SCHEMA_PATH = REPO_ROOT / "src" / "sase" / "config" / "sase.schema.json"
 
 # Minimal valid ``inhibit_if`` payload per guard provider the bundled schema
@@ -625,7 +863,9 @@ def _collect_inhibit_if_providers(node: Any, *, in_inhibit_if: bool) -> set[str]
             providers |= _collect_inhibit_if_providers(value, in_inhibit_if=nested)
     elif isinstance(node, list):
         for item in node:
-            providers |= _collect_inhibit_if_providers(item, in_inhibit_if=in_inhibit_if)
+            providers |= _collect_inhibit_if_providers(
+                item, in_inhibit_if=in_inhibit_if
+            )
     return providers
 
 
@@ -835,6 +1075,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_saved_group_wire_fields(module):
         return 1
     if not _validate_project_lifecycle_contract(module):
+        return 1
+    if not _validate_proc_lifecycle_contract(module):
         return 1
     if not _validate_axe_chop_guard_providers(module):
         return 1
