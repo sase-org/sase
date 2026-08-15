@@ -81,7 +81,8 @@ class ArtifactsDocumentsPane(
         self._init_plans_options()
 
     def compose(self) -> ComposeResult:
-        yield PlanFilterBar(id="plan-filter-bar")
+        accent = None if self.contract is None else self.contract.accent
+        yield PlanFilterBar(id="plan-filter-bar", accent=accent)
         yield Static(self._scope_text(), classes="artifacts-pane-info", id="plans-info")
         with Horizontal(id="plans-panels"):
             list_panel = Vertical(id="plans-list-panel")
@@ -165,6 +166,17 @@ class ArtifactsDocumentsPane(
     @property
     def snapshot(self) -> PlansSnapshot | None:
         return self._snapshot
+
+    def _snapshot_matches_scope(self) -> bool:
+        return (
+            self._snapshot is not None and self._snapshot.project == self.project_scope
+        )
+
+    def _snapshot_row_count(self) -> int:
+        snapshot = self._snapshot
+        if snapshot is None:
+            return 0
+        return len(snapshot.proposals) + len(snapshot.active) + len(snapshot.archive)
 
     def _request_load(self, *, force: bool) -> None:
         self._request_snapshot(force=force)

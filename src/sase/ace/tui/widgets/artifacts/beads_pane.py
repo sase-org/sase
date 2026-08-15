@@ -121,6 +121,15 @@ class ArtifactsBeadsPane(
     def snapshot(self) -> BeadsSnapshot | None:
         return self._snapshot
 
+    def _snapshot_matches_scope(self) -> bool:
+        return (
+            self._snapshot is not None and self._snapshot.project == self.project_scope
+        )
+
+    def _snapshot_row_count(self) -> int:
+        snapshot = self._snapshot
+        return 0 if snapshot is None else len(snapshot.tasks) + len(snapshot.epics)
+
     def external_links_for_row(self, row: BeadRow) -> tuple[ExternalIssueLink, ...]:
         """Return cached external issue links for *row*."""
 

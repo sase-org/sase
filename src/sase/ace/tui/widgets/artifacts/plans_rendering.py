@@ -14,6 +14,12 @@ from sase.plan_search.model import PlanSearchMatch
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .plans_data import ActivePlanDocument, PlanProposal, PlansSnapshot
+from .shell import (
+    ArtifactsPaneState,
+    build_footer_hints,
+    build_shell_scope,
+    build_state_badge,
+)
 from .types import ARTIFACTS_ACCENTS
 
 
@@ -24,23 +30,15 @@ def build_plans_scope(
     project_display_name: str | None,
     filter_tokens: tuple[str, ...] = (),
     provider_label: str = "Plan",
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
-    text = Text()
-    text.append(
-        f" {provider_label} ", style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}"
+    return build_shell_scope(
+        label=provider_label,
+        accent=accent,
+        scope_label=project_display_name or project_scope or "All projects",
+        change_hint=f"{key_display_name(registry.app.pick_artifacts_project)} change",
+        filter_tokens=filter_tokens,
     )
-    text.append("  Project scope  ", style="dim")
-    label = project_display_name or project_scope or "All projects"
-    text.append(f" {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-    text.append("  ·  ", style="dim")
-    text.append(
-        f"{key_display_name(registry.app.pick_artifacts_project)} change",
-        style="dim",
-    )
-    for token in filter_tokens:
-        text.append("  ·  ", style="dim")
-        text.append(token, style="dim #87D7FF")
-    return text
 
 
 def build_plans_status(
@@ -51,15 +49,27 @@ def build_plans_status(
     matched_counts: Mapping[str, int] | None = None,
     archive_total: int | None = None,
     archive_coverage_label: str | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
     text = Text()
-    if loading:
+    if loading and snapshot is None:
         text.append("Loading…", style="bold #FFD700")
-    elif load_error:
+    elif load_error and snapshot is None:
         text.append(load_error, style="bold #FF5F5F")
     elif snapshot is None:
         text.append("Plans have not loaded yet", style="dim")
     else:
+        if loading or load_error:
+            # A refresh is running or failed, but cached rows from this
+            # scope remain: preserve them and overlay a stale badge instead
+            # of blanking the counts.
+            text.append_text(
+                build_state_badge(
+                    ArtifactsPaneState.STALE,
+                    error_message=load_error if not loading else None,
+                )
+            )
+            text.append("  ·  ", style="dim")
         if snapshot.project is None:
             text.append(f"{len(snapshot.projects)} projects", style="bold white")
             text.append("  ·  ", style="dim")
@@ -74,7 +84,7 @@ def build_plans_status(
             _matched_count_label(
                 matched_counts, "active", len(snapshot.active), "active"
             ),
-            style=ARTIFACTS_ACCENTS["plans"],
+            style=accent,
         )
         text.append("  ·  ", style="dim")
         archive_label = _matched_count_label(
@@ -99,7 +109,11 @@ def build_plans_status(
     return text
 
 
-def build_plans_hints(registry: KeymapRegistry) -> Text:
+def build_plans_hints(
+    registry: KeymapRegistry,
+    *,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
+) -> Text:
     keymap = registry.app
     parts = (
         (key_display_name(keymap.plans_next), "next"),
@@ -110,13 +124,7 @@ def build_plans_hints(registry: KeymapRegistry) -> Text:
         (key_display_name(keymap.plans_reject), "reject"),
         (key_display_name(keymap.plans_refresh), "refresh"),
     )
-    text = Text(justify="center")
-    for index, (key, label) in enumerate(parts):
-        if index:
-            text.append("  ", style="dim")
-        text.append(key, style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-        text.append(f" {label}", style="dim")
-    return text
+    return build_footer_hints(parts, accent=accent)
 
 
 def build_empty_plan_detail(
@@ -125,11 +133,19 @@ def build_empty_plan_detail(
     project_scope: str | None,
     loading: bool,
     load_error: str | None,
+    has_active_filter: bool = False,
+    matched_total: int | None = None,
 ) -> str:
-    if loading:
+    if loading and snapshot is None:
         return "# Plans\n\nLoading plan documents…"
-    if load_error:
+    if load_error and snapshot is None:
         return f"# Plans unavailable\n\n{load_error}"
+    if has_active_filter and matched_total == 0:
+        return (
+            "# No matches\n\n"
+            "No plan documents match the active filter. Press the filter key "
+            "to edit or clear it."
+        )
     message = (
         "Select a proposal, active plan, or archived plan from all enabled projects."
         if project_scope is None
@@ -147,11 +163,12 @@ def proposal_text(
     proposal: PlanProposal,
     *,
     project_badge: str | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
     text = single_line_text()
     text.append("◆ ", style="bold #FFD700")
     text.append(proposal.title, style="bold white")
-    text.append(f"  {proposal.tier}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    text.append(f"  {proposal.tier}", style=f"bold {accent}")
     age = _compact_inventory_age(proposal.age)
     if age:
         text.append(f"  {age}", style="dim")
@@ -163,17 +180,18 @@ def active_plan_text(
     active: ActivePlanDocument,
     *,
     project_badge: str | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
     """Render a plan document with its owning live bead metadata."""
     document = active.document
     owner = active.owner
-    text = single_line_text("▤ ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    text = single_line_text("▤ ", style=f"bold {accent}")
     text.append(_document_title(document.path, document.frontmatter), style="white")
     tier = document.frontmatter.get("tier") or (
         owner.bead_tier.value if owner.bead_tier is not None else ""
     )
     if tier:
-        text.append(f"  {tier}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+        text.append(f"  {tier}", style=f"bold {accent}")
     presentation = bead_status_presentation(owner.bead_status)
     text.append(f"  {owner.bead_id} ", style="bold #FFD700")
     text.append(presentation.tui_glyph, style=presentation.rich_style)
@@ -196,11 +214,12 @@ def archive_text(
     match: PlanSearchMatch,
     *,
     project_badge: str | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Text:
     plan = match.plan
     text = single_line_text("▤ ", style="bold #00D7AF")
     text.append(plan.title or plan.name, style="white")
-    text.append(f"  {plan.kind}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    text.append(f"  {plan.kind}", style=f"bold {accent}")
     if plan.status:
         status_style = "#5FD787" if plan.status in {"done", "approved"} else "#FFD700"
         text.append(f"  {plan.status}", style=f"bold {status_style}")

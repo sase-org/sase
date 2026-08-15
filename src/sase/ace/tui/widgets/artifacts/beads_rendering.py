@@ -28,6 +28,12 @@ from sase.phase_size_presentation import phase_size_chip
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot
 from .beads_data_models import ExternalIssueLink
+from .shell import (
+    ArtifactsPaneState,
+    build_footer_hints,
+    build_shell_scope,
+    build_state_badge,
+)
 from .types import ARTIFACTS_ACCENTS, EXTERNAL_ACCENT
 
 BLOCKED_STATE_GLYPH = "⊜"
@@ -42,24 +48,15 @@ def build_beads_scope(
     project_scope: str | None,
     project_display_name: str | None,
     filter_tokens: tuple[str, ...] = (),
+    accent: str = ARTIFACTS_ACCENTS["beads"],
 ) -> Text:
-    text = Text()
-    accent = ARTIFACTS_ACCENTS["beads"]
-    text.append(" Bead ", style=f"bold #1a1a1a on {accent}")
-    text.append("  Project scope  ", style="dim")
-    text.append(
-        f" {project_display_name or project_scope or 'All projects'} ",
-        style=f"bold {accent}",
+    return build_shell_scope(
+        label="Bead",
+        accent=accent,
+        scope_label=project_display_name or project_scope or "All projects",
+        change_hint=f"{key_display_name(registry.app.pick_artifacts_project)} change",
+        filter_tokens=filter_tokens,
     )
-    text.append("  ·  ", style="dim")
-    text.append(
-        f"{key_display_name(registry.app.pick_artifacts_project)} change",
-        style="dim",
-    )
-    for token in filter_tokens:
-        text.append("  ·  ", style="dim")
-        text.append(token, style="dim #87D7FF")
-    return text
 
 
 def build_beads_status(
@@ -71,13 +68,24 @@ def build_beads_status(
     matched_triage_count: int | None = None,
 ) -> Text:
     text = Text()
-    if loading:
+    if loading and snapshot is None:
         text.append("Loading…", style="bold #FFD700")
-    elif load_error:
+    elif load_error and snapshot is None:
         text.append(load_error, style="bold #FF5F5F")
     elif snapshot is None:
         text.append("Beads have not loaded yet", style="dim")
     else:
+        if loading or load_error:
+            # A refresh is running or failed, but cached rows from this
+            # scope remain: preserve them and overlay a stale badge instead
+            # of blanking the counts.
+            text.append_text(
+                build_state_badge(
+                    ArtifactsPaneState.STALE,
+                    error_message=load_error if not loading else None,
+                )
+            )
+            text.append("  ·  ", style="dim")
         phase_count = sum(len(phases) for phases in snapshot.phases_by_epic.values())
         if snapshot.project is None:
             text.append(f"{len(snapshot.projects)} projects", style="bold white")
@@ -133,7 +141,11 @@ def build_beads_status(
     return text
 
 
-def build_beads_hints(registry: KeymapRegistry) -> Text:
+def build_beads_hints(
+    registry: KeymapRegistry,
+    *,
+    accent: str = ARTIFACTS_ACCENTS["beads"],
+) -> Text:
     keymap = registry.app
     parts = (
         (key_display_name(keymap.beads_next), "next"),
@@ -144,13 +156,7 @@ def build_beads_hints(registry: KeymapRegistry) -> Text:
         (key_display_name(keymap.beads_collapse), "collapse"),
         (key_display_name(keymap.beads_refresh), "refresh"),
     )
-    text = Text(justify="center")
-    for index, (key, label) in enumerate(parts):
-        if index:
-            text.append("  ", style="dim")
-        text.append(key, style=f"bold {ARTIFACTS_ACCENTS['beads']}")
-        text.append(f" {label}", style="dim")
-    return text
+    return build_footer_hints(parts, accent=accent)
 
 
 def build_empty_bead_detail(
@@ -159,10 +165,12 @@ def build_empty_bead_detail(
     project_scope: str | None,
     loading: bool,
     load_error: str | None,
+    has_active_filter: bool = False,
+    matched_total: int | None = None,
 ) -> str:
-    if loading:
+    if loading and snapshot is None:
         return "# Beads\n\nLoading task, epic, and phase beads…"
-    if load_error:
+    if load_error and snapshot is None:
         return f"# Beads unavailable\n\n{load_error}"
     if snapshot is not None and not snapshot.tasks and not snapshot.epics:
         return (
@@ -170,6 +178,12 @@ def build_empty_bead_detail(
             "Agents use `/sase_new_task` before creating a sized draft task, then "
             "mark it ready for TaskTriage when it is ready to launch.\n\n"
             "TaskTriage decisions can launch or close the task here in the Beads pane."
+        )
+    if has_active_filter and matched_total == 0:
+        return (
+            "# No matches\n\n"
+            "No beads match the active filter. Press the filter key to edit or "
+            "clear it."
         )
     message = (
         "Select a bead from all enabled projects."

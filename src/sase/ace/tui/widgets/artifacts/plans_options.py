@@ -28,6 +28,7 @@ from .plans_rendering import (
     build_plans_scope,
     build_plans_status,
 )
+from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -40,6 +41,7 @@ else:
 class PlansOptionsMixin(_MixinBase):
     """Own list rebuilding, match counts, and pane summary text."""
 
+    contract: ArtifactsPaneContract | None
     project_scope: str | None
     provider_label: str
     filters: PlanFilterValues
@@ -202,6 +204,7 @@ class PlansOptionsMixin(_MixinBase):
             matched_option_ids=matched_option_ids,
             archive_entries=archive_entries,
             archive_total=self._display_archive_total,
+            accent=self._accent(),
         )
         self._rows = rows
         pending_id = self._pending_option_id()
@@ -256,6 +259,10 @@ class PlansOptionsMixin(_MixinBase):
                 self._detail_debouncer.schedule(self._update_detail)
         self._sync_artifacts_footer()
 
+    def _accent(self) -> str:
+        contract = self.contract
+        return ARTIFACTS_ACCENTS["plans"] if contract is None else contract.accent
+
     def _scope_text(self) -> Text:
         return build_plans_scope(
             self._registry,
@@ -263,6 +270,7 @@ class PlansOptionsMixin(_MixinBase):
             project_display_name=self._project_display_name,
             filter_tokens=to_query_tokens(self.filters),
             provider_label=self.provider_label,
+            accent=self._accent(),
         )
 
     def _status_text(self) -> Text:
@@ -273,17 +281,25 @@ class PlansOptionsMixin(_MixinBase):
             matched_counts=self._display_matched_counts,
             archive_total=self._display_archive_total,
             archive_coverage_label=self._display_archive_coverage_label,
+            accent=self._accent(),
         )
 
     def _hints_text(self) -> Text:
-        return build_plans_hints(self._registry)
+        return build_plans_hints(self._registry, accent=self._accent())
 
     def _empty_detail(self) -> str:
+        matched_total = (
+            None
+            if self._display_matched_counts is None
+            else sum(self._display_matched_counts.values())
+        )
         return build_empty_plan_detail(
             self._snapshot,
             project_scope=self.project_scope,
             loading=self._loading,
             load_error=self._load_error,
+            has_active_filter=not self.filters.is_empty,
+            matched_total=matched_total,
         )
 
     def _update_status(self) -> None:

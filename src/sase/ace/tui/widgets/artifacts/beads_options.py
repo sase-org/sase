@@ -22,6 +22,8 @@ from .beads_rendering import (
     build_empty_bead_detail,
 )
 from .entry_navigation import ArtifactEntryTarget
+from .shell import ArtifactsPaneState
+from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -31,6 +33,7 @@ else:
 
 
 class BeadsOptionsMixin(_MixinBase):
+    contract: ArtifactsPaneContract | None
     project_scope: str | None
     _project_display_name: str | None
     _registry: KeymapRegistry
@@ -70,6 +73,12 @@ class BeadsOptionsMixin(_MixinBase):
         def _close_filter_session(self) -> None: ...
 
         def _sync_artifacts_footer(self) -> None: ...
+
+        def pane_state(
+            self,
+            *,
+            has_active_filter: bool = ...,
+        ) -> ArtifactsPaneState: ...
 
     def _init_beads_options(self) -> None:
         self._display_matched_counts = None
@@ -177,6 +186,7 @@ class BeadsOptionsMixin(_MixinBase):
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
             filter_tokens=to_query_tokens(self.filters),
+            accent=self._accent(),
         )
 
     def _status_text(self) -> Any:
@@ -189,14 +199,25 @@ class BeadsOptionsMixin(_MixinBase):
         )
 
     def _hints_text(self) -> Any:
-        return build_beads_hints(self._registry)
+        return build_beads_hints(self._registry, accent=self._accent())
+
+    def _accent(self) -> str:
+        contract = self.contract
+        return ARTIFACTS_ACCENTS["beads"] if contract is None else contract.accent
 
     def _empty_detail(self) -> str:
+        matched_total = (
+            None
+            if self._display_matched_counts is None
+            else sum(self._display_matched_counts.values())
+        )
         return build_empty_bead_detail(
             self._snapshot,
             project_scope=self.project_scope,
             loading=self._loading,
             load_error=self._load_error,
+            has_active_filter=not self.filters.is_empty,
+            matched_total=matched_total,
         )
 
     def _update_static(self, selector: str, content: Any) -> None:

@@ -44,7 +44,7 @@ async def test_artifacts_files_empty_png_snapshot(
         await page.wait_for(
             lambda _state: pane.snapshot is not None and pane.snapshot.rows == ()
         )
-        await wait_for_svg_contains(page, "No artifact files found.")
+        await wait_for_svg_contains(page, "No artifact files")
         await wait_for_svg_contains(page, "Select an artifact file to inspect it.")
         await wait_for_visual_idle(page)
 

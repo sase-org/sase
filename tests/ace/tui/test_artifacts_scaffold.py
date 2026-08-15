@@ -142,9 +142,8 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
             page.app.check_action(action, ()) is True
             for action in FILES_ARTIFACT_ACTIONS
         )
-        assert (
+        assert "No artifact files" in str(
             page.query_one_widget("#files-empty", Static).content
-            == "No artifact files found."
         )
         await page.press("R")
         assert files.refresh_request_count == 1

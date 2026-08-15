@@ -65,7 +65,9 @@ class _FilterBarCompletionList(OptionList):
 class FilterBar(Static):
     """Reusable slash-style query editor with context-aware completion."""
 
-    ACCENT: ClassVar[str] = "white"
+    # Not a ClassVar: subclasses override it at class scope, and an instance
+    # may further override it (e.g. a contract-driven document provider).
+    ACCENT: str = "white"
     ROW_ID: ClassVar[str] = "filter-row"
     SIGIL_ID: ClassVar[str] = "filter-sigil"
     INPUT_ID: ClassVar[str] = "filter-input"
@@ -97,8 +99,10 @@ class FilterBar(Static):
     class Dismissed(Message):
         """The user dismissed the bar after closing any completion menu."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, accent: str | None = None, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        if accent is not None:
+            self.ACCENT = accent
         self._completion_sources: dict[str, tuple[str, ...]] = {}
         self._completion_candidates: list[CompletionCandidate] = []
         self._completion_visible = False

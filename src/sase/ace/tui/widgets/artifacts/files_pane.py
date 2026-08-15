@@ -54,7 +54,9 @@ from .files_rendering import (
     build_files_status,
 )
 from ..._artifact_tab_model import ArtifactsPaneContract
+from .shell import build_empty_card
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
+from .types import ARTIFACTS_ACCENTS
 
 
 class ArtifactsFilesPane(
@@ -449,13 +451,26 @@ class ArtifactsFilesPane(
         )
         if show_empty:
             values = self._display_filter_values()
-            empty.update(
-                "No artifact files found."
-                if values.is_empty
-                else "No artifact files match the active filters. "
-                f"Press {key_display_name(self._registry.app.files_filters)} "
-                "to edit or clear them."
-            )
+            has_active_filter = not values.is_empty
+            if self.contract is not None:
+                empty.update(
+                    build_empty_card(
+                        self.contract,
+                        has_active_filter=has_active_filter,
+                        clear_filter_hint=(
+                            f"Press {key_display_name(self._registry.app.files_filters)} "
+                            "to edit or clear it."
+                        ),
+                    )
+                )
+            else:
+                empty.update(
+                    "No artifact files found."
+                    if not has_active_filter
+                    else "No artifact files match the active filters. "
+                    f"Press {key_display_name(self._registry.app.files_filters)} "
+                    "to edit or clear them."
+                )
         empty.display = show_empty
         option_list.display = not show_empty
 
@@ -466,6 +481,10 @@ class ArtifactsFilesPane(
         if self.is_mounted:
             self.query_one(selector, Static).update(content)
 
+    def _accent(self) -> str:
+        contract = self.contract
+        return ARTIFACTS_ACCENTS["files"] if contract is None else contract.accent
+
     def _scope_text(self) -> RenderableType:
         snapshot = self._current_snapshot()
         return build_files_info(
@@ -475,6 +494,7 @@ class ArtifactsFilesPane(
             project_display_name=self._project_display_name,
             filters=self._display_filter_values(),
             filtered_count=self._filtered_count,
+            accent=self._accent(),
         )
 
     def _status_text(self) -> RenderableType:
@@ -492,11 +512,19 @@ class ArtifactsFilesPane(
             return None
         return snapshot
 
+    def _snapshot_matches_scope(self) -> bool:
+        return self._current_snapshot() is not None
+
+    def _snapshot_row_count(self) -> int:
+        snapshot = self._current_snapshot()
+        return 0 if snapshot is None else len(snapshot.rows)
+
     def _hints_text(self) -> RenderableType:
         entry = self.selected_entry
         return build_files_hints(
             self._registry,
             has_agent=bool(entry is not None and entry.agent_name),
+            accent=self._accent(),
         )
 
     def _schedule_detail(self) -> None:

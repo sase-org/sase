@@ -21,6 +21,7 @@ from sase.ace.tui.artifact_tabs import (
     resolve_artifacts_subtabs,
 )
 from sase.ace.tui.copy_targets import copy_target_for
+from sase.ace.tui.widgets.artifacts.shell import build_degraded_card, build_shell_scope
 
 ConformanceCheck = Callable[[ArtifactsTabDescriptor], None]
 
@@ -106,6 +107,35 @@ def check_unavailable_actions_have_off_verdicts(
         assert verdict.rule
 
 
+def check_pane_renders_shared_shell(descriptor: ArtifactsTabDescriptor) -> None:
+    """Every descriptor renders through the shared shell from its contract.
+
+    This never mounts a Textual widget or runs provider code; it proves the
+    shell's pure Rich renderers can identify and (for a degraded tab)
+    explain a pane using only the compiled contract/descriptor, with the
+    descriptor's own accent rather than a hard-coded pane id lookup.
+    """
+    if descriptor.is_degraded:
+        hero, card = build_degraded_card(
+            provider_kind=descriptor.provider_kind or descriptor.id,
+            provider_label=descriptor.label,
+            error=descriptor.error or "Provider failed to load",
+            error_code=descriptor.error_code,
+            error_source=descriptor.error_source,
+        )
+        assert descriptor.label in hero.plain
+        assert (descriptor.error or "Provider failed to load") in card.plain
+        return
+    contract = descriptor.resolved_contract
+    header = build_shell_scope(
+        label=contract.label,
+        accent=contract.accent,
+        scope_label="All projects",
+    )
+    assert contract.label in header.plain
+    assert any(contract.accent in str(span.style) for span in header.spans)
+
+
 PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     ("descriptor_identity", check_descriptor_identity),
     ("provider_accent_is_declared", check_provider_accent_is_declared),
@@ -120,6 +150,7 @@ PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
         "unavailable_actions_have_off_verdicts",
         check_unavailable_actions_have_off_verdicts,
     ),
+    ("pane_renders_shared_shell", check_pane_renders_shared_shell),
 )
 
 

@@ -6,7 +6,19 @@ from textual.app import App, ComposeResult
 from textual.widgets import OptionList, Static
 
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
+from sase.ace.tui.widgets.artifacts.types import ARTIFACTS_ACCENTS
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+
+
+def test_default_accent_is_plans_purple() -> None:
+    assert PlanFilterBar().ACCENT == ARTIFACTS_ACCENTS["plans"]
+
+
+def test_contract_accent_overrides_the_pinned_plans_default() -> None:
+    """A non-Plan document provider's filter bar must not render Plans-purple."""
+    bar = PlanFilterBar(accent="#058D1D")
+    assert bar.ACCENT == "#058D1D"
+    assert bar.ACCENT != ARTIFACTS_ACCENTS["plans"]
 
 
 class _PlanFilterBarApp(App[None]):

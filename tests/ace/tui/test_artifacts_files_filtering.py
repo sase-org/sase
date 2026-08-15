@@ -212,5 +212,6 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         pane.filters = replace(pane.filters, text=("missing",))
         pane._refresh_options()
         empty = pane.query_one("#files-empty", Static)
-        assert "No artifact files match the active filters." in str(empty.content)
-        assert "Press f to edit or clear them." in str(empty.content)
+        assert "No matches" in str(empty.content)
+        assert "active file filter" in str(empty.content)
+        assert "Press f to edit or clear it." in str(empty.content)

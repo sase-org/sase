@@ -28,6 +28,7 @@ from sase.vcs_log.render import (
 from sase.vcs_log.tags import commit_tag_view
 
 from .commit_filters import CommitLogFilterValues
+from .shell import ArtifactsPaneState, build_footer_hints, build_state_badge
 from .types import ARTIFACTS_ACCENTS
 
 
@@ -41,6 +42,7 @@ def build_commits_info(
     """Build the scope and collection-status header."""
     text = build_commits_info_header(
         refreshing=refreshing,
+        has_content=result is not None,
         active_limit=active_limit,
     )
     text.append("\n")
@@ -57,6 +59,7 @@ def build_commits_info(
 def build_commits_info_header(
     *,
     refreshing: bool,
+    has_content: bool = False,
     active_limit: int | None = None,
 ) -> Text:
     """Build the comparatively static first row of the Stitches information area."""
@@ -67,7 +70,9 @@ def build_commits_info_header(
         text.append("  ", style="dim")
         text.append(f"limit:{active_limit}", style=f"bold {accent}")
     if refreshing:
-        text.append("  ·  refreshing…", style="italic #FFD700")
+        state = ArtifactsPaneState.STALE if has_content else ArtifactsPaneState.LOADING
+        text.append("  ·  ", style="dim")
+        text.append_text(build_state_badge(state))
     return text
 
 
@@ -130,17 +135,23 @@ def build_commits_legend(result: VcsLogResult | None) -> Text:
     return legend
 
 
-def build_commits_hints(registry: KeymapRegistry) -> Text:
+def build_commits_hints(
+    registry: KeymapRegistry,
+    *,
+    accent: str = ARTIFACTS_ACCENTS["stitches"],
+) -> Text:
     """Build the Stitches action hint bar from configured keymaps."""
     actions = registry.app
     view_key = key_display_name(actions.stitches_view_selected)
     if view_key == "Enter":
         view_key = view_key.lower()
-    text = Text(
-        f"{key_display_name(actions.stitches_next)}/"
-        f"{key_display_name(actions.stitches_prev)} navigate  {view_key} view"
-    )
-    for key, label in (
+    entries = (
+        (
+            f"{key_display_name(actions.stitches_next)}/"
+            f"{key_display_name(actions.stitches_prev)}",
+            "navigate",
+        ),
+        (view_key, "view"),
         (key_display_name(actions.stitches_copy_sha), "copy"),
         (key_display_name(actions.edit_query), "filter"),
         (key_display_name(actions.stitches_toggle_sdd), "sidecars"),
@@ -149,11 +160,8 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
         (key_display_name(actions.stitches_fetch), "fetch"),
         (key_display_name(actions.stitches_refresh), "refresh"),
         (key_display_name(actions.pick_artifacts_project), "project"),
-    ):
-        text.append("  ")
-        text.append(key)
-        text.append(f" {label}")
-    return text
+    )
+    return build_footer_hints(entries, accent=accent)
 
 
 def commit_filter_chips(

@@ -37,13 +37,25 @@ from ._artifact_tab_model import (
 )
 
 
+# Nine colors spaced around the OKLCH hue wheel at a shared lightness/chroma
+# band chosen so every entry clears, against both the app's dark
+# (#121212/#1E1E1E) and light (#E0E0E0/#D8D8D8) shell surfaces plus the
+# identity chip's #1A1A1A text: a WCAG contrast ratio of at least 3.3, and a
+# pairwise perceptual (OKLab Euclidean) distance of at least 0.09 from every
+# other entry and from every reserved ``ARTIFACTS_ACCENTS`` color. Values are
+# pinned hex so runtime assignment stays dependency-free and deterministic;
+# see ``tests/ace/tui/test_artifacts_provider_palette.py`` for the checks
+# that keep these properties true.
 _PROVIDER_ACCENTS: tuple[str, ...] = (
-    "#AF87FF",
-    "#5FAFFF",
-    "#5FD7AF",
-    "#FF87D7",
-    "#87D7FF",
-    "#D7AF5F",
+    "#058D1D",
+    "#198A76",
+    "#1883B8",
+    "#7268F2",
+    "#9E5ECC",
+    "#CB45AA",
+    "#CC4F6C",
+    "#B66538",
+    "#777F17",
 )
 
 _ARTIFACTS_DIGIT_KEYS: tuple[str, ...] = tuple(str(digit) for digit in range(1, 10))

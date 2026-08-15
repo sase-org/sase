@@ -9,6 +9,7 @@ from textual.containers import Vertical
 from textual.worker import Worker, WorkerState
 
 from .lifecycle import ArtifactsPaneLifecycle
+from .shell import ArtifactsPaneState, ArtifactsShellState, resolve_pane_state
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,35 @@ class ArtifactsSnapshotPane(ArtifactsPaneLifecycle, Vertical):
         if self._worker is not None and not self._worker.is_finished:
             self._worker.cancel()
 
+    def _snapshot_matches_scope(self) -> bool:
+        """Return whether ``self._snapshot`` covers the pane's current scope.
+
+        The default treats any cached snapshot as usable content. A subclass
+        whose snapshot carries a ``project`` field overrides this so a
+        different scope's cached rows are never shown as though they were
+        the current scope's content.
+        """
+        return self._snapshot is not None
+
+    def _snapshot_row_count(self) -> int:
+        """Return the row count of the current, scope-matched snapshot."""
+        raise NotImplementedError
+
+    def pane_state(self, *, has_active_filter: bool = False) -> ArtifactsPaneState:
+        """Resolve this pane's closed shell state from its lifecycle fields."""
+
+        has_content = self._snapshot_matches_scope()
+        row_count = self._snapshot_row_count() if has_content else 0
+        return resolve_pane_state(
+            ArtifactsShellState(
+                is_loading=self._loading,
+                has_error=self._load_error is not None,
+                has_content=has_content,
+                row_count=row_count,
+                has_active_filter=has_active_filter,
+            )
+        )
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         if self._handle_auxiliary_worker(event):
             return
@@ -150,4 +180,4 @@ class ArtifactsSnapshotPane(ArtifactsPaneLifecycle, Vertical):
             self.call_later(lambda: self._request_snapshot(force=force, full=full))
 
 
-__all__ = ["ArtifactsSnapshotPane", "SnapshotRequest"]
+__all__ = ["ArtifactsPaneState", "ArtifactsSnapshotPane", "SnapshotRequest"]

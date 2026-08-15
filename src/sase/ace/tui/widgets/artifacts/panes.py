@@ -20,6 +20,7 @@ from ..tab_quickstart import TabQuickStart
 from .lifecycle import ArtifactsPaneLifecycle
 from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 from .patch_entry import patch_row_target
+from .shell import build_degraded_card
 from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
@@ -288,27 +289,18 @@ class ArtifactsDegradedPane(ArtifactsPaneLifecycle, Vertical):
         self._init_artifacts_lifecycle()
 
     def compose(self) -> ComposeResult:
-        hero = Static(self._hero_text(), classes="artifacts-degraded-hero")
-        card = Static(self._card_text(), classes="artifacts-degraded-card")
+        hero_text, card_text = build_degraded_card(
+            provider_kind=self.provider_kind,
+            provider_label=self.provider_label,
+            error=self.error,
+            error_code=self.error_code,
+            error_source=self.error_source,
+        )
+        hero = Static(hero_text, classes="artifacts-degraded-hero")
+        card = Static(card_text, classes="artifacts-degraded-card")
         card.border_title = "Provider unavailable"
         yield hero
         yield card
-
-    def _hero_text(self) -> Text:
-        text = Text()
-        text.append(self.provider_label, style="bold")
-        text.append(f"  ({self.provider_kind})", style="dim")
-        return text
-
-    def _card_text(self) -> Text:
-        text = Text()
-        if self.error_code:
-            text.append(f"{self.error_code}\n", style="bold")
-        text.append(self.error)
-        if self.error_source:
-            text.append("\n")
-            text.append(f"source: {self.error_source}", style="dim")
-        return text
 
 
 __all__ = [

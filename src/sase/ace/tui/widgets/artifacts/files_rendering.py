@@ -15,6 +15,7 @@ from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .files_data import FileOrigin, FileVersion, FilesSnapshot, LogicalFile
 from .files_filtering import FilesFilterValues, to_query_tokens
+from .shell import ArtifactsPaneState, build_footer_hints, build_state_badge
 from .types import ARTIFACTS_ACCENTS
 
 
@@ -50,11 +51,11 @@ def build_files_info(
     project_display_name: str | None,
     filters: FilesFilterValues | None = None,
     filtered_count: int | None = None,
+    accent: str = ARTIFACTS_ACCENTS["files"],
 ) -> Text:
     """Build project scope, kind-summary chips, and active-filter status."""
 
     filters = filters or FilesFilterValues()
-    accent = ARTIFACTS_ACCENTS["files"]
     scope = project_display_name or project_scope or "All projects"
     text = Text()
     text.append(" File ", style=f"bold #1a1a1a on {accent}")
@@ -137,15 +138,25 @@ def build_files_status(
 
     text = Text()
     error = load_error or (None if snapshot is None else snapshot.load_error)
-    if error:
-        text.append(error, style="bold #FF5F5F")
-        return text
     if snapshot is None:
-        text.append(
-            "Loading artifact files…" if loading else "Files have not loaded yet",
-            style="bold #FFD700" if loading else "dim",
-        )
+        if error:
+            text.append(error, style="bold #FF5F5F")
+        else:
+            text.append(
+                "Loading artifact files…" if loading else "Files have not loaded yet",
+                style="bold #FFD700" if loading else "dim",
+            )
         return text
+    if loading or error:
+        # A refresh is running or failed, but cached rows remain: preserve
+        # them and overlay a stale badge instead of blanking the count.
+        text.append_text(
+            build_state_badge(
+                ArtifactsPaneState.STALE,
+                error_message=error if not loading else None,
+            )
+        )
+        text.append("  ·  ", style="dim")
     text.append(f"{len(snapshot.rows):,} artifact files loaded", style="dim")
     if extending:
         text.append("  ·  Loading full index…", style="dim #FFD700")
@@ -156,6 +167,7 @@ def build_files_hints(
     registry: KeymapRegistry,
     *,
     has_agent: bool = True,
+    accent: str = ARTIFACTS_ACCENTS["files"],
 ) -> Text:
     """Build the configured action hints shown below the panels."""
 
@@ -175,17 +187,8 @@ def build_files_hints(
         (key_display_name(keymap.files_open_viewer), "viewer"),
         (key_display_name(keymap.files_refresh), "refresh"),
     )
-    text = Text(justify="center")
-    for index, (key, label) in enumerate(parts):
-        if index:
-            text.append("  ·  ", style="dim")
-        disabled = label == "agent" and not has_agent
-        text.append(
-            key,
-            style=("dim" if disabled else f"bold {ARTIFACTS_ACCENTS['files']}"),
-        )
-        text.append(f" {label}", style="dim")
-    return text
+    disabled_labels = frozenset() if has_agent else frozenset({"agent"})
+    return build_footer_hints(parts, accent=accent, disabled_labels=disabled_labels)
 
 
 def file_group_label(row: LogicalFile, *, today: datetime) -> str:

@@ -14,9 +14,11 @@ from sase.ace.tui.widgets.artifacts.plans_detail import (
 from sase.ace.tui.widgets.artifacts.plans_rendering import (
     active_plan_text,
     archive_text,
+    build_plans_scope,
     build_plans_status,
     proposal_text,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
 from tests.ace.tui._artifacts_plans_helpers import _snapshot
 
 
@@ -107,3 +109,38 @@ def test_status_summary_reports_only_three_document_sections(tmp_path: Path) -> 
 
     assert text == "1 proposals  ·  1 active  ·  1 archived"
     assert "tasks" not in text and "epics" not in text and "phases" not in text
+
+
+def test_row_and_scope_renderers_use_the_supplied_accent_not_plans_purple(
+    tmp_path: Path,
+) -> None:
+    """A non-Plan document provider must render its own accent.
+
+    Before the shell phase these renderers hard-coded
+    ``ARTIFACTS_ACCENTS["plans"]``, so a Research pane (or any other
+    non-Plan document provider) rendered Plans-purple even though its
+    descriptor and tab used a different accent.
+    """
+    snapshot = _snapshot(tmp_path)
+    research_accent = "#058D1D"
+
+    labels = (
+        proposal_text(snapshot.proposals[0], accent=research_accent),
+        active_plan_text(snapshot.active[0], accent=research_accent),
+        archive_text(snapshot.archive[0].match, accent=research_accent),
+    )
+    for label in labels:
+        styles = {str(span.style) for span in label.spans}
+        assert any(research_accent in style for style in styles)
+        assert not any("#AF87FF" in style for style in styles)
+
+    scope = build_plans_scope(
+        load_keymap_registry({}),
+        project_scope=None,
+        project_display_name=None,
+        provider_label="Research",
+        accent=research_accent,
+    )
+    scope_styles = {str(span.style) for span in scope.spans}
+    assert any(research_accent in style for style in scope_styles)
+    assert not any("#AF87FF" in style for style in scope_styles)

@@ -65,6 +65,7 @@ def build_plan_options(
     matched_option_ids: frozenset[str] | None = None,
     archive_entries: tuple[ProjectArchive, ...] | None = None,
     archive_total: int | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> tuple[list[Option], dict[str, PlanRow]]:
     """Build Proposals, Active plans, and Archive without duplicate paths."""
     options: list[Option] = []
@@ -99,6 +100,7 @@ def build_plan_options(
             "Proposals",
             len(snapshot.proposals),
             matched_count=len(visible_proposals) if filter_active else None,
+            accent=accent,
         )
     )
     for proposal, option_id in visible_proposals:
@@ -116,6 +118,7 @@ def build_plan_options(
             proposal_text(
                 proposal,
                 project_badge=project_badge(snapshot, proposal.project),
+                accent=accent,
             ),
             jump_hints=jump_hints,
             marks=active_marks,
@@ -140,6 +143,7 @@ def build_plan_options(
             "Active plans",
             len(snapshot.active),
             matched_count=len(visible_active) if filter_active else None,
+            accent=accent,
         )
     )
     for active, option_id in visible_active:
@@ -158,6 +162,7 @@ def build_plan_options(
             active_plan_text(
                 active,
                 project_badge=project_badge(snapshot, active.project),
+                accent=accent,
             ),
             jump_hints=jump_hints,
             marks=active_marks,
@@ -183,6 +188,7 @@ def build_plan_options(
             "Archive",
             len(snapshot.archive) if archive_total is None else archive_total,
             matched_count=len(visible_archive) if filter_active else None,
+            accent=accent,
         )
     )
     for project_archive, option_id in visible_archive:
@@ -207,6 +213,7 @@ def build_plan_options(
             archive_text(
                 project_archive.match,
                 project_badge=project_badge(snapshot, project_archive.project),
+                accent=accent,
             ),
             jump_hints=jump_hints,
             marks=active_marks,
@@ -254,9 +261,10 @@ def _section_option(
     count: int,
     *,
     matched_count: int | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
 ) -> Option:
     text = single_line_text()
-    text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    text.append(f"── {label} ", style=f"bold {accent}")
     count_label = str(count) if matched_count is None else f"{matched_count}/{count}"
     text.append(f"({count_label}) ", style="dim")
     text.append("─" * 8, style="dim #5F5F87")

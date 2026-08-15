@@ -32,6 +32,7 @@ from .commits_rendering import (
 )
 from .commits_timeline import CommitsTimeline
 from .panes import ArtifactsPaneLifecycle
+from .types import ARTIFACTS_ACCENTS
 
 if TYPE_CHECKING:
     from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
@@ -207,6 +208,7 @@ class CommitsPane(
         worker = self._collection_worker
         return build_commits_info_header(
             refreshing=worker is not None and worker.is_running,
+            has_content=self.result is not None,
             active_limit=self._active_limit(),
         )
 
@@ -229,7 +231,9 @@ class CommitsPane(
         )
 
     def _hints_text(self) -> Text:
-        return build_commits_hints(self._registry)
+        contract = self.contract
+        accent = ARTIFACTS_ACCENTS["stitches"] if contract is None else contract.accent
+        return build_commits_hints(self._registry, accent=accent)
 
     def _filter_chips(self) -> tuple[str, ...]:
         return commit_filter_chips(self.filters)

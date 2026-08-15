@@ -382,6 +382,38 @@ def test_invalid_suppression_marks_provider_descriptor_degraded() -> None:
     assert descriptors[0].contract.has(PaneCapability.REFRESH)
 
 
+def test_degraded_descriptor_satisfies_every_conformance_check() -> None:
+    """A degraded provider stays named/navigable and renders the shared shell.
+
+    Runs the full conformance harness (including the shell-render check)
+    against a genuinely degraded descriptor, not just the healthy built-ins
+    and synthetic provider covered elsewhere.
+    """
+    from .harness import PANE_CONFORMANCE_CHECKS
+
+    spec = _document_spec(capabilities={"enable": True})
+    descriptors = provider_descriptors(
+        (
+            ProjectProviderRecord(
+                project="proj",
+                display_name="Proj",
+                workspace_dir="/tmp/proj",
+                role="notes",
+                root=Path("/tmp/proj"),
+                policy=SidecarRefPolicy(
+                    role="notes",
+                    ref_kind="notes",
+                    is_document=True,
+                    spec=spec,
+                ),
+            ),
+        )
+    )
+    assert descriptors[0].is_degraded
+    for _name, check in PANE_CONFORMANCE_CHECKS:
+        check(descriptors[0])
+
+
 def test_digit_assignment_synchronizes_contract() -> None:
     descriptors = assign_artifacts_digit_shortcuts(
         (
