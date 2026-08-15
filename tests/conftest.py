@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from tests._conftest_environment import (
     _clear_agent_env_vars,
+    _clear_console_color_override_env_vars,
     _isolate_sase_home,
     _publish_pytest_sandbox,
     _restore_workflow_metadata_derived_caches,

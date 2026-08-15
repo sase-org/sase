@@ -16,6 +16,21 @@ _DIRECTORY_MAP_PLACEHOLDER = (
 )
 _PYTEST_SANDBOX_DIR_ENV_VAR = "SASE_PYTEST_SANDBOX_DIR"
 SASE_MODEL_ALIAS_OVERRIDES_ENV = "SASE_MODEL_ALIAS_OVERRIDES"
+_CONSOLE_COLOR_OVERRIDE_ENV_VARS = (
+    "CLICOLOR",
+    "CLICOLOR_FORCE",
+    "FORCE_COLOR",
+    "NO_COLOR",
+)
+
+
+def _clear_ambient_console_color_override_env_vars() -> None:
+    """Scrub color overrides before test modules construct shared consoles."""
+    for key in _CONSOLE_COLOR_OVERRIDE_ENV_VARS:
+        os.environ.pop(key, None)
+
+
+_clear_ambient_console_color_override_env_vars()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -213,6 +228,13 @@ def real_directory_map_assets(monkeypatch: pytest.MonkeyPatch) -> None:
 def allow_axe_lifecycle_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
     """Allow lifecycle tests to operate only against their isolated fake home."""
     monkeypatch.setenv("SASE_AXE_ALLOW_LIFECYCLE_IN_TESTS", "1")
+
+
+@pytest.fixture(autouse=True)
+def _clear_console_color_override_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep captured-output tests independent of the caller's color policy."""
+    for key in _CONSOLE_COLOR_OVERRIDE_ENV_VARS:
+        monkeypatch.delenv(key, raising=False)
 
 
 @pytest.fixture(autouse=True)
