@@ -6,6 +6,14 @@ from collections.abc import Mapping
 import re
 from typing import Any
 
+from sase.ace.query_profile import (
+    ArtifactQuerySchema,
+    CompiledQueryProfile,
+    QueryProfileError,
+    compile_query_profile,
+    provider_query_schema,
+)
+
 from ._artifact_tab_model import PaneCapability, PaneDeclaredFacts
 
 
@@ -124,6 +132,28 @@ def _ref_mapping(spec: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
     return ref if isinstance(ref, Mapping) else None
 
 
+def provider_query_profile(
+    kind: str,
+    spec: Mapping[str, Any] | None,
+) -> tuple[CompiledQueryProfile, str | None]:
+    """Compile *kind*'s query profile from its declared ``ref.properties``.
+
+    A schema derived only from a Mapping's own keys cannot fail host
+    validation in practice, but a provider's declared properties are
+    external input, so this stays defensive: on
+    :class:`~sase.ace.query_profile.QueryProfileError`, fall back to an
+    empty (fieldless) profile and return the error message so the caller
+    can surface it as a visible pane diagnostic instead of crashing
+    contract compilation.
+    """
+
+    try:
+        return compile_query_profile(provider_query_schema(kind, spec)), None
+    except QueryProfileError as error:
+        empty = ArtifactQuerySchema(pane_id=f"ref:{kind}", boolean=False, fields=())
+        return compile_query_profile(empty), str(error)
+
+
 def provider_detail_fields(spec: Mapping[str, Any] | None) -> tuple[str, ...]:
     ref = _ref_mapping(spec)
     if ref is None:
@@ -171,4 +201,5 @@ __all__ = [
     "provider_detail_fields",
     "provider_facts_from_spec",
     "provider_kind_slug",
+    "provider_query_profile",
 ]

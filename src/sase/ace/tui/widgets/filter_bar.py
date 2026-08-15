@@ -15,8 +15,10 @@ from textual.message import Message
 from textual.widgets import OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
+from sase.ace.query_profile import CompiledQueryProfile
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.filter_tokens import completion_context as _token_completion_context
 
 
 @dataclass(frozen=True)
@@ -65,8 +67,9 @@ class _FilterBarCompletionList(OptionList):
 class FilterBar(Static):
     """Reusable slash-style query editor with context-aware completion."""
 
-    # Not a ClassVar: subclasses override it at class scope, and an instance
-    # may further override it (e.g. a contract-driven document provider).
+    # Not ClassVars: subclasses override these at class scope, and a
+    # profile-configured instance overrides them again in
+    # `_configure_from_profile` (e.g. a contract-driven document provider).
     ACCENT: str = "white"
     ROW_ID: ClassVar[str] = "filter-row"
     SIGIL_ID: ClassVar[str] = "filter-sigil"
@@ -74,12 +77,12 @@ class FilterBar(Static):
     STATUS_ID: ClassVar[str] = "filter-status"
     COMPLETION_ID: ClassVar[str] = "filter-completion"
     CANDIDATE_ID_PREFIX: ClassVar[str] = "filter-candidate"
-    KEY_COMPLETIONS: ClassVar[tuple[tuple[str, str], ...]] = ()
-    STATIC_VALUE_COMPLETIONS: ClassVar[Mapping[str, tuple[str, ...]]] = {}
-    VALUE_HINTS: ClassVar[Mapping[str, str]] = {}
-    REPEATABLE_VALUE_KINDS: ClassVar[frozenset[str]] = frozenset()
-    NEGATABLE_KEYS: ClassVar[frozenset[str]] = frozenset()
-    FREE_TEXT_HINT: ClassVar[str] = ""
+    KEY_COMPLETIONS: tuple[tuple[str, str], ...] = ()
+    STATIC_VALUE_COMPLETIONS: Mapping[str, tuple[str, ...]] = {}
+    VALUE_HINTS: Mapping[str, str] = {}
+    REPEATABLE_VALUE_KINDS: frozenset[str] = frozenset()
+    NEGATABLE_KEYS: frozenset[str] = frozenset()
+    FREE_TEXT_HINT: str = ""
     PERSISTENT: ClassVar[bool] = False
 
     class QueryChanged(Message):
@@ -99,10 +102,19 @@ class FilterBar(Static):
     class Dismissed(Message):
         """The user dismissed the bar after closing any completion menu."""
 
-    def __init__(self, *args: Any, accent: str | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        accent: str | None = None,
+        profile: CompiledQueryProfile | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         if accent is not None:
             self.ACCENT = accent
+        self._profile = profile
+        if profile is not None:
+            self._configure_from_profile(profile)
         self._completion_sources: dict[str, tuple[str, ...]] = {}
         self._completion_candidates: list[CompletionCandidate] = []
         self._completion_visible = False
@@ -115,6 +127,28 @@ class FilterBar(Static):
         # Keep the widget out of layout even in small test apps that don't load
         # the application stylesheet.
         self.display = self.PERSISTENT
+
+    def _configure_from_profile(self, profile: CompiledQueryProfile) -> None:
+        """Derive this instance's dialect from *profile*, overriding the
+        class-level defaults. DOM/message ids stay class-level and
+        pane-specific; only the query dialect itself is profile-driven.
+        """
+        self.KEY_COMPLETIONS = tuple(
+            (field.key, field.hint) for field in profile.fields if field.filterable
+        )
+        self.STATIC_VALUE_COMPLETIONS = {
+            field.key: field.static_values
+            for field in profile.fields
+            if field.filterable and field.static_values
+        }
+        self.VALUE_HINTS = {
+            field.key: field.hint
+            for field in profile.fields
+            if field.filterable and field.hint
+        }
+        self.REPEATABLE_VALUE_KINDS = frozenset(profile.repeatable_fields())
+        self.NEGATABLE_KEYS = frozenset(profile.negatable_fields())
+        self.FREE_TEXT_HINT = profile.free_text_hint
 
     def compose(self) -> ComposeResult:
         """Compose the command line and its screen-overlay completion menu."""
@@ -371,8 +405,24 @@ class FilterBar(Static):
         text: str,
         cursor: int,
     ) -> tuple[str, str, bool]:
-        """Classify the completion context for a concrete query language."""
-        raise NotImplementedError
+        """Classify the completion context for a concrete query language.
+
+        Profile-configured bars get a working default for free: flat query
+        dialects all share the same key/value/negation token grammar (see
+        :func:`sase.filter_tokens.completion_context`), parameterized only
+        by which keys exist, which repeat, and which negate -- all of which
+        the profile already declares. A boolean-mode bar (Patch) still
+        needs its own override.
+        """
+        if self._profile is None:
+            raise NotImplementedError
+        return _token_completion_context(
+            text,
+            cursor,
+            keys=self._profile.filterable_fields(),
+            repeatable_keys=self._profile.repeatable_fields(),
+            negatable_keys=self._profile.negatable_fields(),
+        )
 
     def _move_completion(self, direction: int) -> None:
         if not self._completion_visible or not self._completion_candidates:

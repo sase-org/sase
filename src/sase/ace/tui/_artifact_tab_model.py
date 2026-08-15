@@ -13,6 +13,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.ace.query_profile import CompiledQueryProfile
 from sase.sidecar_ref_config import SidecarRefPolicy
 
 
@@ -157,13 +158,6 @@ class PaneDeclaredFacts:
 
 
 @dataclass(frozen=True, slots=True)
-class PaneQuerySchema:
-    """Later-phase query schema placeholder. Empty this phase."""
-
-    fields: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
 class PaneRelationDecl:
     """Later-phase relation placeholder. Unused this phase."""
 
@@ -210,7 +204,7 @@ class ArtifactsPaneContract:
     presentation_digest: str
     capabilities: frozenset[PaneCapability]
     verdicts: tuple[CapabilityVerdict, ...]
-    query_schema: PaneQuerySchema
+    query_profile: CompiledQueryProfile
     relations: tuple[PaneRelationDecl, ...]
     grouping: PaneGroupingDecl
     detail_fields: tuple[str, ...]
@@ -261,7 +255,7 @@ class ArtifactsPaneContract:
                 "title": self.empty_state.title,
                 "body": self.empty_state.body,
             },
-            "query_schema": {"fields": list(self.query_schema.fields)},
+            "query_profile": self.query_profile.to_wire(),
             "relations": [
                 {"name": item.name, "target": item.target} for item in self.relations
             ],

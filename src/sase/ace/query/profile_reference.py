@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 import re
-from typing import Literal
+from typing import Literal, cast
 
 from sase.ace.query.parser import QueryParseError
 from sase.ace.query.profile_evaluator import (
@@ -658,13 +658,37 @@ def _canonical_flat_query(query: str, profile: CompiledQueryProfile) -> str:
             tokens.append(quote_value(term.value, keyed=False))
         elif isinstance(term, NotExpr) and isinstance(term.operand, StringMatch):
             tokens.append(f"-{quote_value(term.operand.value, keyed=False)}")
+        elif isinstance(term, OrExpr) and (key := _same_key_property_group(term)):
+            values = ",".join(
+                quote_value(cast(PropertyMatch, op).value, keyed=True)
+                for op in term.operands
+            )
+            tokens.append(f"{key}:{values}")
         else:
-            # Comma-list OR groups have no single legacy spelling after AST
-            # grouping, so fall back to boolean canonical text for visibility.
+            # _parse_flat_query_for_profile only ever groups same-key
+            # PropertyMatch terms into an OrExpr (see `_or_terms` above), so
+            # this branch is unreachable from flat-mode parsing today. It
+            # stays as a defensive fallback rather than an assertion in case
+            # that invariant ever changes.
             from sase.ace.query.types import to_canonical_string
 
             tokens.append(to_canonical_string(term))
     return " ".join(tokens)
+
+
+def _same_key_property_group(term: OrExpr) -> str | None:
+    """Return the shared field key if *term* is an all-``PropertyMatch``,
+    single-key OR group (the only shape flat parsing ever produces), so it
+    can be re-serialized as one flat comma-list token instead of falling
+    back to boolean ``OR`` syntax the flat grammar cannot parse back in.
+    """
+
+    if not term.operands or not all(
+        isinstance(op, PropertyMatch) for op in term.operands
+    ):
+        return None
+    keys = {cast(PropertyMatch, op).key for op in term.operands}
+    return keys.pop() if len(keys) == 1 else None
 
 
 __all__ = [

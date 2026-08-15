@@ -48,9 +48,17 @@ class CompiledQueryProfile:
         """Return the declared field named *key*, if any."""
         return next((item for item in self.fields if item.key == key), None)
 
+    def filterable_fields(self) -> tuple[str, ...]:
+        """Return field keys addressable via ``key:value`` syntax, in order."""
+        return tuple(item.key for item in self.fields if item.filterable)
+
     def searchable_fields(self) -> tuple[str, ...]:
         """Return field keys that contribute to free-text search, in order."""
         return tuple(item.key for item in self.fields if item.searchable)
+
+    def repeatable_fields(self) -> tuple[str, ...]:
+        """Return field keys the flat (non-boolean) grammar may comma-repeat."""
+        return tuple(item.key for item in self.fields if item.repeatable)
 
     def negatable_fields(self) -> tuple[str, ...]:
         """Return field keys the flat (non-boolean) grammar may negate."""
@@ -149,6 +157,7 @@ def _field_payload(item: QueryFieldSpec) -> dict[str, Any]:
         "searchable": item.searchable,
         "repeatable": item.repeatable,
         "negatable": item.negatable,
+        "exact_match": item.exact_match,
         "static_values": list(item.static_values),
         "hint": item.hint,
     }

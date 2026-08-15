@@ -14,6 +14,11 @@ import hashlib
 import json
 from typing import Any
 
+from sase.ace.query_profile import (
+    CompiledQueryProfile,
+    compiled_profile_for_builtin_pane,
+)
+
 from ._artifact_tab_contract_adapters import (
     BUILTIN_ADAPTERS,
     GENERIC_DOCUMENT_COPY_KEYMAP_GROUP,
@@ -28,6 +33,7 @@ from ._artifact_tab_contract_provider import (
     provider_detail_fields,
     provider_facts_from_spec,
     provider_kind_slug,
+    provider_query_profile,
 )
 from ._artifact_tab_contract_rules import derive_capability_verdicts
 from ._artifact_tab_model import (
@@ -38,7 +44,6 @@ from ._artifact_tab_model import (
     PaneDeclaredFacts,
     PaneEmptyState,
     PaneGroupingDecl,
-    PaneQuerySchema,
 )
 
 
@@ -77,6 +82,10 @@ def compile_builtin_contract(
         has_detail=adapter.has_detail,
         suppressions={},
     )
+    query_profile = compiled_profile_for_builtin_pane(adapter.pane_id)
+    assert query_profile is not None, (
+        f"no compiled profile for pane {adapter.pane_id!r}"
+    )
     return _assemble_contract(
         pane_id=adapter.pane_id,
         label=label,
@@ -95,6 +104,7 @@ def compile_builtin_contract(
         empty_state=adapter.empty_state,
         adapter=adapter.adapter,
         provider_spec_digest=None,
+        query_profile=query_profile,
     )
 
 
@@ -115,6 +125,18 @@ def compile_provider_contract(
     suppressions, compiler_error, compiler_code = extract_provider_suppressions(spec)
     if compiler_error is not None:
         is_degraded = True
+
+    if kind == "plan":
+        query_profile = compiled_profile_for_builtin_pane("ref:plan")
+        assert query_profile is not None, "no compiled profile for the plan pane"
+    else:
+        query_profile, profile_error = provider_query_profile(kind, spec)
+        if profile_error is not None:
+            is_degraded = True
+            if compiler_error is None:
+                compiler_error = profile_error
+                compiler_code = "invalid_query_profile"
+
     facts = provider_facts_from_spec(
         kind,
         spec,
@@ -166,6 +188,7 @@ def compile_provider_contract(
         empty_state=empty_state,
         adapter=adapter,
         provider_spec_digest=provider_spec_digest,
+        query_profile=query_profile,
     )
     return ContractCompileResult(
         contract=contract,
@@ -223,7 +246,7 @@ def _presentation_digest(contract: ArtifactsPaneContract) -> str:
             "title": contract.empty_state.title,
             "body": contract.empty_state.body,
         },
-        "query_schema": {"fields": list(contract.query_schema.fields)},
+        "query_profile_digest": contract.query_profile.digest,
         "relations": [
             {"name": item.name, "target": item.target} for item in contract.relations
         ],
@@ -259,6 +282,7 @@ def _presentation_digest_for(
     facts: PaneDeclaredFacts,
     empty_state: PaneEmptyState,
     detail_scroll_id: str | None,
+    query_profile: CompiledQueryProfile,
 ) -> str:
     """Digest host presentation plus the provider spec digest."""
 
@@ -276,7 +300,7 @@ def _presentation_digest_for(
         "detail_fields": list(detail_fields),
         "detail_scroll_id": detail_scroll_id,
         "empty_state": {"title": empty_state.title, "body": empty_state.body},
-        "query_schema": {"fields": []},
+        "query_profile_digest": query_profile.digest,
         "relations": [],
         "grouping": {"keys": []},
         "status_counters": [],
@@ -307,6 +331,7 @@ def _assemble_contract(
     empty_state: PaneEmptyState,
     adapter: str | None,
     provider_spec_digest: str | None,
+    query_profile: CompiledQueryProfile,
 ) -> ArtifactsPaneContract:
     verdicts = derive_capability_verdicts(facts)
     enabled = frozenset(item.capability for item in verdicts if item.enabled)
@@ -327,6 +352,7 @@ def _assemble_contract(
         facts=facts,
         empty_state=empty_state,
         detail_scroll_id=detail_scroll_id,
+        query_profile=query_profile,
     )
     return ArtifactsPaneContract(
         id=pane_id,
@@ -341,7 +367,7 @@ def _assemble_contract(
         presentation_digest=digest,
         capabilities=enabled,
         verdicts=verdicts,
-        query_schema=PaneQuerySchema(),
+        query_profile=query_profile,
         relations=(),
         grouping=PaneGroupingDecl(),
         detail_fields=detail_fields,

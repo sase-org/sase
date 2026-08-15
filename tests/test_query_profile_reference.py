@@ -8,6 +8,7 @@ import pytest
 
 from sase.ace.query.profile_reference import (
     ProfileQueryError,
+    canonical_query_for_profile,
     evaluate_query_many_for_profile,
     parse_query_for_profile,
 )
@@ -85,6 +86,24 @@ def test_flat_profile_groups_repeatable_fields_with_or_and_negates() -> None:
         False,
         False,
     ]
+
+
+def test_flat_canonical_form_stays_flat_parseable_for_repeated_fields() -> None:
+    """Same-key repeats not typed as a comma-list must still canonicalize to
+    a flat, comma-joined token -- never boolean ``OR`` syntax, which the
+    flat (``boolean=False``) grammar (including the Rust flat parser) can't
+    parse back in.
+    """
+
+    profile = compile_query_profile(beads_query_schema())
+    canonical = canonical_query_for_profile("type:task type:phase", profile)
+    assert canonical == "type:task,phase"
+    # Round-trips: canonicalizing twice is a fixed point.
+    assert canonical_query_for_profile(canonical, profile) == canonical
+    # And it still means the same thing as the original.
+    assert parse_query_for_profile(canonical, profile) == parse_query_for_profile(
+        "type:task type:phase", profile
+    )
 
 
 def test_flat_profile_validates_enum_values_and_negation_support() -> None:

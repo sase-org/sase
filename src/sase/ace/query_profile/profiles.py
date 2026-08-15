@@ -63,6 +63,7 @@ def patches_query_schema() -> ArtifactQuerySchema:
             key=key,
             value_kind="string",
             searchable=key in _PATCH_SEARCHABLE_PROPERTY_KEYS,
+            exact_match=True,
             hint=_PATCH_PROPERTY_HINTS.get(key, ""),
         )
         for key in sorted(_PATCH_PROPERTY_KEYS)
@@ -108,12 +109,14 @@ def stitches_query_schema() -> ArtifactQuerySchema:
     fields = (
         QueryFieldSpec(
             key="project",
+            exact_match=True,
             hint="single project name; omitted means all projects",
         ),
         QueryFieldSpec(
             key="repo",
             repeatable=True,
             negatable=True,
+            exact_match=True,
             hint="repository name or alias",
         ),
         QueryFieldSpec(
@@ -213,8 +216,15 @@ def beads_query_schema() -> ArtifactQuerySchema:
             hint="+1, plan, bug, deps, notes, triage",
         ),
     )
+    _exact_string_fields = frozenset({"project", "bug", "label"})
     string_fields = tuple(
-        QueryFieldSpec(key=key, repeatable=True, negatable=True, hint=hint)
+        QueryFieldSpec(
+            key=key,
+            repeatable=True,
+            negatable=True,
+            exact_match=key in _exact_string_fields,
+            hint=hint,
+        )
         for key, hint in (
             ("project", "project key or display name"),
             ("assignee", "assigned person or agent"),
@@ -255,7 +265,9 @@ def plans_query_schema() -> ArtifactQuerySchema:
     """
 
     string_fields = tuple(
-        QueryFieldSpec(key=key, repeatable=True, negatable=True, hint=hint)
+        QueryFieldSpec(
+            key=key, repeatable=True, negatable=True, exact_match=True, hint=hint
+        )
         for key, hint in (
             ("kind", "proposal, active, archive, plans, research"),
             ("status", "proposed or plan frontmatter status"),
@@ -304,7 +316,7 @@ def files_query_schema() -> ArtifactQuerySchema:
         ),
     )
     string_fields = tuple(
-        QueryFieldSpec(key=key, repeatable=True, hint=hint)
+        QueryFieldSpec(key=key, repeatable=True, exact_match=True, hint=hint)
         for key, hint in (
             ("project", "project key"),
             ("agent", "agent name"),

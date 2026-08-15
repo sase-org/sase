@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui._artifact_tab_contract import (
     GENERIC_DOCUMENT_COPY_TARGETS,
     PLAN_COPY_TARGETS,
@@ -241,6 +242,84 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
         assert contract.has(PaneCapability.PROJECT_SCOPE)
 
 
+@pytest.mark.parametrize("adapter", ["stitches", "patches", "beads", "files"])
+def test_builtin_contract_carries_the_matching_compiled_profile(adapter: str) -> None:
+    labels = {
+        "stitches": "Stitch",
+        "patches": "Patch",
+        "beads": "Bead",
+        "files": "File",
+    }
+    contract = compile_builtin_contract(
+        adapter,
+        label=labels[adapter],
+        icon="x",
+        accent="#000000",
+    )
+    expected = compiled_profile_for_builtin_pane(adapter)
+    assert expected is not None
+    assert contract.query_profile == expected
+    assert contract.query_profile.pane_id == adapter
+    payload = contract.explanation_payload()
+    assert payload["query_profile"] == expected.to_wire()
+
+
+def test_provider_contract_derives_query_profile_from_properties() -> None:
+    result = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(),
+        provider_spec_digest="def",
+    )
+    profile = result.contract.query_profile
+    assert profile.pane_id == "ref:notes"
+    assert profile.boolean is False
+    assert {item.key for item in profile.fields} == {"title", "status"}
+
+
+def test_plan_provider_contract_uses_the_plans_query_profile() -> None:
+    result = compile_provider_contract(
+        kind="plan",
+        label="Plan",
+        icon="✎",
+        accent="#AF87FF",
+        spec=builtin_plan_ref_provider_spec(),
+        provider_spec_digest="abc",
+    )
+    expected = compiled_profile_for_builtin_pane("ref:plan")
+    assert expected is not None
+    assert result.contract.query_profile == expected
+
+
+def test_invalid_provider_query_profile_degrades_contract_with_empty_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.query_profile import QueryProfileError
+
+    def _raise(_kind: str, _spec: object) -> None:
+        raise QueryProfileError("boom")
+
+    monkeypatch.setattr(
+        "sase.ace.tui._artifact_tab_contract_provider.provider_query_schema",
+        _raise,
+    )
+    result = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(),
+        provider_spec_digest="def",
+    )
+    assert result.error == "boom"
+    assert result.error_code == "invalid_query_profile"
+    assert result.contract.query_profile.fields == ()
+    assert result.contract.query_profile.pane_id == "ref:notes"
+    assert not result.contract.has(PaneCapability.FILTER_SESSION)
+
+
 def test_provider_fact_extraction_from_schema_v1() -> None:
     spec = _document_spec()
     facts = provider_facts_from_spec("notes", spec, is_degraded=False, suppressions={})
@@ -457,6 +536,27 @@ def test_presentation_digest_is_deterministic_and_sensitive() -> None:
     with_digit = contract_with_digit(first, digit="3", order=2)
     assert with_digit.presentation_digest != first.presentation_digest
     assert _presentation_digest(with_digit) == with_digit.presentation_digest
+
+
+def test_presentation_digest_is_sensitive_to_the_query_profile() -> None:
+    base = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(),
+        provider_spec_digest="def",
+    ).contract
+    changed = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(properties={"body": {"type": "string"}}),
+        provider_spec_digest="def",
+    ).contract
+    assert base.query_profile.digest != changed.query_profile.digest
+    assert base.presentation_digest != changed.presentation_digest
 
 
 def test_extract_provider_suppressions_accepts_valid_block() -> None:

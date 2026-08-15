@@ -25,6 +25,12 @@ class QueryFieldSpec:
     searchable=False``), contribute to free-text search only (Patch's
     ``description``, for example: ``filterable=False, searchable=True``), or
     both. ``repeatable`` and ``negatable`` only apply to filterable fields.
+
+    ``exact_match`` only applies to ``string``-kind fields: ``True`` requires
+    a ``key:value`` term to equal a row's value exactly (case-insensitively);
+    ``False`` (the default) matches by substring. ``enum``-kind fields are
+    always exact regardless of this flag; ``bool``/``int``/``date`` fields
+    have their own typed comparison and ignore it too.
     """
 
     key: str
@@ -33,6 +39,7 @@ class QueryFieldSpec:
     searchable: bool = False
     repeatable: bool = False
     negatable: bool = False
+    exact_match: bool = False
     static_values: tuple[str, ...] = ()
     hint: str = ""
 

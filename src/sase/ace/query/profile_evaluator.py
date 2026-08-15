@@ -382,24 +382,9 @@ def _match_text_field(
     if field.key == "sibling" and profile.pane_id == "patches":
         desired_text = strip_reverted_suffix(desired).casefold()
     haystack = tuple(str(value).casefold() for value in values)
-    if field.value_kind == "enum" or _field_prefers_exact_match(profile, field):
+    if field.value_kind == "enum" or field.exact_match:
         return desired_text in haystack
     return any(desired_text in value for value in haystack)
-
-
-def _field_prefers_exact_match(
-    profile: CompiledQueryProfile,
-    field: QueryFieldSpec,
-) -> bool:
-    if profile.pane_id == "patches":
-        return True
-    exact_by_pane = {
-        "stitches": {"project", "repo"},
-        "beads": {"type", "tier", "status", "size", "project", "has", "bug", "label"},
-        "ref:plan": {"kind", "status", "tier", "project"},
-        "files": {"kind", "project", "agent", "workflow", "origin"},
-    }
-    return field.key in exact_by_pane.get(profile.pane_id, set())
 
 
 def _is_patch_row(entry: object) -> bool:
