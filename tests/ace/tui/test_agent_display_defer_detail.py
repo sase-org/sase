@@ -266,6 +266,25 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     assert call["group_collapse_available"] is False
     assert clan_resolver_calls == 0
 
+    app._resolve_agent_structural_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        kind="family"
+    )
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    call = app.footer_widget.agent_binding_calls[-1]
+    assert call["lane_collapse_available"] is False
+    assert call["clan_collapse_available"] is False
+    assert call["selected_clan_collapse_available"] is False
+    assert call["structural_collapse_kind"] == "family"
+    assert call["group_collapse_available"] is False
+    assert clan_resolver_calls == 0
+
+    app._resolve_agent_structural_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+        kind="clan"
+    )
+
     app._resolve_sase_agent_collapse_target = lambda: None  # type: ignore[attr-defined]
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()

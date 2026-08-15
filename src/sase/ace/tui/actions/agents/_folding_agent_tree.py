@@ -343,9 +343,13 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             )
         return None
 
-    def _collapse_agent_structural_fold(self) -> bool:
+    def _collapse_agent_structural_fold(
+        self,
+        target: _AgentStructuralCollapseTarget | None = None,
+    ) -> bool:
         """Collapse one Agents workflow/family/clan target, if available."""
-        target = self._resolve_agent_structural_collapse_target()
+        if target is None:
+            target = self._resolve_agent_structural_collapse_target()
         if target is None:
             return False
         if target.reanchor:
@@ -355,9 +359,17 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
             if target.binary
             else self._fold_manager.collapse(target.fold_key)
         )
-        if changed:
-            self._refilter_agents()  # type: ignore[attr-defined]
-        return changed
+        if not changed:
+            return False
+        # A fold-only mutation neither changes the cached content corpus nor
+        # needs one background content-index rebuild. Apply the one-level
+        # transition first, then take the in-memory display path once.
+        self._refilter_agents(refresh_content_index=False)  # type: ignore[attr-defined]
+        if target.reanchor:
+            remember = getattr(self, "_remember_focused_panel_selection", None)
+            if callable(remember):
+                remember()
+        return True
 
 
 __all__ = ["AgentStructuralFoldingMixin", "TabName"]

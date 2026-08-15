@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
+from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
 
@@ -179,6 +180,10 @@ def test_clan_member_l_l_and_child_member_capital_h_are_isolated() -> None:
 
     app.current_idx = projected.index(hidden)
     app.action_hooks_or_collapse_all()
+    assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
+    assert app.current_idx == projected.index(workflow)
+
+    app.action_hooks_or_collapse_all()
     assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
     assert app.current_idx == projected.index(workflow)
 
@@ -234,3 +239,83 @@ def test_per_workflow_capital_h_runs_before_group_collapse() -> None:
 
     assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
     assert app._group_fold_registry.collapsed == set()
+
+
+def test_capital_h_retreats_loader_family_hidden_step_one_level() -> None:
+    agents, root, main, coder, steps = make_loader_shaped_aliased_plan_family()
+    hidden = steps["pre_prompt"]
+    app = StubFoldApp(agents, current_idx=agents.index(hidden))
+    family_key = agent_fold_key(root)
+    assert family_key is not None
+    app._fold_manager.expand(family_key)
+    app._fold_manager.expand(family_key)
+    assert app._fold_manager.get(family_key) is FoldLevel.FULLY_EXPANDED
+
+    target = app._resolve_agent_structural_collapse_target()
+    assert target is not None
+    assert target.kind == "family"
+    assert target.reanchor is True
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(family_key) is FoldLevel.EXPANDED
+    assert app.current_idx == agents.index(root)
+    assert app._panel_selection_memory[None] == ("agent", agents.index(root))
+    assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
+    assert app._group_fold_registry.snapshot() == ()
+    visible, _counts = filter_agents_by_fold_state(agents, app._fold_manager)
+    assert hidden not in visible
+    assert main in visible
+    assert coder in visible
+    assert steps["python"] in visible
+    still_open = app._resolve_agent_structural_collapse_target()
+    assert still_open is not None
+    assert still_open.kind == "family"
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == agents.index(root)
+    visible, _counts = filter_agents_by_fold_state(agents, app._fold_manager)
+    assert visible == [root]
+    assert app._resolve_agent_structural_collapse_target() is None
+    assert app._group_fold_registry.snapshot() == ()
+
+
+def test_capital_h_retreats_standalone_workflow_hidden_step_one_level() -> None:
+    agents, root, steps = make_standalone_workflow_lane()
+    hidden = steps["pre_prompt"]
+    app = StubFoldApp(agents, current_idx=agents.index(hidden))
+    workflow_key = agent_fold_key(root)
+    assert workflow_key is not None
+    app._fold_manager.expand(workflow_key)
+    app._fold_manager.expand(workflow_key)
+    assert app._fold_manager.get(workflow_key) is FoldLevel.FULLY_EXPANDED
+
+    target = app._resolve_agent_structural_collapse_target()
+    assert target is not None
+    assert target.kind == "workflow"
+    assert target.reanchor is True
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
+    assert app.current_idx == agents.index(root)
+    assert app._panel_selection_memory[None] == ("agent", agents.index(root))
+    assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
+    visible, _counts = filter_agents_by_fold_state(agents, app._fold_manager)
+    assert hidden not in visible
+    assert steps["agent"] in visible
+    assert steps["bash"] in visible
+    assert steps["python"] in visible
+    still_open = app._resolve_agent_structural_collapse_target()
+    assert still_open is not None
+    assert still_open.kind == "workflow"
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == agents.index(root)
+    visible, _counts = filter_agents_by_fold_state(agents, app._fold_manager)
+    assert visible == [root]
+    assert app._resolve_agent_structural_collapse_target() is None

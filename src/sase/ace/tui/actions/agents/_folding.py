@@ -105,6 +105,16 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._arm_panel_fold_hint_mode(intent="collapse")  # type: ignore[attr-defined]
                 return
 
+            # Resolve the selected structural target once. An open workflow
+            # or family owns the next press and retreats one fold level;
+            # clans stay on the established lane-before-clan ladder.
+            structural_target = self._resolve_agent_structural_collapse_target()
+            if structural_target is not None and structural_target.kind in {
+                "workflow",
+                "family",
+            }:
+                self._collapse_agent_structural_fold(structural_target)
+                return
             lane_target = self._resolve_sase_agent_collapse_target()
             if lane_target is not None:
                 self._collapse_sase_agent_folds(lane_target)
@@ -116,7 +126,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 )
                 if self._collapse_agent_clan_folds(selected_clan_target or clan_target):
                     return
-            if not self._collapse_agent_structural_fold():
+            if not self._collapse_agent_structural_fold(structural_target):
                 self._collapse_group_fold()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()

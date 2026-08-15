@@ -330,7 +330,7 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
     def _resolve_sase_agent_collapse_target(
         self,
     ) -> SaseAgentCollapseTarget | None:
-        """Resolve the group-wide lane step that precedes structural ``H``."""
+        """Resolve the group-wide lane step that follows selected-lane ``H``."""
         group_key = self._resolve_group_collapse_target()
         if group_key is None:
             return None

@@ -171,6 +171,25 @@ class AgentFooterDisplayMixin:
             # Under whole-panel focus, ``H`` arms a hinted collapse instead of
             # the row-scoped ladder below, so these resolvers stay row-only;
             # each already returns ``None`` while a panel holds focus.
+            # Mirror the dispatcher: an open selected workflow/family owns
+            # the next press before the group-wide SASE-agent capability.
+            structural_collapse_kind: str | None = None
+            structural_collapse = None
+            resolve_structural_collapse = getattr(
+                self, "_resolve_agent_structural_collapse_target", None
+            )
+            if (
+                not tools_visible
+                and not panel_focused
+                and callable(resolve_structural_collapse)
+            ):
+                structural_collapse = resolve_structural_collapse()
+                if structural_collapse is not None and structural_collapse.kind in {
+                    "workflow",
+                    "family",
+                }:
+                    structural_collapse_kind = structural_collapse.kind
+
             lane_collapse_available = False
             resolve_lane_collapse = getattr(
                 self, "_resolve_sase_agent_collapse_target", None
@@ -178,6 +197,7 @@ class AgentFooterDisplayMixin:
             if (
                 not tools_visible
                 and not panel_focused
+                and structural_collapse_kind is None
                 and callable(resolve_lane_collapse)
             ):
                 lane_collapse_available = resolve_lane_collapse() is not None
@@ -189,6 +209,7 @@ class AgentFooterDisplayMixin:
             if (
                 not tools_visible
                 and not panel_focused
+                and structural_collapse_kind is None
                 and not lane_collapse_available
                 and callable(resolve_clan_collapse)
             ):
@@ -206,20 +227,13 @@ class AgentFooterDisplayMixin:
                     and narrow_clan_collapse(clan_target) is not None
                 )
 
-            structural_collapse_kind: str | None = None
-            resolve_structural_collapse = getattr(
-                self, "_resolve_agent_structural_collapse_target", None
-            )
             if (
-                not tools_visible
-                and not panel_focused
+                structural_collapse is not None
+                and structural_collapse_kind is None
                 and not lane_collapse_available
                 and not clan_collapse_available
-                and callable(resolve_structural_collapse)
             ):
-                structural_collapse = resolve_structural_collapse()
-                if structural_collapse is not None:
-                    structural_collapse_kind = structural_collapse.kind
+                structural_collapse_kind = structural_collapse.kind
 
             group_collapse_available = False
             resolve_group_collapse = getattr(

@@ -20,7 +20,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("hooks_or_collapse", "Parent / Collapse or Jump Panel/Fold", False),
     (
         "hooks_or_collapse_all",
-        "Collapse Scoped Lanes/Clans/Groups / Hint Panel Fold / Compact Tools / All",
+        "Collapse Selected Workflow/Family / Scoped Lanes/Clans/Groups / Hint Panel Fold / Compact Tools / All",
         False,
     ),
     ("edit_hooks", "Edit Hooks", False),

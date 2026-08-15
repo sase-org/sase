@@ -1441,20 +1441,23 @@ title, even a lone expanded panel, as well as collapsed titles, and support the 
 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate
 workflow/family owner, so a visible hidden leaf under an already fully expanded workflow
-is a no-op. Uppercase `H` is the structural mutation key. In the next grouping scope it
-fully collapses every open lane in one press, regardless of which lane row is selected.
-Once lanes are closed, the next press collapses only the open canonical clan enclosing
-the selected row. With that now-collapsed clan container still selected, another press
-collapses every remaining open canonical clan in the group; only a later press collapses
-the grouping banner. A banner, standalone lane, or already-collapsed clan selection
-proceeds directly to that group-wide clan sweep. Tools detail still takes priority. On a
-selected expanded whole panel, `H` hints every currently expanded lane, clan, and
-top-level grouping banner in that panel — the same `L` hint affordance restricted to
-collapsible targets — and fully collapses whichever one you pick; it never expands and
-never touches the panel itself, which stays lowercase `h`'s job. A panel with nothing
-expanded warns without arming hint mode; an already collapsed panel keeps the usual
-already-collapsed notification. The merged layout has no whole-panel focus and keeps the
-row-focused group scope across the merged roster.
+is a no-op. Uppercase `H` is the structural mutation key. When the selected row owns an
+open workflow or sequential-family lane, the first press retreats that lane one fold
+level. From a visible hidden step that hides the selected row, selection re-anchors to
+the lane owner. After the selected lane is collapsed, later presses fully collapse every
+remaining open lane in the next grouping scope, then only the open canonical clan
+enclosing the selected row. With that now-collapsed clan container still selected,
+another press collapses every remaining open canonical clan in the group; only a later
+press collapses the grouping banner. A banner, already-collapsed lane, or
+already-collapsed clan selection proceeds directly to that remaining-lane or group-wide
+clan sweep. Tools detail still takes priority. On a selected expanded whole panel, `H`
+hints every currently expanded lane, clan, and top-level grouping banner in that panel —
+the same `L` hint affordance restricted to collapsible targets — and fully collapses
+whichever one you pick; it never expands and never touches the panel itself, which stays
+lowercase `h`'s job. A panel with nothing expanded warns without arming hint mode; an
+already collapsed panel keeps the usual already-collapsed notification. The merged
+layout has no whole-panel focus and keeps the row-focused group scope across the merged
+roster.
 
 Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
@@ -1553,20 +1556,20 @@ setting. Every emitted grouping banner has its own binary expanded/collapsed sta
 separately for each tribe panel and grouping mode. Three independent folding layers can
 therefore be visible at once:
 
-| Layer             | What it controls                                         | Default keys                                                                                                             |
-| ----------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands; `-` never sweeps banners                                   |
-| Structural row    | Clan members, family members, and workflow descendants   | `H` fully collapses group lanes, then group clans; `l` expands; `-` sweeps every open lane and clan in the panel at once |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints a lane/clan/banner fold to toggle         |
+| Layer             | What it controls                                         | Default keys                                                                                                                                                           |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands; `-` never sweeps banners                                                                                 |
+| Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group lanes, then group clans; `l` expands; `-` sweeps every open lane and clan in the panel at once |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints a lane/clan/banner fold to toggle                                                       |
 
-| Key | Action                                                                                                                                                            |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                  |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                            |
-| `L` | On an expanded selected panel, hint every visible lane/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning |
-| `H` | Collapse group lanes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail                                                 |
-| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                             |
-| `-` | Sweep every open lane and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself            |
+| Key | Action                                                                                                                                                               |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                     |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                               |
+| `L` | On an expanded selected panel, hint every visible lane/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning    |
+| `H` | Collapse selected workflow/family one level, then remaining group lanes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
+| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                |
+| `-` | Sweep every open lane and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -1591,14 +1594,14 @@ reveal its direct agents, family rows, and visible workflow rows. The clan row's
 count and status chrome count those direct clan lanes once; nested family or workflow
 members do not inflate them. To reveal descendants within a family or workflow, move to
 that row and press `l` there; pressing `l` again on the clan row itself has no effect.
-`h` collapses the focused structural row one level at a time and re-anchors to a visible
-owner when necessary. Sequential family members use `--<suffix>` names and run one after
-another. Killing or dismissing a clan row cascades to the clan's live members; acting on
-one member leaves its siblings alone. Direct clan members always sort by the clan-local
-status priority Failed, Stopped, Running, Queued, Waiting, Done in every grouping mode;
-Starting shares Running's rank. Launch recency orders only members in the same status
-bucket. A family row moves as one unit with its follow-ups and workflow steps,
-preserving their adjacency and internal order.
+Lowercase `h` moves to the validated parent without changing fold state. Sequential
+family members use `--<suffix>` names and run one after another. Killing or dismissing a
+clan row cascades to the clan's live members; acting on one member leaves its siblings
+alone. Direct clan members always sort by the clan-local status priority Failed,
+Stopped, Running, Queued, Waiting, Done in every grouping mode; Starting shares
+Running's rank. Launch recency orders only members in the same status bucket. A family
+row moves as one unit with its follow-ups and workflow steps, preserving their adjacency
+and internal order.
 
 Clan rows aggregate member status using the same operational precedence: human-input
 questions, pending plan review, failure, and running/starting states outrank queued
@@ -1608,21 +1611,29 @@ member state is present. Its count chip remains concrete and independent, so
 `QUEUED [Q3 W6]` reports three runner-slot waiters and six dependency, bead, or time
 waiters without merging the two categories.
 
-The uppercase `H` ladder is group-scoped, with the selected clan receiving precedence
-inside that scope. If the grouping banner that `H` would collapse next contains any open
-standalone workflow, agent, or sequential-family sase agent, the first press drives
-every such lane directly to fully collapsed while leaving the banner open. A selected
-child row re-anchors to its visible lane owner. Once lanes are saturated, a selection
-inside an open canonical clan makes the next press collapse only that clan. A selected
-descendant re-anchors to its visible clan container; selecting the container itself
-preserves selection without writing new selection memory. With the collapsed container
-still selected, the following press drives every remaining open canonical clan in the
-group directly to collapsed. A grouping banner, standalone lane, already-collapsed clan,
-or invalid clan owner falls through to that group-wide sweep immediately. The footer
-advertises `H collapse sase agents`, then `H collapse clan`, then `H collapse clans`,
-and only then `H collapse group`. Equal group names in other tribe panels are never
-affected; merged layout intentionally treats the merged panel as one scope. Ambiguous or
-malformed clan owners are skipped without blocking valid siblings.
+The uppercase `H` ladder starts with the selected workflow or sequential-family lane
+when that lane is still open. The first press retreats that lane by exactly one fold
+level. From a visible hidden step, that press hides hidden steps while leaving ordinary
+descendants visible and re-anchors selection to the lane owner; the next press then
+collapses that still-selected lane. Clans stay binary and do not take this two-level
+path. After the selected lane is collapsed, later presses continue through the existing
+group-scoped remaining-lane, selected-clan, remaining-clans, structural-fallback, and
+grouping-banner ladder. If the grouping banner that `H` would collapse next contains any
+open standalone workflow, agent, or sequential-family sase agent, and the selection does
+not own an open workflow or family fold, the next press drives every such remaining lane
+directly to fully collapsed while leaving the banner open. Once remaining lanes are
+saturated, a selection inside an open canonical clan makes the next press collapse only
+that clan. A selected descendant re-anchors to its visible clan container; selecting the
+container itself preserves selection without writing new selection memory. With the
+collapsed container still selected, the following press drives every remaining open
+canonical clan in the group directly to collapsed. A grouping banner, already-collapsed
+lane, already-collapsed clan, or invalid clan owner falls through to that group-wide
+sweep immediately. The footer advertises `H collapse workflow` or `H collapse family`
+while the selected lane is open, then `H collapse sase agents`, then `H collapse clan`,
+then `H collapse clans`, and only then `H collapse group`. Equal group names in other
+tribe panels are never affected; merged layout intentionally treats the merged panel as
+one scope. Ambiguous or malformed clan owners are skipped without blocking valid
+siblings.
 
 Whole-panel focus gives `H` a hinted collapse instead of the group-scoped ladder,
 because it has no selected row or grouping scope to walk. It enumerates every currently

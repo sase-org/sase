@@ -207,40 +207,31 @@ def test_capital_h_collapses_every_open_lane_before_status_group() -> None:
     assert app.group_fold_changes == [(None, ("Running",), True)]
 
 
-def test_lane_collapse_reanchors_each_disappearing_child_kind() -> None:
+def test_lane_collapse_saturates_remaining_open_lanes_when_selected_is_closed() -> None:
+    closed_rows, closed = _named_workflow_lane("closed")
     rows, root = _named_workflow_lane("selected")
     family_rows, family = _named_family_lane("family")
-    agents = [*rows, *family_rows]
+    agents = [*closed_rows, *rows, *family_rows]
     app = StubFoldApp(agents)
     app._grouping_mode = GroupingMode.BY_DATE
     root_key = agent_fold_key(root)
     family_key = agent_fold_key(family)
     assert root_key is not None and family_key is not None
+    app._fold_manager.expand(root_key)
+    app._fold_manager.expand(root_key)
+    app._fold_manager.expand(family_key)
+    _sync_fold_projection(app, agents, closed)
+    selected_idx = app.current_idx
+    assert app._resolve_agent_structural_collapse_target() is None
 
-    disappearing = [
-        candidate
-        for candidate in rows
-        if candidate.is_workflow_step_child
-        and candidate.step_type in {"agent", "bash", "python"}
-    ]
-    disappearing.append(family_rows[1])
-    for selected in disappearing:
-        app._fold_manager.expand(root_key)
-        app._fold_manager.expand(root_key)
-        app._fold_manager.expand(family_key)
-        _sync_fold_projection(app, agents, selected)
-        app._current_group_key = None
+    app.action_hooks_or_collapse_all()
 
-        app.action_hooks_or_collapse_all()
-
-        expected_owner = family if selected is family_rows[1] else root
-        assert app.current_idx == app._agents.index(expected_owner)
-        assert app._panel_selection_memory[None] == (
-            "agent",
-            app._agents.index(expected_owner),
-        )
-        assert app._fold_manager.get(root_key) is FoldLevel.COLLAPSED
-        assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == selected_idx
+    assert app._agents[app.current_idx] is closed
+    assert app._fold_manager.get(root_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app.refilter_kwargs == [{"prior_pos": None, "refresh_content_index": False}]
+    assert app.group_fold_changes == []
 
 
 def test_collapsed_child_banner_scopes_lane_step_to_its_open_parent() -> None:

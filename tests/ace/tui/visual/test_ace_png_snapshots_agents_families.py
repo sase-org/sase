@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     family_and_lone_planner_agents,
@@ -89,6 +90,39 @@ async def test_python_step_parent_family_footer_png_snapshot(
             page,
             "agents_python_step_parent_family_120x40",
             title="ACE Python workflow step parent navigation",
+        )
+
+        await page.press("H")
+        await page.expect_state("agent_count", 4)
+        await wait_for_visual_idle(page)
+
+        selected = page.app._agents[page.app.current_idx]
+        family_key = selected.raw_suffix
+        assert selected.cl_name == "visual-house-navigation"
+        assert not selected.is_child_row
+        assert family_key is not None
+        assert page.app._fold_manager.get(family_key) is FoldLevel.EXPANDED
+        assert not any(agent.cl_name == "setup" for agent in page.app._agents)
+        assert any(agent.cl_name == "main" for agent in page.app._agents)
+        assert any(agent.cl_name == "prepare" for agent in page.app._agents)
+        assert any(
+            agent.cl_name == "visual-house-navigation-code"
+            for agent in page.app._agents
+        )
+        assert footer._last_layout_inputs is not None
+        assert ("H", "collapse family") in footer._last_layout_inputs[0]
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_python_step_hidden_collapsed_120x40",
+            title="ACE family hidden-step one-level collapse",
+        )
+
+        await page.press("H")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+        assert page.app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+        assert page.app._agents[page.app.current_idx].cl_name == (
+            "visual-house-navigation"
         )
 
 

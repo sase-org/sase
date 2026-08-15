@@ -162,7 +162,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Fully collapse sase agents in scope",
+                    "Collapse selected workflow/family one level",
+                ),
+                (
+                    d(a.hooks_or_collapse_all),
+                    "Then remaining sase agents in scope",
                 ),
                 (
                     d(a.hooks_or_collapse_all),

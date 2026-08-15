@@ -240,6 +240,8 @@ class KeybindingBindingsMixin:
         elif panel_focused:
             if not tools_visible and panel_hint_collapse_available:
                 collapse_all_label = "collapse fold"
+        elif structural_collapse_kind in {"workflow", "family"}:
+            collapse_all_label = f"collapse {structural_collapse_kind}"
         elif lane_collapse_available:
             collapse_all_label = "collapse sase agents"
         elif clan_collapse_available:
@@ -248,8 +250,8 @@ class KeybindingBindingsMixin:
                 if selected_clan_collapse_available
                 else "collapse clans"
             )
-        elif structural_collapse_kind in {"workflow", "family", "clan"}:
-            collapse_all_label = f"collapse {structural_collapse_kind}"
+        elif structural_collapse_kind == "clan":
+            collapse_all_label = "collapse clan"
         elif group_collapse_available:
             collapse_all_label = "collapse group"
         if collapse_all_label is not None:

@@ -261,12 +261,14 @@ def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
     assert lower.key_display == "h"
     assert "last expanded panel" in lower.aliases
     assert upper.label == (
-        "Collapse Agents group sase agents, selected clan, remaining clans/groups; "
-        "panel sase agents/clans/groups/panel / compact tools detail / collapse "
-        "all folds on other tabs"
+        "Collapse selected workflow/family, then group sase agents, selected "
+        "clan, remaining clans/groups; panel sase agents/clans/groups/panel / "
+        "compact tools detail / collapse all folds on other tabs"
     )
     assert upper.key_sequence == ("H",)
     assert upper.key_display == "H"
+    assert "collapse workflow" in upper.aliases
+    assert "collapse family" in upper.aliases
     assert "collapse sase agents" in upper.aliases
     assert "collapse clan" in upper.aliases
     assert "collapse selected clan" in upper.aliases

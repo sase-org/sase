@@ -177,15 +177,17 @@ members. The clan's outer fold is binary, so move to a family or workflow row an
 `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash,
 Python, parallel, embedded, or compatibility workflow step to its validated immediate
 workflow, family, clan, or tribe parent without changing fold state. Uppercase `H` first
-fully collapses every open lane in the next grouping scope, then collapses only the open
-canonical clan enclosing the selection. The next press from that collapsed clan
-container collapses every remaining open canonical clan in the group, and only then does
-a later press fall back to selected-row structural handling and grouping collapse. A
-selection without an open enclosing clan proceeds directly to the group-wide sweep.
-Selecting the clan row shows an aggregate `CLAN` header and a navigable summary of every
-section represented across its members. In the Agents list, direct members sort by
-status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done — and then by
-launch recency within a bucket. The metadata roster uses chronological launch order
+retreats a selected open workflow or sequential-family lane by one fold level. After
+that lane is collapsed, the next press fully collapses every remaining open lane in the
+next grouping scope, then collapses only the open canonical clan enclosing the
+selection. The next press from that collapsed clan container collapses every remaining
+open canonical clan in the group, and only then does a later press fall back to
+selected-row structural handling and grouping collapse. A selection without an open
+enclosing workflow, family, or clan proceeds directly to the group-wide remaining-lane
+sweep. Selecting the clan row shows an aggregate `CLAN` header and a navigable summary
+of every section represented across its members. In the Agents list, direct members sort
+by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done — and then
+by launch recency within a bucket. The metadata roster uses chronological launch order
 instead, keeping its number-to-member mapping stable while statuses change. The runtime
 is the union of member run intervals, with human-wait windows excluded, so concurrent
 members are not double-counted.
@@ -542,11 +544,11 @@ row and every other fold untouched; `H` never expands and never collapses the pa
 itself, which stays lowercase `h`'s job. A panel with nothing expanded warns without
 arming hint mode; an already collapsed panel keeps the existing already-collapsed
 warning. Whole-panel `H` is unavailable in merged layout, where the existing
-row/group-scoped ladder remains in effect. That row ladder closes group-wide lanes
-first, then the selected open clan, then every remaining open canonical clan in the next
-group; the grouping banner closes only after those structural rungs are saturated.
-Custom keys bound to `hooks_or_collapse_all` receive the same contextual behavior and
-footer labels.
+row/group-scoped ladder remains in effect. That row ladder first retreats a selected
+open workflow or family one fold level, then remaining group-wide lanes, then the
+selected open clan, then every remaining open canonical clan in the next group; the
+grouping banner closes only after those structural rungs are saturated. Custom keys
+bound to `hooks_or_collapse_all` receive the same contextual behavior and footer labels.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four
 `zz` metadata detail levels are:

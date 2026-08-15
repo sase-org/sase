@@ -350,6 +350,15 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             clan_collapse_available=True,
         )
     )
+    selected_lane_over_group = _labels(
+        footer._compute_agent_bindings(
+            None,
+            lane_collapse_available=True,
+            clan_collapse_available=True,
+            structural_collapse_kind="family",
+            group_collapse_available=True,
+        )
+    )
     lane_collapse = _labels(
         footer._compute_agent_bindings(
             None,
@@ -384,6 +393,8 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "only panel") not in panel
     assert ("H", "collapse workflow") in workflow_collapse
     assert ("H", "collapse family") in family_collapse
+    assert ("H", "collapse family") in selected_lane_over_group
+    assert ("H", "collapse sase agents") not in selected_lane_over_group
     assert ("H", "collapse clan") in clan_collapse
     assert ("H", "collapse clan") in selected_clan_collapse
     assert ("H", "collapse clans") not in selected_clan_collapse
@@ -438,7 +449,7 @@ def test_footer_omits_parent_for_invalid_ancestry() -> None:
     assert not any(label.startswith("parent ") for _key, label in bindings)
 
 
-def test_footer_saturated_hidden_leaf_advertises_group_lane_collapse() -> None:
+def test_footer_saturated_hidden_leaf_advertises_selected_lane_collapse() -> None:
     agents, root, steps = make_standalone_workflow_lane()
     app = StubFoldApp(agents, current_idx=agents.index(steps["pre_prompt"]))
     assert root.raw_suffix is not None
@@ -446,17 +457,75 @@ def test_footer_saturated_hidden_leaf_advertises_group_lane_collapse() -> None:
     app._fold_manager.expand(root.raw_suffix)
     assert app._fold_manager.get(root.raw_suffix) is FoldLevel.FULLY_EXPANDED
     left = app._resolve_agent_left_navigation_target()
-    collapse = app._resolve_sase_agent_collapse_target()
+    structural = app._resolve_agent_structural_collapse_target()
     assert left is not None
-    assert collapse is not None
+    assert structural is not None
+    assert structural.kind == "workflow"
 
     bindings = _labels(
         KeybindingFooter()._compute_agent_bindings(
             None,
             left_navigation_kind=left.kind,
             lane_collapse_available=True,
+            structural_collapse_kind=structural.kind,
         )
     )
 
     assert ("h", "parent workflow") in bindings
-    assert ("H", "collapse sase agents") in bindings
+    assert ("H", "collapse workflow") in bindings
+    assert ("H", "collapse sase agents") not in bindings
+
+    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse_all()
+    assert app._fold_manager.get(root.raw_suffix) is FoldLevel.COLLAPSED
+    assert app._resolve_agent_structural_collapse_target() is None
+    remaining = app._resolve_sase_agent_collapse_target()
+    group = app._resolve_group_collapse_target()
+    closed_bindings = _labels(
+        KeybindingFooter()._compute_agent_bindings(
+            None,
+            left_navigation_kind=None,
+            lane_collapse_available=remaining is not None,
+            group_collapse_available=remaining is None and group is not None,
+        )
+    )
+    assert ("H", "collapse workflow") not in closed_bindings
+    assert ("H", "collapse group") in closed_bindings
+
+
+def test_footer_hidden_family_step_advertises_selected_family_then_group() -> None:
+    agents, root, _main, _coder, steps = make_loader_shaped_aliased_plan_family()
+    app = StubFoldApp(agents, current_idx=agents.index(steps["pre_prompt"]))
+    family_key = root.raw_suffix
+    assert family_key is not None
+    app._fold_manager.expand(family_key)
+    app._fold_manager.expand(family_key)
+    structural = app._resolve_agent_structural_collapse_target()
+    assert structural is not None
+    assert structural.kind == "family"
+
+    open_bindings = _labels(
+        KeybindingFooter()._compute_agent_bindings(
+            None,
+            structural_collapse_kind=structural.kind,
+            lane_collapse_available=True,
+        )
+    )
+    assert ("H", "collapse family") in open_bindings
+    assert ("H", "collapse sase agents") not in open_bindings
+
+    app.action_hooks_or_collapse_all()
+    app.action_hooks_or_collapse_all()
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+    assert app._resolve_agent_structural_collapse_target() is None
+    remaining = app._resolve_sase_agent_collapse_target()
+    group = app._resolve_group_collapse_target()
+    closed_bindings = _labels(
+        KeybindingFooter()._compute_agent_bindings(
+            None,
+            lane_collapse_available=remaining is not None,
+            group_collapse_available=remaining is None and group is not None,
+        )
+    )
+    assert ("H", "collapse family") not in closed_bindings
+    assert ("H", "collapse group") in closed_bindings
