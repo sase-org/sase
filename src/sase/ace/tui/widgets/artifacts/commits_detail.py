@@ -60,6 +60,7 @@ class CommitsDetailMixin(_MixinBase):
     def move_selection(self, step: int) -> None:
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
         timeline.focus()
+        timeline.ensure_render_cache_warmed()
         if step > 0:
             timeline.action_cursor_down()
         else:

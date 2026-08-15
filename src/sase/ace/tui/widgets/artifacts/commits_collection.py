@@ -5,14 +5,20 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 import os
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from textual.worker import Worker, WorkerState
 
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+    evaluate_artifact_query_many,
+)
 from sase.vcs_log.models import VcsLogResult
 
 from .commit_filters import CommitLogFilterValues
 from .commits_timeline import CommitsTimeline
+from .query_rows import build_commits_query_index
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -48,6 +54,14 @@ class AuthoritativeCommitSnapshot:
     filters: CommitLogFilterValues
     collection_limit: int
     result: VcsLogResult
+    query_index: ArtifactQueryIndex | None = None
+
+
+@dataclass(frozen=True)
+class CommitCollectionPayload:
+    result: VcsLogResult
+    query_index: ArtifactQueryIndex
+    initial_query_result: ArtifactQueryResult
 
 
 class CommitsCollectionMixin(_MixinBase):
@@ -57,16 +71,20 @@ class CommitsCollectionMixin(_MixinBase):
     filters: CommitLogFilterValues
     result: VcsLogResult | None
     _generation: int
-    _collection_worker: Worker[VcsLogResult] | None
+    _collection_worker: Worker[Any] | None
     _collection_generation: int | None
     _collection_spec_in_flight: CommitCollectionSpec | None
     _collection_pending: bool
     _authoritative_results: dict[
         tuple[CommitScopeKey, CommitLogFilterValues], VcsLogResult
     ]
+    _authoritative_query_indexes: dict[int, ArtifactQueryIndex]
     _preview_base: AuthoritativeCommitSnapshot | None
     _filter_session_open: bool
     _live_filter_values: CommitLogFilterValues | None
+    _query_profile: Any
+    _query_session: Any
+    _query_result_pending: bool
 
     if TYPE_CHECKING:
 
@@ -104,6 +122,8 @@ class CommitsCollectionMixin(_MixinBase):
             values: CommitLogFilterValues,
         ) -> None: ...
 
+        def _row_query_string(self, values: CommitLogFilterValues) -> str: ...
+
     def _init_commits_collection(
         self,
         collector: CommitCollector,
@@ -119,6 +139,7 @@ class CommitsCollectionMixin(_MixinBase):
         self._collection_spec_in_flight = None
         self._collection_pending = False
         self._authoritative_results = {}
+        self._authoritative_query_indexes: dict[int, ArtifactQueryIndex] = {}
         self._preview_base = None
 
     @property
@@ -163,6 +184,29 @@ class CommitsCollectionMixin(_MixinBase):
             force_fetch=force_fetch,
         )
 
+    def _collect_payload(
+        self,
+        spec: CommitCollectionSpec,
+        *,
+        force_fetch: bool,
+    ) -> CommitCollectionPayload:
+        result = self._collect(spec, force_fetch=force_fetch)
+        query_index = build_commits_query_index(
+            result,
+            pane_id=self._query_profile.pane_id,
+            generation=spec.generation,
+            profile=self._query_profile,
+        )
+        query_result = evaluate_artifact_query_many(
+            self._row_query_string(spec.filters),
+            query_index,
+        )
+        return CommitCollectionPayload(
+            result=result,
+            query_index=query_index,
+            initial_query_result=query_result,
+        )
+
     def _schedule_collection(self) -> None:
         if not self.artifacts_active or not self.is_mounted:
             return
@@ -175,7 +219,7 @@ class CommitsCollectionMixin(_MixinBase):
         self._collection_generation = spec.generation
         self._collection_spec_in_flight = spec
         self._collection_worker = self.run_worker(
-            lambda spec=spec: self._collect(spec, force_fetch=False),
+            lambda spec=spec: self._collect_payload(spec, force_fetch=False),
             thread=True,
             group="artifacts-commits-collection",
             exclusive=True,
@@ -198,7 +242,16 @@ class CommitsCollectionMixin(_MixinBase):
         stale = generation != self._generation
         pending = self._collection_pending or stale
         if event.state == WorkerState.SUCCESS and not pending and spec is not None:
-            self._apply_result(cast(VcsLogResult, event.worker.result), spec=spec)
+            payload = event.worker.result
+            if isinstance(payload, CommitCollectionPayload):
+                self._apply_result(
+                    payload.result,
+                    spec=spec,
+                    query_index=payload.query_index,
+                    initial_query_result=payload.initial_query_result,
+                )
+            else:
+                self._apply_result(cast(VcsLogResult, payload), spec=spec)
         elif event.state == WorkerState.ERROR and not pending:
             self._show_collection_error(event.worker.error)
 
@@ -216,15 +269,19 @@ class CommitsCollectionMixin(_MixinBase):
         result: VcsLogResult,
         *,
         spec: CommitCollectionSpec | None = None,
+        query_index: ArtifactQueryIndex | None = None,
+        initial_query_result: ArtifactQueryResult | None = None,
     ) -> None:
         spec = spec or self._collection_spec()
-        self._remember_authoritative_result(spec, result)
+        if initial_query_result is not None:
+            self._query_session.remember(initial_query_result)
+        self._remember_authoritative_result(spec, result, query_index=query_index)
         displayed = self._filtered_result(result, spec.filters)
         self._display_result(displayed)
         if not self._filter_session_open:
             self._set_result_status(
                 displayed,
-                exact=True,
+                exact=not self._query_result_pending,
                 values=spec.filters,
             )
         else:
@@ -232,7 +289,7 @@ class CommitsCollectionMixin(_MixinBase):
             if self._live_filter_values == spec.filters:
                 self._set_result_status(
                     displayed,
-                    exact=True,
+                    exact=not self._query_result_pending,
                     values=spec.filters,
                 )
             elif self._live_filter_values is not None:
@@ -242,21 +299,28 @@ class CommitsCollectionMixin(_MixinBase):
         self,
         spec: CommitCollectionSpec,
         result: VcsLogResult,
+        *,
+        query_index: ArtifactQueryIndex | None = None,
     ) -> None:
         key = (spec.scope_key, spec.filters)
         self._authoritative_results[key] = result
+        if query_index is not None:
+            self._authoritative_query_indexes[id(result)] = query_index
         # A filter session can produce many queries. Bound the revert/exact
         # cache while retaining insertion-order recency.
         if len(self._authoritative_results) > 32:
             oldest = next(iter(self._authoritative_results))
             if oldest != key:
-                self._authoritative_results.pop(oldest, None)
+                old_result = self._authoritative_results.pop(oldest, None)
+                if old_result is not None:
+                    self._authoritative_query_indexes.pop(id(old_result), None)
 
         candidate = AuthoritativeCommitSnapshot(
             spec.scope_key,
             spec.filters,
             _backend_collection_limit(spec.filters),
             result,
+            query_index,
         )
         current = self._preview_base
         if (
@@ -278,11 +342,18 @@ class CommitsCollectionMixin(_MixinBase):
                 values,
                 _backend_collection_limit(values),
                 exact,
+                self._authoritative_query_indexes.get(id(exact)),
             )
         base = self._preview_base
         if base is not None and base.scope_key == scope_key:
             return base
         return None
+
+    def _query_index_for_result(
+        self,
+        result: VcsLogResult,
+    ) -> ArtifactQueryIndex | None:
+        return self._authoritative_query_indexes.get(id(result))
 
     def _show_collection_error(self, error: BaseException | None) -> None:
         message = str(error).strip() if error is not None else "unknown error"
@@ -363,6 +434,7 @@ def _scope_key_for(values: CommitLogFilterValues) -> CommitScopeKey:
 __all__ = [
     "AuthoritativeCommitSnapshot",
     "CommitCollectionSpec",
+    "CommitCollectionPayload",
     "CommitCollector",
     "CommitScopeKey",
     "CommitsCollectionMixin",

@@ -9,11 +9,12 @@ from textual.widgets import Static
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.bead.filter_query import BeadFilterQueryError, BeadFilterValues
-from sase.bead.filter_query import to_query_tokens
+from sase.bead.filter_query import to_query_string, to_query_tokens
+from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot
-from .beads_filtering import BeadFilterIndex, compile_bead_matcher
+from .beads_filtering import BeadFilterIndex
 from .beads_list import BeadRow, bead_row_target, build_bead_options
 from .beads_rendering import (
     build_beads_hints,
@@ -22,6 +23,7 @@ from .beads_rendering import (
     build_empty_bead_detail,
 )
 from .entry_navigation import ArtifactEntryTarget
+from .query_session import ArtifactQuerySession
 from .shell import ArtifactsPaneState
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
@@ -53,6 +55,8 @@ class BeadsOptionsMixin(_MixinBase):
     _live_filter_values: BeadFilterValues | None
     _display_matched_counts: dict[str, int] | None
     _display_matched_triage_count: int | None
+    _query_index: ArtifactQueryIndex | None
+    _query_session: ArtifactQuerySession
 
     if TYPE_CHECKING:
 
@@ -65,6 +69,12 @@ class BeadsOptionsMixin(_MixinBase):
         ) -> BeadFilterIndex | None: ...
 
         def _option_list(self) -> BeadsOptionList | None: ...
+
+        def _set_bead_rows(
+            self,
+            rows: dict[str, BeadRow],
+            options: list[Any],
+        ) -> None: ...
 
         def _selected_option_id(self) -> str | None: ...
 
@@ -101,19 +111,34 @@ class BeadsOptionsMixin(_MixinBase):
         self._display_matched_counts = None
         self._display_matched_triage_count = None
         self._expand_parent_for_pending_target()
+        pending_query = False
         filter_index = self._ensure_filter_index(
             needed=self._filter_session_open or not values.is_empty
         )
         if filter_index is not None:
-            matcher = compile_bead_matcher(values)
-            matching_records = tuple(
-                record for record in filter_index if matcher(record)
+            query_index = self._query_index
+            query = to_query_string(values)
+            result = (
+                None
+                if query_index is None or not query
+                else self._query_session.result(query, query_index)
             )
-            match_count = len(matching_records)
-            if not values.is_empty:
-                matched_option_ids = frozenset(
-                    record.option_id for record in matching_records
+            if result is not None:
+                matched_option_ids = frozenset(result.matched_row_ids)
+                matching_records = tuple(
+                    record
+                    for record in filter_index
+                    if record.option_id in matched_option_ids
                 )
+                match_count = len(matching_records)
+            elif values.is_empty:
+                matching_records = tuple(filter_index)
+                match_count = len(matching_records)
+            else:
+                matching_records = ()
+                match_count = None
+                pending_query = True
+            if not values.is_empty and match_count is not None:
                 matched_counts = dict.fromkeys(("task", "epic", "phase"), 0)
                 triage_count = 0
                 for record in matching_records:
@@ -122,6 +147,14 @@ class BeadsOptionsMixin(_MixinBase):
                         triage_count += 1
                 self._display_matched_counts = matched_counts
                 self._display_matched_triage_count = triage_count
+        if pending_query:
+            if self._filter_session_open and self._filter_query_error is None:
+                self.query_one(BeadFilterBar).set_status(
+                    None,
+                    exact=False,
+                    error=None,
+                )
+            return
         options, rows = build_bead_options(
             self._snapshot,
             project_scope=self.project_scope,
@@ -131,7 +164,7 @@ class BeadsOptionsMixin(_MixinBase):
             marks=self._entry_marks,
             matched_option_ids=matched_option_ids,
         )
-        self._rows = rows
+        self._set_bead_rows(rows, options)
         pending_id = self._pending_option_id()
         if pending_id is None and self._pending_entry_target is not None:
             if not values.is_empty and self._clear_filter_for_entry_jump():
@@ -170,7 +203,7 @@ class BeadsOptionsMixin(_MixinBase):
         if self._filter_session_open and self._filter_query_error is None:
             self.query_one(BeadFilterBar).set_status(
                 match_count,
-                exact=True,
+                exact=match_count is not None,
                 error=None,
             )
         if update_detail:

@@ -8,7 +8,11 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .entry_navigation import (
+    ArtifactEntryNavigator,
+    ArtifactEntryTarget,
+    prewarm_option_render_cache,
+)
 from .files_list import FileRow, file_row_target
 
 if TYPE_CHECKING:
@@ -42,6 +46,7 @@ class FilesOptionList(OptionList):
             self.clear_options()
             self.add_options(options)
             self._assign_highlight(highlighted)
+            prewarm_option_render_cache(self)
         finally:
             self._programmatic_update = False
 
@@ -62,7 +67,9 @@ class FilesNavigationMixin(_MixinBase):
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
+    _entry_targets_cache: tuple[ArtifactEntryTarget, ...]
     _option_id_by_target: dict[ArtifactEntryTarget, str]
+    _option_index_by_target: dict[ArtifactEntryTarget, int]
     _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
@@ -78,13 +85,28 @@ class FilesNavigationMixin(_MixinBase):
         self._syncing_options = False
         self._entry_jump_hints = {}
         self._entry_marks = set()
+        self._entry_targets_cache = ()
         self._option_id_by_target = {}
+        self._option_index_by_target = {}
         self._pending_entry_target = None
 
-    def _set_file_rows(self, rows: dict[str, FileRow]) -> None:
+    def _set_file_rows(
+        self,
+        rows: dict[str, FileRow],
+        options: list[Option],
+    ) -> None:
         self._rows = rows
         self._option_id_by_target = {
             file_row_target(row): option_id for option_id, row in rows.items()
+        }
+        indexed_targets = tuple(
+            (index, file_row_target(row))
+            for index, option in enumerate(options)
+            if (row := rows.get(option.id or "")) is not None
+        )
+        self._entry_targets_cache = tuple(target for _index, target in indexed_targets)
+        self._option_index_by_target = {
+            target: index for index, target in indexed_targets
         }
 
     def selected_row(self) -> FileRow | None:
@@ -101,6 +123,7 @@ class FilesNavigationMixin(_MixinBase):
         option_list = self._option_list()
         if option_list is not None:
             option_list.focus()
+            prewarm_option_render_cache(option_list)
 
     def move_selection(self, offset: int) -> bool:
         option_list = self._option_list()
@@ -115,16 +138,7 @@ class FilesNavigationMixin(_MixinBase):
         return self.selected_entry_target() != before
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
-        option_list = self._option_list()
-        if option_list is None:
-            return ()
-        targets: list[ArtifactEntryTarget] = []
-        for index in range(option_list.option_count):
-            option_id = option_list.get_option_at_index(index).id or ""
-            row = self._rows.get(option_id)
-            if row is not None:
-                targets.append(file_row_target(row))
-        return tuple(targets)
+        return self._entry_targets_cache
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()
@@ -132,12 +146,8 @@ class FilesNavigationMixin(_MixinBase):
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         option_list = self._option_list()
-        option_id = self._option_id_by_target.get(target)
-        if option_list is None or option_id is None:
-            return False
-        try:
-            target_index = option_list.get_option_index(option_id)
-        except Exception:
+        target_index = self._option_index_by_target.get(target)
+        if option_list is None or target_index is None:
             return False
         option_list.focus()
         self._syncing_options = True
@@ -193,13 +203,7 @@ class FilesNavigationMixin(_MixinBase):
         option_list = self._option_list()
         if option_list is None or target is None:
             return None
-        option_id = self._option_id_by_target.get(target)
-        if option_id is None:
-            return None
-        try:
-            return option_list.get_option_index(option_id)
-        except Exception:
-            return None
+        return self._option_index_by_target.get(target)
 
 
 __all__ = ["FilesNavigationMixin", "FilesOptionList"]

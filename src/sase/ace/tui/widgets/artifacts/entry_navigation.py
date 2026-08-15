@@ -5,9 +5,11 @@ from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any, cast
 
 from rich.text import Text
 from textual.message_pump import _MessagePumpMeta
+from textual.widgets import OptionList
 
 #: Bump when the token encoding changes shape; old tokens become invalid.
 _TOKEN_VERSION = "v1"
@@ -176,6 +178,34 @@ def select_relative_entry(
     return navigator.select_entry_target(target)
 
 
+def prewarm_option_render_cache(
+    option_list: OptionList,
+    *,
+    max_options: int = 512,
+) -> bool:
+    """Warm bounded normal/highlighted OptionList row render caches."""
+    if not option_list.is_mounted or not option_list.scrollable_content_region:
+        return False
+    dynamic_option_list = cast(Any, option_list)
+    normal_style = option_list.get_visual_style("option-list--option")
+    highlighted_style = option_list.get_visual_style(
+        "option-list--option",
+        "option-list--option-highlighted",
+    )
+    disabled_style = option_list.get_visual_style(
+        "option-list--option",
+        "option-list--option-disabled",
+    )
+    for index in range(min(option_list.option_count, max_options)):
+        option = option_list.get_option_at_index(index)
+        if option.disabled:
+            dynamic_option_list._get_option_render(option, disabled_style)
+            continue
+        dynamic_option_list._get_option_render(option, normal_style)
+        dynamic_option_list._get_option_render(option, highlighted_style)
+    return True
+
+
 def prepend_jump_hint(prompt: Text, hint: str | None) -> Text:
     """Return a row prompt with the standard compact jump marker."""
     if hint is None:
@@ -201,5 +231,6 @@ __all__ = [
     "ArtifactEntryTarget",
     "prepend_jump_hint",
     "prepend_mark_glyph",
+    "prewarm_option_render_cache",
     "select_relative_entry",
 ]

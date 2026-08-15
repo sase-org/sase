@@ -104,7 +104,7 @@ def patches_query_schema() -> ArtifactQuerySchema:
 
 
 def stitches_query_schema() -> ArtifactQuerySchema:
-    """The flat Stitches (commits) dialect. No sigils, macros, or predicates."""
+    """The flat Stitches (commits) dialect. No sigils or macros."""
 
     fields = (
         QueryFieldSpec(
@@ -167,12 +167,14 @@ def stitches_query_schema() -> ArtifactQuerySchema:
         pane_id="stitches",
         boolean=False,
         fields=fields,
+        predicates=tuple(sorted(HOST_PREDICATES)),
+        any_special=True,
         free_text_hint="subject terms (AND)",
     )
 
 
 def beads_query_schema() -> ArtifactQuerySchema:
-    """The flat Beads dialect. No sigils, macros, or predicates."""
+    """The flat Beads dialect. No sigils or macros."""
 
     enum_fields = (
         QueryFieldSpec(
@@ -252,12 +254,14 @@ def beads_query_schema() -> ArtifactQuerySchema:
         pane_id="beads",
         boolean=False,
         fields=enum_fields + string_fields + date_fields + search_only_fields,
+        predicates=tuple(sorted(HOST_PREDICATES)),
+        any_special=True,
         free_text_hint="id, title, body, refs (AND)",
     )
 
 
 def plans_query_schema() -> ArtifactQuerySchema:
-    """The flat Plans dialect. No sigils, macros, or predicates.
+    """The flat Plans dialect. No sigils or macros.
 
     None of ``kind``/``status``/``tier`` are enum-validated today (unlike
     the equivalent Beads keys), so they compile as plain strings even though
@@ -287,17 +291,14 @@ def plans_query_schema() -> ArtifactQuerySchema:
         pane_id="ref:plan",
         boolean=False,
         fields=string_fields + date_fields + search_only_fields,
+        predicates=tuple(sorted(HOST_PREDICATES)),
+        any_special=True,
         free_text_hint="title, body, path (AND)",
     )
 
 
 def files_query_schema() -> ArtifactQuerySchema:
-    """The flat Files dialect. No sigils, macros, or predicates.
-
-    Files supports no negation on any key today (a known gap the
-    ``flat_panes`` phase is scoped to fix); this schema faithfully preserves
-    that current behavior rather than pre-emptively enabling it.
-    """
+    """The flat Files dialect. No sigils or macros."""
 
     enum_fields = (
         QueryFieldSpec(
@@ -305,6 +306,7 @@ def files_query_schema() -> ArtifactQuerySchema:
             value_kind="enum",
             static_values=ARTIFACT_FILE_KINDS,
             repeatable=True,
+            negatable=True,
             hint="stored artifact kind",
         ),
         QueryFieldSpec(
@@ -312,11 +314,18 @@ def files_query_schema() -> ArtifactQuerySchema:
             value_kind="enum",
             static_values=_FILE_ORIGIN_VALUES,
             repeatable=True,
+            negatable=True,
             hint="explicit or default",
         ),
     )
     string_fields = tuple(
-        QueryFieldSpec(key=key, repeatable=True, exact_match=True, hint=hint)
+        QueryFieldSpec(
+            key=key,
+            repeatable=True,
+            negatable=True,
+            exact_match=True,
+            hint=hint,
+        )
         for key, hint in (
             ("project", "project key"),
             ("agent", "agent name"),
@@ -327,6 +336,7 @@ def files_query_schema() -> ArtifactQuerySchema:
         QueryFieldSpec(
             key=key,
             value_kind="date",
+            negatable=True,
             hint="YYYY-MM-DD, YYYY-MM, Nd/Nw/Nm",
         )
         for key in ("since", "until")
@@ -339,6 +349,8 @@ def files_query_schema() -> ArtifactQuerySchema:
         pane_id="files",
         boolean=False,
         fields=enum_fields + string_fields + date_fields + search_only_fields,
+        predicates=tuple(sorted(HOST_PREDICATES)),
+        any_special=True,
         free_text_hint="label, stored path, source path (AND)",
     )
 
@@ -390,6 +402,8 @@ def provider_query_schema(
         pane_id=f"ref:{kind}",
         boolean=False,
         fields=tuple(fields),
+        predicates=tuple(sorted(HOST_PREDICATES)),
+        any_special=True,
         free_text_hint=free_text_hint,
     )
 

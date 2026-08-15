@@ -21,7 +21,11 @@ from .beads_detail import (
     resolved_plan_path,
 )
 from .beads_list import BeadRow, bead_row_target, row_option_id
-from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .entry_navigation import (
+    ArtifactEntryNavigator,
+    ArtifactEntryTarget,
+    prewarm_option_render_cache,
+)
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -56,6 +60,7 @@ class BeadsOptionList(OptionList):
             self.clear_options()
             self.add_options(options)
             self._assign_highlight(highlighted)
+            prewarm_option_render_cache(self)
         finally:
             self._programmatic_update = False
 
@@ -81,6 +86,8 @@ class BeadsNavigationMixin(_MixinBase):
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
     _entry_marks: set[ArtifactEntryTarget]
+    _entry_targets_cache: tuple[ArtifactEntryTarget, ...]
+    _option_index_by_target: dict[ArtifactEntryTarget, int]
     _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
@@ -106,7 +113,26 @@ class BeadsNavigationMixin(_MixinBase):
         self._syncing_options = False
         self._entry_jump_hints = {}
         self._entry_marks = set()
+        self._entry_targets_cache = ()
+        self._option_index_by_target = {}
         self._pending_entry_target = None
+
+    def _set_bead_rows(
+        self,
+        rows: dict[str, BeadRow],
+        options: list[Option],
+    ) -> None:
+        """Install rows and their stable-target indexes in visual order."""
+        self._rows = rows
+        indexed_targets = tuple(
+            (index, bead_row_target(row))
+            for index, option in enumerate(options)
+            if (row := rows.get(option.id or "")) is not None
+        )
+        self._entry_targets_cache = tuple(target for _index, target in indexed_targets)
+        self._option_index_by_target = {
+            target: index for index, target in indexed_targets
+        }
 
     def selected_row(self) -> BeadRow | None:
         option_list = self._option_list()
@@ -122,6 +148,7 @@ class BeadsNavigationMixin(_MixinBase):
         option_list = self._option_list()
         if option_list is not None:
             option_list.focus()
+            prewarm_option_render_cache(option_list)
 
     def move_selection(self, step: int) -> None:
         option_list = self._option_list()
@@ -134,15 +161,7 @@ class BeadsNavigationMixin(_MixinBase):
             option_list.action_cursor_up()
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
-        option_list = self._option_list()
-        if option_list is None:
-            return ()
-        targets: list[ArtifactEntryTarget] = []
-        for index in range(option_list.option_count):
-            option_id = option_list.get_option_at_index(index).id or ""
-            if row := self._rows.get(option_id):
-                targets.append(bead_row_target(row))
-        return tuple(targets)
+        return self._entry_targets_cache
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()
@@ -154,6 +173,7 @@ class BeadsNavigationMixin(_MixinBase):
         if option_list is None or target_index is None:
             return False
         changed = option_list.highlighted != target_index
+        previous_footer_entries = self.conditional_footer_entries() if changed else ()
         option_list.focus()
         self._syncing_options = True
         try:
@@ -165,7 +185,8 @@ class BeadsNavigationMixin(_MixinBase):
                 self._update_detail()
             else:
                 self._detail_debouncer.schedule(self._update_detail)
-            self._sync_artifacts_footer()
+            if self.conditional_footer_entries() != previous_footer_entries:
+                self._sync_artifacts_footer()
         return True
 
     def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
@@ -237,15 +258,7 @@ class BeadsNavigationMixin(_MixinBase):
             sync()
 
     def _option_index_for_target(self, target: ArtifactEntryTarget) -> int | None:
-        option_list = self._option_list()
-        if option_list is None:
-            return None
-        for index in range(option_list.option_count):
-            option_id = option_list.get_option_at_index(index).id or ""
-            row = self._rows.get(option_id)
-            if row is not None and bead_row_target(row) == target:
-                return index
-        return None
+        return self._option_index_by_target.get(target)
 
     def set_selected_epic_expanded(self, expanded: bool) -> None:
         row = self.selected_row()

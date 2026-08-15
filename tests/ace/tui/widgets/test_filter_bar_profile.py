@@ -42,10 +42,9 @@ def test_configure_from_profile_derives_dialect_without_class_declarations() -> 
     assert bar.FREE_TEXT_HINT == "id, title, body, refs (AND)"
 
 
-def test_files_profile_has_no_negatable_keys_yet() -> None:
-    """Files' current schema declares no negation (the gap step 6 fixes)."""
+def test_files_profile_derives_negatable_keys() -> None:
     bar = FilterBar(profile=_FILES_PROFILE)
-    assert bar.NEGATABLE_KEYS == frozenset()
+    assert bar.NEGATABLE_KEYS == frozenset(_FILES_PROFILE.negatable_fields())
 
 
 async def test_key_completion_lists_profile_fields_alphabetically() -> None:

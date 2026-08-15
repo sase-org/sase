@@ -270,7 +270,7 @@ async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
     monkeypatch.setattr(commits_module, "run_vcs_log", collect)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
+        "sase.ace.query.profile_reference_support.normalize_reference_time",
         lambda: clock[0],
     )
 

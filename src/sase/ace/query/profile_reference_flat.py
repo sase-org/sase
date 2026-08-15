@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import cast
+from dataclasses import dataclass
+from typing import Literal
 
 from sase.ace.query.profile_reference_support import (
     ProfileQueryError,
@@ -12,15 +13,13 @@ from sase.ace.query.profile_reference_support import (
     require_filterable_field,
 )
 from sase.ace.query.types import (
-    AndExpr,
     NotExpr,
-    OrExpr,
     PropertyMatch,
     QueryExpr,
     StringMatch,
-    to_canonical_string,
 )
 from sase.ace.query_profile import CompiledQueryProfile
+from sase.ace.query_profile.registry import HOST_PREDICATES
 from sase.filter_tokens import (
     FilterQueryError,
     FilterToken,
@@ -30,29 +29,112 @@ from sase.filter_tokens import (
     unquoted_index,
 )
 
+_PredicateSpelling = Literal["!!!", "!!", "@@@", "!@", "$$$", "!$", "*"]
+
+
+@dataclass(frozen=True, slots=True)
+class _FlatTextClause:
+    value: str
+    negated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _FlatFieldClause:
+    key: str
+    values: tuple[str, ...]
+    negated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _FlatPredicateClause:
+    expr: QueryExpr
+    spelling: _PredicateSpelling
+
+
+_FlatClause = _FlatTextClause | _FlatFieldClause | _FlatPredicateClause
+
 
 def parse_flat_query(query: str, profile: CompiledQueryProfile) -> QueryExpr:
     """Parse a flat-token pane query into the shared query AST."""
 
-    tokens = _flat_tokens(query)
-    if not tokens:
-        raise ProfileQueryError("Empty query", 0)
-
+    clauses = _flat_clauses(query, profile)
     field_terms: dict[str, list[PropertyMatch]] = {}
     excluded_field_terms: dict[str, list[PropertyMatch]] = {}
     text_terms: list[StringMatch] = []
     excluded_text_terms: list[StringMatch] = []
-    single_fields: dict[str, FilterToken] = {}
 
+    expressions: list[QueryExpr] = []
+    for clause in clauses:
+        if isinstance(clause, _FlatFieldClause):
+            terms = [
+                PropertyMatch(key=clause.key, value=value) for value in clause.values
+            ]
+            target = excluded_field_terms if clause.negated else field_terms
+            target.setdefault(clause.key, []).extend(terms)
+        elif isinstance(clause, _FlatTextClause):
+            target = excluded_text_terms if clause.negated else text_terms
+            target.append(StringMatch(clause.value))
+        else:
+            expressions.append(clause.expr)
+
+    for key in _profile_field_order(profile):
+        positive = field_terms.get(key, ())
+        if positive:
+            expressions.append(or_terms(positive))
+        negative = excluded_field_terms.get(key, ())
+        if negative:
+            expressions.append(NotExpr(or_terms(negative)))
+    expressions.extend(text_terms)
+    expressions.extend(NotExpr(term) for term in excluded_text_terms)
+    return and_terms(expressions)
+
+
+def canonical_flat_query(query: str, profile: CompiledQueryProfile) -> str:
+    """Return the stable flat-token canonical form of a profile query."""
+
+    clauses = _flat_clauses(query, profile)
+    positive_fields: dict[str, list[str]] = {}
+    negative_fields: dict[str, list[str]] = {}
+    predicates: list[str] = []
+    text_tokens: list[str] = []
+    for clause in clauses:
+        if isinstance(clause, _FlatFieldClause):
+            target = negative_fields if clause.negated else positive_fields
+            target.setdefault(clause.key, []).extend(clause.values)
+        elif isinstance(clause, _FlatPredicateClause):
+            predicates.append(clause.spelling)
+        else:
+            rendered = quote_value(clause.value, keyed=False)
+            text_tokens.append(f"-{rendered}" if clause.negated else rendered)
+
+    tokens: list[str] = []
+    for key in _profile_field_order(profile):
+        if values := positive_fields.get(key):
+            tokens.append(f"{key}:{_render_field_values(values)}")
+        if values := negative_fields.get(key):
+            tokens.append(f"-{key}:{_render_field_values(values)}")
+    tokens.extend(predicates)
+    tokens.extend(text_tokens)
+    return " ".join(tokens)
+
+
+def _flat_clauses(
+    query: str,
+    profile: CompiledQueryProfile,
+) -> tuple[_FlatClause, ...]:
+    tokens = _flat_tokens(query)
+    if not tokens:
+        raise ProfileQueryError("Empty query", 0)
+
+    clauses: list[_FlatClause] = []
+    single_fields: dict[str, FilterToken] = {}
     for token in tokens:
+        if predicate := _predicate_clause(token, profile):
+            clauses.append(predicate)
+            continue
         colon = unquoted_index(token, ":")
         if token.wholly_quoted or colon < 0:
-            _append_text_term(
-                token,
-                text_terms=text_terms,
-                excluded_text_terms=excluded_text_terms,
-                profile=profile,
-            )
+            clauses.append(_text_clause(token, profile=profile))
             continue
 
         key_start = 1 if token.negated else 0
@@ -80,57 +162,17 @@ def parse_flat_query(query: str, profile: CompiledQueryProfile) -> QueryExpr:
                 raise ProfileQueryError(f"{key}: may only appear once", token.start)
             single_fields[key] = token
 
-        normalized = tuple(
-            normalize_query_value(field_spec, part, position=token.start)
-            for part in parts
-        )
-        terms = [PropertyMatch(key=key, value=value) for value in normalized]
-        target = excluded_field_terms if token.negated else field_terms
-        target.setdefault(key, []).extend(terms)
-
-    expressions: list[QueryExpr] = []
-    for key in _profile_field_order(profile):
-        positive = field_terms.get(key, ())
-        if positive:
-            expressions.append(or_terms(positive))
-        negative = excluded_field_terms.get(key, ())
-        if negative:
-            expressions.append(NotExpr(or_terms(negative)))
-    expressions.extend(text_terms)
-    expressions.extend(NotExpr(term) for term in excluded_text_terms)
-    return and_terms(expressions)
-
-
-def canonical_flat_query(query: str, profile: CompiledQueryProfile) -> str:
-    """Return the stable flat-token canonical form of a profile query."""
-
-    expr = parse_flat_query(query, profile)
-    if isinstance(expr, AndExpr):
-        terms = expr.operands
-    else:
-        terms = [expr]
-    tokens: list[str] = []
-    for term in terms:
-        if isinstance(term, PropertyMatch):
-            tokens.append(f"{term.key}:{quote_value(term.value, keyed=True)}")
-        elif isinstance(term, NotExpr) and isinstance(term.operand, PropertyMatch):
-            inner = term.operand
-            tokens.append(f"-{inner.key}:{quote_value(inner.value, keyed=True)}")
-        elif isinstance(term, StringMatch):
-            tokens.append(quote_value(term.value, keyed=False))
-        elif isinstance(term, NotExpr) and isinstance(term.operand, StringMatch):
-            tokens.append(f"-{quote_value(term.operand.value, keyed=False)}")
-        elif isinstance(term, OrExpr) and (key := _same_key_property_group(term)):
-            values = ",".join(
-                quote_value(cast(PropertyMatch, op).value, keyed=True)
-                for op in term.operands
+        clauses.append(
+            _FlatFieldClause(
+                key=key,
+                values=tuple(
+                    normalize_query_value(field_spec, part, position=token.start)
+                    for part in parts
+                ),
+                negated=token.negated,
             )
-            tokens.append(f"{key}:{values}")
-        else:
-            # Flat parsing only groups same-key PropertyMatch terms into an
-            # OrExpr. Keep a defensive fallback in case that invariant changes.
-            tokens.append(to_canonical_string(term))
-    return " ".join(tokens)
+        )
+    return tuple(clauses)
 
 
 def _flat_tokens(query: str) -> tuple[FilterToken, ...]:
@@ -140,13 +182,11 @@ def _flat_tokens(query: str) -> tuple[FilterToken, ...]:
         raise ProfileQueryError(exc.message, exc.start) from exc
 
 
-def _append_text_term(
+def _text_clause(
     token: FilterToken,
     *,
-    text_terms: list[StringMatch],
-    excluded_text_terms: list[StringMatch],
     profile: CompiledQueryProfile,
-) -> None:
+) -> _FlatTextClause:
     if token.negated and not profile.negatable_fields():
         raise ProfileQueryError(
             "filters for this pane do not support negation", token.start
@@ -154,23 +194,57 @@ def _append_text_term(
     value = token.body
     if not value:
         raise ProfileQueryError("Free-text terms must not be empty", token.start)
-    target = excluded_text_terms if token.negated else text_terms
-    target.append(StringMatch(value))
+    return _FlatTextClause(
+        value=value,
+        negated=token.negated,
+    )
+
+
+def _predicate_clause(
+    token: FilterToken,
+    profile: CompiledQueryProfile,
+) -> _FlatPredicateClause | None:
+    if token.negated or token.wholly_quoted:
+        return None
+    body = token.body
+    if body in {"!", "!!!"} and _has_predicate(profile, "error_suffix"):
+        return _FlatPredicateClause(_predicate_expr("error_suffix"), "!!!")
+    if body == "!!" and _has_predicate(profile, "error_suffix"):
+        return _FlatPredicateClause(NotExpr(_predicate_expr("error_suffix")), "!!")
+    if body in {"@", "@@@"} and _has_predicate(profile, "running_agent"):
+        return _FlatPredicateClause(_predicate_expr("running_agent"), "@@@")
+    if body == "!@" and _has_predicate(profile, "running_agent"):
+        return _FlatPredicateClause(NotExpr(_predicate_expr("running_agent")), "!@")
+    if body in {"$", "$$$"} and _has_predicate(profile, "running_process"):
+        return _FlatPredicateClause(_predicate_expr("running_process"), "$$$")
+    if body == "!$" and _has_predicate(profile, "running_process"):
+        return _FlatPredicateClause(NotExpr(_predicate_expr("running_process")), "!$")
+    if body == "*" and profile.any_special:
+        return _FlatPredicateClause(
+            or_terms(tuple(_predicate_expr(name) for name in profile.predicates)),
+            "*",
+        )
+    return None
+
+
+def _has_predicate(profile: CompiledQueryProfile, name: str) -> bool:
+    return name in profile.predicates and name in HOST_PREDICATES
+
+
+def _predicate_expr(name: str) -> StringMatch:
+    if name == "running_agent":
+        return StringMatch("@@@ internal marker", is_running_agent=True)
+    if name == "running_process":
+        return StringMatch("$$$ internal marker", is_running_process=True)
+    return StringMatch(" - (!: ", is_error_suffix=True)
 
 
 def _profile_field_order(profile: CompiledQueryProfile) -> tuple[str, ...]:
     return tuple(item.key for item in profile.fields if item.filterable)
 
 
-def _same_key_property_group(term: OrExpr) -> str | None:
-    """Return the shared key for an all-property, single-key OR group."""
-
-    if not term.operands or not all(
-        isinstance(op, PropertyMatch) for op in term.operands
-    ):
-        return None
-    keys = {cast(PropertyMatch, op).key for op in term.operands}
-    return keys.pop() if len(keys) == 1 else None
+def _render_field_values(values: list[str]) -> str:
+    return ",".join(quote_value(value, keyed=True) for value in values)
 
 
 __all__ = ["canonical_flat_query", "parse_flat_query"]

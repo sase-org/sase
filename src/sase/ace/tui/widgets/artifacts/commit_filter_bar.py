@@ -141,4 +141,6 @@ class CommitFilterBar(FilterBar):
         text: str,
         cursor: int,
     ) -> tuple[str, str, bool]:
+        if self._profile is not None:
+            return super()._completion_context(text, cursor)
         return completion_context(text, cursor)

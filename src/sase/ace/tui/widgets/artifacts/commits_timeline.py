@@ -19,6 +19,7 @@ from .entry_navigation import (
     ArtifactEntryTarget,
     prepend_jump_hint,
     prepend_mark_glyph,
+    prewarm_option_render_cache,
 )
 
 
@@ -59,7 +60,10 @@ class CommitsTimeline(OptionList):
         super().__init__(**kwargs)
         self._commit_index_by_option: list[int | None] = []
         self._commits: tuple[AggregatedCommitWire, ...] = ()
+        self._entry_targets: tuple[ArtifactEntryTarget, ...] = ()
+        self._option_by_target: dict[ArtifactEntryTarget, int] = {}
         self._programmatic_update = False
+        self._render_cache_warmed = False
         self._jump_hints: dict[ArtifactEntryTarget, str] = {}
         self._marks: set[ArtifactEntryTarget] = set()
         self._selection_callback: Callable[[int | None], None] | None = None
@@ -70,6 +74,15 @@ class CommitsTimeline(OptionList):
     ) -> None:
         """Set the synchronous in-memory selection observer."""
         self._selection_callback = callback
+
+    def prewarm_render_cache(self) -> None:
+        """Warm bounded row renders for the current focus/style state."""
+        self._render_cache_warmed = prewarm_option_render_cache(self)
+
+    def ensure_render_cache_warmed(self) -> None:
+        """Warm row renders once a concrete scroll region is available."""
+        if not self._render_cache_warmed:
+            self.prewarm_render_cache()
 
     @property
     def selected_commit_index(self) -> int | None:
@@ -84,20 +97,21 @@ class CommitsTimeline(OptionList):
         """Replace timeline rows while preserving the selected stable target."""
         selected_target = self.selected_entry_target
         self._commits = tuple(result.commits)
+        self._entry_targets = tuple(commit_row_target(entry) for entry in self._commits)
         self._jump_hints = {}
         self._rebuild_options(result, selected_target=selected_target)
         return self.selected_commit_index
 
     @property
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
-        return tuple(commit_row_target(entry) for entry in self._commits)
+        return self._entry_targets
 
     @property
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         selected_index = self.selected_commit_index
         if selected_index is None or not 0 <= selected_index < len(self._commits):
             return None
-        return commit_row_target(self._commits[selected_index])
+        return self._entry_targets[selected_index]
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> int | None:
         """Highlight a stable target without echoing a user navigation event."""
@@ -149,6 +163,7 @@ class CommitsTimeline(OptionList):
 
         options: list[Option] = []
         mapping: list[int | None] = []
+        option_by_target: dict[ArtifactEntryTarget, int] = {}
         current_day: str | None = None
         for commit_index, entry in enumerate(self._commits):
             day, banner = build_timeline_day(entry.commit.timestamp)
@@ -158,7 +173,7 @@ class CommitsTimeline(OptionList):
                 )
                 mapping.append(None)
                 current_day = day
-            entry_target = commit_row_target(entry)
+            entry_target = self._entry_targets[commit_index]
             prompt = prepend_jump_hint(
                 prepend_mark_glyph(
                     build_timeline_commit(
@@ -175,6 +190,7 @@ class CommitsTimeline(OptionList):
             prompt.overflow = "ellipsis"
             options.append(Option(prompt, id=f"commit-{commit_index}"))
             mapping.append(commit_index)
+            option_by_target[entry_target] = len(options) - 1
 
         if not options:
             message = "No commits match the current scope and filters."
@@ -187,7 +203,9 @@ class CommitsTimeline(OptionList):
         try:
             self.clear_options()
             self._commit_index_by_option = mapping
+            self._option_by_target = option_by_target
             self.add_options(options)
+            self._render_cache_warmed = False
             highlight = self._option_for_target(selected_target)
             if highlight is None:
                 highlight = next(
@@ -199,6 +217,7 @@ class CommitsTimeline(OptionList):
                     None,
                 )
             self._assign_highlight(highlight)
+            prewarm_option_render_cache(self)
         finally:
             self._programmatic_update = False
 
@@ -210,13 +229,7 @@ class CommitsTimeline(OptionList):
     def _option_for_target(self, target: ArtifactEntryTarget | None) -> int | None:
         if target is None:
             return None
-        for option_index, commit_index in enumerate(self._commit_index_by_option):
-            if (
-                commit_index is not None
-                and commit_row_target(self._commits[commit_index]) == target
-            ):
-                return option_index
-        return None
+        return self._option_by_target.get(target)
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         if self._programmatic_update:

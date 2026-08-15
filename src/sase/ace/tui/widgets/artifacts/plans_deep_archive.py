@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from sase.plan_search.filter_query import PlanFilterValues
+from sase.ace.query_profile import CompiledQueryProfile
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+    evaluate_artifact_query_many,
+)
+from sase.plan_search.filter_query import PlanFilterValues, to_query_string
 
 from .plans_data import (
     DEEP_ARCHIVE_PER_PROJECT_LIMIT,
@@ -12,10 +18,8 @@ from .plans_data import (
     ProjectArchive,
     load_deep_plan_archive,
 )
-from .plans_filtering import (
-    build_plan_archive_filter_records,
-    compile_plan_matcher,
-)
+from .plans_filtering import PlanFilterIndex
+from .query_rows import build_plans_query_index
 
 DEEP_ARCHIVE_DEBOUNCE_S = 0.3
 DEEP_ARCHIVE_CACHE_LIMIT = 32
@@ -28,6 +32,7 @@ class DeepArchiveRequest:
     project_scope: str | None
     values: PlanFilterValues
     snapshot_identity: int
+    generation: int
     project_roots: tuple[tuple[str, str, str], ...]
 
 
@@ -37,6 +42,9 @@ class DeepArchiveResult:
 
     request: DeepArchiveRequest
     archive: tuple[ProjectArchive, ...]
+    filter_index: PlanFilterIndex
+    query_index: ArtifactQueryIndex
+    query_result: ArtifactQueryResult | None
     scanned_count: int
     capped: bool
     errors: tuple[tuple[str, str], ...]
@@ -63,6 +71,7 @@ def make_deep_archive_request(
     project_scope: str | None,
     filter_session_open: bool,
     values: PlanFilterValues,
+    generation: int,
 ) -> DeepArchiveRequest | None:
     """Build a request token when the snapshot has a reachable coverage gap."""
     if (
@@ -84,6 +93,7 @@ def make_deep_archive_request(
         project_scope=project_scope,
         values=values,
         snapshot_identity=id(snapshot),
+        generation=generation,
         project_roots=project_roots,
     )
 
@@ -91,21 +101,32 @@ def make_deep_archive_request(
 def load_deep_archive_result(
     snapshot: PlansSnapshot,
     request: DeepArchiveRequest,
+    *,
+    profile: CompiledQueryProfile,
 ) -> DeepArchiveResult:
-    """Browse and match one deep archive request on a worker thread."""
+    """Browse, index, and evaluate one extended archive corpus off-thread."""
     fetched = load_deep_plan_archive(request.project_roots)
     active_paths = frozenset(item.document.path for item in snapshot.active)
     archive = tuple(
         item for item in fetched.archive if item.match.plan.path not in active_paths
     )
-    records = build_plan_archive_filter_records(snapshot, archive)
-    matcher = compile_plan_matcher(request.values)
-    matching_archive = tuple(
-        item for item, record in zip(archive, records, strict=True) if matcher(record)
+    deep_snapshot = replace(snapshot, archive=archive)
+    filter_index, query_index = build_plans_query_index(
+        deep_snapshot,
+        pane_id=profile.pane_id,
+        generation=request.generation,
+        profile=profile,
+    )
+    query = to_query_string(request.values)
+    query_result = (
+        None if not query else evaluate_artifact_query_many(query, query_index)
     )
     return DeepArchiveResult(
         request=request,
-        archive=matching_archive,
+        archive=archive,
+        filter_index=filter_index,
+        query_index=query_index,
+        query_result=query_result,
         scanned_count=fetched.scanned_count,
         capped=fetched.capped,
         errors=tuple(sorted(fetched.errors.items())),

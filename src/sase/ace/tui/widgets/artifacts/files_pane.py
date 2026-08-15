@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Iterable
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from rich.console import RenderableType
@@ -13,6 +14,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import OptionList, Static
 from textual.worker import Worker, WorkerState
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.keymaps import (
     KeymapRegistry,
@@ -26,6 +28,11 @@ from sase.ace.tui.util.pump_tasks import (
 )
 from sase.core.time import local_now
 from sase.core.artifact_file_types import ArtifactFile
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+    evaluate_artifact_query_many,
+)
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 from .entry_navigation import ArtifactEntryTarget
@@ -45,7 +52,7 @@ from .files_detail import (
     load_file_detail,
 )
 from .files_filter_session import FilesFilterSessionMixin
-from .files_filtering import filter_files_snapshot
+from .files_filtering import to_query_string
 from .files_list import build_file_options, file_row_target
 from .files_navigation import FilesNavigationMixin, FilesOptionList
 from .files_rendering import (
@@ -54,9 +61,25 @@ from .files_rendering import (
     build_files_status,
 )
 from ..._artifact_tab_model import ArtifactsPaneContract
+from .query_rows import build_files_query_index
+from .query_session import ArtifactQuerySession
 from .shell import build_empty_card
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 from .types import ARTIFACTS_ACCENTS
+
+
+@dataclass(frozen=True, slots=True)
+class _FilesSnapshotResult:
+    snapshot: FilesSnapshot
+    query_index: ArtifactQueryIndex
+    initial_query_result: ArtifactQueryResult | None
+
+
+@dataclass(frozen=True, slots=True)
+class _FilesQueryIndexResult:
+    generation: int
+    display_generation: int
+    query_index: ArtifactQueryIndex
 
 
 class ArtifactsFilesPane(
@@ -77,6 +100,23 @@ class ArtifactsFilesPane(
         super().__init__(**kwargs)
         self._init_snapshot_lifecycle()
         self.contract = contract
+        profile = (
+            contract.query_profile
+            if contract is not None
+            else compiled_profile_for_builtin_pane("files")
+        )
+        assert profile is not None
+        self._query_profile = profile
+        self._query_index: ArtifactQueryIndex | None = None
+        self._query_session = ArtifactQuerySession(
+            self,
+            group="artifacts-files-query",
+            on_current_result=lambda _result: self._refresh_options(
+                preferred_target=self.selected_entry_target()
+            ),
+        )
+        self._query_index_worker: Worker[Any] | None = None
+        self._project_ref_display_generation = 0
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._project_ref_display = ProjectRefDisplaySnapshot()
@@ -94,7 +134,7 @@ class ArtifactsFilesPane(
         self._init_files_filter_session()
 
     def compose(self) -> ComposeResult:
-        yield FileFilterBar(id="file-filter-bar")
+        yield FileFilterBar(id="file-filter-bar", profile=self._query_profile)
         yield Static(
             self._scope_text(),
             id="files-info",
@@ -123,6 +163,12 @@ class ArtifactsFilesPane(
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
         cancel_pump_free_tasks(self)
+        self._query_session.clear()
+        if (
+            self._query_index_worker is not None
+            and not self._query_index_worker.is_finished
+        ):
+            self._query_index_worker.cancel()
         self._cancel_snapshot_worker()
         if self._detail_worker is not None and not self._detail_worker.is_finished:
             self._detail_worker.cancel()
@@ -182,6 +228,8 @@ class ArtifactsFilesPane(
 
         preferred = self.selected_entry_target()
         self._project_ref_display = project_ref_display
+        self._project_ref_display_generation += 1
+        self._request_query_index_rebuild()
         self._refresh_options(preferred_target=preferred)
 
     @property
@@ -269,17 +317,36 @@ class ArtifactsFilesPane(
         else:
             self._update_status()
 
-    def _build_snapshot(self, request: SnapshotRequest) -> FilesSnapshot:
-        return load_files_snapshot(
+    def _build_snapshot(self, request: SnapshotRequest) -> _FilesSnapshotResult:
+        snapshot = load_files_snapshot(
             request.project,
             None if request.full else FILES_FIRST_PAGE_LIMIT,
+        )
+        query_index = build_files_query_index(
+            snapshot,
+            pane_id=self._query_profile.pane_id,
+            generation=request.generation,
+            profile=self._query_profile,
+            project_ref_display=self._project_ref_display,
+        )
+        initial_query = to_query_string(self.filters)
+        initial_result = (
+            None
+            if not initial_query
+            else evaluate_artifact_query_many(initial_query, query_index)
+        )
+        return _FilesSnapshotResult(
+            snapshot=snapshot,
+            query_index=query_index,
+            initial_query_result=initial_result,
         )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
         return (
-            isinstance(result, FilesSnapshot)
+            isinstance(result, _FilesSnapshotResult)
             and request.generation == self._load_generation
-            and result.project == self.project_scope
+            and result.snapshot.project == self.project_scope
+            and result.query_index.generation == request.generation
         )
 
     def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
@@ -291,8 +358,12 @@ class ArtifactsFilesPane(
         )
         if callable(cancel_jump):
             cancel_jump("files")
-        self._snapshot = result
-        self._load_error = result.load_error
+        self._query_session.clear()
+        self._snapshot = result.snapshot
+        self._query_index = result.query_index
+        if result.initial_query_result is not None:
+            self._query_session.remember(result.initial_query_result)
+        self._load_error = result.snapshot.load_error
         self._detail_generation += 1
         if self._detail_worker is not None and not self._detail_worker.is_finished:
             self._detail_worker.cancel()
@@ -306,12 +377,16 @@ class ArtifactsFilesPane(
                 ),
                 len(row.versions) - 1,
             )
-            for row in result.rows
+            for row in result.snapshot.rows
         }
         if self._filter_session_open:
             self._set_filter_completion_sources()
         self._refresh_options(preferred_target=preferred)
-        if not request.full and not result.complete and result.load_error is None:
+        if (
+            not request.full
+            and not result.snapshot.complete
+            and result.snapshot.load_error is None
+        ):
             self._schedule_full_extension(request.generation)
 
     def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
@@ -320,6 +395,11 @@ class ArtifactsFilesPane(
         self._update_status()
 
     def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
+        if event.worker is self._query_index_worker:
+            self._on_query_index_worker_changed(event)
+            return True
+        if self._query_session.handle_worker_state_changed(event):
+            return True
         if event.worker is self._detail_worker:
             self._on_detail_worker_changed(event)
             return True
@@ -376,11 +456,15 @@ class ArtifactsFilesPane(
         elif preferred_target is None:
             preferred_target = self.selected_entry_target()
         values = self._display_filter_values()
-        filtered = filter_files_snapshot(
-            self._snapshot,
-            values,
-            self._project_ref_display,
-        )
+        filtered, exact, pending = self._filtered_snapshot(values)
+        if pending:
+            if self._filter_session_open and self._filter_query_error is None:
+                self.query_one(FileFilterBar).set_status(
+                    None,
+                    exact=False,
+                    error=None,
+                )
+            return
         self._filtered_count = None if filtered is None else len(filtered.rows)
         options, rows = build_file_options(
             filtered,
@@ -391,7 +475,7 @@ class ArtifactsFilesPane(
             jump_hints=self._entry_jump_hints,
             marks=self._entry_marks,
         )
-        self._set_file_rows(rows)
+        self._set_file_rows(rows, options)
         # Resolve the target against the freshly built ``options`` list
         # directly rather than the live OptionList, which still reflects
         # the pre-rebuild rows until ``replace_options`` runs below.
@@ -433,7 +517,93 @@ class ArtifactsFilesPane(
         self._update_status()
         self._update_static("#files-info", self._scope_text())
         self._update_static("#files-hints", self._hints_text())
+        if self._filter_session_open and self._filter_query_error is None:
+            self.query_one(FileFilterBar).set_status(
+                self._filtered_count,
+                exact=exact,
+                error=None,
+            )
         self._schedule_detail()
+
+    def _filtered_snapshot(
+        self, values: Any
+    ) -> tuple[FilesSnapshot | None, bool, bool]:
+        snapshot = self._current_snapshot()
+        if snapshot is None or values.is_empty:
+            return snapshot, True, False
+        query_index = self._query_index
+        query = to_query_string(values)
+        if query_index is None or not query:
+            return snapshot, False, True
+        result = self._query_session.result(query, query_index)
+        if result is None:
+            return snapshot, False, True
+        matched = frozenset(result.matched_row_ids)
+        return (
+            replace(
+                snapshot,
+                rows=tuple(
+                    row for row in snapshot.rows if f"file:{row.logical_id}" in matched
+                ),
+            ),
+            True,
+            False,
+        )
+
+    def _request_query_index_rebuild(self) -> None:
+        snapshot = self._current_snapshot()
+        if snapshot is None:
+            return
+        worker = self._query_index_worker
+        if worker is not None and not worker.is_finished:
+            worker.cancel()
+        generation = self._load_generation
+        display_generation = self._project_ref_display_generation
+        display = self._project_ref_display
+
+        def task() -> _FilesQueryIndexResult:
+            return _FilesQueryIndexResult(
+                generation=generation,
+                display_generation=display_generation,
+                query_index=build_files_query_index(
+                    snapshot,
+                    pane_id=self._query_profile.pane_id,
+                    generation=generation,
+                    profile=self._query_profile,
+                    project_ref_display=display,
+                ),
+            )
+
+        self._query_index = None
+        self._query_session.clear()
+        self._query_index_worker = self.run_worker(
+            task,
+            thread=True,
+            group="artifacts-files-query-index",
+            exclusive=True,
+            exit_on_error=False,
+        )
+
+    def _on_query_index_worker_changed(self, event: Worker.StateChanged) -> None:
+        if event.state not in {
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        }:
+            return
+        self._query_index_worker = None
+        if event.state != WorkerState.SUCCESS:
+            return
+        result = event.worker.result
+        if not isinstance(result, _FilesQueryIndexResult):
+            return
+        if (
+            result.generation != self._load_generation
+            or result.display_generation != self._project_ref_display_generation
+        ):
+            return
+        self._query_index = result.query_index
+        self._refresh_options(preferred_target=self.selected_entry_target())
 
     def _update_empty(self) -> None:
         if not self.is_mounted:
@@ -607,20 +777,17 @@ class ArtifactsFilesPane(
         )
 
     def _set_filter_completion_sources(self) -> None:
-        rows = () if self._snapshot is None else self._snapshot.rows
-        self.query_one(FileFilterBar).set_completion_sources(
-            projects=(
-                self._project_ref_display.label_for_ref(project) or project
-                for row in rows
-                for project in row.projects
-            ),
-            agents=(agent for row in rows for agent in row.agents),
-            workflows=(
-                version.workflow
-                for row in rows
-                for version in row.versions
-                if version.workflow
-            ),
+        if self._query_index is None:
+            self.query_one(FileFilterBar).set_completion_sources(
+                projects=(), agents=(), workflows=()
+            )
+            return
+        self.query_one(FileFilterBar).set_observed_facets(
+            {
+                key: values
+                for key, values in self._query_index.facets.items()
+                if key not in {"since", "until"}
+            }
         )
 
 

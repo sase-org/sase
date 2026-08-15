@@ -121,7 +121,6 @@ def test_project_filter_accepts_display_name_without_rendering_storage_key() -> 
         "kind:video",
         "origin:manual",
         "unknown:value",
-        "-kind:image",
         "since:tomorrow",
         "since:2026-08 until:202607",
     ],
@@ -132,6 +131,29 @@ def test_invalid_file_filter_tokens_are_rejected(query: str) -> None:
             query,
             now=datetime(2026, 7, 29, tzinfo=UTC),
         )
+
+
+def test_negated_file_filter_terms_exclude_fields_and_text() -> None:
+    image = artifact_file(
+        "image",
+        kind="image",
+        path="/stored/build-result.png",
+        project="alpha",
+    )
+    pdf = artifact_file(
+        "pdf",
+        kind="pdf",
+        path="/stored/build-result.pdf",
+        project="beta",
+    )
+    filtered = filter_files_snapshot(
+        snapshot((image, pdf), project=None),
+        parse_files_filter_query("-kind:pdf -project:beta -build-result.pdf"),
+    )
+
+    assert (
+        filtered is not None and filtered.rows == snapshot((image,), project=None).rows
+    )
 
 
 def test_relative_month_bound_uses_calendar_months() -> None:
@@ -212,6 +234,7 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         pane.filters = replace(pane.filters, text=("missing",))
         pane._refresh_options()
         empty = pane.query_one("#files-empty", Static)
+        await page.wait_for(lambda _state: "No matches" in str(empty.content))
         assert "No matches" in str(empty.content)
         assert "active file filter" in str(empty.content)
         assert "Press f to edit or clear it." in str(empty.content)

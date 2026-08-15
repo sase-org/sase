@@ -95,4 +95,6 @@ class PlanFilterBar(FilterBar):
         text: str,
         cursor: int,
     ) -> tuple[str, str, bool]:
+        if self._profile is not None:
+            return super()._completion_context(text, cursor)
         return plan_completion_context(text, cursor)

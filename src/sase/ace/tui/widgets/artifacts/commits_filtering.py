@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.vcs_log.dates import normalize_reference_time
+from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     commit_repo_matches,
-    compile_commit_matcher,
     parse_commit_filter_query,
     to_query_string,
+    to_query_tokens,
 )
 from sase.vcs_log.models import VcsLogResult
 
@@ -28,6 +28,7 @@ from .commits_collection import (
 )
 from .commits_rendering import commit_filter_chips
 from .commits_timeline import CommitsTimeline
+from .query_rows import commit_query_row_id
 
 if TYPE_CHECKING:
     from sase.project_display_names import ProjectRefDisplaySnapshot
@@ -59,6 +60,8 @@ class CommitsFilteringMixin(_MixinBase):
     _pending_filter_values: CommitLogFilterValues | None
     _filter_query_error: CommitFilterQueryError | None
     _project_ref_display: ProjectRefDisplaySnapshot
+    _query_result_pending: bool
+    _query_session: Any
 
     if TYPE_CHECKING:
 
@@ -78,6 +81,10 @@ class CommitsFilteringMixin(_MixinBase):
 
         def _refresh_info(self) -> None: ...
 
+        def _query_index_for_result(
+            self, result: VcsLogResult
+        ) -> ArtifactQueryIndex | None: ...
+
         def _schedule_collection(self) -> None: ...
 
         def _scope_key(self) -> CommitScopeKey: ...
@@ -90,6 +97,7 @@ class CommitsFilteringMixin(_MixinBase):
         self._live_filter_values = None
         self._pending_filter_values = None
         self._filter_query_error = None
+        self._query_result_pending = False
 
     def _filtered_result(
         self,
@@ -98,24 +106,8 @@ class CommitsFilteringMixin(_MixinBase):
         *,
         resolve_fresh_bounds: bool = False,
     ) -> VcsLogResult:
-        aliases = {repo.name: repo.aliases for repo in result.repos}
-        wanted_spec = values.backend_filter_spec()
-        collected_spec = result.filter_spec
-        resolved_filters = None
-        if (
-            not resolve_fresh_bounds
-            and collected_spec is not None
-            and collected_spec.since == wanted_spec.since
-            and collected_spec.until == wanted_spec.until
-        ):
-            resolved_filters = result.resolved_filters
-        reference = None if resolved_filters is not None else normalize_reference_time()
-        matcher = compile_commit_matcher(
-            values,
-            repo_aliases=aliases,
-            now=reference,
-            resolved_filters=resolved_filters,
-        )
+        del resolve_fresh_bounds
+        self._query_result_pending = False
         repos = tuple(
             repo
             for repo in result.repos
@@ -123,10 +115,24 @@ class CommitsFilteringMixin(_MixinBase):
             and commit_repo_matches(values, repo.name, repo.aliases)
         )
         repo_names = frozenset(repo.name for repo in repos)
+        query_index = self._query_index_for_result(result)
+        query_result = (
+            None
+            if query_index is None
+            else self._query_session.result(self._row_query_string(values), query_index)
+        )
+        if query_result is None:
+            self._query_result_pending = query_index is not None
+            matched_row_ids: frozenset[str] | None = None
+        else:
+            matched_row_ids = frozenset(query_result.matched_row_ids)
         matching_commits = tuple(
             entry
             for entry in result.commits
-            if entry.repo in repo_names and matcher(entry)
+            if entry.repo in repo_names
+            and (
+                matched_row_ids is None or commit_query_row_id(entry) in matched_row_ids
+            )
         )
         visible_truncated = values.limit > 0 and len(matching_commits) > values.limit
         commits = matching_commits
@@ -148,6 +154,16 @@ class CommitsFilteringMixin(_MixinBase):
             commits=commits,
             remote_states=remote_states,
             aggregate_truncated=result.aggregate_truncated or visible_truncated,
+        )
+
+    def _row_query_string(self, values: CommitLogFilterValues) -> str:
+        """Render only row-membership fields for the shared evaluator."""
+
+        tokens = to_query_tokens(replace(values, project=None, limit=0))
+        return " ".join(
+            token
+            for token in tokens
+            if not token.startswith("sidecar:") and token != "merges:show"
         )
 
     def _set_result_status(
@@ -184,11 +200,18 @@ class CommitsFilteringMixin(_MixinBase):
         self._display_result(preview, live_preview=True)
         self._set_result_status(
             preview,
-            exact=snapshot_covers(snapshot, values),
+            exact=snapshot_covers(snapshot, values) and not self._query_result_pending,
             values=values,
         )
 
     def _set_filter_completion_sources(self, result: VcsLogResult) -> None:
+        query_index = self._query_index_for_result(result)
+        if query_index is not None:
+            self.query_one(CommitFilterBar).set_completion_sources(
+                query_index.facets.get("repo", ()),
+                query_index.facets.get("author", ()),
+            )
+            return
         results: tuple[VcsLogResult, ...] = (result,)
         base = self._preview_base
         if base is not None and base.scope_key == self._scope_key():
@@ -230,16 +253,21 @@ class CommitsFilteringMixin(_MixinBase):
             cached = self._authoritative_results.get(
                 (self._scope_key(), restore_values)
             )
-            if cached is not None:
+            if restore_result is not None:
+                self._display_result(restore_result)
+                self._set_result_status(
+                    restore_result,
+                    exact=True,
+                    values=restore_values,
+                )
+            elif cached is not None:
                 displayed = self._filtered_result(cached, restore_values)
                 self._display_result(displayed)
                 self._set_result_status(
                     displayed,
-                    exact=True,
+                    exact=not self._query_result_pending,
                     values=restore_values,
                 )
-            elif restore_result is not None:
-                self._display_result(restore_result)
             else:
                 self._refresh_info()
 
@@ -381,7 +409,11 @@ class CommitsFilteringMixin(_MixinBase):
         if cached is not None:
             displayed = self._filtered_result(cached, values)
             self._display_result(displayed)
-            self._set_result_status(displayed, exact=True, values=values)
+            self._set_result_status(
+                displayed,
+                exact=not self._query_result_pending,
+                values=values,
+            )
             return
 
         snapshot = self._authoritative_snapshot(values)
@@ -397,7 +429,8 @@ class CommitsFilteringMixin(_MixinBase):
             )
             self._set_result_status(
                 displayed,
-                exact=snapshot_covers(snapshot, values),
+                exact=snapshot_covers(snapshot, values)
+                and not self._query_result_pending,
                 values=values,
             )
         if not self._collection_matches(values):
@@ -420,22 +453,21 @@ class CommitsFilteringMixin(_MixinBase):
         self.query_one("#stitches-timeline", CommitsTimeline).focus()
 
         cached = self._authoritative_results.get((self._scope_key(), restore_values))
-        if cached is not None:
-            displayed = self._filtered_result(cached, restore_values)
-            self._display_result(displayed)
-            self._set_result_status(
-                displayed,
-                exact=True,
-                values=restore_values,
-            )
-        elif restore_result is not None:
+        if restore_result is not None:
             self._display_result(restore_result)
             self._set_result_status(
                 restore_result,
                 exact=True,
                 values=restore_values,
             )
-            self._schedule_collection()
+        elif cached is not None:
+            displayed = self._filtered_result(cached, restore_values)
+            self._display_result(displayed)
+            self._set_result_status(
+                displayed,
+                exact=not self._query_result_pending,
+                values=restore_values,
+            )
         else:
             self._refresh_info()
             self._schedule_collection()

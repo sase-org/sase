@@ -240,6 +240,18 @@ class FilterBar(Static):
         if self.is_mounted and self._editing:
             self._refresh_completion()
 
+    def set_observed_facets(
+        self,
+        facets: Mapping[str, Iterable[str]],
+    ) -> None:
+        """Use worker-built values for every profile-declared filter field."""
+        if self._profile is None:
+            return
+        declared = frozenset(self._profile.filterable_fields())
+        self._set_completion_sources(
+            {key: values for key, values in facets.items() if key in declared}
+        )
+
     @on(TextArea.Changed)
     def _on_query_changed(self, event: TextArea.Changed) -> None:
         if event.text_area.id != self.INPUT_ID:

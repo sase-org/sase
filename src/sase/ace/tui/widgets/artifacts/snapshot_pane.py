@@ -54,6 +54,7 @@ class ArtifactsSnapshotPane(ArtifactsPaneLifecycle, Vertical):
             self._force_pending = self._force_pending or force
             self._full_pending = self._full_pending or full
             return
+        self._load_generation += 1
         request = self._make_snapshot_request(force=force, full=full)
         self._loading = True
         self._loading_full = full

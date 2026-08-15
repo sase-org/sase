@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
@@ -24,10 +24,7 @@ from .plans_deep_archive import (
     make_deep_archive_request,
     remember_deep_archive_result,
 )
-from .plans_filtering import (
-    PlanFilterIndex,
-    build_plan_filter_index,
-)
+from .plans_filtering import PlanFilterIndex
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -56,6 +53,10 @@ class PlansFilterSessionMixin(_MixinBase):
     _deep_archive_cache: dict[DeepArchiveRequest, DeepArchiveResult]
     _display_archive_total: int | None
     _display_archive_coverage_label: str | None
+    _query_profile: Any
+    _query_index: Any
+    _query_session: Any
+    _load_generation: int
 
     if TYPE_CHECKING:
 
@@ -187,53 +188,33 @@ class PlansFilterSessionMixin(_MixinBase):
         if not needed or snapshot is None or snapshot.project != self.project_scope:
             return None
         if self._filter_index_snapshot is not snapshot:
-            self._filter_index = build_plan_filter_index(snapshot)
-            self._filter_index_snapshot = snapshot
+            return None
         return self._filter_index
 
     def _set_filter_completion_sources(self) -> None:
+        if self._query_profile.pane_id != "ref:plan" and self._query_index is not None:
+            self.query_one(PlanFilterBar).set_observed_facets(
+                {
+                    key: values
+                    for key, values in self._query_index.facets.items()
+                    if key not in {"since", "until"}
+                }
+            )
+            return
         snapshot = self._snapshot
         index = self._ensure_filter_index(needed=True)
         if snapshot is None or index is None:
             self.query_one(PlanFilterBar).set_completion_sources((), (), ())
             return
-        plan_statuses = tuple(
-            status for record in index for status in record.status_labels
-        )
-        deep_result = self._deep_archive_result_for(self._display_filter_values())
-        if deep_result is not None:
-            plan_statuses = (
-                *plan_statuses,
-                *(
-                    status
-                    for item in deep_result.archive
-                    for status in (
-                        item.match.plan.status,
-                        item.match.plan.frontmatter.get("status", ""),
-                    )
-                    if status
-                ),
+        query_index = getattr(self, "_query_index", None)
+        if query_index is not None:
+            self.query_one(PlanFilterBar).set_observed_facets(
+                {
+                    key: values
+                    for key, values in query_index.facets.items()
+                    if key not in {"since", "until"}
+                }
             )
-        projects = tuple(
-            value
-            for project in snapshot.projects
-            for value in (project, snapshot.display_names.get(project, project))
-        )
-        document_kinds = tuple(
-            role
-            for project in snapshot.projects
-            for role in snapshot.plans_roots.get(project, {})
-        )
-        if deep_result is not None:
-            document_kinds = (
-                *document_kinds,
-                *(item.role for item in deep_result.archive),
-            )
-        self.query_one(PlanFilterBar).set_completion_sources(
-            plan_statuses,
-            projects,
-            document_kinds,
-        )
 
     def _filter_coverage(
         self,
@@ -254,6 +235,7 @@ class PlansFilterSessionMixin(_MixinBase):
             project_scope=self.project_scope,
             filter_session_open=self._filter_session_open,
             values=values,
+            generation=-(self._load_generation + 1),
         )
 
     def _deep_archive_result_for(
@@ -273,6 +255,7 @@ class PlansFilterSessionMixin(_MixinBase):
         if cached is not None:
             if self._deep_archive_debouncer is not None:
                 self._deep_archive_debouncer.cancel()
+            self._install_deep_archive_result(cached)
             if self.is_mounted:
                 self._refresh_options()
             return
@@ -302,7 +285,11 @@ class PlansFilterSessionMixin(_MixinBase):
             return
 
         def task() -> DeepArchiveResult:
-            return load_deep_archive_result(snapshot, request)
+            return load_deep_archive_result(
+                snapshot,
+                request,
+                profile=self._query_profile,
+            )
 
         self._deep_archive_in_flight = request
         self._deep_archive_pending = None
@@ -333,8 +320,10 @@ class PlansFilterSessionMixin(_MixinBase):
                 isinstance(result, DeepArchiveResult)
                 and request == self._deep_archive_request
                 and result.request == request
+                and result.query_index.generation == request.generation
             ):
                 remember_deep_archive_result(self._deep_archive_cache, result)
+                self._install_deep_archive_result(result)
                 if self._filter_session_open:
                     self._set_filter_completion_sources()
                 self._refresh_options()
@@ -343,6 +332,21 @@ class PlansFilterSessionMixin(_MixinBase):
         self._deep_archive_pending = None
         if pending is not None and pending == self._deep_archive_request:
             self._launch_deep_archive(pending)
+
+    def _install_deep_archive_result(self, result: DeepArchiveResult) -> None:
+        """Publish a generation-checked extended corpus to the query session."""
+        if (
+            self._snapshot is None
+            or id(self._snapshot) != result.request.snapshot_identity
+            or result.query_index.profile.digest != self._query_profile.digest
+        ):
+            return
+        self._query_session.clear()
+        self._filter_index = result.filter_index
+        self._filter_index_snapshot = self._snapshot
+        self._query_index = result.query_index
+        if result.query_result is not None:
+            self._query_session.remember(result.query_result)
 
     def _invalidate_deep_archive_request(self) -> None:
         if self._deep_archive_debouncer is not None:

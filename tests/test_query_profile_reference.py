@@ -112,10 +112,7 @@ def test_flat_profile_validates_enum_values_and_negation_support() -> None:
 
     with pytest.raises(ProfileQueryError, match="must be one of"):
         parse_query_for_profile("status:not-real", beads)
-    with pytest.raises(ProfileQueryError, match="may not be negated"):
-        parse_query_for_profile("-kind:file", files)
-    with pytest.raises(ProfileQueryError, match="do not support negation"):
-        parse_query_for_profile("-free", files)
+    assert parse_query_for_profile("-kind:file -free", files)
 
 
 def test_profile_coerces_typed_fields_and_degrades_malformed_rows() -> None:

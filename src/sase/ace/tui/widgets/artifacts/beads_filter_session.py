@@ -146,8 +146,7 @@ class BeadsFilterSessionMixin(_MixinBase):
         if not needed or snapshot is None or snapshot.project != self.project_scope:
             return None
         if self._filter_index_source_key != snapshot.source_key:
-            self._filter_index = build_bead_filter_index(snapshot)
-            self._filter_index_source_key = snapshot.source_key
+            return None
         return self._filter_index
 
     def _set_filter_completion_sources(self) -> None:
@@ -161,19 +160,16 @@ class BeadsFilterSessionMixin(_MixinBase):
                 bugs=(),
                 labels=(),
             )
-        return
-        self.query_one(BeadFilterBar).set_completion_sources(
-            projects=(
-                value
-                for record in index
-                for value in (record.project, record.project_display_name)
-            ),
-            assignees=(record.assignee for record in index if record.assignee.strip()),
-            owners=(record.owner for record in index if record.owner.strip()),
-            models=(record.model for record in index if record.model.strip()),
-            bugs=(value for record in index for value in record.bug_labels),
-            labels=(value for record in index for value in record.issue_labels),
-        )
+            return
+        query_index = getattr(self, "_query_index", None)
+        if query_index is not None:
+            self.query_one(BeadFilterBar).set_observed_facets(
+                {
+                    key: values
+                    for key, values in query_index.facets.items()
+                    if key not in {"since", "until"}
+                }
+            )
 
     def _cancel_jump_mode_for_filter_change(self) -> None:
         cancel = getattr(

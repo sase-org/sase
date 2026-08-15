@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from textual import on
@@ -10,17 +11,27 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Markdown, OptionList, Static
 from textual.worker import Worker, WorkerState
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+    evaluate_artifact_query_many,
+)
+from sase.plan_search.filter_query import to_query_string
 
 from ..._artifact_tab_model import ArtifactsPaneContract
 from .plan_filter_bar import PlanFilterBar
 from .plans_data import PlansSnapshot, load_plans_snapshot
 from .plans_deep_archive import DEEP_ARCHIVE_DEBOUNCE_S
+from .plans_filtering import PlanFilterIndex
 from .plans_filter_session import PlansFilterSessionMixin
 from .plans_list import PlanRow, build_plan_options
 from .plans_navigation import PlansNavigationMixin, PlansOptionList
 from .plans_options import PlansOptionsMixin
+from .query_rows import build_plans_query_index
+from .query_session import ArtifactQuerySession
 from .plans_rendering import (
     active_plan_text,
     archive_text,
@@ -38,6 +49,14 @@ _proposal_text = proposal_text
 _active_plan_text = active_plan_text
 _archive_text = archive_text
 _project_badge = project_badge
+
+
+@dataclass(frozen=True, slots=True)
+class _PlansSnapshotResult:
+    snapshot: PlansSnapshot
+    filter_index: PlanFilterIndex
+    query_index: ArtifactQueryIndex
+    initial_query_result: ArtifactQueryResult | None
 
 
 class ArtifactsDocumentsPane(
@@ -73,6 +92,19 @@ class ArtifactsDocumentsPane(
         self.provider_label = provider_label
         self.pane_key = pane_key
         self.provider_spec = provider_spec or {}
+        profile = (
+            contract.query_profile
+            if contract is not None
+            else compiled_profile_for_builtin_pane("ref:plan")
+        )
+        assert profile is not None
+        self._query_profile = profile
+        self._query_index: ArtifactQueryIndex | None = None
+        self._query_session = ArtifactQuerySession(
+            self,
+            group=f"artifacts-{pane_key}-query",
+            on_current_result=lambda _result: self._refresh_options(),
+        )
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
@@ -82,7 +114,11 @@ class ArtifactsDocumentsPane(
 
     def compose(self) -> ComposeResult:
         accent = None if self.contract is None else self.contract.accent
-        yield PlanFilterBar(id="plan-filter-bar", accent=accent)
+        yield PlanFilterBar(
+            id="plan-filter-bar",
+            accent=accent,
+            profile=self._query_profile,
+        )
         yield Static(self._scope_text(), classes="artifacts-pane-info", id="plans-info")
         with Horizontal(id="plans-panels"):
             list_panel = Vertical(id="plans-list-panel")
@@ -119,6 +155,7 @@ class ArtifactsDocumentsPane(
             and not self._deep_archive_worker.is_finished
         ):
             self._deep_archive_worker.cancel()
+        self._query_session.clear()
 
     def on_first_activate(self) -> None:
         self._request_load(force=False)
@@ -185,22 +222,44 @@ class ArtifactsDocumentsPane(
         del request
         self._update_status()
 
-    def _build_snapshot(self, request: SnapshotRequest) -> PlansSnapshot:
+    def _build_snapshot(self, request: SnapshotRequest) -> _PlansSnapshotResult:
         previous = (
             self._snapshot
             if self._snapshot is not None and self._snapshot.project == request.project
             else None
         )
-        return load_plans_snapshot(
+        snapshot = load_plans_snapshot(
             request.project,
             provider_kind=self.provider_kind,
             provider_label=self.provider_label,
             previous=previous,
             force=request.force,
         )
+        filter_index, query_index = build_plans_query_index(
+            snapshot,
+            pane_id=self._query_profile.pane_id,
+            generation=request.generation,
+            profile=self._query_profile,
+        )
+        initial_query = to_query_string(self.filters)
+        initial_result = (
+            None
+            if not initial_query
+            else evaluate_artifact_query_many(initial_query, query_index)
+        )
+        return _PlansSnapshotResult(
+            snapshot=snapshot,
+            filter_index=filter_index,
+            query_index=query_index,
+            initial_query_result=initial_result,
+        )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
-        return isinstance(result, PlansSnapshot) and result.project == request.project
+        return (
+            isinstance(result, _PlansSnapshotResult)
+            and result.snapshot.project == request.project
+            and result.query_index.generation == request.generation
+        )
 
     def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
         del request
@@ -210,10 +269,14 @@ class ArtifactsDocumentsPane(
         )
         if callable(cancel_jump):
             cancel_jump(self.pane_key)
-        snapshot_changed = result is not self._snapshot
-        self._snapshot = result
-        self._filter_index = None
-        self._filter_index_snapshot = None
+        snapshot_changed = result.snapshot is not self._snapshot
+        self._query_session.clear()
+        self._snapshot = result.snapshot
+        self._filter_index = result.filter_index
+        self._filter_index_snapshot = result.snapshot
+        self._query_index = result.query_index
+        if result.initial_query_result is not None:
+            self._query_session.remember(result.initial_query_result)
         if snapshot_changed:
             self._reset_deep_archive_state()
         self._load_error = None
@@ -228,6 +291,8 @@ class ArtifactsDocumentsPane(
         self._update_status()
 
     def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
+        if self._query_session.handle_worker_state_changed(event):
+            return True
         if event.worker is self._deep_archive_worker:
             self._on_deep_archive_worker_changed(event)
             return True

@@ -63,15 +63,25 @@ class FilesFilterValues:
     """Validated values shared by the Files pane and its query editor."""
 
     kinds: tuple[str, ...] = ()
+    excluded_kinds: tuple[str, ...] = ()
     projects: tuple[str, ...] = ()
+    excluded_projects: tuple[str, ...] = ()
     agents: tuple[str, ...] = ()
+    excluded_agents: tuple[str, ...] = ()
     workflows: tuple[str, ...] = ()
+    excluded_workflows: tuple[str, ...] = ()
     origins: tuple[str, ...] = ()
+    excluded_origins: tuple[str, ...] = ()
     since_text: str = ""
+    excluded_since_text: str = ""
     until_text: str = ""
+    excluded_until_text: str = ""
     since: int | None = None
+    excluded_since: int | None = None
     until: int | None = None
+    excluded_until: int | None = None
     text: tuple[str, ...] = ()
+    excluded_text: tuple[str, ...] = ()
 
     @property
     def is_empty(self) -> bool:
@@ -80,15 +90,25 @@ class FilesFilterValues:
         return not any(
             (
                 self.kinds,
+                self.excluded_kinds,
                 self.projects,
+                self.excluded_projects,
                 self.agents,
+                self.excluded_agents,
                 self.workflows,
+                self.excluded_workflows,
                 self.origins,
+                self.excluded_origins,
                 self.since_text,
+                self.excluded_since_text,
                 self.until_text,
+                self.excluded_until_text,
                 self.since is not None,
+                self.excluded_since is not None,
                 self.until is not None,
+                self.excluded_until is not None,
                 self.text,
+                self.excluded_text,
             )
         )
 
@@ -105,23 +125,24 @@ def parse_files_filter_query(
     """Parse a Files query into normalized, validated filter values."""
 
     repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
+    excluded_repeated: dict[str, list[str]] = {key: [] for key in _REPEATABLE_KEYS}
     singles: dict[str, tuple[str, FilterToken]] = {}
+    excluded_singles: dict[str, tuple[str, FilterToken]] = {}
+    seen_singles: dict[str, FilterToken] = {}
     text_terms: list[str] = []
+    excluded_text_terms: list[str] = []
 
     for token in tokenize(text, error_type=FilesFilterQueryError):
         colon = unquoted_index(token, ":")
         if token.wholly_quoted or colon < 0:
-            if token.negated:
-                raise _error("Files filters do not support negation", token)
             value = token.body
             if not value:
                 raise _error("Free-text terms must not be empty", token)
-            text_terms.append(value)
+            (excluded_text_terms if token.negated else text_terms).append(value)
             continue
 
-        if token.negated:
-            raise _error("Files filters do not support negation", token)
-        key = token.value[:colon].casefold()
+        key_start = 1 if token.negated else 0
+        key = token.value[key_start:colon].casefold()
         if key not in _FILTER_KEYS:
             raise unknown_key_error(
                 key,
@@ -139,12 +160,13 @@ def parse_files_filter_query(
             if any(not part for part in parts):
                 raise _error(f"{key}: contains an empty value", token)
             _validate_static_values(key, parts, token)
-            repeated[key].extend(parts)
+            (excluded_repeated if token.negated else repeated)[key].extend(parts)
             continue
 
-        if key in singles:
+        if key in seen_singles:
             raise _error(f"{key}: may only appear once", token)
-        singles[key] = (value, token)
+        seen_singles[key] = token
+        (excluded_singles if token.negated else singles)[key] = (value, token)
 
     reference = normalize_reference_time(now)
     since_text, since, _since_token = _parse_date_value(
@@ -159,21 +181,45 @@ def parse_files_filter_query(
         now=reference,
         boundary="until",
     )
+    excluded_since_text, excluded_since, _excluded_since_token = _parse_date_value(
+        "since",
+        excluded_singles,
+        now=reference,
+        boundary="since",
+    )
+    excluded_until_text, excluded_until, _excluded_until_token = _parse_date_value(
+        "until",
+        excluded_singles,
+        now=reference,
+        boundary="until",
+    )
     if since is not None and until is not None and since > until:
         assert until_token is not None
         raise _error("since: value must not be later than until: value", until_token)
 
     return FilesFilterValues(
         kinds=tuple(value.casefold() for value in repeated["kind"]),
+        excluded_kinds=tuple(value.casefold() for value in excluded_repeated["kind"]),
         projects=tuple(repeated["project"]),
+        excluded_projects=tuple(excluded_repeated["project"]),
         agents=tuple(repeated["agent"]),
+        excluded_agents=tuple(excluded_repeated["agent"]),
         workflows=tuple(repeated["workflow"]),
+        excluded_workflows=tuple(excluded_repeated["workflow"]),
         origins=tuple(value.casefold() for value in repeated["origin"]),
+        excluded_origins=tuple(
+            value.casefold() for value in excluded_repeated["origin"]
+        ),
         since_text=since_text,
+        excluded_since_text=excluded_since_text,
         until_text=until_text,
+        excluded_until_text=excluded_until_text,
         since=since,
+        excluded_since=excluded_since,
         until=until,
+        excluded_until=excluded_until,
         text=tuple(text_terms),
+        excluded_text=tuple(excluded_text_terms),
     )
 
 
@@ -200,6 +246,15 @@ def filter_files_snapshot(
         or value
         for value in values.projects
     )
+    excluded_project_values = tuple(
+        (
+            None
+            if project_ref_display is None
+            else project_ref_display.project_key_for_ref(value)
+        )
+        or value
+        for value in values.excluded_projects
+    )
     rows = tuple(
         row
         for row in snapshot.rows
@@ -207,6 +262,7 @@ def filter_files_snapshot(
             row,
             values,
             project_values=project_values,
+            excluded_project_values=excluded_project_values,
             naive_timezone=naive_timezone,
         )
     )
@@ -225,11 +281,20 @@ def to_query_tokens(values: FilesFilterValues) -> tuple[str, ...]:
         ("origin", values.origins),
     ):
         tokens.extend(f"{key}:{quote_value(value, keyed=True)}" for value in entries)
+        excluded_entries = getattr(values, f"excluded_{key}s")
+        tokens.extend(
+            f"-{key}:{quote_value(value, keyed=True)}" for value in excluded_entries
+        )
     if values.since_text:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
+    if values.excluded_since_text:
+        tokens.append(f"-since:{quote_value(values.excluded_since_text, keyed=True)}")
     if values.until_text:
         tokens.append(f"until:{quote_value(values.until_text, keyed=True)}")
+    if values.excluded_until_text:
+        tokens.append(f"-until:{quote_value(values.excluded_until_text, keyed=True)}")
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
+    tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)
     return tuple(tokens)
 
 
@@ -250,7 +315,7 @@ def files_completion_context(
         cursor,
         keys=_FILTER_KEYS,
         repeatable_keys=_REPEATABLE_KEYS,
-        negatable_keys=frozenset(),
+        negatable_keys=frozenset(_FILTER_KEYS),
     )
     return kind, prefix, negated  # type: ignore[return-value]
 
@@ -260,25 +325,53 @@ def _file_matches(
     values: FilesFilterValues,
     *,
     project_values: tuple[str, ...],
+    excluded_project_values: tuple[str, ...],
     naive_timezone: tzinfo | None,
 ) -> bool:
     if values.kinds and row.kind.casefold() not in values.kinds:
         return False
+    if values.excluded_kinds and row.kind.casefold() in values.excluded_kinds:
+        return False
     if project_values and not _matches_any(row.projects, project_values):
         return False
+    if excluded_project_values and _matches_any(row.projects, excluded_project_values):
+        return False
     if values.agents and not _matches_any(row.agents, values.agents):
+        return False
+    if values.excluded_agents and _matches_any(row.agents, values.excluded_agents):
         return False
     workflows = tuple(version.workflow for version in row.versions if version.workflow)
     if values.workflows and not _matches_any(workflows, values.workflows):
         return False
+    if values.excluded_workflows and _matches_any(workflows, values.excluded_workflows):
+        return False
     if values.origins and row.origins.isdisjoint(values.origins):
         return False
+    if values.excluded_origins and not row.origins.isdisjoint(values.excluded_origins):
+        return False
 
-    if values.since is not None or values.until is not None:
+    if (
+        values.since is not None
+        or values.until is not None
+        or values.excluded_since is not None
+        or values.excluded_until is not None
+    ):
         timestamp = _entry_epoch(row.latest.created_at, naive_timezone=naive_timezone)
         if values.since is not None and (timestamp is None or timestamp < values.since):
             return False
         if values.until is not None and (timestamp is None or timestamp > values.until):
+            return False
+        if (
+            values.excluded_since is not None
+            and timestamp is not None
+            and timestamp >= values.excluded_since
+        ):
+            return False
+        if (
+            values.excluded_until is not None
+            and timestamp is not None
+            and timestamp <= values.excluded_until
+        ):
             return False
 
     haystack = " ".join(
@@ -305,7 +398,9 @@ def _file_matches(
         )
         if value
     ).casefold()
-    return all(term.casefold() in haystack for term in values.text)
+    return all(term.casefold() in haystack for term in values.text) and not any(
+        term.casefold() in haystack for term in values.excluded_text
+    )
 
 
 def _matches_any(values: tuple[str, ...], needles: tuple[str, ...]) -> bool:

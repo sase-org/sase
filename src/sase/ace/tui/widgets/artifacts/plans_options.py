@@ -10,7 +10,8 @@ from textual.widgets import Static
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.plan_search.filter_query import PlanFilterQueryError, PlanFilterValues
-from sase.plan_search.filter_query import to_query_tokens
+from sase.plan_search.filter_query import to_query_string, to_query_tokens
+from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
 from .entry_navigation import ArtifactEntryTarget
 from .plan_filter_bar import PlanFilterBar
@@ -20,7 +21,7 @@ from .plans_deep_archive import (
     deep_archive_coverage,
     merge_archive_matches,
 )
-from .plans_filtering import PlanFilterIndex, compile_plan_matcher
+from .plans_filtering import PlanFilterIndex
 from .plans_list import PlanRow, build_plan_options, plan_row_target, row_option_id
 from .plans_rendering import (
     build_empty_plan_detail,
@@ -28,6 +29,7 @@ from .plans_rendering import (
     build_plans_scope,
     build_plans_status,
 )
+from .query_session import ArtifactQuerySession
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 if TYPE_CHECKING:
@@ -62,6 +64,8 @@ class PlansOptionsMixin(_MixinBase):
     _display_matched_counts: dict[str, int] | None
     _display_archive_total: int | None
     _display_archive_coverage_label: str | None
+    _query_index: ArtifactQueryIndex | None
+    _query_session: ArtifactQuerySession
 
     if TYPE_CHECKING:
 
@@ -122,14 +126,33 @@ class PlansOptionsMixin(_MixinBase):
         self._display_archive_total = None
         self._display_archive_coverage_label = None
         match_count: int | None = None
+        matched_ids: frozenset[str] = frozenset()
+        pending_query = False
         filter_index = self._ensure_filter_index(
             needed=self._filter_session_open or not values.is_empty
         )
         if filter_index is not None:
-            matcher = compile_plan_matcher(values)
-            matching_records = tuple(
-                record for record in filter_index if matcher(record)
+            query_index = self._query_index
+            query = to_query_string(values)
+            result = (
+                None
+                if query_index is None or not query
+                else self._query_session.result(query, query_index)
             )
+            if result is not None:
+                matched_ids = frozenset(result.matched_row_ids)
+                matching_records = tuple(
+                    record for record in filter_index if record.option_id in matched_ids
+                )
+                match_count = len(matching_records)
+            elif values.is_empty:
+                matching_records = tuple(filter_index)
+                matched_ids = frozenset(record.option_id for record in matching_records)
+                match_count = len(matching_records)
+            else:
+                matching_records = ()
+                match_count = None
+                pending_query = True
             deep_result = self._deep_archive_result_for(values)
             if deep_result is not None and self._snapshot is not None:
                 non_archive_records = tuple(
@@ -151,9 +174,20 @@ class PlansOptionsMixin(_MixinBase):
                     )
                     in preview_archive_ids
                 )
+                deep_archive = tuple(
+                    item
+                    for item in deep_result.archive
+                    if row_option_id(
+                        self._snapshot,
+                        "archive",
+                        item.project,
+                        item.match.plan.path,
+                    )
+                    in matched_ids
+                )
                 archive_entries = merge_archive_matches(
                     preview_archive,
-                    deep_result.archive,
+                    deep_archive,
                 )
                 match_count = len(non_archive_records) + len(archive_entries)
                 self._display_archive_total = max(
@@ -185,9 +219,11 @@ class PlansOptionsMixin(_MixinBase):
                         matched_counts[record.kind] += 1
                     matched_counts["archive"] = len(archive_entries)
                     self._display_matched_counts = matched_counts
-            else:
-                match_count = len(matching_records)
-            if not values.is_empty and matched_option_ids is None:
+            if (
+                not values.is_empty
+                and matched_option_ids is None
+                and match_count is not None
+            ):
                 matched_option_ids = frozenset(
                     record.option_id for record in matching_records
                 )
@@ -195,6 +231,16 @@ class PlansOptionsMixin(_MixinBase):
                 for record in matching_records:
                     matched_counts[record.kind] += 1
                 self._display_matched_counts = matched_counts
+        if pending_query:
+            if self._filter_session_open and self._filter_query_error is None:
+                exact, coverage_label = self._filter_coverage(values)
+                self.query_one(PlanFilterBar).set_status(
+                    None,
+                    exact=False,
+                    error=None,
+                    coverage_label=coverage_label if not exact else None,
+                )
+            return
         options, rows = build_plan_options(
             self._snapshot,
             project_scope=self.project_scope,
@@ -246,7 +292,7 @@ class PlansOptionsMixin(_MixinBase):
             exact, coverage_label = self._filter_coverage(values)
             self.query_one(PlanFilterBar).set_status(
                 match_count,
-                exact=exact,
+                exact=exact and match_count is not None,
                 error=None,
                 coverage_label=coverage_label,
             )

@@ -2,28 +2,48 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Markdown, OptionList, Static
+from textual.worker import Worker
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.bead.filter_query import to_query_string
+from sase.core.query_profile_corpus_facade import (
+    ArtifactQueryIndex,
+    ArtifactQueryResult,
+    evaluate_artifact_query_many,
+)
 
 from ..._artifact_tab_model import ArtifactsPaneContract
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot, load_beads_snapshot
 from .beads_data_models import ExternalIssueLink, ExternalIssueProjectCache
+from .beads_filtering import BeadFilterIndex
 from .beads_filter_session import BeadsFilterSessionMixin
 from .beads_list import BeadRow
 from .beads_navigation import BeadsNavigationMixin, BeadsOptionList
 from .beads_options import BeadsOptionsMixin
+from .query_rows import build_beads_query_index
+from .query_session import ArtifactQuerySession
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 if TYPE_CHECKING:
     from ...app import AceApp
+
+
+@dataclass(frozen=True, slots=True)
+class _BeadsSnapshotResult:
+    snapshot: BeadsSnapshot
+    filter_index: BeadFilterIndex
+    query_index: ArtifactQueryIndex
+    initial_query_result: ArtifactQueryResult | None
 
 
 class ArtifactsBeadsPane(
@@ -45,6 +65,19 @@ class ArtifactsBeadsPane(
         super().__init__(**kwargs)
         self._init_snapshot_lifecycle()
         self.contract = contract
+        profile = (
+            contract.query_profile
+            if contract is not None
+            else compiled_profile_for_builtin_pane("beads")
+        )
+        assert profile is not None
+        self._query_profile = profile
+        self._query_index: ArtifactQueryIndex | None = None
+        self._query_session = ArtifactQuerySession(
+            self,
+            group="artifacts-beads-query",
+            on_current_result=lambda _result: self._refresh_options(),
+        )
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
@@ -53,7 +86,7 @@ class ArtifactsBeadsPane(
         self._init_beads_options()
 
     def compose(self) -> ComposeResult:
-        yield BeadFilterBar(id="bead-filter-bar")
+        yield BeadFilterBar(id="bead-filter-bar", profile=self._query_profile)
         yield Static(self._scope_text(), classes="artifacts-pane-info", id="beads-info")
         with Horizontal(id="beads-panels"):
             list_panel = Vertical(id="beads-list-panel")
@@ -76,6 +109,7 @@ class ArtifactsBeadsPane(
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
+        self._query_session.clear()
         self._cancel_snapshot_worker()
 
     def on_first_activate(self) -> None:
@@ -154,16 +188,38 @@ class ArtifactsBeadsPane(
         del request
         self._update_static("#beads-status", self._status_text())
 
-    def _build_snapshot(self, request: SnapshotRequest) -> BeadsSnapshot:
-        return load_beads_snapshot(
+    def _build_snapshot(self, request: SnapshotRequest) -> _BeadsSnapshotResult:
+        snapshot = load_beads_snapshot(
             request.project,
             previous=self._snapshot,
             force=request.force,
             patches=tuple(getattr(self.app, "patches", ())),
         )
+        filter_index, query_index = build_beads_query_index(
+            snapshot,
+            pane_id=self._query_profile.pane_id,
+            generation=request.generation,
+            profile=self._query_profile,
+        )
+        initial_query = to_query_string(self.filters)
+        initial_result = (
+            None
+            if not initial_query
+            else evaluate_artifact_query_many(initial_query, query_index)
+        )
+        return _BeadsSnapshotResult(
+            snapshot=snapshot,
+            filter_index=filter_index,
+            query_index=query_index,
+            initial_query_result=initial_result,
+        )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
-        return isinstance(result, BeadsSnapshot) and result.project == request.project
+        return (
+            isinstance(result, _BeadsSnapshotResult)
+            and result.snapshot.project == request.project
+            and result.query_index.generation == request.generation
+        )
 
     def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
         del request
@@ -173,7 +229,13 @@ class ArtifactsBeadsPane(
         )
         if callable(cancel_jump):
             cancel_jump("beads")
-        self._snapshot = result
+        self._query_session.clear()
+        self._snapshot = result.snapshot
+        self._filter_index = result.filter_index
+        self._filter_index_source_key = result.snapshot.source_key
+        self._query_index = result.query_index
+        if result.initial_query_result is not None:
+            self._query_session.remember(result.initial_query_result)
         self._load_error = None
         if self._filter_session_open:
             self._set_filter_completion_sources()
@@ -184,6 +246,9 @@ class ArtifactsBeadsPane(
         self._load_error = error
         self._update_static("#beads-status", self._status_text())
         self._update_detail()
+
+    def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
+        return self._query_session.handle_worker_state_changed(event)
 
     @on(OptionList.OptionHighlighted, "#beads-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

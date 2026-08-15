@@ -11,6 +11,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 from textual.worker import Worker
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.project_display_names import ProjectRefDisplaySnapshot
@@ -19,7 +20,12 @@ from sase.vcs_log.models import VcsLogResult
 from sase.vcs_log.filter_query import CommitLogFilterValues, to_query_string
 
 from .commit_filter_bar import CommitFilterBar
-from .commits_collection import CommitCollector, CommitsCollectionMixin
+from .commits_collection import (
+    CommitCollectionPayload,
+    CommitCollector,
+    CommitsCollectionMixin,
+    snapshot_covers,
+)
 from .commits_detail import CommitDiffLoader, CommitsDetailMixin
 from .commits_filtering import FILTER_DEBOUNCE_S, CommitsFilteringMixin
 from .commits_rendering import (
@@ -32,6 +38,7 @@ from .commits_rendering import (
 )
 from .commits_timeline import CommitsTimeline
 from .panes import ArtifactsPaneLifecycle
+from .query_session import ArtifactQuerySession
 from .types import ARTIFACTS_ACCENTS
 
 if TYPE_CHECKING:
@@ -61,6 +68,18 @@ class CommitsPane(
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
         self.contract = contract
+        profile = (
+            contract.query_profile
+            if contract is not None
+            else compiled_profile_for_builtin_pane("stitches")
+        )
+        assert profile is not None
+        self._query_profile = profile
+        self._query_session = ArtifactQuerySession(
+            self,
+            group="artifacts-stitches-query",
+            on_current_result=lambda _result: self._refresh_query_result(),
+        )
         self._init_commits_collection(collector, initial_filters=initial_filters)
         self._init_commits_filtering()
         self._init_commits_detail(diff_loader)
@@ -70,7 +89,7 @@ class CommitsPane(
         self._project_ref_display = ProjectRefDisplaySnapshot()
 
     def compose(self) -> ComposeResult:
-        yield CommitFilterBar(id="commit-filter-bar")
+        yield CommitFilterBar(id="commit-filter-bar", profile=self._query_profile)
         with Vertical(id="stitches-info"):
             yield Static(self._build_info_header(), id="stitches-info-header")
             with Horizontal(id="stitches-legend-row"):
@@ -115,6 +134,7 @@ class CommitsPane(
             self._detail_debouncer.cancel()
         if self._filter_debouncer is not None:
             self._filter_debouncer.cancel()
+        self._query_session.clear()
         self._cancel_worker(self._collection_worker)
         self._cancel_worker(self._diff_worker)
 
@@ -162,7 +182,9 @@ class CommitsPane(
 
     def on_activate(self) -> None:
         if self.is_mounted:
-            self.query_one("#stitches-timeline", CommitsTimeline).focus()
+            timeline = self.query_one("#stitches-timeline", CommitsTimeline)
+            timeline.focus()
+            timeline.prewarm_render_cache()
         self._schedule_collection()
 
     def on_deactivate(self) -> None:
@@ -177,6 +199,8 @@ class CommitsPane(
             self._on_collection_worker_changed(event)
         elif event.worker is self._diff_worker:
             self._on_diff_worker_changed(event)
+        elif self._query_session.handle_worker_state_changed(event):
+            return
 
     def _refresh_info(self) -> None:
         if self.is_mounted:
@@ -238,6 +262,27 @@ class CommitsPane(
     def _filter_chips(self) -> tuple[str, ...]:
         return commit_filter_chips(self.filters)
 
+    def _refresh_query_result(self) -> None:
+        values = (
+            self._live_filter_values
+            if self._filter_session_open and self._live_filter_values is not None
+            else self.filters
+        )
+        snapshot = self._authoritative_snapshot(values)
+        if snapshot is None:
+            return
+        displayed = self._filtered_result(
+            snapshot.result,
+            values,
+            resolve_fresh_bounds=True,
+        )
+        self._display_result(displayed, live_preview=self._filter_session_open)
+        self._set_result_status(
+            displayed,
+            exact=snapshot_covers(snapshot, values) and not self._query_result_pending,
+            values=values,
+        )
+
     def toggle_sdd(self) -> None:
         self._commit_filter_values(
             replace(self.filters, sidecar=not self.filters.sidecar),
@@ -281,9 +326,9 @@ class CommitsPane(
             self._schedule_collection()
             return
 
-        def _proc() -> TrackedProcResult[VcsLogResult]:
+        def _proc() -> TrackedProcResult[CommitCollectionPayload]:
             try:
-                result = self._collect(spec, force_fetch=True)
+                result = self._collect_payload(spec, force_fetch=True)
             except Exception as exc:
                 return TrackedProcResult(
                     success=False,
@@ -296,11 +341,18 @@ class CommitsPane(
                 payload=result,
             )
 
-        def _complete(completion: TrackedProcCompletion[VcsLogResult]) -> None:
+        def _complete(
+            completion: TrackedProcCompletion[CommitCollectionPayload],
+        ) -> None:
             if not completion.success or completion.payload is None:
                 return
             if spec.generation == self._generation:
-                self._apply_result(completion.payload, spec=spec)
+                self._apply_result(
+                    completion.payload.result,
+                    spec=spec,
+                    query_index=completion.payload.query_index,
+                    initial_query_result=completion.payload.initial_query_result,
+                )
             elif self.artifacts_active:
                 self._schedule_collection()
 

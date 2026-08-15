@@ -11,6 +11,7 @@ from textual.app import App, ComposeResult
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts import beads_pane
 from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
 from sase.ace.tui.widgets.artifacts.beads_data_models import ExternalIssueLink
@@ -21,13 +22,21 @@ from sase.ace.tui.widgets.artifacts.beads_filtering import (
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
+from sase.ace.tui.widgets.artifacts.query_rows import build_beads_query_index
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.bead.filter_query import (
     BeadFilterQueryError,
     default_bead_filter_values,
     parse_bead_filter_query,
 )
-from sase.bead.model import CloseRecord, ReopenCause, Resolution, TaskPlusOneEvidence
+from sase.bead.model import (
+    CloseRecord,
+    ReopenCause,
+    Resolution,
+    Status,
+    TaskPlusOneEvidence,
+)
+from sase.core.query_profile_corpus_facade import evaluate_artifact_query_many
 from sase.vcs_provider import IssueWire
 from tests.ace.tui._artifacts_beads_helpers import snapshot
 
@@ -58,6 +67,25 @@ def _matched_ids(tmp_path: Path, query: str) -> list[str]:
     return [
         record.bead_id for record in build_bead_filter_index(value) if matcher(record)
     ]
+
+
+def test_running_agent_predicate_requires_assigned_active_bead(tmp_path: Path) -> None:
+    value = snapshot(tmp_path)
+    value.epics[0].issue.status = Status.CLAIMED
+    value.tasks[1].issue.status = Status.IN_PROGRESS
+    value.tasks[1].issue.assignee = ""
+    profile = compiled_profile_for_builtin_pane("beads")
+    assert profile is not None
+    _filter_index, query_index = build_beads_query_index(
+        value,
+        pane_id="beads",
+        generation=5,
+        profile=profile,
+    )
+
+    assert evaluate_artifact_query_many("@@@", query_index).matched_row_ids == (
+        "epic:alpha-1",
+    )
 
 
 def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
@@ -272,14 +300,16 @@ def test_filter_index_reuses_unchanged_snapshot_source_key(tmp_path: Path) -> No
     pane.project_scope = "alpha"
 
     pane._snapshot = first
+    pane._filter_index = build_bead_filter_index(first)
+    pane._filter_index_source_key = first.source_key
     original = pane._ensure_filter_index(needed=True)
     pane._snapshot = second
     reused = pane._ensure_filter_index(needed=True)
     pane._snapshot = changed
-    rebuilt = pane._ensure_filter_index(needed=True)
+    stale = pane._ensure_filter_index(needed=True)
 
     assert reused is original
-    assert rebuilt is not original
+    assert stale is None
 
 
 async def test_bead_filter_bar_completes_negated_status_and_dynamic_people() -> None:
