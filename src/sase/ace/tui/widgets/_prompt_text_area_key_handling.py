@@ -74,9 +74,6 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
         _vcs_mru_index: int | None
         _vim_mode: str
 
-        @property
-        def snippet_session_active(self) -> bool: ...
-
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _location_from_absolute(self, offset: int) -> tuple[int, int]: ...
         def _get_artifact_ref_completion_context(
@@ -406,13 +403,9 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._try_file_completion_tab()
             return
 
-        # Tab / Shift+Tab in INSERT mode shift a list item while the cursor is
-        # in its marker region: ordered items nest to their parent's content
-        # column and renumber, hyphen bullets shift by one indent unit. An
-        # active snippet session still wins over dedent; elsewhere Tab keeps
-        # its snippet behavior (expand, else advance) and Shift+Tab retreats
-        # through visited tabstops, staying a consumed no-op with no active
-        # session or at the first stop.
+        # Tab / Shift+Tab in INSERT mode do useful snippet work first. Only
+        # when expansion or tabstop movement reports no action do the keys fall
+        # back to shifting the supported list item on the current logical line.
         if event.key in {"tab", "shift+tab"}:
             event.stop()
             event.prevent_default()
@@ -424,32 +417,31 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                 )
             ):
                 return
-            if not self.snippet_session_active:
-                start, end = self.selection
-                if start == end:
-                    offset = self._absolute_offset(self.cursor_location)
-                    dedent = event.key == "shift+tab"
-                    plan = plan_prompt_ordered_shift(
-                        self.text,
-                        offset,
-                        dedent=dedent,
-                    ) or plan_prompt_bullet_shift(
-                        self.text,
-                        offset,
-                        dedent=dedent,
-                    )
-                    if plan is not None:
-                        self._apply_planned_text_edit(
-                            plan,
-                            remap_dot_capture=True,
-                        )
-                        return
             if event.key == "shift+tab":
-                self._try_retreat_tabstop()
+                if self._try_retreat_tabstop():
+                    return
+            elif self._try_expand_snippet() or self._try_advance_tabstop():
                 return
-            if self._try_expand_snippet():
-                return
-            self._try_advance_tabstop()
+
+            start, end = self.selection
+            if start == end:
+                offset = self._absolute_offset(self.cursor_location)
+                dedent = event.key == "shift+tab"
+                plan = plan_prompt_ordered_shift(
+                    self.text,
+                    offset,
+                    dedent=dedent,
+                ) or plan_prompt_bullet_shift(
+                    self.text,
+                    offset,
+                    dedent=dedent,
+                )
+                if plan is not None:
+                    self._apply_planned_text_edit(
+                        plan,
+                        remap_dot_capture=True,
+                    )
+                    return
             return
 
         if self._try_jinja_auto_pair(event):

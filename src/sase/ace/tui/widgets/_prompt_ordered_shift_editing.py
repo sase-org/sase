@@ -50,9 +50,9 @@ def plan_prompt_ordered_shift(
     """Plan one INSERT-mode nest or unnest of the ordered item at *offset*.
 
     Returns ``None`` -- leaving the caller's other ``Tab`` handling to run --
-    when the cursor line is not a supported ordered marker line, when the
-    cursor sits past that marker's content column, or when the move is a no-op
-    (nothing to nest under, or already at the outermost level).
+    when the cursor line is not a supported ordered marker line or when the
+    move is a no-op (nothing to nest under, or already at the outermost level).
+    Any cursor offset on the direct marker line is eligible.
     """
     if offset < 0 or offset > len(text):
         return None
@@ -63,7 +63,7 @@ def plan_prompt_ordered_shift(
     cursor_col = offset - line_start
 
     item = find_list_marker(lines[cursor_row], _ORDERED, row=cursor_row)
-    if item is None or cursor_col > item.content_column:
+    if item is None:
         return None
 
     parent = _nesting_parent(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from textual.document._edit import Edit
 
@@ -98,6 +98,9 @@ class SnippetExpansionMixin(_MixinBase):
 
     def _get_snippets(self) -> dict[str, str]:
         """Get the snippet registry from the app config."""
+        get_snippets = getattr(self.app, "get_snippets", None)
+        if callable(get_snippets):
+            return cast("dict[str, str]", get_snippets())
         return self._ace_app.get_snippets()
 
     def _try_expand_snippet(self) -> bool:

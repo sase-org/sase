@@ -21,7 +21,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("jinja chip", "Parse and unknown-var status"),
         ("{{ / {% / {#", "Auto-pair delimiters"),
         ("Ctrl+T / Ctrl+L", "Reveal/complete / accept"),
-        ("Tab / Shift+Tab", "Indent / dedent list marker"),
+        ("Tab / Shift+Tab", "Snippet action else list shift"),
         ("<...>", "Complete raw placeholders"),
         ("Prompt Inputs", "Collect raw <...> on submit"),
         ("Ctrl+L in panel", "Keep placeholder literal"),

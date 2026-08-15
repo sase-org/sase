@@ -269,6 +269,29 @@ async def test_prompt_insert_tab_indents_and_shift_tab_dedents_marker() -> None:
         assert page.mode == "insert"
 
 
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor"),
+    [
+        ("- item", (0, 4), "  - item", (0, 6)),
+        ("- item", (0, 6), "  - item", (0, 8)),
+        ("intro\n  - item", (1, 7), "intro\n    - item", (1, 9)),
+    ],
+    ids=["inside-content", "end-of-content", "later-row-inside-content"],
+)
+async def test_prompt_insert_tab_indents_bullet_from_content(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("tab")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
+        assert page.mode == "insert"
+
+
 async def test_prompt_insert_repeated_tabs_accumulate_bullet_indent() -> None:
     async with PromptPage("- item", cursor=(0, 2), mode="insert") as page:
         await page.press("tab", "tab")
@@ -284,6 +307,29 @@ async def test_prompt_insert_shift_tab_dedents_one_unit() -> None:
 
         assert page.text == "    - item"
         assert page.cursor == (0, 6)
+        assert page.mode == "insert"
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_cursor"),
+    [
+        ("    - item", (0, 8), "  - item", (0, 6)),
+        ("    - item", (0, 10), "  - item", (0, 8)),
+        (" - item", (0, 7), "- item", (0, 6)),
+    ],
+    ids=["inside-content", "end-of-content", "partial-indent-end"],
+)
+async def test_prompt_insert_shift_tab_dedents_bullet_from_content(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_cursor: tuple[int, int],
+) -> None:
+    async with PromptPage(text, cursor=cursor, mode="insert") as page:
+        await page.press("shift+tab")
+
+        assert page.text == expected_text
+        assert page.cursor == expected_cursor
         assert page.mode == "insert"
 
 
@@ -318,7 +364,7 @@ async def test_prompt_insert_tab_does_not_indent_active_selection() -> None:
 
 
 async def test_prompt_insert_tab_indent_is_one_undo_checkpoint() -> None:
-    async with PromptPage("- item", cursor=(0, 2), mode="insert") as page:
+    async with PromptPage("- item", cursor=(0, 6), mode="insert") as page:
         await page.press("tab", "escape", "u")
 
         assert page.text == "- item"
@@ -340,6 +386,77 @@ async def test_prompt_insert_tab_advances_queued_tabstop_before_bullet_indent() 
 
         assert page.text == "- \nnext"
         assert page.cursor == (1, 4)
+        assert page.mode == "insert"
+
+
+async def test_prompt_insert_shift_tab_retreats_queued_tabstop_before_bullet_dedent() -> (
+    None
+):
+    async with PromptPage("  - item next", cursor=(0, 13), mode="insert") as page:
+        page.ta._snippet_session = SnippetSessionState(
+            stops=(
+                _SnippetStop(offset=8, session=0),
+                _SnippetStop(offset=13, session=0),
+            ),
+            index=1,
+            sessions=(_SnippetSpan(id=0, start=0, end=13),),
+            next_session_id=1,
+        )
+        await page.press("shift+tab")
+
+        assert page.text == "  - item next"
+        assert page.cursor == (0, 8)
+        assert page.mode == "insert"
+        assert page.ta.snippet_session_active is True
+
+
+async def test_prompt_insert_tab_final_tabstop_falls_back_to_bullet_indent() -> None:
+    async with PromptPage("- item", cursor=(0, 6), mode="insert") as page:
+        page.ta._snippet_session = SnippetSessionState(
+            stops=(_SnippetStop(offset=6, session=0),),
+            index=0,
+            sessions=(_SnippetSpan(id=0, start=0, end=6),),
+            next_session_id=1,
+        )
+        await page.press("tab")
+
+        assert page.text == "  - item"
+        assert page.cursor == (0, 8)
+        assert page.mode == "insert"
+        assert page.ta.snippet_session_active is False
+
+
+async def test_prompt_insert_shift_tab_first_tabstop_falls_back_and_remaps_session() -> (
+    None
+):
+    async with PromptPage("  - item next", cursor=(0, 8), mode="insert") as page:
+        page.ta._snippet_session = SnippetSessionState(
+            stops=(
+                _SnippetStop(offset=8, session=0),
+                _SnippetStop(offset=13, session=0),
+            ),
+            index=0,
+            sessions=(_SnippetSpan(id=0, start=0, end=13),),
+            next_session_id=1,
+        )
+        await page.press("shift+tab")
+
+        assert page.text == "- item next"
+        assert page.cursor == (0, 6)
+        assert page.mode == "insert"
+        assert page.ta.snippet_session_active is True
+
+        await page.press("tab")
+        assert page.cursor == (0, 11)
+        assert page.ta.snippet_session_active is True
+
+
+async def test_prompt_insert_tab_unknown_trigger_falls_back_to_bullet_indent() -> None:
+    async with PromptPage("- unknown", cursor=(0, 9), mode="insert") as page:
+        await page.press("tab")
+
+        assert page.text == "  - unknown"
+        assert page.cursor == (0, 11)
         assert page.mode == "insert"
 
 

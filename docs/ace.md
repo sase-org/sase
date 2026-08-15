@@ -4081,8 +4081,8 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                                                    |
 | `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                               |
 | `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                     |
-| `Tab`                        | Indent a bullet, or nest an ordered item under a preceding marker; otherwise expand a snippet or advance its tabstop                     |
-| `Shift+Tab`                  | Dedent a bullet, or unnest an ordered item into its enclosing run; otherwise retreat to the previous snippet tabstop                     |
+| `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                      |
+| `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                      |
 | `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                          |
 | `Escape`                     | Switch to vim NORMAL mode                                                                                                                |
 
@@ -4127,23 +4127,26 @@ and renumbers the run it left behind. A renumber that changes a marker's width (
 and leading zeros (`007. `) are recognized as a marker but always renumber to plain
 decimal.
 
-On a line beginning with zero or more spaces followed by `- `, INSERT-mode `Tab` and
-`Shift+Tab` indent or dedent the bullet when the selection is collapsed and the cursor
-is anywhere from column zero through the marker's content column. Each press shifts only
-that line by the same two-space unit as vim `>>` / `<<`; dedent removes up to one unit,
-and the cursor follows the shifted content. Wrapped continuation lines and other
-Markdown marker styles are excluded. Once the cursor is inside a bullet's content, use
-NORMAL-mode `>>` / `<<` (or VISUAL `>` / `<`) instead.
+In INSERT mode, `Tab` and `Shift+Tab` do snippet work before list shifting. `Tab` first
+expands a trigger word immediately before the cursor, then advances to the next live
+snippet tabstop. `Shift+Tab` first retreats to a previous live tabstop. When that
+snippet action reports no movement or expansion, the selection is collapsed, and the
+cursor is anywhere on a direct marker line beginning with zero or more spaces followed
+by `- `, ACE indents or dedents that bullet. Each press shifts only that logical line by
+the same two-space unit as vim `>>` / `<<`; dedent removes up to one unit, and the
+cursor follows the shifted content. Physical continuation lines, tab indentation, and
+other Markdown marker styles are excluded.
 
-`Tab` and `Shift+Tab` extend the same way to an ordered item, but nest at the _content
-column_ of the nearest preceding marker line (either family, same or lower indent)
-instead of a fixed two-space unit, because an ordered item can only interrupt its
-parent's paragraph when numbered `1`: `Tab` with no preceding marker line to nest under
-is a no-op, `Tab` landing under an existing nested run continues that run at its next
-number, and `Tab` that starts a new nested list numbers the moved item `1`. `Shift+Tab`
-moves the item back out to its parent's indent and gives it the next number in that
-outer run; at the outermost level it is a no-op. Both carry the item's owned block along
-and renumber the source and destination runs as one undo checkpoint.
+The same fallback applies to ordered items from anywhere on the direct `<N>.` / `<N>)`
+marker line. Ordered `Tab` nests at the _content column_ of the nearest preceding marker
+line (either family, same or lower indent) instead of a fixed two-space unit, because an
+ordered item can only interrupt its parent's paragraph when numbered `1`: `Tab` with no
+preceding marker line to nest under is a no-op, `Tab` landing under an existing nested
+run continues that run at its next number, and `Tab` that starts a new nested list
+numbers the moved item `1`. `Shift+Tab` moves the item back out to its parent's indent
+and gives it the next number in that outer run; at the outermost level it is a no-op.
+Both carry the item's owned block along and renumber the source and destination runs as
+one undo checkpoint.
 
 Text automatically wraps at the terminal width, breaking at spaces (never mid-word).
 Line numbers appear in cyan when the text exceeds one line. The native cursor cell is
@@ -4693,8 +4696,8 @@ selected xprompt with no required inputs inserts a trailing space, a single requ
 non-text input inserts colon syntax, a single required text input inserts double-colon
 shorthand, and multiple required inputs insert a parenthesized named-argument snippet.
 When that trailing space sits at a live snippet tabstop and the next keystroke is `Tab`
-or `Shift+Tab`, the jump removes the space on its way to the next tabstop; at the final
-tabstop, where the jump has nowhere to go, the space is kept.
+or `Shift+Tab`, the jump removes the space on its way to the next tabstop; when the jump
+has nowhere to go, the space is kept and ordinary snippet/list fallback continues.
 
 The same hint panel appears while typing narrow, known argument forms such as `#name:`,
 `#!name:`, `#ns/name:`, `#ns__name:`, `#name!!:`, `#name??:`, `#name(`, and
@@ -5218,8 +5221,9 @@ Tabstop positions are adjusted accordingly.
 Trigger words are matched against the alphanumeric/underscore word immediately before
 the cursor. If no snippet matches, `Tab` advances to the next tabstop (if any are
 remaining from a previous expansion), and `Shift+Tab` retreats to a previously visited
-tabstop. Reaching the final tabstop clears the session so the next `Tab` behaves
-normally.
+tabstop. If neither snippet action succeeds, the key falls back to INSERT-mode list
+shifting when the cursor is on a supported marker line. Advancing from the final tabstop
+clears the session before that same fallback check runs.
 
 XPrompt-derived snippets compose normal xprompt references before they enter the snippet
 registry. After xprompt-derived snippets and `ace.snippets` are merged, any snippet can

@@ -30,6 +30,12 @@ from sase.file_references import format_agent_prompt_markdown
             (1, 6),
         ),
         (
+            "1. one\n2. two\n3. three",
+            (1, 5),
+            "1. one\n   1. two\n2. three",
+            (1, 8),
+        ),
+        (
             "- parent\n1. item",
             (1, 3),
             "- parent\n  1. item",
@@ -56,6 +62,7 @@ from sase.file_references import format_agent_prompt_markdown
     ],
     ids=[
         "ordered-parent",
+        "ordered-parent-inside-content",
         "hyphen-parent",
         "continues-nested-run",
         "paren-delimiter",
@@ -78,11 +85,11 @@ async def test_prompt_insert_tab_nests_ordered_item(
 
 async def test_prompt_insert_tab_moves_owned_block_and_closes_source_gap() -> None:
     text = "1. one\n2. two\n   continuation\n3. three"
-    async with PromptPage(text, cursor=(1, 3), mode="insert") as page:
+    async with PromptPage(text, cursor=(1, 5), mode="insert") as page:
         await page.press("tab")
 
         assert page.text == ("1. one\n   1. two\n      continuation\n2. three")
-        assert page.cursor == (1, 6)
+        assert page.cursor == (1, 8)
 
 
 async def test_prompt_insert_tab_nests_from_column_zero() -> None:
@@ -103,6 +110,12 @@ async def test_prompt_insert_tab_nests_from_column_zero() -> None:
             (1, 3),
         ),
         (
+            "1. one\n   1. inner\n2. two",
+            (1, 9),
+            "1. one\n2. inner\n3. two",
+            (1, 6),
+        ),
+        (
             "- parent\n  1. inner",
             (1, 5),
             "- parent\n1. inner",
@@ -115,7 +128,12 @@ async def test_prompt_insert_tab_nests_from_column_zero() -> None:
             (2, 3),
         ),
     ],
-    ids=["into-outer-run", "hyphen-parent", "trailing-nested-item"],
+    ids=[
+        "into-outer-run",
+        "into-outer-run-inside-content",
+        "hyphen-parent",
+        "trailing-nested-item",
+    ],
 )
 async def test_prompt_insert_shift_tab_unnests_ordered_item(
     text: str,
@@ -133,11 +151,20 @@ async def test_prompt_insert_shift_tab_unnests_ordered_item(
 
 async def test_prompt_insert_shift_tab_unnest_moves_owned_block() -> None:
     text = "1. outer\n   1. inner\n      wrapped\n   2. after"
-    async with PromptPage(text, cursor=(1, 6), mode="insert") as page:
+    async with PromptPage(text, cursor=(1, 9), mode="insert") as page:
         await page.press("shift+tab")
 
         assert page.text == ("1. outer\n2. inner\n   wrapped\n   2. after")
-        assert page.cursor == (1, 3)
+        assert page.cursor == (1, 6)
+
+
+async def test_prompt_insert_shift_tab_unnest_renumbers_width_from_content() -> None:
+    text = "8. outer\n   1. inner\n9. after"
+    async with PromptPage(text, cursor=(1, 11), mode="insert") as page:
+        await page.press("shift+tab")
+
+        assert page.text == "8. outer\n9. inner\n10. after"
+        assert page.cursor == (1, 8)
 
 
 async def test_prompt_insert_tab_renumbers_source_run_across_blank_lines() -> None:
@@ -154,13 +181,11 @@ async def test_prompt_insert_tab_renumbers_source_run_across_blank_lines() -> No
         ("1. only", (0, 3), "tab"),
         ("intro\n1. first", (1, 3), "tab"),
         ("1. one\n2. two", (1, 3), "shift+tab"),
-        ("1. one\n   1. inner", (1, 8), "shift+tab"),
     ],
     ids=[
         "tab-without-parent",
         "tab-after-prose",
         "shift-tab-outermost",
-        "shift-tab-past-content-column",
     ],
 )
 async def test_prompt_insert_ordered_shift_noop(
@@ -271,11 +296,38 @@ def test_nested_result_is_a_formatter_fixed_point(
     assert format_agent_prompt_markdown(f"{shifted}\n") == f"{shifted}\n"
 
 
-@pytest.mark.parametrize("dedent", [False, True], ids=["tab", "shift-tab"])
-def test_plan_prompt_ordered_shift_declines_past_content_column(dedent: bool) -> None:
-    # ``1. one\n   1. inner`` with the cursor one column past ``   1. ``.
-    text = "1. one\n   1. inner"
-    assert plan_prompt_ordered_shift(text, 14, dedent=dedent) is None
+@pytest.mark.parametrize(
+    ("text", "offset", "dedent", "expected_text", "expected_cursor"),
+    [
+        (
+            "1. one\n2. two",
+            12,
+            False,
+            "1. one\n   1. two",
+            15,
+        ),
+        (
+            "1. one\n   1. inner\n2. two",
+            16,
+            True,
+            "1. one\n2. inner\n3. two",
+            13,
+        ),
+    ],
+    ids=["tab-inside-content", "shift-tab-inside-content"],
+)
+def test_plan_prompt_ordered_shift_plans_from_item_content(
+    text: str,
+    offset: int,
+    dedent: bool,
+    expected_text: str,
+    expected_cursor: int,
+) -> None:
+    plan = plan_prompt_ordered_shift(text, offset, dedent=dedent)
+
+    assert plan is not None
+    assert text[: plan.start] + plan.text + text[plan.end :] == expected_text
+    assert plan.cursor == expected_cursor
 
 
 @pytest.mark.parametrize("offset", [-1, 100])

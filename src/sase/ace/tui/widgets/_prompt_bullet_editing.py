@@ -67,10 +67,10 @@ def plan_prompt_bullet_shift(
 ) -> TextEdit | None:
     """Plan one INSERT-mode indent or dedent of the bullet at *offset*.
 
-    The current line must begin with the prompt's supported space-indented
-    ``- `` marker, and the cursor must be at or before the marker's content
-    column. Indenting inserts one vim shift-width unit at the line start;
-    dedenting removes up to one unit. The cursor follows the shifted content.
+    The cursor may be anywhere on the direct logical line that begins with the
+    prompt's supported space-indented ``- `` marker. Indenting inserts one vim
+    shift-width unit at the line start; dedenting removes up to one unit. The
+    cursor follows the shifted content.
     """
     if offset < 0 or offset > len(text):
         return None
@@ -82,10 +82,6 @@ def plan_prompt_bullet_shift(
     line = text[line_start:line_end]
     marker = _BULLET_MARKER_RE.match(line)
     if marker is None:
-        return None
-
-    cursor_col = offset - line_start
-    if cursor_col > marker.end():
         return None
 
     if not dedent:
@@ -103,7 +99,7 @@ def plan_prompt_bullet_shift(
         start=line_start,
         end=line_start + remove_count,
         text="",
-        cursor=line_start + max(0, cursor_col - remove_count),
+        cursor=line_start + max(0, offset - line_start - remove_count),
     )
 
 

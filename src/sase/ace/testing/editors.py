@@ -30,6 +30,9 @@ class _PromptTestApp(App[None]):
     def compose(self) -> ComposeResult:
         yield PromptTextArea(id="ta")
 
+    def get_snippets(self) -> dict[str, str]:
+        return {}
+
     def misspelled_words(self) -> frozenset[str]:
         return self._misspelled_words
 
