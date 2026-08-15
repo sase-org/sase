@@ -74,6 +74,10 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
 
         def _update_context(self) -> None: ...
 
+        def _highlighted_row_id(self) -> str | None: ...
+
+        def _replace_display(self, *, keep: str | None = None) -> None: ...
+
         def _load_effective_runner_limit_snapshot(
             self,
         ) -> tuple[EffectiveRunnerLimitSnapshot, bool]: ...
@@ -117,7 +121,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
     ) -> None:
         self._runner_limit_snapshot = snapshot
         if self.is_mounted:  # type: ignore[attr-defined]
-            self._update_context()
+            self._replace_display(keep=self._highlighted_row_id())
 
     def action_manage_runner_limit(self) -> None:
         if self._runner_limit_write_busy():

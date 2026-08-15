@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -18,18 +18,24 @@ from sase.llm_provider import (
     split_models_panel_rows,
 )
 
-from .models_panel_effort_rendering import append_default_effort_title
 from .models_panel_rendering import (
     OWNERSHIP_ACCENT,
     custom_builtin_shadow_warning_message,
     description_text_for_row,
+    panel_value_column_width,
     provider_model_column_width,
-    render_alias_row,
     render_bucket_row,
     render_empty_custom_hint,
+    render_launch_settings_header,
+    render_panel_row,
     render_section_header,
 )
-from .models_panel_runner_limit_rendering import append_runner_limit_title
+from .models_panel_rows import (
+    DefaultEffortSettingRow,
+    LaunchModelSettingRow,
+    ModelsPanelDisplayRow,
+    RunnerLimitSettingRow,
+)
 from .models_panel_types import ModelsPanelResult
 
 if TYPE_CHECKING:
@@ -51,8 +57,8 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _default_effort: str | None
         _effort_snapshot: Any
         _runner_limit_snapshot: Any
-        _row_by_id: dict[str, AliasView | BucketView]
-        _top_rows: list[AliasView | BucketView]
+        _row_by_id: dict[str, ModelsPanelDisplayRow]
+        _top_rows: list[ModelsPanelDisplayRow]
         _updating_highlight: bool
         _views: list[AliasView]
         _warning_toast_emitted: bool
@@ -92,7 +98,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
         def _load_models_panel_rows(
             self, views: list[AliasView]
-        ) -> list[AliasView | BucketView]: ...
+        ) -> list[ModelsPanelDisplayRow]: ...
 
         def _models_panel_now(self) -> float: ...
 
@@ -151,6 +157,27 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]esc[/dim]=Close"
             )
+        if isinstance(row, DefaultEffortSettingRow):
+            return (
+                "[green]o[/green]=Override  "
+                "[green]x[/green]=Clear  "
+                "[green]e[/green]=Edit  "
+                "[green]r[/green]=Reset  "
+                "[green]p[/green]=Providers\n"
+                "[green]ctrl+e[/green]=Effort  "
+                "[dim]j/k[/dim]=Navigate  "
+                "[dim]esc[/dim]=Close"
+            )
+        if isinstance(row, RunnerLimitSettingRow):
+            return (
+                "[green]o[/green]=Override  "
+                "[green]x[/green]=Clear  "
+                "[green]e[/green]=Edit  "
+                "[green]p[/green]=Providers\n"
+                "[green]ctrl+r[/green]=Limit  "
+                "[dim]j/k[/dim]=Navigate  "
+                "[dim]esc[/dim]=Close"
+            )
         footer = (
             "[green]ctrl+e[/green]=Effort  "
             "[green]ctrl+r[/green]=Limit  "
@@ -180,23 +207,15 @@ class ModelsPanelDisplayMixin(_MixinBase):
         if provider_line is not None:
             text.append("\n")
             text.append_text(provider_line)
-        text.append("\n")
-        append_default_effort_title(
-            text,
-            self._effort_snapshot,
-            now=self._models_panel_now(),
-        )
-        text.append("\n")
-        append_runner_limit_title(
-            text,
-            self._runner_limit_snapshot,
-            now=self._models_panel_now(),
-        )
         return text
 
     def _build_options(self) -> list[Option]:
-        self._views = self._load_alias_views()
         self._top_rows = self._load_models_panel_rows(self._views)
+        self._sync_bucket_index()
+        return self._render_current_options()
+
+    def _sync_bucket_index(self) -> None:
+        """Refresh bucket lookup from the current top-level rows."""
         self._bucket_by_name = {
             row.name: row for row in self._top_rows if isinstance(row, BucketView)
         }
@@ -205,22 +224,25 @@ class ModelsPanelDisplayMixin(_MixinBase):
             and self._active_bucket not in self._bucket_by_name
         ):
             self._active_bucket = None
-        return self._render_current_options()
 
     @staticmethod
-    def _row_id(row: AliasView | BucketView) -> str:
+    def _row_id(row: ModelsPanelDisplayRow) -> str:
+        if isinstance(
+            row, (LaunchModelSettingRow, DefaultEffortSettingRow, RunnerLimitSettingRow)
+        ):
+            return row.row_id
         if isinstance(row, BucketView):
             return f"bucket:{row.name}"
         return row.name
 
-    def _current_rows(self) -> list[AliasView | BucketView]:
+    def _current_rows(self) -> list[ModelsPanelDisplayRow]:
         if self._active_bucket is None:
             return self._top_rows
         bucket = self._bucket_by_name.get(self._active_bucket)
         return list(bucket.members) if bucket is not None else []
 
     def _current_sections(
-        self, rows: list[AliasView | BucketView]
+        self, rows: list[AliasView | BucketView] | list[AliasView]
     ) -> tuple[tuple[ModelsPanelSection, ...], bool]:
         """Return current ownership sections and whether to show their headers."""
         if self._active_bucket is None:
@@ -236,12 +258,50 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
     def _render_current_options(self) -> list[Option]:
         rows = self._current_rows()
-        alias_rows = [row for row in rows if isinstance(row, AliasView)]
-        provider_model_width = provider_model_column_width(alias_rows)
         now = self._models_panel_now()
         self._row_by_id = {self._row_id(row): row for row in rows}
         options: list[Option] = []
-        sections, show_headers = self._current_sections(rows)
+        if self._active_bucket is None:
+            launch_rows = [
+                row
+                for row in rows
+                if isinstance(
+                    row,
+                    (
+                        LaunchModelSettingRow,
+                        DefaultEffortSettingRow,
+                        RunnerLimitSettingRow,
+                    ),
+                )
+            ]
+            model_rows = [
+                row for row in rows if isinstance(row, (AliasView, BucketView))
+            ]
+            value_width = panel_value_column_width(rows, now=now)
+            if launch_rows:
+                options.append(
+                    Option(
+                        render_launch_settings_header(
+                            value_width=value_width,
+                            count=len(launch_rows),
+                        ),
+                        id=f"{_SECTION_ID_PREFIX}launch",
+                        disabled=True,
+                    )
+                )
+                for row in launch_rows:
+                    options.append(
+                        Option(
+                            render_panel_row(row, now=now, value_width=value_width),
+                            id=self._row_id(row),
+                        )
+                    )
+            sections, show_headers = self._current_sections(model_rows)
+            provider_model_width = value_width
+        else:
+            alias_rows = [row for row in rows if isinstance(row, AliasView)]
+            provider_model_width = provider_model_column_width(alias_rows)
+            sections, show_headers = self._current_sections(alias_rows)
         for section in sections:
             if show_headers:
                 options.append(
@@ -254,15 +314,15 @@ class ModelsPanelDisplayMixin(_MixinBase):
                         disabled=True,
                     )
                 )
-            for row in section.rows:
-                row_id = self._row_id(row)
-                if isinstance(row, BucketView):
+            for section_row in cast("tuple[AliasView | BucketView, ...]", section.rows):
+                row_id = self._row_id(section_row)
+                if isinstance(section_row, BucketView):
                     prompt = render_bucket_row(
-                        row, provider_model_width=provider_model_width
+                        section_row, provider_model_width=provider_model_width
                     )
                 else:
-                    prompt = render_alias_row(
-                        row, now=now, provider_model_width=provider_model_width
+                    prompt = render_panel_row(
+                        section_row, now=now, value_width=provider_model_width
                     )
                 options.append(Option(prompt, id=row_id))
             if (
@@ -307,6 +367,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
     def _replace_display(self, *, keep: str | None = None) -> None:
         option_list = self.query_one("#models-panel-list", OptionList)
+        self._sync_bucket_index()
         option_list.clear_options()
         option_list.add_options(self._render_current_options())
         self._restore_highlight(option_list, keep)
@@ -329,12 +390,12 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
     def _refresh_rows(self, *, keep: str | None = None) -> None:
         """Reload and rebuild rows, preserving the highlighted row when possible."""
-        option_list = self.query_one("#models-panel-list", OptionList)
         preferred = keep or self._highlighted_row_id()
-        option_list.clear_options()
-        option_list.add_options(self._build_options())
-        self._restore_highlight(option_list, preferred)
-        self._update_context()
+        self._start_provider_snapshot_load(
+            keep=preferred,
+            update_rows=True,
+            signal_changes=True,
+        )
 
     def _update_context(self) -> None:
         """Refresh the title, description strip, and context-aware footer."""
@@ -352,7 +413,11 @@ class ModelsPanelDisplayMixin(_MixinBase):
         except Exception:
             return
         description.update(
-            description_text_for_row(self._selected_row(), self._default_effort)
+            description_text_for_row(
+                self._selected_row(),
+                self._default_effort,
+                now=self._models_panel_now(),
+            )
         )
 
     def _highlighted_row_id(self) -> str | None:
@@ -366,7 +431,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
             return None
         return str(option.id) if option.id is not None else None
 
-    def _selected_row(self) -> AliasView | BucketView | None:
+    def _selected_row(self) -> ModelsPanelDisplayRow | None:
         row_id = self._highlighted_row_id()
         if row_id is None:
             return None
@@ -377,7 +442,18 @@ class ModelsPanelDisplayMixin(_MixinBase):
         if isinstance(row, BucketView):
             self.notify("Press `l`/`enter` to open this bucket")
             return None
-        return row
+        if isinstance(row, AliasView):
+            return row
+        return None
+
+    def _selected_model_row(self) -> AliasView | LaunchModelSettingRow | None:
+        row = self._selected_row()
+        if isinstance(row, BucketView):
+            self.notify("Press `l`/`enter` to open this bucket")
+            return None
+        if isinstance(row, (AliasView, LaunchModelSettingRow)):
+            return row
+        return None
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted
@@ -388,7 +464,11 @@ class ModelsPanelDisplayMixin(_MixinBase):
             row = self._row_by_id.get(str(event.option.id))
             try:
                 self.query_one("#models-panel-description", Static).update(
-                    description_text_for_row(row, self._default_effort)
+                    description_text_for_row(
+                        row,
+                        self._default_effort,
+                        now=self._models_panel_now(),
+                    )
                 )
                 self.query_one("#models-panel-footer", Static).update(
                     self._footer_markup()
@@ -438,11 +518,20 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
-        if isinstance(self._selected_row(), BucketView):
+        row = self._selected_row()
+        if isinstance(row, BucketView):
             self.action_enter_bucket()
+        elif isinstance(row, DefaultEffortSettingRow):
+            self.action_manage_default_effort()
+        elif isinstance(row, RunnerLimitSettingRow):
+            self.action_manage_runner_limit()
         else:
             self.action_override()
 
     if TYPE_CHECKING:
 
         def action_override(self) -> None: ...
+
+        def action_manage_default_effort(self) -> None: ...
+
+        def action_manage_runner_limit(self) -> None: ...

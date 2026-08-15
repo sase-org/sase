@@ -139,24 +139,22 @@ def test_provider_description_lists_disabled_effect_and_aliases() -> None:
     assert "Affected aliases: @large, @medium, @xlarge." in description.plain
 
 
-def test_panel_sync_row_build_uses_in_memory_provider_snapshot(monkeypatch) -> None:
+def test_panel_sync_row_build_uses_captured_rows_without_provider_read(
+    monkeypatch,
+) -> None:
     disable = _disable("codex", expires_at=None)
     panel = ModelsPanel()
     panel._provider_disables = {"codex": disable}
-    captured: list[dict[str, TemporaryProviderDisable] | None] = []
+    panel._views = [make_alias_view("default", "default")]
     provider_read = MagicMock(side_effect=AssertionError("synchronous provider read"))
     monkeypatch.setattr(providers, "get_active_provider_disables", provider_read)
-
-    def build_alias_views(**kwargs):
-        captured.append(kwargs.get("provider_disables"))
-        return [make_alias_view("default", "default")]
-
+    build_alias_views = MagicMock(side_effect=AssertionError("synchronous alias read"))
     monkeypatch.setattr(models_panel_module, "build_alias_views", build_alias_views)
 
     panel._build_options()
 
-    assert captured == [{"codex": disable}]
     provider_read.assert_not_called()
+    build_alias_views.assert_not_called()
 
 
 def test_provider_snapshot_worker_path_reads_authoritative_state(monkeypatch) -> None:

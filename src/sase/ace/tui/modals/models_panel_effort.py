@@ -76,6 +76,10 @@ class ModelsPanelEffortMixin(_MixinBase):
 
         def _update_context(self) -> None: ...
 
+        def _highlighted_row_id(self) -> str | None: ...
+
+        def _replace_display(self, *, keep: str | None = None) -> None: ...
+
         def _load_effective_effort_snapshot(
             self,
         ) -> tuple[EffectiveDefaultEffortSnapshot, bool]: ...
@@ -118,7 +122,7 @@ class ModelsPanelEffortMixin(_MixinBase):
         self._effort_snapshot = snapshot
         self._default_effort = snapshot.effective_effort(self._models_panel_now())
         if self.is_mounted:  # type: ignore[attr-defined]
-            self._update_context()
+            self._replace_display(keep=self._highlighted_row_id())
 
     def action_manage_default_effort(self) -> None:
         if self._effort_write_busy():

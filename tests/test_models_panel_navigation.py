@@ -20,6 +20,12 @@ from tests._models_panel_helpers import (
 )
 
 
+def highlight_row(panel: ModelsPanel, row_id: str) -> None:
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    panel._update_context()
+
+
 async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
     patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
     result: ModelsPanelResult | None = None
@@ -72,7 +78,10 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
         pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
         await pilot.pause()
-        await pilot.press("j", "x")
+        panel = pilot.app.screen
+        assert isinstance(panel, ModelsPanel)
+        highlight_row(panel, "small")
+        await pilot.press("x")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
@@ -116,10 +125,10 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        assert panel._highlighted_row_id() == "large"
+        assert panel._highlighted_row_id() == "launch:default_model"
         description = panel.query_one("#models-panel-description", Static)
-        assert "Default launch model." in description.content.plain
-        await pilot.press("j")
+        assert "Used when a launch has no explicit" in description.content.plain
+        highlight_row(panel, "blogger")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
 
@@ -170,6 +179,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
         alias_row = option_list.get_option_at_index(alias_index).prompt.plain
         assert alias_row.startswith("  ! role")
         assert "override · 1h left" in alias_row
+        highlight_row(panel, "small")
         description = panel.query_one("#models-panel-description", Static).content.plain
         assert "@small" in description
         assert "llm_provider.model_aliases.custom" in description
@@ -216,7 +226,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         pilot.app.push_screen(panel)
         await pilot.pause()
 
-        await pilot.press("j", "j")
+        highlight_row(panel, "bucket:research")
 
         assert panel._highlighted_row_id() == "bucket:research"
         assert "l/enter" in str(panel.query_one("#models-panel-footer", Static).content)
@@ -230,8 +240,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket == "research"
         assert panel._highlighted_row_id() == "research_a"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › ▌ research · custom bucket\ndefault effort: provider default"
-            "\nmax running agents: 10"
+            "Models › ▌ research · custom bucket"
         )
         assert "h" in str(panel.query_one("#models-panel-footer", Static).content)
 
@@ -240,7 +249,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket is None
         assert panel._highlighted_row_id() == "bucket:research"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models\ndefault effort: provider default\nmax running agents: 10"
+            "Models"
         )
 
 
@@ -251,7 +260,7 @@ async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "j")
+        highlight_row(panel, "bucket:research")
         await pilot.press("enter")
         await pilot.pause()
 
@@ -270,16 +279,23 @@ async def test_panel_size_alias_navigation_and_order(
         await pilot.pause()
 
         assert list(panel._row_by_id) == [
+            "launch:default_model",
+            "launch:epic_lander_model",
+            "launch:big_epic_lander_model",
+            "setting:default_effort",
+            "setting:runner_limit",
             "xsmall",
             "small",
             "medium",
             "large",
             "xlarge",
         ]
-        assert panel._highlighted_row_id() == "xsmall"
+        assert panel._highlighted_row_id() == "launch:default_model"
         description = panel.query_one("#models-panel-description", Static).content.plain
-        assert "CLAUDE" not in description
+        assert "llm_provider.default_model" in description
 
+        highlight_row(panel, "xsmall")
+        assert panel._highlighted_row_id() == "xsmall"
         await pilot.press("j")
         assert panel._highlighted_row_id() == "small"
 
@@ -311,7 +327,7 @@ async def test_alias_actions_on_bucket_are_guarded(monkeypatch, key: str) -> Non
         panel.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "j")
+        highlight_row(panel, "bucket:research")
         await pilot.press(key)
         await pilot.pause()
 
@@ -329,7 +345,8 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "j", "l")
+        highlight_row(panel, "bucket:research")
+        await pilot.press("l")
         await pilot.pause()
         assert panel._active_bucket == "research"
 
@@ -339,9 +356,9 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
 
         assert panel._active_bucket is None
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models\ndefault effort: provider default\nmax running agents: 10"
+            "Models"
         )
-        assert panel.query_one("#models-panel-list", OptionList).option_count == 5
+        assert "plain" in panel._row_by_id
 
 
 async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
@@ -364,25 +381,35 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
         await pilot.pause()
         option_list = panel.query_one("#models-panel-list", OptionList)
 
-        assert panel._highlighted_row_id() == "large"
+        assert panel._highlighted_row_id() == "launch:default_model"
         assert option_list.get_option_at_index(0).disabled is True
-        assert option_list.get_option_at_index(2).disabled is True
-        assert set(panel._row_by_id) == {"large", "researcher"}
+        assert set(panel._row_by_id) == {
+            "launch:default_model",
+            "launch:epic_lander_model",
+            "launch:big_epic_lander_model",
+            "setting:default_effort",
+            "setting:runner_limit",
+            "large",
+            "researcher",
+        }
 
+        highlight_row(panel, "large")
         await pilot.press("j")
         assert panel._highlighted_row_id() == "researcher"
         await pilot.press("j")
-        assert panel._highlighted_row_id() == "large"
+        assert panel._highlighted_row_id() == "launch:default_model"
         await pilot.press("k")
         assert panel._highlighted_row_id() == "researcher"
 
         views[:] = [make_alias_view("large", "role")]
         panel._refresh_rows(keep="large")
         await pilot.pause()
-        assert option_list.option_count == 4
-        assert option_list.get_option_at_index(3).disabled is True
+        assert (
+            option_list.get_option_at_index(option_list.option_count - 1).disabled
+            is True
+        )
         assert "llm_provider.model_aliases.custom" in (
-            option_list.get_option_at_index(3).prompt.plain
+            option_list.get_option_at_index(option_list.option_count - 1).prompt.plain
         )
 
         await pilot.press("j", "k")
@@ -402,7 +429,12 @@ async def test_panel_decorative_option_ids_never_resolve_to_actions(
         option_list = panel.query_one("#models-panel-list", OptionList)
 
         decorative_ids = [
-            str(option_list.get_option_at_index(index).id) for index in (0, 2, 3)
+            str(option.id)
+            for option in (
+                option_list.get_option_at_index(index)
+                for index in range(option_list.option_count)
+            )
+            if option.disabled
         ]
         assert all(row_id not in panel._row_by_id for row_id in decorative_ids)
 
@@ -438,7 +470,8 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "l")
+        highlight_row(panel, "bucket:worker")
+        await pilot.press("l")
         await pilot.pause()
 
         option_list = panel.query_one("#models-panel-list", OptionList)
@@ -447,8 +480,6 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
         assert option_list.option_count == 1
         assert panel.query_one("#models-panel-title", Static).content.plain == (
             "Models › ▌ worker · custom bucket"
-            "\ndefault effort: provider default"
-            "\nmax running agents: 10"
         )
 
         panel._refresh_rows(keep="phase_reviewer")
@@ -470,9 +501,8 @@ async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
         pilot.app.push_screen(panel)
         await pilot.pause()
 
-        assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models\ndefault effort: @ xhigh\nmax running agents: 10"
-        )
+        title = panel.query_one("#models-panel-title", Static).content.plain
+        assert title == "Models"
         effort.assert_called_once_with()
 
 
@@ -495,6 +525,7 @@ async def test_panel_preferred_width_fits_production_description(monkeypatch) ->
         container = panel.query_one("#models-panel-container", Container)
         description = panel.query_one("#models-panel-description", Static)
         assert container.region.width == 110
+        highlight_row(panel, "large")
         assert description.content.plain == description_text
         assert description.content_size.width >= len(description_text)
         assert description.content_size.height == 2

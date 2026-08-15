@@ -13,11 +13,21 @@ from sase.ace.tui.modals.models_panel import (
 )
 from sase.ace.tui.modals.models_panel_rendering import (
     custom_builtin_shadow_warning_message,
+    panel_value_column_width,
     render_empty_custom_hint,
+    render_launch_settings_header,
+    render_panel_row,
     render_section_header,
     _section_count_label,
 )
-from sase.llm_provider import ModelsPanelSection
+from sase.ace.tui.modals.models_panel_rows import (
+    DefaultEffortSettingRow,
+    LaunchModelSettingRow,
+    RunnerLimitSettingRow,
+)
+from sase.config import DEFAULT_MAX_RUNNING_AGENTS, EffectiveRunnerLimitSnapshot
+from sase.llm_provider import EffectiveDefaultEffortSnapshot, ModelsPanelSection
+from sase.llm_provider.config import LaunchModelSettingSnapshot
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
@@ -292,8 +302,63 @@ def test_render_section_header_aligns_counts_with_row_state_column() -> None:
     header = render_section_header(section, provider_model_width=width).plain
     row = _render_alias_row(view, now=0.0, provider_model_width=width).plain
 
-    assert header.startswith("▌ ── Custom ")
+    assert header.startswith("▌ ── Your aliases ")
     assert header.index("1 alias") == row.index("configured")
+
+
+def test_render_launch_setting_row_shows_raw_and_effective_model() -> None:
+    row = LaunchModelSettingRow(
+        field="default_model",
+        label="launch model",
+        detail="Used when a launch has no explicit %model directive.",
+        snapshot=LaunchModelSettingSnapshot(
+            field="default_model",
+            config_path="llm_provider.default_model",
+            raw_value="@large",
+            provider="claude",
+            model="opus",
+            effort="xhigh",
+            provenance="shipped",
+            referenced_alias="large",
+            override_key="setting:default_model",
+        ),
+    )
+    width = panel_value_column_width([row], now=0.0)
+
+    header = render_launch_settings_header(value_width=width, count=1).plain
+    line = render_panel_row(row, now=0.0, value_width=width).plain
+
+    assert header.startswith("  ── Launch settings ")
+    assert "1 setting" in header
+    assert "launch model" in line
+    assert "@large → CLAUDE(opus) @ xhigh" in line
+    assert "shipped" in line
+
+
+def test_render_scalar_setting_rows_show_effective_values() -> None:
+    effort_row = DefaultEffortSettingRow(
+        EffectiveDefaultEffortSnapshot(
+            configured_effort=None,
+            temporary_override=None,
+            captured_at=0.0,
+        )
+    )
+    runner_row = RunnerLimitSettingRow(
+        EffectiveRunnerLimitSnapshot(
+            configured_limit=DEFAULT_MAX_RUNNING_AGENTS,
+            temporary_override=None,
+            captured_at=0.0,
+        )
+    )
+    width = panel_value_column_width([effort_row, runner_row], now=0.0)
+
+    effort_line = render_panel_row(effort_row, now=0.0, value_width=width).plain
+    runner_line = render_panel_row(runner_row, now=0.0, value_width=width).plain
+
+    assert "default effort" in effort_line
+    assert "provider default" in effort_line
+    assert "running agents" in runner_line
+    assert str(DEFAULT_MAX_RUNNING_AGENTS) in runner_line
 
 
 def test_section_count_label_singularizes_and_omits_zero_buckets() -> None:

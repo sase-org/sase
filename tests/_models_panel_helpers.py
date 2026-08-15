@@ -121,6 +121,7 @@ def patch_alias_views(
         lambda name: (bucket_descriptions or {}).get(name),
     )
     monkeypatch.setattr(models_panel, "_now", lambda: 0.0)
+    monkeypatch.setattr(models_panel_providers, "_now", lambda: 0.0)
 
 
 def make_edit_plan(

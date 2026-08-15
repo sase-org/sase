@@ -20,6 +20,12 @@ from sase.llm_provider import AliasView, BucketView, ModelsPanelSection
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 from .models_panel_duration import format_remaining
+from .models_panel_rows import (
+    DefaultEffortSettingRow,
+    LaunchModelSettingRow,
+    ModelsPanelDisplayRow,
+    RunnerLimitSettingRow,
+)
 
 _KIND_CELL = 13
 _NAME_CELL = 22
@@ -50,6 +56,10 @@ _BUILTIN_SECTION_STYLE = "bold #87D7FF"
 
 _CUSTOM_ALIASES_PATH = "llm_provider.model_aliases.custom"
 _BUILTIN_ALIASES_PATH = "llm_provider.model_aliases.builtin"
+
+_LAUNCH_SECTION_LABEL = "Launch settings"
+_BUILTIN_SECTION_LABEL = "Built-in size aliases"
+_CUSTOM_SECTION_LABEL = "Your aliases"
 
 
 def _pad(value: str, width: int) -> str:
@@ -92,7 +102,7 @@ def render_section_header(
     """Render a disabled section header on the same grid as data rows."""
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=section.is_user_owned)
-    label = "Custom" if section.is_user_owned else "Built-in"
+    label = _CUSTOM_SECTION_LABEL if section.is_user_owned else _BUILTIN_SECTION_LABEL
     rule_width = _KIND_CELL + 1 + _NAME_CELL + 1 + provider_model_width
     rule_label = f"── {label} "
     rule = rule_label + ("─" * max(0, rule_width - len(rule_label)))
@@ -100,6 +110,19 @@ def render_section_header(
     text.append(_pad(rule, rule_width), style=rule_style)
     text.append(_STATE_GAP)
     text.append(_section_count_label(section), style="dim")
+    return text
+
+
+def render_launch_settings_header(*, value_width: int, count: int) -> Text:
+    """Render the disabled launch-settings section header."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    _append_ownership_gutter(text, user_owned=False)
+    rule_width = _KIND_CELL + 1 + _NAME_CELL + 1 + value_width
+    rule_label = f"── {_LAUNCH_SECTION_LABEL} "
+    rule = rule_label + ("─" * max(0, rule_width - len(rule_label)))
+    text.append(_pad(rule, rule_width), style=_BUILTIN_SECTION_STYLE)
+    text.append(_STATE_GAP)
+    text.append(_count_label(count, "setting"), style="dim")
     return text
 
 
@@ -196,6 +219,68 @@ def _provider_model_text(view: AliasView) -> Text:
     return text
 
 
+def _provider_model_text_for_values(
+    provider: str | None,
+    model: str,
+    effort: str | None,
+) -> Text:
+    """Build a provider/model badge from explicit fields."""
+    text = provider_model_text(provider, model)
+    append_effort_suffix(text, effort or "")
+    return text
+
+
+def _launch_value_text(row: LaunchModelSettingRow) -> Text:
+    """Return the raw-expression-to-effective value for a launch setting."""
+    snapshot = row.snapshot
+    text = Text(no_wrap=True, overflow="ellipsis")
+    raw = snapshot.raw_value
+    raw_style = "#87D7FF" if raw.startswith("@") else "bold"
+    text.append(raw, style=raw_style)
+    text.append(" → ", style="dim")
+    text.append_text(
+        _provider_model_text_for_values(
+            snapshot.provider,
+            snapshot.model,
+            snapshot.effort,
+        )
+    )
+    return text
+
+
+def _effort_label(effort: str | None) -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    if effort is None:
+        text.append("provider default", style="dim")
+        return text
+    text.append("@ ", style="dim")
+    text.append(effort, style="bold #AF87FF")
+    return text
+
+
+def _default_effort_value_text(row: DefaultEffortSettingRow, *, now: float) -> Text:
+    return _effort_label(row.snapshot.effective_effort(now))
+
+
+def _runner_limit_value_text(row: RunnerLimitSettingRow, *, now: float) -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append(str(row.snapshot.effective_limit(now)), style="bold cyan")
+    return text
+
+
+def _row_value_text(row: ModelsPanelDisplayRow, *, now: float) -> Text:
+    """Return the aligned value-column text for any data row."""
+    if isinstance(row, LaunchModelSettingRow):
+        return _launch_value_text(row)
+    if isinstance(row, DefaultEffortSettingRow):
+        return _default_effort_value_text(row, now=now)
+    if isinstance(row, RunnerLimitSettingRow):
+        return _runner_limit_value_text(row, now=now)
+    if isinstance(row, BucketView):
+        return Text(_count_label(row.alias_count, "alias"), style="dim")
+    return _provider_model_text(row)
+
+
 def provider_model_column_width(views: Iterable[AliasView]) -> int:
     """Return the provider/model column width (in cells) for *views*.
 
@@ -207,6 +292,18 @@ def provider_model_column_width(views: Iterable[AliasView]) -> int:
     widest = 0
     for view in views:
         widest = max(widest, _provider_model_text(view).cell_len)
+    return min(widest, PROVIDER_MODEL_CELL_MAX)
+
+
+def panel_value_column_width(
+    rows: Iterable[ModelsPanelDisplayRow],
+    *,
+    now: float,
+) -> int:
+    """Return the shared value-column width for visible panel rows."""
+    widest = 0
+    for row in rows:
+        widest = max(widest, _row_value_text(row, now=now).cell_len)
     return min(widest, PROVIDER_MODEL_CELL_MAX)
 
 
@@ -239,6 +336,132 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     text.append(_STATE_GAP)
     text.append_text(state_tag(view, now))
     return text
+
+
+def _launch_setting_state_tag(row: LaunchModelSettingRow, now: float) -> Text:
+    """Return the provenance/override state for one launch-setting row."""
+    snapshot = row.snapshot
+    if row.is_override_paused:
+        disable = snapshot.override_paused_by_provider_disable
+        assert disable is not None
+        return Text(
+            f"override paused · {disable.provider.upper()} disabled",
+            style=_PAUSED_OVERRIDE_TAG_STYLE,
+        )
+    if snapshot.override is not None:
+        return Text(_override_chip(snapshot.override, now), style=_OVERRIDE_TAG_STYLE)
+    return Text(snapshot.provenance.replace("_", " "), style="dim #9E9E9E")
+
+
+def _default_effort_state_tag(row: DefaultEffortSettingRow, now: float) -> Text:
+    override = row.snapshot.active_override(now)
+    if override is not None:
+        if override.expires_at is None:
+            label = "override · until cleared"
+        else:
+            label = f"override · {format_remaining(override.expires_at - now)} left"
+        return Text(label, style=_OVERRIDE_TAG_STYLE)
+    if row.snapshot.configured_effort is None:
+        return Text("provider default", style="dim #9E9E9E")
+    return Text("configured", style="dim #9E9E9E")
+
+
+def _runner_limit_state_tag(row: RunnerLimitSettingRow, now: float) -> Text:
+    override = row.snapshot.active_override(now)
+    if override is not None:
+        if override.expires_at is None:
+            label = "override · until cleared"
+        else:
+            label = f"override · {format_remaining(override.expires_at - now)} left"
+        return Text(label, style=_OVERRIDE_TAG_STYLE)
+    return Text("configured", style="dim #9E9E9E")
+
+
+def _render_setting_row(
+    *,
+    kind: str,
+    name: str,
+    value: Text,
+    state: Text,
+    value_width: int,
+) -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    _append_ownership_gutter(text, user_owned=False)
+    text.append(_pad(kind, _KIND_CELL), style="bold #87D7FF")
+    text.append(" ")
+    text.append(_pad(name, _NAME_CELL), style="bold")
+    text.append(" ")
+    value.truncate(value_width, overflow="ellipsis", pad=True)
+    text.append_text(value)
+    text.append(_STATE_GAP)
+    text.append_text(state)
+    return text
+
+
+def _render_launch_setting_row(
+    row: LaunchModelSettingRow,
+    *,
+    now: float,
+    value_width: int,
+) -> Text:
+    """Render one launch model-setting row."""
+    return _render_setting_row(
+        kind="launch",
+        name=row.label,
+        value=_launch_value_text(row),
+        state=_launch_setting_state_tag(row, now),
+        value_width=value_width,
+    )
+
+
+def _render_default_effort_row(
+    row: DefaultEffortSettingRow,
+    *,
+    now: float,
+    value_width: int,
+) -> Text:
+    """Render the default-effort row."""
+    return _render_setting_row(
+        kind="setting",
+        name=row.label,
+        value=_default_effort_value_text(row, now=now),
+        state=_default_effort_state_tag(row, now),
+        value_width=value_width,
+    )
+
+
+def _render_runner_limit_row(
+    row: RunnerLimitSettingRow,
+    *,
+    now: float,
+    value_width: int,
+) -> Text:
+    """Render the running-agents row."""
+    return _render_setting_row(
+        kind="setting",
+        name=row.label,
+        value=_runner_limit_value_text(row, now=now),
+        state=_runner_limit_state_tag(row, now),
+        value_width=value_width,
+    )
+
+
+def render_panel_row(
+    row: ModelsPanelDisplayRow,
+    *,
+    now: float,
+    value_width: int,
+) -> Text:
+    """Render any data row in the Models panel."""
+    if isinstance(row, LaunchModelSettingRow):
+        return _render_launch_setting_row(row, now=now, value_width=value_width)
+    if isinstance(row, DefaultEffortSettingRow):
+        return _render_default_effort_row(row, now=now, value_width=value_width)
+    if isinstance(row, RunnerLimitSettingRow):
+        return _render_runner_limit_row(row, now=now, value_width=value_width)
+    if isinstance(row, BucketView):
+        return render_bucket_row(row, provider_model_width=value_width)
+    return render_alias_row(row, now=now, provider_model_width=value_width)
 
 
 def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
@@ -300,6 +523,79 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
             f"{bucket.user_member_count} custom",
             style=_OWNERSHIP_STYLE,
         )
+    return text
+
+
+def _format_provider_model(provider: str | None, model: str, effort: str | None) -> str:
+    label = f"{provider.upper()}({model})" if provider else model
+    return f"{label} @ {effort}" if effort else label
+
+
+def _description_text_for_launch_setting(row: LaunchModelSettingRow) -> Text:
+    snapshot = row.snapshot
+    text = Text()
+    if row.is_override_paused:
+        disable = snapshot.override_paused_by_provider_disable
+        assert disable is not None
+        text.append(
+            f"Stored override is paused because {disable.provider.upper()} is disabled.",
+            style=_PAUSED_OVERRIDE_TAG_STYLE,
+        )
+        text.append(
+            f"\nConfigured {snapshot.config_path}: {snapshot.raw_value}", style="dim"
+        )
+        return text
+    text.append(row.detail, style=_DESCRIPTION_STYLE)
+    text.append("\n")
+    text.append(f"{snapshot.config_path}: {snapshot.raw_value}", style="dim")
+    text.append(" · effective ", style="dim")
+    text.append(
+        _format_provider_model(snapshot.provider, snapshot.model, snapshot.effort),
+        style="dim",
+    )
+    if snapshot.override is not None:
+        text.append(" · temporary override active", style=_OVERRIDE_TAG_STYLE)
+    return text
+
+
+def _description_text_for_default_effort(
+    row: DefaultEffortSettingRow,
+    *,
+    now: float,
+) -> Text:
+    text = Text()
+    override = row.snapshot.active_override(now)
+    if override is not None:
+        text.append(
+            "Temporary launch-default effort override.", style=_DESCRIPTION_STYLE
+        )
+        text.append("\nconfigured: ", style="dim")
+        text.append(row.snapshot.configured_effort or "provider default", style="dim")
+        return text
+    text.append(
+        "Default reasoning effort for launches without explicit effort.",
+        style=_DESCRIPTION_STYLE,
+    )
+    text.append("\nconfigured: ", style="dim")
+    text.append(row.snapshot.configured_effort or "provider default", style="dim")
+    return text
+
+
+def _description_text_for_runner_limit(
+    row: RunnerLimitSettingRow,
+    *,
+    now: float,
+) -> Text:
+    text = Text()
+    override = row.snapshot.active_override(now)
+    if override is not None:
+        text.append("Temporary maximum running-agent limit.", style=_DESCRIPTION_STYLE)
+        text.append(f"\nconfigured: {row.snapshot.configured_limit}", style="dim")
+        return text
+    text.append(
+        "Maximum number of agents admitted to run at once.", style=_DESCRIPTION_STYLE
+    )
+    text.append(f"\nconfigured: {row.snapshot.configured_limit}", style="dim")
     return text
 
 
@@ -425,10 +721,18 @@ def _description_text_for_bucket(bucket: BucketView) -> Text:
 
 
 def description_text_for_row(
-    row: AliasView | BucketView | None,
+    row: ModelsPanelDisplayRow | None,
     default_effort: str | None = None,
+    *,
+    now: float = 0.0,
 ) -> Text:
     """Dispatch Models-panel description rendering by row type."""
+    if isinstance(row, LaunchModelSettingRow):
+        return _description_text_for_launch_setting(row)
+    if isinstance(row, DefaultEffortSettingRow):
+        return _description_text_for_default_effort(row, now=now)
+    if isinstance(row, RunnerLimitSettingRow):
+        return _description_text_for_runner_limit(row, now=now)
     if isinstance(row, BucketView):
         return _description_text_for_bucket(row)
     return description_text_for_view(row, default_effort)

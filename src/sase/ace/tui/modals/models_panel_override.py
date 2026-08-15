@@ -32,10 +32,17 @@ from .models_panel_duration import (
     format_duration_chosen,
 )
 from .models_panel_effort_cards import (
+    DefaultEffortAction,
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
+from .models_panel_rows import (
+    DefaultEffortSettingRow,
+    LaunchModelSettingRow,
+    RunnerLimitSettingRow,
+)
 from .models_panel_providers import disabled_explicit_provider_message
+from .models_panel_runner_limit_cards import RunnerLimitAction
 from .models_panel_selector import parse_selector_for_display
 from .models_panel_time import (
     OverrideUntilBack,
@@ -56,8 +63,12 @@ class ModelsPanelOverrideMixin(_MixinBase):
         _changed: bool
         _clear_worker: Worker[tuple[bool | None, str | None]] | None
         _clear_write_alias: str
+        _clear_write_keep: str
+        _clear_write_label: str
         _override_worker: Worker[tuple[TemporaryLLMOverride | None, str | None]] | None
         _override_write_alias: str
+        _override_write_keep: str
+        _override_write_label: str
         _override_write_result: (
             RelativeOverrideDuration
             | OverrideUntilCleared
@@ -66,12 +77,25 @@ class ModelsPanelOverrideMixin(_MixinBase):
         )
         _pending_alias: str
         _pending_alias_selection: AliasSelectionContext | None
+        _pending_model_target_keep: str
+        _pending_model_target_label: str
         _pending_raw_model: str
         _provider_disables: dict[str, TemporaryProviderDisable]
         _views: list[AliasView]
         _effort_snapshot: EffectiveDefaultEffortSnapshot
 
-        def _selected_alias(self) -> AliasView | None: ...
+        def _selected_row(
+            self,
+        ) -> (
+            AliasView
+            | LaunchModelSettingRow
+            | DefaultEffortSettingRow
+            | RunnerLimitSettingRow
+            | object
+            | None
+        ): ...
+
+        def _selected_model_row(self) -> AliasView | LaunchModelSettingRow | None: ...
 
         def _refresh_rows(self, *, keep: str | None = None) -> None: ...
 
@@ -87,22 +111,38 @@ class ModelsPanelOverrideMixin(_MixinBase):
             self, alias: str, raw_model: str, expires_at: float
         ) -> TemporaryLLMOverride: ...
 
+        def _on_default_effort_action(
+            self, result: DefaultEffortAction | None
+        ) -> None: ...
+
+        def _on_runner_limit_action(self, result: RunnerLimitAction | None) -> None: ...
+
     def action_override(self) -> None:
         if self._override_worker is not None or self._clear_worker is not None:
             return
-        view = self._selected_alias()
-        if view is None:
+        selected = self._selected_row()
+        if isinstance(selected, DefaultEffortSettingRow):
+            self._on_default_effort_action("override")
             return
-        self._pending_alias = view.name
+        if isinstance(selected, RunnerLimitSettingRow):
+            self._on_runner_limit_action("override")
+            return
+        row = self._selected_model_row()
+        if row is None:
+            return
+        key, label, keep = self._model_target_identity(row)
+        self._pending_alias = key
+        self._pending_model_target_label = label
+        self._pending_model_target_keep = keep
         self._pending_raw_model = ""
         self._pending_alias_selection = AliasSelectionContext(
             views=tuple(self._views),
-            target_alias=view.name,
+            target_alias=key,
             operation="temporary",
         )
         self.app.push_screen(
             ModelPickerModal(
-                title=f"Override Model — @{view.name}",
+                title=f"Override Model — {label}",
                 include_default_option=False,
                 alias_context=self._pending_alias_selection,
                 provider_disables=self._provider_disables,
@@ -113,13 +153,26 @@ class ModelsPanelOverrideMixin(_MixinBase):
     def action_clear(self) -> None:
         if self._override_worker is not None or self._clear_worker is not None:
             return
-        view = self._selected_alias()
-        if view is None:
+        selected = self._selected_row()
+        if isinstance(selected, DefaultEffortSettingRow):
+            self._on_default_effort_action("clear")
             return
-        if view.override is None:
-            self.notify(f"No active override on @{view.name}", severity="warning")
+        if isinstance(selected, RunnerLimitSettingRow):
+            self._on_runner_limit_action("clear")
             return
-        alias = view.name
+        row = self._selected_model_row()
+        if row is None:
+            return
+        key, label, keep = self._model_target_identity(row)
+        override = (
+            row.snapshot.override
+            if isinstance(row, LaunchModelSettingRow)
+            else row.override
+        )
+        if override is None:
+            self.notify(f"No active override on {label}", severity="warning")
+            return
+        alias = key
 
         def task() -> tuple[bool | None, str | None]:
             try:
@@ -128,7 +181,24 @@ class ModelsPanelOverrideMixin(_MixinBase):
                 return None, str(exc)
 
         self._clear_write_alias = alias
+        self._clear_write_label = label
+        self._clear_write_keep = keep
         self._clear_worker = self.run_worker(task, thread=True, exclusive=True)
+
+    @staticmethod
+    def _model_target_identity(
+        row: AliasView | LaunchModelSettingRow,
+    ) -> tuple[str, str, str]:
+        """Return state key, human label, and stable row id for a model row."""
+        if isinstance(row, LaunchModelSettingRow):
+            return row.override_key, row.label, row.row_id
+        return row.name, f"@{row.name}", row.name
+
+    def _pending_override_label(self) -> str:
+        """Return a human label for the pending temporary override target."""
+        return self._pending_model_target_label or (
+            f"@{self._pending_alias}" if self._pending_alias else ""
+        )
 
     def _on_model_picked(self, result: str | None) -> None:
         if result is None:
@@ -136,7 +206,8 @@ class ModelsPanelOverrideMixin(_MixinBase):
         rejection = alias_reference_rejection(self._pending_alias_selection, result)
         if rejection is not None:
             self.notify(
-                f"Cannot snapshot {result.strip()} onto @{self._pending_alias}: "
+                f"Cannot snapshot {result.strip()} onto "
+                f"{self._pending_override_label()}: "
                 f"{rejection}.",
                 severity="warning",
             )
@@ -166,15 +237,16 @@ class ModelsPanelOverrideMixin(_MixinBase):
         if parsed.selector is not None:
             self.notify(
                 "Pools and fallbacks are config-only; a temporary override on "
-                f"@{self._pending_alias} takes a single target. Press e to set "
-                f"@{self._pending_alias} to a selector.",
+                f"{self._pending_override_label()} takes a single target. "
+                "Press e to set it to a selector.",
                 severity="warning",
             )
             return
         rejection = alias_reference_rejection(self._pending_alias_selection, result)
         if rejection is not None:
             self.notify(
-                f"Cannot snapshot {result.strip()} onto @{self._pending_alias}: "
+                f"Cannot snapshot {result.strip()} onto "
+                f"{self._pending_override_label()}: "
                 f"{rejection}.",
                 severity="warning",
             )
@@ -279,6 +351,8 @@ class ModelsPanelOverrideMixin(_MixinBase):
                 return None, str(exc)
 
         self._override_write_alias = alias
+        self._override_write_label = self._pending_override_label()
+        self._override_write_keep = self._pending_model_target_keep
         self._override_write_result = result
         self._override_worker = self.run_worker(task, thread=True, exclusive=True)
 
@@ -292,9 +366,13 @@ class ModelsPanelOverrideMixin(_MixinBase):
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
             return
         alias = self._override_write_alias
+        target_label = self._override_write_label
+        keep = self._override_write_keep
         result = self._override_write_result
         self._override_worker = None
         self._override_write_alias = ""
+        self._override_write_label = ""
+        self._override_write_keep = ""
         self._override_write_result = None
         if event.state == WorkerState.ERROR:
             detail = str(event.worker.error or "unknown error")
@@ -323,16 +401,20 @@ class ModelsPanelOverrideMixin(_MixinBase):
         else:
             self.notify("Could not set override: invalid result", severity="error")
             return
-        self.notify(f"@{alias} override: {label} {suffix}")
+        self.notify(f"{target_label} override: {label} {suffix}")
         self._changed = True
-        self._refresh_rows(keep=alias)
+        self._refresh_rows(keep=keep or alias)
 
     def _on_clear_worker(self, event: Worker.StateChanged) -> None:
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
             return
         alias = self._clear_write_alias
+        label = self._clear_write_label
+        keep = self._clear_write_keep
         self._clear_worker = None
         self._clear_write_alias = ""
+        self._clear_write_label = ""
+        self._clear_write_keep = ""
         if event.state == WorkerState.ERROR:
             detail = str(event.worker.error or "unknown error")
             self.notify(f"Could not clear override: {detail}", severity="error")
@@ -346,9 +428,9 @@ class ModelsPanelOverrideMixin(_MixinBase):
             self.notify(f"Could not clear override: {error}", severity="error")
             return
         if not cleared:
-            self.notify(f"No active override on @{alias}", severity="warning")
-            self._refresh_rows(keep=alias)
+            self.notify(f"No active override on {label}", severity="warning")
+            self._refresh_rows(keep=keep or alias)
             return
-        self.notify(f"Cleared override on @{alias}")
+        self.notify(f"Cleared override on {label}")
         self._changed = True
-        self._refresh_rows(keep=alias)
+        self._refresh_rows(keep=keep or alias)

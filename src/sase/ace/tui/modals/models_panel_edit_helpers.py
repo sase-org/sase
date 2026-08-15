@@ -162,6 +162,18 @@ def build_alias_commit_offer(
     return build_config_commit_offer(target_path, subject=subject)
 
 
+def build_model_setting_commit_offer(
+    target_path: str,
+    *,
+    op: str,
+    label: str,
+) -> AliasCommitOffer | None:
+    """Return the commit+push offer for a written launch model-setting edit."""
+    verb = "Reset" if op == "unset" else "Update"
+    subject = f"chore: {verb} model setting {label}"
+    return build_config_commit_offer(target_path, subject=subject)
+
+
 __all__ = [
     "CUSTOM_MODEL_ALIASES_FIELD_PREFIX",
     "MODEL_ALIASES_FIELD_PREFIX",
@@ -170,5 +182,6 @@ __all__ = [
     "alias_model_edit_path",
     "alias_reset_path",
     "build_alias_commit_offer",
+    "build_model_setting_commit_offer",
     "plan_alias_edit",
 ]

@@ -32,10 +32,18 @@ from .models_panel_edit_helpers import (
     alias_reset_path,
 )
 from .models_panel_effort_cards import (
+    DefaultEffortAction,
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
+    DefaultEffortPickerMode,
+)
+from .models_panel_rows import (
+    DefaultEffortSettingRow,
+    LaunchModelSettingRow,
+    RunnerLimitSettingRow,
 )
 from .models_panel_providers import disabled_explicit_provider_message
+from .models_panel_runner_limit_cards import RunnerLimitAction
 from .models_panel_selector import member_rejection, parse_selector_for_display
 from .models_panel_selector_builder import SelectorBuilderModal
 
@@ -49,15 +57,30 @@ class ModelsPanelAliasEditMixin(_MixinBase):
     """Edit persistent alias values and optionally commit the resulting file."""
 
     if TYPE_CHECKING:
-        _pending_edit_view: AliasView | None
+        _pending_edit_view: AliasView | LaunchModelSettingRow | None
         _pending_edit_raw_model: str
+        _pending_edit_target_kind: str
+        _pending_edit_target_label: str
+        _pending_edit_keep: str
+        _pending_edit_is_model_setting: bool
         _pending_alias_selection: AliasSelectionContext | None
         _config_commit_offer_worker: Worker[AliasCommitOffer | None] | None
         _views: list[AliasView]
         _effort_snapshot: EffectiveDefaultEffortSnapshot
         _provider_disables: dict[str, TemporaryProviderDisable]
 
-        def _selected_alias(self) -> AliasView | None: ...
+        def _selected_row(
+            self,
+        ) -> (
+            AliasView
+            | LaunchModelSettingRow
+            | DefaultEffortSettingRow
+            | RunnerLimitSettingRow
+            | object
+            | None
+        ): ...
+
+        def _selected_model_row(self) -> AliasView | LaunchModelSettingRow | None: ...
 
         def _refresh_rows(self, *, keep: str | None = None) -> None: ...
 
@@ -67,32 +90,75 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             self, path: str, *, op: str, alias: str
         ) -> AliasCommitOffer | None: ...
 
+        def _build_model_setting_commit_offer(
+            self, path: str, *, op: str, label: str
+        ) -> AliasCommitOffer | None: ...
+
+        def _on_default_effort_action(
+            self, result: DefaultEffortAction | None
+        ) -> None: ...
+
+        def _on_default_effort_level(
+            self,
+            mode: DefaultEffortPickerMode,
+            result: DefaultEffortLevelChoice | None,
+        ) -> None: ...
+
+        def _on_runner_limit_action(self, result: RunnerLimitAction | None) -> None: ...
+
     def action_edit(self) -> None:
-        view = self._selected_alias()
-        if view is None:
+        selected = self._selected_row()
+        if isinstance(selected, DefaultEffortSettingRow):
+            self._on_default_effort_action("edit")
             return
-        self._pending_edit_view = view
+        if isinstance(selected, RunnerLimitSettingRow):
+            self._on_runner_limit_action("edit")
+            return
+        row = self._selected_model_row()
+        if row is None:
+            return
+        self._prepare_pending_edit_target(row)
         self._pending_edit_raw_model = ""
+        key = row.override_key if isinstance(row, LaunchModelSettingRow) else row.name
         self._pending_alias_selection = AliasSelectionContext(
             views=tuple(self._views),
-            target_alias=view.name,
+            target_alias=key,
             operation="persistent",
         )
         self.app.push_screen(
             ModelPickerModal(
-                title=f"Edit Model — @{view.name}",
+                title=f"Edit Model — {self._pending_edit_target_label}",
                 include_default_option=False,
                 alias_context=self._pending_alias_selection,
-                include_selector_option=True,
+                include_selector_option=isinstance(row, AliasView),
                 provider_disables=self._provider_disables,
             ),
             callback=self._on_edit_model_picked,
         )
 
     def action_reset(self) -> None:
-        view = self._selected_alias()
-        if view is None:
+        selected = self._selected_row()
+        if isinstance(selected, DefaultEffortSettingRow):
+            self._on_default_effort_level("edit", DefaultEffortLevelChoice(None))
             return
+        if isinstance(selected, RunnerLimitSettingRow):
+            self.notify("Use e to edit the running-agent limit", severity="warning")
+            return
+        row = self._selected_model_row()
+        if row is None:
+            return
+        self._prepare_pending_edit_target(row)
+        if isinstance(row, LaunchModelSettingRow):
+            self._open_alias_preview(
+                row.field,
+                ConfigEditOp.unset(),
+                path=row.config_path,
+                action_label="Reset",
+                target_kind="Model Setting",
+                target_label=row.label,
+            )
+            return
+        view = row
         if not view.configured:
             self.notify(
                 f"@{view.name} has no configured value to reset",
@@ -107,10 +173,38 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 kind=view.kind,
                 configured_source=view.configured_source,
             ),
+            target_kind="Model Alias",
+            target_label=f"@{view.name}",
             reset_deletes_alias=(
                 view.kind == "user" and view.configured_source == "custom"
             ),
         )
+
+    def _prepare_pending_edit_target(
+        self, row: AliasView | LaunchModelSettingRow
+    ) -> None:
+        self._pending_edit_view = row
+        if isinstance(row, LaunchModelSettingRow):
+            self._pending_edit_target_label = row.label
+            self._pending_edit_target_kind = "Model Setting"
+            self._pending_edit_keep = row.row_id
+            self._pending_edit_is_model_setting = True
+            return
+        self._pending_edit_target_label = f"@{row.name}"
+        self._pending_edit_target_kind = "Model Alias"
+        self._pending_edit_keep = row.name
+        self._pending_edit_is_model_setting = False
+
+    def _pending_edit_label(self) -> str:
+        """Return a human label for the pending edit target."""
+        if self._pending_edit_target_label:
+            return self._pending_edit_target_label
+        view = self._pending_edit_view
+        if isinstance(view, LaunchModelSettingRow):
+            return view.label
+        if isinstance(view, AliasView):
+            return f"@{view.name}"
+        return ""
 
     def _on_edit_model_picked(self, result: str | None) -> None:
         if result is None:
@@ -120,7 +214,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return
         if result == SELECTOR_SENTINEL:
             selection = self._pending_alias_selection
-            if selection is None:
+            if selection is None or isinstance(view, LaunchModelSettingRow):
                 return
             self.app.push_screen(
                 SelectorBuilderModal(
@@ -137,7 +231,8 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         rejection = alias_reference_rejection(self._pending_alias_selection, result)
         if rejection is not None:
             self.notify(
-                f"Cannot set @{view.name} to {result.strip()}: {rejection}.",
+                f"Cannot set {self._pending_edit_label()} to "
+                f"{result.strip()}: {rejection}.",
                 severity="warning",
             )
             return
@@ -166,7 +261,10 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         raw_model = result.strip()
         parsed = parse_selector_for_display(raw_model)
         if parsed.error is not None:
-            self.notify(f"Cannot set @{view.name}: {parsed.error}", severity="warning")
+            self.notify(
+                f"Cannot set {self._pending_edit_label()}: {parsed.error}",
+                severity="warning",
+            )
             return
         if parsed.selector is not None:
             for member in parsed.selector.members:
@@ -177,14 +275,16 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 )
                 if disabled is not None:
                     self.notify(
-                        f"Cannot set @{view.name} to {member}: {disabled}.",
+                        f"Cannot set {self._pending_edit_label()} to "
+                        f"{member}: {disabled}.",
                         severity="warning",
                     )
                     return
                 rejection = member_rejection(self._pending_alias_selection, member)
                 if rejection is not None:
                     self.notify(
-                        f"Cannot set @{view.name} to {member}: {rejection}.",
+                        f"Cannot set {self._pending_edit_label()} to "
+                        f"{member}: {rejection}.",
                         severity="warning",
                     )
                     return
@@ -194,7 +294,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         rejection = alias_reference_rejection(self._pending_alias_selection, raw_model)
         if rejection is not None:
             self.notify(
-                f"Cannot set @{view.name} to {raw_model}: {rejection}.",
+                f"Cannot set {self._pending_edit_label()} to {raw_model}: {rejection}.",
                 severity="warning",
             )
             return
@@ -205,7 +305,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         )
         if disabled is not None:
             self.notify(
-                f"Cannot set @{view.name} to {raw_model}: {disabled}.",
+                f"Cannot set {self._pending_edit_label()} to {raw_model}: {disabled}.",
                 severity="warning",
             )
             return
@@ -252,22 +352,31 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         self._pending_edit_raw_model = result
         self._open_model_edit_preview(view, result)
 
-    def _open_model_edit_preview(self, view: AliasView, model: str) -> None:
-        selector_errors = validate_model_alias_selector_value(view.name, model)
-        if selector_errors:
-            self.notify(
-                f"Cannot set @{view.name}: {selector_errors[0]}",
-                severity="warning",
-            )
-            return
+    def _open_model_edit_preview(
+        self, view: AliasView | LaunchModelSettingRow, model: str
+    ) -> None:
+        if isinstance(view, AliasView):
+            selector_errors = validate_model_alias_selector_value(view.name, model)
+            if selector_errors:
+                self.notify(
+                    f"Cannot set @{view.name}: {selector_errors[0]}",
+                    severity="warning",
+                )
+                return
         self._open_alias_preview(
-            view.name,
+            view.field if isinstance(view, LaunchModelSettingRow) else view.name,
             ConfigEditOp.set_value(model),
-            path=alias_model_edit_path(
-                view.name,
-                kind=view.kind,
-                configured_source=view.configured_source,
+            path=(
+                alias_model_edit_path(
+                    view.name,
+                    kind=view.kind,
+                    configured_source=view.configured_source,
+                )
+                if isinstance(view, AliasView)
+                else view.config_path
             ),
+            target_kind=self._pending_edit_target_kind,
+            target_label=self._pending_edit_label(),
         )
 
     def _open_alias_preview(
@@ -277,6 +386,8 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         *,
         path: str | None = None,
         action_label: str | None = None,
+        target_kind: str | None = None,
+        target_label: str | None = None,
         reset_deletes_alias: bool = False,
     ) -> None:
         self.app.push_screen(
@@ -285,6 +396,8 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 op,
                 path=path,
                 action_label=action_label,
+                target_kind=target_kind or self._pending_edit_target_kind,
+                target_label=target_label or self._pending_edit_label(),
                 reset_deletes_alias=reset_deletes_alias,
             ),
             callback=self._on_alias_edited,
@@ -299,10 +412,11 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             if outcome.applied.op != "unset" and self._pending_edit_raw_model
             else ""
         )
-        self.notify(f"{verb} @{outcome.alias}{suffix}")
+        target_label = self._pending_edit_label() or f"@{outcome.alias}"
+        self.notify(f"{verb} {target_label}{suffix}")
         # Persistent edits do not touch temporary overrides. Refresh the rows
         # so the configured/effective columns reflect the new value.
-        self._refresh_rows(keep=outcome.alias)
+        self._refresh_rows(keep=self._pending_edit_keep or outcome.alias)
         self._offer_commit_push(outcome)
 
     def _offer_commit_push(self, outcome: AliasEditOutcome) -> None:
@@ -312,8 +426,14 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         path = outcome.applied.path
         op = outcome.applied.op
         alias = outcome.alias
+        target_label = self._pending_edit_label() or f"@{alias}"
+        is_model_setting = self._pending_edit_is_model_setting
 
         def task() -> AliasCommitOffer | None:
+            if is_model_setting:
+                return self._build_model_setting_commit_offer(
+                    path, op=op, label=target_label
+                )
             return self._build_alias_commit_offer(path, op=op, alias=alias)
 
         self._config_commit_offer_worker = self.run_worker(  # type: ignore[attr-defined]
@@ -338,10 +458,15 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return True
         offer = event.worker.result
         if offer is not None:
+            noun = (
+                "model-setting"
+                if self._pending_edit_is_model_setting
+                else "model-alias"
+            )
             push_config_commit_prompt(
                 self.app,  # type: ignore[attr-defined]
                 offer,
-                message="Commit and push your model-alias change?",
+                message=f"Commit and push your {noun} change?",
                 on_confirm=self._submit_commit_task,
             )
         return True
@@ -356,5 +481,5 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         submit_config_commit_task(
             self.app,  # type: ignore[attr-defined]
             offer,
-            display_name=f"commit alias {offer.rel_path}",
+            display_name=f"commit model config {offer.rel_path}",
         )

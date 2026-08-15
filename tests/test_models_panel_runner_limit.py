@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from textual.containers import Container
-from textual.widgets import Input, Static
+from textual.widgets import Input, OptionList, Static
 
 from sase.ace.testing import wait_for
 import sase.ace.tui.modals.models_panel as models_panel
@@ -85,6 +85,12 @@ def _patch_snapshot(
     )
 
 
+def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    panel._update_context()
+
+
 @pytest.mark.parametrize("bucket_state", ["alias", "collapsed", "open"])
 async def test_ctrl_r_opens_global_action_card_in_every_bucket_state(
     monkeypatch: pytest.MonkeyPatch, bucket_state: str
@@ -115,9 +121,14 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         pilot.app.push_screen(panel)
         await pilot.pause()
         title = panel.query_one("#models-panel-title", Static).content.plain
-        assert title.endswith(
-            "max running agents: 4  override · 42m left  configured 10"
-        )
+        assert title == "Models"
+        option_list = panel.query_one("#models-panel-list", OptionList)
+        runner_row = option_list.get_option_at_index(
+            option_list.get_option_index("setting:runner_limit")
+        ).prompt.plain
+        assert "running agents" in runner_row
+        assert "4" in runner_row
+        assert "override · 42m left" in runner_row
         footer = str(panel.query_one("#models-panel-footer", Static).content)
         assert (
             "ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit  "
@@ -235,7 +246,8 @@ async def test_override_flow_reuses_duration_and_requests_agents_refresh(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "ctrl+r", "o")
+        _highlight_row(panel, "plain")
+        await pilot.press("ctrl+r", "o")
         assert isinstance(pilot.app.screen, RunnerLimitValueModal)
         await pilot.press("4", "enter")
         assert isinstance(pilot.app.screen, DurationPickerModal)
@@ -266,7 +278,8 @@ async def test_clear_preserves_cursor_and_requests_agents_refresh(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "ctrl+r", "x")
+        _highlight_row(panel, "plain")
+        await pilot.press("ctrl+r", "x")
         await wait_for(pilot, lambda: panel._runner_limit_clear_worker is None)
         assert panel._runner_limit_snapshot.temporary_override is None
         assert panel._highlighted_row_id() == "plain"

@@ -267,7 +267,9 @@ async def test_models_panel_selector_builder_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(
-        selector_builder, "resolved_target_is_available", lambda _target: True
+        selector_builder,
+        "resolved_target_is_available",
+        lambda _target, **_kwargs: True,
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:

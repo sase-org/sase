@@ -77,6 +77,12 @@ def _patch_snapshot(
     )
 
 
+def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    panel._update_context()
+
+
 @pytest.mark.parametrize("bucket_state", ["alias", "collapsed", "open"])
 async def test_ctrl_e_opens_global_action_card_in_every_bucket_state(
     monkeypatch: pytest.MonkeyPatch, bucket_state: str
@@ -108,10 +114,17 @@ async def test_panel_title_and_chooser_show_effective_and_configured_values(
         pilot.app.push_screen(panel)
         await pilot.pause()
         title = panel.query_one("#models-panel-title", Static).content.plain
-        assert title == (
-            "Models\ndefault effort: @ medium  override · 42m left  configured @ xhigh"
-            "\nmax running agents: 10"
-        )
+        assert title == "Models"
+        option_list = panel.query_one("#models-panel-list", OptionList)
+        effort_row = option_list.get_option_at_index(
+            option_list.get_option_index("setting:default_effort")
+        ).prompt.plain
+        assert "default effort" in effort_row
+        assert "@ medium" in effort_row
+        assert "override · 42m left" in effort_row
+        _highlight_row(panel, "setting:default_effort")
+        description = panel.query_one("#models-panel-description", Static).content.plain
+        assert "configured: xhigh" in description
         assert (
             "[green]ctrl+e[/green]=Effort"
             in panel.query_one("#models-panel-footer", Static).content
@@ -243,7 +256,7 @@ async def test_override_flow_reuses_duration_picker_and_updates_snapshot(
         await pilot.press("1")
         await wait_for(pilot, lambda: panel._effort_override_worker is None)
         assert panel._effort_snapshot.effective_effort(_NOW) == "medium"
-        assert panel._highlighted_row_id() == "default"
+        assert panel._highlighted_row_id() == "launch:default_model"
 
 
 async def test_clear_flow_preserves_alias_cursor(
@@ -270,7 +283,8 @@ async def test_clear_flow_preserves_alias_cursor(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "ctrl+e", "x")
+        _highlight_row(panel, "plain")
+        await pilot.press("ctrl+e", "x")
         await wait_for(pilot, lambda: panel._effort_clear_worker is None)
         assert panel._effort_snapshot.temporary_override is None
         assert panel._highlighted_row_id() == "plain"

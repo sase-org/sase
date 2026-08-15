@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 import sase.ace.tui.modals.models_panel as models_panel
@@ -9,6 +11,7 @@ import sase.ace.tui.modals.models_panel_providers as models_panel_providers
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
 from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
+from sase.llm_provider import AliasView
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     FROZEN_NOW,
@@ -36,14 +39,48 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
+def _patch_alias_views(
+    monkeypatch: pytest.MonkeyPatch, factory: Callable[[], list[AliasView]]
+) -> None:
+    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: factory())
+    monkeypatch.setattr(
+        models_panel_providers, "build_alias_views", lambda *a, **k: factory()
+    )
+
+
+async def _wait_for_models_panel_ready(page: AcePage) -> None:
+    def launch_row_is_ready() -> bool:
+        screen = page.app.screen
+        if not isinstance(screen, ModelsPanel):
+            return False
+        try:
+            option_list = screen.query_one("#models-panel-list", OptionList)
+            option_list.get_option_index("launch:default_model")
+        except Exception:
+            return False
+        return True
+
+    await wait_for_state(
+        page,
+        launch_row_is_ready,
+        description="Models-panel launch rows loaded",
+    )
+
+
+def _highlight_row(page: AcePage, row_id: str) -> None:
+    screen = page.app.screen
+    assert isinstance(screen, ModelsPanel)
+    option_list = screen.query_one("#models-panel-list", OptionList)
+    screen._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    screen._update_context()
+
+
 async def test_models_panel_empty_custom_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        models_panel, "build_alias_views", lambda *a, **k: builtin_only_views()
-    )
+    _patch_alias_views(monkeypatch, builtin_only_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -66,7 +103,7 @@ async def test_models_panel_default_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
+    _patch_alias_views(monkeypatch, calm_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -90,7 +127,7 @@ async def test_models_panel_default_effort_override_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
+    _patch_alias_views(monkeypatch, calm_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(
         ModelsPanel,
@@ -119,7 +156,7 @@ async def test_models_panel_runner_limit_override_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
+    _patch_alias_views(monkeypatch, calm_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(
         ModelsPanel,
@@ -148,7 +185,7 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: calm_views())
+    _patch_alias_views(monkeypatch, calm_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -157,7 +194,8 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j")
+        await _wait_for_models_panel_ready(page)
+        _highlight_row(page, "smartest")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -173,9 +211,7 @@ async def test_models_panel_pool_effort_png_snapshot(
 ) -> None:
     """Show the default, pool availability/next member, and row effort."""
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        models_panel, "build_alias_views", lambda *a, **k: pool_effort_views()
-    )
+    _patch_alias_views(monkeypatch, pool_effort_views)
     monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
@@ -185,7 +221,8 @@ async def test_models_panel_pool_effort_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j", "j")
+        await _wait_for_models_panel_ready(page)
+        _highlight_row(page, "cheaper")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -200,9 +237,7 @@ async def test_models_panel_effort_provenance_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        models_panel, "build_alias_views", lambda *a, **k: pool_effort_views()
-    )
+    _patch_alias_views(monkeypatch, pool_effort_views)
     monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
@@ -212,7 +247,8 @@ async def test_models_panel_effort_provenance_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j", "j", "j", "j", "j")
+        await _wait_for_models_panel_ready(page)
+        _highlight_row(page, "focused")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -227,11 +263,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        models_panel,
-        "build_alias_views",
-        lambda *a, **k: pool_effort_views(suspended=True),
-    )
+    _patch_alias_views(monkeypatch, lambda: pool_effort_views(suspended=True))
     monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
@@ -241,7 +273,8 @@ async def test_models_panel_pool_suspended_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j", "j", "j", "j", "j", "j", "j")
+        await _wait_for_models_panel_ready(page)
+        _highlight_row(page, "cheaper")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -256,9 +289,7 @@ async def test_models_panel_overrides_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        models_panel, "build_alias_views", lambda *a, **k: override_views()
-    )
+    _patch_alias_views(monkeypatch, override_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -309,6 +340,9 @@ async def test_models_panel_provider_disabled_png_snapshot(
         captured_at=FROZEN_NOW,
     )
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
+    monkeypatch.setattr(
+        models_panel_providers, "build_alias_views", lambda *a, **k: views
+    )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(
@@ -347,7 +381,7 @@ async def test_models_panel_provider_disabled_png_snapshot(
             provider_line_is_visible,
             description="Models-panel provider disable title line",
         )
-        await page.press("j", "j", "j", "l")
+        _highlight_row(page, "medium_worker")
         await wait_for_state(
             page,
             paused_override_row_is_visible,
@@ -367,11 +401,7 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(
-        models_panel,
-        "build_alias_views",
-        lambda *a, **k: custom_builtin_warning_views(),
-    )
+    _patch_alias_views(monkeypatch, custom_builtin_warning_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -380,7 +410,8 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
-        await page.press("j")
+        await _wait_for_models_panel_ready(page)
+        _highlight_row(page, "small_worker")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

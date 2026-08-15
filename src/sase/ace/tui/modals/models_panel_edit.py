@@ -62,6 +62,8 @@ class AliasEditPreviewModal(ModalScreen[Any]):
         *,
         path: str | None = None,
         action_label: str | None = None,
+        target_kind: str = "Model Alias",
+        target_label: str | None = None,
         reset_deletes_alias: bool = False,
     ) -> None:
         super().__init__()
@@ -69,6 +71,8 @@ class AliasEditPreviewModal(ModalScreen[Any]):
         self._op = op
         self._path = path
         self._action_label = action_label
+        self._target_kind = target_kind
+        self._target_label = target_label or f"@{alias}"
         self._reset_deletes_alias = reset_deletes_alias
         self._is_unset = op.kind == "unset"
         self._plan: EditPlanResult | None = None
@@ -94,8 +98,8 @@ class AliasEditPreviewModal(ModalScreen[Any]):
     def _title_text(self) -> Text:
         verb = self._action_label or ("Reset" if self._is_unset else "Edit")
         text = Text()
-        text.append(f"{verb} Model Alias  ", style="bold")
-        text.append(f"@{self._alias}", style=f"bold {_ACCENT}")
+        text.append(f"{verb} {self._target_kind}  ", style="bold")
+        text.append(self._target_label, style=f"bold {_ACCENT}")
         return text
 
     def _render_all(self) -> None:
@@ -127,15 +131,17 @@ class AliasEditPreviewModal(ModalScreen[Any]):
         text.append("Operation\n", style="bold")
         if self._is_unset:
             text.append("  reset ", style=f"bold {_MOD_COLOR}")
-            text.append(f"@{self._alias}", style=f"bold {_ACCENT}")
+            text.append(self._target_label, style=f"bold {_ACCENT}")
             if self._reset_deletes_alias:
                 text.append(" by deleting the custom alias ", style=_MUTED)
-            else:
+            elif self._target_kind == "Model Alias":
                 text.append(" to its implicit fallback ", style=_MUTED)
+            else:
+                text.append(" to its shipped/default value ", style=_MUTED)
             text.append("(removes the configured key)\n", style=_MUTED)
             return
         text.append("  set ", style="bold")
-        text.append(f"@{self._alias}", style=f"bold {_ACCENT}")
+        text.append(self._target_label, style=f"bold {_ACCENT}")
         text.append("  →  ", style=_MUTED)
         text.append(str(self._op.value), style=f"bold {_OK_COLOR}")
         text.append("\n")

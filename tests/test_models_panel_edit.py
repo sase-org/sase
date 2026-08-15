@@ -27,6 +27,7 @@ from sase.ace.tui.modals.models_panel_selector_builder import SelectorBuilderMod
 from sase.llm_provider import TemporaryProviderDisable
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from textual.widgets import OptionList
 from tests._models_panel_helpers import (
     ModelsPanelTestApp as _TestApp,
     make_alias_view as _view,
@@ -45,6 +46,12 @@ def _disable(provider: str) -> TemporaryProviderDisable:
     )
 
 
+def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    panel._update_context()
+
+
 # ---------------------------------------------------------------------------
 # Panel — Edit entry points
 # ---------------------------------------------------------------------------
@@ -56,9 +63,11 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
         models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
     )
     async with _TestApp().run_test() as pilot:
-        pilot.app.push_screen(ModelsPanel())
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("l", "e")
+        _highlight_row(panel, "medium_worker")
+        await pilot.press("e")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
 
@@ -91,7 +100,8 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
         await pilot.pause()
         disable = _disable("codex")
         panel._provider_disables = {"codex": disable}
-        await pilot.press("l", "e")
+        _highlight_row(panel, "medium_worker")
+        await pilot.press("e")
         await pilot.pause()
 
         picker = pilot.app.screen
@@ -110,7 +120,8 @@ async def test_action_edit_picker_offers_selector_builder_row(monkeypatch: Any) 
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("l", "e")
+        _highlight_row(panel, "medium_worker")
+        await pilot.press("e")
         await pilot.pause()
 
         picker = pilot.app.screen
@@ -574,7 +585,7 @@ async def test_action_reset_unconfigured_warns_and_skips(monkeypatch: Any) -> No
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("l")
+        _highlight_row(panel, "medium_worker")
         panel.notify = MagicMock()  # type: ignore[method-assign]
         panel.action_reset()
         await pilot.pause()
@@ -598,7 +609,7 @@ async def test_action_reset_configured_opens_preview_with_unset(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("l")
+        _highlight_row(panel, "medium_worker")
         panel.action_reset()
         await pilot.pause()
         screen = pilot.app.screen
@@ -659,7 +670,7 @@ async def test_action_reset_custom_alias_deletes_custom_entry(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j")
+        _highlight_row(panel, "blogger")
         panel.action_reset()
         await pilot.pause()
         screen = pilot.app.screen

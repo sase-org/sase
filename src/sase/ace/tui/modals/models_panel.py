@@ -57,6 +57,7 @@ from .models_panel_duration import (
 from .models_panel_edit_helpers import (
     AliasCommitOffer,
     build_alias_commit_offer,
+    build_model_setting_commit_offer,
 )
 from .models_panel_override import ModelsPanelOverrideMixin
 from .models_panel_providers import ModelsPanelProvidersMixin
@@ -71,6 +72,12 @@ from .models_panel_rendering import (
     render_alias_row as _render_alias_row,
     render_bucket_row as _render_bucket_row,
     state_tag as _state_tag,
+)
+from .models_panel_rows import (
+    DefaultEffortSettingRow,
+    LaunchModelSettingRow,
+    ModelsPanelDisplayRow,
+    RunnerLimitSettingRow,
 )
 from .models_panel_time import ResolvedOverrideUntil
 from .models_panel_types import ModelsPanelResult
@@ -144,17 +151,24 @@ class ModelsPanel(
         self._provider_snapshot_signal_changes = False
         self._provider_snapshot_update_rows = False
         self._provider_routing_changed = False
+        self._launch_model_rows: tuple[LaunchModelSettingRow, ...] = ()
         self._views: list[AliasView] = []
-        self._top_rows: list[AliasView | BucketView] = []
+        self._top_rows: list[ModelsPanelDisplayRow] = []
         self._bucket_by_name: dict[str, BucketView] = {}
-        self._row_by_id: dict[str, AliasView | BucketView] = {}
+        self._row_by_id: dict[str, ModelsPanelDisplayRow] = {}
         self._active_bucket: str | None = None
         self._updating_highlight = False
         self._warning_toast_emitted = False
         self._pending_alias = ""
+        self._pending_model_target_label = ""
+        self._pending_model_target_keep = ""
         self._pending_raw_model = ""
         self._pending_edit_raw_model = ""
-        self._pending_edit_view: AliasView | None = None
+        self._pending_edit_view: AliasView | LaunchModelSettingRow | None = None
+        self._pending_edit_target_label = ""
+        self._pending_edit_target_kind = "Model Alias"
+        self._pending_edit_keep = ""
+        self._pending_edit_is_model_setting = False
         self._pending_alias_selection: AliasSelectionContext | None = None
         self._override_worker: (
             Worker[tuple[TemporaryLLMOverride | None, str | None]] | None
@@ -202,7 +216,11 @@ class ModelsPanel(
             | None
         ) = None
         self._override_write_alias = ""
+        self._override_write_label = ""
+        self._override_write_keep = ""
         self._clear_write_alias = ""
+        self._clear_write_label = ""
+        self._clear_write_keep = ""
 
     # These indirections deliberately resolve dependencies from this facade.
     # Besides keeping the mixins small, they preserve existing monkeypatch
@@ -220,7 +238,7 @@ class ModelsPanel(
     def _load_effective_effort_snapshot(
         self,
     ) -> tuple[EffectiveDefaultEffortSnapshot, bool]:
-        captured_at = self._models_panel_now()
+        captured_at = max(self._models_panel_now(), 0.000001)
         return (
             EffectiveDefaultEffortSnapshot(
                 configured_effort=self._load_default_reasoning_effort(),
@@ -232,13 +250,18 @@ class ModelsPanel(
 
     def _load_models_panel_rows(
         self, views: list[AliasView]
-    ) -> list[AliasView | BucketView]:
-        return build_models_panel_rows(views)
+    ) -> list[ModelsPanelDisplayRow]:
+        return [
+            *self._launch_model_rows,
+            DefaultEffortSettingRow(self._effort_snapshot),
+            RunnerLimitSettingRow(self._runner_limit_snapshot),
+            *build_models_panel_rows(views),
+        ]
 
     def _load_effective_runner_limit_snapshot(
         self,
     ) -> tuple[EffectiveRunnerLimitSnapshot, bool]:
-        captured_at = self._models_panel_now()
+        captured_at = max(self._models_panel_now(), 0.000001)
         return (
             EffectiveRunnerLimitSnapshot(
                 configured_limit=get_configured_max_running_agents(),
@@ -314,6 +337,11 @@ class ModelsPanel(
         self, path: str, *, op: str, alias: str
     ) -> AliasCommitOffer | None:
         return build_alias_commit_offer(path, op=op, alias=alias)
+
+    def _build_model_setting_commit_offer(
+        self, path: str, *, op: str, label: str
+    ) -> AliasCommitOffer | None:
+        return build_model_setting_commit_offer(path, op=op, label=label)
 
     def _build_default_effort_commit_offer(self, path: str) -> AliasCommitOffer | None:
         return build_default_effort_commit_offer(path)
