@@ -82,7 +82,7 @@ To diagnose a wait:
    display rank among all live slot waiters. `wait_priority` is the value used inside
    each eligible or parked ordering group, and `wait_priority_explicit` distinguishes a
    deliberate `priority=N` from the implicit `10` default.
-3. Press fixed `Ctrl+R` in the Models panel to edit `max_running_agents` persistently or
+3. Press fixed `Ctrl+R` in Launch Control to edit `max_running_agents` persistently or
    apply/clear a temporary value. Parked implicit-cap agents reread the effective value
    and normally react within about two seconds. Setting another temporary value replaces
    the first; expiry or Clear resumes configured behavior.

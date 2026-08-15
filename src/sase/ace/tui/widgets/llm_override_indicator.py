@@ -83,7 +83,7 @@ class LLMOverrideIndicator(Static):
         self._apply_content()
 
     async def on_click(self) -> None:
-        """Open the Models panel."""
+        """Open Launch Control."""
         await self.app.run_action("open_models_panel")
 
     def _schedule_default_resolution_if_needed(self) -> None:
@@ -187,7 +187,7 @@ class LLMOverrideIndicator(Static):
                     "Temporary override on launch default",
                     format_tooltip_target(override),
                     format_tooltip_remaining(override.expires_at, now),
-                    "Press ,m for the Models panel.",
+                    "Press ,m for Launch Control.",
                 )
             )
 
@@ -201,7 +201,7 @@ class LLMOverrideIndicator(Static):
             (
                 f"Launch default: {default_label}",
                 "No temporary override active.",
-                "Press ,m for the Models panel.",
+                "Press ,m for Launch Control.",
             )
         )
 

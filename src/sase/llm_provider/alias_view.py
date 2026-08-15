@@ -58,7 +58,7 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     XLARGE_MODEL_ALIAS_NAME,
 )
 
-#: There are no built-in Models-panel buckets in the compact alias contract.
+#: There are no built-in Launch Control buckets in the compact alias contract.
 BUILTIN_MODEL_ALIAS_BUCKET_NAMES: frozenset[str] = frozenset()
 
 
@@ -85,7 +85,7 @@ class AliasView:
         effort: The alias-borne reasoning effort, or ``None`` when the alias
             does not override the configured/provider default.
         override: The active temporary override for this alias, or ``None``.
-        bucket: The optional Models-panel bucket for a custom alias.
+        bucket: The optional Launch Control bucket for a custom alias.
         reference_effort: Effort overlay carried by the row's immediate
             ``@name`` reference, or ``None`` for a concrete pinned target.
         implicit_value: Raw concrete/selector value supplied by an implicit alias.
@@ -170,7 +170,7 @@ class AliasView:
 
 @dataclass(frozen=True)
 class BucketView:
-    """A collapsed Models-panel bucket containing builtin and/or custom rows."""
+    """A collapsed Launch Control bucket containing builtin and/or custom rows."""
 
     name: str
     description: str | None
@@ -240,7 +240,7 @@ ModelsPanelOwnership = Literal["builtin", "user"]
 
 @dataclass(frozen=True)
 class ModelsPanelSection:
-    """One ownership section in an ordered Models-panel row partition."""
+    """One ownership section in an ordered Launch Control row partition."""
 
     ownership: ModelsPanelOwnership
     rows: tuple[ModelsPanelRow, ...]
@@ -254,7 +254,7 @@ class ModelsPanelSection:
 
 
 def is_user_owned(row: ModelsPanelRow) -> bool:
-    """Return the centralized Models-panel ownership classification for *row*.
+    """Return the centralized Launch Control ownership classification for *row*.
 
     Alias ownership follows the semantic alias kind, never its config-map
     location. Bucket ownership follows whether the bucket name is part of the
@@ -286,7 +286,7 @@ def split_models_panel_rows(
 ) -> tuple[ModelsPanelSection, ModelsPanelSection]:
     """Partition ordered panel rows into built-in and user-owned sections.
 
-    Relative order is preserved within both sections. The current Models-panel
+    Relative order is preserved within both sections. The current Launch Control
     order already places user-owned rows last, so concatenating the returned
     row tuples reproduces the input exactly.
     """
@@ -378,7 +378,7 @@ def build_alias_views(
         now: Optional fixed timestamp forwarded to the override loader (lets
             tests pin expiry); ``None`` uses the wall clock.
         overrides: Optional already-loaded temporary overrides. ``None`` keeps
-            the authoritative self-cleaning load used by the Models panel;
+            the authoritative self-cleaning load used by Launch Control;
             an explicit mapping, including ``{}``, is consumed verbatim.
     """
     names = model_alias_names()

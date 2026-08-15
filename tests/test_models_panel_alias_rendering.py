@@ -21,6 +21,7 @@ from sase.ace.tui.modals.models_panel_rendering import (
     _section_count_label,
 )
 from sase.ace.tui.modals.models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
     DefaultEffortSettingRow,
     LaunchModelSettingRow,
     RunnerLimitSettingRow,
@@ -154,9 +155,9 @@ def test_custom_builtin_warning_survives_active_override() -> None:
     ).plain
     description = _description_text_for_view(view).plain
 
-    assert line.startswith("  ! role")
+    assert line.startswith("  ! small")
     assert "configured → @large" in line
-    assert override_line.startswith("  ! role")
+    assert override_line.startswith("  ! small")
     assert "override · 1h left" in override_line
     assert description.splitlines() == [
         "! Misplaced builtin alias: @small",
@@ -283,9 +284,9 @@ def test_render_alias_row_ownership_gutter_is_semantic() -> None:
     builtin_line = _render_alias_row(builtin, now=0.0, provider_model_width=12).plain
     user_line = _render_alias_row(user, now=0.0, provider_model_width=12).plain
 
-    assert builtin_line.startswith("  ! role")
+    assert builtin_line.startswith("  ! small")
     assert not builtin_line.startswith("▌")
-    assert user_line.startswith("▌ user")
+    assert user_line.startswith("▌ researcher")
 
 
 def test_render_section_header_aligns_counts_with_row_state_column() -> None:
@@ -350,15 +351,31 @@ def test_render_scalar_setting_rows_show_effective_values() -> None:
             captured_at=0.0,
         )
     )
-    width = panel_value_column_width([effort_row, runner_row], now=0.0)
+    threshold_row = BigEpicPhaseThresholdSettingRow(1)
+    width = panel_value_column_width([effort_row, runner_row, threshold_row], now=0.0)
 
     effort_line = render_panel_row(effort_row, now=0.0, value_width=width).plain
     runner_line = render_panel_row(runner_row, now=0.0, value_width=width).plain
+    threshold_line = render_panel_row(threshold_row, now=0.0, value_width=width).plain
 
     assert "default effort" in effort_line
     assert "provider default" in effort_line
     assert "running agents" in runner_line
     assert str(DEFAULT_MAX_RUNNING_AGENTS) in runner_line
+    assert "big epic starts at" in threshold_line
+    assert "1 phase" in threshold_line
+
+
+def test_render_rows_do_not_include_old_kind_column_labels() -> None:
+    alias = make_alias_view("medium", "role", provider="codex", model="o3")
+    setting = BigEpicPhaseThresholdSettingRow(5)
+    alias_line = _render_alias_row(alias, now=0.0, provider_model_width=12).plain
+    setting_line = render_panel_row(setting, now=0.0, value_width=12).plain
+
+    assert not alias_line.startswith("  role")
+    assert alias_line.startswith("  medium")
+    assert " setting " not in setting_line
+    assert "5 phases" in setting_line
 
 
 def test_section_count_label_singularizes_and_omits_zero_buckets() -> None:
@@ -476,7 +493,7 @@ def test_render_alias_row_ellipsizes_combined_badge_and_effort() -> None:
         "user",
         configured=True,
         provider="claude",
-        model="claude-fable-4-10-extra-long",
+        model="claude-fable-4-10-extra-long-context-model-name",
         effort="minimal",
     )
 

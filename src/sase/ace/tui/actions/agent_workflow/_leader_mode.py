@@ -301,11 +301,11 @@ class LeaderModeMixin:
         return True
 
     def action_open_models_panel(self) -> None:
-        """Open the Models panel (top-bar override pills click here)."""
+        """Open Launch Control (top-bar override pills click here)."""
         self._open_models_panel()
 
     def _open_models_panel(self) -> None:
-        """Open the Models panel (leader ``,m`` by default)."""
+        """Open Launch Control (leader ``,m`` by default)."""
         from ...modals import ModelsPanel, ModelsPanelResult
         from ...widgets import (
             AliasOverridesIndicator,

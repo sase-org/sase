@@ -865,7 +865,7 @@ llm_provider:
   # @<alias> reference. An alias
   # reference may carry a trailing @<effort> that overrides its target's effort.
   # User-invented aliases live under custom and must include a description for
-  # completions and the Models panel. Bucket membership is display-only: ACE
+  # completions and Launch Control. Bucket membership is display-only: ACE
   # shows only buckets referenced by custom aliases.
   # Current shipped defaults and descriptions for every builtin alias below are
   # the single responsibility of
@@ -882,7 +882,7 @@ llm_provider:
   #     blogger:
   #       model: claude/opus
   #       description: "Agents that draft and edit blog posts."
-  #       bucket: writing          # optional Models-panel grouping
+  #       bucket: writing          # optional Launch Control grouping
   #   buckets:
   #     writing:
   #       description: "Writing and editing roles."

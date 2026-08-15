@@ -178,7 +178,7 @@ def test_tooltip_describes_inactive_default_states() -> None:
     assert indicator._build_tooltip(None) == (
         "Launch default: resolving...\n"
         "No temporary override active.\n"
-        "Press ,m for the Models panel."
+        "Press ,m for Launch Control."
     )
 
     indicator._cached_default = ("claude", "opus")
@@ -206,7 +206,7 @@ def test_tooltip_describes_active_override_with_effort_and_expiry() -> None:
         "Temporary override on launch default\n"
         "CLAUDE(opus) @ xhigh\n"
         "1h2m left\n"
-        "Press ,m for the Models panel."
+        "Press ,m for Launch Control."
     )
 
 
@@ -219,7 +219,7 @@ def test_tooltip_describes_until_cleared_override() -> None:
         "Temporary override on launch default\n"
         "CODEX(o3)\n"
         "Until cleared\n"
-        "Press ,m for the Models panel."
+        "Press ,m for Launch Control."
     )
 
 

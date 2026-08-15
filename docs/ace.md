@@ -761,22 +761,22 @@ timestamps for each hook.
 
 ### Leader Mode (`,` prefix)
 
-| Key        | Action                                                                               |
-| ---------- | ------------------------------------------------------------------------------------ |
-| `,,`       | Repeat the last leader command                                                       |
-| `,!`       | Run command using current PR context                                                 |
-| `,A`       | Open the Agent Run Log modal for the current PR                                      |
-| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                       |
-| `,C`       | Review mentors (opens Mentor Review modal)                                           |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`              |
-| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                 |
-| `,M`       | Kill running mentors                                                                 |
-| `,R`       | Show runners info                                                                    |
-| `,<space>` | Run agent from current PR (skips project selection)                                  |
-| `,.`       | Open prompt history modal                                                            |
-| `,>`       | Open prompt history modal with cancelled prompts visible                             |
-| `,?`       | Open Help for the current tab (Keymaps / Guide)                                      |
+| Key        | Action                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                         |
+| `,!`       | Run command using current PR context                                                   |
+| `,A`       | Open the Agent Run Log modal for the current PR                                        |
+| `,c`       | Clear COMMENTS field (kills CRS agents, deletes CRS proposals)                         |
+| `,C`       | Review mentors (opens Mentor Review modal)                                             |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                |
+| `,m`       | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
+| `,U`       | Update SASE/agent CLIs and import cached agent hoods                                   |
+| `,M`       | Kill running mentors                                                                   |
+| `,R`       | Show runners info                                                                      |
+| `,<space>` | Run agent from current PR (skips project selection)                                    |
+| `,.`       | Open prompt history modal                                                              |
+| `,>`       | Open prompt history modal with cancelled prompts visible                               |
+| `,?`       | Open Help for the current tab (Keymaps / Guide)                                        |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers
 use lifecycle-aware discovery: project entries, including `home` when it appears in
@@ -1923,7 +1923,7 @@ collapsed clan.
 | `,y`       | Refresh the Agents tab from full artifact history                                                 |
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
-| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
+| `,m`       | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control))            |
 | `,U`       | Update SASE/agent CLIs and import cached agent hoods                                              |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
@@ -2232,14 +2232,14 @@ property.
 
 ### Leader Mode (`,` prefix)
 
-| Key  | Action                                                                               |
-| ---- | ------------------------------------------------------------------------------------ |
-| `,,` | Repeat the last leader command                                                       |
-| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`              |
-| `,m` | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel)) |
-| `,U` | Update SASE/agent CLIs and import cached agent hoods                                 |
-| `,R` | Show runners info                                                                    |
-| `,?` | Open Help for the current tab (Keymaps / Guide)                                      |
+| Key  | Action                                                                                 |
+| ---- | -------------------------------------------------------------------------------------- |
+| `,,` | Repeat the last leader command                                                         |
+| `,h` | Run agent from home prompt context; bare prompts default to `#git:home`                |
+| `,m` | Open Launch Control (view/manage model aliases; see [Launch Control](#launch-control)) |
+| `,U` | Update SASE/agent CLIs and import cached agent hoods                                   |
+| `,R` | Show runners info                                                                      |
+| `,?` | Open Help for the current tab (Keymaps / Guide)                                        |
 
 ### Bang Mode (`!` prefix)
 
@@ -2532,41 +2532,48 @@ This Statistics sub-tab is distinct from the Admin Center's top-level **XPrompts
 described in [XPrompt Browser](#xprompt-browser): the top-level tab browses and edits
 xprompt definitions, while the Statistics sub-tab measures how launch prompts used them.
 
-## Models Panel
+<a id="models-panel"></a>
 
-Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for
-viewing and managing every model alias: the implicit role aliases (`default`,
-`epic_lander`, `big_epic_lander`, `xsmall_worker`, `small_worker`, `medium_worker`,
-`large_worker`, `xlarge_worker`, `smartest`, `smarter`, `smart`, `cheap`, `cheaper`,
-`cheapest`) and any user-defined `llm_provider.model_aliases.custom` entry. The same
-panel also owns temporary provider routing disables through `p=Providers`.
+## Launch Control {#launch-control}
 
-Each row shows the alias name with a small kind badge (`default` / `role` / `user`), its
-effective provider/model as a provider-themed badge, and a state tag — `configured`,
-`implicit` / `implicit → @<fallback>` / `implicit → @<fallback> @ <effort>`, or an
-`override · <time> left` / `override · until cleared` chip when a temporary override is
-active. Configured references use the same `configured → @<target> @ <effort>` form. A
-model-specific effort carried by an override appears beside the effective provider/model
-badge. The title's second line shows the launch-effective default effort. With no
-temporary override it says `default effort: @ <level>` or `provider default`; with an
-active override it shows that `@<level>`, its remaining time, and the configured value
-beside it. The third line shows the effective `max running agents` global cap; an active
-temporary cap shows its remaining time and configured value on the same line. An
-explicit effort suffix inherited from an alias target appears beside that row's model
-badge; rows that simply inherit the header default omit the redundant suffix. When one
-or more providers are temporarily disabled, the title adds a compact
+Press `,m` from any tab to open **Launch Control** — one keyboard-driven surface for
+launch configuration, model aliases, and temporary provider routing. The top level has
+three visible sections: **Launch settings**, **Built-in size aliases**, and **Your
+aliases**. Consecutive visible sections are separated by exactly one non-selectable
+blank row; there is no leading, trailing, or doubled spacer.
+
+Data rows use the grid `ownership gutter | name | value/model | state`. The former row
+kind column is gone: labels such as `launch`, `setting`, `role`, `user`, and `bucket` do
+not appear as their own column. User-owned aliases and buckets still have the tan `▌`
+ownership gutter, misplaced built-in aliases keep a gold `!` marker in the name cell,
+and collapsed buckets put `▸` directly before the bucket name.
+
+**Launch settings** contains six rows: `launch model`, `epic lander`, `big epic lander`,
+`big epic starts at`, `default effort`, and `running agents`. The three model rows show
+raw alias/config value → effective provider/model. `big epic starts at` shows the
+effective `bead.big_epic_phase_threshold` as `<N> phase` or `<N> phases`: epics with `N`
+or more authored phases use the big epic lander, while smaller epics use the regular
+epic lander. `default effort` and `running agents` show their launch-effective scalar
+values and any active temporary override state.
+
+Alias rows show the alias name, effective provider/model as a provider-themed badge, and
+a state tag — `configured`, `implicit` / `implicit → @<fallback>` /
+`implicit → @<fallback> @ <effort>`, or an `override · <time> left` /
+`override · until cleared` chip when a temporary override is active. Configured
+references use the same `configured → @<target> @ <effort>` form. A model-specific
+effort carried by an override appears beside the effective provider/model badge. When
+one or more providers are temporarily disabled, the title adds a compact
 `disabled providers:` line with each active provider and its remaining time, or
 `until cleared` for a no-expiry disable.
 
-The top level is split into **Built-in** and **Custom** sections. Each header reports
-the aliases represented by its rows (including members of collapsed buckets) and its
-bucket count. This sectioning groups the existing deterministic order without changing
-it: `default`, `epic_lander`, `big_epic_lander`, the built-in `worker` bucket,
-`smartest`, `smarter`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and
-ungrouped user aliases in alphabetical order. Every user-defined alias and bucket has a
-tan `▌` ownership gutter, and the **Custom** header carries the same glyph. If there are
-no custom aliases or buckets, the **Custom** section remains visible with a
-non-selectable hint naming `llm_provider.model_aliases.custom`.
+The alias area is split into **Built-in size aliases** and **Your aliases**. Each header
+reports the aliases represented by its rows (including members of collapsed buckets) and
+its bucket count. This sectioning groups the deterministic order without changing it:
+`default`, `epic_lander`, `big_epic_lander`, the built-in `worker` bucket, `smartest`,
+`smarter`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped
+user aliases in alphabetical order. If there are no custom aliases or buckets, **Your
+aliases** remains visible with a non-selectable hint naming
+`llm_provider.model_aliases.custom`.
 
 One built-in bucket is always present. `worker` groups `xsmall_worker`, `small_worker`,
 `medium_worker`, `large_worker`, and `xlarge_worker`, followed by any custom members
@@ -2579,10 +2586,12 @@ the default; custom aliases tagged with that bucket name coalesce into the match
 A built-in bucket containing custom members appends a tan `· <n> custom` chip after its
 warning and override chips. A custom bucket renders its bucket state in the ownership
 accent. The drilled-in title ends with `· built-in bucket` or `· custom bucket`, plus
-the ownership glyph for custom buckets. A mixed built-in bucket shows **Built-in** and
-**Custom** headers around its members; homogeneous buckets omit those redundant headers.
+the ownership glyph for custom buckets. A mixed bucket shows **Built-in** and **Custom**
+headers around its members with one blank row between them; homogeneous buckets omit
+those redundant headers and spacers.
 
-The two-line strip below the list explains the highlighted alias. Builtin aliases use
+The two-line strip below the list explains the highlighted row. Launch settings show
+their config path, effective value, and boundary/override context. Builtin aliases use
 fixed descriptions. User aliases use
 `llm_provider.model_aliases.custom.<name>.description`; a malformed user alias without
 one shows that config path as the fix. A non-pool alias with an explicit effort uses the
@@ -2610,21 +2619,37 @@ identifies the misplaced entry but does not rewrite the configuration automatica
 Because ownership follows the alias kind, the misplaced alias stays in the **Built-in**
 section and does not receive the ownership gutter.
 
-Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted
-alias:
+Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted row.
+Navigation skips headers, spacer rows, and the empty-custom hint.
 
-| Key                   | Action                                                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `l` / Right / `Enter` | **Open** the highlighted bucket                                                                                          |
-| `h` / Left            | **Back** to the top level from an open bucket                                                                            |
-| `o`                   | **Override** — set/change a time-bound temporary override (model picker → duration picker)                               |
-| `x`                   | **Clear** — remove the temporary override on this alias                                                                  |
-| `e`                   | **Edit** — change the persistent configured value (model picker / custom input / guided pool-fallback builder → preview) |
-| `r`                   | **Reset** — unset the configured value back to its implicit fallback                                                     |
-| `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing                                    |
-| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                                 |
-| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                                    |
-| `Esc` / `q`           | Close the panel                                                                                                          |
+| Key                   | Action                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| `l` / Right / `Enter` | **Open** the highlighted bucket                                                             |
+| `h` / Left            | **Back** to the top level from an open bucket                                               |
+| `o`                   | **Override** — set/change a time-bound temporary alias/default-effort/runner-limit override |
+| `x`                   | **Clear** — remove the active temporary override on the highlighted override-capable row    |
+| `e`                   | **Edit** — change the persistent configured value                                           |
+| `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                          |
+| `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing       |
+| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort    |
+| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit       |
+| `Esc` / `q`           | Close the panel                                                                             |
+
+On `big epic starts at`, `Enter` and `e` open a focused positive-integer editor, and `r`
+previews a reset. The input accepts an unsigned base-10 whole number with minimum `1`
+and no spaces, signs, floats, or booleans; the inline constraint reads
+`minimum 1 · package default 5`. The preview targets the writable user-base `sase.yml`
+or its chezmoi source at `bead.big_epic_phase_threshold`. Reset uses an unset operation
+so lower-precedence or package defaults resume; it does not write a literal `5`. There
+is no temporary threshold override. Pressing `o` or `x` on that row warns and points
+back to Edit/Reset.
+
+After a successful threshold write, Launch Control reloads the effective value and the
+epic-lander row descriptions from the same provider/launch snapshot. If a
+higher-precedence layer keeps the requested user value from winning, the notification
+reports the actual effective value and the requested value. Dirty Git-backed targets
+receive the standard tracked commit/pull/push offer with
+`chore: update big epic phase threshold`.
 
 ### Default effort controls
 
@@ -2662,7 +2687,7 @@ preview and success notification both make that explicit.
 
 ### Max running agents controls
 
-`Ctrl+R` is a fixed Models-panel binding and works from every alias, collapsed bucket,
+`Ctrl+R` is a fixed Launch Control binding and works from every alias, collapsed bucket,
 and open bucket. It is not a leader-keymap setting. The **Max Running Agents** card
 shows the current effective global cap and, while a temporary override is active, its
 remaining time plus the configured value. Press `e` to edit the user-base configuration,
@@ -2691,7 +2716,7 @@ question continuations reacquire against the current effective global cap.
 
 ### Provider routing controls
 
-Press `p` from the Models panel to open **Provider Routing**. The modal lists every
+Press `p` from Launch Control to open **Provider Routing**. The modal lists every
 user-facing registered LLM provider in stable order with its model count and one of
 three states:
 
@@ -2711,14 +2736,14 @@ around that provider. The flow uses the same duration choices as alias overrides
 `30m`, `1h`, `2h`, `4h`, `Until cleared`, a custom duration, or `t` for an exact local
 time/date. On a disabled row, `d` or Enter replaces the duration and `x` enables the
 provider immediately. Pressing `x` on an enabled row warns without mutating state.
-Successful changes refresh the provider rows, the Models title, alias routing rows, and
-the top-bar indicators without closing the modal, so several providers can be managed in
-one pass.
+Successful changes refresh the provider rows, Launch Control title, alias routing rows,
+and the top-bar indicators without closing the modal, so several providers can be
+managed in one pass.
 
 ACE also shows active provider disables in a compact top-bar pill beside the model
 override indicators. One disabled provider renders like `CLAUDE off 42m`; several render
 as the alphabetically first provider plus a count, such as `CLAUDE +2`. Hover lists
-every active provider and expiry, and clicking the pill opens the Models panel.
+every active provider and expiry, and clicking the pill opens Launch Control.
 
 ### Temporary overrides
 
@@ -2769,7 +2794,7 @@ Overrides are per-alias and independent:
   alphabetically first alias and counting the rest. In both pills, lane color carries
   the "override" meaning while the effort suffix and time use a recessive tone; `∞`
   means until cleared. Hover either pill for full target and expiry details, or click it
-  to open the Models panel.
+  to open Launch Control.
 
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit

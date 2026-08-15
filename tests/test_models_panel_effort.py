@@ -1,4 +1,4 @@
-"""Mounted Models-panel default-effort controls and persistent edit tests."""
+"""Mounted Launch Control default-effort controls and persistent edit tests."""
 
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ async def test_panel_title_and_chooser_show_effective_and_configured_values(
         pilot.app.push_screen(panel)
         await pilot.pause()
         title = panel.query_one("#models-panel-title", Static).content.plain
-        assert title == "Models"
+        assert title == "Launch Control"
         option_list = panel.query_one("#models-panel-list", OptionList)
         effort_row = option_list.get_option_at_index(
             option_list.get_option_index("setting:default_effort")

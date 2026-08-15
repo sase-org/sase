@@ -26,7 +26,7 @@ def test_render_bucket_row_contains_count_and_override_state() -> None:
 
     line = render_bucket_row(bucket, provider_model_width=13).plain
 
-    assert "▸ bucket" in line
+    assert "▸ research" in line
     assert "research" in line
     assert "2 aliases" in line
     assert "override · 1 active" in line
@@ -51,7 +51,7 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
     line = render_bucket_row(bucket, provider_model_width=13).plain
     description = description_text_for_row(bucket).plain
 
-    assert "▸ ! bucket" in line
+    assert "▸ ! worker" in line
     assert "! 1 misplaced" in line
     assert "1 override" in line
     assert description.splitlines() == [
@@ -79,7 +79,7 @@ def test_render_custom_bucket_with_warning_and_override() -> None:
 
     line = render_bucket_row(bucket, provider_model_width=13).plain
 
-    assert line.startswith("▌ ▸ ! bucket")
+    assert line.startswith("▌ ▸ ! worker")
     assert line.endswith("! 1 misplaced · 1 override")
 
 
@@ -91,13 +91,19 @@ def test_render_user_bucket_uses_ownership_gutter_and_accent() -> None:
     )
 
     rendered = render_bucket_row(bucket, provider_model_width=13)
+    bucket_name = [
+        span
+        for span in rendered.spans
+        if rendered.plain[span.start : span.end].strip() == "▸ research"
+    ][-1]
     bucket_state = [
         span
         for span in rendered.spans
         if rendered.plain[span.start : span.end] == "bucket"
     ][-1]
 
-    assert rendered.plain.startswith("▌ ▸ bucket")
+    assert rendered.plain.startswith("▌ ▸ research")
+    assert OWNERSHIP_ACCENT.lower() in str(bucket_name.style).lower()
     assert OWNERSHIP_ACCENT.lower() in str(bucket_state.style).lower()
 
 

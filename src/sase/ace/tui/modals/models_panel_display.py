@@ -29,8 +29,10 @@ from .models_panel_rendering import (
     render_launch_settings_header,
     render_panel_row,
     render_section_header,
+    render_section_spacer,
 )
 from .models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
     DefaultEffortSettingRow,
     LaunchModelSettingRow,
     ModelsPanelDisplayRow,
@@ -45,6 +47,7 @@ else:
 
 _SECTION_ID_PREFIX = "__models-section__:"
 _HINT_ID_PREFIX = "__models-hint__:"
+_SPACER_ID_PREFIX = "__models-spacer__:"
 
 
 class ModelsPanelDisplayMixin(_MixinBase):
@@ -93,6 +96,8 @@ class ModelsPanelDisplayMixin(_MixinBase):
         def _effort_write_busy(self) -> bool: ...
 
         def _runner_limit_write_busy(self) -> bool: ...
+
+        def _threshold_write_busy(self) -> bool: ...
 
         def _provider_write_busy(self) -> bool: ...
 
@@ -178,6 +183,16 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]esc[/dim]=Close"
             )
+        if isinstance(row, BigEpicPhaseThresholdSettingRow):
+            return (
+                "[green]e/enter[/green]=Edit  "
+                "[green]r[/green]=Reset  "
+                "[green]p[/green]=Providers\n"
+                "[green]ctrl+e[/green]=Effort  "
+                "[green]ctrl+r[/green]=Limit  "
+                "[dim]j/k[/dim]=Navigate  "
+                "[dim]esc[/dim]=Close"
+            )
         footer = (
             "[green]ctrl+e[/green]=Effort  "
             "[green]ctrl+r[/green]=Limit  "
@@ -192,7 +207,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         return footer + ("  [dim]j/k[/dim]=Navigate  [dim]esc[/dim]=Close")
 
     def _title_text(self) -> Text:
-        text = Text("Models", style="bold cyan")
+        text = Text("Launch Control", style="bold cyan")
         if self._active_bucket is not None:
             text.append(" › ", style="dim")
             bucket = self._bucket_by_name.get(self._active_bucket)
@@ -228,7 +243,13 @@ class ModelsPanelDisplayMixin(_MixinBase):
     @staticmethod
     def _row_id(row: ModelsPanelDisplayRow) -> str:
         if isinstance(
-            row, (LaunchModelSettingRow, DefaultEffortSettingRow, RunnerLimitSettingRow)
+            row,
+            (
+                LaunchModelSettingRow,
+                DefaultEffortSettingRow,
+                RunnerLimitSettingRow,
+                BigEpicPhaseThresholdSettingRow,
+            ),
         ):
             return row.row_id
         if isinstance(row, BucketView):
@@ -271,6 +292,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
                         LaunchModelSettingRow,
                         DefaultEffortSettingRow,
                         RunnerLimitSettingRow,
+                        BigEpicPhaseThresholdSettingRow,
                     ),
                 )
             ]
@@ -302,7 +324,25 @@ class ModelsPanelDisplayMixin(_MixinBase):
             alias_rows = [row for row in rows if isinstance(row, AliasView)]
             provider_model_width = provider_model_column_width(alias_rows)
             sections, show_headers = self._current_sections(alias_rows)
+        visible_section_index = 0 if options else -1
         for section in sections:
+            section_visible = bool(section.rows) or (
+                self._active_bucket is None and section.is_user_owned
+            )
+            if not section_visible:
+                continue
+            if options and visible_section_index >= 0:
+                options.append(
+                    Option(
+                        render_section_spacer(),
+                        id=(
+                            f"{_SPACER_ID_PREFIX}"
+                            f"{self._active_bucket or 'top'}:{section.ownership}"
+                        ),
+                        disabled=True,
+                    )
+                )
+            visible_section_index += 1
             if show_headers:
                 options.append(
                     Option(
@@ -503,6 +543,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
             or self._clear_worker is not None
             or self._effort_write_busy()
             or self._runner_limit_write_busy()
+            or self._threshold_write_busy()
             or self._provider_write_busy()
         ):
             self.notify("An override update is still in progress.", severity="warning")
@@ -546,6 +587,8 @@ class ModelsPanelDisplayMixin(_MixinBase):
             self.action_manage_default_effort()
         elif isinstance(row, RunnerLimitSettingRow):
             self.action_manage_runner_limit()
+        elif isinstance(row, BigEpicPhaseThresholdSettingRow):
+            self.action_edit_big_epic_phase_threshold()
         else:
             self.action_override()
 
@@ -556,3 +599,5 @@ class ModelsPanelDisplayMixin(_MixinBase):
         def action_manage_default_effort(self) -> None: ...
 
         def action_manage_runner_limit(self) -> None: ...
+
+        def action_edit_big_epic_phase_threshold(self) -> None: ...

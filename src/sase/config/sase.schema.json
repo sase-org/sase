@@ -2002,7 +2002,7 @@
             },
             "custom": {
               "type": "object",
-              "description": "User-defined custom model aliases usable from %model:@<alias> / %m:@<alias>. Each custom alias must include both the target model and a short description shown in completions and the Models panel.",
+              "description": "User-defined custom model aliases usable from %model:@<alias> / %m:@<alias>. Each custom alias must include both the target model and a short description shown in completions and Launch Control.",
               "additionalProperties": {
                 "type": "object",
                 "additionalProperties": false,
@@ -2022,14 +2022,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40,
-                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged."
+                    "description": "Optional display-only bucket in the ACE Launch Control; alias resolution remains flat and unchanged."
                   }
                 }
               }
             },
             "buckets": {
               "type": "object",
-              "description": "Optional display-only Models-panel bucket metadata for buckets referenced by custom aliases.",
+              "description": "Optional display-only Launch Control bucket metadata for buckets referenced by custom aliases.",
               "propertyNames": {
                 "minLength": 1,
                 "maxLength": 40

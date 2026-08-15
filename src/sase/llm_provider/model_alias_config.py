@@ -111,7 +111,7 @@ def _custom_model_alias_buckets() -> dict[str, str]:
 
 
 def model_alias_bucket(name: str) -> str | None:
-    """Return the Models-panel bucket for custom alias *name*, if configured."""
+    """Return Launch Control bucket for custom alias *name*, if configured."""
     alias = name.strip()
     if not alias:
         return None
@@ -119,7 +119,7 @@ def model_alias_bucket(name: str) -> str | None:
 
 
 def model_alias_bucket_description(bucket: str) -> str | None:
-    """Return the optional human description for Models-panel *bucket*."""
+    """Return the optional human description for Launch Control *bucket*."""
     bucket_name = bucket.strip()
     if not bucket_name:
         return None

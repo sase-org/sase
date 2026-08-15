@@ -69,7 +69,7 @@ async def test_leader_footer_final_grid_row_visible(
             page.export_svg(title="ACE footer leader"),
             "LEADER",
             "run cmd (PR)",
-            "models panel",
+            "Launch Control",
             "update SASE + CLIs + hood cache",
             "STOPPED",
         )

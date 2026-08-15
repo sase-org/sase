@@ -2508,12 +2508,14 @@ DefaultEffortLevelModal {
 
 /* Models panel — global runner-limit action and value cards */
 RunnerLimitActionModal,
-RunnerLimitValueModal {
+RunnerLimitValueModal,
+BigEpicPhaseThresholdValueModal {
     align: center middle;
 }
 
 #runner-limit-action-container,
-#runner-limit-value-container {
+#runner-limit-value-container,
+#big-epic-threshold-value-container {
     width: 72;
     max-width: 94%;
     height: auto;
@@ -2527,8 +2529,13 @@ RunnerLimitValueModal {
     width: 58;
 }
 
+#big-epic-threshold-value-container {
+    width: 60;
+}
+
 #runner-limit-action-title,
-#runner-limit-value-title {
+#runner-limit-value-title,
+#big-epic-threshold-value-title {
     width: 100%;
     height: auto;
     text-align: center;
@@ -2556,13 +2563,16 @@ RunnerLimitValueModal {
 
 #runner-limit-action-note,
 #runner-limit-value-subtitle,
-#runner-limit-value-constraints {
+#runner-limit-value-constraints,
+#big-epic-threshold-value-subtitle,
+#big-epic-threshold-value-constraints {
     height: auto;
     color: $text-muted;
     margin-bottom: 1;
 }
 
-#runner-limit-value-input {
+#runner-limit-value-input,
+#big-epic-threshold-value-input {
     width: 100%;
     height: 3;
     margin-bottom: 1;
@@ -2570,7 +2580,8 @@ RunnerLimitValueModal {
     text-style: bold;
 }
 
-#runner-limit-value-error {
+#runner-limit-value-error,
+#big-epic-threshold-value-error {
     width: 100%;
     height: 1;
     color: $warning;
@@ -2578,7 +2589,8 @@ RunnerLimitValueModal {
 }
 
 #runner-limit-action-footer,
-#runner-limit-value-footer {
+#runner-limit-value-footer,
+#big-epic-threshold-value-footer {
     width: 100%;
     height: auto;
     text-align: center;

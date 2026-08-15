@@ -21,24 +21,23 @@ from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 from .models_panel_duration import format_remaining
 from .models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
     DefaultEffortSettingRow,
     LaunchModelSettingRow,
     ModelsPanelDisplayRow,
     RunnerLimitSettingRow,
 )
 
-_KIND_CELL = 13
 _NAME_CELL = 22
 _OWNERSHIP_GUTTER_CELL = 2
 
 # The provider/model badge is treated as its own column so the rightmost
 # state/provenance tag lines up across rows. The column is sized to the widest
 # badge currently visible, capped so the state tag stays inside the preferred
-# 110-column modal budget. Its roughly 100-cell option rows leave room for the
-# fixed kind/name columns, inner spaces, state gap, longest state tag, and a
-# 32-cell provider/model badge. Narrow viewports fall back to whole-row
-# ellipsis via the Rich Text returned by :func:`render_alias_row`.
-PROVIDER_MODEL_CELL_MAX = 32
+# 110-column modal budget. Removing the old 13-cell kind column and separator
+# gives those 14 cells back to long alias/model expressions while preserving
+# the established state-column budget.
+PROVIDER_MODEL_CELL_MAX = 46
 _STATE_GAP = "   "
 
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
@@ -94,6 +93,11 @@ def _section_count_label(section: ModelsPanelSection) -> str:
     return label
 
 
+def render_section_spacer() -> Text:
+    """Render the disabled blank row between adjacent visible sections."""
+    return Text("", no_wrap=True)
+
+
 def render_section_header(
     section: ModelsPanelSection,
     *,
@@ -103,7 +107,7 @@ def render_section_header(
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=section.is_user_owned)
     label = _CUSTOM_SECTION_LABEL if section.is_user_owned else _BUILTIN_SECTION_LABEL
-    rule_width = _KIND_CELL + 1 + _NAME_CELL + 1 + provider_model_width
+    rule_width = _NAME_CELL + 1 + provider_model_width
     rule_label = f"── {label} "
     rule = rule_label + ("─" * max(0, rule_width - len(rule_label)))
     rule_style = _OWNERSHIP_STYLE if section.is_user_owned else _BUILTIN_SECTION_STYLE
@@ -117,7 +121,7 @@ def render_launch_settings_header(*, value_width: int, count: int) -> Text:
     """Render the disabled launch-settings section header."""
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=False)
-    rule_width = _KIND_CELL + 1 + _NAME_CELL + 1 + value_width
+    rule_width = _NAME_CELL + 1 + value_width
     rule_label = f"── {_LAUNCH_SECTION_LABEL} "
     rule = rule_label + ("─" * max(0, rule_width - len(rule_label)))
     text.append(_pad(rule, rule_width), style=_BUILTIN_SECTION_STYLE)
@@ -268,6 +272,18 @@ def _runner_limit_value_text(row: RunnerLimitSettingRow, *, now: float) -> Text:
     return text
 
 
+def format_phase_threshold(threshold: int) -> str:
+    """Return the visible threshold value with correct singularization."""
+    noun = "phase" if threshold == 1 else "phases"
+    return f"{threshold} {noun}"
+
+
+def _threshold_value_text(row: BigEpicPhaseThresholdSettingRow) -> Text:
+    text = Text(no_wrap=True, overflow="ellipsis")
+    text.append(format_phase_threshold(row.threshold), style="bold cyan")
+    return text
+
+
 def _row_value_text(row: ModelsPanelDisplayRow, *, now: float) -> Text:
     """Return the aligned value-column text for any data row."""
     if isinstance(row, LaunchModelSettingRow):
@@ -276,6 +292,8 @@ def _row_value_text(row: ModelsPanelDisplayRow, *, now: float) -> Text:
         return _default_effort_value_text(row, now=now)
     if isinstance(row, RunnerLimitSettingRow):
         return _runner_limit_value_text(row, now=now)
+    if isinstance(row, BigEpicPhaseThresholdSettingRow):
+        return _threshold_value_text(row)
     if isinstance(row, BucketView):
         return Text(_count_label(row.alias_count, "alias"), style="dim")
     return _provider_model_text(row)
@@ -310,7 +328,7 @@ def panel_value_column_width(
 def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) -> Text:
     """Render one alias row as a single-line Rich ``Text``.
 
-    Layout: ``<ownership> <kind> <name> <PROVIDER(model)> <state>``.
+    Layout: ``<ownership> <name> <PROVIDER(model)> <state>``.
     The provider/model badge is fitted to *provider_model_width* - padded when
     short and ellipsized when it exceeds the cap - so the rightmost state tag
     starts at the same cell across every row. Building a ``Text`` (rather than
@@ -319,16 +337,15 @@ def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) 
     """
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=view.is_user_owned)
-    kind = kind_label(view)
+    name = view.name
     if view.is_custom_builtin_shadow:
-        text.append(_pad(f"! {kind}", _KIND_CELL), style=_WARNING_STYLE)
+        text.append(_pad(f"! {name}", _NAME_CELL), style=_WARNING_STYLE)
     else:
+        name_style = MODEL_ALIAS_KIND_STYLES.get(view.kind, "bold")
         text.append(
-            _pad(kind, _KIND_CELL),
-            style=MODEL_ALIAS_KIND_STYLES.get(view.kind),
+            _pad(name, _NAME_CELL),
+            style=name_style,
         )
-    text.append(" ")
-    text.append(_pad(view.name, _NAME_CELL), style="bold")
     text.append(" ")
     badge = _provider_model_text(view)
     badge.truncate(provider_model_width, overflow="ellipsis", pad=True)
@@ -377,9 +394,12 @@ def _runner_limit_state_tag(row: RunnerLimitSettingRow, now: float) -> Text:
     return Text("configured", style="dim #9E9E9E")
 
 
+def _threshold_state_tag(_row: BigEpicPhaseThresholdSettingRow) -> Text:
+    return Text("configured", style="dim #9E9E9E")
+
+
 def _render_setting_row(
     *,
-    kind: str,
     name: str,
     value: Text,
     state: Text,
@@ -387,8 +407,6 @@ def _render_setting_row(
 ) -> Text:
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=False)
-    text.append(_pad(kind, _KIND_CELL), style="bold #87D7FF")
-    text.append(" ")
     text.append(_pad(name, _NAME_CELL), style="bold")
     text.append(" ")
     value.truncate(value_width, overflow="ellipsis", pad=True)
@@ -406,7 +424,6 @@ def _render_launch_setting_row(
 ) -> Text:
     """Render one launch model-setting row."""
     return _render_setting_row(
-        kind="launch",
         name=row.label,
         value=_launch_value_text(row),
         state=_launch_setting_state_tag(row, now),
@@ -422,7 +439,6 @@ def _render_default_effort_row(
 ) -> Text:
     """Render the default-effort row."""
     return _render_setting_row(
-        kind="setting",
         name=row.label,
         value=_default_effort_value_text(row, now=now),
         state=_default_effort_state_tag(row, now),
@@ -438,10 +454,23 @@ def _render_runner_limit_row(
 ) -> Text:
     """Render the running-agents row."""
     return _render_setting_row(
-        kind="setting",
         name=row.label,
         value=_runner_limit_value_text(row, now=now),
         state=_runner_limit_state_tag(row, now),
+        value_width=value_width,
+    )
+
+
+def _render_threshold_row(
+    row: BigEpicPhaseThresholdSettingRow,
+    *,
+    value_width: int,
+) -> Text:
+    """Render the big-epic threshold row."""
+    return _render_setting_row(
+        name=row.label,
+        value=_threshold_value_text(row),
+        state=_threshold_state_tag(row),
         value_width=value_width,
     )
 
@@ -459,6 +488,8 @@ def render_panel_row(
         return _render_default_effort_row(row, now=now, value_width=value_width)
     if isinstance(row, RunnerLimitSettingRow):
         return _render_runner_limit_row(row, now=now, value_width=value_width)
+    if isinstance(row, BigEpicPhaseThresholdSettingRow):
+        return _render_threshold_row(row, value_width=value_width)
     if isinstance(row, BucketView):
         return render_bucket_row(row, provider_model_width=value_width)
     return render_alias_row(row, now=now, provider_model_width=value_width)
@@ -468,7 +499,9 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
     """Render one collapsed bucket using the alias-row column skeleton."""
     text = Text(no_wrap=True, overflow="ellipsis")
     _append_ownership_gutter(text, user_owned=bucket.is_user_owned)
-    bucket_label = "▸ ! bucket" if bucket.custom_builtin_shadow_count else "▸ bucket"
+    bucket_label = f"▸ {bucket.name}"
+    if bucket.custom_builtin_shadow_count:
+        bucket_label = f"▸ ! {bucket.name}"
     bucket_style = (
         _WARNING_STYLE
         if bucket.custom_builtin_shadow_count
@@ -476,10 +509,7 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
         if bucket.is_user_owned
         else _BUCKET_STYLE
     )
-    text.append(_pad(bucket_label, _KIND_CELL), style=bucket_style)
-    text.append(" ")
-    name_style = _OWNERSHIP_STYLE if bucket.is_user_owned else "bold"
-    text.append(_pad(bucket.name, _NAME_CELL), style=name_style)
+    text.append(_pad(bucket_label, _NAME_CELL), style=bucket_style)
     text.append(" ")
     count_label = _count_label(bucket.alias_count, "alias")
     text.append(_pad(count_label, provider_model_width), style="dim")
@@ -596,6 +626,18 @@ def _description_text_for_runner_limit(
         "Maximum number of agents admitted to run at once.", style=_DESCRIPTION_STYLE
     )
     text.append(f"\nconfigured: {row.snapshot.configured_limit}", style="dim")
+    return text
+
+
+def _description_text_for_threshold(row: BigEpicPhaseThresholdSettingRow) -> Text:
+    text = Text()
+    text.append(
+        "Epics with "
+        f"{row.threshold} or more authored phases use the big epic lander; "
+        "smaller epics use the regular epic lander.",
+        style=_DESCRIPTION_STYLE,
+    )
+    text.append(f"\n{row.config_path}: {row.threshold}", style="dim")
     return text
 
 
@@ -733,6 +775,8 @@ def description_text_for_row(
         return _description_text_for_default_effort(row, now=now)
     if isinstance(row, RunnerLimitSettingRow):
         return _description_text_for_runner_limit(row, now=now)
+    if isinstance(row, BigEpicPhaseThresholdSettingRow):
+        return _description_text_for_threshold(row)
     if isinstance(row, BucketView):
         return _description_text_for_bucket(row)
     return description_text_for_view(row, default_effort)

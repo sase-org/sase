@@ -31,7 +31,7 @@ It remains fully registered and routable: the explicit spellings above
 (`%model:fakey-large`, `sase run -m fakey-large`) and `%model:fakey/fakey-large` all
 still work, and the picker's `Custom...` entry accepts them by hand. There is no
 implicit `@fakey_coder` role alias; if you deliberately configure
-`model_aliases.custom.fakey_coder`, it appears in the ACE Models panel (`,m`) as an
+`model_aliases.custom.fakey_coder`, it appears in the ACE Launch Control (`,m`) as an
 ordinary user alias.
 
 Fakey is also intentionally absent from `sase agent-cli` inventories and the SASE Admin

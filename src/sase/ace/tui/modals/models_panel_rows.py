@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from sase.config import EffectiveRunnerLimitSnapshot
+from sase.bead.config import DEFAULT_BIG_EPIC_PHASE_THRESHOLD
 from sase.llm_provider import AliasView, BucketView, EffectiveDefaultEffortSnapshot
 from sase.llm_provider.config import (
     BIG_EPIC_LANDER_MODEL_FIELD,
@@ -17,7 +18,9 @@ from sase.llm_provider.config import (
 from sase.llm_provider.model_launch_settings import LaunchModelField
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 
-ScalarSettingKind = Literal["default_effort", "runner_limit"]
+ScalarSettingKind = Literal[
+    "default_effort", "runner_limit", "big_epic_phase_threshold"
+]
 
 
 @dataclass(frozen=True)
@@ -76,10 +79,23 @@ class RunnerLimitSettingRow:
     kind: ScalarSettingKind = "runner_limit"
 
 
+@dataclass(frozen=True)
+class BigEpicPhaseThresholdSettingRow:
+    """Captured big-epic authored-phase threshold row."""
+
+    threshold: int = DEFAULT_BIG_EPIC_PHASE_THRESHOLD
+
+    row_id: str = "setting:big_epic_phase_threshold"
+    label: str = "big epic starts at"
+    kind: ScalarSettingKind = "big_epic_phase_threshold"
+    config_path: str = "bead.big_epic_phase_threshold"
+
+
 ModelsPanelDisplayRow = (
     LaunchModelSettingRow
     | DefaultEffortSettingRow
     | RunnerLimitSettingRow
+    | BigEpicPhaseThresholdSettingRow
     | AliasView
     | BucketView
 )
@@ -95,18 +111,20 @@ def build_launch_model_setting_rows(
     *,
     provider_disables: dict[str, TemporaryProviderDisable],
     big_epic_phase_threshold: int,
-) -> tuple[LaunchModelSettingRow, ...]:
-    """Build display-ready launch-model setting rows."""
+) -> tuple[LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...]:
+    """Build display-ready launch-setting rows."""
     details = {
         DEFAULT_MODEL_FIELD: "Used when a launch has no explicit %model directive.",
         EPIC_LANDER_MODEL_FIELD: (
-            f"Used by epic land agents below {big_epic_phase_threshold} phases."
+            "Used by epic land agents for epics with fewer than "
+            f"{big_epic_phase_threshold} authored phases."
         ),
         BIG_EPIC_LANDER_MODEL_FIELD: (
-            f"Used by epic land agents at {big_epic_phase_threshold}+ phases."
+            "Used by epic land agents for epics with "
+            f"{big_epic_phase_threshold} or more authored phases."
         ),
     }
-    return tuple(
+    rows: tuple[LaunchModelSettingRow, ...] = tuple(
         LaunchModelSettingRow(
             field=field,
             label=label,
@@ -119,9 +137,11 @@ def build_launch_model_setting_rows(
         )
         for field, label in _LAUNCH_SETTING_ORDER
     )
+    return (*rows, BigEpicPhaseThresholdSettingRow(big_epic_phase_threshold))
 
 
 __all__ = [
+    "BigEpicPhaseThresholdSettingRow",
     "DefaultEffortSettingRow",
     "LaunchModelSettingRow",
     "ModelsPanelDisplayRow",

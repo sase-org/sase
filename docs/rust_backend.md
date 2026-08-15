@@ -98,7 +98,7 @@ The intentionally Python-owned host surfaces include:
   user-facing launch callbacks. Rust owns deterministic launch planning/preparation and
   the low-level detached spawn binding.
 - LLM provider registration, selector policy, temporary alias-override precedence,
-  dispatch decisions, and ACE Models-panel provider-routing UI stay on the Python host
+  dispatch decisions, and ACE Launch Control provider-routing UI stay on the Python host
   path. The provider-disable facade delegates durable state and mutation atomicity to
   the Rust binding, but Python remains responsible for deciding how an active disable
   affects aliases, completions, explicit requests, and already-running provider

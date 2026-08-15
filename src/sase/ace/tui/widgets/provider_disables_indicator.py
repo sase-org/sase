@@ -41,7 +41,7 @@ class ProviderDisablesIndicator(Static):
         return super().refresh()
 
     async def on_click(self) -> None:
-        """Open the Models panel."""
+        """Open Launch Control."""
         await self.app.run_action("open_models_panel")
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
@@ -114,7 +114,7 @@ class ProviderDisablesIndicator(Static):
                 "Disabled providers:",
                 *lines,
                 "New launches route around them; running processes continue.",
-                "Press ,m for the Models panel.",
+                "Press ,m for Launch Control.",
             )
         )
 

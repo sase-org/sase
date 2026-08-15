@@ -86,7 +86,7 @@ Key design principles:
 | `src/sase/llm_provider/model_alias_policy.py`     | Model-alias name constants and the validating loader for `model_alias_defaults.yml`      |
 | `src/sase/llm_provider/model_alias_config.py`     | Model-alias config parsing and presentation metadata                                     |
 | `src/sase/llm_provider/model_alias_resolution.py` | Alias/target/effort resolution logic                                                     |
-| `src/sase/llm_provider/alias_view.py`             | ACE Models-panel alias-view construction (`build_alias_views()`)                         |
+| `src/sase/llm_provider/alias_view.py`             | ACE Launch Control alias-view construction (`build_alias_views()`)                       |
 | `src/sase/llm_provider/config.py`                 | Config file reader (`sase.yml`)                                                          |
 | `src/sase/llm_provider/temporary_override.py`     | Primary/worker temporary override state and resolution                                   |
 | `src/sase/llm_provider/provider_disable.py`       | Rust-backed temporary provider-disable facade                                            |
@@ -1072,8 +1072,8 @@ llm_provider:
 | `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                                                                                                                                                             |
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                                                                                                                                                             |
 | `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `epic_lander`, `big_epic_lander`, `<size>_worker`, `smartest`, `smarter`, `smart`, `cheap`, `cheaper`, `cheapest`). Values use the single-target grammar below, a `\|` round-robin pool, or a `\|\|` ordered fallback. Retired `coder`, `<provider>_coder`, `epic_creator`, `phase_worker`, and `<size>_phase_worker` names are no longer builtin overrides; `sase doctor` reports them. |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and the Models panel.                                                                                                                                                                      |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                       |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and Launch Control.                                                                                                                                                                        |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Per-Prompt Provider Switching
 
@@ -1152,17 +1152,18 @@ including candidate-specific trailing reasoning effort. Whitespace is trimmed an
 members are invalid. `|` and `||` cannot be mixed in one value, and a member may follow
 an ordinary alias chain but cannot reach another pool or fallback. Selector expressions
 are config-only: `%model` values, launch-scoped alias overrides, and temporary overrides
-remain single targets. The ACE Models panel's persistent Edit path authors selectors
+remain single targets. The ACE Launch Control's persistent Edit path authors selectors
 directly — hand-typed in the custom input or assembled with a guided pool/fallback
 builder — while its temporary Override path refuses a typed pool or fallback outright,
 pointing at Edit, rather than silently accepting and corrupting it. An override on the
 alias that owns a selector bypasses that expression for the override's lifetime. The ACE
-Models panel shows every member's availability, an aggregate `pool <available>/<total>`
-chip for round-robin pools, and a `→` on the current selection. A temporary alias
-override labels the member list suspended only while its provider is available. If its
-provider is temporarily disabled, the stored override is paused, the live selector
-target is shown instead, and the override resumes automatically after the provider
-disable is cleared or expires while the override itself is still active.
+Launch Control shows every member's availability, an aggregate
+`pool <available>/<total>` chip for round-robin pools, and a `→` on the current
+selection. A temporary alias override labels the member list suspended only while its
+provider is available. If its provider is temporarily disabled, the stored override is
+paused, the live selector target is shown instead, and the override resumes
+automatically after the provider disable is cleared or expires while the override itself
+is still active.
 
 To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
 for agents whose metadata has `model_alias: "default"` or the explicit alias being
@@ -1176,8 +1177,8 @@ removed top-level `custom_model_aliases`, custom names under `model_aliases.buil
 builtin names under `model_aliases.custom`, collisions between the two maps, missing
 custom descriptions/models, dangling `@alias` references, empty or mixed selectors, and
 nested selectors. Unavailable selector providers are reported as informational notes;
-for an ordered fallback the note also identifies the current winner. In ACE, the Models
-panel shows descriptions from config; a user alias without one shows the
+for an ordered fallback the note also identifies the current winner. In ACE, Launch
+Control shows descriptions from config; a user alias without one shows the
 `llm_provider.model_aliases.custom.<name>.description` path to fix.
 
 The same alias vocabulary appears in the `%model:` / `%m:` completion menu in ACE and in
@@ -1188,10 +1189,10 @@ rows for temporarily disabled providers are omitted, while aliases remain and sh
 current fallback target. Provider rows such as `claude/` sit at the bottom of the broad
 menu; accepting one opens that provider's scoped model list and inserts qualified values
 such as `claude/opus`. See [xprompt directive syntax](xprompt.md#syntax) for the row
-anatomy. The completion menu is read-only; the ACE Models panel (`,m`) remains the
+anatomy. The completion menu is read-only; the ACE Launch Control (`,m`) remains the
 authoritative place to edit alias targets and to set or clear temporary overrides.
 
-The ACE Models panel supplies one built-in bucket without changing resolution,
+The ACE Launch Control supplies one built-in bucket without changing resolution,
 completion, launch routing, or config paths. `worker` folds together the five
 `@<size>_worker` aliases. A collapsed bucket summarizes its effective-model mix and
 active overrides; opening it exposes independently editable aliases. Optional
@@ -1444,7 +1445,7 @@ The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `
 `medium`, `high`, `xhigh`, `max`. Spelling is validated globally; _which_ levels a given
 provider honors is decided per provider (below).
 
-The ACE Models panel shows the launch-effective default in its header
+The ACE Launch Control shows the launch-effective default in its header
 (`default effort: @ <level>`), or says `provider default` when none is configured. An
 active temporary value carries an override countdown plus an annotation for the
 underlying configured value. Alias-borne effort appears only on rows that explicitly pin
@@ -1452,7 +1453,7 @@ or inherit a suffix, beside the provider/model badge; the description strip comp
 with the current effective default. For pools, each member keeps its own suffix in the
 member list and the row badge reflects the next selected member.
 
-Press `Ctrl+E` in the Models panel for the global default-effort workflow. `e` opens a
+Press `Ctrl+E` in Launch Control for the global default-effort workflow. `e` opens a
 permanent Edit and `o` opens a temporary Override; when an override is active, `x`
 clears it. Both paths use the canonical single-key ladder (`1` `none` through `7`
 `max`). Edit additionally offers `0` Provider default and writes the empty sentinel to
@@ -1609,7 +1610,7 @@ per-bead/land model metadata always win over role defaults.
 In addition to prompt-level [launch-scoped overrides](#launch-scoped-alias-overrides)
 and the tier-based global override, sase supports **concrete** provider/model overrides
 that act as temporary, time-bound machine-wide overrides of a model alias. The ACE `,m`
-chord opens the [**Models** panel](ace.md#models-panel) for setting, changing, and
+chord opens the [**Launch Control**](ace.md#launch-control) for setting, changing, and
 clearing these overrides — for the `default` alias or any role/user alias.
 
 The panel also shows a two-line description for the highlighted alias or bucket. Builtin
@@ -1687,12 +1688,13 @@ configured default.
 
 ## Temporary Provider Disables
 
-The ACE Models panel's `p=Providers` flow can temporarily disable a registered provider
-for new routing without editing `sase.yml` or unregistering the plugin. Provider-disable
-state is machine-wide runtime state in `~/.sase/llm_provider_disables.json`, owned by
-the Rust core and exposed through `src/sase/llm_provider/provider_disable.py`. The
-lock-free `provider_disable_peek.py` reader is reserved for high-frequency display and
-completion paths; launches and writes use the authoritative Rust-backed facade.
+The ACE Launch Control's `p=Providers` flow can temporarily disable a registered
+provider for new routing without editing `sase.yml` or unregistering the plugin.
+Provider-disable state is machine-wide runtime state in
+`~/.sase/llm_provider_disables.json`, owned by the Rust core and exposed through
+`src/sase/llm_provider/provider_disable.py`. The lock-free `provider_disable_peek.py`
+reader is reserved for high-frequency display and completion paths; launches and writes
+use the authoritative Rust-backed facade.
 
 Provider disables are an availability layer:
 
@@ -1842,15 +1844,15 @@ back-compat shims that operate on the `default` alias:
 
 ### Examples
 
-- Models panel (`,m`), highlight `default`, `o`, pick `codex/o3`, duration `1h` →
+- Launch Control (`,m`), highlight `default`, `o`, pick `codex/o3`, duration `1h` →
   `~/.sase/llm_override.json` gains a `default` entry; new launches default to CODEX(o3)
   for the next hour.
-- Models panel, open `worker`, highlight `medium_worker`, `o`, pick
+- Launch Control, open `worker`, highlight `medium_worker`, `o`, pick
   `opencode/anthropic/claude-sonnet-4-5`, `Until cleared` → medium phases without an
   explicit model inherit that target until cleared.
-- Models panel, highlight `default`, `o`, pick `sonnet`, duration `30m` → known bare
+- Launch Control, highlight `default`, `o`, pick `sonnet`, duration `30m` → known bare
   model; provider resolves to claude via plugin metadata.
-- Models panel, highlight an alias, `x` → that alias's override is cleared; when the
+- Launch Control, highlight an alias, `x` → that alias's override is cleared; when the
   last override is removed the state file is deleted and defaults revert to permanent
   config / autodetect.
 

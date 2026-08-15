@@ -410,7 +410,7 @@ class KeybindingModesMixin:
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
             if has_notification:
                 bindings.append((k("jump_to_notification"), "notification"))
-        bindings.append((k("models_panel"), "models panel"))
+        bindings.append((k("models_panel"), "Launch Control"))
         bindings.append((k("update_sase"), "update SASE + CLIs + hood cache"))
         self._update_display(bindings, mode_label="LEADER")
 

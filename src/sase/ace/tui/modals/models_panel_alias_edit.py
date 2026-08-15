@@ -38,6 +38,7 @@ from .models_panel_effort_cards import (
     DefaultEffortPickerMode,
 )
 from .models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
     DefaultEffortSettingRow,
     LaunchModelSettingRow,
     RunnerLimitSettingRow,
@@ -76,6 +77,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             | LaunchModelSettingRow
             | DefaultEffortSettingRow
             | RunnerLimitSettingRow
+            | BigEpicPhaseThresholdSettingRow
             | object
             | None
         ): ...
@@ -106,6 +108,10 @@ class ModelsPanelAliasEditMixin(_MixinBase):
 
         def _on_runner_limit_action(self, result: RunnerLimitAction | None) -> None: ...
 
+        def action_edit_big_epic_phase_threshold(self) -> None: ...
+
+        def action_reset_big_epic_phase_threshold(self) -> None: ...
+
     def action_edit(self) -> None:
         selected = self._selected_row()
         if isinstance(selected, DefaultEffortSettingRow):
@@ -113,6 +119,9 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return
         if isinstance(selected, RunnerLimitSettingRow):
             self._on_runner_limit_action("edit")
+            return
+        if isinstance(selected, BigEpicPhaseThresholdSettingRow):
+            self.action_edit_big_epic_phase_threshold()
             return
         row = self._selected_model_row()
         if row is None:
@@ -143,6 +152,9 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return
         if isinstance(selected, RunnerLimitSettingRow):
             self.notify("Use e to edit the running-agent limit", severity="warning")
+            return
+        if isinstance(selected, BigEpicPhaseThresholdSettingRow):
+            self.action_reset_big_epic_phase_threshold()
             return
         row = self._selected_model_row()
         if row is None:

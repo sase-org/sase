@@ -11,6 +11,7 @@ from __future__ import annotations
 from textual.screen import ModalScreen
 from textual.worker import Worker
 
+from .config_commit import ConfigCommitOffer
 from sase.config import (
     DEFAULT_MAX_RUNNING_AGENTS,
     EffectiveRunnerLimitSnapshot,
@@ -63,6 +64,10 @@ from .models_panel_override import ModelsPanelOverrideMixin
 from .models_panel_providers import ModelsPanelProvidersMixin
 from .models_panel_runner_limit import ModelsPanelRunnerLimitMixin
 from .models_panel_runner_limit_edit import build_runner_limit_commit_offer
+from .models_panel_threshold import ModelsPanelThresholdMixin
+from .models_panel_threshold_edit import (
+    build_big_epic_phase_threshold_commit_offer,
+)
 from .model_picker_modal import AliasSelectionContext
 from .models_panel_rendering import (
     PROVIDER_MODEL_CELL_MAX as _PROVIDER_MODEL_CELL_MAX,
@@ -74,6 +79,7 @@ from .models_panel_rendering import (
     state_tag as _state_tag,
 )
 from .models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
     DefaultEffortSettingRow,
     LaunchModelSettingRow,
     ModelsPanelDisplayRow,
@@ -97,6 +103,7 @@ class ModelsPanel(
     ModelsPanelEffortMixin,
     ModelsPanelProvidersMixin,
     ModelsPanelOverrideMixin,
+    ModelsPanelThresholdMixin,
     ModelsPanelAliasEditMixin,
     OptionListNavigationMixin,
     ModalScreen[ModelsPanelResult],
@@ -151,7 +158,9 @@ class ModelsPanel(
         self._provider_snapshot_signal_changes = False
         self._provider_snapshot_update_rows = False
         self._provider_routing_changed = False
-        self._launch_model_rows: tuple[LaunchModelSettingRow, ...] = ()
+        self._launch_model_rows: tuple[
+            LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...
+        ] = self._provider_snapshot.launch_model_rows
         self._views: list[AliasView] = []
         self._top_rows: list[ModelsPanelDisplayRow] = []
         self._bucket_by_name: dict[str, BucketView] = {}
@@ -195,6 +204,9 @@ class ModelsPanel(
         self._runner_limit_commit_offer_worker: (
             Worker[AliasCommitOffer | None] | None
         ) = None
+        self._threshold_commit_offer_worker: Worker[ConfigCommitOffer | None] | None = (
+            None
+        )
         self._runner_limit_write_value: int | None = None
         self._runner_limit_write_result: (
             RelativeOverrideDuration
@@ -349,6 +361,11 @@ class ModelsPanel(
     def _build_runner_limit_commit_offer(self, path: str) -> AliasCommitOffer | None:
         return build_runner_limit_commit_offer(path)
 
+    def _build_big_epic_phase_threshold_commit_offer(
+        self, path: str
+    ) -> ConfigCommitOffer | None:
+        return build_big_epic_phase_threshold_commit_offer(path)
+
     def _request_agents_refresh(self, source: str) -> None:
         request_refresh = getattr(self.app, "request_agents_refresh", None)
         if callable(request_refresh):
@@ -363,12 +380,15 @@ class ModelsPanel(
             return
         if self._on_runner_limit_worker_state_changed(event):
             return
+        if self._on_threshold_worker_state_changed(event):
+            return
         ModelsPanelOverrideMixin.on_worker_state_changed(self, event)
 
     def on_unmount(self) -> None:
         self._cancel_config_commit_offer()
         self._cancel_effort_workers()
         self._cancel_runner_limit_workers()
+        self._cancel_threshold_workers()
         self._cancel_provider_workers()
         for worker in (self._override_worker, self._clear_worker):
             if worker is not None and not worker.is_finished:

@@ -52,6 +52,7 @@ from .models_panel_time import (
     ResolvedOverrideUntil,
 )
 from .models_panel_rows import LaunchModelSettingRow, build_launch_model_setting_rows
+from .models_panel_rows import BigEpicPhaseThresholdSettingRow
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -77,7 +78,9 @@ class _ProviderRoutingSnapshot:
     alias_views: tuple[AliasView, ...]
     provider_colors: Mapping[str, str]
     captured_at: float
-    launch_model_rows: tuple[LaunchModelSettingRow, ...] = ()
+    launch_model_rows: tuple[
+        LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...
+    ] = ()
     big_epic_phase_threshold: int = DEFAULT_BIG_EPIC_PHASE_THRESHOLD
 
     @property
@@ -803,7 +806,9 @@ class ModelsPanelProvidersMixin(_MixinBase):
         _provider_snapshot_signal_changes: bool
         _provider_snapshot_update_rows: bool
         _provider_statuses: tuple[ProviderRoutingStatus, ...]
-        _launch_model_rows: tuple[LaunchModelSettingRow, ...]
+        _launch_model_rows: tuple[
+            LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...
+        ]
         _views: list[AliasView]
 
         def _models_panel_now(self) -> float: ...
@@ -821,12 +826,18 @@ class ModelsPanelProvidersMixin(_MixinBase):
         def _emit_custom_builtin_shadow_warning(self) -> None: ...
 
     def _initial_provider_snapshot(self) -> _ProviderRoutingSnapshot:
+        launch_rows = build_launch_model_setting_rows(
+            provider_disables={},
+            big_epic_phase_threshold=DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
+        )
         return _ProviderRoutingSnapshot(
             statuses=(),
             provider_disables={},
             alias_views=(),
             provider_colors={},
             captured_at=self._models_panel_now(),
+            launch_model_rows=launch_rows,
+            big_epic_phase_threshold=DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
         )
 
     def _load_provider_routing_snapshot(self) -> _ProviderRoutingSnapshot:

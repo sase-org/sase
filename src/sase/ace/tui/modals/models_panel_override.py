@@ -37,6 +37,7 @@ from .models_panel_effort_cards import (
     DefaultEffortLevelModal,
 )
 from .models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
     DefaultEffortSettingRow,
     LaunchModelSettingRow,
     RunnerLimitSettingRow,
@@ -91,6 +92,7 @@ class ModelsPanelOverrideMixin(_MixinBase):
             | LaunchModelSettingRow
             | DefaultEffortSettingRow
             | RunnerLimitSettingRow
+            | BigEpicPhaseThresholdSettingRow
             | object
             | None
         ): ...
@@ -127,6 +129,13 @@ class ModelsPanelOverrideMixin(_MixinBase):
         if isinstance(selected, RunnerLimitSettingRow):
             self._on_runner_limit_action("override")
             return
+        if isinstance(selected, BigEpicPhaseThresholdSettingRow):
+            self.notify(
+                "big epic starts at has no temporary override; press e to edit "
+                "or r to reset.",
+                severity="warning",
+            )
+            return
         row = self._selected_model_row()
         if row is None:
             return
@@ -159,6 +168,13 @@ class ModelsPanelOverrideMixin(_MixinBase):
             return
         if isinstance(selected, RunnerLimitSettingRow):
             self._on_runner_limit_action("clear")
+            return
+        if isinstance(selected, BigEpicPhaseThresholdSettingRow):
+            self.notify(
+                "big epic starts at has no temporary override; press e to edit "
+                "or r to reset.",
+                severity="warning",
+            )
             return
         row = self._selected_model_row()
         if row is None:

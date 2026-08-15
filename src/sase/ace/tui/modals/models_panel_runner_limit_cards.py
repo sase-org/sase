@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Literal
 
 from rich.text import Text
@@ -15,23 +14,19 @@ from textual.widgets import Input, Label, Static
 from sase.config import EffectiveRunnerLimitSnapshot
 
 from .models_panel_duration import format_remaining
+from .models_panel_positive_int import parse_positive_base10
 
 type RunnerLimitAction = Literal["edit", "override", "clear"]
 type RunnerLimitMode = Literal["edit", "override"]
 
-_POSITIVE_INTEGER_RE = re.compile(r"[0-9]+")
-
 
 def _parse_runner_limit(raw: str) -> int:
     """Parse one unadorned base-10 positive integer."""
-    if not raw:
-        raise ValueError("Enter a running-agent limit.")
-    if raw != raw.strip() or _POSITIVE_INTEGER_RE.fullmatch(raw) is None:
-        raise ValueError("Use a whole base-10 number with no sign or spaces.")
-    value = int(raw, 10)
-    if value < 1:
-        raise ValueError("The running-agent limit must be at least 1.")
-    return value
+    return parse_positive_base10(
+        raw,
+        empty="Enter a running-agent limit.",
+        minimum="The running-agent limit must be at least 1.",
+    )
 
 
 def _format_agents(limit: int) -> str:

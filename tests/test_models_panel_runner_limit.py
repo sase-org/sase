@@ -1,4 +1,4 @@
-"""Mounted Models-panel maximum-running-agents controls."""
+"""Mounted Launch Control maximum-running-agents controls."""
 
 from __future__ import annotations
 
@@ -121,7 +121,7 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         pilot.app.push_screen(panel)
         await pilot.pause()
         title = panel.query_one("#models-panel-title", Static).content.plain
-        assert title == "Models"
+        assert title == "Launch Control"
         option_list = panel.query_one("#models-panel-list", OptionList)
         runner_row = option_list.get_option_at_index(
             option_list.get_option_index("setting:runner_limit")

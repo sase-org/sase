@@ -11,7 +11,10 @@ import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
 from sase.ace.tui.modals.models_panel import ModelsPanel, ModelsPanelResult
 from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
-from sase.ace.tui.modals.models_panel_rows import LaunchModelSettingRow
+from sase.ace.tui.modals.models_panel_rows import (
+    BigEpicPhaseThresholdSettingRow,
+    LaunchModelSettingRow,
+)
 from sase.llm_provider.config import (
     BIG_EPIC_LANDER_MODEL_FIELD,
     DEFAULT_MODEL_FIELD,
@@ -59,11 +62,14 @@ def _launch_setting_row(
     )
 
 
-def _launch_setting_rows() -> tuple[LaunchModelSettingRow, ...]:
+def _launch_setting_rows() -> tuple[
+    LaunchModelSettingRow | BigEpicPhaseThresholdSettingRow, ...
+]:
     return (
         _launch_setting_row(DEFAULT_MODEL_FIELD, "launch model"),
         _launch_setting_row(EPIC_LANDER_MODEL_FIELD, "epic lander"),
         _launch_setting_row(BIG_EPIC_LANDER_MODEL_FIELD, "big epic lander"),
+        BigEpicPhaseThresholdSettingRow(5),
     )
 
 
@@ -218,7 +224,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
         option_list = panel.query_one("#models-panel-list", OptionList)
         alias_index = option_list.get_option_index("small")
         alias_row = option_list.get_option_at_index(alias_index).prompt.plain
-        assert alias_row.startswith("  ! role")
+        assert alias_row.startswith("  ! small")
         assert "override · 1h left" in alias_row
         highlight_row(panel, "small")
         description = panel.query_one("#models-panel-description", Static).content.plain
@@ -230,7 +236,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
         await pilot.pause()
         alias_index = option_list.get_option_index("small")
         assert option_list.get_option_at_index(alias_index).prompt.plain.startswith(
-            "  ! role"
+            "  ! small"
         )
         panel.notify.assert_called_once()
 
@@ -250,7 +256,7 @@ async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
         repaired_alias_row = option_list.get_option_at_index(
             repaired_alias_index
         ).prompt.plain
-        assert repaired_alias_row.startswith("  role")
+        assert repaired_alias_row.startswith("  small")
         assert "override · 1h left" in repaired_alias_row
         panel.notify.assert_called_once()
 
@@ -281,7 +287,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket == "research"
         assert panel._highlighted_row_id() == "research_a"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › ▌ research · custom bucket"
+            "Launch Control › ▌ research · custom bucket"
         )
         assert "h" in str(panel.query_one("#models-panel-footer", Static).content)
 
@@ -290,7 +296,7 @@ async def test_panel_l_drills_into_bucket_and_h_restores_bucket(monkeypatch) -> 
         assert panel._active_bucket is None
         assert panel._highlighted_row_id() == "bucket:research"
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models"
+            "Launch Control"
         )
 
 
@@ -323,6 +329,7 @@ async def test_panel_size_alias_navigation_and_order(
             "launch:default_model",
             "launch:epic_lander_model",
             "launch:big_epic_lander_model",
+            "setting:big_epic_phase_threshold",
             "setting:default_effort",
             "setting:runner_limit",
             "xsmall",
@@ -408,7 +415,8 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
             pilot.app.push_screen(panel)
             await wait_for(pilot, started.is_set)
             await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
-            assert "launch:default_model" not in panel._row_by_id
+            assert "launch:default_model" in panel._row_by_id
+            assert "setting:big_epic_phase_threshold" in panel._row_by_id
             highlight_row(panel, "bucket:research")
             assert panel._highlighted_row_id() == "bucket:research"
 
@@ -449,7 +457,7 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
 
         assert panel._active_bucket is None
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models"
+            "Launch Control"
         )
         assert "plain" in panel._row_by_id
 
@@ -480,6 +488,7 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
             "launch:default_model",
             "launch:epic_lander_model",
             "launch:big_epic_lander_model",
+            "setting:big_epic_phase_threshold",
             "setting:default_effort",
             "setting:runner_limit",
             "large",
@@ -572,7 +581,7 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
         assert panel._highlighted_row_id() == "phase_reviewer"
         assert option_list.option_count == 1
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › ▌ worker · custom bucket"
+            "Launch Control › ▌ worker · custom bucket"
         )
 
         panel._refresh_rows(keep="phase_reviewer")
@@ -595,7 +604,7 @@ async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
         await pilot.pause()
 
         title = panel.query_one("#models-panel-title", Static).content.plain
-        assert title == "Models"
+        assert title == "Launch Control"
         effort.assert_called_once_with()
 
 

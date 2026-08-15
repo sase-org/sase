@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the Models panel's alias edit preview.
+"""ACE TUI PNG visual snapshot for the Launch Control's alias edit preview.
 
 Phase 3 (epic sase-5e): pin how :class:`AliasEditPreviewModal` renders the
 persistent-edit preview — the operation summary, target file, effective
@@ -199,7 +199,7 @@ async def test_models_panel_edit_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_edit_preview_120x40",
-            title="ACE models panel — alias edit preview (diff + confirm)",
+            title="ACE Launch Control — alias edit preview (diff + confirm)",
         )
 
 
@@ -228,7 +228,7 @@ async def test_models_panel_default_effort_edit_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_effort_edit_preview_120x40",
-            title="ACE models panel — chezmoi default-effort edit preview",
+            title="ACE Launch Control — chezmoi default-effort edit preview",
         )
 
 
@@ -257,7 +257,7 @@ async def test_models_panel_runner_limit_edit_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_runner_limit_edit_preview_120x40",
-            title="ACE models panel — chezmoi runner-limit edit preview",
+            title="ACE Launch Control — chezmoi runner-limit edit preview",
         )
 
 
@@ -295,5 +295,5 @@ async def test_models_panel_selector_builder_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_selector_builder_120x40",
-            title="ACE models panel — pool / fallback selector builder",
+            title="ACE Launch Control — pool / fallback selector builder",
         )

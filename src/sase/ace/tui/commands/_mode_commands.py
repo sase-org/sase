@@ -70,9 +70,9 @@ _LEADER_LABELS: dict[str, str] = {
     "prompt_history_cancelled": "Prompt history (cancelled)",
     "agent_run_log": "Agent run log",
     "jump_to_notification": "Jump to notification",
-    "models_panel": "Models panel",
+    "models_panel": "Launch Control",
     # Back-compat: a user keymap may still bind the pre-rename action id.
-    "temporary_llm_override": "Models panel",
+    "temporary_llm_override": "Launch Control",
     "update_sase": "Update SASE, agent CLIs, and cached agent hoods",
     "capture_agents_repro": "Capture Agents-tab repro bundle",
     "toggle_agents_repro_checks": "Toggle Agents-tab repro checks",

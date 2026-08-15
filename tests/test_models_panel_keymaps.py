@@ -1,7 +1,7 @@
-"""Cross-source keymap, footer, and help sync for the Models panel (``,m``).
+"""Cross-source keymap, footer, and help sync for the Launch Control (``,m``).
 
 Phase 2 (epic sase-5e): the leader ``,m`` action was renamed
-``temporary_llm_override`` → ``models_panel`` and now opens the Models panel.
+``temporary_llm_override`` → ``models_panel`` and now opens the Launch Control.
 These tests pin that the typed defaults, bundled YAML, ``?`` help modal, and
 footer all agree.
 """
@@ -58,13 +58,13 @@ def test_leader_default_in_yaml() -> None:
 def test_help_modal_includes_models_panel_on_main_tabs(build_sections) -> None:
     reg = full_registry()
     flat = flatten_help_keys(build_sections(reg))
-    assert ",m|Models panel" in flat
+    assert ",m|Launch Control" in flat
 
 
 def test_help_modal_axe_tab_includes_models_panel() -> None:
     reg = full_registry()
     flat = flatten_help_keys(axe_bindings(reg))
-    assert ",m|Models panel" in flat
+    assert ",m|Launch Control" in flat
 
 
 def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
@@ -72,7 +72,7 @@ def test_help_modal_keybinding_uses_configured_leader_prefix() -> None:
         {"keymaps": {"modes": {"leader_mode": {"prefix": "semicolon"}}}}
     )
     flat = flatten_help_keys(cls_bindings(reg))
-    assert ";m|Models panel" in flat
+    assert ";m|Launch Control" in flat
 
 
 def test_help_modal_keybinding_uses_configured_models_panel_key() -> None:
@@ -80,7 +80,7 @@ def test_help_modal_keybinding_uses_configured_models_panel_key() -> None:
         {"keymaps": {"modes": {"leader_mode": {"keys": {"models_panel": "P"}}}}}
     )
     flat = flatten_help_keys(cls_bindings(reg))
-    assert ",P|Models panel" in flat
+    assert ",P|Launch Control" in flat
 
 
 # ---------------------------------------------------------------------------
@@ -103,13 +103,13 @@ def _capture_footer(tab: str) -> list[tuple[str, str]]:
 
 def test_footer_leader_bindings_include_models_panel() -> None:
     bindings = _capture_footer("changespecs")  # legacy wire key
-    assert any(label == "models panel" for _, label in bindings)
+    assert any(label == "Launch Control" for _, label in bindings)
 
 
 @pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])  # legacy wire key
 def test_footer_leader_bindings_present_on_every_tab(tab: str) -> None:
     bindings = _capture_footer(tab)
-    assert any(label == "models panel" for _, label in bindings)
+    assert any(label == "Launch Control" for _, label in bindings)
 
 
 def test_models_panel_includes_bucket_drill_bindings() -> None:

@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for Models-panel navigation and drill-in states."""
+"""ACE TUI PNG snapshots for Launch Control navigation and drill-in states."""
 
 from __future__ import annotations
 
@@ -49,14 +49,20 @@ async def _wait_for_models_panel_ready(page: AcePage) -> None:
         try:
             option_list = screen.query_one("#models-panel-list", OptionList)
             option_list.get_option_index("launch:default_model")
+            ready = screen._provider_snapshot_worker is None
+            ready = ready and any(
+                row_id.startswith("bucket:") or not row_id.startswith("launch:")
+                for row_id in screen._row_by_id
+                if not row_id.startswith("setting:")
+            )
         except Exception:
             return False
-        return True
+        return ready
 
     await wait_for_state(
         page,
         launch_row_is_ready,
-        description="Models-panel launch rows loaded",
+        description="Launch Control rows loaded",
     )
 
 
@@ -96,7 +102,7 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The Models-panel Edit path shows a filtered, highlighted alias row."""
+    """The Launch Control Edit path shows a filtered, highlighted alias row."""
     patch_startup_loaders(monkeypatch)
     _patch_alias_views(monkeypatch, calm_views)
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
@@ -120,7 +126,7 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_alias_picker_filtered_120x40",
-            title="ACE models panel — filtered alias picker",
+            title="ACE Launch Control — filtered alias picker",
         )
 
 
@@ -151,7 +157,7 @@ async def test_models_panel_alias_picker_reordered_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_alias_picker_reordered_120x40",
-            title="ACE models panel — alias-enabled picker reordered",
+            title="ACE Launch Control — alias-enabled picker reordered",
         )
 
 
@@ -177,7 +183,7 @@ async def test_models_panel_alias_picker_reordered_narrow_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_alias_picker_reordered_70x32",
-            title="ACE models panel — narrow alias-enabled picker",
+            title="ACE Launch Control — narrow alias-enabled picker",
         )
 
 
@@ -204,7 +210,7 @@ async def test_models_panel_builtin_selection_effort_step_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_builtin_effort_picker_120x40",
-            title="ACE models panel — effort after builtin model",
+            title="ACE Launch Control — effort after builtin model",
         )
 
 
@@ -243,7 +249,7 @@ async def test_models_panel_alias_selection_effort_step_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_alias_effort_picker_120x40",
-            title="ACE models panel — effort after alias selection",
+            title="ACE Launch Control — effort after alias selection",
         )
 
 
@@ -268,7 +274,7 @@ async def test_models_panel_worker_override_drilled_in_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_worker_override_drilled_in_120x40",
-            title="ACE models panel (worker bucket open with override)",
+            title="ACE Launch Control (worker bucket open with override)",
         )
 
 
@@ -293,7 +299,7 @@ async def test_models_panel_worker_drilled_in_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_worker_drilled_in_120x40",
-            title="ACE models panel (worker bucket open)",
+            title="ACE Launch Control (worker bucket open)",
         )
 
 
@@ -322,7 +328,7 @@ async def test_models_panel_bucket_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_bucket_120x40",
-            title="ACE models panel (bucket collapsed)",
+            title="ACE Launch Control (bucket collapsed)",
         )
 
 
@@ -352,7 +358,7 @@ async def test_models_panel_bucket_drilled_in_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_bucket_drilled_in_120x40",
-            title="ACE models panel (bucket open)",
+            title="ACE Launch Control (bucket open)",
         )
 
 
@@ -378,5 +384,5 @@ async def test_models_panel_mixed_builtin_bucket_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_mixed_builtin_bucket_120x40",
-            title="ACE models panel (mixed built-in bucket open)",
+            title="ACE Launch Control (mixed built-in bucket open)",
         )

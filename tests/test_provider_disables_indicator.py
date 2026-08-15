@@ -91,7 +91,7 @@ def test_tooltip_lists_active_provider_disables() -> None:
         "CLAUDE - until cleared\n"
         "CODEX - 1h2m left\n"
         "New launches route around them; running processes continue.\n"
-        "Press ,m for the Models panel."
+        "Press ,m for Launch Control."
     )
 
 

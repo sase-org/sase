@@ -1564,7 +1564,7 @@ round-robin selectors). Typing `@` right after the colon (`%m:@`) narrows the me
 aliases only; a bare partial such as `de` still matches `@default` through its bare
 name, but always after the model rows. The ACE menu reflects active temporary alias
 overrides, while the LSP's catalog is a launch-time snapshot that does not — restart the
-LSP to pick up config changes, and use the ACE [Models panel](ace.md#models-panel)
+LSP to pick up config changes, and use the ACE [Launch Control](ace.md#launch-control)
 (`,m`) to inspect live override state.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in

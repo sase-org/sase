@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for Models-panel duration modals."""
+"""ACE TUI PNG snapshots for Launch Control duration modals."""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ async def test_models_panel_default_effort_action_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_effort_action_120x40",
-            title="ACE models panel — default-effort action chooser",
+            title="ACE Launch Control — default-effort action chooser",
         )
 
 
@@ -73,12 +73,12 @@ async def test_models_panel_default_effort_action_png_snapshot(
         (
             "edit",
             "models_panel_effort_level_edit_120x40",
-            "ACE models panel — persistent effort-level picker",
+            "ACE Launch Control — persistent effort-level picker",
         ),
         (
             "override",
             "models_panel_effort_level_override_120x40",
-            "ACE models panel — temporary effort-level picker",
+            "ACE Launch Control — temporary effort-level picker",
         ),
     ],
 )
@@ -125,7 +125,7 @@ async def test_models_panel_runner_limit_action_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_runner_limit_action_120x40",
-            title="ACE models panel — runner-limit action chooser",
+            title="ACE Launch Control — runner-limit action chooser",
         )
 
 
@@ -135,13 +135,13 @@ async def test_models_panel_runner_limit_action_png_snapshot(
         (
             "edit",
             "models_panel_runner_limit_value_edit_120x40",
-            "ACE models panel — persistent runner-limit editor",
+            "ACE Launch Control — persistent runner-limit editor",
             10,
         ),
         (
             "override",
             "models_panel_runner_limit_value_override_120x40",
-            "ACE models panel — temporary runner-limit editor",
+            "ACE Launch Control — temporary runner-limit editor",
             4,
         ),
     ],
@@ -254,7 +254,7 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_provider_routing_modal_120x40",
-            title="ACE models panel — provider routing modal",
+            title="ACE Launch Control — provider routing modal",
         )
 
 
@@ -295,7 +295,7 @@ async def test_models_panel_provider_routing_until_cleared_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_provider_routing_until_cleared_120x40",
-            title="ACE models panel — provider routing until cleared",
+            title="ACE Launch Control — provider routing until cleared",
         )
 
 
@@ -344,7 +344,7 @@ async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_provider_routing_modal_narrow_70x32",
-            title="ACE models panel — narrow provider routing modal",
+            title="ACE Launch Control — narrow provider routing modal",
         )
 
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for primary Models-panel states."""
+"""ACE TUI PNG snapshots for primary Launch Control states."""
 
 from __future__ import annotations
 
@@ -56,14 +56,20 @@ async def _wait_for_models_panel_ready(page: AcePage) -> None:
         try:
             option_list = screen.query_one("#models-panel-list", OptionList)
             option_list.get_option_index("launch:default_model")
+            ready = screen._provider_snapshot_worker is None
+            ready = ready and any(
+                row_id.startswith("bucket:") or not row_id.startswith("launch:")
+                for row_id in screen._row_by_id
+                if not row_id.startswith("setting:")
+            )
         except Exception:
             return False
-        return True
+        return ready
 
     await wait_for_state(
         page,
         launch_row_is_ready,
-        description="Models-panel launch rows loaded",
+        description="Launch Control rows loaded",
     )
 
 
@@ -89,12 +95,13 @@ async def test_models_panel_empty_custom_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
+        await _wait_for_models_panel_ready(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_empty_custom_120x40",
-            title="ACE models panel (empty Custom section)",
+            title="ACE Launch Control (empty custom section)",
         )
 
 
@@ -113,12 +120,13 @@ async def test_models_panel_default_png_snapshot(
 
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
+        await _wait_for_models_panel_ready(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_default_120x40",
-            title="ACE models panel (no overrides)",
+            title="ACE Launch Control (no overrides)",
         )
 
 
@@ -141,13 +149,14 @@ async def test_models_panel_default_effort_override_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
+        await _wait_for_models_panel_ready(page)
         await wait_for_svg_contains(page, "override · 42m left")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_effort_override_120x40",
-            title="ACE models panel — active default-effort override",
+            title="ACE Launch Control - active default-effort override",
         )
 
 
@@ -170,13 +179,14 @@ async def test_models_panel_runner_limit_override_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
+        await _wait_for_models_panel_ready(page)
         await wait_for_svg_contains(page, "override · 42m left")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_runner_limit_override_120x40",
-            title="ACE models panel — active runner-limit override",
+            title="ACE Launch Control - active runner-limit override",
         )
 
 
@@ -201,7 +211,7 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_smartest_max_effort_120x40",
-            title="ACE models panel (maximum-effort smartest target)",
+            title="ACE Launch Control (maximum-effort smartest target)",
         )
 
 
@@ -228,7 +238,7 @@ async def test_models_panel_pool_effort_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_pool_effort_120x40",
-            title="ACE models panel (pool and effort)",
+            title="ACE Launch Control (pool and effort)",
         )
 
 
@@ -254,7 +264,7 @@ async def test_models_panel_effort_provenance_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_effort_provenance_120x40",
-            title="ACE models panel (effort provenance)",
+            title="ACE Launch Control (effort provenance)",
         )
 
 
@@ -280,7 +290,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_pool_suspended_120x40",
-            title="ACE models panel (pool suspended by override)",
+            title="ACE Launch Control (pool suspended by override)",
         )
 
 
@@ -299,12 +309,13 @@ async def test_models_panel_overrides_png_snapshot(
 
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
+        await _wait_for_models_panel_ready(page)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_overrides_120x40",
-            title="ACE models panel (overrides active)",
+            title="ACE Launch Control (overrides active)",
         )
 
 
@@ -379,20 +390,20 @@ async def test_models_panel_provider_disabled_png_snapshot(
         await wait_for_state(
             page,
             provider_line_is_visible,
-            description="Models-panel provider disable title line",
+            description="Launch Control provider disable title line",
         )
         _highlight_row(page, "medium_worker")
         await wait_for_state(
             page,
             paused_override_row_is_visible,
-            description="Models-panel paused override row",
+            description="Launch Control paused override row",
         )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_provider_disabled_120x40",
-            title="ACE models panel — provider disabled worker bucket",
+            title="ACE Launch Control - provider disabled worker bucket",
         )
 
 
@@ -417,5 +428,5 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "models_panel_custom_builtin_warning_120x40",
-            title="ACE models panel (misplaced builtin warning)",
+            title="ACE Launch Control (misplaced builtin warning)",
         )

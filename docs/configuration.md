@@ -226,12 +226,12 @@ commit. The repository is discovered from the written file, so a remapped edit u
 chezmoi source repository. When `use_chezmoi` is enabled, a successful push is followed
 by a full `chezmoi apply`. Each failure stops the sequence at that step, without undoing
 the written config change. Skipping the offer—or editing a file outside git—also leaves
-the successful write in place. The [Models panel](ace.md#persistent-edits) uses the same
-workflow for persistent alias edits, while its fixed `Ctrl+E` binding previews and
+the successful write in place. The [Launch Control](ace.md#persistent-edits) uses the
+same workflow for persistent alias edits, while its fixed `Ctrl+E` binding previews and
 writes `llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is
-local to the Models modal (including bucket rows), not a configurable leader-key entry.
-Choosing Provider default writes the empty schema sentinel; a currently active temporary
-effort override remains effective until expiry or clear.
+local to Launch Control modal (including bucket rows), not a configurable leader-key
+entry. Choosing Provider default writes the empty schema sentinel; a currently active
+temporary effort override remains effective until expiry or clear.
 
 The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility
 aliases for [`repos.linked`](#repos), but the Config tab no longer offers a one-key
@@ -1397,7 +1397,7 @@ llm_provider:
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                            |
 | `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides. Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                                                                                               |
 | `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                       |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                     |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at
 names such as `%model:@default` or `%model:@blogger` while each user's `sase.yml`
@@ -1415,8 +1415,8 @@ or advances that cursor. Ordered fallback is based on CLI installation plus temp
 provider-disable state, not later model/runtime success, and preserves its first
 candidate for normal diagnostics when none are available. Members may carry a trailing
 effort. The operators cannot be mixed, selectors cannot be nested, and selectors are not
-accepted in `%model` directives or launch-scoped/temporary overrides. In the ACE Models
-panel, the pool row reports the available/total count, selector member lists mark the
+accepted in `%model` directives or launch-scoped/temporary overrides. In ACE Launch
+Control, the pool row reports the available/total count, selector member lists mark the
 current selection with `→`, and active temporary overrides label selection suspended
 unless their provider is temporarily disabled; then the override is paused and the
 underlying alias resolves.
@@ -1472,7 +1472,7 @@ under the `model_aliases.builtin.epic_creator` key.
 > `@<provider>_coder` builtin entries.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
-(set from the [Models panel](ace.md#models-panel), `,m`) that do **not** edit this
+(set from [Launch Control](ace.md#launch-control), `,m`) that do **not** edit this
 config. They are persisted to `~/.sase/llm_override.json` and expired entries are
 deleted on next read. See [docs/llms.md](llms.md#temporary-model-overrides) for the
 resolution order, state-file format, and precedence relative to
@@ -1496,7 +1496,7 @@ and alias/member effort win, then the temporary effort override, then
 
 Its fixed `Ctrl+R` binding manages `max_running_agents`: persistent edits target the
 user-base `sase.yml` (or its chezmoi source), while temporary values live independently
-in `~/.sase/max_running_agents_override.json`. This is a Models-modal binding, not an
+in `~/.sase/max_running_agents_override.json`. This is a Launch Control binding, not an
 `ace.keymaps` option.
 
 #### `llm_provider.retry`
@@ -2597,16 +2597,16 @@ max_running_agents: 10
 | `max_running_agents` | int  | `10`    | `1`     | Configured maximum concurrent slot participants on this host. |
 
 The effective cap is an active machine-wide temporary override first and this merged
-configured value second. In the Models panel, fixed `Ctrl+R` opens **Max Running
-Agents**: `e` previews and writes the user-base/chezmoi source, `o` chooses a relative,
-custom, until-cleared, or exact-time override, and `x` clears it. Temporary state is
-stored as a versioned record at `~/.sase/max_running_agents_override.json`; a new set
-replaces the previous value, expiry is enforced at its deadline, and a persistent edit
-leaves an active override in force. Lowering the effective value is non-preemptive, so
-existing agents continue and new implicit-cap launches wait for occupancy to drain.
-Parked implicit waiters and question continuations reread the effective cap on each
-normal poll. An explicit `%wait(runners=N)` keeps its own initial-admission threshold
-and may be either stricter or looser than the global cap.
+configured value second. In Launch Control, fixed `Ctrl+R` opens **Max Running Agents**:
+`e` previews and writes the user-base/chezmoi source, `o` chooses a relative, custom,
+until-cleared, or exact-time override, and `x` clears it. Temporary state is stored as a
+versioned record at `~/.sase/max_running_agents_override.json`; a new set replaces the
+previous value, expiry is enforced at its deadline, and a persistent edit leaves an
+active override in force. Lowering the effective value is non-preemptive, so existing
+agents continue and new implicit-cap launches wait for occupancy to drain. Parked
+implicit waiters and question continuations reread the effective cap on each normal
+poll. An explicit `%wait(runners=N)` keeps its own initial-admission threshold and may
+be either stricter or looser than the global cap.
 
 ### runner_slots
 
@@ -2930,6 +2930,12 @@ bead:
 Below the threshold, `@epic_lander` inherits `@default`. At or above it,
 `@big_epic_lander` instead inherits through `@smartest`. An explicit land model or a
 direct alias override remains authoritative.
+
+In Launch Control (`,m`), the `big epic starts at` row shows this effective threshold
+next to the two epic-lander rows. `e` or Enter opens a focused positive-integer editor,
+and `r` previews an unset reset against `bead.big_epic_phase_threshold` in the writable
+user-base config or its chezmoi source. There is no temporary override for this setting;
+pressing `o` or `x` on the row only reports that Edit/Reset are available.
 
 See [`docs/beads.md`](beads.md#sase-bead-work-target) for the current pre-spawn
 checkpoint and publication flow.

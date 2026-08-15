@@ -242,7 +242,7 @@ def test_models_panel_leader_command_uses_m() -> None:
     catalog = build_command_catalog(_registry())
     spec = next(c for c in catalog if c.id == "leader.models_panel")
 
-    assert spec.label == "Models panel"
+    assert spec.label == "Launch Control"
     assert spec.key_display == ",m"
     assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.executor.kind == "leader_mode_key"
