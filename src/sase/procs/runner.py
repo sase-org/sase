@@ -34,6 +34,7 @@ LineCallback = Callable[[str], None]
 
 _INITIAL_POLL_SECONDS = 0.05
 _MAX_POLL_SECONDS = 0.5
+_WAIT_RECONCILE_INTERVAL_SECONDS = 0.25
 
 # How long a supervisor-owned legacy row may sit without a supervisor pid
 # before reconciliation treats it as a submit that died before it spawned.
@@ -135,6 +136,7 @@ def wait_for_proc(
     """Wait for a proc, streaming newly retained log lines through ``on_line``."""
     started = time.monotonic()
     delay = _INITIAL_POLL_SECONDS
+    next_reconcile_at = started
     seen_log = ""
     buffered = ""
     while True:
@@ -152,6 +154,14 @@ def wait_for_proc(
             if on_line is not None and buffered:
                 on_line(buffered.rstrip("\r"))
             return proc
+        now = time.monotonic()
+        if now >= next_reconcile_at:
+            proc = _reconcile_wait_target(proc)
+            if proc.status in TERMINAL_PROC_STATUSES:
+                if on_line is not None and buffered:
+                    on_line(buffered.rstrip("\r"))
+                return proc
+            next_reconcile_at = now + _WAIT_RECONCILE_INTERVAL_SECONDS
         if timeout is not None and time.monotonic() - started >= timeout:
             raise TimeoutError(f"timed out waiting for proc {proc_id}")
         time.sleep(delay)
@@ -194,6 +204,15 @@ def reconcile_running_procs() -> list[Proc]:
         if outcome.proc is not None:
             reconciled.append(outcome.proc)
     return reconciled
+
+
+def _reconcile_wait_target(proc: Proc) -> Proc:
+    if not is_proc_shell_row(proc):
+        return proc
+    for reconciled in reconcile_proc_shells():
+        if reconciled.proc_id == proc.proc_id:
+            return reconciled
+    return get_proc(proc.proc_id) or proc
 
 
 def _legacy_kill_proc(proc: Proc) -> Proc:

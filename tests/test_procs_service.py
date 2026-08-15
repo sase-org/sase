@@ -28,7 +28,20 @@ from sase.procs import (
     wait_for_proc,
 )
 from sase.procs.models import Proc
-from sase.procs.runtime import proc_started_path
+from sase.procs.runtime import (
+    proc_settlement_sidecar_path,
+    proc_started_path,
+    read_json_object,
+)
+
+_SETTLEMENT_CRASH_CHECKPOINTS = (
+    "command_gone",
+    "output_closed",
+    "claim_settled",
+    "artifacts_settled",
+    "followup_settled",
+    "result_written",
+)
 
 
 def test_submit_records_a_proc_shell_and_settles_success(
@@ -261,15 +274,7 @@ def test_settlement_resumes_after_an_injected_crash(
         cwd=tmp_path,
         origin="test",
     )
-    deadline = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        current = get_proc(proc.proc_id)
-        assert current is not None
-        if current.status == "settling" or (
-            current.pid is not None and not is_process_running(current.pid)
-        ):
-            break
-        time.sleep(0.05)  # sase-test-wait: poll for injected settlement crash
+    _wait_for_settlement_supervisor_exit(proc.proc_id)
     monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
 
     reconciled = reconcile_running_procs()
@@ -282,7 +287,78 @@ def test_settlement_resumes_after_an_injected_crash(
         finished = wait_for_proc(proc.proc_id, timeout=10)
     assert finished.status in {"success", "error"}
     assert finished.settled_at is not None
+    assert all(_settlement_checkpoints(proc.proc_id).values())
     assert "partial" in read_proc_log_tail(proc.proc_id, 20, log_path=finished.log_path)
+
+
+def test_wait_for_proc_recovers_after_an_early_settlement_reconcile(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", "output_closed")
+    proc = submit_proc(
+        [sys.executable, "-c", "print('partial', flush=True)"],
+        label="Crash race",
+        cwd=tmp_path,
+        origin="test",
+    )
+    settling = _wait_for_settling(proc.proc_id)
+
+    probes = 0
+
+    def stale_alive_once(_pid: int | None, _supervisor_id: str | None) -> bool:
+        nonlocal probes
+        probes += 1
+        return probes == 1
+
+    monkeypatch.setattr("sase.procs.service.supervisor_is_alive", stale_alive_once)
+    assert reconcile_running_procs() == []
+    if settling.pid is not None:
+        _wait_for_process_exit(settling.pid)
+    monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+
+    finished = wait_for_proc(proc.proc_id, timeout=5)
+
+    assert probes >= 2
+    assert finished.status in {"success", "error"}
+    assert finished.settled_at is not None
+    assert all(_settlement_checkpoints(proc.proc_id).values())
+    assert "partial" in read_proc_log_tail(proc.proc_id, 20, log_path=finished.log_path)
+
+
+def test_settlement_recovers_every_injected_crash_checkpoint_repeatedly(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    for checkpoint in _SETTLEMENT_CRASH_CHECKPOINTS:
+        for attempt in range(3):
+            run_root = tmp_path / checkpoint / str(attempt)
+            run_root.mkdir(parents=True)
+            marker = f"{checkpoint}-{attempt}"
+            monkeypatch.setenv("SASE_HOME", str(run_root / "home"))
+            monkeypatch.setenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", checkpoint)
+            proc = submit_proc(
+                [sys.executable, "-c", f"print({marker!r}, flush=True)"],
+                label=f"Crash {checkpoint}",
+                cwd=run_root,
+                origin="test",
+            )
+            _wait_for_settlement_supervisor_exit(proc.proc_id)
+            monkeypatch.delenv("SASE_PROC_SUPERVISOR_CRASH_AFTER", raising=False)
+
+            reconcile_running_procs()
+            finished = get_proc(proc.proc_id)
+            assert finished is not None
+            if finished.status not in {"success", "error", "killed"}:
+                finished = wait_for_proc(proc.proc_id, timeout=5)
+
+            assert finished.status in {"success", "error"}
+            assert finished.settled_at is not None
+            assert all(_settlement_checkpoints(proc.proc_id).values())
+            assert marker in read_proc_log_tail(
+                proc.proc_id,
+                20,
+                log_path=finished.log_path,
+            )
 
 
 def test_result_and_artifact_settlement_are_durable(
@@ -352,6 +428,43 @@ def _wait_for_running(proc_id: str) -> Any:
             pytest.fail(f"proc became {proc.status} before it was observed running")
         time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
     pytest.fail("proc did not enter running state")
+
+
+def _wait_for_settling(proc_id: str) -> Proc:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        proc = get_proc(proc_id)
+        assert proc is not None
+        if proc.status == "settling":
+            return proc
+        if proc.status in {"success", "error", "killed"}:
+            pytest.fail(f"proc became {proc.status} before settlement was observed")
+        time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
+    pytest.fail("proc did not enter settlement")
+
+
+def _wait_for_settlement_supervisor_exit(proc_id: str) -> Proc:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        proc = get_proc(proc_id)
+        assert proc is not None
+        if proc.status == "settling" and (
+            proc.pid is None or not is_process_running(proc.pid)
+        ):
+            return proc
+        if proc.status in {"success", "error", "killed"}:
+            pytest.fail(f"proc became {proc.status} before the injected crash")
+        time.sleep(
+            min(0.025, max(0.0, deadline - time.monotonic()))
+        )  # sase-test-wait: poll for injected settlement crash
+    pytest.fail("supervisor did not exit during settlement")
+
+
+def _settlement_checkpoints(proc_id: str) -> dict[str, bool]:
+    state = read_json_object(proc_settlement_sidecar_path(proc_id))
+    checkpoints = state.get("checkpoints")
+    assert isinstance(checkpoints, dict)
+    return {str(key): bool(value) for key, value in checkpoints.items()}
 
 
 def _wait_for_process_exit(pid: int) -> None:
