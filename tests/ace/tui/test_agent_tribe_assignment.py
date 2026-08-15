@@ -235,6 +235,31 @@ def test_apply_set_persists_and_updates_agent(tmp_path: Path) -> None:
     assert app.refresh_calls == 1
 
 
+def test_standalone_tribe_assignment_does_not_create_agent_tribes_directory(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    tribe_file = tmp_path / "agent_tribes.json"
+    monkeypatch.chdir(tmp_path)
+    agent = _make_agent()
+    app = _FakeApp([agent])
+
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="set", tribe="release-blockers"),
+            [agent],
+        )
+
+    assert agent.tribe == "release-blockers"
+    assert json.loads(tribe_file.read_text()) == [
+        {"id": ["run", "fix-bug", "20240101120000"], "tribe": "release-blockers"}
+    ]
+    assert not (tmp_path / "agent-tribes").exists()
+    assert not (
+        tmp_path / "agent-tribes" / ".agent_directive_persistence.lock"
+    ).exists()
+
+
 def test_tribe_modal_round_trip_rewrites_id_tribe_keyword(tmp_path: Path) -> None:
     tribe_file = tmp_path / "agent_tribes.json"
     artifacts_dir = tmp_path / "artifacts"

@@ -263,17 +263,18 @@ def test_persist_agent_directive_update_sets_and_unsets_tribe_store(
     tmp_path: Path,
 ) -> None:
     tribes_file = tmp_path / "agent_tribes.json"
+    sentinel_artifacts = tmp_path / "missing-artifacts"
     identity = (AgentType.WORKFLOW, "cl", "260601000000")
     with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribes_file):
         set_result = persist_agent_directive_update(
             AgentDirectivePersistenceSpec(
-                artifacts_dir=tmp_path / "artifacts",
+                artifacts_dir=sentinel_artifacts,
                 tribe_patch=AgentTribeStorePatch(identity=identity, tribe="review"),
             )
         )
         unset_result = persist_agent_directive_update(
             AgentDirectivePersistenceSpec(
-                artifacts_dir=tmp_path / "artifacts",
+                artifacts_dir=sentinel_artifacts,
                 tribe_patch=AgentTribeStorePatch(identity=identity, tribe=None),
             )
         )
@@ -281,3 +282,5 @@ def test_persist_agent_directive_update_sets_and_unsets_tribe_store(
     assert set_result.tribe_updated is True
     assert unset_result.tribe_updated is True
     assert json.loads(tribes_file.read_text()) == []
+    assert not sentinel_artifacts.exists()
+    assert not (sentinel_artifacts / ".agent_directive_persistence.lock").exists()

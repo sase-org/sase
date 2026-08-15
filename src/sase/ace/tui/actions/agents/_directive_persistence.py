@@ -94,9 +94,15 @@ def persist_agent_directive_update(
         if spec.artifacts_dir is not None
         else None
     )
+    artifact_backed_update = (
+        spec.prompt_mutator is not None
+        or spec.meta_patch is not None
+        or spec.waiting_marker is not None
+        or spec.ready_marker is not None
+    )
     lock = (
         _agent_directive_lock(artifacts_path)
-        if artifacts_path is not None
+        if artifact_backed_update and artifacts_path is not None
         else nullcontext()
     )
     with lock:
