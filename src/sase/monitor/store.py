@@ -51,17 +51,37 @@ MIN_MONITOR_REF_LENGTH = 3
 
 @dataclass(frozen=True)
 class LaneContext:
-    """The lane's newest family member, resolved for a monitor start."""
+    """A resolved agent artifact used as a monitor parent or lane member."""
 
     lane: str
     project_name: str
     record: AgentArtifactRecordWire
 
 
-def default_lane(env: Mapping[str, str] | None = None) -> str | None:
-    """Return the calling agent's lane from its environment, if any."""
+def default_caller(env: Mapping[str, str] | None = None) -> str | None:
+    """Return the calling agent's exact name from its environment, if any.
+
+    Unlike :func:`default_lane`, this does not collapse the name through
+    :func:`~sase.plan_chain.agent_family_base`. Implicit monitor starts use
+    this exact identity so a phase name such as ``sase-m6.6.1.5`` is not
+    rewritten into a broader family lane.
+    """
     current_env = env if env is not None else os.environ
     name = current_env.get("SASE_AGENT_NAME")
+    if not name:
+        return None
+    name = name.strip()
+    return name or None
+
+
+def default_lane(env: Mapping[str, str] | None = None) -> str | None:
+    """Return the calling agent's family-oriented lane from its environment.
+
+    Used by monitor inspection and stop when no explicit target is given.
+    Implicit monitor start reads :func:`default_caller` instead and then
+    derives the durable lane from the selected artifact.
+    """
+    name = default_caller(env)
     if not name:
         return None
     return agent_family_base(name) or name
@@ -80,6 +100,37 @@ def resolve_lane(project_name: str, lane: str) -> LaneContext:
         )
     newest = max(records, key=lambda record: record.timestamp)
     return LaneContext(lane=lane, project_name=project_name, record=newest)
+
+
+def resolve_exact_agent(project_name: str, agent_name: str) -> LaneContext:
+    """Resolve *agent_name* to the newest artifact with that exact name."""
+    records = [
+        record
+        for record in _project_records(project_name)
+        if _record_has_name(record, agent_name)
+    ]
+    if not records:
+        raise MonitorLaneError(
+            f"no agent artifacts found for agent {agent_name!r} "
+            f"in project {project_name!r}"
+        )
+    newest = max(records, key=lambda record: record.timestamp)
+    return LaneContext(lane=agent_name, project_name=project_name, record=newest)
+
+
+def durable_lane_for_record(record: AgentArtifactRecordWire, *, fallback: str) -> str:
+    """Return the durable monitor lane for *record*.
+
+    Prefers persisted ``agent_family`` metadata. A still-bare agent falls
+    back to *fallback* (the exact caller name or an explicit lane) rather
+    than guessing from the spelling of ``name``.
+    """
+    meta = record.agent_meta
+    if meta is not None:
+        family = (meta.agent_family or "").strip()
+        if family:
+            return family
+    return fallback
 
 
 def active_monitor_for_lane(
@@ -329,6 +380,11 @@ def _record_in_lane(record: AgentArtifactRecordWire, lane: str) -> bool:
     return meta.name == lane or agent_family_base(meta.name) == lane
 
 
+def _record_has_name(record: AgentArtifactRecordWire, agent_name: str) -> bool:
+    meta = record.agent_meta
+    return meta is not None and meta.name == agent_name
+
+
 def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     return [
         record
@@ -372,13 +428,16 @@ __all__ = [
     "MIN_MONITOR_REF_LENGTH",
     "LaneContext",
     "active_monitor_for_lane",
+    "default_caller",
     "default_lane",
+    "durable_lane_for_record",
     "get_monitor",
     "has_any_monitor",
     "list_monitors",
     "monitor_blocking_start_for_lane",
     "read_monitor_marker",
     "reconcile_dead_supervisors",
+    "resolve_exact_agent",
     "resolve_lane",
     "resolve_monitor_ref",
     "stop_monitor",

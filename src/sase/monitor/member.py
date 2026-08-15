@@ -38,10 +38,11 @@ def create_monitor_member(
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
-    Inherits ``create_followup_artifacts()``-shaped metadata from the lane's
-    newest member (model, provider, workspace, Patch/bead lineage, ...)
-    so a later follow-up agent inherits it too, then layers on the
-    ``monitor_*`` fields that describe the supervised command itself.
+    Inherits ``create_followup_artifacts()``-shaped metadata from the
+    selected parent artifact (model, provider, workspace, Patch/bead
+    lineage, ...) so a later follow-up agent inherits it too, then layers
+    on the ``monitor_*`` fields that describe the supervised command
+    itself.
     """
     member_name = f"{lane}{suffix}"
     artifacts_dir = create_followup_artifacts(

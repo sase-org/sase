@@ -59,7 +59,7 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["parent_timestamp"] == "20260812120000"
     assert meta["workspace_num"] == 3
 
-    # Inherited lineage from the lane's newest member.
+    # Inherited lineage from the selected parent artifact.
     assert meta["model"] == "claude-sonnet-5"
     assert meta["llm_provider"] == "claude"
     assert meta["workspace_dir"] == "/work/acme"

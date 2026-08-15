@@ -7,12 +7,14 @@ rejected outright.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
 
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorRecord
 from sase.monitor.start import StartMonitorRequest, start_monitor
+from tests.monitor._fixtures import make_starter_agent, patch_project_records
 
 
 @pytest.fixture(autouse=True)
@@ -218,4 +220,49 @@ def test_start_monitor_rejects_a_second_concurrent_monitor(
     )
 
     with pytest.raises(MonitorAlreadyRunningError):
+        start_monitor(request)
+
+
+def test_implicit_start_conflicts_on_durable_family_not_member_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    caller_ws = tmp_path / "ws12"
+    caller_ws.mkdir()
+    caller_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "02i--code",
+        agent_family="02i",
+        model="caller-model",
+        workspace_dir=str(caller_ws),
+        workspace_num=12,
+        pid=os.getpid(),
+        cl_name="02i",
+    )
+    running_dir = make_starter_agent(
+        "proj",
+        "20260812130000",
+        "02i--mon",
+        agent_family="02i",
+        agent_family_role="monitor",
+        monitor_id="runningmon001",
+        monitor_state="running",
+        monitor_command="sleep 300",
+        monitor_cwd=str(tmp_path),
+        workspace_dir=str(tmp_path),
+        workspace_num=0,
+        pid=os.getpid(),
+    )
+    patch_project_records(monkeypatch, [caller_dir, running_dir])
+    monkeypatch.setenv("SASE_AGENT_NAME", "02i--code")
+
+    request = StartMonitorRequest(
+        command="just check-full",
+        reason="verify",
+        timeout_seconds=2700.0,
+        cwd=str(caller_ws),
+        project_name="proj",
+    )
+
+    with pytest.raises(MonitorAlreadyRunningError, match="lane '02i'"):
         start_monitor(request)

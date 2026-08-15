@@ -11,10 +11,14 @@ import pytest
 from sase.monitor.models import MonitorLaneError
 from sase.monitor.store import (
     active_monitor_for_lane,
+    default_caller,
+    default_lane,
+    durable_lane_for_record,
     get_monitor,
     has_any_monitor,
     list_monitors,
     read_monitor_marker,
+    resolve_exact_agent,
     resolve_lane,
 )
 
@@ -24,6 +28,18 @@ from ._fixtures import make_starter_agent, patch_project_records
 @pytest.fixture(autouse=True)
 def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+
+def test_default_caller_returns_exact_sase_agent_name() -> None:
+    assert default_caller({"SASE_AGENT_NAME": "sase-m6.6.1.5"}) == "sase-m6.6.1.5"
+    assert default_caller({"SASE_AGENT_NAME": "02i--code"}) == "02i--code"
+    assert default_caller({}) is None
+
+
+def test_default_lane_still_collapses_family_and_legacy_suffixes() -> None:
+    assert default_lane({"SASE_AGENT_NAME": "sase-m6.6.1.5"}) == "sase-m6.6.1"
+    assert default_lane({"SASE_AGENT_NAME": "02i--code"}) == "02i"
+    assert default_lane({}) is None
 
 
 def test_resolve_lane_picks_the_newest_family_member(
@@ -38,6 +54,83 @@ def test_resolve_lane_picks_the_newest_family_member(
     ctx = resolve_lane("proj", "acme")
 
     assert ctx.record.artifact_dir == newer
+
+
+def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caller = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "sase-m6.6.1.5",
+        workspace_num=12,
+        workspace_dir="/work/12",
+    )
+    sibling = make_starter_agent(
+        "proj",
+        "20260812125000",
+        "sase-m6.6.1",
+        workspace_num=7,
+        workspace_dir="/work/7",
+    )
+    land = make_starter_agent(
+        "proj",
+        "20260812130000",
+        "sase-m6.10",
+        workspace_num=0,
+        workspace_dir="/work/primary",
+    )
+    family_member = make_starter_agent(
+        "proj",
+        "20260812120500",
+        "02i--code",
+        agent_family="02i",
+        workspace_num=12,
+        workspace_dir="/work/12",
+    )
+    settled_monitor = make_starter_agent(
+        "proj",
+        "20260812140000",
+        "02i--mon-6",
+        agent_family="02i",
+        agent_family_role="monitor",
+        monitor_id="oldmon",
+        monitor_state="completed",
+        monitor_settled=True,
+        workspace_num=0,
+        workspace_dir="/work/primary",
+    )
+    patch_project_records(
+        monkeypatch, [caller, sibling, land, family_member, settled_monitor]
+    )
+
+    phase = resolve_exact_agent("proj", "sase-m6.6.1.5")
+    member = resolve_exact_agent("proj", "02i--code")
+    collapsed_phase = resolve_lane("proj", "sase-m6.6.1")
+    family_lane = resolve_lane("proj", "02i")
+
+    assert phase.record.artifact_dir == caller
+    assert member.record.artifact_dir == family_member
+    assert collapsed_phase.record.artifact_dir == sibling
+    assert family_lane.record.artifact_dir == settled_monitor
+
+
+def test_durable_lane_for_record_prefers_agent_family_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bare = make_starter_agent("proj", "20260812120000", "sase-m6.6.1.5")
+    member = make_starter_agent(
+        "proj", "20260812121000", "02i--code", agent_family="02i"
+    )
+    patch_project_records(monkeypatch, [bare, member])
+
+    bare_record = resolve_exact_agent("proj", "sase-m6.6.1.5").record
+    member_record = resolve_exact_agent("proj", "02i--code").record
+
+    assert durable_lane_for_record(bare_record, fallback="sase-m6.6.1.5") == (
+        "sase-m6.6.1.5"
+    )
+    assert durable_lane_for_record(member_record, fallback="02i--code") == "02i"
 
 
 def test_resolve_lane_raises_when_lane_is_unknown(

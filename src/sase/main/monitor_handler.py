@@ -20,10 +20,12 @@ from sase.monitor import (
     MonitorRefError,
     StartMonitorRequest,
     active_monitor_for_lane,
+    default_caller,
     default_lane,
     list_monitors,
     maybe_handoff_monitor_from_agent,
     read_monitor_marker,
+    resolve_exact_agent,
     resolve_lane,
     resolve_monitor_ref,
     short_monitor_id,
@@ -215,7 +217,13 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 2
 
-    agent = getattr(args, "agent", None) or default_lane()
+    explicit_agent = getattr(args, "agent", None)
+    if explicit_agent:
+        agent = explicit_agent
+        exact_caller = False
+    else:
+        agent = default_caller()
+        exact_caller = True
     if not agent:
         print(
             "sase monitor start: no agent given and SASE_AGENT_NAME is unset; "
@@ -224,7 +232,7 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
-    cwd = _resolve_cwd(getattr(args, "cwd", None), agent)
+    cwd = _resolve_cwd(getattr(args, "cwd", None), agent, exact=exact_caller)
     project_name = _infer_project_name(str(cwd))
     if not project_name:
         print(
@@ -239,7 +247,7 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         timeout_seconds=timeout_seconds,
         cwd=str(cwd),
         project_name=project_name,
-        lane=agent,
+        lane=explicit_agent,
         label=getattr(args, "label", None),
         next_action=getattr(args, "next", None),
         start_status=start_status,
@@ -375,21 +383,25 @@ def _resolve_ref_or_active(raw_ref: str | None) -> MonitorRecord:
     return MonitorRecord.from_record(active)
 
 
-def _resolve_cwd(explicit_cwd: str | None, lane: str) -> Path:
+def _resolve_cwd(explicit_cwd: str | None, agent: str, *, exact: bool) -> Path:
     if explicit_cwd:
         return Path(explicit_cwd).expanduser().resolve(strict=False)
-    workspace = _lane_workspace_dir(lane)
+    workspace = _agent_workspace_dir(agent, exact=exact)
     if workspace is not None:
         return workspace
     return Path.cwd()
 
 
-def _lane_workspace_dir(lane: str) -> Path | None:
+def _agent_workspace_dir(agent: str, *, exact: bool) -> Path | None:
     guess_project = _infer_project_name(str(Path.cwd()))
     if not guess_project:
         return None
     try:
-        ctx = resolve_lane(guess_project, lane)
+        ctx = (
+            resolve_exact_agent(guess_project, agent)
+            if exact
+            else resolve_lane(guess_project, agent)
+        )
     except MonitorLaneError:
         return None
     meta = ctx.record.agent_meta

@@ -28,9 +28,11 @@ class StartMonitorRequest:
     """Fully-resolved request to start one monitor.
 
     ``project_name`` and ``cwd`` are resolved by the caller (the CLI or the
-    host epic-launch path); only the lane is optionally left for
-    :func:`sase.monitor.start.start_monitor` to default from the calling
-    agent's own environment.
+    host epic-launch path). An omitted ``lane`` is an implicit start: the
+    exact ``SASE_AGENT_NAME`` caller is selected first, and the durable
+    family is derived from that artifact. An explicit ``lane`` still
+    targets an existing family the way host epic launch and ``--agent``
+    do today.
     """
 
     command: str

@@ -99,32 +99,69 @@ class _LaneStart:
     starter_agent: str | None
 
 
+@dataclass(frozen=True)
+class _StartIdentity:
+    """How a start chose its parent artifact and durable family lane.
+
+    ``target`` is the exact caller name for an implicit start, or the
+    explicit ``--agent`` / lane string. ``exact`` is true only for implicit
+    starts, so the parent artifact is the caller itself rather than the
+    lane's newest member. ``lock_lane`` is the durable family used for the
+    start lock, replay, conflict detection, and request fingerprint.
+    """
+
+    target: str
+    exact: bool
+    lock_lane: str
+
+
 def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
-    """Start (or return the existing) monitor for *request*'s lane."""
-    lane = request.lane or store.default_lane()
-    if not lane:
+    """Start (or return the existing) monitor for *request*'s lane.
+
+    An omitted ``request.lane`` is an implicit start: the exact
+    ``SASE_AGENT_NAME`` caller is selected first, and the durable family
+    is taken from that artifact. An explicit lane still resolves to the
+    newest matching family member.
+    """
+    identity = _resolve_start_identity(request)
+    with log_file_lock(
+        monitor_lane_lock_path(request.project_name, identity.lock_lane)
+    ):
+        return _start_monitor_locked(request, identity)
+
+
+def _resolve_start_identity(request: StartMonitorRequest) -> _StartIdentity:
+    """Return the parent identity and durable lock lane for *request*."""
+    if request.lane:
+        return _StartIdentity(target=request.lane, exact=False, lock_lane=request.lane)
+    caller = store.default_caller()
+    if not caller:
         raise MonitorLaneError(
             "no lane given and SASE_AGENT_NAME is unset; pass an explicit lane"
         )
+    ctx = store.resolve_exact_agent(request.project_name, caller)
+    lock_lane = store.durable_lane_for_record(ctx.record, fallback=caller)
+    return _StartIdentity(target=caller, exact=True, lock_lane=lock_lane)
 
-    with log_file_lock(monitor_lane_lock_path(request.project_name, lane)):
-        return _start_monitor_locked(request, lane)
 
-
-def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRecord:
+def _start_monitor_locked(
+    request: StartMonitorRequest, identity: _StartIdentity
+) -> MonitorRecord:
     """Start one monitor while the caller holds the lane start lock."""
     label = request.label or default_label(request.command)
-    request_fingerprint = monitor_request_fingerprint(request, lane=lane, label=label)
+    request_fingerprint = monitor_request_fingerprint(
+        request, lane=identity.lock_lane, label=label
+    )
 
     replayed = _replayed_lane_monitor(
         request,
-        lane,
+        identity.lock_lane,
         request_fingerprint=request_fingerprint,
     )
     if replayed is not None:
         return replayed
 
-    lane_start = _resolve_lane_start(request, lane)
+    lane_start = _resolve_lane_start(request, identity)
     durable_lane = lane_start.durable_lane
     suffix = naming.allocate_monitor_suffix(
         durable_lane,
@@ -310,19 +347,24 @@ def _replayed_lane_monitor(
     )
 
 
-def _resolve_lane_start(request: StartMonitorRequest, lane: str) -> _LaneStart:
-    """Read the lane's newest member and decide what the monitor inherits."""
-    lane_ctx = store.resolve_lane(request.project_name, lane)
-    newest = lane_ctx.record
-    raw_meta = _read_meta(newest.artifact_dir)
+def _resolve_lane_start(
+    request: StartMonitorRequest, identity: _StartIdentity
+) -> _LaneStart:
+    """Read the selected parent artifact and decide what the monitor inherits."""
+    if identity.exact:
+        lane_ctx = store.resolve_exact_agent(request.project_name, identity.target)
+    else:
+        lane_ctx = store.resolve_lane(request.project_name, identity.target)
+    selected = lane_ctx.record
+    raw_meta = _read_meta(selected.artifact_dir)
 
-    durable_lane = str(raw_meta.get("agent_family") or "")
+    durable_lane = str(raw_meta.get("agent_family") or "").strip()
     if not durable_lane:
         from sase.agent._family_promotion import promote_agent_to_family
 
-        promoted_name = promote_agent_to_family(newest.artifact_dir, lane)
-        durable_lane = agent_family_base(promoted_name) or lane
-        raw_meta = _read_meta(newest.artifact_dir)
+        promoted_name = promote_agent_to_family(selected.artifact_dir, identity.target)
+        durable_lane = agent_family_base(promoted_name) or identity.target
+        raw_meta = _read_meta(selected.artifact_dir)
 
     workspace_dir = raw_meta.get("workspace_dir")
     raw_lane_workspace_num = raw_meta.get("workspace_num")
@@ -334,7 +376,7 @@ def _resolve_lane_start(request: StartMonitorRequest, lane: str) -> _LaneStart:
     )
 
     resolved_workspace_num = _resolve_monitor_workspace_num(
-        newest.project_file,
+        selected.project_file,
         request.cwd,
         cwd_matches_lane=cwd_matches_lane,
         lane_workspace_num=lane_workspace_num,
@@ -357,11 +399,11 @@ def _resolve_lane_start(request: StartMonitorRequest, lane: str) -> _LaneStart:
 
     cl_name = raw_meta.get("cl_name")
     return _LaneStart(
-        project_file=newest.project_file,
+        project_file=selected.project_file,
         member_meta=member_meta,
         durable_lane=durable_lane,
         cl_name=cl_name if isinstance(cl_name, str) else None,
-        prev_timestamp=newest.timestamp,
+        prev_timestamp=selected.timestamp,
         workspace_num=resolved_workspace_num,
         transfer_from_pid=transfer_from_pid,
         starter_agent=starter_agent,
