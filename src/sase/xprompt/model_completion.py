@@ -38,6 +38,11 @@ from sase.llm_provider.registry import (
     model_advisory_marker,
     model_picker_hidden_provider_names,
 )
+from sase.llm_provider.provider_disable import (
+    TemporaryProviderDisable,
+    get_active_provider_disables,
+)
+from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
 #: Wire schema understood by existing Rust LSP versions. Alias metadata is
@@ -103,6 +108,7 @@ def build_model_completion_catalog(
     *,
     use_cache: bool = True,
     overrides: Mapping[str, TemporaryLLMOverride] | None = None,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
 ) -> list[_ModelCompletionEntry]:
     """Return ordered inline-completable ``%model`` values.
 
@@ -125,13 +131,23 @@ def build_model_completion_catalog(
         if use_cache:
             assert token is not None
             _CATALOG_CACHE = (token, tuple(entries))
-    if overrides is None:
+    disables = (
+        peek_active_provider_disables()
+        if provider_disables is None
+        else provider_disables
+    )
+    if disables:
+        entries = _apply_provider_disables(entries, disables, overrides=overrides)
+    elif overrides is not None:
+        entries = _apply_alias_overrides(entries, overrides)
+    if overrides is None and not disables:
         return entries
-    return _apply_alias_overrides(entries, overrides)
+    return entries
 
 
 def model_completion_catalog_payload() -> dict[str, object]:
     """Return the launch-time JSON snapshot materialized for the Rust LSP."""
+    provider_disables = get_active_provider_disables()
     return {
         "schema_version": MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
         "entries": [
@@ -158,7 +174,10 @@ def model_completion_catalog_payload() -> dict[str, object]:
                 "advisory_severity": entry.advisory_severity,
                 "provider_model_count": entry.provider_model_count,
             }
-            for entry in build_model_completion_catalog(overrides={})
+            for entry in build_model_completion_catalog(
+                overrides={},
+                provider_disables=provider_disables,
+            )
         ],
     }
 
@@ -243,6 +262,64 @@ def _apply_alias_overrides(
     return overlaid
 
 
+def _apply_provider_disables(
+    entries: list[_ModelCompletionEntry],
+    disables: Mapping[str, TemporaryProviderDisable],
+    *,
+    overrides: Mapping[str, TemporaryLLMOverride] | None,
+) -> list[_ModelCompletionEntry]:
+    """Drop disabled concrete entries and refresh alias target metadata."""
+    disabled_providers = set(disables)
+    filtered = [
+        entry
+        for entry in entries
+        if not (
+            entry.provider in disabled_providers and entry.kind in {"model", "provider"}
+        )
+    ]
+    try:
+        alias_views = {
+            view.name: view
+            for view in build_alias_views(
+                overrides=overrides or {},
+                provider_disables=disables,
+            )
+        }
+    except Exception:  # noqa: BLE001 - keep concrete filtering if aliases fail.
+        return _apply_alias_overrides(filtered, overrides or {})
+
+    overlaid: list[_ModelCompletionEntry] = []
+    for entry in filtered:
+        if entry.kind not in {"implicit_alias", "user_alias"}:
+            overlaid.append(entry)
+            continue
+        view = alias_views.get(entry.value.lstrip("@"))
+        if view is None:
+            overlaid.append(entry)
+            continue
+        selector_members = view.selector_members
+        provenance = "configured" if view.configured else "implicit"
+        if view.override is not None:
+            provenance = "override_paused" if view.is_override_paused else "override"
+        overlaid.append(
+            replace(
+                entry,
+                target_provider=view.provider or "",
+                target_model=view.model,
+                target_effort=view.effort or "",
+                provenance=provenance,
+                reference=view.references or view.implicit_fallback or "",
+                reference_effort=view.reference_effort or "",
+                selector_mode=view.selector_mode or "",
+                pool_available=sum(member.available for member in selector_members),
+                pool_total=len(selector_members),
+                config_source=view.configured_source or "",
+                bucket=view.bucket or "",
+            )
+        )
+    return overlaid
+
+
 def _build_static_catalog() -> list[_ModelCompletionEntry]:
     payload = get_llm_metadata_payload()
     providers = _dict(payload.get("providers"))
@@ -256,7 +333,10 @@ def _build_static_catalog() -> list[_ModelCompletionEntry]:
         if provider not in hidden_providers
     ]
     try:
-        alias_views = {view.name: view for view in build_alias_views(overrides={})}
+        alias_views = {
+            view.name: view
+            for view in build_alias_views(overrides={}, provider_disables={})
+        }
     except Exception:  # noqa: BLE001 - plain aliases are the safe fallback.
         alias_views = {}
 

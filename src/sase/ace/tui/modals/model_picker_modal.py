@@ -1,5 +1,7 @@
 """Model picker modal for selecting a coder LLM model."""
 
+from collections.abc import Mapping
+
 from textual import events
 from textual.app import ComposeResult
 from textual.containers import Container
@@ -8,6 +10,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets._option_list import Option
 
 from sase.ace.tui.actions.navigation.jump_hints import normalize_jump_key
+from sase.llm_provider.provider_disable import TemporaryProviderDisable
 
 from .base import FilterInput, OptionListNavigationMixin
 from .model_picker_options import (
@@ -137,16 +140,26 @@ class ModelPickerModal(
         distinct_default: bool = False,
         alias_context: AliasSelectionContext | None = None,
         include_selector_option: bool = False,
+        provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
     ) -> None:
         super().__init__()
         self._title = title
         self._include_default_option = include_default_option
         self._distinct_default = distinct_default
         self._alias_context = alias_context
+        self._include_selector_option = include_selector_option
+        if provider_disables is None:
+            from sase.llm_provider.provider_disable_peek import (
+                peek_active_provider_disables,
+            )
+
+            provider_disables = peek_active_provider_disables()
+        self._provider_disables = provider_disables
         self._all_rows = build_model_rows(
             include_default_option=include_default_option,
             alias_context=alias_context,
             include_selector_option=include_selector_option,
+            provider_disables=self._provider_disables,
         )
         self._visible_rows = self._all_rows
 
@@ -169,11 +182,12 @@ class ModelPickerModal(
             )
             yield OptionList(
                 *(
-                    rows_to_options(self._all_rows)
-                    if self._alias_context is not None
-                    else build_model_options(
-                        include_default_option=self._include_default_option
+                    build_model_options(
+                        include_default_option=self._include_default_option,
+                        provider_disables=self._provider_disables,
                     )
+                    if self._alias_context is None and not self._include_selector_option
+                    else rows_to_options(self._all_rows)
                 ),
                 id="model-picker-list",
             )

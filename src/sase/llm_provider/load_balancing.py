@@ -201,7 +201,9 @@ def _selection_index(cursor: int, availability: Sequence[bool]) -> int:
     size = len(availability)
     if size == 0:
         raise ValueError("load-balanced alias pool is empty")
-    effective = availability if any(availability) else [True] * size
+    if not any(availability):
+        return 0
+    effective = availability
     for offset in range(size):
         index = (cursor + offset) % size
         if effective[index]:
@@ -239,7 +241,7 @@ def select_model_alias_pool_member(
             if entry is not None and entry.get("fingerprint") == selector.fingerprint:
                 cursor = int(entry["cursor"])
             index = _selection_index(cursor, availability)
-            if consume:
+            if consume and any(availability):
                 entries[cleaned_alias] = {
                     "alias": cleaned_alias,
                     "fingerprint": selector.fingerprint,

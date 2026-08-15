@@ -1,6 +1,7 @@
 """Typed rows and catalog construction for the model picker."""
 
 from dataclasses import dataclass
+from collections.abc import Mapping
 from typing import Literal
 
 from rich.text import Text
@@ -8,6 +9,7 @@ from rich.text import Text
 from sase.ace.tui.provider_styles import provider_model_badge_markup
 from sase.llm_provider import AliasView
 from sase.llm_provider.config import normalize_model_alias_reference
+from sase.llm_provider.provider_disable import TemporaryProviderDisable
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
@@ -241,8 +243,18 @@ def build_model_rows(
     include_default_option: bool = True,
     alias_context: AliasSelectionContext | None = None,
     include_selector_option: bool = False,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
 ) -> list[ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
+    active_provider_disables: Mapping[str, TemporaryProviderDisable]
+    if provider_disables is None:
+        from sase.llm_provider.provider_disable_peek import (
+            peek_active_provider_disables,
+        )
+
+        active_provider_disables = peek_active_provider_disables()
+    else:
+        active_provider_disables = provider_disables
     from sase.llm_provider.registry import (
         model_advisory_map,
         model_advisory_marker,
@@ -256,7 +268,7 @@ def build_model_rows(
     hidden_providers = model_picker_hidden_provider_names()
     provider_models: dict[str, list[str]] = {}
     for model, provider in model_to_provider_map().items():
-        if provider in hidden_providers:
+        if provider in hidden_providers or provider in active_provider_disables:
             continue
         provider_models.setdefault(provider, []).append(model)
 

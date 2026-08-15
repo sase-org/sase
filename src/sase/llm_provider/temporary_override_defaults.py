@@ -11,8 +11,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from .config import DEFAULT_MODEL_ALIAS_NAME
+from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
 from .temporary_override_state import TemporaryLLMOverride
 from .types import ModelTier
+
+ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
 
 
 def resolve_effective_default_provider_model(
@@ -20,6 +23,7 @@ def resolve_effective_default_provider_model(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str, str]:
     """Return the ``(provider_name, model_name)`` to use for new launches.
 
@@ -38,6 +42,11 @@ def resolve_effective_default_provider_model(
     from .launch_alias_overrides import active_launch_alias_overrides
 
     launch_overrides = active_launch_alias_overrides(model_alias_overrides)
+    disables = (
+        get_active_provider_disables()
+        if provider_disables is None
+        else provider_disables
+    )
     if DEFAULT_MODEL_ALIAS_NAME in launch_overrides:
         from .registry import (
             get_configured_default_provider_name,
@@ -49,11 +58,16 @@ def resolve_effective_default_provider_model(
             launch_overrides,
             consume=consume,
             model_tier=model_tier,
+            provider_disables=disables,
         )
-        return provider or get_configured_default_provider_name(), model
+        return (
+            provider
+            or get_configured_default_provider_name(provider_disables=disables),
+            model,
+        )
 
     override = _active_default_override()
-    if override is not None:
+    if override is not None and override.provider not in disables:
         return override.provider, override.model
 
     from .registry import resolve_default_alias_provider_model
@@ -62,6 +76,7 @@ def resolve_effective_default_provider_model(
         model_tier,
         launch_overrides,
         consume=consume,
+        provider_disables=disables,
     )
 
 
@@ -70,11 +85,17 @@ def resolve_effective_default_provider_model_with_effort(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str, str, str | None]:
     """Resolve the effective launch default including alias-borne effort."""
     from .launch_alias_overrides import active_launch_alias_overrides
 
     launch_overrides = active_launch_alias_overrides(model_alias_overrides)
+    disables = (
+        get_active_provider_disables()
+        if provider_disables is None
+        else provider_disables
+    )
     if DEFAULT_MODEL_ALIAS_NAME in launch_overrides:
         from .registry import (
             get_configured_default_provider_name,
@@ -86,11 +107,17 @@ def resolve_effective_default_provider_model_with_effort(
             launch_overrides,
             consume=consume,
             model_tier=model_tier,
+            provider_disables=disables,
         )
-        return provider or get_configured_default_provider_name(), model, effort
+        return (
+            provider
+            or get_configured_default_provider_name(provider_disables=disables),
+            model,
+            effort,
+        )
 
     override = _active_default_override()
-    if override is not None:
+    if override is not None and override.provider not in disables:
         return override.provider, override.model, override.effort
 
     from .registry import resolve_default_alias_provider_model_with_effort
@@ -99,6 +126,7 @@ def resolve_effective_default_provider_model_with_effort(
         model_tier,
         launch_overrides,
         consume=consume,
+        provider_disables=disables,
     )
 
 

@@ -129,8 +129,8 @@ def test_provider_availability_probe_is_cached_and_honors_path_override(
     monkeypatch.setenv("SASE_CODEX_PATH", "/opt/codex/bin/codex")
     which = MagicMock(return_value="/opt/codex/bin/codex")
     monkeypatch.setattr(registry.shutil, "which", which)
-    registry.provider_cli_available.cache_clear()
+    registry._provider_cli_available.cache_clear()
 
-    assert registry.provider_cli_available("codex") is True
-    assert registry.provider_cli_available("codex") is True
+    assert registry._provider_cli_available("codex") is True
+    assert registry._provider_cli_available("codex") is True
     which.assert_called_once_with("/opt/codex/bin/codex")

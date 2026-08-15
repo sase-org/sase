@@ -19,6 +19,7 @@ from sase.ace.tui.widgets._directive_completion_tokens import (
     selected_wait_values_around_cursor,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
 from sase.xprompt._directive_types import (
     AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS,
@@ -442,7 +443,10 @@ def _build_model_arg_completion_candidates(
 ) -> tuple[list[CompletionCandidate], str]:
     """Build dynamic candidates for a ``%model`` directive argument token."""
     entries = filter_model_completion_entries(
-        build_model_completion_catalog(overrides=peek_active_alias_overrides()),
+        build_model_completion_catalog(
+            overrides=peek_active_alias_overrides(),
+            provider_disables=peek_active_provider_disables(),
+        ),
         partial,
     )
     candidates = [

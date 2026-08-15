@@ -63,7 +63,16 @@ from .provider_disable import (
     get_active_provider_disables,
 )
 from .provider_disable_peek import peek_active_provider_disables
-from .registry import get_provider
+from .registry import (
+    ProviderRoutingStatus,
+    ProviderTemporarilyDisabledError,
+    build_provider_routing_statuses,
+    capture_provider_disable_snapshot,
+    format_provider_disable_expiry,
+    get_provider,
+    provider_routing_available,
+    raise_if_provider_temporarily_disabled,
+)
 from .retry_config import (
     ProviderRetryConfig,
     RetryState,
@@ -112,12 +121,16 @@ __all__ = [
     "PreprocessResult",
     "ProviderRetryConfig",
     "ProviderDisableStateError",
+    "ProviderRoutingStatus",
+    "ProviderTemporarilyDisabledError",
     "RetryState",
     "TemporaryLLMOverride",
     "TemporaryEffortOverride",
     "TemporaryProviderDisable",
     "build_alias_views",
     "build_models_panel_rows",
+    "build_provider_routing_statuses",
+    "capture_provider_disable_snapshot",
     "clear_alias_override",
     "clear_effort_override",
     "clear_temporary_override",
@@ -149,10 +162,13 @@ __all__ = [
     "parse_override_duration",
     "peek_active_alias_overrides",
     "peek_active_provider_disables",
+    "provider_routing_available",
     "preprocess_prompt",
     "preprocess_prompt_early",
     "preprocess_prompt_late",
     "resolve_effective_default_provider_model",
+    "format_provider_disable_expiry",
+    "raise_if_provider_temporarily_disabled",
     "save_prompt_to_file",
     "set_alias_override",
     "set_alias_override_until",

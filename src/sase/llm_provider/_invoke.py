@@ -34,6 +34,7 @@ from .config import resolve_effective_effort
 from .launch_selection import LaunchSelection
 from .registry import (
     LLM_EXEC_PROVIDER_ENV,
+    capture_provider_disable_snapshot,
     get_default_provider_name,
     get_provider,
     resolve_execution_provider_name,
@@ -167,6 +168,7 @@ def invoke_agent(
     # A caller that already consumed a pooled model alias (e.g. the workflow
     # executor's prompt step, immediately before this call) hands over that
     # exact selection so it is never resolved — and never consumed — twice.
+    provider_disables = capture_provider_disable_snapshot() or None
     if launch_selection is not None:
         provider_name = launch_selection.provider
         model_override = launch_selection.model
@@ -175,13 +177,23 @@ def invoke_agent(
     else:
         from .launch_selection import resolve_launch_selection
 
-        selection = resolve_launch_selection(
-            result_directives,
-            model_alias_overrides,
-            model_tier=model_tier,
-            provider_name=provider_name,
-            consume=True,
-        )
+        if provider_disables is None:
+            selection = resolve_launch_selection(
+                result_directives,
+                model_alias_overrides,
+                model_tier=model_tier,
+                provider_name=provider_name,
+                consume=True,
+            )
+        else:
+            selection = resolve_launch_selection(
+                result_directives,
+                model_alias_overrides,
+                model_tier=model_tier,
+                provider_name=provider_name,
+                consume=True,
+                provider_disables=provider_disables,
+            )
         if selection is not None:
             provider_name = selection.provider
             model_override = selection.model
@@ -234,8 +246,23 @@ def invoke_agent(
         )
 
     # 7. Get provider and invoke
-    requested_provider_label = provider_name or get_default_provider_name()
-    execution_provider_label = resolve_execution_provider_name(requested_provider_label)
+    if provider_name:
+        requested_provider_label = provider_name
+    elif provider_disables is None:
+        requested_provider_label = get_default_provider_name()
+    else:
+        requested_provider_label = get_default_provider_name(
+            provider_disables=provider_disables
+        )
+    if provider_disables is None:
+        execution_provider_label = resolve_execution_provider_name(
+            requested_provider_label
+        )
+    else:
+        execution_provider_label = resolve_execution_provider_name(
+            requested_provider_label,
+            provider_disables=provider_disables,
+        )
     execution_override_active = bool(os.environ.get(LLM_EXEC_PROVIDER_ENV, "").strip())
     provider_lookup_name = (
         execution_provider_label if execution_override_active else provider_name
@@ -244,7 +271,13 @@ def invoke_agent(
     context.metadata_model = model_override
     t0 = time.monotonic()
     try:
-        provider = get_provider(provider_lookup_name)
+        if provider_disables is None:
+            provider = get_provider(provider_lookup_name)
+        else:
+            provider = get_provider(
+                provider_lookup_name,
+                provider_disables=provider_disables,
+            )
         if artifacts_dir:
             from sase.axe.run_agent_helpers import update_meta_field
 
@@ -256,7 +289,13 @@ def invoke_agent(
         if context.metadata_model is None:
             metadata_provider = provider
             if execution_provider_label != requested_provider_label:
-                metadata_provider = get_provider(requested_provider_label)
+                if provider_disables is None:
+                    metadata_provider = get_provider(requested_provider_label)
+                else:
+                    metadata_provider = get_provider(
+                        requested_provider_label,
+                        provider_disables=provider_disables,
+                    )
             resolved_model = metadata_provider.resolve_model_name(model_tier)
             if resolved_model and resolved_model != "unknown":
                 context.metadata_model = resolved_model

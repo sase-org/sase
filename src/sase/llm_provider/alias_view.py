@@ -53,6 +53,7 @@ from .config import (
     normalize_model_alias_reference,
 )
 from .load_balancing import ModelAliasSelectorMode
+from .provider_disable import TemporaryProviderDisable
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
 
 #: The kind of an alias, used for badge styling and grouping.
@@ -156,11 +157,17 @@ class AliasView:
     selector_mode: ModelAliasSelectorMode | None = None
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
     effort: str | None = None
+    override_paused_by_provider_disable: TemporaryProviderDisable | None = None
 
     @property
     def is_overridden(self) -> bool:
         """Whether a temporary override is currently shaping this alias."""
-        return self.override is not None
+        return self.override is not None and not self.is_override_paused
+
+    @property
+    def is_override_paused(self) -> bool:
+        """Whether a stored override is suspended by provider-disable state."""
+        return self.override_paused_by_provider_disable is not None
 
     @property
     def is_custom_builtin_shadow(self) -> bool:
@@ -236,6 +243,11 @@ class BucketView:
     def override_count(self) -> int:
         """Return the number of members with an active temporary override."""
         return sum(member.is_overridden for member in self.members)
+
+    @property
+    def paused_override_count(self) -> int:
+        """Return the number of members with a suspended temporary override."""
+        return sum(member.is_override_paused for member in self.members)
 
     @property
     def custom_builtin_shadow_names(self) -> tuple[str, ...]:
@@ -365,6 +377,7 @@ def _sort_key(view: AliasView) -> tuple[int, int, str]:
 def _effective_provider_model(
     name: str,
     override: TemporaryLLMOverride | None,
+    provider_disables: Mapping[str, TemporaryProviderDisable],
 ) -> tuple[str | None, str, str | None]:
     """Return the currently-effective provider, model, and effort for *name*.
 
@@ -372,14 +385,17 @@ def _effective_provider_model(
     top-bar pill show); otherwise the configured/implicit alias chain is
     resolved and split into a provider/model pair.
     """
-    if override is not None:
+    if override is not None and override.provider not in provider_disables:
         return override.provider, override.model, override.effort
 
     # Lazy import to avoid an import cycle: registry imports this package's
     # config at import time.
     from .registry import resolve_model_provider_with_effort
 
-    return resolve_model_provider_with_effort(name)
+    return resolve_model_provider_with_effort(
+        name,
+        provider_disables=provider_disables,
+    )
 
 
 def _selector_member_provider_model_effort(
@@ -398,6 +414,7 @@ def build_alias_views(
     now: float | None = None,
     *,
     overrides: Mapping[str, TemporaryLLMOverride] | None = None,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
 ) -> list[AliasView]:
     """Aggregate every model alias into ordered, display-ready rows.
 
@@ -420,11 +437,21 @@ def build_alias_views(
     active_overrides = (
         get_active_alias_overrides(now) if overrides is None else overrides
     )
+    active_provider_disables: Mapping[str, TemporaryProviderDisable]
+    if provider_disables is None:
+        from .provider_disable import get_active_provider_disables
+
+        active_provider_disables = get_active_provider_disables(now)
+    else:
+        active_provider_disables = provider_disables
 
     views: list[AliasView] = []
     for name in names:
         override = active_overrides.get(name)
-        selector = model_alias_selector_details(name)
+        selector = model_alias_selector_details(
+            name,
+            provider_disables=active_provider_disables,
+        )
         selected_member = (
             next((member for member in selector.members if member.selected), None)
             if selector is not None
@@ -435,7 +462,16 @@ def build_alias_views(
                 selected_member
             )
         else:
-            provider, model, effort = _effective_provider_model(name, override)
+            provider, model, effort = _effective_provider_model(
+                name,
+                override,
+                active_provider_disables,
+            )
+        paused_disable = (
+            active_provider_disables.get(override.provider)
+            if override is not None
+            else None
+        )
         views.append(
             AliasView(
                 name=name,
@@ -452,6 +488,7 @@ def build_alias_views(
                 selector_mode=selector.mode if selector is not None else None,
                 selector_members=selector.members if selector is not None else (),
                 effort=effort,
+                override_paused_by_provider_disable=paused_disable,
             )
         )
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.xprompt.effort import split_model_effort
 
@@ -23,7 +23,12 @@ from .model_alias_policy import (
 )
 from .types import ModelTier
 
+if TYPE_CHECKING:
+    from .provider_disable import TemporaryProviderDisable
+
 _ALIAS_RESOLUTION_DEPTH_LIMIT = 16
+
+ProviderDisableSnapshot = Mapping[str, "TemporaryProviderDisable"]
 
 
 def normalize_model_alias_reference(value: str) -> tuple[str | None, str | None]:
@@ -50,7 +55,26 @@ def active_alias_overrides() -> dict[str, Any]:
         return {}
 
 
-def resolve_default_alias_target(model_tier: ModelTier = "large") -> str:
+def _active_provider_disables() -> dict[str, TemporaryProviderDisable]:
+    """Return active provider disables for one routing operation."""
+    from .provider_disable import get_active_provider_disables
+
+    return get_active_provider_disables()
+
+
+def _capture_provider_disables(
+    provider_disables: ProviderDisableSnapshot | None,
+) -> ProviderDisableSnapshot:
+    if provider_disables is not None:
+        return provider_disables
+    return _active_provider_disables()
+
+
+def resolve_default_alias_target(
+    model_tier: ModelTier = "large",
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> str:
     """Return the implicit ``@default`` target as a ``provider/model`` string.
 
     Only reached when ``default`` is neither temporarily overridden nor
@@ -58,10 +82,20 @@ def resolve_default_alias_target(model_tier: ModelTier = "large") -> str:
     """
     try:
         # Lazy import to avoid an import cycle: registry imports config.
-        from .registry import get_configured_default_provider_name, get_provider
+        from .registry import (
+            get_configured_default_provider_name,
+            get_provider,
+            provider_disable_for,
+        )
 
-        provider_name = get_configured_default_provider_name()
-        model = get_provider(provider_name).resolve_model_name(model_tier)
+        disables = _capture_provider_disables(provider_disables)
+        provider_name = get_configured_default_provider_name(provider_disables=disables)
+        if provider_disable_for(provider_name, disables) is not None:
+            return f"{provider_name}/unknown"
+        model = get_provider(
+            provider_name,
+            provider_disables=disables,
+        ).resolve_model_name(model_tier)
         return f"{provider_name}/{model}"
     except Exception:
         return DEFAULT_MODEL_ALIAS_NAME
@@ -74,6 +108,9 @@ class _ResolvedModelAlias:
     target: str
     effort: str | None = None
     selector_alias: str | None = None
+    applied_override: Any | None = None
+    suspended_override: Any | None = None
+    suspended_provider_disable: TemporaryProviderDisable | None = None
     valid: bool = True
 
 
@@ -111,14 +148,43 @@ def provider_for_resolved_target(target: str) -> str | None:
     )
 
 
-def resolved_target_is_available(target: str) -> bool:
+def resolved_target_is_available(
+    target: str,
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> bool:
     """Return whether *target* resolves to a registered, installed provider."""
-    from .registry import provider_cli_available, registered_provider_names
+    from .registry import provider_routing_available
 
     provider = provider_for_resolved_target(target)
-    if provider is None or provider not in registered_provider_names():
-        return False
-    return provider_cli_available(provider)
+    return provider_routing_available(provider, provider_disables)
+
+
+def _target_is_available(
+    check: Callable[..., bool],
+    target: str,
+    provider_disables: ProviderDisableSnapshot,
+) -> bool:
+    try:
+        return check(target, provider_disables=provider_disables)
+    except TypeError:
+        return check(target)
+
+
+def _with_suspended_override(
+    result: _ResolvedModelAlias,
+    override: Any,
+    disable: TemporaryProviderDisable,
+) -> _ResolvedModelAlias:
+    return _ResolvedModelAlias(
+        result.target,
+        result.effort,
+        result.selector_alias,
+        result.applied_override,
+        override,
+        disable,
+        result.valid,
+    )
 
 
 def _resolve_model_alias_result(
@@ -127,6 +193,7 @@ def _resolve_model_alias_result(
     *,
     consume: bool = False,
     model_tier: ModelTier = "large",
+    provider_disables: ProviderDisableSnapshot | None = None,
     initial_seen: set[str] | None = None,
     active_selector: str | None = None,
 ) -> _ResolvedModelAlias:
@@ -141,6 +208,7 @@ def _resolve_model_alias_result(
     # re-calling the (cheap but cached-lookup-backed) accessors per step.
     role_fallbacks = role_alias_fallbacks()
     role_targets = implicit_alias_targets()
+    disables = _capture_provider_disables(provider_disables)
     # Loaded lazily and shared by recursive member resolutions.
     overrides: dict[str, Any] | None = None
 
@@ -191,10 +259,119 @@ def _resolve_model_alias_result(
                     override_effort = getattr(override, "effort", None)
                     if not isinstance(override_effort, str):
                         override_effort = None
+                    from .registry import provider_disable_for
+
+                    suspended_disable = provider_disable_for(
+                        getattr(override, "provider", None),
+                        disables,
+                    )
+                    if suspended_disable is not None:
+                        underlying_target = aliases.get(bare)
+                        if underlying_target is None:
+                            underlying_target = role_targets.get(bare)
+                        if underlying_target is not None:
+                            if bare in seen or not underlying_target:
+                                return fail()
+                            seen.add(bare)
+                            try:
+                                selector = parse_model_alias_selector(underlying_target)
+                            except ModelAliasSelectorError:
+                                return fail()
+                            if selector is not None:
+                                if selector_owner is not None:
+                                    return fail()
+                                member_results = [
+                                    resolve(
+                                        member,
+                                        seen=set(seen),
+                                        steps=steps + 1,
+                                        selector_owner=bare,
+                                        inherited_effort=effort,
+                                    )
+                                    for member in selector.members
+                                ]
+                                if any(not result.valid for result in member_results):
+                                    return fail()
+                                availability_check = config.__dict__.get(
+                                    "_resolved_target_is_available",
+                                    resolved_target_is_available,
+                                )
+                                availability = [
+                                    _target_is_available(
+                                        availability_check,
+                                        result.target,
+                                        disables,
+                                    )
+                                    for result in member_results
+                                ]
+                                if selector.mode == "round_robin":
+                                    index = select_model_alias_pool_member(
+                                        bare,
+                                        selector,
+                                        availability,
+                                        consume=consume,
+                                    )
+                                else:
+                                    index = select_model_alias_fallback_member(
+                                        availability
+                                    )
+                                return _with_suspended_override(
+                                    member_results[index],
+                                    override,
+                                    suspended_disable,
+                                )
+                            result = resolve(
+                                underlying_target,
+                                seen=set(seen),
+                                steps=steps + 1,
+                                selector_owner=selector_owner,
+                                inherited_effort=effort,
+                            )
+                            return _with_suspended_override(
+                                result, override, suspended_disable
+                            )
+                        fallback = config.implicit_model_alias_fallback_reference(bare)
+                        if fallback is not None:
+                            if bare in seen:
+                                return fail()
+                            seen.add(bare)
+                            result = resolve(
+                                fallback,
+                                seen=set(seen),
+                                steps=steps + 1,
+                                selector_owner=selector_owner,
+                                inherited_effort=effort,
+                            )
+                            return _with_suspended_override(
+                                result, override, suspended_disable
+                            )
+                        if bare == DEFAULT_MODEL_ALIAS_NAME:
+                            default_target = config.__dict__.get(
+                                "_resolve_default_alias_target",
+                                resolve_default_alias_target,
+                            )
+                            try:
+                                default_target_value = default_target(
+                                    model_tier,
+                                    provider_disables=disables,
+                                )
+                            except TypeError:
+                                default_target_value = default_target()
+                            default_resolved_target, target_effort = split_model_effort(
+                                default_target_value
+                            )
+                            return _ResolvedModelAlias(
+                                default_resolved_target,
+                                effort or target_effort,
+                                selector_owner,
+                                suspended_override=override,
+                                suspended_provider_disable=suspended_disable,
+                            )
                     return _ResolvedModelAlias(
                         f"{override.provider}/{override.model}",
                         effort or override_effort,
                         selector_owner,
+                        applied_override=override,
                     )
 
             target: str | None = None
@@ -233,7 +410,12 @@ def _resolve_model_alias_result(
                         resolved_target_is_available,
                     )
                     availability = [
-                        availability_check(result.target) for result in member_results
+                        _target_is_available(
+                            availability_check,
+                            result.target,
+                            disables,
+                        )
+                        for result in member_results
                     ]
                     if selector.mode == "round_robin":
                         index = select_model_alias_pool_member(
@@ -261,7 +443,10 @@ def _resolve_model_alias_result(
                     resolve_default_alias_target,
                 )
                 try:
-                    default_target_value = default_target(model_tier)
+                    default_target_value = default_target(
+                        model_tier,
+                        provider_disables=disables,
+                    )
                 except TypeError:
                     default_target_value = default_target()
                 target, target_effort = split_model_effort(default_target_value)
@@ -294,6 +479,7 @@ def resolve_model_alias_with_effort(
     *,
     consume: bool = False,
     model_tier: ModelTier = "large",
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> _ResolvedModelAlias:
     """Resolve *model*, retaining alias-borne effort and selector provenance.
 
@@ -306,6 +492,7 @@ def resolve_model_alias_with_effort(
         model_alias_overrides,
         consume=consume,
         model_tier=model_tier,
+        provider_disables=provider_disables,
     )
 
 
@@ -315,6 +502,7 @@ def resolve_model_alias(
     *,
     consume: bool = False,
     model_tier: ModelTier = "large",
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> str:
     """Resolve a model alias to its concrete target string.
 
@@ -327,6 +515,7 @@ def resolve_model_alias(
         model_alias_overrides,
         consume=consume,
         model_tier=model_tier,
+        provider_disables=provider_disables,
     ).target
 
 
@@ -346,7 +535,11 @@ def _model_alias_selector(name: str) -> ModelAliasSelector | None:
         return None
 
 
-def model_alias_selector_details(name: str) -> _ModelAliasSelectorDetails | None:
+def model_alias_selector_details(
+    name: str,
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> _ModelAliasSelectorDetails | None:
     """Return selector mode and resolved member details for alias *name*."""
     from . import config
 
@@ -354,10 +547,12 @@ def model_alias_selector_details(name: str) -> _ModelAliasSelectorDetails | None
     selector = _model_alias_selector(alias)
     if selector is None:
         return None
+    disables = _capture_provider_disables(provider_disables)
     resolved: list[tuple[str, _ResolvedModelAlias, str | None, bool]] = []
     for value in selector.members:
         result = _resolve_model_alias_result(
             value,
+            provider_disables=disables,
             initial_seen={alias},
             active_selector=alias,
         )
@@ -370,7 +565,11 @@ def model_alias_selector_details(name: str) -> _ModelAliasSelectorDetails | None
             "_resolved_target_is_available",
             resolved_target_is_available,
         )
-        available = result.valid and availability_check(result.target)
+        available = result.valid and _target_is_available(
+            availability_check,
+            result.target,
+            disables,
+        )
         resolved.append((value, result, provider, available))
 
     availability = [item[3] for item in resolved]

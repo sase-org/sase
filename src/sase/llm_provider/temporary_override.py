@@ -219,13 +219,18 @@ def _write_alias_override(
 
     # Lazy import to avoid an import cycle (registry imports from this
     # module's siblings via __init__.py).
-    from .registry import get_default_provider_name, resolve_model_provider_with_effort
+    from .registry import (
+        get_default_provider_name,
+        raise_if_provider_temporarily_disabled,
+        resolve_model_provider_with_effort,
+    )
 
     resolved_provider, resolved_model, resolved_effort = (
         resolve_model_provider_with_effort(cleaned)
     )
     if resolved_provider is None:
         resolved_provider = get_default_provider_name()
+    raise_if_provider_temporarily_disabled(resolved_provider)
 
     override = TemporaryLLMOverride(
         provider=resolved_provider,

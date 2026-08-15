@@ -21,11 +21,14 @@ from dataclasses import dataclass
 
 from sase.xprompt.directives import PromptDirectives
 
+from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
 from .types import ModelTier
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["LaunchSelection", "resolve_launch_selection"]
+
+ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +48,7 @@ def resolve_launch_selection(
     model_tier: ModelTier = "large",
     provider_name: str | None = None,
     consume: bool,
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> LaunchSelection | None:
     """Resolve *directives* to a concrete provider/model/effort selection.
 
@@ -69,20 +73,35 @@ def resolve_launch_selection(
     )
 
     overrides = model_alias_overrides or None
+    disables = (
+        get_active_provider_disables()
+        if provider_disables is None
+        else provider_disables
+    ) or None
     model_override = directives.model
     alias_effort: str | None = None
 
     if model_override and not provider_name:
-        resolved_provider, model_override, alias_effort = (
-            resolve_model_provider_with_effort(
-                model_override,
-                overrides,
-                consume=consume,
+        if disables is None:
+            resolved_provider, model_override, alias_effort = (
+                resolve_model_provider_with_effort(
+                    model_override,
+                    overrides,
+                    consume=consume,
+                )
             )
-        )
+        else:
+            resolved_provider, model_override, alias_effort = (
+                resolve_model_provider_with_effort(
+                    model_override,
+                    overrides,
+                    consume=consume,
+                    provider_disables=disables,
+                )
+            )
         if resolved_provider:
             provider_name = resolved_provider
-        else:
+        elif disables is None:
             provider_name = get_default_provider_name()
             logger.warning(
                 "Model override %r did not resolve to an LLM provider; "
@@ -90,29 +109,42 @@ def resolve_launch_selection(
                 directives.model,
                 provider_name,
             )
+        else:
+            provider_name = get_default_provider_name(provider_disables=disables)
+            logger.warning(
+                "Model override %r did not resolve to an LLM provider; "
+                "falling back to default provider %r.",
+                directives.model,
+                provider_name,
+            )
+
+    def _resolve_default_alias() -> tuple[str, str, str | None]:
+        if disables is None:
+            return resolve_effective_default_provider_model_with_effort(
+                model_tier,
+                overrides,
+                consume=consume,
+            )
+        return resolve_effective_default_provider_model_with_effort(
+            model_tier,
+            overrides,
+            consume=consume,
+            provider_disables=disables,
+        )
 
     if not model_override and not provider_name:
         active = get_active_temporary_override()
         if overrides and default_model_alias_name() in overrides:
-            provider_name, model_override, alias_effort = (
-                resolve_effective_default_provider_model_with_effort(
-                    model_tier,
-                    overrides,
-                    consume=consume,
-                )
-            )
+            provider_name, model_override, alias_effort = _resolve_default_alias()
         elif active is not None:
-            provider_name = active.provider
-            model_override = active.model
-            alias_effort = active.effort
+            if disables is None or active.provider not in disables:
+                provider_name = active.provider
+                model_override = active.model
+                alias_effort = active.effort
+            else:
+                provider_name, model_override, alias_effort = _resolve_default_alias()
         else:
-            provider_name, model_override, alias_effort = (
-                resolve_effective_default_provider_model_with_effort(
-                    model_tier,
-                    overrides,
-                    consume=consume,
-                )
-            )
+            provider_name, model_override, alias_effort = _resolve_default_alias()
 
     if model_override is None or provider_name is None:
         return None

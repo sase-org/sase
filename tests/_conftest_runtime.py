@@ -104,7 +104,7 @@ def _clear_config_caches() -> None:
     from sase.config import mentor as mentor_config
     from sase.llm_provider import config as llm_provider_config
     from sase.llm_provider import launch_alias_overrides
-    from sase.llm_provider.registry import provider_cli_available
+    from sase.llm_provider.registry import _provider_cli_available
     from sase._linked_repo_identity import reset_repo_identity_caches
 
     reset_repo_identity_caches()
@@ -112,7 +112,7 @@ def _clear_config_caches() -> None:
     config_core.clear_config_cache()
     llm_provider_config._get_model_aliases_for_token.cache_clear()
     launch_alias_overrides._parse_env_value.cache_clear()
-    provider_cli_available.cache_clear()
+    _provider_cli_available.cache_clear()
 
     mentor_config._mentor_profiles_cache_token = None
     mentor_config._mentor_profiles_cache_value = None

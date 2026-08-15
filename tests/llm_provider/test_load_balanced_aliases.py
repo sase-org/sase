@@ -102,8 +102,8 @@ def test_availability_filter_and_all_unavailable_fallback(
         "_resolved_target_is_available",
         lambda _target: False,
     )
-    # A new fingerprint starts at the first member and preserves the full pool
-    # when there is no viable fallback.
+    # A new fingerprint retains member zero for diagnostics and does not
+    # advance the cursor when there is no viable fallback.
     configure_pool(
         monkeypatch,
         "claude/sonnet@high | codex/o3",
@@ -114,7 +114,7 @@ def test_availability_filter_and_all_unavailable_fallback(
         lambda _target: False,
     )
     assert resolve_model_alias("@pool", consume=True) == "claude/sonnet"
-    assert resolve_model_alias("@pool", consume=True) == "codex/o3"
+    assert resolve_model_alias("@pool", consume=True) == "claude/sonnet"
 
 
 def test_pool_edit_fingerprint_resets_cursor(

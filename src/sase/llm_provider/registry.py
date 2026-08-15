@@ -17,6 +17,8 @@ import os
 from pathlib import Path
 import shutil
 from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import pluggy
@@ -36,7 +38,8 @@ from .config import (
     get_llm_provider_config,
     resolve_model_alias_with_effort,
 )
-from .types import ModelTier
+from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
+from .types import LLMInvocationError, ModelTier
 
 _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "claude": "#D97757",
@@ -47,6 +50,33 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
 }
 
 LLM_EXEC_PROVIDER_ENV = "SASE_LLM_EXEC_PROVIDER"
+
+ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderRoutingStatus:
+    """Display-ready routing state for one registered LLM provider."""
+
+    provider: str
+    model_count: int
+    cli_available: bool
+    active_disable: TemporaryProviderDisable | None
+    hidden_from_model_pickers: bool
+    affected_aliases: tuple[str, ...] = ()
+
+
+class ProviderTemporarilyDisabledError(LLMInvocationError):
+    """Raised before a disabled provider plugin can be instantiated."""
+
+    def __init__(self, provider: str, disable: TemporaryProviderDisable) -> None:
+        self.provider = provider
+        self.disable = disable
+        super().__init__(
+            f"LLM provider {provider!r} is temporarily disabled "
+            f"{format_provider_disable_expiry(disable)}. "
+            "Enable the provider or choose a different model/provider."
+        )
 
 
 @functools.cache
@@ -258,7 +288,7 @@ def registered_provider_names() -> list[str]:
 
 
 @functools.cache
-def provider_cli_available(provider_name: str) -> bool:
+def _provider_cli_available(provider_name: str) -> bool:
     """Return whether a registered provider's declared CLI is installed.
 
     The process-lifetime cache mirrors the registry metadata caches so Models
@@ -268,7 +298,7 @@ def provider_cli_available(provider_name: str) -> bool:
     available.
 
     Tests that change provider metadata, ``PATH``, or a provider-path override
-    should call ``provider_cli_available.cache_clear()``.
+    should call ``_provider_cli_available.cache_clear()``.
     """
     providers = _llm_metadata_payload().get("providers")
     if not isinstance(providers, dict):
@@ -292,7 +322,156 @@ def provider_cli_available(provider_name: str) -> bool:
     return False
 
 
-def get_provider(name: str | None = None) -> LLMProvider:
+def capture_provider_disable_snapshot(
+    now: float | None = None,
+) -> dict[str, TemporaryProviderDisable]:
+    """Capture active provider disables once for one routing operation."""
+    return get_active_provider_disables(now)
+
+
+def provider_disable_for(
+    provider_name: str | None,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> TemporaryProviderDisable | None:
+    """Return the active disable for *provider_name*, if one is captured."""
+    if not provider_name:
+        return None
+    disables = (
+        capture_provider_disable_snapshot()
+        if provider_disables is None
+        else provider_disables
+    )
+    return disables.get(provider_name)
+
+
+def provider_routing_available(
+    provider_name: str | None,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> bool:
+    """Return whether a provider can be used by automatic routing."""
+    if not provider_name or provider_name not in registered_provider_names():
+        return False
+    if provider_disable_for(provider_name, provider_disables) is not None:
+        return False
+    return _provider_cli_available(provider_name)
+
+
+def build_provider_routing_statuses(
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> tuple[ProviderRoutingStatus, ...]:
+    """Return raw provider routing state for provider-management UI surfaces."""
+    disables = (
+        capture_provider_disable_snapshot()
+        if provider_disables is None
+        else provider_disables
+    )
+    payload = _llm_metadata_payload()
+    providers = payload.get("providers")
+    if not isinstance(providers, dict):
+        return ()
+    hidden = model_picker_hidden_provider_names()
+    model_counts = _provider_model_counts(payload)
+    affected = _affected_aliases_by_provider()
+    rows = [
+        ProviderRoutingStatus(
+            provider=provider,
+            model_count=model_counts.get(provider, 0),
+            cli_available=_provider_cli_available(provider),
+            active_disable=disables.get(provider),
+            hidden_from_model_pickers=provider in hidden,
+            affected_aliases=affected.get(provider, ()),
+        )
+        for provider in sorted(str(name) for name in providers)
+    ]
+    return tuple(rows)
+
+
+def _provider_model_counts(payload: Mapping[str, object]) -> dict[str, int]:
+    providers = payload.get("providers")
+    model_to_provider = payload.get("model_to_provider")
+    counts: dict[str, int] = {}
+    if isinstance(model_to_provider, dict):
+        for provider in model_to_provider.values():
+            counts[str(provider)] = counts.get(str(provider), 0) + 1
+    if isinstance(providers, dict):
+        for provider, metadata in providers.items():
+            if provider in counts or not isinstance(metadata, dict):
+                continue
+            models = metadata.get("known_model_names")
+            counts[str(provider)] = len(models) if isinstance(models, list) else 0
+    return counts
+
+
+def _affected_aliases_by_provider() -> dict[str, tuple[str, ...]]:
+    try:
+        from .alias_view import build_alias_views
+
+        views = build_alias_views(provider_disables={})
+    except Exception:
+        return {}
+
+    affected: dict[str, set[str]] = {}
+    for view in views:
+        providers: set[str] = set()
+        if view.provider:
+            providers.add(view.provider)
+        if view.override is not None:
+            providers.add(view.override.provider)
+        for member in view.selector_members:
+            if member.provider:
+                providers.add(member.provider)
+        for provider in providers:
+            affected.setdefault(provider, set()).add(view.name)
+    return {
+        provider: tuple(sorted(alias_names))
+        for provider, alias_names in affected.items()
+    }
+
+
+def raise_if_provider_temporarily_disabled(
+    provider_name: str | None,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> None:
+    """Raise the explicit dispatch diagnostic for a disabled provider."""
+    if not provider_name or provider_name not in registered_provider_names():
+        return
+    disable = provider_disable_for(provider_name, provider_disables)
+    if disable is not None:
+        raise ProviderTemporarilyDisabledError(provider_name, disable)
+
+
+def format_provider_disable_expiry(
+    disable: TemporaryProviderDisable,
+    *,
+    now: float | None = None,
+) -> str:
+    """Format a provider-disable expiry for non-TUI diagnostics."""
+    if disable.expires_at is None:
+        return "until cleared"
+    expires = datetime.fromtimestamp(disable.expires_at, tz=UTC).strftime(
+        "%Y-%m-%d %H:%M:%S UTC"
+    )
+    current = datetime.now(tz=UTC).timestamp() if now is None else now
+    remaining = max(0.0, disable.expires_at - current)
+    return f"until {expires} ({_format_duration(remaining)} remaining)"
+
+
+def _format_duration(seconds: float) -> str:
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
+
+
+def get_provider(
+    name: str | None = None,
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> LLMProvider:
     """Get an instantiated LLM provider by name.
 
     Args:
@@ -305,11 +484,16 @@ def get_provider(name: str | None = None) -> LLMProvider:
         KeyError: If the provider name is not registered as an entry point.
     """
     if name is None:
-        name = get_default_provider_name()
+        name = get_default_provider_name(provider_disables=provider_disables)
+    raise_if_provider_temporarily_disabled(name, provider_disables)
     return create_provider(name)
 
 
-def resolve_execution_provider_name(requested_provider: str | None = None) -> str:
+def resolve_execution_provider_name(
+    requested_provider: str | None = None,
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> str:
     """Return the provider that should execute an invocation.
 
     ``SASE_LLM_EXEC_PROVIDER`` deliberately changes only runtime dispatch. The
@@ -317,7 +501,9 @@ def resolve_execution_provider_name(requested_provider: str | None = None) -> st
     Registration is validated later by :func:`get_provider`, at the same lookup
     choke point used for ordinary invocations.
     """
-    requested = requested_provider or get_default_provider_name()
+    requested = requested_provider or get_default_provider_name(
+        provider_disables=provider_disables
+    )
     override = os.environ.get(LLM_EXEC_PROVIDER_ENV, "").strip()
     return override or requested
 
@@ -328,6 +514,7 @@ def resolve_model_provider(
     *,
     consume: bool = False,
     model_tier: ModelTier = "large",
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str | None, str]:
     """Resolve a model override string to (provider_name, model_name).
 
@@ -351,6 +538,7 @@ def resolve_model_provider(
         model_alias_overrides,
         consume=consume,
         model_tier=model_tier,
+        provider_disables=provider_disables,
     )
     return provider, model
 
@@ -361,6 +549,7 @@ def resolve_model_provider_with_effort(
     *,
     consume: bool = False,
     model_tier: ModelTier = "large",
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str | None, str, str | None]:
     """Resolve a model override to provider/model plus alias-borne effort.
 
@@ -375,6 +564,7 @@ def resolve_model_provider_with_effort(
         model_alias_overrides,
         consume=consume,
         model_tier=model_tier,
+        provider_disables=provider_disables,
     )
     model_override = resolved.target
 
@@ -398,6 +588,7 @@ def resolve_default_alias_provider_model(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str, str]:
     """Resolve the implicit ``@default`` alias to ``(provider, model)``.
 
@@ -410,6 +601,7 @@ def resolve_default_alias_provider_model(
         model_tier,
         model_alias_overrides,
         consume=consume,
+        provider_disables=provider_disables,
     )
     return provider, model
 
@@ -419,16 +611,17 @@ def resolve_default_alias_provider_model_with_effort(
     model_alias_overrides: Mapping[str, str] | None = None,
     *,
     consume: bool = False,
+    provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str, str, str | None]:
     """Resolve ``@default`` including temporary overrides and alias effort.
 
     An active temporary override wins and ignores *model_tier*.
     """
-    from .temporary_override import get_active_alias_override
-
-    override = get_active_alias_override("default")
-    if override is not None:
-        return override.provider, override.model, override.effort
+    disables = (
+        capture_provider_disable_snapshot()
+        if provider_disables is None
+        else provider_disables
+    )
 
     from .config import default_model_alias_name
 
@@ -437,12 +630,17 @@ def resolve_default_alias_provider_model_with_effort(
         model_alias_overrides,
         consume=consume,
         model_tier=model_tier,
+        provider_disables=disables,
     )
     if provider is not None:
         return provider, model, effort
     # A configured default may be a bare/unknown model. Run it on the configured
     # provider rather than silently dropping the user's choice.
-    return get_configured_default_provider_name(), model, effort
+    return (
+        get_configured_default_provider_name(provider_disables=disables),
+        model,
+        effort,
+    )
 
 
 def format_provider_model_label(
@@ -462,13 +660,21 @@ def format_provider_model_label(
     return "Agent"
 
 
-def get_configured_default_provider_name() -> str:
+def get_configured_default_provider_name(
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> str:
     """Get the configured/autodetected provider without temporary overrides."""
     config = get_llm_provider_config()
     provider = config.get("provider")
     if isinstance(provider, str) and provider:
         return provider
 
+    disables = (
+        capture_provider_disable_snapshot()
+        if provider_disables is None
+        else provider_disables
+    )
     candidates = _llm_metadata_payload().get("autodetect_candidates")
     if not isinstance(candidates, list):
         candidates = []
@@ -476,10 +682,7 @@ def get_configured_default_provider_name() -> str:
         if not isinstance(item, dict):
             continue
         name = str(item.get("provider"))
-        cli_name = item.get("cli_name")
-        if cli_name is not None:
-            cli_name = str(cli_name)
-        if cli_name is None or shutil.which(cli_name):
+        if provider_routing_available(name, disables):
             return name
 
     raise RuntimeError(
@@ -488,7 +691,10 @@ def get_configured_default_provider_name() -> str:
     )
 
 
-def get_default_provider_name() -> str:
+def get_default_provider_name(
+    *,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> str:
     """Get the effective default provider name.
 
     An active temporary LLM override (see
@@ -508,8 +714,16 @@ def get_default_provider_name() -> str:
     # from this module's siblings via __init__.py.
     from .temporary_override import get_active_temporary_override
 
+    disables = (
+        capture_provider_disable_snapshot()
+        if provider_disables is None
+        else provider_disables
+    )
     override = get_active_temporary_override()
-    if override is not None:
+    if (
+        override is not None
+        and provider_disable_for(override.provider, disables) is None
+    ):
         return override.provider
 
-    return get_configured_default_provider_name()
+    return get_configured_default_provider_name(provider_disables=disables)

@@ -1,11 +1,13 @@
 """Filtering and Textual option rendering for model-picker rows."""
 
 from dataclasses import replace
+from collections.abc import Mapping
 
 from rich.text import Text
 from textual.widgets._option_list import Option
 
 from sase.ace.tui.provider_styles import model_option_text, provider_header_text
+from sase.llm_provider.provider_disable import TemporaryProviderDisable
 
 from .model_picker_rows import (
     DEFAULT_SENTINEL,
@@ -160,7 +162,11 @@ def rows_to_options(
     return items
 
 
-def build_model_options(*, include_default_option: bool = True) -> list[Option | None]:
+def build_model_options(
+    *,
+    include_default_option: bool = True,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+) -> list[Option | None]:
     """Build the option list items grouped by provider.
 
     Args:
@@ -170,5 +176,8 @@ def build_model_options(*, include_default_option: bool = True) -> list[Option |
             "use follow-up default" semantics pass ``False`` to omit it.
     """
     return rows_to_options(
-        build_model_rows(include_default_option=include_default_option)
+        build_model_rows(
+            include_default_option=include_default_option,
+            provider_disables=provider_disables,
+        )
     )
