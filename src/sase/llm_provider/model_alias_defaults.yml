@@ -60,7 +60,7 @@ aliases:
     target: "claude/sonnet@high | codex/gpt-5.5@high | grok/grok-4.6@high"
     description: "Load-balanced pool used automatically by small phase agents."
   cheaper:
-    target: "claude/sonnet@medium | codex/gpt-5.5@medium | grok/grok-4.6@medium"
+    target: "claude/sonnet@medium | codex/gpt-5.5@medium | grok/grok-4.6@medium | agy/gemini-3.7-flash-medium"
     description: >-
       Lower-cost load-balanced pool used automatically by extra-small phase
       agents.

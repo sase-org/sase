@@ -60,6 +60,23 @@ def test_xsmall_phase_and_cheaper_share_one_rotation(
     )
 
 
+def test_cheaper_packaged_defaults_can_select_antigravity_medium(
+    monkeypatch: pytest.MonkeyPatch,
+    real_model_alias_defaults: None,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("agy/"),
+    )
+
+    cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
+
+    assert cheaper.target == "agy/gemini-3.7-flash-medium"
+    assert cheaper.effort is None
+
+
 def test_cheap_and_cheaper_use_independent_rotations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
