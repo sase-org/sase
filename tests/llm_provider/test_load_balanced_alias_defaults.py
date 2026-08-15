@@ -60,21 +60,29 @@ def test_xsmall_phase_and_cheaper_share_one_rotation(
     )
 
 
-def test_cheaper_packaged_defaults_can_select_antigravity_medium(
+def test_cheaper_packaged_defaults_select_correct_effort_per_provider(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda target: target.startswith("agy/"),
-    )
 
-    cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
+    expectations = {
+        "claude/": ("claude/sonnet", "medium"),
+        "codex/": ("codex/gpt-5.5", "medium"),
+        "grok/": ("grok/grok-4.6", "medium"),
+        "agy/": ("agy/gemini-3.7-flash-high", None),
+    }
+    for prefix, (expected_target, expected_effort) in expectations.items():
+        monkeypatch.setattr(
+            llm_config,
+            "_resolved_target_is_available",
+            lambda target, prefix=prefix: target.startswith(prefix),
+        )
 
-    assert cheaper.target == "agy/gemini-3.7-flash-medium"
-    assert cheaper.effort is None
+        cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
+
+        assert cheaper.target == expected_target
+        assert cheaper.effort == expected_effort
 
 
 def test_cheap_and_cheaper_use_independent_rotations(
