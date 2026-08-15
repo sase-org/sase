@@ -14,8 +14,14 @@ from .logs import delete_proc_logs
 from .models import (
     Proc,
     ProcAppendOutcome,
+    ProcFinish,
     ProcPruneOutcome,
+    ProcReserve,
+    ProcReserveOutcome,
+    ProcSettlement,
+    ProcStopRequest,
     ProcStoreSnapshot,
+    ProcSupervisorClaim,
     ProcUpdate,
     ProcUpdateOutcome,
 )
@@ -82,7 +88,28 @@ def append_proc(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcAppendOutcome.from_dict(payload)
-    delete_proc_logs(outcome.pruned_proc_ids)
+    delete_proc_logs(outcome.pruned_log_proc_ids)
+    return outcome
+
+
+def reserve_proc(
+    reserve: ProcReserve | Mapping[str, Any],
+    *,
+    path: Path | str | None = None,
+    history_limit: int | None = None,
+) -> ProcReserveOutcome:
+    """Atomically reserve a proc-shell row or replay an identical request."""
+    record = (
+        reserve if isinstance(reserve, ProcReserve) else ProcReserve.from_dict(reserve)
+    )
+    payload: Mapping[str, Any] = _call_binding(
+        "reserve_proc",
+        str(path or proc_store_path()),
+        record.to_dict(),
+        history_limit if history_limit is not None else get_proc_history_limit(),
+    )
+    outcome = ProcReserveOutcome.from_dict(payload)
+    delete_proc_logs(outcome.pruned_log_proc_ids)
     return outcome
 
 
@@ -107,6 +134,70 @@ def update_proc(
     return ProcUpdateOutcome.from_dict(payload)
 
 
+def claim_proc_supervisor(
+    claim: ProcSupervisorClaim | Mapping[str, Any],
+    *,
+    path: Path | str | None = None,
+) -> ProcUpdateOutcome:
+    """Claim a reserved proc-shell for exactly one supervisor identity."""
+    record = (
+        claim
+        if isinstance(claim, ProcSupervisorClaim)
+        else ProcSupervisorClaim.from_dict(claim)
+    )
+    payload: Mapping[str, Any] = _call_binding(
+        "claim_proc_supervisor", str(path or proc_store_path()), record.to_dict()
+    )
+    return ProcUpdateOutcome.from_dict(payload)
+
+
+def request_proc_stop(
+    request: ProcStopRequest | Mapping[str, Any],
+    *,
+    path: Path | str | None = None,
+) -> ProcUpdateOutcome:
+    """Record stop intent without terminalizing the proc."""
+    record = (
+        request
+        if isinstance(request, ProcStopRequest)
+        else ProcStopRequest.from_dict(request)
+    )
+    payload: Mapping[str, Any] = _call_binding(
+        "request_proc_stop", str(path or proc_store_path()), record.to_dict()
+    )
+    return ProcUpdateOutcome.from_dict(payload)
+
+
+def begin_proc_settlement(
+    settlement: ProcSettlement | Mapping[str, Any],
+    *,
+    path: Path | str | None = None,
+) -> ProcUpdateOutcome:
+    """Move a proc-shell into settlement before any terminal finish."""
+    record = (
+        settlement
+        if isinstance(settlement, ProcSettlement)
+        else ProcSettlement.from_dict(settlement)
+    )
+    payload: Mapping[str, Any] = _call_binding(
+        "begin_proc_settlement", str(path or proc_store_path()), record.to_dict()
+    )
+    return ProcUpdateOutcome.from_dict(payload)
+
+
+def finish_proc(
+    finish: ProcFinish | Mapping[str, Any],
+    *,
+    path: Path | str | None = None,
+) -> ProcUpdateOutcome:
+    """Publish the single-owner terminal proc-shell result."""
+    record = finish if isinstance(finish, ProcFinish) else ProcFinish.from_dict(finish)
+    payload: Mapping[str, Any] = _call_binding(
+        "finish_proc", str(path or proc_store_path()), record.to_dict()
+    )
+    return ProcUpdateOutcome.from_dict(payload)
+
+
 def prune_procs(
     *,
     path: Path | str | None = None,
@@ -119,7 +210,7 @@ def prune_procs(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcPruneOutcome.from_dict(payload)
-    delete_proc_logs(outcome.pruned_proc_ids)
+    delete_proc_logs(outcome.pruned_log_proc_ids)
     return outcome
 
 
@@ -191,9 +282,14 @@ def _call_binding(name: str, *args: Any) -> Any:
 __all__ = [
     "ProcStoreLockTimeoutError",
     "append_proc",
+    "begin_proc_settlement",
+    "claim_proc_supervisor",
     "filter_procs",
+    "finish_proc",
     "get_proc",
     "prune_procs",
     "read_procs",
+    "request_proc_stop",
+    "reserve_proc",
     "update_proc",
 ]

@@ -146,7 +146,7 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
 
     assert submitted is existing
     assert read_tasks.call_args.kwargs == {
-        "status": frozenset({"pending", "running"}),
+        "status": frozenset({"pending", "running", "settling"}),
         "kind": "detached",
     }
     submit_task.assert_not_called()
@@ -185,7 +185,7 @@ def test_active_task_launch_bead_ids_returns_active_task_bead_launches() -> None
     ]
 
     def read_tasks(*, status: frozenset[str], kind: str) -> list[SimpleNamespace]:
-        assert status == frozenset({"pending", "running"})
+        assert status == frozenset({"pending", "running", "settling"})
         assert kind == "detached"
         return [row for row in rows if row.status in status and row.kind == kind]
 

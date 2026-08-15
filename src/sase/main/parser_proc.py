@@ -6,7 +6,7 @@ import argparse
 
 # Mirrors ``ACTIVE_PROC_STATUSES | TERMINAL_PROC_STATUSES`` in ``sase.procs``,
 # spelled out here so building the parser never imports the proc store.
-PROC_STATUS_CHOICES = ("pending", "running", "success", "error", "killed")
+PROC_STATUS_CHOICES = ("pending", "running", "settling", "success", "error", "killed")
 # Mirrors ``PROC_KINDS`` in ``sase.procs`` without importing the proc store
 # while the top-level parser is being built.
 PROC_KIND_CHOICES = ("command", "tui", "detached")
@@ -133,7 +133,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         "-r",
         "--running",
         action="store_true",
-        help="Only procs that are pending or running",
+        help="Only procs that are pending, running, or settling",
     )
     list_parser.add_argument(
         "-s",

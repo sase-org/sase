@@ -16,17 +16,26 @@ from sase.procs import (
     COMMAND_PROC_KIND,
     DETACHED_PROC_KIND,
     PROC_WIRE_SCHEMA_VERSION,
+    STORE_LOG_OWNER,
     TUI_PROC_KIND,
     Proc,
+    ProcFinish,
     ProcAppendOutcome,
     ProcPruneOutcome,
+    ProcReserve,
+    ProcSettlement,
+    ProcStopRequest,
     ProcRefError,
+    ProcSupervisorClaim,
     ProcStoreSnapshot,
     ProcUpdate,
     ProcUpdateOutcome,
     append_proc,
+    begin_proc_settlement,
+    claim_proc_supervisor,
     delete_proc_logs,
     filter_procs,
+    finish_proc,
     get_proc,
     new_proc_id,
     open_proc_log,
@@ -34,7 +43,9 @@ from sase.procs import (
     proc_log_path,
     read_proc_log_tail,
     read_procs,
+    request_proc_stop,
     resolve_proc_ref,
+    reserve_proc,
     short_proc_id,
     update_proc,
 )
@@ -68,6 +79,33 @@ def _proc(
         tags=tags or ["docs"],
         created_at=created_at,
         log_path=f"/tmp/{proc_id}.log",
+    )
+
+
+def _reserve(
+    proc_id: str,
+    *,
+    shell_name: str = "agent--build",
+    fingerprint: str = "fingerprint",
+    concurrency_keys: list[str] | None = None,
+) -> ProcReserve:
+    return ProcReserve(
+        proc_id=proc_id,
+        label="Build docs",
+        argv=["just", "docs"],
+        cwd="/tmp",
+        project="sase",
+        workspace_num=10,
+        session_id="session-a",
+        origin="test",
+        tags=["docs"],
+        created_at="2026-07-25T12:00:00Z",
+        log_path=f"/tmp/{proc_id}.log",
+        shell_name=shell_name,
+        concurrency_keys=concurrency_keys or ["docs"],
+        request_fingerprint=fingerprint,
+        reserved_by="agent-one",
+        timeout_seconds=30,
     )
 
 
@@ -119,6 +157,34 @@ def test_legacy_task_wire_payloads_parse_as_proc_models() -> None:
     assert appended.pruned_proc_ids == ["old-task"]
     assert updated.proc == proc
     assert pruned.pruned_proc_ids == ["old-task"]
+
+
+def test_legacy_commandless_tui_payload_receives_proc_shell_defaults() -> None:
+    snapshot = ProcStoreSnapshot.from_dict(
+        {
+            "schema_version": 2,
+            "procs": [
+                {
+                    "proc_id": "legacy-tui",
+                    "label": "Legacy TUI",
+                    "kind": TUI_PROC_KIND,
+                    "status": "running",
+                    "command": [],
+                    "cwd": "/tmp",
+                    "origin": "test",
+                    "created_at": "2026-07-25T12:00:00Z",
+                    "log_path": "/tmp/legacy-tui.log",
+                }
+            ],
+            "stats": {},
+        }
+    )
+
+    proc = snapshot.procs[0]
+    assert proc.schema_version == 2
+    assert proc.argv == []
+    assert proc.log_owner == STORE_LOG_OWNER
+    assert proc.lifecycle == "legacy"
 
 
 def test_proc_update_distinguishes_omitted_from_explicit_null() -> None:
@@ -340,6 +406,122 @@ def test_rust_facade_round_trip_update_and_get(tmp_path: Path) -> None:
     assert read_procs(path=store, status="running") == [updated.proc]
 
 
+def test_proc_shell_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> None:
+    store = tmp_path / "procs.jsonl"
+
+    reserved = reserve_proc(_reserve("reserved-one"), path=store, history_limit=10)
+    assert reserved.reserved is True
+    assert reserved.replayed is False
+    assert reserved.proc.schema_version == PROC_WIRE_SCHEMA_VERSION
+    assert reserved.proc.lifecycle == "proc-shell"
+    assert reserved.proc.argv == ["just", "docs"]
+
+    replay = reserve_proc(
+        _reserve("other-proc", fingerprint="fingerprint"),
+        path=store,
+        history_limit=10,
+    )
+    assert replay.reserved is False
+    assert replay.replayed is True
+    assert replay.proc.proc_id == "reserved-one"
+
+    with pytest.raises(ValueError, match="shell_name"):
+        reserve_proc(
+            _reserve("conflict-one", fingerprint="different"),
+            path=store,
+            history_limit=10,
+        )
+
+    with pytest.raises(ValueError, match="concurrency_key"):
+        reserve_proc(
+            _reserve(
+                "conflict-two",
+                shell_name="agent--test",
+                fingerprint="third",
+                concurrency_keys=["docs"],
+            ),
+            path=store,
+            history_limit=10,
+        )
+
+    with pytest.raises(ValueError, match="claimed"):
+        finish_proc(
+            ProcFinish(
+                proc_id="reserved-one",
+                supervisor_id="supervisor-a",
+                status="success",
+                finished_at="2026-07-25T12:00:10Z",
+                exit_code=0,
+            ),
+            path=store,
+        )
+
+    claimed = claim_proc_supervisor(
+        ProcSupervisorClaim(
+            proc_id="reserved-one",
+            supervisor_id="supervisor-a",
+            claimed_at="2026-07-25T12:00:01Z",
+            pid=123,
+            pgid=123,
+        ),
+        path=store,
+    ).proc
+    assert claimed is not None
+    assert claimed.status == "running"
+    assert claimed.supervisor_id == "supervisor-a"
+
+    stopped = request_proc_stop(
+        ProcStopRequest(
+            proc_id="reserved-one",
+            requested_by="agent-one",
+            requested_at="2026-07-25T12:00:02Z",
+            reason="user",
+        ),
+        path=store,
+    ).proc
+    assert stopped is not None
+    assert stopped.status == "running"
+    assert stopped.stop_requested_by == "agent-one"
+
+    with pytest.raises(ValueError, match="transition"):
+        update_proc(
+            "reserved-one",
+            path=store,
+            status="success",
+            finished_at="2026-07-25T12:00:10Z",
+        )
+
+    settling = begin_proc_settlement(
+        ProcSettlement(
+            proc_id="reserved-one",
+            supervisor_id="supervisor-a",
+            settling_at="2026-07-25T12:00:03Z",
+            exit_code=0,
+            message="done",
+        ),
+        path=store,
+    ).proc
+    assert settling is not None
+    assert settling.status == "settling"
+
+    finished = finish_proc(
+        ProcFinish(
+            proc_id="reserved-one",
+            supervisor_id="supervisor-a",
+            status="success",
+            finished_at="2026-07-25T12:00:10Z",
+            exit_code=0,
+            message="done",
+            result={"ok": True},
+        ),
+        path=store,
+    ).proc
+    assert finished is not None
+    assert finished.status == "success"
+    assert finished.finished_by == "supervisor-a"
+    assert finished.result == {"ok": True}
+
+
 def test_retention_and_pruning_delete_corresponding_logs(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
@@ -355,24 +537,34 @@ def test_retention_and_pruning_delete_corresponding_logs(
         status="success",
         created_at="2026-07-25T12:01:00Z",
     )
+    artifact_owned = _proc(
+        "artifact-log",
+        status="success",
+        created_at="2026-07-25T12:00:30Z",
+    )
+    artifact_owned = Proc.from_dict(
+        {**artifact_owned.to_dict(), "log_owner": "artifact"}
+    )
     running = _proc(
         "running-proc",
         status="running",
         created_at="2026-07-25T11:00:00Z",
     )
-    for proc in (first, second, running):
+    for proc in (first, artifact_owned, second, running):
         log = proc_log_path(proc.proc_id)
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_text(proc.proc_id, encoding="utf-8")
-        append_proc(proc, path=store, history_limit=2)
+        append_proc(proc, path=store, history_limit=10)
 
     outcome = prune_procs(path=store, history_limit=1)
 
-    assert outcome.pruned_proc_ids == [first.proc_id]
+    assert outcome.pruned_proc_ids == [first.proc_id, artifact_owned.proc_id]
+    assert outcome.pruned_log_proc_ids == [first.proc_id]
     assert [proc.proc_id for proc in outcome.snapshot.procs] == [
         second.proc_id,
         running.proc_id,
     ]
     assert not proc_log_path(first.proc_id).exists()
+    assert proc_log_path(artifact_owned.proc_id).exists()
     assert proc_log_path(second.proc_id).exists()
     assert proc_log_path(running.proc_id).exists()

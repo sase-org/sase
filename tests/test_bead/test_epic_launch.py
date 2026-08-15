@@ -383,7 +383,9 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
 
     assert submitted is existing
     read_tasks.assert_called_once()
-    assert read_tasks.call_args.kwargs["status"] == frozenset({"pending", "running"})
+    assert read_tasks.call_args.kwargs["status"] == frozenset(
+        {"pending", "running", "settling"}
+    )
     assert read_tasks.call_args.kwargs["kind"] == "detached"
     submit_task.assert_not_called()
 
