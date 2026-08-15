@@ -36,6 +36,7 @@ PROVIDER_MODEL_CELL_MAX = 32
 _STATE_GAP = "   "
 
 _OVERRIDE_TAG_STYLE = "bold #AF87FF"
+_PAUSED_OVERRIDE_TAG_STYLE = "bold #FFAF5F"
 _IMPLICIT_TAG_STYLE = "dim #9E9E9E"
 _DESCRIPTION_STYLE = "italic #B0B0B0"
 _DESCRIPTION_MISSING_STYLE = "italic #D7AF87"
@@ -160,6 +161,14 @@ def _override_chip(override: TemporaryLLMOverride, now: float) -> str:
 
 def state_tag(view: AliasView, now: float) -> Text:
     """Return the styled provenance / override state column for *view*."""
+    if view.is_override_paused:
+        disable = view.override_paused_by_provider_disable
+        assert disable is not None
+        provider = disable.provider.upper()
+        return Text(
+            f"override paused · {provider} disabled",
+            style=_PAUSED_OVERRIDE_TAG_STYLE,
+        )
     if view.override is not None:
         return Text(_override_chip(view.override, now), style=_OVERRIDE_TAG_STYLE)
     reference = ""
@@ -261,9 +270,24 @@ def render_bucket_row(bucket: BucketView, *, provider_model_width: int) -> Text:
                 f" · {bucket.override_count} override",
                 style=_OVERRIDE_TAG_STYLE,
             )
+        if bucket.paused_override_count:
+            text.append(
+                f" · {bucket.paused_override_count} paused",
+                style=_PAUSED_OVERRIDE_TAG_STYLE,
+            )
     elif bucket.override_count:
         text.append(
             f"override · {bucket.override_count} active", style=_OVERRIDE_TAG_STYLE
+        )
+        if bucket.paused_override_count:
+            text.append(
+                f" · {bucket.paused_override_count} paused",
+                style=_PAUSED_OVERRIDE_TAG_STYLE,
+            )
+    elif bucket.paused_override_count:
+        text.append(
+            f"override paused · {bucket.paused_override_count}",
+            style=_PAUSED_OVERRIDE_TAG_STYLE,
         )
     else:
         bucket_state_style = (
@@ -289,7 +313,28 @@ def description_text_for_view(
     if view.is_custom_builtin_shadow:
         return _custom_builtin_shadow_description((view.name,))
     text = Text()
-    if view.description:
+    if view.is_override_paused:
+        disable = view.override_paused_by_provider_disable
+        assert disable is not None
+        provider = disable.provider.upper()
+        if view.override is not None:
+            target = f"{view.override.provider}/{view.override.model}"
+            if view.override.effort:
+                target = f"{target}@{view.override.effort}"
+        else:
+            target = provider
+        text.append(
+            f"Stored override {target} is paused because {provider} is disabled.",
+            style=_PAUSED_OVERRIDE_TAG_STYLE,
+        )
+        if disable.expires_at is None:
+            text.append("\nIt resumes when the provider is enabled.", style="dim")
+        else:
+            text.append(
+                "\nIt resumes when the provider disable expires or is cleared.",
+                style="dim",
+            )
+    elif view.description:
         text.append(view.description, style=_DESCRIPTION_STYLE)
     elif view.kind == "user":
         text.append(
@@ -301,7 +346,7 @@ def description_text_for_view(
         if text:
             text.append("\n")
         label = "pool" if view.selector_mode == "round_robin" else "fallback"
-        suspended = view.override is not None
+        suspended = view.is_overridden
         if suspended:
             label = f"{label} (suspended by override)"
         text.append(f"{label}: ", style="dim")

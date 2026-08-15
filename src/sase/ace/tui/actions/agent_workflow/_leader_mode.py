@@ -307,20 +307,32 @@ class LeaderModeMixin:
     def _open_models_panel(self) -> None:
         """Open the Models panel (leader ``,m`` by default)."""
         from ...modals import ModelsPanel, ModelsPanelResult
-        from ...widgets import AliasOverridesIndicator, LLMOverrideIndicator
+        from ...widgets import (
+            AliasOverridesIndicator,
+            LLMOverrideIndicator,
+            ProviderDisablesIndicator,
+        )
 
-        def _refresh_indicators() -> None:
+        def _refresh_indicators(*, provider_routing_changed: bool = False) -> None:
             # Refresh both top-bar override pills: the gold ``default`` pill and
             # the violet non-``default`` pill. A single override action may touch
-            # either lane, so both are refreshed (each is independently skipped
-            # if not mounted).
+            # either lane. Provider routing changes can also alter the cached
+            # launch default, so that lane is invalidated before refresh.
             for selector, widget_type in (
                 ("#llm-override-indicator", LLMOverrideIndicator),
                 ("#alias-overrides-indicator", AliasOverridesIndicator),
+                ("#provider-disables-indicator", ProviderDisablesIndicator),
             ):
                 try:
                     indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]
                 except Exception:
+                    continue
+                if (
+                    provider_routing_changed
+                    and selector == "#llm-override-indicator"
+                    and hasattr(indicator, "invalidate_cached_default")
+                ):
+                    indicator.invalidate_cached_default()
                     continue
                 indicator.refresh()
 
@@ -331,7 +343,9 @@ class LeaderModeMixin:
             if result is None:
                 return
             if result.changed:
-                _refresh_indicators()
+                _refresh_indicators(
+                    provider_routing_changed=result.provider_routing_changed
+                )
 
         self.push_screen(  # type: ignore[attr-defined]
             ModelsPanel(),

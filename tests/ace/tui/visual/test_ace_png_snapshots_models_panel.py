@@ -5,8 +5,11 @@ from __future__ import annotations
 import pytest
 
 import sase.ace.tui.modals.models_panel as models_panel
+import sase.ace.tui.modals.models_panel_providers as models_panel_providers
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
+from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
+from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     FROZEN_NOW,
     builtin_only_views,
@@ -15,12 +18,16 @@ from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     effort_snapshot,
     override_views,
     pool_effort_views,
+    provider_disable,
+    provider_disabled_views,
+    provider_status,
     runner_limit_snapshot,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
@@ -267,6 +274,91 @@ async def test_models_panel_overrides_png_snapshot(
             page,
             "models_panel_overrides_120x40",
             title="ACE models panel (overrides active)",
+        )
+
+
+async def test_models_panel_provider_disabled_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    views = provider_disabled_views()
+    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    snapshot = _ProviderRoutingSnapshot(
+        statuses=(
+            provider_status(
+                "claude",
+                model_count=11,
+                affected_aliases=("default", "smarter", "smart"),
+            ),
+            provider_status(
+                "codex",
+                model_count=7,
+                active_disable=disable,
+                affected_aliases=("medium_worker", "cheaper", "legacy_blog"),
+            ),
+            provider_status("gemini", model_count=2, cli_available=False),
+        ),
+        provider_disables={"codex": disable},
+        alias_views=tuple(views),
+        provider_colors={
+            "claude": "#D97757",
+            "codex": "#10A37F",
+            "gemini": "#87D7FF",
+        },
+        captured_at=FROZEN_NOW,
+    )
+    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
+    monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(
+        models_panel_providers,
+        "_load_provider_routing_snapshot",
+        lambda *_a, **_k: snapshot,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        panel = ModelsPanel()
+        page.app.push_screen(panel)
+        await page.expect_modal("ModelsPanel")
+
+        def provider_line_is_visible() -> bool:
+            try:
+                title = panel.query_one("#models-panel-title", Static)
+            except Exception:
+                return False
+            return "disabled providers: CODEX 42m" in title.content.plain
+
+        def paused_override_row_is_visible() -> bool:
+            try:
+                option_list = panel.query_one("#models-panel-list", OptionList)
+            except Exception:
+                return False
+            return any(
+                "override paused · CODEX disabled" in option.prompt.plain
+                for option in option_list.options
+            )
+
+        await wait_for_state(
+            page,
+            provider_line_is_visible,
+            description="Models-panel provider disable title line",
+        )
+        await page.press("j", "j", "j", "l")
+        await wait_for_state(
+            page,
+            paused_override_row_is_visible,
+            description="Models-panel paused override row",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_disabled_120x40",
+            title="ACE models panel — provider disabled worker bucket",
         )
 
 

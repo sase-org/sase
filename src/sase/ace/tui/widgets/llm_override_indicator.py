@@ -75,6 +75,13 @@ class LLMOverrideIndicator(Static):
             self._cached_default_failed = True
             self._apply_content()
 
+    def invalidate_cached_default(self) -> None:
+        """Drop the cached launch default after provider routing changes."""
+        self._cached_default = None
+        self._cached_default_failed = False
+        self._schedule_default_resolution_if_needed()
+        self._apply_content()
+
     async def on_click(self) -> None:
         """Open the Models panel."""
         await self.app.run_action("open_models_panel")

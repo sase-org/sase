@@ -38,6 +38,7 @@ class _PillPalette:
 
 DEFAULT_LANE_PALETTE = _PillPalette(accent="#D7AF5F", secondary="#4F3D18")
 ALIAS_LANE_PALETTE = _PillPalette(accent="#AF87FF", secondary="#3A2A5F")
+PROVIDER_DISABLE_PALETTE = _PillPalette(accent="#FFAF5F", secondary="#5F3518")
 
 
 def format_remaining_until(

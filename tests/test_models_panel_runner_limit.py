@@ -119,7 +119,10 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
             "max running agents: 4  override · 42m left  configured 10"
         )
         footer = str(panel.query_one("#models-panel-footer", Static).content)
-        assert "ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit\n" in footer
+        assert (
+            "ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit  "
+            "[green]p[/green]=Providers\n"
+        ) in footer
 
         await pilot.press("ctrl+r")
         status = pilot.app.screen.query_one(

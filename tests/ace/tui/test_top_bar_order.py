@@ -6,14 +6,17 @@ import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     LLMOverrideIndicator,
+    ProviderDisablesIndicator,
     UpdatesAvailableIndicator,
 )
-from sase.llm_provider import TemporaryLLMOverride
+from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 
 # Expected left-to-right order of widgets inside ``#top-bar``. The ``#tab-bar``
 # spacer (``width: 1fr``) anchors the right-aligned indicator cluster, so every
@@ -28,6 +31,7 @@ EXPECTED_TOP_BAR_ORDER = [
     "agents-sync-indicator",
     "llm-override-indicator",
     "alias-overrides-indicator",
+    "provider-disables-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",
 ]
@@ -47,6 +51,16 @@ def _override(
         expires_at=None,
         source="test",
         effort=effort,
+    )
+
+
+def _disable(provider: str) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=None,
+        source="test",
     )
 
 
@@ -109,6 +123,11 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
             "medium_worker": alias_override,
         },
     )
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_disables",
+        lambda: {"claude": _disable("claude")},
+    )
 
     async with AcePage(size=(80, 30)) as page:
         top_bar = page.query_one_widget("#top-bar")
@@ -120,11 +139,16 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
             "#alias-overrides-indicator",
             AliasOverridesIndicator,
         )
+        provider_indicator = page.app.query_one(
+            "#provider-disables-indicator",
+            ProviderDisablesIndicator,
+        )
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
         assert default_indicator.render().plain == " CODEX(o3)@xhigh ∞ "
         assert alias_indicator.render().plain == " @medium_worker@max ∞ "
+        assert provider_indicator.render().plain == " CLAUDE off ∞ "
         visible_children = [
             child for child in top_bar.children if child.region.width > 0
         ]

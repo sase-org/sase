@@ -67,6 +67,10 @@ _LAZY_EXPORTS = {
     "PatchInfoPanel": (".patch_info_panel", "PatchInfoPanel"),
     "PatchList": (".patch_list", "PatchList"),
     "PatchOnboarding": (".patch_onboarding", "PatchOnboarding"),
+    "ProviderDisablesIndicator": (
+        ".provider_disables_indicator",
+        "ProviderDisablesIndicator",
+    ),
     "PromptInputBar": (".prompt_input_bar", "PromptInputBar"),
     "SearchQueryPanel": (".patch_detail", "SearchQueryPanel"),
     "StashedPromptsIndicator": (
@@ -133,6 +137,7 @@ __all__ = [
     "PatchInfoPanel",
     "PatchList",
     "PatchOnboarding",
+    "ProviderDisablesIndicator",
     "ChangeSpecDetail",  # legacy compatibility alias
     "ChangeSpecInfoPanel",  # legacy compatibility alias
     "ChangeSpecList",  # legacy compatibility alias

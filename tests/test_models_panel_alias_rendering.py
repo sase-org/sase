@@ -18,11 +18,29 @@ from sase.ace.tui.modals.models_panel_rendering import (
     _section_count_label,
 )
 from sase.llm_provider import ModelsPanelSection
+from sase.llm_provider.provider_disable import (
+    PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+    TemporaryProviderDisable,
+)
 from tests._models_panel_helpers import (
     make_alias_view,
     make_override,
     make_pool_members,
 )
+
+
+def make_disable(
+    provider: str = "codex",
+    *,
+    expires_at: float | None = None,
+) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=0.0,
+        expires_at=expires_at,
+        source="test",
+    )
 
 
 def test_custom_builtin_warning_message_uses_singular_guidance() -> None:
@@ -168,6 +186,20 @@ def test_state_tag_override_until_cleared() -> None:
     assert text.plain == "override · until cleared"
 
 
+def test_state_tag_paused_override_names_disabled_provider() -> None:
+    view = make_alias_view(
+        "medium_worker",
+        "role",
+        override=make_override(),
+        override_paused_by_provider_disable=make_disable("codex"),
+    )
+
+    text = _state_tag(view, now=0.0)
+
+    assert text.plain == "override paused · CODEX disabled"
+    assert "#FFAF5F" in str(text.style)
+
+
 @pytest.mark.parametrize(
     ("availability", "expected", "color"),
     [
@@ -211,6 +243,27 @@ def test_state_tag_overridden_pool_keeps_override_chip() -> None:
     )
 
     assert _state_tag(view, now=0.0).plain == "override · 1h left"
+
+
+def test_paused_override_pool_shows_live_selector_description() -> None:
+    view = make_alias_view(
+        "pool",
+        "user",
+        configured=True,
+        override=make_override(),
+        override_paused_by_provider_disable=make_disable("codex"),
+        selector_mode="round_robin",
+        selector_members=make_pool_members((False, True), next_index=1),
+    )
+
+    description = _description_text_for_view(view).plain
+
+    assert (
+        "Stored override codex/o3 is paused because CODEX is disabled." in description
+    )
+    assert "resumes when the provider is enabled" in description
+    assert "pool: × claude/opus@medium · → ✓ codex/gpt-5.5" in description
+    assert "suspended by override" not in description
 
 
 def test_render_alias_row_contains_name_provider_and_state() -> None:

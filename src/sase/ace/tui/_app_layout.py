@@ -25,6 +25,7 @@ from .widgets import (
     KeybindingFooter,
     LLMOverrideIndicator,
     NotificationIndicator,
+    ProviderDisablesIndicator,
     StashedPromptsIndicator,
     TabBar,
     TabQuickStart,
@@ -67,6 +68,7 @@ class AppLayoutMixin:
             yield AgentsSyncIndicator(id="agents-sync-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")
             yield AliasOverridesIndicator(id="alias-overrides-indicator")
+            yield ProviderDisablesIndicator(id="provider-disables-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):

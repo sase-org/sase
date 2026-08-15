@@ -88,58 +88,71 @@ class DurationPickerModal(
     - shared cancel sentinel - user cancelled.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        title: str = "Override Duration",
+        quick_subtitle: str = "Use for quick model checks.",
+        short_subtitle: str = "Keep the override through a short task.",
+        hour_subtitle: str = "Cover a focused coding session.",
+        two_hour_subtitle: str = "Use for a longer implementation block.",
+        four_hour_subtitle: str = "Keep the override for half a day.",
+        until_cleared_subtitle: str = "Persist until you remove it.",
+        until_time_subtitle: str = "Choose a local clock time or date.",
+        custom_placeholder: str = "e.g., 30m, 2h, 1h30m, until cleared",
+        id_prefix: str = "override-duration",
+    ) -> None:
         super().__init__(
-            title="Override Duration",
+            title=title,
             choices=[
                 DurationChoice(
                     key="1",
                     title="15 minutes",
-                    subtitle="Use for quick model checks.",
+                    subtitle=quick_subtitle,
                     value=RelativeOverrideDuration(15 * 60.0),
                     tone="primary",
                 ),
                 DurationChoice(
                     key="2",
                     title="30 minutes",
-                    subtitle="Keep the override through a short task.",
+                    subtitle=short_subtitle,
                     value=RelativeOverrideDuration(30 * 60.0),
                 ),
                 DurationChoice(
                     key="3",
                     title="1 hour",
-                    subtitle="Cover a focused coding session.",
+                    subtitle=hour_subtitle,
                     value=RelativeOverrideDuration(60 * 60.0),
                 ),
                 DurationChoice(
                     key="4",
                     title="2 hours",
-                    subtitle="Use for a longer implementation block.",
+                    subtitle=two_hour_subtitle,
                     value=RelativeOverrideDuration(2 * 60 * 60.0),
                 ),
                 DurationChoice(
                     key="5",
                     title="4 hours",
-                    subtitle="Keep the override for half a day.",
+                    subtitle=four_hour_subtitle,
                     value=RelativeOverrideDuration(4 * 60 * 60.0),
                 ),
                 DurationChoice(
                     key="6",
                     title="Until cleared",
-                    subtitle="Persist until you remove it.",
+                    subtitle=until_cleared_subtitle,
                     value=OVERRIDE_UNTIL_CLEARED,
                     tone="accent",
                 ),
                 DurationChoice(
                     key="t",
                     title="Until a specific time",
-                    subtitle="Choose a local clock time or date.",
+                    subtitle=until_time_subtitle,
                     value=OPEN_OVERRIDE_UNTIL,
                     tone="primary",
                 ),
             ],
             parse_custom=_parse_override_custom,
-            custom_placeholder="e.g., 30m, 2h, 1h30m, until cleared",
+            custom_placeholder=custom_placeholder,
             cancel_result=DURATION_CHOICE_CANCELLED,
-            id_prefix="override-duration",
+            id_prefix=id_prefix,
         )

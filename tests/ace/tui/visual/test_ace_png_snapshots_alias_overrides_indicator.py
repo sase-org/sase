@@ -22,8 +22,10 @@ import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
-from sase.llm_provider import TemporaryLLMOverride
+from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -53,6 +55,20 @@ def _override(
         expires_at=None,
         source="ace",
         effort=effort,
+    )
+
+
+def _disable(
+    provider: str,
+    *,
+    expires_at: float | None = None,
+) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=_FROZEN_NOW,
+        expires_at=expires_at,
+        source="visual",
     )
 
 
@@ -118,4 +134,29 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
             page,
             "alias_overrides_indicator_multi_120x40",
             title="ACE @medium_worker +2 and default ∞ override pills",
+        )
+
+
+async def test_provider_disables_indicator_single_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        provider_disables_indicator,
+        "peek_active_provider_disables",
+        lambda: {"claude": _disable("claude")},
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "provider_disables_indicator_single_120x40",
+            title="ACE CLAUDE disabled provider pill",
         )

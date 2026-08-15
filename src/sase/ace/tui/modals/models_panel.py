@@ -59,6 +59,7 @@ from .models_panel_edit_helpers import (
     build_alias_commit_offer,
 )
 from .models_panel_override import ModelsPanelOverrideMixin
+from .models_panel_providers import ModelsPanelProvidersMixin
 from .models_panel_runner_limit import ModelsPanelRunnerLimitMixin
 from .models_panel_runner_limit_edit import build_runner_limit_commit_offer
 from .model_picker_modal import AliasSelectionContext
@@ -87,6 +88,7 @@ class ModelsPanel(
     ModelsPanelDisplayMixin,
     ModelsPanelRunnerLimitMixin,
     ModelsPanelEffortMixin,
+    ModelsPanelProvidersMixin,
     ModelsPanelOverrideMixin,
     ModelsPanelAliasEditMixin,
     OptionListNavigationMixin,
@@ -115,6 +117,7 @@ class ModelsPanel(
         ("r", "reset", "Reset"),
         ("ctrl+e", "manage_default_effort", "Effort"),
         ("ctrl+r", "manage_runner_limit", "Limit"),
+        ("p", "providers", "Providers"),
     ]
 
     def __init__(self) -> None:
@@ -133,6 +136,13 @@ class ModelsPanel(
             captured_at=_now(),
         )
         self._runner_limit_uses_chezmoi = False
+        self._provider_snapshot = self._initial_provider_snapshot()
+        self._provider_disables = {}
+        self._provider_statuses = ()
+        self._provider_snapshot_worker = None
+        self._provider_snapshot_keep = None
+        self._provider_snapshot_update_rows = False
+        self._provider_routing_changed = False
         self._views: list[AliasView] = []
         self._top_rows: list[AliasView | BucketView] = []
         self._bucket_by_name: dict[str, BucketView] = {}
@@ -313,6 +323,8 @@ class ModelsPanel(
             request_refresh(source)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if self._on_provider_snapshot_worker_state(event):
+            return
         if self._on_config_commit_offer_worker_state(event):
             return
         if self._on_effort_worker_state_changed(event):
@@ -325,6 +337,7 @@ class ModelsPanel(
         self._cancel_config_commit_offer()
         self._cancel_effort_workers()
         self._cancel_runner_limit_workers()
+        self._cancel_provider_workers()
         for worker in (self._override_worker, self._clear_worker):
             if worker is not None and not worker.is_finished:
                 worker.cancel()

@@ -58,6 +58,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _warning_toast_emitted: bool
         _override_worker: Any
         _clear_worker: Any
+        _provider_routing_changed: bool
 
         def _load_alias_views(self) -> list[AliasView]: ...
 
@@ -71,9 +72,22 @@ class ModelsPanelDisplayMixin(_MixinBase):
 
         def _refresh_runner_limit_clock(self) -> None: ...
 
+        def _start_provider_snapshot_load(
+            self,
+            *,
+            keep: str | None = None,
+            update_rows: bool = False,
+        ) -> None: ...
+
+        def _refresh_provider_clock(self) -> None: ...
+
+        def _provider_title_text(self) -> Text | None: ...
+
         def _effort_write_busy(self) -> bool: ...
 
         def _runner_limit_write_busy(self) -> bool: ...
+
+        def _provider_write_busy(self) -> bool: ...
 
         def _load_models_panel_rows(
             self, views: list[AliasView]
@@ -101,12 +115,14 @@ class ModelsPanelDisplayMixin(_MixinBase):
         self._emit_custom_builtin_shadow_warning()
         self._start_effort_snapshot_load()
         self._start_runner_limit_snapshot_load()
+        self._start_provider_snapshot_load()
         self.set_interval(5.0, self._refresh_models_clock)
 
     def _refresh_models_clock(self) -> None:
         """Advance captured countdowns without reading disk or state."""
         self._refresh_effort_clock()
         self._refresh_runner_limit_clock()
+        self._refresh_provider_clock()
 
     def _emit_custom_builtin_shadow_warning(self) -> None:
         """Emit the one opening warning derived from the loaded view snapshot."""
@@ -127,13 +143,17 @@ class ModelsPanelDisplayMixin(_MixinBase):
         row = self._selected_row()
         if self._active_bucket is None and isinstance(row, BucketView):
             return (
-                "[green]ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit\n"
+                "[green]ctrl+e[/green]=Effort  "
+                "[green]ctrl+r[/green]=Limit  "
+                "[green]p[/green]=Providers\n"
                 "[green]l/enter[/green]=Open  "
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]esc[/dim]=Close"
             )
         footer = (
-            "[green]ctrl+e[/green]=Effort  [green]ctrl+r[/green]=Limit\n"
+            "[green]ctrl+e[/green]=Effort  "
+            "[green]ctrl+r[/green]=Limit  "
+            "[green]p[/green]=Providers\n"
             "[green]o[/green]=Override  "
             "[green]x[/green]=Clear  "
             "[green]e[/green]=Edit  "
@@ -155,6 +175,10 @@ class ModelsPanelDisplayMixin(_MixinBase):
             else:
                 text.append(self._active_bucket, style="bold #FFD787")
                 text.append(" · built-in bucket", style="dim")
+        provider_line = self._provider_title_text()
+        if provider_line is not None:
+            text.append("\n")
+            text.append_text(provider_line)
         text.append("\n")
         append_default_effort_title(
             text,
@@ -377,10 +401,16 @@ class ModelsPanelDisplayMixin(_MixinBase):
             or self._clear_worker is not None
             or self._effort_write_busy()
             or self._runner_limit_write_busy()
+            or self._provider_write_busy()
         ):
             self.notify("An override update is still in progress.", severity="warning")
             return
-        self.dismiss(ModelsPanelResult(changed=self._changed))
+        self.dismiss(
+            ModelsPanelResult(
+                changed=self._changed,
+                provider_routing_changed=self._provider_routing_changed,
+            )
+        )
 
     def action_cancel(self) -> None:
         """Alias for :meth:`action_close` (overrides the navigation mixin)."""

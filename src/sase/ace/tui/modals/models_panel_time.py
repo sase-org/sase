@@ -265,15 +265,19 @@ class OverrideUntilModal(ModalScreen[ResolvedOverrideUntil | OverrideUntilBack])
         *,
         timezone: tzinfo | None = None,
         clock: Callable[[tzinfo], datetime] = _clock_now,
+        title: str = "Override Until",
+        submit_label: str = "Set override",
     ) -> None:
         super().__init__()
         self._timezone = timezone or get_timezone()
         self._clock = clock
+        self._title = title
+        self._submit_label = submit_label
         self._resolved_value: ResolvedOverrideUntil | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="override-until-container"):
-            yield Label("Override Until", id="override-until-title")
+            yield Label(self._title, id="override-until-title")
             with Horizontal(id="override-until-field"):
                 yield Label("Time", id="override-until-field-label")
                 yield Input(
@@ -282,7 +286,7 @@ class OverrideUntilModal(ModalScreen[ResolvedOverrideUntil | OverrideUntilBack])
                 )
             yield Static("", id="override-until-preview", classes="until-neutral")
             yield Static(
-                "[bold]enter[/] Set override   |   [bold]esc[/] Back",
+                f"[bold]enter[/] {self._submit_label}   |   [bold]esc[/] Back",
                 id="override-until-footer",
             )
 

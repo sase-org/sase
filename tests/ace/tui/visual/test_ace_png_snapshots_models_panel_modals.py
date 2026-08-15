@@ -15,11 +15,18 @@ from sase.ace.tui.modals.models_panel_runner_limit_cards import (
     RunnerLimitActionModal,
     RunnerLimitValueModal,
 )
+from sase.ace.tui.modals.models_panel_providers import (
+    _ProviderRoutingModal,
+    _ProviderRoutingSnapshot,
+)
+import sase.ace.tui.modals.models_panel_providers as models_panel_providers
 from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     EASTERN,
     FROZEN_NOW,
     effort_snapshot,
+    provider_disable,
+    provider_status,
     runner_limit_snapshot,
     time_modal_clock,
 )
@@ -179,6 +186,53 @@ async def test_models_panel_duration_picker_png_snapshot(
             page,
             "models_panel_duration_picker_120x40",
             title="ACE model override duration picker",
+        )
+
+
+async def test_models_panel_provider_routing_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    snapshot = _ProviderRoutingSnapshot(
+        statuses=(
+            provider_status(
+                "codex",
+                model_count=7,
+                active_disable=disable,
+                affected_aliases=("medium_worker", "cheaper"),
+            ),
+            provider_status("claude", model_count=11),
+            provider_status("gemini", model_count=2, cli_available=False),
+        ),
+        provider_disables={"codex": disable},
+        alias_views=(),
+        provider_colors={
+            "claude": "#D97757",
+            "codex": "#10A37F",
+            "gemini": "#87D7FF",
+        },
+        captured_at=FROZEN_NOW,
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(
+            _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+        )
+        await page.expect_modal("_ProviderRoutingModal")
+        await wait_for_svg_contains(page, "Provider Routing")
+        await wait_for_svg_contains(page, "disabled · 42m left")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_provider_routing_modal_120x40",
+            title="ACE models panel — provider routing modal",
         )
 
 

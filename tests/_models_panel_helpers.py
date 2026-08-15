@@ -10,7 +10,12 @@ import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.testing import wait_for as wait_for_pilot
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
-from sase.llm_provider import AliasKind, AliasView, TemporaryLLMOverride
+from sase.llm_provider import (
+    AliasKind,
+    AliasView,
+    TemporaryLLMOverride,
+    TemporaryProviderDisable,
+)
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
 
@@ -45,6 +50,7 @@ def make_alias_view(
     selector_mode: ModelAliasSelectorMode | None = None,
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
     effort: str | None = None,
+    override_paused_by_provider_disable: TemporaryProviderDisable | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -60,6 +66,7 @@ def make_alias_view(
         selector_mode=selector_mode,
         selector_members=selector_members,
         effort=effort,
+        override_paused_by_provider_disable=override_paused_by_provider_disable,
     )
 
 

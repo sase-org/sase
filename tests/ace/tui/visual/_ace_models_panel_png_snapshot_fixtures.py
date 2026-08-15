@@ -8,11 +8,14 @@ from zoneinfo import ZoneInfo
 from sase.llm_provider import (
     AliasView,
     EffectiveDefaultEffortSnapshot,
+    ProviderRoutingStatus,
     TemporaryEffortOverride,
     TemporaryLLMOverride,
+    TemporaryProviderDisable,
 )
 from sase.llm_provider.config import ModelAliasSelectorMember
 from sase.llm_provider.load_balancing import ModelAliasSelectorMode
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from sase.config import EffectiveRunnerLimitSnapshot, TemporaryRunnerLimitOverride
 
 
@@ -69,6 +72,7 @@ def _view(
     selector_mode: ModelAliasSelectorMode | None = None,
     selector_members: tuple[ModelAliasSelectorMember, ...] = (),
     effort: str | None = None,
+    override_paused_by_provider_disable: TemporaryProviderDisable | None = None,
 ) -> AliasView:
     return AliasView(
         name=name,
@@ -84,6 +88,39 @@ def _view(
         selector_mode=selector_mode,
         selector_members=selector_members,
         effort=effort,
+        override_paused_by_provider_disable=override_paused_by_provider_disable,
+    )
+
+
+def provider_disable(
+    provider: str,
+    *,
+    expires_at: float | None = None,
+) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=FROZEN_NOW,
+        expires_at=expires_at,
+        source="visual",
+    )
+
+
+def provider_status(
+    provider: str,
+    *,
+    model_count: int,
+    cli_available: bool = True,
+    active_disable: TemporaryProviderDisable | None = None,
+    affected_aliases: tuple[str, ...] = (),
+) -> ProviderRoutingStatus:
+    return ProviderRoutingStatus(
+        provider=provider,
+        model_count=model_count,
+        cli_available=cli_available,
+        active_disable=active_disable,
+        hidden_from_model_pickers=False,
+        affected_aliases=affected_aliases,
     )
 
 
@@ -272,6 +309,35 @@ def override_views() -> list[AliasView]:
             provider="codex",
             model="gpt-5.6-sol",
             override=worker_override,
+        )
+        if row.name == "medium_worker"
+        else row
+        for row in calm_views()
+    ]
+
+
+def provider_disabled_views() -> list[AliasView]:
+    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    paused_override = TemporaryLLMOverride(
+        provider="codex",
+        model="o3",
+        raw_model="codex/o3",
+        created_at=FROZEN_NOW,
+        expires_at=None,
+        source="ace",
+    )
+    return [
+        _view(
+            "medium_worker",
+            "role",
+            configured=True,
+            configured_value="@smart@high",
+            provider="claude",
+            model="claude-fable-4-10",
+            override=paused_override,
+            override_paused_by_provider_disable=disable,
+            description="Medium phases that implement directly.",
+            effort="high",
         )
         if row.name == "medium_worker"
         else row

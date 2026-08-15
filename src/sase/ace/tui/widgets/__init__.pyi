@@ -57,6 +57,9 @@ from .patch_detail import PatchDetail as PatchDetail
 from .patch_info_panel import PatchInfoPanel as PatchInfoPanel
 from .patch_list import PatchList as PatchList
 from .patch_onboarding import PatchOnboarding as PatchOnboarding
+from .provider_disables_indicator import (
+    ProviderDisablesIndicator as ProviderDisablesIndicator,
+)
 from .prompt_input_bar import PromptInputBar as PromptInputBar
 from .patch_detail import SearchQueryPanel as SearchQueryPanel
 from .stashed_prompts_indicator import (
