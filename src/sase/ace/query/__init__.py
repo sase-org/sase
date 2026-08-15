@@ -38,6 +38,18 @@ from .evaluator import (
     query_explicitly_targets_terminal,
 )
 from .parser import QueryParseError, parse_query
+from .profile_reference import (
+    ArtifactQueryEvaluationContext,
+    ArtifactQueryRow,
+    ProfileQueryError,
+    build_query_context_for_profile,
+    canonical_query_for_profile,
+    coerce_artifact_query_row,
+    evaluate_query_for_profile,
+    evaluate_query_many_for_profile,
+    evaluate_query_with_profile_context,
+    parse_query_for_profile,
+)
 from .types import (
     AndExpr,
     NotExpr,
@@ -60,6 +72,16 @@ __all__ = [
     "get_sole_project_filter",
     "query_explicitly_targets_submitted",
     "query_explicitly_targets_terminal",
+    "ArtifactQueryEvaluationContext",
+    "ArtifactQueryRow",
+    "ProfileQueryError",
+    "build_query_context_for_profile",
+    "canonical_query_for_profile",
+    "coerce_artifact_query_row",
+    "evaluate_query_for_profile",
+    "evaluate_query_many_for_profile",
+    "evaluate_query_with_profile_context",
+    "parse_query_for_profile",
     # Types
     "QueryExpr",
     "StringMatch",

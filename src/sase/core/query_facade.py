@@ -14,6 +14,7 @@ that have not yet adopted an explicit cached corpus.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from sase.ace.patch.models import Patch
@@ -23,7 +24,18 @@ from sase.ace.query.context import (
     evaluate_query_python,
     evaluate_query_with_context_python,
 )
+from sase.ace.query.profile_reference import (
+    ArtifactQueryEvaluationContext,
+    ArtifactQueryRow,
+    ArtifactQueryRowInput,
+    build_query_context_for_profile,
+    evaluate_query_for_profile,
+    evaluate_query_many_for_profile,
+    evaluate_query_with_profile_context,
+    parse_query_for_profile,
+)
 from sase.ace.query.types import QueryExpr
+from sase.ace.query_profile import CompiledQueryProfile
 from sase.core.query_wire_conversion import (
     query_expr_from_wire,
     query_expr_wire_from_dict,
@@ -79,3 +91,51 @@ def evaluate_query_many(
 
     corpus = compile_query_corpus(patches)
     return evaluate_query_many_with_corpus(query, corpus)
+
+
+def parse_artifact_query(
+    query: str,
+    profile: CompiledQueryProfile,
+) -> QueryExpr:
+    """Parse an Artifacts query with the pane's compiled query profile."""
+
+    return parse_query_for_profile(query, profile)
+
+
+def build_artifact_query_context(
+    profile: CompiledQueryProfile,
+    entries: Iterable[ArtifactQueryRowInput],
+) -> ArtifactQueryEvaluationContext:
+    """Build a typed/coerced row context for profile-driven evaluation."""
+
+    return build_query_context_for_profile(profile, entries)
+
+
+def evaluate_artifact_query(
+    query: QueryExpr,
+    entry: ArtifactQueryRow | ArtifactQueryRowInput,
+    profile: CompiledQueryProfile,
+) -> bool:
+    """Evaluate one profile-driven Artifacts query row."""
+
+    return evaluate_query_for_profile(query, entry, profile)
+
+
+def evaluate_artifact_query_with_context(
+    query: QueryExpr,
+    entry: ArtifactQueryRow | ArtifactQueryRowInput,
+    ctx: ArtifactQueryEvaluationContext,
+) -> bool:
+    """Evaluate one row with a shared profile-driven query context."""
+
+    return evaluate_query_with_profile_context(query, entry, ctx)
+
+
+def evaluate_artifact_query_many(
+    query: str,
+    entries: Iterable[ArtifactQueryRowInput],
+    profile: CompiledQueryProfile,
+) -> list[bool]:
+    """Evaluate a profile-driven Artifacts query against every entry."""
+
+    return evaluate_query_many_for_profile(query, entries, profile)
