@@ -73,10 +73,11 @@ sase monitor start \
 - `--start-status` / `-s` and `--stop-status` / `-S` override the default `MONITORING` /
   `MONITORED` labels shown on the row — useful for a `sleep`-based wait
   (`SLEEPING FOR 300s` → `SLEPT FOR 300s`).
-- `--label` / `-L`, `--lane` / `-l`, `--cwd` / `-C`, and `--tail-lines` / `-T` are
-  optional; see `sase monitor start --help` for the full list.
+- `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
+  `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
+  `sase monitor start --help` for the full list.
 
-Only one monitor may be running per lane at a time. Repeating the same full request
+Only one monitor may be running per agent at a time. Repeating the same full request
 returns the existing running record; changing the command, cwd, timeout, next action,
 status labels, or output policy is rejected until the active monitor settles. A `lost`
 monitor is never implicitly replayed.
@@ -217,7 +218,7 @@ pointer are enough.
 
 ```bash
 sase monitor list                          # active monitors, newest first
-sase monitor list --all --lane acme        # include finished monitors for one lane
+sase monitor list --all --agent acme       # include finished monitors for one agent
 sase monitor list --status failed --status timeout
 
 sase monitor show <id>                     # details plus an output tail
@@ -225,12 +226,12 @@ sase monitor show <id> --follow            # stream new output until it finishes
 sase monitor show <id> --all-lines --output-only
 
 sase monitor stop [<id>]                   # stop a running monitor; omit id to target
-                                            # the calling agent's lane
+                                            # the calling agent's active monitor
 ```
 
-`ID` accepts a monitor id (or unique prefix), the monitor member's agent name, or a lane
-name. `sase monitor stop` never launches the recorded follow-up agent, even when
-`--next` was given.
+`ID` accepts a monitor id (or unique prefix), the monitor member's agent name, or the
+owning agent's name. `sase monitor stop` never launches the recorded follow-up agent,
+even when `--next` was given.
 
 Every subcommand can emit machine-readable output, but not with the same flag: `start`,
 `list`, and `stop` take `-j/--json`, while `list` and `show` take `-f/--format`

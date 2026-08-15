@@ -64,7 +64,7 @@ def test_monitor_start_command_flag_does_not_shadow_the_top_level_command_dest()
     ``entry.py``'s ``if args.command == "monitor":`` dispatch.
     """
     args = create_parser().parse_args(
-        ["monitor", "start", "-c", "true", "-r", "verify", "-t", "30s", "-l", "acme"]
+        ["monitor", "start", "-c", "true", "-r", "verify", "-t", "30s", "-a", "acme"]
     )
 
     assert args.command == "monitor"
@@ -140,11 +140,11 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
     """Every short flag documented for ``start`` binds to its long option."""
     start_parser = parser_for(("sase", "monitor", "start"))
     for short, long in (
+        ("-a", "--agent"),
         ("-c", "--command"),
         ("-C", "--cwd"),
         ("-i", "--idle-timeout"),
         ("-L", "--label"),
-        ("-l", "--lane"),
         ("-n", "--next"),
         ("-r", "--reason"),
         ("-s", "--start-status"),
@@ -156,3 +156,86 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
             start_parser._option_string_actions[short]
             is start_parser._option_string_actions[long]
         )
+
+
+def test_monitor_start_lane_flag_is_a_suppressed_alias_for_agent() -> None:
+    """``--lane`` still parses for ``start``, sharing the ``agent`` dest."""
+    parser = create_parser()
+
+    via_agent = parser.parse_args(
+        ["monitor", "start", "-c", "true", "-r", "verify", "-t", "30s", "-a", "acme"]
+    )
+    via_lane = parser.parse_args(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify",
+            "-t",
+            "30s",
+            "--lane",
+            "acme",
+        ]
+    )
+
+    assert via_agent.agent == "acme"
+    assert via_lane.agent == "acme"
+    assert not hasattr(via_lane, "lane")
+
+    start_help = flat_help(parser_for(("sase", "monitor", "start")).format_help())
+    assert "--lane" not in start_help
+
+
+def test_monitor_list_lane_flag_is_a_suppressed_alias_for_agent() -> None:
+    """``--lane`` still parses for ``list``, sharing the ``agent`` dest."""
+    parser = create_parser()
+
+    via_agent = parser.parse_args(["monitor", "list", "--agent", "acme"])
+    via_short = parser.parse_args(["monitor", "list", "-l", "acme"])
+    via_lane = parser.parse_args(["monitor", "list", "--lane", "acme"])
+
+    assert via_agent.agent == "acme"
+    assert via_short.agent == "acme"
+    assert via_lane.agent == "acme"
+    assert not hasattr(via_lane, "lane")
+
+    list_help = flat_help(parser_for(("sase", "monitor", "list")).format_help())
+    assert "--lane" not in list_help
+
+
+def test_monitor_list_and_start_a_short_option_means_different_things() -> None:
+    """``-a`` is ``--all`` for ``list`` but ``--agent`` for ``start``."""
+    parser = create_parser()
+
+    list_args = parser.parse_args(["monitor", "list", "-a"])
+    start_args = parser.parse_args(
+        ["monitor", "start", "-c", "true", "-r", "verify", "-t", "30s", "-a", "acme"]
+    )
+
+    assert list_args.all is True
+    assert start_args.agent == "acme"
+
+
+def test_monitor_start_does_not_retain_the_old_lane_short_option() -> None:
+    """``-l`` moved to ``list``; ``start`` only takes ``-a`` for its agent."""
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exit_info:
+        parser.parse_args(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-l",
+                "acme",
+            ]
+        )
+
+    assert exit_info.value.code == 2

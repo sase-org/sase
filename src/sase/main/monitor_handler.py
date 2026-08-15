@@ -79,7 +79,7 @@ def handle_monitor_command(args: argparse.Namespace) -> NoReturn:
 def _handle_monitor_list(args: argparse.Namespace) -> int:
     """Render monitor family members as a table, markdown, or JSON."""
     project = getattr(args, "project", None)
-    lane = getattr(args, "lane", None)
+    agent = getattr(args, "agent", None)
     statuses = set(getattr(args, "status", None) or ())
     include_all = bool(getattr(args, "all", False))
     limit = getattr(args, "limit", None)
@@ -95,8 +95,8 @@ def _handle_monitor_list(args: argparse.Namespace) -> int:
         print(f"sase monitor list: cannot read monitors: {exc}", file=sys.stderr)
         return 1
 
-    if lane:
-        records = [record for record in records if record.lane == lane]
+    if agent:
+        records = [record for record in records if record.lane == agent]
     if statuses:
         records = [record for record in records if record.monitor_state in statuses]
     elif not include_all:
@@ -108,7 +108,8 @@ def _handle_monitor_list(args: argparse.Namespace) -> int:
         scope = {
             "all": include_all,
             "project": project,
-            "lane": lane,
+            "agent": agent,
+            "lane": agent,  # deprecated alias for "agent", kept for compatibility
             "status": sorted(statuses) or None,
         }
         json.dump(monitor_list_json(records, scope=scope), sys.stdout, indent=2)
@@ -119,7 +120,7 @@ def _handle_monitor_list(args: argparse.Namespace) -> int:
         return 0
 
     console = Console()
-    title = f"Monitors · {_scope_label(project=project, lane=lane, include_all=include_all)} ({len(records)})"
+    title = f"Monitors · {_scope_label(project=project, agent=agent, include_all=include_all)} ({len(records)})"
     if records:
         console.print(monitor_table(records, title=title))
     else:
@@ -205,16 +206,16 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print(f"sase monitor start: {exc}", file=sys.stderr)
         return 2
 
-    lane = getattr(args, "lane", None) or default_lane()
-    if not lane:
+    agent = getattr(args, "agent", None) or default_lane()
+    if not agent:
         print(
-            "sase monitor start: no lane given and SASE_AGENT_NAME is unset; "
-            "pass -l/--lane explicitly",
+            "sase monitor start: no agent given and SASE_AGENT_NAME is unset; "
+            "pass -a/--agent explicitly",
             file=sys.stderr,
         )
         return 2
 
-    cwd = _resolve_cwd(getattr(args, "cwd", None), lane)
+    cwd = _resolve_cwd(getattr(args, "cwd", None), agent)
     project_name = _infer_project_name(str(cwd))
     if not project_name:
         print(
@@ -229,7 +230,7 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         timeout_seconds=timeout_seconds,
         cwd=str(cwd),
         project_name=project_name,
-        lane=lane,
+        lane=agent,
         label=getattr(args, "label", None),
         next_action=getattr(args, "next", None),
         start_status=start_status,
@@ -361,7 +362,7 @@ def _resolve_ref_or_active(raw_ref: str | None) -> MonitorRecord:
     project_name = _infer_project_name(str(Path.cwd()))
     active = active_monitor_for_lane(project_name, lane) if project_name else None
     if active is None:
-        raise MonitorRefError(f"lane {lane!r} has no active monitor")
+        raise MonitorRefError(f"agent {lane!r} has no active monitor")
     return MonitorRecord.from_record(active)
 
 
@@ -433,10 +434,10 @@ def _log_lines(args: argparse.Namespace) -> int:
     return max(0, getattr(args, "log_lines", 200))
 
 
-def _scope_label(*, project: str | None, lane: str | None, include_all: bool) -> str:
+def _scope_label(*, project: str | None, agent: str | None, include_all: bool) -> str:
     parts = ["all projects" if project is None else f"project {project}"]
-    if lane:
-        parts.append(f"lane {lane}")
+    if agent:
+        parts.append(f"agent {agent}")
     parts.append("all" if include_all else "active")
     return ", ".join(parts)
 

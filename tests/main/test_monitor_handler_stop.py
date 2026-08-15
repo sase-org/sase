@@ -83,7 +83,7 @@ def test_stop_already_terminal_reports_nothing_to_do(
 def test_stop_omitted_id_targets_the_calling_agents_active_monitor(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """No id, but a resolvable lane, stops that lane's active monitor."""
+    """No id, but a resolvable agent, stops that agent's active monitor."""
     child = subprocess.Popen(["sleep", "30"])
     real_kill = os.kill
 
@@ -119,12 +119,26 @@ def test_stop_omitted_id_targets_the_calling_agents_active_monitor(
         child.wait()
 
 
-def test_stop_omitted_id_without_a_lane_is_a_usage_error(
+def test_stop_omitted_id_without_an_agent_is_a_usage_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """With no id and no resolvable lane, ``stop`` reports a usage error."""
+    """With no id and no resolvable agent, ``stop`` reports a usage error."""
     assert dispatch(["monitor", "stop"]) == 2
     assert "SASE_AGENT_NAME is unset" in capsys.readouterr().err
+
+
+def test_stop_omitted_id_with_no_active_monitor_names_the_agent(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A resolvable agent with no active monitor is reported by agent name."""
+    patch_project_records(monkeypatch, [])
+    monkeypatch.setattr("sase.main.monitor_handler.default_lane", lambda: "acme")
+    monkeypatch.setattr(
+        "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
+    )
+
+    assert dispatch(["monitor", "stop"]) == 2
+    assert "agent 'acme' has no active monitor" in capsys.readouterr().err
 
 
 def test_stop_json_envelope_is_stable(

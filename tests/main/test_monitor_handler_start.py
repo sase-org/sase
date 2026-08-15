@@ -53,10 +53,10 @@ def test_start_reaches_the_handler_through_the_real_entry_point(
     assert "SASE_AGENT_NAME is unset" in err
 
 
-def test_start_requires_lane_when_none_is_given_or_inferable(
+def test_start_requires_agent_when_none_is_given_or_inferable(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """No ``-l/--lane`` and no ``SASE_AGENT_NAME`` is a usage error."""
+    """No ``-a/--agent`` and no ``SASE_AGENT_NAME`` is a usage error."""
     assert (
         dispatch(["monitor", "start", "-c", "true", "-r", "verify", "-t", "30s"]) == 2
     )
@@ -67,7 +67,7 @@ def test_start_rejects_an_empty_reason(capsys: pytest.CaptureFixture[str]) -> No
     """An empty ``-r/--reason`` is rejected before touching the engine."""
     assert (
         dispatch(
-            ["monitor", "start", "-c", "true", "-r", "  ", "-t", "30s", "-l", "acme"]
+            ["monitor", "start", "-c", "true", "-r", "  ", "-t", "30s", "-a", "acme"]
         )
         == 2
     )
@@ -87,7 +87,7 @@ def test_start_rejects_an_invalid_timeout(capsys: pytest.CaptureFixture[str]) ->
                 "verify",
                 "-t",
                 "banana",
-                "-l",
+                "-a",
                 "acme",
             ]
         )
@@ -113,7 +113,7 @@ def test_start_rejects_an_invalid_idle_timeout(
                 "30s",
                 "-i",
                 "banana",
-                "-l",
+                "-a",
                 "acme",
             ]
         )
@@ -138,7 +138,7 @@ def test_start_rejects_an_oversized_status_label(
                 "verify",
                 "-t",
                 "30s",
-                "-l",
+                "-a",
                 "acme",
                 "-s",
                 long_label,
@@ -176,7 +176,7 @@ def test_start_already_running_monitor_with_a_different_command_is_an_error(
             "verify",
             "-t",
             "30s",
-            "-l",
+            "-a",
             "acme",
             "-C",
             str(tmp_path),
@@ -222,7 +222,7 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
             "45m",
             "-i",
             "10m",
-            "-l",
+            "-a",
             "acme",
             "-C",
             str(tmp_path),
@@ -236,6 +236,52 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
     assert "45m (2700s)" in out
     assert "idle timeout: 10m (600s)" in out
     assert "sase monitor show" in out
+
+
+def test_start_lane_flag_is_a_deprecated_alias_for_agent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--lane`` still targets the same agent as ``-a/--agent``."""
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    _pin_project(monkeypatch)
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify the fix",
+            "-t",
+            "45m",
+            "--lane",
+            "acme",
+            "-C",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "Started monitor" in out
+    assert "member: acme--mon" in out
 
 
 def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
@@ -287,7 +333,7 @@ def test_start_prints_the_summary_before_the_agent_runner_handoff_kill(
             "verify",
             "-t",
             "30s",
-            "-l",
+            "-a",
             "acme",
             "-C",
             str(tmp_path),
@@ -342,7 +388,7 @@ def test_start_json_envelope_reports_handed_off_before_the_kill(
             "verify",
             "-t",
             "30s",
-            "-l",
+            "-a",
             "acme",
             "-C",
             str(tmp_path),
@@ -390,7 +436,7 @@ def test_start_json_envelope_is_stable(
             "30",
             "-i",
             "5s",
-            "-l",
+            "-a",
             "acme",
             "-C",
             str(tmp_path),

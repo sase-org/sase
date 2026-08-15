@@ -44,10 +44,10 @@ def test_show_renders_detail_panel_and_output_tail(
     assert "running the suite..." in out
 
 
-def test_show_resolves_by_lane_and_member_agent_name(
+def test_show_resolves_by_owning_agent_and_member_agent_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A lane name or the exact member agent name both resolve to the record."""
+    """The owning agent's name or the exact member agent name both resolve."""
     artifacts_dir = make_monitor(
         "proj", "20260812120000", "acme--mon", lane="acme", monitor_id="aaabbbcccddd"
     )

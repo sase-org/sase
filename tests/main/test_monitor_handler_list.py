@@ -66,10 +66,10 @@ def test_list_all_includes_finished_monitors(
     assert "beta" in out
 
 
-def test_list_filters_by_status_and_lane(
+def test_list_filters_by_status_and_agent(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """``-s`` and ``-l`` narrow the result independently of ``--all``."""
+    """``-s`` and ``-l/--agent`` narrow the result independently of ``--all``."""
     failed = make_monitor(
         "proj",
         "20260812120000",
@@ -94,6 +94,27 @@ def test_list_filters_by_status_and_lane(
     assert "acme" in out and "beta" not in out
 
     assert dispatch(["monitor", "list", "--all", "-l", "beta"]) == 0
+    out = capsys.readouterr().out
+    assert "beta" in out and "acme" not in out
+
+
+def test_list_lane_flag_is_a_deprecated_alias_for_agent(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--agent`` and the suppressed ``--lane`` alias filter identically."""
+    acme = make_monitor(
+        "proj", "20260812120000", "acme--mon", lane="acme", monitor_id="aaabbbcccddd"
+    )
+    beta = make_monitor(
+        "proj", "20260812130000", "beta--mon", lane="beta", monitor_id="eeefffggghhh"
+    )
+    patch_project_records(monkeypatch, [acme, beta])
+
+    assert dispatch(["monitor", "list", "--agent", "beta"]) == 0
+    out = capsys.readouterr().out
+    assert "beta" in out and "acme" not in out
+
+    assert dispatch(["monitor", "list", "--lane", "beta"]) == 0
     out = capsys.readouterr().out
     assert "beta" in out and "acme" not in out
 
@@ -161,7 +182,8 @@ def test_list_json_envelope_is_stable(
     assert payload["scope"] == {
         "all": False,
         "project": None,
-        "lane": None,
+        "agent": None,
+        "lane": None,  # deprecated alias for "agent", kept for compatibility
         "status": None,
     }
     monitor = payload["monitors"][0]

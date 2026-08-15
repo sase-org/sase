@@ -46,12 +46,13 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "List monitor family members, newest first. By default this "
             "shows only active (running) monitors; pass --all to include "
-            "finished ones too."
+            "finished ones too. Note: here -a is --all; unlike `monitor "
+            "start`, use -l/--agent to filter by agent."
         ),
         epilog=(
             "examples:\n"
             "  sase monitor list\n"
-            "  sase monitor list --all --lane acme\n"
+            "  sase monitor list --all --agent acme\n"
             "  sase monitor list --status failed --status timeout\n"
             "  sase monitor list --format markdown\n"
             "  sase monitor list --json"
@@ -78,10 +79,17 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     list_parser.add_argument(
         "-l",
-        "--lane",
+        "--agent",
         default=None,
         metavar="NAME",
-        help="Only monitors belonging to this agent lane",
+        help="Only monitors belonging to this agent",
+    )
+    list_parser.add_argument(
+        "--lane",
+        dest="agent",
+        default=None,
+        metavar="NAME",
+        help=argparse.SUPPRESS,
     )
     list_parser.add_argument(
         "-n",
@@ -117,10 +125,10 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Show one monitor by id (or unique id prefix), member agent "
-            "name, or lane name, followed by the tail of its captured "
-            "output. `--follow` streams new output until the monitor "
-            "reaches a terminal state, exactly like `sase proc show "
-            "--follow`."
+            "name, or owning agent name, followed by the tail of its "
+            "captured output. `--follow` streams new output until the "
+            "monitor reaches a terminal state, exactly like `sase proc "
+            "show --follow`."
         ),
         epilog=(
             "examples:\n"
@@ -133,7 +141,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     show_parser.add_argument(
         "monitor_id",
         metavar="ID",
-        help="Monitor id (or unique prefix), member agent name, or lane name",
+        help="Monitor id (or unique prefix), member agent name, or owning agent name",
     )
     show_parser.add_argument(
         "-A",
@@ -179,7 +187,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "combined output, so the command outlives this process. When run "
             "inside an agent, this is the last output the agent produces "
             "before it is killed — the runner adopts the handoff and the "
-            "monitor keeps running in the same lane and workspace."
+            "monitor keeps running in the same agent and workspace."
         ),
         epilog=(
             "examples:\n"
@@ -190,6 +198,21 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase monitor start -c 'just check-full' -r 'verify' -t 20m "
             "--json"
         ),
+    )
+    start_parser.add_argument(
+        "-a",
+        "--agent",
+        default=None,
+        metavar="NAME",
+        help="Target agent (default: the calling agent). Note: unlike "
+        "`monitor list`, here -a is --agent, not --all",
+    )
+    start_parser.add_argument(
+        "--lane",
+        dest="agent",
+        default=None,
+        metavar="NAME",
+        help=argparse.SUPPRESS,
     )
     start_parser.add_argument(
         "-c",
@@ -207,7 +230,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         "--cwd",
         default=None,
         metavar="DIR",
-        help="Working directory (default: the lane's workspace, else $PWD)",
+        help="Working directory (default: the agent's workspace, else $PWD)",
     )
     start_parser.add_argument(
         "-i",
@@ -231,13 +254,6 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TEXT",
         help="Short row label (default: derived from the command)",
-    )
-    start_parser.add_argument(
-        "-l",
-        "--lane",
-        default=None,
-        metavar="NAME",
-        help="Target agent lane (default: the calling agent's lane)",
     )
     start_parser.add_argument(
         "-n",
@@ -301,9 +317,9 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Stop a running monitor by id (or unique id prefix), member "
-            "agent name, or lane name; omitted, targets the calling agent's "
-            "lane's active monitor. No follow-up agent is launched, even "
-            "when a next action was recorded."
+            "agent name, or owning agent name; omitted, targets the "
+            "calling agent's active monitor. No follow-up agent is "
+            "launched, even when a next action was recorded."
         ),
         epilog=(
             "examples:\n"
@@ -317,7 +333,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         default=None,
         metavar="ID",
-        help="Monitor id (or unique prefix), member agent name, or lane name",
+        help="Monitor id (or unique prefix), member agent name, or owning agent name",
     )
     stop_parser.add_argument(
         "-j",

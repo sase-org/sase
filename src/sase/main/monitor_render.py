@@ -198,7 +198,7 @@ def monitor_table(records: Sequence[MonitorRecord], *, title: str) -> Panel:
     table.add_column("STATE", no_wrap=True)
     table.add_column("ID", no_wrap=True)
     table.add_column("LABEL", overflow="ellipsis", no_wrap=True, ratio=1)
-    table.add_column("LANE/MEMBER", overflow="ellipsis", no_wrap=True)
+    table.add_column("AGENT/MEMBER", overflow="ellipsis", no_wrap=True)
     table.add_column("ELAPSED", justify="right", no_wrap=True)
     table.add_column("EXIT", justify="right", no_wrap=True)
     table.add_column("STARTED", justify="right", no_wrap=True)
@@ -243,7 +243,7 @@ def monitor_list_markdown(records: Sequence[MonitorRecord]) -> str:
     """Render monitors as a plain markdown table."""
     if not records:
         return "_No monitors._\n"
-    header = "| State | Id | Label | Lane/Member | Elapsed | Exit | Started |"
+    header = "| State | Id | Label | Agent/Member | Elapsed | Exit | Started |"
     divider = "| --- | --- | --- | --- | --- | --- | --- |"
     rows = [header, divider]
     for record in records:
@@ -277,7 +277,7 @@ def monitor_detail(record: MonitorRecord) -> Panel:
             "Id",
             Text(f"{record.monitor_id}  ({short_monitor_id(record.monitor_id)})"),
         ),
-        ("Lane", Text(record.lane)),
+        ("Agent", Text(record.lane)),
         ("Member", Text(record.member_agent_name)),
         ("Command", Text(record.command)),
         ("Cwd", Text(record.cwd)),
