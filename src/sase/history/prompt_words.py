@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.ace.tui.widgets.prompt_word_completion import (
     is_word_character,
+    is_prompt_word_candidate,
     word_ranges,
 )
 from sase.history.prompt_store import iter_shard_paths_newest_first, load_shard
@@ -25,15 +26,24 @@ HistoryWordsSourceToken = tuple[
 
 
 def _extract_prompt_words(text: str, *, min_length: int) -> Iterator[str]:
-    """Yield useful prompt words in source order."""
+    """Yield useful identifier-like prompt words in source order."""
     minimum = max(1, min_length)
     for start, end in word_ranges(text):
         word = text[start:end]
-        if len(word) >= minimum and any(
-            is_word_character(character) and not character.isdigit()
-            for character in word
+        if (
+            len(word) >= minimum
+            and is_prompt_word_candidate(word)
+            and _has_useful_history_content(word)
         ):
             yield word
+
+
+def _has_useful_history_content(word: str) -> bool:
+    """Return whether *word* has content beyond digits and ASCII hyphens."""
+    return any(
+        is_word_character(character) and not character.isdigit() and character != "-"
+        for character in word
+    )
 
 
 def collect_recent_prompt_words(*, max_words: int, min_length: int) -> list[str]:

@@ -45,8 +45,26 @@ def test_extract_prompt_words_uses_shared_unicode_word_semantics() -> None:
             "tiny naïveté snake_case 123456 alpha-omega",
             min_length=5,
         )
-    ) == ["naïveté", "snake_case", "alpha", "omega"]
+    ) == ["naïveté", "snake_case", "alpha-omega"]
     assert list(_extract_prompt_words("a bb 123", min_length=0)) == ["a", "bb"]
+
+
+def test_extract_prompt_words_keeps_hyphenated_candidates_whole() -> None:
+    assert list(
+        _extract_prompt_words(
+            "bob-mac-capture bob-mac tiny-word",
+            min_length=len("bob-mac-capture"),
+        )
+    ) == ["bob-mac-capture"]
+
+
+def test_extract_prompt_words_rejects_hyphen_and_numeric_hyphen_noise() -> None:
+    assert list(
+        _extract_prompt_words(
+            "----- 123-456 42-99 bob-123 _123-456",
+            min_length=1,
+        )
+    ) == ["bob-123", "_123-456"]
 
 
 def test_collect_recent_words_preserves_mru_and_exact_spellings(
@@ -59,7 +77,7 @@ def test_collect_recent_words_preserves_mru_and_exact_spellings(
             [
                 _entry("older Alpha shared", "260701_000000"),
                 _entry(
-                    "newest alpha shared cancelled_word",
+                    "newest alpha bob-mac-capture shared cancelled_word",
                     "260702_000000",
                     cancelled=True,
                 ),
@@ -75,6 +93,7 @@ def test_collect_recent_words_preserves_mru_and_exact_spellings(
     assert words == [
         "newest",
         "alpha",
+        "bob-mac-capture",
         "shared",
         "cancelled_word",
         "older",

@@ -15,6 +15,8 @@ from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     WordCompletionResult,
     build_prompt_word_completion_result,
+    word_range_at_cursor,
+    word_ranges,
 )
 
 from ._completion_helpers import CompletionTestApp
@@ -73,6 +75,23 @@ def test_cursor_in_middle_replaces_the_complete_word() -> None:
     ]
 
 
+def test_hyphenated_words_are_single_ranges_and_candidates() -> None:
+    text = "bob-mac-capture bob-maZZZ"
+    cursor_offset = text.rindex("bob-maZZZ") + len("bob-ma")
+
+    result = _result(text, cursor_offset)
+
+    assert result.prefix == "bob-ma"
+    assert word_range_at_cursor(text, cursor_offset) == (
+        text.rindex("bob-maZZZ"),
+        len(text),
+    )
+    assert text[result.replacement_start : result.replacement_end] == "bob-maZZZ"
+    assert [candidate.insertion for candidate in result.candidates] == [
+        "bob-mac-capture"
+    ]
+
+
 def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
     text = "naïve,naïveté snake_case snake_case_extra naï"
 
@@ -88,6 +107,20 @@ def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
     assert [candidate.insertion for candidate in underscore_result.candidates] == [
         "snake_case_extra"
     ]
+    range_text = "alpha.beta bob-mac-capture omega"
+    assert [range_text[start:end] for start, end in word_ranges(range_text)] == [
+        "alpha",
+        "beta",
+        "bob-mac-capture",
+        "omega",
+    ]
+
+
+def test_hyphen_only_runs_are_not_prompt_word_candidates() -> None:
+    assert (
+        build_prompt_word_completion_result("----- -", len("----- -"), min_length=1)
+        is None
+    )
 
 
 def test_case_insensitive_filter_preserves_exact_spellings() -> None:
@@ -223,6 +256,19 @@ async def test_ctrl_t_mid_word_accept_replaces_right_hand_suffix() -> None:
         await pilot.press("ctrl+t")
 
         assert ta.text == "publish then publish"
+        assert ta.cursor_location == (0, len(ta.text))
+
+
+async def test_ctrl_t_accepts_hyphenated_prompt_word_and_replaces_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("bob-mac-capture then bob-maZZZ")
+        ta.cursor_location = (0, ta.text.rindex("bob-maZZZ") + len("bob-ma"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "bob-mac-capture then bob-mac-capture"
         assert ta.cursor_location == (0, len(ta.text))
 
 

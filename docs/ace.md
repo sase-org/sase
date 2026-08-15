@@ -4463,7 +4463,9 @@ token under the cursor:
   in the completion panel to delete the highlighted entry from the on-disk history.
 - **Prompt-local word completion**: As the first fallback for a plain prose token,
   `Ctrl+T` filters words already in the active prompt by the word prefix immediately
-  left of the cursor. Matching is case-insensitive, but each candidate keeps its
+  left of the cursor. Identifier-like candidates may include ASCII hyphens, so
+  `bob-mac-capture` is matched and replaced as one word; Unicode dash punctuation still
+  acts as a boundary. Matching is case-insensitive, but each candidate keeps its
   original spelling. Accepting a candidate replaces the complete word under the cursor,
   including any suffix to the right, so completion also works safely in the middle of a
   word. Candidates shorter than `ace.prompt_completion.word_min_length` are skipped
@@ -4472,13 +4474,14 @@ token under the cursor:
   current prompt pane and takes precedence over history words when it has an eligible
   match.
 - **History-word completion**: When prompt-local words have no match, `Ctrl+T` filters
-  recently used words derived from recorded prompt history. Matching remains
-  case-insensitive and keeps exact spelling, while rows are ordered by most recent use.
-  ACE retains up to `ace.prompt_completion.history_word_count` unique words that meet
-  the shared `ace.prompt_completion.word_min_length` (defaults: `10000` and `5`); set
-  `history_word_count: 0` to disable only this final fallback. History is loaded
-  off-thread, so a cold cache briefly shows `loading history words…` without blocking
-  input. `Ctrl+D` deletes the highlighted word and records it in
+  recently used words derived from recorded prompt history. Hyphenated identifier-like
+  spellings are indexed, matched, length-filtered, and replaced as one word. Matching
+  remains case-insensitive and keeps exact spelling, while rows are ordered by most
+  recent use. ACE retains up to `ace.prompt_completion.history_word_count` unique words
+  that meet the shared `ace.prompt_completion.word_min_length` (defaults: `10000` and
+  `5`); set `history_word_count: 0` to disable only this final fallback. History is
+  loaded off-thread, so a cold cache briefly shows `loading history words…` without
+  blocking input. `Ctrl+D` deletes the highlighted word and records it in
   `~/.sase/prompt_word_deletions.json`, so future history derivations continue to filter
   it out; remove that file to reset all history-word deletions. The former
   `history_word_min_length` configuration key has been replaced by `word_min_length`.

@@ -30,10 +30,11 @@ def build_prompt_word_completion_result(
     """Return prompt-local word matches for the prefix left of the cursor.
 
     Words use the prompt widget's identifier-like semantics: a maximal run of
-    Unicode alphanumeric characters or underscores. The cursor must have a
-    non-empty word prefix immediately to its left. The result replaces the
-    complete word around that prefix, including any suffix right of the cursor.
-    The minimum applies to complete candidates, not to the typed prefix.
+    Unicode alphanumeric characters, underscores, or ASCII hyphens. The cursor
+    must have a non-empty word prefix immediately to its left. The result
+    replaces the complete word around that prefix, including any suffix right
+    of the cursor. The minimum applies to complete candidates, not to the typed
+    prefix.
     """
     word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
@@ -52,6 +53,7 @@ def build_prompt_word_completion_result(
         if (
             len(word) < minimum
             or word == current_word
+            or not is_prompt_word_candidate(word)
             or not word.casefold().startswith(prefix_folded)
         ):
             continue
@@ -80,7 +82,7 @@ def build_prompt_word_completion_result(
 
 
 def word_range_at_cursor(text: str, cursor_offset: int) -> tuple[int, int] | None:
-    """Return the complete word containing the non-empty cursor prefix."""
+    """Return the complete identifier-like word containing the cursor prefix."""
     if cursor_offset <= 0 or cursor_offset > len(text):
         return None
     if not is_word_character(text[cursor_offset - 1]):
@@ -97,7 +99,7 @@ def word_range_at_cursor(text: str, cursor_offset: int) -> tuple[int, int] | Non
 
 
 def word_ranges(text: str) -> Iterator[tuple[int, int]]:
-    """Yield absolute ranges for all prompt words in source order."""
+    """Yield absolute ranges for all identifier-like prompt words in source order."""
     start = 0
     while start < len(text):
         if not is_word_character(text[start]):
@@ -111,7 +113,12 @@ def word_ranges(text: str) -> Iterator[tuple[int, int]]:
 
 
 def is_word_character(character: str) -> bool:
-    return character == "_" or character.isalnum()
+    return character in {"-", "_"} or character.isalnum()
+
+
+def is_prompt_word_candidate(word: str) -> bool:
+    """Return whether an identifier-like word is useful as a completion row."""
+    return any(character != "-" for character in word)
 
 
 def shared_word_extension(insertions: list[str], prefix: str) -> str:
