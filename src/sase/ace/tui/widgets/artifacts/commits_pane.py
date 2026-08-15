@@ -45,6 +45,9 @@ if TYPE_CHECKING:
     from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
 
 
+STITCHES_DETAIL_DEBOUNCE_S = 0.25
+
+
 class CommitsPane(
     CommitsCollectionMixin,
     CommitsFilteringMixin,
@@ -115,7 +118,10 @@ class CommitsPane(
                     )
 
     def on_mount(self) -> None:
-        self._detail_debouncer = DetailPanelDebouncer(self.app)
+        self._detail_debouncer = DetailPanelDebouncer(
+            self.app,
+            delay_s=STITCHES_DETAIL_DEBOUNCE_S,
+        )
         self._filter_debouncer = DetailPanelDebouncer(
             self.app,
             delay_s=FILTER_DEBOUNCE_S,
