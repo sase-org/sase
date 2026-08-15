@@ -1,7 +1,7 @@
 # Reproducible-flake baseline for `tools/selection_health --fail-on-new-flake`.
 # Entries are debt to remove, not suppressions to grow. Adding a node requires
 # a filed SASE bead that names the flake, evidence, and owner.
-# effective-after: 2026-08-10T23:36:35Z
+# effective-after: 2026-08-15T17:22:27Z
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6

@@ -163,14 +163,20 @@ class TestMarkManyMuted:
 class TestMarkSnoozed:
     """Tests for ``mark_snoozed()``."""
 
-    def test_round_trip(self, temp_notifications_dir: Path) -> None:
+    def test_round_trip_preserves_six_digit_utc_deadline(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        """Preserve Python's six-digit ISO form for trailing-zero microseconds."""
         n = make_notification()
         append_notification(n)
-        deadline = datetime.now(get_timezone()) + timedelta(minutes=15)
+        deadline = datetime(2035, 8, 15, 17, 22, 27, 296000, tzinfo=UTC)
+        expected_deadline = "2035-08-15T17:22:27.296000+00:00"
+        assert _utc_iso(deadline) == expected_deadline
+
         assert mark_snoozed(n.id, deadline) is True
         loaded = load_notifications()
         assert loaded[0].muted is True
-        assert loaded[0].snooze_until == _utc_iso(deadline)
+        assert loaded[0].snooze_until == expected_deadline
 
     def test_nonexistent_id(self, temp_notifications_dir: Path) -> None:
         n = make_notification()
