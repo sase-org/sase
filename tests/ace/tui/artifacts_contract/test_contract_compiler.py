@@ -9,12 +9,14 @@ import pytest
 from sase.ace.tui._artifact_tab_contract import (
     GENERIC_DOCUMENT_COPY_TARGETS,
     PLAN_COPY_TARGETS,
-    _extract_provider_suppressions,
     _presentation_digest,
-    _provider_facts_from_spec,
     compile_builtin_contract,
     compile_provider_contract,
     contract_with_digit,
+)
+from sase.ace.tui._artifact_tab_contract_provider import (
+    extract_provider_suppressions,
+    provider_facts_from_spec,
 )
 from sase.ace.tui._artifact_tab_contract_rules import derive_capability_verdicts
 from sase.ace.tui._artifact_tab_descriptors import (
@@ -241,7 +243,7 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
 
 def test_provider_fact_extraction_from_schema_v1() -> None:
     spec = _document_spec()
-    facts = _provider_facts_from_spec("notes", spec, is_degraded=False, suppressions={})
+    facts = provider_facts_from_spec("notes", spec, is_degraded=False, suppressions={})
     assert facts.has_inventory is True
     assert facts.has_fields is True
     assert facts.has_stable_identity is True
@@ -249,7 +251,7 @@ def test_provider_fact_extraction_from_schema_v1() -> None:
     assert facts.can_mutate is False
     assert facts.is_plan_adapter is False
 
-    empty = _provider_facts_from_spec(
+    empty = provider_facts_from_spec(
         "notes",
         _document_spec(properties={}, inventory={"globs": []}),
         is_degraded=False,
@@ -260,7 +262,7 @@ def test_provider_fact_extraction_from_schema_v1() -> None:
 
 
 def test_revision_property_earns_versions_fact() -> None:
-    facts = _provider_facts_from_spec(
+    facts = provider_facts_from_spec(
         "notes",
         _document_spec(
             properties={
@@ -458,7 +460,7 @@ def test_presentation_digest_is_deterministic_and_sensitive() -> None:
 
 
 def test_extract_provider_suppressions_accepts_valid_block() -> None:
-    suppressions, error, code = _extract_provider_suppressions(
+    suppressions, error, code = extract_provider_suppressions(
         _document_spec(capabilities={"suppress": {"versions": "no history"}})
     )
     assert error is None
