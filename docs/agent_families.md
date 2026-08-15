@@ -290,9 +290,9 @@ Arbitrary suffixes are ordinary family labels, not configured lifecycle hooks. S
 not discover or execute custom `kind: agent_family` definitions. Replace a stale
 definition with an explicit family attachment or an agent-requested launch.
 
-A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same lane) is a
-**monitor member**: a family member whose work is one supervised OS command instead of
-an LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
+A `--mon` suffix (and `--mon-0`, `--mon-1`, … for later members in the same family) is a
+**monitor shell**: a family member whose work is one supervised OS command instead of an
+LLM turn, created by `sase monitor start`. See [Monitors](monitors.md).
 
 SASE resolves `parent` to the newest visible matching agent or family member in the
 current project. If the parent is still running, the new member appears immediately as

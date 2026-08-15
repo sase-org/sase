@@ -1831,8 +1831,8 @@ and bare gate responses all hand `sase bead work <plan-file> --yes-to-all` to a 
 supervisor that runs it from the project's primary workspace, then record that the host
 owns the launch in the planner response.
 
-The preferred handoff is a [monitor](monitors.md) member in the planner's own lane,
-labeled `Epic launch · <plan>`. The monitor member reads `EPIC APPROVED` while
+The preferred handoff is a [monitor](monitors.md) shell under the planner's own agent
+family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
 `sase bead work` runs. After any terminal outcome its configured label is
 `EPIC CREATED`, including when the monitor failed, timed out, was stopped, or was lost;
 the monitor's state, bucket, exit code, and output—not that label—show whether the
@@ -1840,9 +1840,9 @@ command succeeded. A successful launch separately attempts to back-fill the crea
 ID; when that metadata lands, the planner row moves to `EPIC CREATED`, and otherwise the
 planner remains `EPIC APPROVED`. No follow-up agent is recorded because `sase bead work`
 launches the phase agents itself. The monitor takes a zero workspace claim rather than
-the planner's, since the launch runs in the primary workspace. When the planner's lane
-cannot be resolved, the same command is submitted as one deduplicated global `detached`
-proc instead.
+the planner's, since the launch runs in the primary workspace. When the planner's agent
+family cannot be resolved, the same command is submitted as one deduplicated global
+`detached` proc instead.
 
 Either handoff is durable and unowned by any interactive session: it survives the
 approving process, and normal command success or failure emits the epic-completion
@@ -1854,10 +1854,10 @@ involved), so a successful launch attempts to back-fill the epic ID and committe
 path into planner metadata.
 
 There is no planner-side subprocess fallback and no foreground path. An absent or
-unresolvable planner lane selects the detached-proc fallback; other monitor-start errors
-do not. If the host cannot resolve the primary workspace, finds the approved-epic plans
-store unusable, or cannot submit the selected handoff, approval fails loudly and reports
-the `sase bead work <plan> --yes-to-all` resume command rather than launching invisibly.
-Immediately after a successful handoff, the planner publishes its prompt archive entry,
-finishes as `EPIC APPROVED`, and does not race the command for ownership of the epic
-plan file.
+unresolvable planner agent family selects the detached-proc fallback; other
+monitor-start errors do not. If the host cannot resolve the primary workspace, finds the
+approved-epic plans store unusable, or cannot submit the selected handoff, approval
+fails loudly and reports the `sase bead work <plan> --yes-to-all` resume command rather
+than launching invisibly. Immediately after a successful handoff, the planner publishes
+its prompt archive entry, finishes as `EPIC APPROVED`, and does not race the command for
+ownership of the epic plan file.

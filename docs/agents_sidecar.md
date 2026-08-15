@@ -84,8 +84,8 @@ commits and approved planner runs. After the primary commit succeeds,
 `prompts/<YYYYMM>/<name>.md` inline, before returning. Approving a planner's tale or
 epic publishes a separate, plan-named entry before SASE continues with the plan write or
 epic handoff. Plan-backed entries use the plan slug as the filename; entries without a
-plan use the publishing agent's global lane name. Each prompt document has the same
-header-block grammar as plans:
+plan use the publishing agent's global sase-agent name. Each prompt document has the
+same header-block grammar as plans:
 
 - `PLAN` links back to the plans sidecar when the run has a plan.
 - `AGENTS` links to the published agent page for the run.

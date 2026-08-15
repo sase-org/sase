@@ -1727,20 +1727,20 @@ is cornflower blue.
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
 numeric counts in place of the letters and zero-count metrics omitted. These buckets
-classify the same lanes as the leading total, using a sequential family's normalized
-owner status instead of counting historical members separately. `stopped` counts lanes
-paused for plan approval, questions, or workflow human-input steps; `starting` counts
-just-launched lanes that have not yet surfaced as visible rows; `running` excludes
-queued, waiting, failed, and stopped lanes; `waiting` contains genuinely blocked
-dependency, bead, and time lanes, while the capacity chip's `queued` count contains
-every live runner-slot waiter; `failed` is terminal failed work; `unread` counts
-terminal lanes that still need acknowledgement; and `done` is completed visible work
-that has already been acknowledged. Nested family/clan member summaries remain concrete.
-The position/navigation denominator is a separate count: rendered selectable roots,
-where a clan container is one row and a hidden `STARTING` lane is excluded. During
-startup the header renders `Agents: …` until the first agent scan has loaded, avoiding a
-misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only
-changes the current session.
+classify the same sase agents as the leading total, using a sequential family's
+normalized owner status instead of counting historical members separately. `stopped`
+counts agents paused for plan approval, questions, or workflow human-input steps;
+`starting` counts just-launched agents that have not yet surfaced as visible rows;
+`running` excludes queued, waiting, failed, and stopped agents; `waiting` contains
+genuinely blocked dependency, bead, and time waits, while the capacity chip's `queued`
+count contains every live runner-slot waiter; `failed` is terminal failed work; `unread`
+counts terminal lanes that still need acknowledgement; and `done` is completed visible
+work that has already been acknowledged. Nested family/clan member summaries remain
+concrete. The position/navigation denominator is a separate count: rendered selectable
+roots, where a clan container is one row and a hidden `STARTING` lane is excluded.
+During startup the header renders `Agents: …` until the first agent scan has loaded,
+avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping;
+cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
 and need only runner capacity, whether their threshold comes from the global cap or an
@@ -1775,14 +1775,14 @@ badges instead of verbose text:
 | `⚡`  | Autonomous (`%auto`) agent                           |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
-A monitor member (a family member whose work is a supervised command, started with
+A monitor shell (a family member whose work is a supervised command, started with
 `sase monitor start`) renders its own amber `⏱` glyph beside the bash/python step glyphs
 below, with its configured label as the row title and a live elapsed suffix or
 exit-code/timeout badge instead of the statuses above. Two extra badges mark a stalled
-lane: a red `⚠` replaces the exit-code badge when a terminal monitor's supervisor never
-reported a real exit code, and an amber `⚑` follows the row when its `--next` follow-up
-was dropped or launched degraded — a monitor can finish cleanly and still strand its
-follow-up. See [Monitors](monitors.md).
+monitor handoff: a red `⚠` replaces the exit-code badge when a terminal monitor's
+supervisor never reported a real exit code, and an amber `⚑` follows the row when its
+`--next` follow-up was dropped or launched degraded — a monitor can finish cleanly and
+still strand its follow-up. See [Monitors](monitors.md).
 
 A monitor has no LLM process to kill, so `x` on a selected **running** monitor row is
 routed off the ordinary kill/dismiss path: it opens a `Stop Monitor` confirmation
@@ -3296,7 +3296,7 @@ if the mount signal never fires.
 | **EPIC CREATED** | Green | A created epic ID is known, or a legacy epic follow-up completed |
 | **FAILED**       | Red   | Agent exited with an error                                       |
 
-Monitor members are the exception to this status table's success-oriented labels: a
+Monitor shells are the exception to this status table's success-oriented labels: a
 gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as
 its stop label for every terminal state. A failed, timed-out, stopped, or lost monitor
 can therefore display `EPIC CREATED` in its state-dependent color. Inspect the monitor
@@ -4930,9 +4930,9 @@ Procs the TUI runs itself are **mirrored** into the durable proc store
 `~/.sase/procs/logs/`), so their outcome survives the session that produced them and is
 visible from `sase proc list` / `sase proc show`. Supervisor-backed procs — commands
 submitted with `sase proc run`, programmatic detached procs, and the detached fallback
-for an epic approval whose planner lane cannot be resolved — are read back out of that
-store and rendered here, so work that this process never owned still shows up on the
-tab.
+for an epic approval whose planner agent family cannot be resolved — are read back out
+of that store and rendered here, so work that this process never owned still shows up on
+the tab.
 
 The pane defaults to **this session** plus unattributed procs and every global
 `detached` proc; press `a` to widen it to every session. Detached procs remain visible
@@ -5020,8 +5020,8 @@ limit removes the oldest finished rows and their log files. The legacy
 The CLI equivalents are `sase proc list` (`--kind` / `--detached` to filter),
 `sase proc show ID` (`--follow` to stream), `sase proc run [--detached] -- COMMAND`
 (`--wait` to stream and inherit the exit code), and `sase proc kill ID`. Approved epics
-normally launch as [monitor members](monitors.md); only an unresolvable planner lane
-uses a detached proc. See the [CLI reference](cli.md#daily-operation).
+normally launch as [monitor shells](monitors.md); only an unresolvable planner agent
+family uses a detached proc. See the [CLI reference](cli.md#daily-operation).
 
 ### Keybindings
 

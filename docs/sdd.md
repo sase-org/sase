@@ -148,19 +148,19 @@ epic approval surface — ACE, the CLI, Telegram, or a bare gate response — in
 `sase bead work <plan-file> --yes-to-all` to a detached supervisor, because launching an
 epic's phases is itself a long-running command that must outlive the approving process.
 
-The preferred form is a [monitor](monitors.md) member in the planner's own lane, labeled
-`Epic launch · <plan>`. The monitor member reads `EPIC APPROVED` while `sase bead work`
-runs and uses its configured `EPIC CREATED` label after any terminal outcome—even
-failure, timeout, stop, or loss. Treat the monitor's state, bucket, exit code, and
-output as the result. Only a successful launch attempts to back-fill the epic ID; when
-that metadata lands, the planner row itself moves to `EPIC CREATED`, and otherwise it
-remains `EPIC APPROVED`. No follow-up agent is recorded — `sase bead work` launches the
-phase agents itself — and the monitor takes a zero workspace claim, since the launch
-runs in the project's primary workspace rather than the planner's. If the planner's lane
-cannot be resolved (a very old artifacts layout, or a wiped agent), the launch falls
-back to a global `detached` proc with the same command and label rather than silently
-dropping the approval. Other monitor-start errors fail the approval rather than
-selecting that fallback.
+The preferred form is a [monitor](monitors.md) shell under the planner's own agent
+family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
+`sase bead work` runs and uses its configured `EPIC CREATED` label after any terminal
+outcome—even failure, timeout, stop, or loss. Treat the monitor's state, bucket, exit
+code, and output as the result. Only a successful launch attempts to back-fill the epic
+ID; when that metadata lands, the planner row itself moves to `EPIC CREATED`, and
+otherwise it remains `EPIC APPROVED`. No follow-up agent is recorded — `sase bead work`
+launches the phase agents itself — and the monitor takes a zero workspace claim, since
+the launch runs in the project's primary workspace rather than the planner's. If the
+planner's agent family cannot be resolved (a very old artifacts layout, or a wiped
+agent), the launch falls back to a global `detached` proc with the same command and
+label rather than silently dropping the approval. Other monitor-start errors fail the
+approval rather than selecting that fallback.
 
 Either way the launch is durable: it survives the approving process, and normal command
 success or failure emits the epic-completion notification. Inspect a monitor-backed

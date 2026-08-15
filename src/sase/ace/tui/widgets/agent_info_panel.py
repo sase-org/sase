@@ -95,7 +95,7 @@ class AgentInfoPanel(Static):
             waiting: Visible waiting agent count.
             failed: Visible failed agent count.
             read: Visible completed agent count that has already been read.
-            total: Agent-lane count rendered as the leading headline value.
+            total: sase-agent count rendered as the leading headline value.
         """
         self._unread_count = unread
         self._asking_count = asking

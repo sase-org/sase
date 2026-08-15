@@ -1,10 +1,10 @@
 # Monitors
 
-A **monitor member** is a real [agent family](agent_families.md) member whose work is
-one supervised OS command instead of an LLM turn. `sase monitor start` hands a slow
-command off to a detached supervisor process and returns immediately, so an agent can
-run `just check-full`, wait on a CI job, or sleep before a deploy without blocking its
-own turn.
+A **monitor shell** is a real [agent family](agent_families.md) member whose work is one
+supervised OS command instead of an LLM turn. `sase monitor start` hands a slow command
+off to a detached supervisor process and returns immediately, so an agent can run
+`just check-full`, wait on a CI job, or sleep before a deploy without blocking its own
+turn.
 
 SASE agents are single-turn: a provider turn runs, the runner captures it, and the agent
 is done. Provider-native background-execution or scheduled wake-up tools assume a
@@ -13,26 +13,26 @@ fires. Monitors are the SASE-native replacement: use `/sase_monitor` (or
 `sase monitor start` directly) instead of any built-in monitor, background-execution, or
 scheduled wake-up tool.
 
-## The lane picture
+## The agent-family picture
 
-Starting a monitor promotes the calling agent's lane to a family, exactly as
-`%i(suffix, family=parent)` would, and adds the monitor as a member:
+Starting a monitor promotes the calling sase-agent to an agent family, exactly as
+`%id(suffix, family=parent)` would, and adds the monitor as a proc shell member:
 
 ```
-lane "acme"          before                     after `sase monitor start`
-─────────────────────────────────────────────────────────────────────────────
-acme                 (single agent, RUNNING)    acme            (family container)
-                                                ├─ acme--0      DONE      ← starter, killed
-                                                ├─ acme--mon    MONITORING ← the command
-                                                └─ acme--1      RUNNING   ← follow-up agent
+sase-agent "acme"    before                     after `sase monitor start`
+────────────────────────────────────────────────────────────────────────────────
+acme                 (one-shell agent, RUNNING) acme            (agent family)
+                                                ├─ acme--0      DONE       ← starter shell, killed
+                                                ├─ acme--mon    MONITORING ← monitor proc shell
+                                                └─ acme--1      RUNNING    ← follow-up shell
 ```
 
-| Term           | Meaning                                                                    |
-| -------------- | -------------------------------------------------------------------------- |
-| starter        | The agent that ran `sase monitor start` (absent for host-started monitors) |
-| monitor member | The `--mon` family member representing the supervised command              |
-| supervisor     | The detached process that runs the command and streams its output          |
-| follow-up      | The agent launched into the lane after the command finishes                |
+| Term          | Meaning                                                                          |
+| ------------- | -------------------------------------------------------------------------------- |
+| starter shell | The agent shell that ran `sase monitor start` (absent for host-started monitors) |
+| monitor shell | The `--mon` proc shell representing the supervised command                       |
+| supervisor    | The detached process that runs the command and streams its output                |
+| follow-up     | The agent shell launched under the family after the command finishes             |
 
 `sase monitor start`, run from inside an agent, is the last thing that agent does: it
 kills the calling agent's turn (the same handoff mechanism `sase plan propose` and
@@ -41,10 +41,10 @@ workspace claim. The workspace is never released and re-claimed between the star
 the follow-up — the follow-up sees exactly the tree the monitor started with, plus
 whatever the command itself changed.
 
-A monitor member is an ordinary artifacts directory, just like an agent, so everything
-that already understands agent families — the Agents tab, family roster, runtime
-aggregation, `sase chats`, `%wait`/`#fork` resolution — works on it with no special
-casing. There is no separate monitor store: a monitor's durable record is its
+A monitor shell has an ordinary artifacts directory, just like an agent shell, so
+everything that already understands agent families — the Agents tab, family roster,
+runtime aggregation, `sase chats`, `%wait`/`#fork` resolution — works on it with no
+special casing. There is no separate monitor store: a monitor's durable record is its
 `agent_meta.json` plus `done.json`, and `sase monitor list`/`show` are queries over the
 existing agent artifact index.
 
@@ -178,8 +178,8 @@ follow-up action is not launched.
 ## The follow-up agent
 
 When `--next` is set and the monitor did not end in `stopped` or `lost`, one follow-up
-agent launches into the same lane once the command finishes and the monitor settles. It
-receives:
+agent shell launches under the same agent family once the command finishes and the
+monitor settles. It receives:
 
 - the starter's full prior conversation, via `#fork`;
 - the original `--reason` and the `--next` instruction, verbatim, under its own heading;
@@ -189,7 +189,7 @@ receives:
   read more than the tail.
 
 The follow-up inherits the starter's model, provider, and reasoning effort, so it is the
-same kind of agent that started the monitor.
+same kind of agent shell that started the monitor.
 
 The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's
 own workspace claim can no longer be transferred to the follow-up (for example, a stale
@@ -229,8 +229,8 @@ sase monitor stop [<id>]                   # stop a running monitor; omit id to 
                                             # the calling agent's active monitor
 ```
 
-`ID` accepts a monitor id (or unique prefix), the monitor member's agent name, or the
-owning agent's name. `sase monitor stop` never launches the recorded follow-up agent,
+`ID` accepts a monitor id (or unique prefix), the monitor shell's agent name, or the
+owning sase-agent name. `sase monitor stop` never launches the recorded follow-up agent,
 even when `--next` was given.
 
 Every subcommand can emit machine-readable output, but not with the same flag: `start`,
@@ -241,9 +241,9 @@ Every subcommand can emit machine-readable output, but not with the same flag: `
 [CLI Reference](cli.md).
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
-ACE Agents tab refresh path, and the axe scheduler look for running monitor members
-whose supervisor identity is no longer alive. Same-boot dead supervisors are reconciled
-to `failed`: SASE kills the recorded process group, finalizes the log, disposes the
+ACE Agents tab refresh path, and the axe scheduler look for running monitor shells whose
+supervisor identity is no longer alive. Same-boot dead supervisors are reconciled to
+`failed`: SASE kills the recorded process group, finalizes the log, disposes the
 workspace claim, and launches or records the follow-up disposition. Pre-reboot
 supervisors reconcile to `lost`; their command effects are unknown, so the follow-up is
 recorded as not launched.
@@ -253,10 +253,10 @@ recorded as not launched.
 A monitor row renders with its own amber `⏱` glyph beside the agent list's bash/python
 step glyphs, its configured label as the row title with the command as an annotation,
 and a live elapsed suffix while running or an exit-code / timeout badge once terminal.
-Monitor members appear in the family roster and contribute to the family's total
-runtime, but — like workflow steps — they are not counted as agents in `sase stats` or
-tribe/clan summaries: a family with one agent and one monitor is a one-agent family that
-ran one command.
+Monitor shells appear in the family roster and contribute to the family's total runtime,
+but — like workflow steps — they are not counted as agents in `sase stats` or tribe/clan
+summaries: a family with one agent and one monitor shell is a one-agent family that ran
+one command.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It shows the shell-highlighted
@@ -284,10 +284,11 @@ behaves like an ordinary dismiss. See [Agent Row Glyphs](ace.md#agent-row-glyphs
 
 ## Visibility
 
-A stalled lane — a supervisor that never reported a real outcome, or a follow-up that
-never launched — is not something a project owner should have to notice by its absence.
-Two independent conditions render distinctly, in the Agents tab and `sase monitor list`,
-wherever the plain exit-code/timeout badges above do not already cover them:
+A stalled monitor handoff — a supervisor that never reported a real outcome, or a
+follow-up that never launched — is not something a project owner should have to notice
+by its absence. Two independent conditions render distinctly, in the Agents tab and
+`sase monitor list`, wherever the plain exit-code/timeout badges above do not already
+cover them:
 
 - **A terminal monitor with no recorded exit code.** A `failed` or `lost` monitor whose
   supervisor never reported a real exit code (died on arrival, or belongs to a previous
@@ -297,11 +298,11 @@ wherever the plain exit-code/timeout badges above do not already cover them:
   launch, or launched degraded, renders with an amber `⚑` flag independent of the
   monitor's own state — a monitor can finish cleanly and still strand its follow-up.
 
-`sase monitor list` marks the same lane with the `⚑` flag next to its `STATE` cell (in
-both the table and `--format markdown` output) so a stalled lane is visible without
-`--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for a
-dropped follow-up and a `Follow-up degraded` line for a degraded one, and both commands'
-JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
+`sase monitor list` marks the same monitor row with the `⚑` flag next to its `STATE`
+cell (in both the table and `--format markdown` output) so a stalled handoff is visible
+without `--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for
+a dropped follow-up and a `Follow-up degraded` line for a degraded one, and both
+commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
 `not-launchable`), `followup_error`, and `followup_degraded_reason`.
 
 Monitors themselves are notification-neutral: a monitor is an execution and handoff
@@ -315,22 +316,22 @@ dropped `--next` appends a notification row. The badges and flags above, plus
 
 Launching an approved epic (`sase bead work <plan> --yes-to-all …`) is itself a
 long-running command, so it normally runs under a monitor rather than a bare detached
-proc. Its monitor member reads `EPIC APPROVED` while running and uses the configured
+proc. Its monitor shell reads `EPIC APPROVED` while running and uses the configured
 `EPIC CREATED` label after every terminal state, even failure, timeout, stop, or loss;
 check the state and exit details instead of treating that label as success. A successful
 launch attempts to back-fill the epic ID; when that metadata lands, the planner row
 itself moves to `EPIC CREATED`, and otherwise it remains `EPIC APPROVED`. The monitor
 takes a zero workspace claim (the launch runs in the project's primary workspace, not
 the planner's), and no follow-up agent is recorded — `sase bead work` launches the phase
-agents itself. If the planner's lane cannot be resolved (a very old artifacts layout, a
-wiped agent), the launch falls back to the original global `detached` proc submission
-rather than silently dropping the approval. Other monitor-start errors fail the approval
-instead of using the proc fallback. See
+agents itself. If the planner's agent family cannot be resolved (a very old artifacts
+layout, a wiped agent), the launch falls back to the original global `detached` proc
+submission rather than silently dropping the approval. Other monitor-start errors fail
+the approval instead of using the proc fallback. See
 [Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that handoff.
 
 ## See also
 
-- [Agent Clans, Families, and Tribes](agent_families.md) for how a monitor member fits
+- [Agent Clans, Families, and Tribes](agent_families.md) for how a monitor shell fits
   into a sequential agent family.
 - [CLI Reference](cli.md) for the full `sase monitor` command table.
 - [ACE TUI User Guide](ace.md) for how monitor rows render in the Agents tab.

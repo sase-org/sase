@@ -18,11 +18,11 @@ type AgentIdentity = tuple["AgentType", str, str | None]
 
 
 def sase_agent_name(agent: Agent) -> str | None:
-    """Return the lane name a row presents on the Agents tab.
+    """Return the sase-agent name a row presents on the Agents tab.
 
     A family root entry renders under its bare family base while its raw name
-    keeps the ``--<suffix>`` member part, so kinship must key on the lane name
-    to agree with ``sase.core.agent_identity_facade.agent_name_in_hood``.
+    keeps the ``--<suffix>`` member part, so kinship must key on the sase-agent
+    name to agree with ``sase.core.agent_identity_facade.agent_name_in_hood``.
     """
     if agent.is_clan_container:
         return None
@@ -57,12 +57,12 @@ def _suppressed_family_root_member_key(agent: Agent) -> str | None:
     """Return the concrete member name hidden behind a family root."""
     if not agent.is_family_root_entry:
         return None
-    lane_key = agent_name_key(agent)
+    sase_agent_key = agent_name_key(agent)
     member_name = agent.presented_identity_name
     if not member_name:
         return None
     member_key = member_name.casefold()
-    if member_key == lane_key:
+    if member_key == sase_agent_key:
         return None
     return member_key
 

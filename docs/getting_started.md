@@ -320,8 +320,9 @@ The names you'll keep bumping into, in one place:
   [Procs tab](ace.md#procs-tab).
 - **[Monitors](monitors.md)** — agent-family members used to hand off a slow command
   (`just check-full`, a CI wait, a deploy) at the end of an agent turn. A detached
-  supervisor runs the command, and an optional follow-up agent returns to the same lane;
-  SASE reports explicitly if that follow-up cannot inherit the monitor's workspace.
+  supervisor runs the command, and an optional follow-up agent shell returns under the
+  same agent family; SASE reports explicitly if that follow-up cannot inherit the
+  monitor's workspace.
 - **[Plugins and providers](plugins.md)** — model and VCS providers behind a common
   boundary: Claude Code, Antigravity CLI (`agy`), Codex, Qwen Code, OpenCode, Muse Code,
   Grok Build for agents; bare git and GitHub for version control.
