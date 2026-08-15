@@ -37,7 +37,7 @@ def _patch_commits(
         lambda **_kwargs: ("/tmp/sase.sase", 1, "sase"),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
+        "sase.ace.query.profile_reference_support.normalize_reference_time",
         lambda: reference,
     )
     monkeypatch.setattr("sase.vcs_log._render_util._now_epoch", reference.timestamp)

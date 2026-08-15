@@ -45,7 +45,7 @@ def _pin_rolling_default_query_time(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda **_kwargs: ("/tmp/sase.sase", 1, "sase"),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.artifacts.commits_filtering.normalize_reference_time",
+        "sase.ace.query.profile_reference_support.normalize_reference_time",
         lambda: reference,
     )
     monkeypatch.setattr(
@@ -496,7 +496,7 @@ async def test_commits_sidecar_filter_png_snapshot(
         )
         await wait_for_svg_contains(page, "sidecar:true")
         await wait_for_svg_contains(page, "ccccccc")
-        await wait_for_svg_contains(page, "true or false")
+        await wait_for_svg_contains(page, "include sidecar repositories")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

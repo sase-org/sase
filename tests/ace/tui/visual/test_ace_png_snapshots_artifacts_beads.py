@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -52,7 +53,9 @@ async def test_artifacts_beads_populated_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        assert pane.select_entry_target(("bead", "alpha", "epic", "alpha-1"))
+        assert pane.select_entry_target(
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
+        )
         await page.press("l")
         await page.wait_for(lambda _state: ("alpha", "alpha-1") in pane._expanded_epics)
         pane._update_detail()

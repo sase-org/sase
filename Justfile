@@ -306,9 +306,9 @@ _lint-symvision *args: _setup
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-m6.6.1(parse_artifact_query)' \
         --epic-symbol 'sase-m6.6.1(build_artifact_query_context)' \
+        --epic-symbol 'sase-m6.6.1(canonicalize_artifact_query)' \
         --epic-symbol 'sase-m6.6.1(evaluate_artifact_query)' \
         --epic-symbol 'sase-m6.6.1(evaluate_artifact_query_with_context)' \
-        --epic-symbol 'sase-m6.6.1.5(canonicalize_artifact_query)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

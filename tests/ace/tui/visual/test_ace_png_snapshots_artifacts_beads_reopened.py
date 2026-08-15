@@ -8,6 +8,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
+from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.bead.model import CloseRecord, ReopenCause, Resolution
 from tests.ace.tui._artifacts_beads_helpers import snapshot as _snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
@@ -58,7 +59,9 @@ async def test_artifacts_beads_reopened_detail_png_snapshot(
         await page.expect_state("artifacts_subtab", "beads")
         pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: pane.snapshot is snapshot)
-        assert pane.select_entry_target(("bead", "alpha", "task", "alpha-open"))
+        assert pane.select_entry_target(
+            ArtifactEntryTarget(pane_id="beads", parts=("alpha", "task", "alpha-open"))
+        )
         pane._update_detail()
         await wait_for_svg_contains(page, "Previously Closed")
         await wait_for_visual_idle(page)
