@@ -218,7 +218,12 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     from pathlib import Path
 
     from ....query import parse_query, to_canonical_string
-    from ....query_history import push_to_prev_stack, save_query_history
+    from ....query_history import (
+        QueryHistoryStacks,
+        push_to_prev_stack,
+        save_query_history,
+    )
+    from ....query_record import QueryRecord
     from ...artifact_tabs import switch_to_artifacts_subtab
 
     switch_to_artifacts_subtab(app, "patches")
@@ -248,11 +253,15 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
 
         # Push old query to history so user can go back with ^
         if new_canonical != current_canonical:
-            push_to_prev_stack(
-                current_canonical,
-                app._query_history,  # type: ignore[attr-defined]
+            current_record = QueryRecord(
+                source=app.query_string,  # type: ignore[attr-defined]
+                canonical=current_canonical,
             )
-            save_query_history(app._query_history)  # type: ignore[attr-defined]
+            stacks = app._query_history.setdefault(  # type: ignore[attr-defined]
+                "patches", QueryHistoryStacks(prev=[], next=[])
+            )
+            push_to_prev_stack(current_record, stacks)
+            save_query_history("patches", stacks)
 
         app.parsed_query = new_parsed  # type: ignore[attr-defined]
         app.query_string = new_query  # type: ignore[attr-defined]

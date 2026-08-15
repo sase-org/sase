@@ -6,6 +6,7 @@ import pytest
 from textual.widgets import OptionList
 
 from sase.ace.query_history import QueryHistoryStacks
+from sase.ace.query_record import QueryRecord
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import SavedQueryPickerModal
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
@@ -17,7 +18,12 @@ async def _open_picker(
 ) -> SavedQueryPickerModal:
     await page.press("2")
     await page.expect_state("artifacts_subtab", "patches")
-    page.app._saved_queries = dict(queries)
+    page.app._saved_queries = {
+        "patches": {
+            slot: QueryRecord(source=value, canonical=value)
+            for slot, value in queries.items()
+        }
+    }
     await page.press("asterisk")
     await page.expect_modal("SavedQueryPickerModal")
     modal = page.app.screen
@@ -73,8 +79,9 @@ async def test_picker_digit_loads_query_and_preserves_history_semantics(
             original_load()
 
         monkeypatch.setattr(page.app, "_load_patches", _tracked_load)
-        page.app._query_history = QueryHistoryStacks(prev=[], next=[])
+        page.app._query_history = {"patches": QueryHistoryStacks(prev=[], next=[])}
         active_query = page.app.canonical_query_string
+        active_record = QueryRecord(source=active_query, canonical=active_query)
         await _open_picker(
             page,
             {"2": '"other"', "5": active_query},
@@ -83,14 +90,14 @@ async def test_picker_digit_loads_query_and_preserves_history_semantics(
         await page.press("2")
         await page.expect_no_modal()
         assert page.app.canonical_query_string == '"other"'
-        assert page.app._query_history.prev == [active_query]
+        assert page.app._query_history["patches"].prev == [active_record]
         assert load_calls == 1
 
-        before = list(page.app._query_history.prev)
+        before = list(page.app._query_history["patches"].prev)
         await _open_picker(page, {"2": '"other"', "5": active_query})
         await page.press("2")
         await page.expect_no_modal()
-        assert page.app._query_history.prev == before
+        assert page.app._query_history["patches"].prev == before
         assert load_calls == 2
 
 
@@ -150,7 +157,9 @@ async def test_picker_mouse_selection_and_empty_state() -> None:
 
 async def test_picker_is_pr_only_and_bare_digits_only_switch_artifacts() -> None:
     async with AcePage(query='"feature"') as page:
-        page.app._saved_queries = {"2": '"saved"'}
+        page.app._saved_queries = {
+            "patches": {"2": QueryRecord(source='"saved"', canonical='"saved"')}
+        }
 
         await page.press("1")
         await page.expect_state("artifacts_subtab", "stitches")

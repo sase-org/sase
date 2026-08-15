@@ -436,12 +436,15 @@ class KeybindingModesMixin:
         """Update bindings to show saved-query slot mode options."""
         from ...saved_queries import KEY_ORDER
 
-        saved_queries = getattr(self.app, "_saved_queries", None) or {}
+        pane_id = getattr(self.app, "current_artifacts_pane_key", "patches")
+        all_saved_queries = getattr(self.app, "_saved_queries", None) or {}
+        saved_queries = all_saved_queries.get(pane_id, {})
         bindings: list[tuple[str, str]] = []
         for slot in KEY_ORDER[1:] + KEY_ORDER[:1]:
-            query = saved_queries.get(slot)
-            if not query:
+            record = saved_queries.get(slot)
+            if record is None:
                 continue
+            query = record.canonical
             label = query if len(query) <= 24 else query[:21] + "..."
             bindings.append((slot, label))
         if not bindings:

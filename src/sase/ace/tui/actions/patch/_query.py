@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
     from ....query_history import QueryHistoryStacks
+    from ....query_record import QueryRecord
 
 from ....patch import Patch
 
@@ -22,9 +23,9 @@ class PatchQueryMixin:
     parsed_query: QueryExpr
     query_string: str
     _all_patches: list[Patch]
-    _query_history: QueryHistoryStacks
-    _query_selections: dict[str, str]
-    _saved_queries: dict[str, str]
+    _query_history: dict[str, QueryHistoryStacks]
+    _query_selections: dict[str, dict[str, str]]
+    _saved_queries: dict[str, dict[str, QueryRecord]]
 
     def _save_current_query(self) -> None:
         """Save the current query as the last used query."""
@@ -47,47 +48,71 @@ class PatchQueryMixin:
         self._load_patches()  # type: ignore[attr-defined]
 
     def _load_saved_query(self, slot: str) -> None:
-        """Load a saved query from a slot.
+        """Load a saved query from a slot on the active Artifacts pane.
 
-        Args:
-            slot: The slot number ("0"-"9").
+        Saved-query slots are namespaced per pane. A call from outside the
+        Artifacts tab entirely (e.g. an Agents keymap or the command
+        palette) still lands on the Patches pane, since there's no
+        "active Artifacts pane" to respect until the Artifacts tab is
+        showing. A call made while already on the Artifacts tab no longer
+        force-switches the sub-tab: loading always targets whichever pane
+        is currently active. Only the Patches pane applies a loaded slot
+        today (the other panes' own filter sessions aren't wired onto this
+        mechanism yet), so pressing a slot key on another pane just
+        reports that pane's own (currently empty) namespace.
         """
-        # Saved queries are shown on the Artifacts tab's PRs sub-tab, so land
-        # there even when called from another tab (e.g. an Agents keymap) or
-        # from the Artifacts tab on a non-PR sub-tab (e.g. Stitches).
-        on_prs_pane = (
-            self.current_tab == "artifacts"
-            and getattr(self, "current_artifacts_subtab", "patches") == "patches"
-        )
-        if not on_prs_pane:
-            if self.current_tab != "artifacts":
-                self._save_current_tab_position()  # type: ignore[attr-defined]
+        if self.current_tab != "artifacts":
+            self._save_current_tab_position()  # type: ignore[attr-defined]
             from ...artifact_tabs import switch_to_artifacts_subtab
 
             switch_to_artifacts_subtab(self, "patches")
 
-        from ....query import parse_query, to_canonical_string
-        from ....query_history import push_to_prev_stack, save_query_history
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+        if pane_id != "patches":
+            self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
+            return
 
-        queries = self._saved_queries
+        from ....query import parse_query, to_canonical_string
+        from ....query_history import (
+            QueryHistoryStacks,
+            push_to_prev_stack,
+            save_query_history,
+        )
+        from ....query_record import QueryRecord
+
+        queries = self._saved_queries.get(pane_id, {})
         if slot not in queries:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
             return
 
-        query = queries[slot]
+        record = queries[slot]
+        if record.is_stale(pane_id):
+            self.notify(  # type: ignore[attr-defined]
+                f"Slot {slot}'s saved query no longer matches this pane's "
+                f"query dialect and needs review: {record.source}",
+                severity="error",
+            )
+            return
+
         try:
-            new_parsed = parse_query(query)
+            new_parsed = parse_query(record.source)
             new_canonical = to_canonical_string(new_parsed)
 
             # Only push to history if query actually changes
             current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
             if new_canonical != current_canonical:
                 self._save_selection_for_current_query()  # type: ignore[attr-defined]
-                push_to_prev_stack(current_canonical, self._query_history)
-                save_query_history(self._query_history)
+                current_record = QueryRecord(
+                    source=self.query_string, canonical=current_canonical
+                )
+                stacks = self._query_history.setdefault(
+                    pane_id, QueryHistoryStacks(prev=[], next=[])
+                )
+                push_to_prev_stack(current_record, stacks)
+                save_query_history(pane_id, stacks)
 
             self.parsed_query = new_parsed
-            self.query_string = query
+            self.query_string = record.source
             self._load_query_patches()
             self._restore_selection_for_current_query()  # type: ignore[attr-defined]
             self._save_current_query()
@@ -132,11 +157,9 @@ class PatchQueryMixin:
             pass
 
     def action_open_saved_query_picker(self) -> None:
-        """Open the cached saved-query chooser on the Artifacts PRs pane."""
-        if (
-            self.current_tab != "artifacts"
-            or getattr(self, "current_artifacts_subtab", "patches") != "patches"
-        ):
+        """Open the cached saved-query chooser on the active Artifacts pane."""
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+        if self.current_tab != "artifacts" or pane_id != "patches":
             return
 
         from ...modals import SavedQueryPickerModal
@@ -145,9 +168,13 @@ class PatchQueryMixin:
             if slot is not None:
                 self._load_saved_query(slot)
 
+        queries = {
+            slot: record.canonical
+            for slot, record in self._saved_queries.get(pane_id, {}).items()
+        }
         self.push_screen(  # type: ignore[attr-defined]
             SavedQueryPickerModal(
-                dict(self._saved_queries),
+                queries,
                 self.canonical_query_string,  # type: ignore[attr-defined]
             ),
             _load_slot,
@@ -200,49 +227,73 @@ class PatchQueryMixin:
     def action_prev_query(self) -> None:
         """Navigate to previous query in history (^ key)."""
         from ....query import parse_query
-        from ....query_history import navigate_prev, save_query_history
+        from ....query_history import (
+            QueryHistoryStacks,
+            navigate_prev,
+            save_query_history,
+        )
+        from ....query_record import QueryRecord
 
-        if self.current_tab != "artifacts":
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+        if self.current_tab != "artifacts" or pane_id != "patches":
             return
 
-        current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
+        current_record = QueryRecord(
+            source=self.query_string,
+            canonical=self.canonical_query_string,  # type: ignore[attr-defined]
+        )
         self._save_selection_for_current_query()  # type: ignore[attr-defined]
-        prev_query = navigate_prev(current_canonical, self._query_history)
-        if prev_query is None:
+        stacks = self._query_history.setdefault(
+            pane_id, QueryHistoryStacks(prev=[], next=[])
+        )
+        prev_record = navigate_prev(current_record, stacks)
+        if prev_record is None:
             self.notify("No previous query", severity="warning")  # type: ignore[attr-defined]
             return
 
         try:
-            self.parsed_query = parse_query(prev_query)
-            self.query_string = prev_query
+            self.parsed_query = parse_query(prev_record.source)
+            self.query_string = prev_record.source
             self._load_query_patches()
             self._restore_selection_for_current_query()  # type: ignore[attr-defined]
             self._save_current_query()
-            save_query_history(self._query_history)
+            save_query_history(pane_id, stacks)
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]
 
     def action_next_query(self) -> None:
         """Navigate to next query in history (_ key)."""
         from ....query import parse_query
-        from ....query_history import navigate_next, save_query_history
+        from ....query_history import (
+            QueryHistoryStacks,
+            navigate_next,
+            save_query_history,
+        )
+        from ....query_record import QueryRecord
 
-        if self.current_tab != "artifacts":
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+        if self.current_tab != "artifacts" or pane_id != "patches":
             return
 
-        current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
+        current_record = QueryRecord(
+            source=self.query_string,
+            canonical=self.canonical_query_string,  # type: ignore[attr-defined]
+        )
         self._save_selection_for_current_query()  # type: ignore[attr-defined]
-        next_query = navigate_next(current_canonical, self._query_history)
-        if next_query is None:
+        stacks = self._query_history.setdefault(
+            pane_id, QueryHistoryStacks(prev=[], next=[])
+        )
+        next_record = navigate_next(current_record, stacks)
+        if next_record is None:
             self.notify("No next query", severity="warning")  # type: ignore[attr-defined]
             return
 
         try:
-            self.parsed_query = parse_query(next_query)
-            self.query_string = next_query
+            self.parsed_query = parse_query(next_record.source)
+            self.query_string = next_record.source
             self._load_query_patches()
             self._restore_selection_for_current_query()  # type: ignore[attr-defined]
             self._save_current_query()
-            save_query_history(self._query_history)
+            save_query_history(pane_id, stacks)
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]

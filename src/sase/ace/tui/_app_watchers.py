@@ -137,11 +137,16 @@ class AppWatchersMixin:
         if isinstance(screen, HelpModal):
             if new_tab == "agents":
                 self._prepare_agents_help_guide_state()
+            pane_id = getattr(self, "current_artifacts_pane_key", "patches")
             screen.refresh_for_tab(
                 new_tab,
                 self.canonical_query_string,
                 registry=self._keymap_registry,
-                saved_queries=dict(self._saved_queries),
+                saved_queries={
+                    slot: record.canonical
+                    for slot, record in self._saved_queries.get(pane_id, {}).items()
+                },
+                pane_id=pane_id,
                 agents_launch_targets_available=(
                     self._agents_onboarding_launch_targets_available
                 ),

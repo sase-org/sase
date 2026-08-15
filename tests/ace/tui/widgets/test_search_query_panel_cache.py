@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from textual.app import App, ComposeResult
 
+from sase.ace.query_record import QueryRecord
 from sase.ace.tui.widgets.patch_detail import SearchQueryPanel
 
 
 class _Host(App):
     def __init__(self) -> None:
         super().__init__()
-        self._saved_queries: dict[str, str] = {"1": "STATUS=Mailed"}
+        self._saved_queries: dict[str, dict[str, QueryRecord]] = {
+            "patches": {
+                "1": QueryRecord(source="STATUS=Mailed", canonical="STATUS=Mailed")
+            }
+        }
 
     def compose(self) -> ComposeResult:
         yield SearchQueryPanel(id="search-query-panel")

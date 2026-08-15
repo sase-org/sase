@@ -69,7 +69,7 @@ class FakeNavigationApp:
         self.canonical_query_string = "status:ready"
         self.query_string = "status:READY"
         self.parsed_query = object()
-        self._query_history = QueryHistoryStacks(prev=[], next=[])
+        self._query_history = {"patches": QueryHistoryStacks(prev=[], next=[])}
         self.load_count = 0
         self.save_count = 0
         self.notifications: list[tuple[str, str]] = []

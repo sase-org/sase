@@ -85,7 +85,11 @@ async def test_load_saved_query_from_agents_lands_on_patches_subtab(
         await wait_for_startup(page)
 
         # DEFAULT_PATCHES all live under the "tmp" project directory.
-        page.app._saved_queries["1"] = "project:tmp"
+        from sase.ace.query_record import QueryRecord
+
+        page.app._saved_queries["patches"]["1"] = QueryRecord(
+            source="project:tmp", canonical="project:tmp"
+        )
 
         page.app.action_load_saved_query_1()
         await page.pause()

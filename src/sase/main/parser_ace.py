@@ -15,7 +15,7 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     ace_parser.add_argument(
         "query",
         nargs="?",
-        default=load_last_query() or load_first_saved_query() or "!!!",
+        default=load_last_query() or load_first_saved_query("patches") or "!!!",
         help="Query string for filtering Patches (default: first saved query, "
         "or '!!!' for error suffixes). "
         'Examples: \'"feature" AND "Ready"\', \'"myproject" OR "bugfix"\', '

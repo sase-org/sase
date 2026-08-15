@@ -306,7 +306,12 @@ class TreeNavigationMixin(NavigationMixinBase):
         from sase.core.patch import strip_reverted_suffix
 
         from ....query import parse_query, to_canonical_string
-        from ....query_history import push_to_prev_stack, save_query_history
+        from ....query_history import (
+            QueryHistoryStacks,
+            push_to_prev_stack,
+            save_query_history,
+        )
+        from ....query_record import QueryRecord
 
         if is_sibling:
             # For sibling navigation: use sibling:<base_name>
@@ -327,10 +332,16 @@ class TreeNavigationMixin(NavigationMixinBase):
             new_canonical = to_canonical_string(new_parsed)
             current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
 
-            # Push to history
+            # Push to history (this navigation is Patches-only)
             if new_canonical != current_canonical:
-                push_to_prev_stack(current_canonical, self._query_history)
-                save_query_history(self._query_history)
+                current_record = QueryRecord(
+                    source=self.query_string, canonical=current_canonical
+                )
+                stacks = self._query_history.setdefault(
+                    "patches", QueryHistoryStacks(prev=[], next=[])
+                )
+                push_to_prev_stack(current_record, stacks)
+                save_query_history("patches", stacks)
 
             self.parsed_query = new_parsed
             self.query_string = new_query

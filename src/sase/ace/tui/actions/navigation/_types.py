@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ....patch import Patch
     from ....query.types import QueryExpr
     from ....query_history import QueryHistoryStacks
+    from ....query_record import QueryRecord
     from ...bgcmd import BackgroundCommandInfo
     from ...keymaps import KeymapRegistry
     from ...modals import JumpAllResult
@@ -104,8 +105,8 @@ class NavigationMixinBase:
     _children_keys: dict[str, str]
     _sibling_keys: dict[str, str]
     _all_patches: list[Patch]
-    _query_history: QueryHistoryStacks
-    _saved_queries: dict[str, str]
+    _query_history: dict[str, QueryHistoryStacks]
+    _saved_queries: dict[str, dict[str, QueryRecord]]
     query_string: str
     parsed_query: QueryExpr
     _axe_current_view: AxeViewType

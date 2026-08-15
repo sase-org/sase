@@ -107,6 +107,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         *,
         registry: KeymapRegistry | None = None,
         saved_queries: Mapping[str, str] | None = None,
+        pane_id: str = "patches",
         agents_launch_targets_available: bool = False,
         agents_plugins_installed: bool = True,
     ) -> None:
@@ -116,8 +117,11 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             current_tab: The currently active app tab name.
             active_query: The current canonical query string (for highlighting).
             registry: Active keymap registry; defaults are used outside an app.
-            saved_queries: Cached saved-query snapshot; falls back to storage only
-                for standalone construction outside the app.
+            saved_queries: Cached saved-query snapshot for *pane_id*; falls back
+                to storage only for standalone construction outside the app.
+            pane_id: The active Artifacts pane id, used to route the saved
+                queries and query history sections through the active pane
+                instead of always assuming Patches.
             agents_launch_targets_available: Agents guide launch-target state.
             agents_plugins_installed: Agents guide plugin-install state.
         """
@@ -126,6 +130,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._active_query = active_query
         self._registry = registry
         self._saved_queries = dict(saved_queries) if saved_queries is not None else None
+        self._pane_id = pane_id
         self._agents_launch_targets_available = agents_launch_targets_available
         self._agents_plugins_installed = agents_plugins_installed
         self._active_panel_tab: HelpPanelTab = _HELP_KEYMAPS_TAB
@@ -239,8 +244,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
                 saved_query_prefix=key_display_name(km.app.start_saved_query_mode),
                 title_runs=saved_runs or (),
             )
-        # Query history is Patches-tab only
-        if self._current_tab == "artifacts":
+        # Query history is Patches-pane only
+        if self._current_tab == "artifacts" and self._pane_id == "patches":
             history_runs = (
                 matches_title("Query History", self._filter_query)
                 if result.active
@@ -250,6 +255,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
                 d = key_display_name
                 add_query_history_section(
                     text,
+                    pane_id=self._pane_id,
                     prev_key=d(km.app.prev_query),
                     next_key=d(km.app.next_query),
                     title_runs=history_runs or (),
@@ -334,6 +340,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         *,
         registry: KeymapRegistry | None = None,
         saved_queries: Mapping[str, str] | None = None,
+        pane_id: str | None = None,
         agents_launch_targets_available: bool = False,
         agents_plugins_installed: bool = True,
     ) -> None:
@@ -344,6 +351,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             self._registry = registry
         if saved_queries is not None:
             self._saved_queries = dict(saved_queries)
+        if pane_id is not None:
+            self._pane_id = pane_id
         self._agents_launch_targets_available = agents_launch_targets_available
         self._agents_plugins_installed = agents_plugins_installed
 

@@ -59,8 +59,8 @@ class PatchMixin(
     _hint_to_entry_id: dict[int, str]
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
-    _query_history: QueryHistoryStacks
-    _query_selections: dict[str, str]
+    _query_history: dict[str, QueryHistoryStacks]
+    _query_selections: dict[str, dict[str, str]]
     _all_patches: list[Patch]
     _ancestor_keys: dict[str, str]
     _children_keys: dict[str, str]
@@ -476,24 +476,35 @@ class PatchMixin(
     def _save_selection_for_current_query(self) -> None:
         """Save the current Patch selection keyed by current query."""
         from ....query_selection import save_query_selections
+        from ...widgets.artifacts.patch_entry import patch_row_target
 
         if self.patches:
             idx = min(self.current_idx, len(self.patches) - 1)
-            name = self.patches[idx].name
+            target = patch_row_target(self.patches[idx])
             canonical = self.canonical_query_string  # type: ignore[attr-defined]
+            pane_id = "patches"
+            selections = dict(self._query_selections.get(pane_id, {}))
             # Pop and re-insert to mark as recently used
-            self._query_selections.pop(canonical, None)
-            self._query_selections[canonical] = name
-            save_query_selections(self._query_selections)
+            selections.pop(canonical, None)
+            selections[canonical] = target.to_token()
+            self._query_selections[pane_id] = selections
+            save_query_selections(pane_id, selections)
 
     def _restore_selection_for_current_query(self) -> None:
         """Restore the saved Patch selection for the current query."""
+        from ...widgets.artifacts.entry_navigation import ArtifactEntryTarget
+        from ...widgets.artifacts.patch_entry import patch_row_target
+
         canonical = self.canonical_query_string  # type: ignore[attr-defined]
-        saved_name = self._query_selections.get(canonical)
-        if saved_name is None:
+        token = self._query_selections.get("patches", {}).get(canonical)
+        if token is None:
+            return
+        try:
+            target = ArtifactEntryTarget.from_token(token)
+        except ValueError:
             return
         for idx, cs in enumerate(self.patches):
-            if cs.name == saved_name:
+            if patch_row_target(cs) == target:
                 self.current_idx = idx
                 return
 

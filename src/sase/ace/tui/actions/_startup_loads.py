@@ -13,7 +13,7 @@ class StartupLoadsMixin:
     """Mixin for startup data loading and deferred index maintenance."""
 
     def _invalidate_saved_queries_cache(self: Any) -> None:
-        """Reload ``_saved_queries`` from disk after a save/delete.
+        """Reload the active pane's ``_saved_queries`` bucket after a mutation.
 
         Called by the actions that mutate saved-query slots (save / delete
         keymap and the help modal). The hot render path (``SearchQueryPanel``)
@@ -21,7 +21,8 @@ class StartupLoadsMixin:
         """
         from ...saved_queries import load_saved_queries
 
-        self._saved_queries = load_saved_queries()
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
+        self._saved_queries[pane_id] = load_saved_queries(pane_id)
         sync_onboarding = getattr(self, "_sync_patches_onboarding", None)
         if callable(sync_onboarding):
             showing_onboarding = sync_onboarding()

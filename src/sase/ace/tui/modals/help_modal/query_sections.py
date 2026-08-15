@@ -16,15 +16,18 @@ def add_saved_queries_section(
     active_query: str | None,
     *,
     queries: Mapping[str, str] | None = None,
+    pane_id: str = "patches",
     saved_query_prefix: str = "0",
     content_width: int = CONTENT_WIDTH,
     title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
-    """Add the saved queries section (Patches tab only).
+    """Add the saved queries section for *pane_id* (Patches only today).
 
     Args:
         text: The Text object to append to.
         active_query: The current active query string for highlighting.
+        pane_id: The Artifacts pane whose saved queries to render when
+            *queries* isn't already supplied.
         saved_query_prefix: The configured saved-query slot key
             (``ace.keymaps.app.start_saved_query_mode``) shown in each
             slot badge, e.g. ``[03]``.
@@ -32,7 +35,10 @@ def add_saved_queries_section(
         title_runs: Matched-query runs to highlight in the section title.
     """
     if queries is None:
-        queries = load_saved_queries()
+        queries = {
+            slot: record.canonical
+            for slot, record in load_saved_queries(pane_id).items()
+        }
 
     # Section header
     text.append("\n")
@@ -104,21 +110,23 @@ def add_saved_queries_section(
 def add_query_history_section(
     text: Text,
     *,
+    pane_id: str = "patches",
     prev_key: str = "^",
     next_key: str = "_",
     border_color: str = "#FFD700",
     title_runs: tuple[tuple[int, int], ...] = (),
 ) -> None:
-    """Add the query history stacks section (Patches tab only).
+    """Add the query history stacks section for *pane_id* (Patches only today).
 
     Shows last 5 entries from each stack with visual indicators.
 
     Args:
         text: The Text object to append to.
+        pane_id: The Artifacts pane whose history stacks to render.
         border_color: Color for the border characters.
         title_runs: Matched-query runs to highlight in the section title.
     """
-    stacks = load_query_history()
+    stacks = load_query_history(pane_id)
 
     # Section header
     text.append("\n")
@@ -133,8 +141,8 @@ def add_query_history_section(
 
     # Show last 5 from prev stack (most recent first = reversed)
     max_display = 5
-    prev_display = list(reversed(stacks.prev[-max_display:]))
-    next_display = list(reversed(stacks.next[-max_display:]))
+    prev_display = [r.canonical for r in reversed(stacks.prev[-max_display:])]
+    next_display = [r.canonical for r in reversed(stacks.next[-max_display:])]
     prev_total = len(stacks.prev)
     next_total = len(stacks.next)
 

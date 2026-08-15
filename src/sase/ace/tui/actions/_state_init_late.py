@@ -96,23 +96,25 @@ def init_late_startup_state(
     # lumberjack is seen.
     self._axe_fold_manager = FoldStateManager()
 
-    # Query history stacks for prev/next navigation
+    # Query history stacks for prev/next navigation, namespaced by
+    # Artifacts pane id. Only the Patches pane is wired up to this
+    # mechanism today; other panes' buckets stay absent until requested.
     from ...query_history import load_query_history
 
-    self._query_history = load_query_history()
+    self._query_history = {"patches": load_query_history("patches")}
 
-    # Per-query Patch selection persistence
+    # Per-query Patch selection persistence, namespaced by pane id.
     from ...query_selection import load_query_selections
 
-    self._query_selections = load_query_selections()
+    self._query_selections = {"patches": load_query_selections("patches")}
 
-    # Saved-query slots cached in memory.  ``SearchQueryPanel`` reads
-    # this on every render so we keep it disk-free; the cache is
-    # refreshed by :meth:`_invalidate_saved_queries_cache` on explicit
-    # save/delete.
+    # Saved-query slots cached in memory, namespaced by pane id.
+    # ``SearchQueryPanel`` reads this on every render so we keep it
+    # disk-free; the cache is refreshed by
+    # :meth:`_invalidate_saved_queries_cache` on explicit save/delete.
     from ...saved_queries import load_saved_queries
 
-    self._saved_queries = load_saved_queries()
+    self._saved_queries = {"patches": load_saved_queries("patches")}
 
     # Load ACE settings from merged config.
     from sase.config import load_merged_config

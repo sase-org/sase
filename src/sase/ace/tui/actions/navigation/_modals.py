@@ -66,12 +66,17 @@ class NavigationModalMixin(NavigationMixinBase):
         if self.current_tab == "agents":
             self._prepare_agents_help_guide_state()
 
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
         self.push_screen(  # type: ignore[attr-defined]
             HelpModal(
                 current_tab=self.current_tab,
                 active_query=self.canonical_query_string,  # type: ignore[attr-defined]
                 registry=self._keymap_registry,
-                saved_queries=dict(self._saved_queries),
+                saved_queries={
+                    slot: record.canonical
+                    for slot, record in self._saved_queries.get(pane_id, {}).items()
+                },
+                pane_id=pane_id,
                 agents_launch_targets_available=getattr(
                     self,
                     "_agents_onboarding_launch_targets_available",

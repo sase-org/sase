@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.query_record import QueryRecord
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -35,11 +36,16 @@ async def test_saved_query_picker_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         page.app._saved_queries = {
-            "1": '"visual"',
-            "2": 'PROJECT="sase" AND STATUS="Ready"',
-            "4": 'MENTOR="reviewer" OR COMMENT="needs attention"',
-            "9": 'PROJECT="sase" AND STATUS="Draft" AND "a deliberately long saved query that demonstrates graceful truncation"',
-            "0": "!!! OR @@@",
+            "patches": {
+                slot: QueryRecord(source=value, canonical=value)
+                for slot, value in {
+                    "1": '"visual"',
+                    "2": 'PROJECT="sase" AND STATUS="Ready"',
+                    "4": 'MENTOR="reviewer" OR COMMENT="needs attention"',
+                    "9": 'PROJECT="sase" AND STATUS="Draft" AND "a deliberately long saved query that demonstrates graceful truncation"',
+                    "0": "!!! OR @@@",
+                }.items()
+            }
         }
 
         await page.press("asterisk")

@@ -494,6 +494,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
 
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
+        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
 
         def on_dismiss(new_query: str | None) -> None:
             if not new_query:
@@ -509,7 +510,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 if not query_part:
                     # Delete mode: #<N> with no query
                     if slot_specified:
-                        if delete_query(slot_specified):
+                        if delete_query(pane_id, slot_specified):
                             self._invalidate_saved_queries_cache()  # type: ignore[attr-defined]
                             self.notify(f"Deleted query from slot {slot_specified}")  # type: ignore[attr-defined]
                         else:
@@ -527,20 +528,20 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                     return
 
                 # Determine slot
-                existing_slot = find_slot_for_query(canonical)
+                existing_slot = find_slot_for_query(pane_id, canonical)
                 if slot_specified:
                     slot = slot_specified
                 else:
                     if existing_slot is not None:
                         self.notify(f"Query already saved in slot {existing_slot}")  # type: ignore[attr-defined]
                         return
-                    queries = load_saved_queries()
+                    queries = load_saved_queries(pane_id)
                     slot = get_next_available_slot(queries)
                     if slot is None:
                         self.notify("All 10 slots are full", severity="warning")  # type: ignore[attr-defined]
                         return
 
-                if save_query(slot, canonical):
+                if save_query(pane_id, slot, query_part, canonical):
                     self._invalidate_saved_queries_cache()  # type: ignore[attr-defined]
                     if existing_slot is not None and existing_slot != slot:
                         self.notify(  # type: ignore[attr-defined]
@@ -552,7 +553,12 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                     self.notify("Failed to save query", severity="error")  # type: ignore[attr-defined]
             else:
                 # Normal query update (existing logic)
-                from ...query_history import push_to_prev_stack, save_query_history
+                from ...query_history import (
+                    QueryHistoryStacks,
+                    push_to_prev_stack,
+                    save_query_history,
+                )
+                from ...query_record import QueryRecord
 
                 try:
                     new_parsed = parse_query(new_query)
@@ -561,8 +567,15 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                     if new_canonical != current_canonical:
                         self._save_selection_for_current_query()  # type: ignore[attr-defined]
                         # Push current query to prev stack before changing
-                        push_to_prev_stack(current_canonical, self._query_history)  # type: ignore[attr-defined]
-                        save_query_history(self._query_history)  # type: ignore[attr-defined]
+                        current_record = QueryRecord(
+                            source=self.query_string,  # type: ignore[attr-defined]
+                            canonical=current_canonical,
+                        )
+                        stacks = self._query_history.setdefault(  # type: ignore[attr-defined]
+                            pane_id, QueryHistoryStacks(prev=[], next=[])
+                        )
+                        push_to_prev_stack(current_record, stacks)
+                        save_query_history(pane_id, stacks)
 
                         self.query_string = new_query
                         self.parsed_query = new_parsed

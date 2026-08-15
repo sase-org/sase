@@ -26,6 +26,7 @@ from ._state_init import StateInitMixin
 
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
+    from ...query_record import QueryRecord
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..widgets.prompt_completion import (
@@ -114,7 +115,7 @@ class StartupMixin(
     _w_agent_detail: Any
     _w_agent_info_panel: Any
     _w_tab_bar: Any
-    _saved_queries: dict[str, str]
+    _saved_queries: dict[str, dict[str, QueryRecord]]
     _dirty_patches: bool
     _dirty_agents: bool
     _dirty_axe: bool

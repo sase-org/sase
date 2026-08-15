@@ -10,7 +10,13 @@ from sase.ace.query_history import (
     navigate_next,
     navigate_prev,
     push_to_prev_stack,
+    save_query_history,
 )
+from sase.ace.query_record import QueryRecord
+
+
+def _record(text: str) -> QueryRecord:
+    return QueryRecord(source=text, canonical=text)
 
 
 def test_load_empty_when_no_file(tmp_path: Path) -> None:
@@ -18,7 +24,7 @@ def test_load_empty_when_no_file(tmp_path: Path) -> None:
     with patch(
         "sase.ace.query_history._QUERY_HISTORY_FILE", tmp_path / "nonexistent.json"
     ):
-        result = load_query_history()
+        result = load_query_history("patches")
         assert result.prev == []
         assert result.next == []
 
@@ -26,7 +32,7 @@ def test_load_empty_when_no_file(tmp_path: Path) -> None:
 def test_navigate_prev_empty() -> None:
     """Test navigating prev when stack is empty."""
     stacks = QueryHistoryStacks(prev=[], next=[])
-    result = navigate_prev("current", stacks)
+    result = navigate_prev(_record("current"), stacks)
     assert result is None
     assert stacks.prev == []
     assert stacks.next == []
@@ -34,18 +40,21 @@ def test_navigate_prev_empty() -> None:
 
 def test_navigate_prev_removes_duplicate_from_next() -> None:
     """Test that navigate_prev removes duplicate from next stack."""
-    stacks = QueryHistoryStacks(prev=["old"], next=["future", "current", "other"])
-    result = navigate_prev("current", stacks)
-    assert result == "old"
+    stacks = QueryHistoryStacks(
+        prev=[_record("old")],
+        next=[_record("future"), _record("current"), _record("other")],
+    )
+    result = navigate_prev(_record("current"), stacks)
+    assert result == _record("old")
     assert stacks.prev == []
     # "current" removed from middle of next stack and moved to end
-    assert stacks.next == ["future", "other", "current"]
+    assert stacks.next == [_record("future"), _record("other"), _record("current")]
 
 
 def test_navigate_next_empty() -> None:
     """Test navigating next when stack is empty."""
     stacks = QueryHistoryStacks(prev=[], next=[])
-    result = navigate_next("current", stacks)
+    result = navigate_next(_record("current"), stacks)
     assert result is None
     assert stacks.prev == []
     assert stacks.next == []
@@ -53,21 +62,23 @@ def test_navigate_next_empty() -> None:
 
 def test_navigate_next_success() -> None:
     """Test successful next navigation."""
-    stacks = QueryHistoryStacks(prev=[], next=["future1", "future2"])
-    result = navigate_next("current", stacks)
-    assert result == "future2"
-    assert stacks.prev == ["current"]
-    assert stacks.next == ["future1"]
+    stacks = QueryHistoryStacks(prev=[], next=[_record("future1"), _record("future2")])
+    result = navigate_next(_record("current"), stacks)
+    assert result == _record("future2")
+    assert stacks.prev == [_record("current")]
+    assert stacks.next == [_record("future1")]
 
 
 def test_max_stack_size_on_push() -> None:
     """Test that push enforces max size."""
-    stacks = QueryHistoryStacks(prev=[f"q{i}" for i in range(MAX_STACK_SIZE)], next=[])
-    push_to_prev_stack("new", stacks)
+    stacks = QueryHistoryStacks(
+        prev=[_record(f"q{i}") for i in range(MAX_STACK_SIZE)], next=[]
+    )
+    push_to_prev_stack(_record("new"), stacks)
     assert len(stacks.prev) == MAX_STACK_SIZE
     # Should keep most recent entries (including the new one)
-    assert stacks.prev[-1] == "new"
-    assert stacks.prev[0] == "q1"  # q0 dropped
+    assert stacks.prev[-1] == _record("new")
+    assert stacks.prev[0] == _record("q1")  # q0 dropped
 
 
 def test_handles_corrupt_json(tmp_path: Path) -> None:
@@ -75,7 +86,7 @@ def test_handles_corrupt_json(tmp_path: Path) -> None:
     test_file = tmp_path / "query_history.json"
     test_file.write_text("not valid json {")
     with patch("sase.ace.query_history._QUERY_HISTORY_FILE", test_file):
-        result = load_query_history()
+        result = load_query_history("patches")
         assert result.prev == []
         assert result.next == []
 
@@ -85,3 +96,27 @@ def test_empty_stacks_dataclass() -> None:
     stacks = QueryHistoryStacks(prev=[], next=[])
     assert stacks.prev == []
     assert stacks.next == []
+
+
+def test_save_and_load_is_namespaced_per_pane(tmp_path: Path) -> None:
+    """Two panes keep independent history stacks."""
+    test_file = tmp_path / "query_history.json"
+    with patch("sase.ace.query_history._QUERY_HISTORY_FILE", test_file):
+        save_query_history("patches", QueryHistoryStacks(prev=[_record("p")], next=[]))
+        save_query_history("stitches", QueryHistoryStacks(prev=[_record("s")], next=[]))
+
+        assert load_query_history("patches").prev == [_record("p")]
+        assert load_query_history("stitches").prev == [_record("s")]
+
+
+def test_load_query_history_migrates_legacy_flat_file(tmp_path: Path) -> None:
+    """A legacy flat file is lifted under the patches pane on first read."""
+    import json
+
+    test_file = tmp_path / "query_history.json"
+    test_file.write_text(json.dumps({"prev": ["status:Ready", '"alpha"'], "next": []}))
+    with patch("sase.ace.query_history._QUERY_HISTORY_FILE", test_file):
+        result = load_query_history("patches")
+        assert result.prev == [_record("status:Ready"), _record('"alpha"')]
+        assert result.next == []
+        assert load_query_history("stitches") == QueryHistoryStacks(prev=[], next=[])

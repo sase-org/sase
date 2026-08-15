@@ -79,20 +79,25 @@ class SearchQueryPanel(Static):
         self.refresh()
 
     def _resolve_saved_queries(self) -> dict[str, str]:
-        """Return the app's cached saved-query map, falling back to disk.
+        """Return the Patches pane's cached saved-query map (slot -> canonical).
 
         The TUI seeds ``app._saved_queries`` during startup and invalidates
         it on save/delete, so the hot render path is disk-free in the
         common case. The fallback covers tests that mount the panel
-        without going through the full app lifecycle.
+        without going through the full app lifecycle. This panel only
+        lives on the Patches pane, so it always reads that pane's bucket.
         """
         app = getattr(self, "app", None)
         cache = getattr(app, "_saved_queries", None)
         if isinstance(cache, dict):
-            return cache
+            patches_queries = cache.get("patches", {})
+            return {slot: record.canonical for slot, record in patches_queries.items()}
         from ...saved_queries import load_saved_queries
 
-        return load_saved_queries()
+        return {
+            slot: record.canonical
+            for slot, record in load_saved_queries("patches").items()
+        }
 
     def render(self) -> Text:
         """Render the search query panel with proper right-alignment."""

@@ -18,6 +18,7 @@ reference evaluator is the responsibility of later phases of the
 from __future__ import annotations
 
 from .compiler import CompiledQueryProfile, QueryProfileError, compile_query_profile
+from .pane_registry import compiled_profile_for_builtin_pane
 from .profiles import (
     beads_query_schema,
     files_query_schema,
@@ -58,6 +59,7 @@ __all__ = [
     "QuerySigilSpec",
     "beads_query_schema",
     "compile_query_profile",
+    "compiled_profile_for_builtin_pane",
     "files_query_schema",
     "patches_query_schema",
     "plans_query_schema",

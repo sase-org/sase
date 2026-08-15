@@ -144,7 +144,7 @@ async def test_patches_onboarding_visible_when_saved_queries_exist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
-    assert save_query("1", '"visual"')
+    assert save_query("patches", "1", '"visual"', '"visual"')
 
     async with AcePage(
         query='"visual"',
@@ -265,7 +265,7 @@ async def test_patches_onboarding_ignores_saved_query_cache_invalidates(
         await _open_prs(page)
         _assert_patches_onboarding_layout(page, active=True)
 
-        assert save_query("1", '"visual"')
+        assert save_query("patches", "1", '"visual"', '"visual"')
         page.app._invalidate_saved_queries_cache()
         await page.pause()
 
