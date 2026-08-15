@@ -81,19 +81,8 @@ class CommitsTimeline(OptionList):
 
     def ensure_render_cache_warmed(self) -> None:
         """Warm row renders once a concrete scroll region is available."""
-        if (
-            not self._render_cache_warmed
-            or len(self._option_render_cache) < self._expected_render_cache_entries()
-        ):
+        if not self._render_cache_warmed:
             self.prewarm_render_cache()
-
-    def _expected_render_cache_entries(self) -> int:
-        count = min(self.option_count, 512)
-        entries = 0
-        for index in range(count):
-            option = self.get_option_at_index(index)
-            entries += 1 if option.disabled else 2
-        return entries
 
     @property
     def selected_commit_index(self) -> int | None:
@@ -130,7 +119,6 @@ class CommitsTimeline(OptionList):
         if option_index is None:
             return None
         self.focus()
-        self.ensure_render_cache_warmed()
         self._programmatic_update = True
         try:
             self._assign_highlight(option_index)

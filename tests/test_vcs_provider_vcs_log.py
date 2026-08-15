@@ -16,9 +16,7 @@ import subprocess
 import pluggy
 import pytest
 
-from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
-from sase.vcs_log.filter_query import CommitLogFilterValues, compile_commit_matcher
-from sase.vcs_log.models import CommitFilters
+from sase.core.vcs_log_wire import VcsCommitWire
 from sase.vcs_provider._hookspec import VCSHookSpec
 from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider._types import CommandOutput, MergeVisibility
@@ -242,12 +240,11 @@ def test_vcs_log_sloped_until_keeps_margin_for_exact_filter(repo: str) -> None:
     commits = _bare_git_log(repo, 2, since=base + 500, until=base + 1_500)
 
     assert [c.subject for c in commits] == ["new", "middle"]
-    matcher = compile_commit_matcher(
-        CommitLogFilterValues(),
-        resolved_filters=CommitFilters(since=base + 500, until=base + 1_500),
-    )
-    entries = tuple(AggregatedCommitWire("repo", commit) for commit in commits)
-    assert [entry.commit.subject for entry in entries if matcher(entry)] == ["middle"]
+    assert [
+        commit.subject
+        for commit in commits
+        if base + 500 <= commit.timestamp <= base + 1_500
+    ] == ["middle"]
 
 
 def test_vcs_log_generates_exact_since_and_sloped_until_args(
@@ -332,12 +329,7 @@ def test_vcs_log_slop_admits_rebased_author_time_for_exact_match(repo: str) -> N
         "coarse margin only",
         "inside author window",
     ]
-    matcher = compile_commit_matcher(
-        CommitLogFilterValues(),
-        resolved_filters=CommitFilters(until=until),
-    )
-    entries = tuple(AggregatedCommitWire("repo", commit) for commit in commits)
-    assert [entry.commit.subject for entry in entries if matcher(entry)] == [
+    assert [commit.subject for commit in commits if commit.timestamp <= until] == [
         "inside author window"
     ]
 

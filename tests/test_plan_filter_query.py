@@ -8,6 +8,10 @@ from datetime import datetime
 import pytest
 from hypothesis import given, strategies as st
 
+from sase.ace.query_profile import (
+    CompiledQueryProfile,
+    compiled_profile_for_builtin_pane,
+)
 from sase.ace.tui.widgets.artifacts.plans_data import (
     ActivePlanDocument,
     LinkedPlanDocument,
@@ -19,9 +23,13 @@ from sase.ace.tui.widgets.artifacts.bead_plan_links import BeadPlanLink
 from sase.ace.tui.widgets.artifacts.plans_filtering import (
     _PlanFilterRecord,
     build_plan_filter_index,
-    compile_plan_matcher,
 )
+from sase.ace.tui.widgets.artifacts.query_rows import build_plans_query_index
 from sase.bead.model import BeadTier, IssueType, Status
+from sase.core.query_profile_corpus_facade import (
+    compile_artifact_query_index,
+    evaluate_artifact_query_many,
+)
 from sase.core.time import get_timezone
 from sase.notifications.models import Notification
 from sase.plan_search.filter_query import (
@@ -51,6 +59,76 @@ def _record(**changes: object) -> _PlanFilterRecord:
     }
     values.update(changes)
     return _PlanFilterRecord(**values)  # type: ignore[arg-type]
+
+
+def _plan_profile() -> CompiledQueryProfile:
+    profile = compiled_profile_for_builtin_pane("ref:plan")
+    assert profile is not None
+    return profile
+
+
+def _query_matches_record(query: str, record: _PlanFilterRecord) -> bool:
+    fields: dict[str, object] = {
+        "kind": tuple(record.kind_labels or frozenset((record.kind,))),
+        "status": tuple(record.status_labels),
+        "tier": tuple(record.tier_labels),
+        "project": tuple(
+            value for value in (record.project, record.project_display_name) if value
+        ),
+        "title": tuple(record.haystack),
+        "body": tuple(record.haystack),
+        "path": record.identity,
+    }
+    if record.timestamp is not None:
+        fields["since"] = (record.timestamp,)
+        fields["until"] = (record.timestamp,)
+    index = compile_artifact_query_index(
+        pane_id="ref:plan",
+        generation=1,
+        profile=_plan_profile(),
+        entries=(
+            {
+                "stable_id": record.option_id,
+                "fields": fields,
+                "searchable_text": "\n".join(record.haystack),
+                "predicates": (),
+            },
+        ),
+    )
+    return evaluate_artifact_query_many(query, index).matched_row_ids == (
+        record.option_id,
+    )
+
+
+def _matched_plan_option_ids(snapshot: PlansSnapshot, query: str) -> frozenset[str]:
+    _filter_index, query_index = build_plans_query_index(
+        snapshot,
+        pane_id="ref:plan",
+        generation=1,
+        profile=_plan_profile(),
+    )
+    return frozenset(evaluate_artifact_query_many(query, query_index).matched_row_ids)
+
+
+def _epoch(
+    year: int,
+    month: int,
+    day: int,
+    hour: int = 0,
+    minute: int = 0,
+    second: int = 0,
+) -> int:
+    return int(
+        datetime(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            tzinfo=get_timezone(),
+        ).timestamp()
+    )
 
 
 def _snapshot() -> PlansSnapshot:
@@ -275,7 +353,7 @@ def test_same_day_plan_window_is_valid_and_until_includes_full_day() -> None:
     late_record = _record(
         timestamp=int(datetime(2026, 7, 18, 23, 59, 59, tzinfo=tz).timestamp())
     )
-    assert compile_plan_matcher(values)(late_record)
+    assert _query_matches_record(to_query_string(values), late_record)
 
 
 def test_quoted_key_shaped_term_remains_free_text() -> None:
@@ -443,71 +521,111 @@ def test_plan_completion_context_reports_negative_polarity() -> None:
         ({"kind": "archive"}, False),
         ({"status_labels": frozenset(("closed",))}, False),
         ({"tier_labels": frozenset(("plan",))}, False),
-        ({"project_labels": frozenset(("other",))}, False),
-        ({"timestamp": 99}, False),
-        ({"timestamp": 301}, False),
+        ({"project": "other", "project_display_name": "Other"}, False),
+        ({"timestamp": _epoch(2026, 6, 30, 23, 59)}, False),
+        ({"timestamp": _epoch(2026, 7, 1, 0, 11)}, False),
         ({"timestamp": None}, False),
         ({"haystack": ("plans filter bar",)}, False),
         ({"haystack": ("search index", "plans filter bar")}, True),
     ),
 )
-def test_plan_matcher_ors_within_keys_and_ands_across_keys_and_text(
+def test_plan_query_index_ors_within_keys_and_ands_across_keys_and_text(
     changes: dict[str, object],
     expected: bool,
 ) -> None:
-    matcher = compile_plan_matcher(
+    window_start = _epoch(2026, 7, 1, 0, 0)
+    matching_timestamp = _epoch(2026, 7, 1, 0, 5)
+    window_end = _epoch(2026, 7, 1, 0, 10)
+    query = to_query_string(
         PlanFilterValues(
             kinds=("EPIC", "phase"),
             statuses=("blocked", "READY"),
             tiers=("EPIC", "tale"),
             projects=("SASE", "sase-core"),
-            since=100,
-            until=300,
+            since_text="2026-07-01T00:00",
+            since=window_start,
+            until_text="2026-07-01T00:10",
+            until=window_end,
             text=("FILTER", "index"),
         )
     )
 
-    assert matcher(_record(**changes)) is expected
+    record_changes = {"timestamp": matching_timestamp, **changes}
+    assert _query_matches_record(query, _record(**record_changes)) is expected
 
 
-def test_plan_matcher_negative_facets_and_text_veto_multi_label_records() -> None:
+def test_plan_query_index_negative_facets_and_text_veto_multi_label_records() -> None:
     base = _record()
     assert (
-        compile_plan_matcher(
-            PlanFilterValues(statuses=("open",), excluded_statuses=("ready",))
-        )(base)
+        _query_matches_record(
+            to_query_string(
+                PlanFilterValues(statuses=("open",), excluded_statuses=("ready",))
+            ),
+            base,
+        )
         is False
     )
     assert (
-        compile_plan_matcher(
-            PlanFilterValues(tiers=("epic",), excluded_tiers=("plan",))
-        )(base)
+        _query_matches_record(
+            to_query_string(
+                PlanFilterValues(tiers=("epic",), excluded_tiers=("plan",))
+            ),
+            base,
+        )
         is True
     )
     assert (
-        compile_plan_matcher(
-            PlanFilterValues(projects=("SASE",), excluded_projects=("other",))
-        )(base)
+        _query_matches_record(
+            to_query_string(
+                PlanFilterValues(projects=("SASE",), excluded_projects=("other",))
+            ),
+            base,
+        )
         is True
     )
     assert (
-        compile_plan_matcher(
-            PlanFilterValues(kinds=("epic",), excluded_kinds=("EPIC",))
-        )(base)
+        _query_matches_record(
+            to_query_string(
+                PlanFilterValues(kinds=("epic",), excluded_kinds=("EPIC",))
+            ),
+            base,
+        )
         is False
     )
     assert (
-        compile_plan_matcher(
-            PlanFilterValues(text=("filter",), excluded_text=("INDEX",))
-        )(base)
+        _query_matches_record(
+            to_query_string(
+                PlanFilterValues(text=("filter",), excluded_text=("INDEX",))
+            ),
+            base,
+        )
         is False
     )
 
 
 def test_timestamp_bounds_include_endpoints_and_ignore_missing_without_bounds() -> None:
-    assert compile_plan_matcher(PlanFilterValues(since=200))(_record(timestamp=200))
-    assert compile_plan_matcher(PlanFilterValues(until=200))(_record(timestamp=200))
-    assert compile_plan_matcher(PlanFilterValues())(_record(timestamp=None))
+    assert _query_matches_record(
+        to_query_string(
+            PlanFilterValues(
+                since_text="2026-07-01T00:00",
+                since=_epoch(2026, 7, 1, 0, 0),
+            )
+        ),
+        _record(timestamp=_epoch(2026, 7, 1, 0, 0)),
+    )
+    assert _query_matches_record(
+        to_query_string(
+            PlanFilterValues(
+                until_text="2026-07-01T00:00",
+                until=_epoch(2026, 7, 1, 0, 0),
+            )
+        ),
+        _record(timestamp=_epoch(2026, 7, 1, 0, 0)),
+    )
+    assert _query_matches_record(
+        to_query_string(PlanFilterValues(text=("search",))),
+        _record(timestamp=None),
+    )
 
 
 def test_build_index_covers_every_row_with_stable_option_ids() -> None:
@@ -538,9 +656,12 @@ def test_build_index_prefolds_search_fields_and_project_aliases() -> None:
         ("sase", "structured agentic software engineering")
     )
     assert "make plan filtering instant" in proposal.haystack
-    assert compile_plan_matcher(
-        PlanFilterValues(projects=("Structured Agentic Software Engineering",))
-    )(proposal)
+    assert proposal.option_id in _matched_plan_option_ids(
+        _snapshot(),
+        to_query_string(
+            PlanFilterValues(projects=("Structured Agentic Software Engineering",))
+        ),
+    )
 
 
 def test_build_index_uses_plan_frontmatter_not_bead_workflow_state() -> None:
@@ -574,14 +695,17 @@ def test_archive_index_includes_status_tier_and_full_body() -> None:
     assert archive.status_labels == frozenset(("done", "approved"))
     assert archive.tier_labels == frozenset(("tale", "epic"))
     assert "# rollout\n\nthe filter bar is live." in archive.haystack
-    assert compile_plan_matcher(
-        PlanFilterValues(
-            kinds=("archive",),
-            statuses=("APPROVED",),
-            tiers=("TALE",),
-            text=("filter bar",),
-        )
-    )(archive)
+    assert archive.option_id in _matched_plan_option_ids(
+        _snapshot(),
+        to_query_string(
+            PlanFilterValues(
+                kinds=("archive",),
+                statuses=("APPROVED",),
+                tiers=("TALE",),
+                text=("filter bar",),
+            )
+        ),
+    )
 
 
 def test_single_project_option_ids_match_the_existing_row_contract() -> None:

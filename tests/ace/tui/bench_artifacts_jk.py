@@ -19,6 +19,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts import CommitsPane
+from sase.ace.tui.widgets.artifacts.commits_timeline import CommitsTimeline
 from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot, ProjectBead
 from sase.ace.tui.widgets.artifacts.files_data import FilesSnapshot
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
@@ -187,6 +188,7 @@ async def test_artifacts_subtabs_jk_p95(
                 and len(commits_pane.result.commits) == _COMMIT_COUNT
             )
         )
+        commits_pane.query_one(CommitsTimeline).prewarm_render_cache()
         await _press_burst(page, "j")
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)

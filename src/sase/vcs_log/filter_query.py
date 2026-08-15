@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from sase.core.vcs_log_wire import AggregatedCommitWire, CommitOrigin
+from sase.core.vcs_log_wire import CommitOrigin
 from sase.filter_tokens import (
     FilterQueryError,
     FilterToken,
@@ -47,8 +47,6 @@ CompletionKind = Literal[
     "limit",
     "text",
 ]
-RepoAliases = Mapping[str, Iterable[str]]
-
 _FILTER_KEYS = (
     "project",
     "repo",
@@ -274,75 +272,6 @@ def to_query_string(values: CommitLogFilterValues) -> str:
     return " ".join(to_query_tokens(values))
 
 
-def compile_commit_matcher(
-    values: CommitLogFilterValues,
-    *,
-    repo_aliases: RepoAliases | None = None,
-    now: datetime | None = None,
-    resolved_filters: CommitFilters | None = None,
-) -> Callable[[AggregatedCommitWire], bool]:
-    """Compile *values* into a cheap, reusable in-memory predicate."""
-    wanted_repos = frozenset(value.casefold() for value in values.repos)
-    excluded_repos = frozenset(value.casefold() for value in values.excluded_repos)
-    wanted_authors = tuple(value.casefold() for value in values.authors)
-    excluded_authors = tuple(value.casefold() for value in values.excluded_authors)
-    wanted_text = tuple(value.casefold() for value in values.text)
-    excluded_text = tuple(value.casefold() for value in values.excluded_text)
-    wanted_origins = frozenset(values.origins)
-    excluded_origins = frozenset(values.excluded_origins)
-    aliases_by_repo = {
-        name.casefold(): frozenset(alias.casefold() for alias in aliases)
-        for name, aliases in (repo_aliases or {}).items()
-    }
-    if resolved_filters is None:
-        since, until = _resolve_bounds(values, now=now)
-    else:
-        since, until = resolved_filters.since, resolved_filters.until
-
-    def matches(entry: AggregatedCommitWire) -> bool:
-        commit = entry.commit
-        repo_name = entry.repo.casefold()
-        repo_labels = frozenset((repo_name, *aliases_by_repo.get(repo_name, ())))
-        if wanted_repos and wanted_repos.isdisjoint(repo_labels):
-            return False
-        if excluded_repos and not excluded_repos.isdisjoint(repo_labels):
-            return False
-        if wanted_authors:
-            author_name = commit.author_name.casefold()
-            author_email = commit.author_email.casefold()
-            if not any(
-                needle in author_name or needle in author_email
-                for needle in wanted_authors
-            ):
-                return False
-        if excluded_authors:
-            author_name = commit.author_name.casefold()
-            author_email = commit.author_email.casefold()
-            if any(
-                needle in author_name or needle in author_email
-                for needle in excluded_authors
-            ):
-                return False
-        if wanted_origins and commit.origin not in wanted_origins:
-            return False
-        if excluded_origins and commit.origin in excluded_origins:
-            return False
-        if since is not None and commit.timestamp < since:
-            return False
-        if until is not None and commit.timestamp > until:
-            return False
-        if values.merges == "hide" and commit.is_merge:
-            return False
-        if values.merges == "only" and not commit.is_merge:
-            return False
-        subject = commit.subject.casefold()
-        return all(term in subject for term in wanted_text) and not any(
-            term in subject for term in excluded_text
-        )
-
-    return matches
-
-
 def commit_repo_matches(
     values: CommitLogFilterValues,
     repo: str,
@@ -439,7 +368,6 @@ __all__ = [
     "CommitFilterQueryError",
     "CommitLogFilterValues",
     "CompletionKind",
-    "compile_commit_matcher",
     "commit_repo_matches",
     "completion_context",
     "parse_commit_filter_query",

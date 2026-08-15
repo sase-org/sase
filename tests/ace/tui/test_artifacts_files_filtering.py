@@ -9,15 +9,20 @@ import pytest
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts import files_pane
 from sase.ace.tui.widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from sase.ace.tui.widgets.artifacts.file_filter_bar import FileFilterBar
 from sase.ace.tui.widgets.artifacts.files_filtering import (
     FilesFilterQueryError,
-    filter_files_snapshot,
+    FilesFilterValues,
     parse_files_filter_query,
+    to_query_string,
 )
+from sase.ace.tui.widgets.artifacts.files_data import FilesSnapshot
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
+from sase.ace.tui.widgets.artifacts.query_rows import build_files_query_index
+from sase.core.query_profile_corpus_facade import evaluate_artifact_query_many
 from sase.core.time import get_timezone
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
@@ -29,6 +34,34 @@ from tests.ace.tui._artifacts_files_helpers import (
     snapshot,
 )
 from tests.ace.tui._artifacts_plans_helpers import _choices
+
+
+def _filtered_snapshot(
+    model: FilesSnapshot,
+    values: FilesFilterValues,
+    project_ref_display: ProjectRefDisplaySnapshot | None = None,
+) -> FilesSnapshot:
+    profile = compiled_profile_for_builtin_pane("files")
+    assert profile is not None
+    projects = project_ref_display or ProjectRefDisplaySnapshot(
+        ProjectDisplaySnapshot({})
+    )
+    index = build_files_query_index(
+        model,
+        pane_id="files",
+        generation=1,
+        profile=profile,
+        project_ref_display=projects,
+    )
+    matched_ids = frozenset(
+        evaluate_artifact_query_many(to_query_string(values), index).matched_row_ids
+    )
+    return replace(
+        model,
+        rows=tuple(
+            row for row in model.rows if f"file:{row.logical_id}" in matched_ids
+        ),
+    )
 
 
 def test_filter_tokens_match_file_fields_and_date_bounds() -> None:
@@ -56,7 +89,7 @@ def test_filter_tokens_match_file_fields_and_date_bounds() -> None:
         "origin:created since:2026-07 until:202607 teaser-source",
         now=datetime(2026, 7, 29, tzinfo=UTC),
     )
-    matched = filter_files_snapshot(model, values)
+    matched = _filtered_snapshot(model, values)
 
     assert matched is not None and matched.rows == (model.rows[0],)
     assert matched.view_mode_counts == model.view_mode_counts
@@ -75,7 +108,7 @@ def test_repeatable_kind_is_or_while_free_text_terms_are_anded() -> None:
         path="/stored/build-result.pdf",
     )
     other = artifact_file("other", path="/stored/other.txt")
-    filtered = filter_files_snapshot(
+    filtered = _filtered_snapshot(
         snapshot((image, pdf, other)),
         parse_files_filter_query("kind:image kind:pdf build result"),
     )
@@ -93,7 +126,7 @@ def test_free_text_filter_matches_vcs_relative_path() -> None:
         vcs_relpath="docs/build-result.png",
     )
 
-    filtered = filter_files_snapshot(
+    filtered = _filtered_snapshot(
         snapshot((row,)),
         parse_files_filter_query("build-result.png"),
     )
@@ -106,7 +139,7 @@ def test_project_filter_accepts_display_name_without_rendering_storage_key() -> 
     projects = ProjectRefDisplaySnapshot(
         ProjectDisplaySnapshot({"gh_sase-org__sase": "sase"})
     )
-    filtered = filter_files_snapshot(
+    filtered = _filtered_snapshot(
         snapshot((row,), project=None),
         parse_files_filter_query("project:sase"),
         projects,
@@ -146,7 +179,7 @@ def test_negated_file_filter_terms_exclude_fields_and_text() -> None:
         path="/stored/build-result.pdf",
         project="beta",
     )
-    filtered = filter_files_snapshot(
+    filtered = _filtered_snapshot(
         snapshot((image, pdf), project=None),
         parse_files_filter_query("-kind:pdf -project:beta -build-result.pdf"),
     )

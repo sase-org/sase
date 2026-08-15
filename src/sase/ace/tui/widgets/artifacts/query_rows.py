@@ -20,7 +20,6 @@ from .files_data import FilesSnapshot, LogicalFile
 from .plans_data import PlansSnapshot, ProjectArchive
 from .plans_filtering import (
     PlanFilterIndex,
-    build_plan_archive_filter_records,
     build_plan_filter_index,
 )
 
@@ -63,28 +62,6 @@ def build_plans_query_index(
             generation=generation,
             profile=profile,
             entries=(_plan_query_entry(snapshot, record) for record in filter_index),
-        ),
-    )
-
-
-def build_plan_archive_query_index(
-    snapshot: PlansSnapshot,
-    archive: tuple[ProjectArchive, ...],
-    *,
-    pane_id: str,
-    generation: int,
-    profile: CompiledQueryProfile,
-) -> ArtifactQueryIndex:
-    """Build a Rust query index for deep-archive replacement rows."""
-
-    records = build_plan_archive_filter_records(snapshot, archive)
-    return compile_artifact_query_index(
-        pane_id=pane_id,
-        generation=generation,
-        profile=profile,
-        entries=(
-            _plan_query_entry(snapshot, record, archive_entries=archive)
-            for record in records
         ),
     )
 
@@ -339,7 +316,6 @@ __all__ = [
     "build_beads_query_index",
     "build_commits_query_index",
     "build_files_query_index",
-    "build_plan_archive_query_index",
     "build_plans_query_index",
     "commit_query_row_id",
 ]

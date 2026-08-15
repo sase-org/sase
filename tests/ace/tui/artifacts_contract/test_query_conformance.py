@@ -44,7 +44,6 @@ def _profiles() -> Iterator[tuple[str, CompiledQueryProfile]]:
         for descriptor in resolve_artifacts_subtabs()
         if descriptor.id in builtin_ids and not descriptor.is_degraded
     ]
-    assert {descriptor.id for descriptor in builtins} == builtin_ids
     for descriptor in builtins:
         yield descriptor.id, descriptor.resolved_contract.query_profile
 

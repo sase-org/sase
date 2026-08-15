@@ -307,12 +307,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-m6.6.1(build_artifact_query_context)' \
         --epic-symbol 'sase-m6.6.1(evaluate_artifact_query)' \
         --epic-symbol 'sase-m6.6.1(evaluate_artifact_query_with_context)' \
-        --epic-symbol 'sase-m6.6.1(evaluate_artifact_query_many)' \
-        --epic-symbol 'sase-m6.6.1.5(ArtifactQueryCacheKey)' \
-        --epic-symbol 'sase-m6.6.1.5(ArtifactQueryIndex)' \
-        --epic-symbol 'sase-m6.6.1.5(ArtifactQueryResult)' \
         --epic-symbol 'sase-m6.6.1.5(canonicalize_artifact_query)' \
-        --epic-symbol 'sase-m6.6.1.5(compile_artifact_query_index)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -293,17 +293,21 @@ def test_patches_profile_predicates_match_the_zero_arg_shorthands() -> None:
     assert to_canonical_string(star_expr) == "!!! OR @@@ OR $$$"
 
 
-# --- Stitches: flat, no negation on project, no sigils/macros ----------------
+# --- Stitches: flat, no negation on project, closed host predicates ----------
 
 
-def test_stitches_profile_has_no_sigils_macros_or_predicates() -> None:
+def _assert_closed_host_predicates(profile: CompiledQueryProfile) -> None:
+    assert profile.predicates == tuple(sorted(HOST_PREDICATES))
+    assert profile.any_special is True
+
+
+def test_stitches_profile_has_no_sigils_or_macros() -> None:
     profile = compile_query_profile(stitches_query_schema())
     assert profile.pane_id == "stitches"
     assert profile.boolean is False
     assert profile.sigils == ()
     assert profile.macros == ()
-    assert profile.predicates == ()
-    assert profile.any_special is False
+    _assert_closed_host_predicates(profile)
 
 
 def test_stitches_profile_filterable_fields_are_all_accepted_by_the_parser() -> None:
@@ -375,7 +379,8 @@ def test_beads_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
     profile = compile_query_profile(beads_query_schema())
     assert profile.pane_id == "beads"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == () and profile.predicates == ()
+    assert profile.sigils == () and profile.macros == ()
+    _assert_closed_host_predicates(profile)
     sample_values = {
         "type": "task",
         "tier": "epic",
@@ -442,7 +447,8 @@ def test_plans_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
     profile = compile_query_profile(plans_query_schema())
     assert profile.pane_id == "ref:plan"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == () and profile.predicates == ()
+    assert profile.sigils == () and profile.macros == ()
+    _assert_closed_host_predicates(profile)
     sample_values = {
         "kind": "proposal",
         "status": "anything-goes",
@@ -480,14 +486,15 @@ def test_plans_profile_search_only_fields_match_the_free_text_hint() -> None:
     assert profile.free_text_hint == "title, body, path (AND)"
 
 
-# --- Files: no negation anywhere, kind/origin enum-enforced ------------------
+# --- Files: negatable flat fields, kind/origin enum-enforced -----------------
 
 
 def test_files_profile_filterable_fields_are_all_accepted_by_the_parser() -> None:
     profile = compile_query_profile(files_query_schema())
     assert profile.pane_id == "files"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == () and profile.predicates == ()
+    assert profile.sigils == () and profile.macros == ()
+    _assert_closed_host_predicates(profile)
     sample_values = {
         "kind": "file",
         "project": "myproj",
@@ -503,13 +510,28 @@ def test_files_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         parse_files_filter_query(f"{key}:{value}")  # must not raise
 
 
-def test_files_profile_declares_no_negatable_fields() -> None:
+def test_files_profile_negatable_fields_match_the_parser() -> None:
     profile = compile_query_profile(files_query_schema())
-    assert profile.negatable_fields() == ()
-    with pytest.raises(FilesFilterQueryError, match="do not support negation"):
-        parse_files_filter_query("-kind:created")
-    with pytest.raises(FilesFilterQueryError, match="do not support negation"):
-        parse_files_filter_query("-freetext")
+    assert set(profile.negatable_fields()) == {
+        "agent",
+        "kind",
+        "origin",
+        "project",
+        "since",
+        "until",
+        "workflow",
+    }
+    for key, value in {
+        "agent": "bob",
+        "kind": "file",
+        "origin": "created",
+        "project": "myproj",
+        "since": "2024-01-01",
+        "until": "2024-02-01",
+        "workflow": "flow",
+    }.items():
+        parse_files_filter_query(f"-{key}:{value}")  # must not raise
+    assert parse_files_filter_query("-freetext").excluded_text == ("freetext",)
 
 
 def test_files_profile_enum_fields_reject_out_of_vocabulary_values() -> None:
@@ -536,7 +558,8 @@ def test_provider_query_schema_derives_fields_from_the_notes_fixture() -> None:
     profile = compile_query_profile(provider_query_schema("notes", spec))
     assert profile.pane_id == "ref:notes"
     assert profile.boolean is False
-    assert profile.sigils == () and profile.macros == () and profile.predicates == ()
+    assert profile.sigils == () and profile.macros == ()
+    _assert_closed_host_predicates(profile)
     assert {item.key for item in profile.fields} == {"title", "status"}
     assert all(item.value_kind == "string" for item in profile.fields)
     assert all(item.searchable for item in profile.fields)
@@ -568,13 +591,13 @@ def test_provider_query_schema_degrades_unknown_types_to_string() -> None:
     assert profile.field("mystery").value_kind == "string"
 
 
-def test_provider_query_schema_never_grants_sigils_predicates_or_macros() -> None:
+def test_provider_query_schema_grants_only_closed_host_predicates() -> None:
     spec = {"ref": {"properties": {"anything": {"type": "string"}}}}
     schema = provider_query_schema("kind", spec)
     assert schema.sigils == ()
     assert schema.macros == ()
-    assert schema.predicates == ()
-    assert schema.any_special is False
+    assert schema.predicates == tuple(sorted(HOST_PREDICATES))
+    assert schema.any_special is True
 
 
 # --- Cross-pane invariants ----------------------------------------------------

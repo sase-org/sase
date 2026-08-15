@@ -9,45 +9,18 @@ from hypothesis import given, strategies as st
 
 from sase.ace.tui.widgets.artifacts.commits_rendering import commit_filter_chips
 from sase.core.time import get_timezone
-from sase.core.vcs_log_wire import AggregatedCommitWire, CommitOrigin, VcsCommitWire
+from sase.core.vcs_log_wire import CommitOrigin
 from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     CommitLogFilterValues,
     UNLIMITED_COMMIT_LOG_LIMIT,
-    compile_commit_matcher,
     completion_context,
     parse_commit_filter_query,
     to_query_string,
 )
 from sase.vcs_log.models import CommitFilterSpec, CommitFilters
 from sase.vcs_provider._types import MergeVisibility
-
-
-def _entry(
-    *,
-    repo: str = "sase",
-    author_name: str = "Ada Lovelace",
-    author_email: str = "ada@example.com",
-    timestamp: int = 200,
-    subject: str = "Fix live commit timeline preview",
-    parent_ids: tuple[str, ...] = (),
-    origin: CommitOrigin = "manual",
-) -> AggregatedCommitWire:
-    return AggregatedCommitWire(
-        repo=repo,
-        commit=VcsCommitWire(
-            full_id="a" * 40,
-            short_id="aaaaaaa",
-            author_name=author_name,
-            author_email=author_email,
-            timestamp=timestamp,
-            parent_ids=parent_ids,
-            subject=subject,
-            body="",
-            origin=origin,
-        ),
-    )
 
 
 def test_parse_empty_query_includes_sidecars() -> None:
@@ -437,148 +410,6 @@ def test_backend_filters_exclude_repo_text_and_limit() -> None:
         until=parse_time_bound("2026-07-18"),
         merges="show",
     )
-
-
-@pytest.mark.parametrize(
-    ("changes", "expected"),
-    (
-        ({}, True),
-        ({"repo": "other"}, False),
-        (
-            {"author_name": "Linus Torvalds", "author_email": "linus@example.com"},
-            False,
-        ),
-        ({"author_email": "ADA@EXAMPLE.COM"}, True),
-        ({"subject": "fix timeline only"}, False),
-        ({"subject": "LIVE preview needs a FIX"}, True),
-    ),
-)
-def test_commit_matcher_ands_kinds_and_text_but_ors_authors(
-    changes: dict[str, object], expected: bool
-) -> None:
-    entry_kwargs: dict[str, object] = {
-        "repo": "SASE",
-        "author_name": "Ada Lovelace",
-        "author_email": "ada@example.com",
-        "timestamp": 200,
-        "subject": "Fix live commit timeline preview",
-    }
-    entry_kwargs.update(changes)
-    values = CommitLogFilterValues(
-        repos=("sase", "sase-core"),
-        authors=("grace", "ADA@EXAMPLE"),
-        text=("fix", "preview"),
-    )
-
-    matcher = compile_commit_matcher(values)
-    assert matcher(_entry(**entry_kwargs)) is expected  # type: ignore[arg-type]
-
-
-def test_commit_matcher_resolves_bounds_once_against_explicit_time() -> None:
-    tz = get_timezone()
-    now = datetime(2026, 7, 18, 16, 0, tzinfo=tz)
-    values = CommitLogFilterValues(
-        since=parse_time_bound("2h"),
-        until=parse_time_bound("2026-07-18T15:00"),
-    )
-
-    matcher = compile_commit_matcher(values, now=now)
-
-    assert matcher(
-        _entry(timestamp=int(datetime(2026, 7, 18, 14, 0, tzinfo=tz).timestamp()))
-    )
-    assert matcher(
-        _entry(timestamp=int(datetime(2026, 7, 18, 15, 0, tzinfo=tz).timestamp()))
-    )
-    assert not matcher(
-        _entry(timestamp=int(datetime(2026, 7, 18, 13, 59, tzinfo=tz).timestamp()))
-    )
-    assert not matcher(
-        _entry(timestamp=int(datetime(2026, 7, 18, 15, 1, tzinfo=tz).timestamp()))
-    )
-
-
-def test_compiled_matcher_accepts_repo_aliases_case_insensitively() -> None:
-    matcher = compile_commit_matcher(
-        CommitLogFilterValues(repos=("GH:SASE-ORG/SASE",)),
-        repo_aliases={"sase": ("gh:sase-org/sase", "sase-org/sase")},
-    )
-
-    assert matcher(_entry(repo="SASE")) is True
-    assert matcher(_entry(repo="sase-core")) is False
-
-
-def test_commit_matcher_applies_negative_vetoes_after_positive_matches() -> None:
-    matcher = compile_commit_matcher(
-        CommitLogFilterValues(
-            repos=("sase",),
-            excluded_repos=("docs",),
-            authors=("ada",),
-            excluded_authors=("bot",),
-            text=("fix",),
-            excluded_text=("generated",),
-        ),
-        repo_aliases={"sase": ("docs",)},
-    )
-
-    assert matcher(_entry()) is False
-    assert (
-        compile_commit_matcher(
-            CommitLogFilterValues(excluded_authors=("ADA@EXAMPLE",))
-        )(_entry())
-        is False
-    )
-    assert (
-        compile_commit_matcher(CommitLogFilterValues(excluded_text=("LIVE",)))(_entry())
-        is False
-    )
-    assert (
-        compile_commit_matcher(
-            CommitLogFilterValues(text=("fix",), excluded_text=("other",))
-        )(_entry())
-        is True
-    )
-
-
-def test_matcher_ignores_limit_for_caller_to_apply() -> None:
-    matcher = compile_commit_matcher(CommitLogFilterValues(limit=1))
-
-    assert all(matcher(_entry(timestamp=index)) for index in range(5))
-
-
-@pytest.mark.parametrize(
-    ("mode", "ordinary_expected", "merge_expected"),
-    (
-        ("hide", True, False),
-        ("show", True, True),
-        ("only", False, True),
-    ),
-)
-def test_commit_matcher_applies_merge_visibility(
-    mode: MergeVisibility,
-    ordinary_expected: bool,
-    merge_expected: bool,
-) -> None:
-    matcher = compile_commit_matcher(CommitLogFilterValues(merges=mode))
-
-    assert matcher(_entry(parent_ids=("p0",))) is ordinary_expected
-    assert matcher(_entry(parent_ids=("p0", "p1"))) is merge_expected
-
-
-def test_commit_matcher_applies_origin_selection() -> None:
-    matcher = compile_commit_matcher(CommitLogFilterValues(origins=("stitch",)))
-
-    assert matcher(_entry(origin="stitch")) is True
-    assert matcher(_entry(origin="manual")) is False
-
-
-def test_commit_matcher_applies_origin_negation() -> None:
-    matcher = compile_commit_matcher(
-        CommitLogFilterValues(excluded_origins=("stitch",))
-    )
-
-    assert matcher(_entry(origin="stitch")) is False
-    assert matcher(_entry(origin="manual")) is True
 
 
 @pytest.mark.parametrize(

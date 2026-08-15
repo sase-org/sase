@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from textual.app import App, ComposeResult
@@ -14,10 +15,10 @@ from sase.ace.testing import AcePage
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts import beads_pane
 from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
+from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot
 from sase.ace.tui.widgets.artifacts.beads_data_models import ExternalIssueLink
 from sase.ace.tui.widgets.artifacts.beads_filtering import (
     build_bead_filter_index,
-    compile_bead_matcher,
 )
 from sase.ace.tui.widgets.artifacts.beads_list import build_bead_options
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
@@ -28,6 +29,7 @@ from sase.bead.filter_query import (
     BeadFilterQueryError,
     default_bead_filter_values,
     parse_bead_filter_query,
+    to_query_string,
 )
 from sase.bead.model import (
     CloseRecord,
@@ -48,6 +50,21 @@ class _BeadFilterBarApp(App[None]):
         yield BeadFilterBar()
 
 
+def _matched_records(value: BeadsSnapshot, query: str) -> list[Any]:
+    profile = compiled_profile_for_builtin_pane("beads")
+    assert profile is not None
+    filter_index, query_index = build_beads_query_index(
+        value,
+        pane_id="beads",
+        generation=1,
+        profile=profile,
+    )
+    matched_option_ids = frozenset(
+        evaluate_artifact_query_many(query, query_index).matched_row_ids
+    )
+    return [record for record in filter_index if record.option_id in matched_option_ids]
+
+
 def _matched_ids(tmp_path: Path, query: str) -> list[str]:
     value = snapshot(tmp_path)
     value.epics[0].issue.is_ready_to_work = True
@@ -58,14 +75,12 @@ def _matched_ids(tmp_path: Path, query: str) -> list[str]:
     value.tasks[1].issue.assignee = "worker.alpha"
     value.phases_by_epic[("alpha", "alpha-1")][0].issue.notes = "Closed phase notes."
     value = replace(value, blocked_ids=frozenset({("alpha", "alpha-open")}))
-    matcher = compile_bead_matcher(
-        parse_bead_filter_query(
-            query,
-            now=datetime(2026, 7, 29, tzinfo=UTC),
-        )
+    parsed = parse_bead_filter_query(
+        query,
+        now=datetime(2026, 7, 29, tzinfo=UTC),
     )
     return [
-        record.bead_id for record in build_bead_filter_index(value) if matcher(record)
+        record.bead_id for record in _matched_records(value, to_query_string(parsed))
     ]
 
 
@@ -173,13 +188,10 @@ def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) 
             refs=("research:202608/cache.md",),
         )
     )
-    index = build_bead_filter_index(value)
-
-    has_matcher = compile_bead_matcher(parse_bead_filter_query("has:+1"))
-    text_matcher = compile_bead_matcher(parse_bead_filter_query('"cold restart"'))
-
-    assert [record.bead_id for record in index if has_matcher(record)] == ["alpha-open"]
-    assert [record.bead_id for record in index if text_matcher(record)] == [
+    assert [record.bead_id for record in _matched_records(value, "has:+1")] == [
+        "alpha-open"
+    ]
+    assert [record.bead_id for record in _matched_records(value, '"cold restart"')] == [
         "alpha-open"
     ]
 
@@ -220,27 +232,17 @@ def test_external_issue_filters_match_refs_states_and_labels(tmp_path: Path) -> 
             ),
         },
     )
-    index = build_bead_filter_index(value)
-
     assert [
-        record.bead_id
-        for record in index
-        if compile_bead_matcher(parse_bead_filter_query("has:bug bug:open"))(record)
+        record.bead_id for record in _matched_records(value, "has:bug bug:open")
+    ] == ["alpha-ready"]
+    assert [record.bead_id for record in _matched_records(value, "bug:stale")] == [
+        "alpha-open"
+    ]
+    assert [
+        record.bead_id for record in _matched_records(value, "label:priority:high")
     ] == ["alpha-ready"]
     assert [
-        record.bead_id
-        for record in index
-        if compile_bead_matcher(parse_bead_filter_query("bug:stale"))(record)
-    ] == ["alpha-open"]
-    assert [
-        record.bead_id
-        for record in index
-        if compile_bead_matcher(parse_bead_filter_query("label:priority:high"))(record)
-    ] == ["alpha-ready"]
-    assert [
-        record.bead_id
-        for record in index
-        if compile_bead_matcher(parse_bead_filter_query('"launch gating"'))(record)
+        record.bead_id for record in _matched_records(value, '"launch gating"')
     ] == ["alpha-ready"]
 
 
@@ -258,24 +260,24 @@ def test_has_reopened_and_close_history_text_use_cached_filter_index(
             reopened_by="claude.probe",
         )
     )
-    index = build_bead_filter_index(value)
-
-    has_matcher = compile_bead_matcher(parse_bead_filter_query("has:reopened"))
-    text_matcher = compile_bead_matcher(parse_bead_filter_query('"retry shim covers"'))
-
-    assert [record.bead_id for record in index if has_matcher(record)] == ["alpha-open"]
-    assert [record.bead_id for record in index if text_matcher(record)] == [
+    assert [record.bead_id for record in _matched_records(value, "has:reopened")] == [
         "alpha-open"
     ]
+    assert [
+        record.bead_id for record in _matched_records(value, '"retry shim covers"')
+    ] == ["alpha-open"]
 
 
 def test_default_hide_closed_filter_hides_closed_phases_and_shows_counts(
     tmp_path: Path,
 ) -> None:
     value = snapshot(tmp_path)
-    matcher = compile_bead_matcher(default_bead_filter_values())
     matched_ids = frozenset(
-        record.option_id for record in build_bead_filter_index(value) if matcher(record)
+        record.option_id
+        for record in _matched_records(
+            value,
+            to_query_string(default_bead_filter_values()),
+        )
     )
     options, rows = build_bead_options(
         value,

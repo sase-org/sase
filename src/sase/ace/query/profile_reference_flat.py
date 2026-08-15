@@ -69,11 +69,11 @@ def parse_flat_query(query: str, profile: CompiledQueryProfile) -> QueryExpr:
             terms = [
                 PropertyMatch(key=clause.key, value=value) for value in clause.values
             ]
-            target = excluded_field_terms if clause.negated else field_terms
-            target.setdefault(clause.key, []).extend(terms)
+            field_target = excluded_field_terms if clause.negated else field_terms
+            field_target.setdefault(clause.key, []).extend(terms)
         elif isinstance(clause, _FlatTextClause):
-            target = excluded_text_terms if clause.negated else text_terms
-            target.append(StringMatch(clause.value))
+            text_target = excluded_text_terms if clause.negated else text_terms
+            text_target.append(StringMatch(clause.value))
         else:
             expressions.append(clause.expr)
 

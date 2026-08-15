@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import calendar
 import re
 from collections.abc import Sequence
+from datetime import datetime, timedelta
 
 from sase.ace.query.parser import QueryParseError
 from sase.ace.query.types import AndExpr, OrExpr, QueryExpr
@@ -16,6 +18,8 @@ from sase.vcs_log.dates import (
 )
 
 _INTEGER_RE = re.compile(r"^[+-]?\d+$")
+_MONTH_RE = re.compile(r"^(?P<year>\d{4})-?(?P<month>\d{2})$")
+_RELATIVE_MONTH_RE = re.compile(r"^(?P<amount>\d+)m$", re.IGNORECASE)
 _BOOLEAN_VALUES = {"true": True, "false": False}
 
 
@@ -93,13 +97,42 @@ def or_terms(terms: Sequence[QueryExpr]) -> QueryExpr:
 
 def _parse_date_bound_value(key: str, value: str, *, position: int) -> int:
     boundary: TimeBoundary = "until" if key == "until" else "since"
+    now = normalize_reference_time()
+    relative_month = _RELATIVE_MONTH_RE.fullmatch(value)
+    if relative_month is not None:
+        return int(
+            _subtract_months(now, int(relative_month.group("amount"))).timestamp()
+        )
+    month = _MONTH_RE.fullmatch(value)
+    if month is not None:
+        try:
+            start = datetime(
+                int(month.group("year")),
+                int(month.group("month")),
+                1,
+                tzinfo=now.tzinfo,
+            )
+        except ValueError as exc:
+            raise ProfileQueryError(f"Invalid DATE {value!r}", position) from exc
+        if boundary == "since":
+            return int(start.timestamp())
+        days = calendar.monthrange(start.year, start.month)[1]
+        return int((start + timedelta(days=days)).timestamp()) - 1
     try:
         return parse_time_bound(value).resolve(
-            now=normalize_reference_time(),
+            now=now,
             boundary=boundary,
         )
     except VcsLogDateError as exc:
         raise ProfileQueryError(str(exc), position) from exc
+
+
+def _subtract_months(moment: datetime, months: int) -> datetime:
+    index = moment.month - 1 - months
+    year = moment.year + index // 12
+    month = index % 12 + 1
+    day = min(moment.day, calendar.monthrange(year, month)[1])
+    return moment.replace(year=year, month=month, day=day)
 
 
 __all__ = [

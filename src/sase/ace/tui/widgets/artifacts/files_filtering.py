@@ -5,8 +5,8 @@ from __future__ import annotations
 import calendar
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
-from datetime import datetime, time, timedelta, tzinfo
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 from typing import Literal
 
 from sase.core.artifact_file_types import ARTIFACT_FILE_KINDS
@@ -21,10 +21,7 @@ from sase.filter_tokens import (
     unknown_key_error,
     unquoted_index,
 )
-from sase.project_display_names import ProjectRefDisplaySnapshot
 from sase.vcs_log.dates import normalize_reference_time
-
-from .files_data import FilesSnapshot, LogicalFile
 
 FileCompletionKind = Literal[
     "key",
@@ -223,52 +220,6 @@ def parse_files_filter_query(
     )
 
 
-def filter_files_snapshot(
-    snapshot: FilesSnapshot | None,
-    values: FilesFilterValues,
-    project_ref_display: ProjectRefDisplaySnapshot | None = None,
-) -> FilesSnapshot | None:
-    """Return matching rows while preserving the full snapshot's summary totals."""
-
-    if snapshot is None or values.is_empty:
-        return snapshot
-    naive_timezone = (
-        normalize_reference_time().tzinfo
-        if values.since is not None or values.until is not None
-        else None
-    )
-    project_values = tuple(
-        (
-            None
-            if project_ref_display is None
-            else project_ref_display.project_key_for_ref(value)
-        )
-        or value
-        for value in values.projects
-    )
-    excluded_project_values = tuple(
-        (
-            None
-            if project_ref_display is None
-            else project_ref_display.project_key_for_ref(value)
-        )
-        or value
-        for value in values.excluded_projects
-    )
-    rows = tuple(
-        row
-        for row in snapshot.rows
-        if _file_matches(
-            row,
-            values,
-            project_values=project_values,
-            excluded_project_values=excluded_project_values,
-            naive_timezone=naive_timezone,
-        )
-    )
-    return replace(snapshot, rows=rows)
-
-
 def to_query_tokens(values: FilesFilterValues) -> tuple[str, ...]:
     """Render values as canonical tokens in stable filter order."""
 
@@ -318,110 +269,6 @@ def files_completion_context(
         negatable_keys=frozenset(_FILTER_KEYS),
     )
     return kind, prefix, negated  # type: ignore[return-value]
-
-
-def _file_matches(
-    row: LogicalFile,
-    values: FilesFilterValues,
-    *,
-    project_values: tuple[str, ...],
-    excluded_project_values: tuple[str, ...],
-    naive_timezone: tzinfo | None,
-) -> bool:
-    if values.kinds and row.kind.casefold() not in values.kinds:
-        return False
-    if values.excluded_kinds and row.kind.casefold() in values.excluded_kinds:
-        return False
-    if project_values and not _matches_any(row.projects, project_values):
-        return False
-    if excluded_project_values and _matches_any(row.projects, excluded_project_values):
-        return False
-    if values.agents and not _matches_any(row.agents, values.agents):
-        return False
-    if values.excluded_agents and _matches_any(row.agents, values.excluded_agents):
-        return False
-    workflows = tuple(version.workflow for version in row.versions if version.workflow)
-    if values.workflows and not _matches_any(workflows, values.workflows):
-        return False
-    if values.excluded_workflows and _matches_any(workflows, values.excluded_workflows):
-        return False
-    if values.origins and row.origins.isdisjoint(values.origins):
-        return False
-    if values.excluded_origins and not row.origins.isdisjoint(values.excluded_origins):
-        return False
-
-    if (
-        values.since is not None
-        or values.until is not None
-        or values.excluded_since is not None
-        or values.excluded_until is not None
-    ):
-        timestamp = _entry_epoch(row.latest.created_at, naive_timezone=naive_timezone)
-        if values.since is not None and (timestamp is None or timestamp < values.since):
-            return False
-        if values.until is not None and (timestamp is None or timestamp > values.until):
-            return False
-        if (
-            values.excluded_since is not None
-            and timestamp is not None
-            and timestamp >= values.excluded_since
-        ):
-            return False
-        if (
-            values.excluded_until is not None
-            and timestamp is not None
-            and timestamp <= values.excluded_until
-        ):
-            return False
-
-    haystack = " ".join(
-        value
-        for value in (
-            row.label,
-            row.logical_id,
-            *row.projects,
-            *row.agents,
-            *(
-                value
-                for version in row.versions
-                for value in (
-                    version.label,
-                    version.path,
-                    version.source_path,
-                    version.vcs_relpath,
-                    version.object_relpath,
-                    version.sha256,
-                    version.artifact_id,
-                )
-                if value
-            ),
-        )
-        if value
-    ).casefold()
-    return all(term.casefold() in haystack for term in values.text) and not any(
-        term.casefold() in haystack for term in values.excluded_text
-    )
-
-
-def _matches_any(values: tuple[str, ...], needles: tuple[str, ...]) -> bool:
-    folded = {value.casefold() for value in values}
-    return any(needle.casefold() in folded for needle in needles)
-
-
-def _entry_epoch(
-    created_at: str | None,
-    *,
-    naive_timezone: tzinfo | None,
-) -> int | None:
-    if not created_at:
-        return None
-    try:
-        timestamp = datetime.fromisoformat(created_at)
-    except ValueError:
-        return None
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.replace(tzinfo=naive_timezone)
-    return int(timestamp.timestamp())
 
 
 def _validate_static_values(
@@ -525,7 +372,6 @@ __all__ = [
     "FilesFilterQueryError",
     "FilesFilterValues",
     "files_completion_context",
-    "filter_files_snapshot",
     "parse_files_filter_query",
     "to_query_string",
     "to_query_tokens",

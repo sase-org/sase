@@ -4,19 +4,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
 from sase.ace.tui.widgets.artifacts.plans_filtering import (
     build_plan_filter_index,
-    compile_plan_matcher,
 )
-from sase.plan_search.filter_query import parse_plan_filter_query
+from sase.ace.tui.widgets.artifacts.query_rows import build_plans_query_index
+from sase.core.query_profile_corpus_facade import evaluate_artifact_query_many
 from tests.ace.tui._artifacts_plans_helpers import _snapshot
 
 
 def _matched_kinds(tmp_path: Path, query: str) -> list[str]:
-    index = build_plan_filter_index(_snapshot(tmp_path))
-    matcher = compile_plan_matcher(parse_plan_filter_query(query))
-    return [record.kind for record in index if matcher(record)]
+    profile = compiled_profile_for_builtin_pane("ref:plan")
+    assert profile is not None
+    filter_index, query_index = build_plans_query_index(
+        _snapshot(tmp_path),
+        pane_id="ref:plan",
+        generation=1,
+        profile=profile,
+    )
+    matched_ids = frozenset(
+        evaluate_artifact_query_many(query, query_index).matched_row_ids
+    )
+    return [record.kind for record in filter_index if record.option_id in matched_ids]
 
 
 def test_filter_index_contains_only_document_section_kinds(tmp_path: Path) -> None:

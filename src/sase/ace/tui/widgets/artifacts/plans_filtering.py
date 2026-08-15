@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from types import MappingProxyType
 from typing import Literal
-
-from sase.plan_search.filter_query import PlanFilterValues
 
 from .bead_plan_links import plan_owner
 from .plans_data import ActivePlanDocument, PlanProposal, PlansSnapshot, ProjectArchive
@@ -58,68 +56,6 @@ def build_plan_filter_index(snapshot: PlansSnapshot) -> PlanFilterIndex:
             {record.option_id: record for record in frozen_records}
         ),
     )
-
-
-def build_plan_archive_filter_records(
-    snapshot: PlansSnapshot,
-    archive: tuple[ProjectArchive, ...],
-) -> tuple[_PlanFilterRecord, ...]:
-    return tuple(_archive_record(snapshot, item) for item in archive)
-
-
-def compile_plan_matcher(
-    values: PlanFilterValues,
-) -> Callable[[_PlanFilterRecord], bool]:
-    wanted_kinds = frozenset(value.casefold() for value in values.kinds)
-    excluded_kinds = frozenset(value.casefold() for value in values.excluded_kinds)
-    wanted_statuses = frozenset(value.casefold() for value in values.statuses)
-    excluded_statuses = frozenset(
-        value.casefold() for value in values.excluded_statuses
-    )
-    wanted_tiers = frozenset(value.casefold() for value in values.tiers)
-    excluded_tiers = frozenset(value.casefold() for value in values.excluded_tiers)
-    wanted_projects = frozenset(value.casefold() for value in values.projects)
-    excluded_projects = frozenset(
-        value.casefold() for value in values.excluded_projects
-    )
-    wanted_text = tuple(value.casefold() for value in values.text)
-    excluded_text = tuple(value.casefold() for value in values.excluded_text)
-
-    def matches(record: _PlanFilterRecord) -> bool:
-        kind_labels = record.kind_labels or frozenset((record.kind,))
-        if wanted_kinds and kind_labels.isdisjoint(wanted_kinds):
-            return False
-        if excluded_kinds and not kind_labels.isdisjoint(excluded_kinds):
-            return False
-        if wanted_statuses and record.status_labels.isdisjoint(wanted_statuses):
-            return False
-        if excluded_statuses and not record.status_labels.isdisjoint(excluded_statuses):
-            return False
-        if wanted_tiers and record.tier_labels.isdisjoint(wanted_tiers):
-            return False
-        if excluded_tiers and not record.tier_labels.isdisjoint(excluded_tiers):
-            return False
-        if wanted_projects and record.project_labels.isdisjoint(wanted_projects):
-            return False
-        if excluded_projects and not record.project_labels.isdisjoint(
-            excluded_projects
-        ):
-            return False
-        if values.since is not None and (
-            record.timestamp is None or record.timestamp < values.since
-        ):
-            return False
-        if values.until is not None and (
-            record.timestamp is None or record.timestamp > values.until
-        ):
-            return False
-        return all(
-            any(term in value for value in record.haystack) for term in wanted_text
-        ) and not any(
-            any(term in value for value in record.haystack) for term in excluded_text
-        )
-
-    return matches
 
 
 def _proposal_record(
@@ -285,7 +221,5 @@ def _timestamp_epoch(value: str) -> int | None:
 
 __all__ = [
     "PlanFilterIndex",
-    "build_plan_archive_filter_records",
     "build_plan_filter_index",
-    "compile_plan_matcher",
 ]
