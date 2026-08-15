@@ -4099,23 +4099,92 @@ source metadata over stale installed distribution metadata, while `--verbose` an
 
 ### `sase var`
 
-`sase var set` attaches small named JSON-shaped values to the current SASE agent run by
-merging them into `agent_meta.json["output_variables"]`. The command is agent-scoped and
-requires `SASE_AGENT=1` and `SASE_ARTIFACTS_DIR`. The variables appear in ACE's
-Agents-tab `OUTPUT VARIABLES` metadata panel and in Telegram agent-completion messages.
-Later agents that wait on this agent with `%wait` load the stored values when they start
-and can render them through the `agents` Jinja dictionary in prompts and xprompt
-workflows.
+`sase var` inspects and publishes SASE agent output variables. Agents publish values
+with `sase var set`, which merges named JSON-shaped values into the current run's
+`agent_meta.json["output_variables"]`. The stored values appear in ACE's Agents-tab
+`OUTPUT VARIABLES` metadata panel, Telegram agent-completion messages, indexed agent
+history, and downstream `%wait` prompt contexts. Later agents that wait on a producer
+load that producer's stored values when they start and can render them through the
+`agents` Jinja dictionary in prompts and xprompt workflows.
 
 With no subcommand, `sase var` prints a delegation notice and runs `sase var list`.
 
-| Form                                 | Flags / arguments              | Description                                                                   |
-| ------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------- |
-| `sase var list`                      | `-j, --json`                   | Display canonical block output, or compact machine-readable JSON.             |
-| `sase var set KEY=VALUE [...]`       | positional assignments         | Store one or more strings, splitting each assignment at the first `=`.        |
-| `sase var set KEY --value TEXT`      | `-v, --value TEXT`             | Store one string verbatim, including spaces or newlines.                      |
-| `sase var set KEY --value-file PATH` | `-f, --value-file PATH`        | Read one string as UTF-8 text; use `-` to read standard input.                |
-| `sase var set ... --json`            | `-j, --json` plus a form above | Decode each supplied value as JSON: scalar, list, map, or nested combination. |
+| Form                                 | Flags / arguments                    | Description                                                               |
+| ------------------------------------ | ------------------------------------ | ------------------------------------------------------------------------- |
+| `sase var show [AGENT_NAME]`         | `-c`, `-f pretty\|json`, `-p`        | Show one current or named agent output-variable snapshot.                 |
+| `sase var list`                      | `-a`, `-k`, `-p`, dates, value flags | Discover keys and distinct typed values across indexed agent history.     |
+| `sase var get SELECTOR [...]`        | `-c`, `-f pretty\|raw\|json\|jsonl`  | Resolve precise values by exact, wildcard, hood, and JSON-path selectors. |
+| `sase var set KEY=VALUE [...]`       | positional assignments               | Store one or more strings, splitting each assignment at the first `=`.    |
+| `sase var set KEY --value TEXT`      | `-v, --value TEXT`                   | Store one string verbatim, including spaces or newlines.                  |
+| `sase var set KEY --value-file PATH` | `-f, --value-file PATH`              | Read one string as UTF-8 text; use `-` to read standard input.            |
+| `sase var set ... --json`            | `-j, --json` plus a form above       | Decode supplied values as JSON strings, scalars, lists, maps, or `null`.  |
+
+`sase var show` displays one stored variable map. With no `AGENT_NAME`, it reads the
+current agent's artifact directory directly so recent writes are visible before the
+agent completes; this form requires `SASE_ARTIFACTS_DIR`. With `AGENT_NAME`, it searches
+indexed history and returns the newest visible exact-name artifact. Use
+`--project PROJECT` to disambiguate repeated names across projects, where `PROJECT` may
+be a display name or alias. `--format pretty` renders the same readable block form used
+in ACE, while `--format json` emits the variable map as compact machine-readable JSON.
+
+`sase var list` is historical discovery. It groups indexed output variables by key,
+orders keys by most-recent occurrence, and shows each key's distinct typed values plus
+the contributing agent names. Repeated filters in one dimension are ORed; different
+dimensions are ANDed. Major filters are:
+
+- `--agent GLOB` / `-a`: filter by agent-name glob. `hood.*` includes the hood root.
+- `--key GLOB` / `-k`: filter by case-sensitive variable-key glob.
+- `--project PROJECT` / `-p`: filter by project display name or alias; repeatable.
+- `--hidden` / `-H`: include hidden indexed agents; visible history is the default.
+- `--since DATE` / `-s` and `--until DATE` / `-u`: filter by launch time using the same
+  date grammar as bead history filters.
+- `--value TEXT` / `-v`: case-insensitive substring match over scalar text and canonical
+  JSON.
+- `--value-json JSON` / `-V`: exact typed JSON value match after output-variable
+  normalization. It is mutually exclusive with `--value`.
+- `--limit KEYS[:VALUES]` / `-n`: cap returned keys and distinct values per key. The
+  default is `20:5`; `0` means unlimited for that dimension; a single number changes
+  only the key limit.
+- `--reverse` / `-r`: invert the normal recent-first key and value order.
+
+`sase var list --format pretty` prints readable grouped blocks. `--format json` emits a
+stable envelope with `schema_version`, the normalized query, limit metadata, and grouped
+values. `--format jsonl` emits one compact JSON object per returned distinct value.
+
+`sase var get` retrieves exact values from indexed history with selectors:
+
+```text
+[SCOPE.]KEY[PATH ...]
+```
+
+`KEY` is a variable name or `*`. `SCOPE` may be an exact agent name, `*` for every
+agent, or `HOOD.*` for a hood. Unscoped keys choose the newest matching occurrence.
+Exact-agent selectors choose that name's newest artifact. Global and hood wildcard
+selectors collapse repeated runs to the newest value per agent name. JSON paths follow
+the selected value with `[INDEX]` for lists or `["KEY"]` for map keys; dotted map
+traversal is not accepted.
+
+Examples:
+
+```bash
+sase var get status
+sase var get build.status --format raw
+sase var get '*.status' --format json
+sase var get 'research.*.report["summary"]'
+sase var get results[0]
+```
+
+`sase var get --format pretty` prints each match with attribution. `--format raw` prints
+one value only and fails unless the selector resolves to exactly one untruncated match;
+strings print as text, and structured values print as compact JSON. `--format json`
+emits a stable envelope with `schema_version`, query, limit metadata, and matches.
+`--format jsonl` emits one compact JSON object per match. Wildcard expansion defaults to
+20 matches; `--limit 0` is unlimited. `--project` is repeatable, and `--hidden` includes
+hidden indexed agents.
+
+`sase var set` is the mutation command. It is agent-scoped and requires `SASE_AGENT=1`
+and `SASE_ARTIFACTS_DIR`. Successful writes print the current agent name when known, the
+stored keys, and the artifact directory.
 
 Keys must be valid Jinja attribute identifiers (`[A-Za-z_][A-Za-z0-9_]*`). Values may
 contain spaces, blank lines, newlines, and additional equals signs. The `KEY=VALUE` form
