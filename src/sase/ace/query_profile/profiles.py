@@ -373,10 +373,10 @@ def provider_query_schema(
     """Derive a flat-mode schema from a document provider's ``ref.properties``.
 
     Providers declare fields and facts only: the profile compiler never
-    grants a provider sigils, predicates, or macros (see
-    :mod:`sase.ace.query_profile.registry`). An unrecognized declared
-    ``type`` degrades to ``"string"`` rather than raising, matching the
-    epic's "malformed values degrade per entry" policy for provider input.
+    grants a provider sigils or macros. Host predicates are shared with the
+    fixed panes. An unrecognized declared ``type`` degrades to ``"string"``
+    rather than raising, matching the epic's "malformed values degrade per
+    entry" policy for provider input.
     """
 
     ref = spec.get("ref") if isinstance(spec, Mapping) else None

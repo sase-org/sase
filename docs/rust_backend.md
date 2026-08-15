@@ -45,6 +45,13 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   unmuted and unread, skips dismissed rows, and leaves permanent mutes untouched.
   Callers must not reimplement expiry, ordering, or deadline arithmetic in Python — see
   [`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing)
+- Temporary LLM provider-disable state: `provider_disable_wire_schema_version`,
+  `provider_disable_get`, `provider_disable_set_relative`, `provider_disable_set_until`,
+  and `provider_disable_clear`. The Rust core owns the versioned
+  `llm_provider_disables.json` schema, bounded lock, atomic writes, per-provider
+  validation/pruning, expiry semantics, deterministic provider ordering, and
+  multi-process read/modify/write cycle. Python owns provider registration, routing
+  policy, TUI presentation, and the lock-free display peek overlay.
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index
   writes, artifact-marker deletion, workspace-release text mutation, and
   hook/mentor/comment kill marking. These calls prefer Rust but retain cleanup-specific
@@ -90,6 +97,12 @@ The intentionally Python-owned host surfaces include:
   notifications, xprompt catalog expansion, history writes, chop registry recording, and
   user-facing launch callbacks. Rust owns deterministic launch planning/preparation and
   the low-level detached spawn binding.
+- LLM provider registration, selector policy, temporary alias-override precedence,
+  dispatch decisions, and ACE Models-panel provider-routing UI stay on the Python host
+  path. The provider-disable facade delegates durable state and mutation atomicity to
+  the Rust binding, but Python remains responsible for deciding how an active disable
+  affects aliases, completions, explicit requests, and already-running provider
+  processes.
 - Agent cleanup process signalling, dismissed-bundle persistence, dismissed-bundle
   summary indexing, and TUI orchestration stay on the Python host path. The Rust
   boundary owns reusable cleanup planning, compact dismissed-identity writes, artifact

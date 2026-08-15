@@ -17,7 +17,7 @@ from sase.vcs_log.models import VcsLogResult
 from .beads_data import BeadsSnapshot
 from .beads_filtering import BeadFilterIndex, build_bead_filter_index
 from .files_data import FilesSnapshot, LogicalFile
-from .plans_data import PlansSnapshot, ProjectArchive
+from .plans_data import PlansSnapshot
 from .plans_filtering import (
     PlanFilterIndex,
     build_plan_filter_index,
@@ -164,8 +164,6 @@ def _bead_query_entry(record: Any) -> dict[str, Any]:
 def _plan_query_entry(
     snapshot: PlansSnapshot,
     record: Any,
-    *,
-    archive_entries: tuple[ProjectArchive, ...] | None = None,
 ) -> dict[str, Any]:
     fields: dict[str, object] = {
         "kind": tuple(record.kind_labels or frozenset((record.kind,))),
@@ -184,11 +182,7 @@ def _plan_query_entry(
     return {
         "stable_id": record.option_id,
         "fields": fields,
-        "properties": _plan_provider_properties(
-            snapshot,
-            record,
-            archive_entries=archive_entries,
-        ),
+        "properties": _plan_provider_properties(snapshot, record),
         "searchable_text": "\n".join(record.haystack),
         "predicates": (),
     }
@@ -197,8 +191,6 @@ def _plan_query_entry(
 def _plan_provider_properties(
     snapshot: PlansSnapshot,
     record: Any,
-    *,
-    archive_entries: tuple[ProjectArchive, ...] | None = None,
 ) -> Mapping[str, str]:
     if record.kind == "proposal":
         for proposal in snapshot.proposals:
@@ -210,7 +202,7 @@ def _plan_provider_properties(
             if active.document.path == record.identity:
                 return active.document.frontmatter
         return {}
-    for archive in archive_entries or snapshot.archive:
+    for archive in snapshot.archive:
         if archive.match.plan.path == record.identity:
             return archive.match.plan.frontmatter
     return {}

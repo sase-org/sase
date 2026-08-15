@@ -11,6 +11,7 @@ from sase.ace.query.profile_reference import (
     evaluate_query_many_for_profile,
 )
 from sase.ace.query_profile import CompiledQueryProfile
+from sase.ace.query_profile.pane_registry import compiled_profile_for_builtin_pane
 from sase.ace.tui._artifact_tab_contract import compile_provider_contract
 from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.core.query_profile_corpus_facade import (
@@ -44,8 +45,14 @@ def _profiles() -> Iterator[tuple[str, CompiledQueryProfile]]:
         for descriptor in resolve_artifacts_subtabs()
         if descriptor.id in builtin_ids and not descriptor.is_degraded
     ]
+    descriptor_ids = {descriptor.id for descriptor in builtins}
+    assert descriptor_ids <= builtin_ids
     for descriptor in builtins:
         yield descriptor.id, descriptor.resolved_contract.query_profile
+    for pane_id in sorted(builtin_ids - descriptor_ids):
+        profile = compiled_profile_for_builtin_pane(pane_id)
+        assert profile is not None
+        yield pane_id, profile
 
     result = compile_provider_contract(
         kind="notes",

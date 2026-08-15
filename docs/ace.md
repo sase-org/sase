@@ -2538,7 +2538,8 @@ Press `,m` from any tab to open the **Models** panel — one keyboard-driven sur
 viewing and managing every model alias: the implicit role aliases (`default`,
 `epic_lander`, `big_epic_lander`, `xsmall_worker`, `small_worker`, `medium_worker`,
 `large_worker`, `xlarge_worker`, `smartest`, `smarter`, `smart`, `cheap`, `cheaper`,
-`cheapest`) and any user-defined `llm_provider.model_aliases.custom` entry.
+`cheapest`) and any user-defined `llm_provider.model_aliases.custom` entry. The same
+panel also owns temporary provider routing disables through `p=Providers`.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `user`), its
 effective provider/model as a provider-themed badge, and a state tag — `configured`,
@@ -2552,7 +2553,10 @@ active override it shows that `@<level>`, its remaining time, and the configured
 beside it. The third line shows the effective `max running agents` global cap; an active
 temporary cap shows its remaining time and configured value on the same line. An
 explicit effort suffix inherited from an alias target appears beside that row's model
-badge; rows that simply inherit the header default omit the redundant suffix.
+badge; rows that simply inherit the header default omit the redundant suffix. When one
+or more providers are temporarily disabled, the title adds a compact
+`disabled providers:` line with each active provider and its remaining time, or
+`until cleared` for a no-expiry disable.
 
 The top level is split into **Built-in** and **Custom** sections. Each header reports
 the aliases represented by its rows (including members of collapsed buckets) and its
@@ -2588,8 +2592,12 @@ marker. A round-robin pool's row state includes an availability count such as
 `pool 2/2`, and `→` marks the exact next peeked selection without advancing its cursor.
 An ordered fallback labels candidates in priority order, marks the current winner, and
 never reads rotation state. The row's provider/model/effort badge is derived from that
-same selected member. While a temporary override is active, the strip labels the
-selector suspended, dims its members, and omits the `→` marker.
+same selected member. Temporarily disabled providers count as unavailable for this
+display. If a temporary alias override targets a disabled provider, the override is
+preserved but paused: the row shows the live fallback/pool target, the state tag says
+the override is paused, and the description names the disabled provider that must expire
+or be re-enabled before the override resumes. An active override whose provider remains
+available still bypasses selector choice for the override's lifetime.
 
 If a builtin alias is mistakenly configured under `llm_provider.model_aliases.custom`,
 opening the panel emits one warning toast listing every affected `@alias`. A gold
@@ -2613,6 +2621,7 @@ alias:
 | `x`                   | **Clear** — remove the temporary override on this alias                                                                  |
 | `e`                   | **Edit** — change the persistent configured value (model picker / custom input / guided pool-fallback builder → preview) |
 | `r`                   | **Reset** — unset the configured value back to its implicit fallback                                                     |
+| `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing                                    |
 | `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                                 |
 | `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                                    |
 | `Esc` / `q`           | Close the panel                                                                                                          |
@@ -2680,6 +2689,37 @@ agents advance through the existing priority/FIFO gate on their next poll. Launc
 an explicit `%wait(runners=N)` retain their own initial-admission threshold, while
 question continuations reacquire against the current effective global cap.
 
+### Provider routing controls
+
+Press `p` from the Models panel to open **Provider Routing**. The modal lists every
+user-facing registered LLM provider in stable order with its model count and one of
+three states:
+
+| State                    | Meaning                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `available`              | The provider is registered and its declared CLI is present.             |
+| `CLI unavailable`        | Automatic alias routing already skips it because its CLI is missing.    |
+| `disabled · <time> left` | You temporarily disabled it; routing skips it until expiry or clearing. |
+
+Hidden testing providers stay out of this human-facing modal. Disabling a provider does
+not unregister it, change `sase.yml`, change model aliases, or stop provider processes
+that are already running. It only affects new launches, follow-ups, later retry/fallback
+resolution, model pickers, and completion catalogs.
+
+On an enabled row, press `d` or Enter to choose how long new launches should route
+around that provider. The flow uses the same duration choices as alias overrides: `15m`,
+`30m`, `1h`, `2h`, `4h`, `Until cleared`, a custom duration, or `t` for an exact local
+time/date. On a disabled row, `d` or Enter replaces the duration and `x` enables the
+provider immediately. Pressing `x` on an enabled row warns without mutating state.
+Successful changes refresh the provider rows, the Models title, alias routing rows, and
+the top-bar indicators without closing the modal, so several providers can be managed in
+one pass.
+
+ACE also shows active provider disables in a compact top-bar pill beside the model
+override indicators. One disabled provider renders like `CLAUDE off 42m`; several render
+as the alphabetically first provider plus a count, such as `CLAUDE +2`. Hover lists
+every active provider and expiry, and clicking the pill opens the Models panel.
+
 ### Temporary overrides
 
 `Edit` and `Override` open the shared model picker with an `ALIASES` group before the
@@ -2689,7 +2729,10 @@ an alias kind or description, or the displayed target. For persistent edits, the
 alias and any alias that would introduce a direct or transitive cycle remain visible but
 unavailable with a concise reason. `Custom...` accepts a concrete model string,
 `provider/model` path, or bare `@alias` reference in both flows and applies the same
-safety check to free-form `@alias` values. In `Edit`, `Custom...` additionally accepts a
+safety check to free-form `@alias` values. Concrete model rows for temporarily disabled
+providers are omitted; alias rows remain visible and show their current live fallback
+target. Free-form explicit input is validated before submission and reports the same
+disabled-provider diagnostic as a launch. In `Edit`, `Custom...` additionally accepts a
 typed `|` pool or `||` fallback expression and opens prefilled with the alias's current
 value, so changing one member of an existing selector no longer means retyping the whole
 expression; `Edit` also offers a guided `Pool / fallback...` row next to `Custom...`
@@ -2731,7 +2774,9 @@ Overrides are per-alias and independent:
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit
 `provider_name` argument always win, already-running agents keep their current
-provider/model. Override state is persisted to `~/.sase/llm_override.json` — shared
+provider/model. A temporary provider disable is different: an explicit request for a
+disabled provider fails with a provider-and-expiry diagnostic rather than silently
+switching providers. Override state is persisted to `~/.sase/llm_override.json` — shared
 across all sase processes on the machine — and is best-effort self-cleaning: expired or
 malformed entries are pruned on next read. `Until cleared` is a no-expiry mode —
 convenient, but still a _temporary_ state, not a permanent config edit. The temporary
@@ -2822,6 +2867,12 @@ live validation line reports an error.
   `claude/haiku@minimal | codex/gpt-4o-mini`, and confirm — explicit `@cheapest`
   launches round-robin across this independent pool without consuming the `cheap` or
   `cheaper` cursor.
+- Press `p`, highlight `claude`, `d`, choose `1h` — new alias-backed launches route
+  around Claude for the next hour, direct `%model:claude/opus` launches fail explicitly,
+  and already-running Claude processes continue.
+- With `claude` disabled, an override on `medium_worker` that targets `claude/opus`
+  pauses; the row shows the live fallback target until Claude is re-enabled or the
+  disable expires.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected
   epic landers use that persistent target; leaving it implicit inherits through
   `@smartest`, independently of `@epic_lander`.

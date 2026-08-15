@@ -1410,14 +1410,16 @@ on the default provider. Use `model_aliases.builtin` for builtin role overrides 
 `model_aliases.custom` for user-defined aliases with descriptions. `A | B` round-robins
 across real launches, skips providers whose CLI is unavailable, and stores its
 machine-global cursor in `~/.sase/llm_lb.json`; display and preview surfaces only peek.
-`A || B` always selects the first installed provider CLI and never reads or advances
-that cursor. Ordered fallback is based on CLI installation, not later model/runtime
-success, and preserves its first candidate for normal diagnostics when none are
-installed. Members may carry a trailing effort. The operators cannot be mixed, selectors
-cannot be nested, and selectors are not accepted in `%model` directives or
-launch-scoped/temporary overrides. In the ACE Models panel, the pool row reports the
-available/total count, selector member lists mark the current selection with `→`, and
-active temporary overrides label selection suspended.
+`A || B` always selects the first installed, non-disabled provider CLI and never reads
+or advances that cursor. Ordered fallback is based on CLI installation plus temporary
+provider-disable state, not later model/runtime success, and preserves its first
+candidate for normal diagnostics when none are available. Members may carry a trailing
+effort. The operators cannot be mixed, selectors cannot be nested, and selectors are not
+accepted in `%model` directives or launch-scoped/temporary overrides. In the ACE Models
+panel, the pool row reports the available/total count, selector member lists mark the
+current selection with `→`, and active temporary overrides label selection suspended
+unless their provider is temporarily disabled; then the override is paused and the
+underlying alias resolves.
 
 ACE automatically supplies one display-only built-in bucket while alias resolution and
 configuration remain flat: `worker` groups `@xsmall_worker`, `@small_worker`,
@@ -1475,6 +1477,15 @@ config. They are persisted to `~/.sase/llm_override.json` and expired entries ar
 deleted on next read. See [docs/llms.md](llms.md#temporary-model-overrides) for the
 resolution order, state-file format, and precedence relative to
 `SASE_MODEL_TIER_OVERRIDE`.
+
+The same panel's `p=Providers` flow manages temporary provider disables in
+`~/.sase/llm_provider_disables.json`. This is runtime state, not configuration: it does
+not add a `disabled_providers` key, does not edit `llm_provider.provider`, and does not
+rewrite any alias. Alias selectors route around disabled providers, temporary alias
+overrides targeting disabled providers pause until the disable clears or expires, and
+direct explicit provider/model requests fail with an actionable diagnostic instead of
+silently switching providers. See
+[Temporary Provider Disables](llms.md#temporary-provider-disables).
 
 The same panel's fixed `Ctrl+E` binding manages the separate machine-wide default-effort
 override at `~/.sase/llm_effort_override.json`. It uses the alias override duration and

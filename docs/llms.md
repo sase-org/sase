@@ -29,6 +29,7 @@ preprocessing, invocation, and postprocessing.
 - [Model Tier System](#model-tier-system)
 - [Role Aliases for Delegated Work](#role-aliases-for-delegated-work)
 - [Temporary Model Overrides](#temporary-model-overrides)
+- [Temporary Provider Disables](#temporary-provider-disables)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Retry and Fallback](#retry-and-fallback)
@@ -88,6 +89,8 @@ Key design principles:
 | `src/sase/llm_provider/alias_view.py`             | ACE Models-panel alias-view construction (`build_alias_views()`)                         |
 | `src/sase/llm_provider/config.py`                 | Config file reader (`sase.yml`)                                                          |
 | `src/sase/llm_provider/temporary_override.py`     | Primary/worker temporary override state and resolution                                   |
+| `src/sase/llm_provider/provider_disable.py`       | Rust-backed temporary provider-disable facade                                            |
+| `src/sase/llm_provider/provider_disable_peek.py`  | Lock-free display peek for active provider disables                                      |
 | `src/sase/llm_provider/commit_finalizer.py`       | Provider-neutral dirty-workspace finalizer                                               |
 | `src/sase/llm_provider/types.py`                  | `ModelTier`, `InvokeResult`, `LoggingContext` types                                      |
 | `src/sase/llm_provider/_invoke.py`                | `invoke_agent()` orchestrator                                                            |
@@ -1135,13 +1138,14 @@ immediately before the provider is called — never during metadata preparation,
 display/marker preview, or a doctor/dry-run check, which only peek. `@default` and any
 other alias that merely delegates to a pool (directly or through further aliasing) share
 that pool-owning alias's cursor rather than keeping one of their own. `A || B` is an
-ordered fallback chain: the first member whose registered provider CLI is installed
-always wins, and resolution never reads or changes the round-robin cursor, including
-during a real launch. Fallback is based only on the cached CLI-installation probe
-(including `SASE_<PROVIDER>_PATH`), not a later model or runtime failure; SASE does not
-relaunch with the next candidate after such a failure. If every provider is unavailable,
-both modes preserve a candidate for the ordinary provider lookup to report: fallback
-preserves its first member, while the pool preserves its current rotation choice.
+ordered fallback chain: the first registered provider whose CLI is installed and not
+temporarily disabled always wins, and resolution never reads or changes the round-robin
+cursor, including during a real launch. Fallback is based on the cached CLI-installation
+probe (including `SASE_<PROVIDER>_PATH`) plus a captured active-disable snapshot, not a
+later model or runtime failure; SASE does not relaunch with the next candidate after
+such a failure. If every provider is unavailable, both modes preserve a candidate for
+the ordinary provider lookup to report: fallback preserves its first member, while the
+pool preserves its current rotation choice.
 
 Both selectors accept two or more members using the same single-target grammar,
 including candidate-specific trailing reasoning effort. Whitespace is trimmed and empty
@@ -1154,8 +1158,11 @@ builder — while its temporary Override path refuses a typed pool or fallback o
 pointing at Edit, rather than silently accepting and corrupting it. An override on the
 alias that owns a selector bypasses that expression for the override's lifetime. The ACE
 Models panel shows every member's availability, an aggregate `pool <available>/<total>`
-chip for round-robin pools, and a `→` on the current selection; an active temporary
-override labels the member list suspended because it bypasses selection.
+chip for round-robin pools, and a `→` on the current selection. A temporary alias
+override labels the member list suspended only while its provider is available. If its
+provider is temporarily disabled, the stored override is paused, the live selector
+target is shown instead, and the override resumes automatically after the provider
+disable is cleared or expires while the override itself is still active.
 
 To verify pool fairness from real launches, count recorded `llm_provider`/`model` pairs
 for agents whose metadata has `model_alias: "default"` or the explicit alias being
@@ -1176,12 +1183,13 @@ panel shows descriptions from config; a user alias without one shows the
 The same alias vocabulary appears in the `%model:` / `%m:` completion menu in ACE and in
 editors through the xprompt LSP: alias rows sit beneath the concrete model names with
 their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
-after the colon narrows the menu to aliases only. Provider rows such as `claude/` sit at
-the bottom of the broad menu; accepting one opens that provider's scoped model list and
-inserts qualified values such as `claude/opus`. See
-[xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion menu
-is read-only; the ACE Models panel (`,m`) remains the authoritative place to edit alias
-targets and to set or clear temporary overrides.
+after the colon narrows the menu to aliases only. Concrete model rows and provider-scope
+rows for temporarily disabled providers are omitted, while aliases remain and show their
+current fallback target. Provider rows such as `claude/` sit at the bottom of the broad
+menu; accepting one opens that provider's scoped model list and inserts qualified values
+such as `claude/opus`. See [xprompt directive syntax](xprompt.md#syntax) for the row
+anatomy. The completion menu is read-only; the ACE Models panel (`,m`) remains the
+authoritative place to edit alias targets and to set or clear temporary overrides.
 
 The ACE Models panel supplies one built-in bucket without changing resolution,
 completion, launch routing, or config paths. `worker` folds together the five
@@ -1640,6 +1648,12 @@ one of those lanes. Machine-wide temporary overrides do not change:
   `%model(...)` alias keyword is a separate, higher-precedence launch-scoped override.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
 
+Temporary provider disables can pause, but do not delete, these overrides. If an active
+alias override resolves to a disabled provider, SASE ignores that override for live
+routing and falls through to the alias's configured or implicit target. If the disable
+is cleared or expires before the alias override expires, the stored override resumes
+automatically.
+
 An override may carry a canonical reasoning-effort suffix, such as
 `codex/gpt-5.6-sol@medium` or `@medium_worker@medium`. The write resolves and snapshots
 the clean provider/model plus `medium`, while preserving the original `raw_model`. That
@@ -1657,7 +1671,7 @@ default is resolved as:
 
 1. A launch-scoped `default` alias override from `%model(default=...)`, when present.
 2. **Active machine-wide `default` temporary override** at `~/.sase/llm_override.json`
-   (if not expired).
+   (if not expired and not paused by a provider disable).
 3. The configured `@default` alias, otherwise the shipped `@default` fallback
    (`@smarter`), otherwise the configured/autodetected provider's requested-tier model
    if `default` declares no fallback.
@@ -1679,6 +1693,73 @@ A concrete temporary override sets both the default provider and a concrete
 `model_override` for the next launch — so the agent metadata (running marker, plan
 review badge, agent rows) reflects the actual model that will run, not just the
 configured default.
+
+## Temporary Provider Disables
+
+The ACE Models panel's `p=Providers` flow can temporarily disable a registered provider
+for new routing without editing `sase.yml` or unregistering the plugin. Provider-disable
+state is machine-wide runtime state in `~/.sase/llm_provider_disables.json`, owned by
+the Rust core and exposed through `src/sase/llm_provider/provider_disable.py`. The
+lock-free `provider_disable_peek.py` reader is reserved for high-frequency display and
+completion paths; launches and writes use the authoritative Rust-backed facade.
+
+Provider disables are an availability layer:
+
+| Request                  | Disabled provider present? | Result                                             |
+| ------------------------ | -------------------------- | -------------------------------------------------- |
+| round-robin alias        | one member                 | next available member; cursor advances from winner |
+| ordered fallback         | preferred member           | next available candidate                           |
+| temporary alias override | override target            | override pauses; underlying alias resolves         |
+| direct provider/model    | target provider            | actionable failure; no silent provider change      |
+| every selector member    | all                        | member zero retained for diagnostic; launch fails  |
+| running provider process | disabled after start       | process continues; future resolution changes       |
+
+Each top-level routing operation captures active disables once and passes that snapshot
+through alias resolution, autodetection, model-picker rows, completion overlays, and the
+final provider dispatch gate. Round-robin pools skip disabled members without rewriting
+membership or fingerprints; re-enabling a provider lets it participate in later
+rotations naturally. Ordered fallbacks choose the first installed, non-disabled member
+and return to a higher-priority provider on the next resolution after it is re-enabled.
+When every selector member is disabled or otherwise unavailable, SASE preserves the
+diagnostic candidate rather than silently rerouting to a default provider.
+
+Direct intent remains direct. `%model:claude/opus`, a known bare model owned by Claude,
+an explicit `provider_name="claude"`, or `SASE_LLM_EXEC_PROVIDER=claude` fails before
+provider construction while Claude is disabled; the error names the provider and expiry
+or says `until cleared`. This proves the request was not silently changed to another
+provider.
+
+The state file is a versioned envelope with one independent record per provider:
+
+```json
+{
+  "version": 1,
+  "disables": {
+    "claude": {
+      "provider": "claude",
+      "created_at": 1777470000.0,
+      "expires_at": 1777473600.0,
+      "source": "ace"
+    }
+  }
+}
+```
+
+`expires_at: null` means until cleared. Finite expiries are exclusive:
+`now >= expires_at` removes the record. Authoritative reads self-clean expired or
+malformed per-provider records and delete the file when no active disables remain. A
+malformed envelope/version fails closed to no active disables and is removed.
+
+Public provider-disable helpers:
+
+| Function                                                         | Purpose                                                    |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| `get_active_provider_disables(now=None)`                         | Read every active disable, keyed by provider.              |
+| `get_active_provider_disable(provider, now=None)`                | Read one active provider disable, or `None`.               |
+| `disable_provider(provider, duration_seconds, source, now=None)` | Disable one provider for a duration or until cleared.      |
+| `disable_provider_until(provider, expires_at, source, now=None)` | Disable one provider until an exact Unix timestamp.        |
+| `enable_provider(provider)`                                      | Clear one provider disable; returns whether it existed.    |
+| `peek_active_provider_disables(now=None)`                        | Read-only, lock-free display snapshot for TUI/completions. |
 
 ### State File
 
