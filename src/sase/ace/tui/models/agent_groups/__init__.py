@@ -24,7 +24,7 @@ any of its non-project-scoped agents targets a Patch
 
 ``BY_STATUS`` replaces the project level with a priority-ordered status
 bucket, then uses the same name-root and optional name-prefix levels. Within a
-status bucket, standalone lanes render before visible name-root subgroups;
+status bucket, standalone sase agents render before visible name-root subgroups;
 launch recency sorts units only within those two partitions. The same rule
 places lanes directly under a name-root before its visible dotted-prefix
 subgroups. Subgroups use their outer/root agent's ``start_time`` and remain

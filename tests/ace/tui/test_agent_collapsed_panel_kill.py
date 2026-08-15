@@ -124,8 +124,8 @@ def test_collapsed_tribe_assigned_panel_partitions_complete_scope_and_confirms_o
         assert isinstance(app.pushed_modals[0], ConfirmKillAllModal)
         description = app.pushed_modals[0].agent_description
         assert "Panel: @chop" in description
-        assert "Kill: 1 lane" in description
-        assert "Dismiss: 2 lanes" in description
+        assert "Kill: 1 sase agent" in description
+        assert "Dismiss: 2 sase agents" in description
         assert "running" in description
         assert "done" in description
         assert "pidless" in description
@@ -159,7 +159,7 @@ def test_expanded_panel_focus_uses_the_same_bulk_cleanup_scope() -> None:
         assert isinstance(app.pushed_modals[0], ConfirmKillAllModal)
         description = app.pushed_modals[0].agent_description
         assert "Panel: @chop" in description
-        assert "Kill: 1 lane" in description
+        assert "Kill: 1 sase agent" in description
         assert "running" in description
         assert "neighbor" not in description
         app.pushed_callbacks[0](True)
@@ -181,7 +181,7 @@ def test_no_tribe_pidless_panel_uses_dismiss_confirmation() -> None:
         assert isinstance(app.pushed_modals[0], ConfirmDismissAllModal)
         description = app.pushed_modals[0].agent_description
         assert "Panel: @default" in description
-        assert "Dismiss: 2 lanes" in description
+        assert "Dismiss: 2 sase agents" in description
         assert "  tribe_assigned" not in description
         app.pushed_callbacks[0](True)
 
@@ -224,8 +224,8 @@ def test_collapsed_panel_expands_clan_members_without_duplicates() -> None:
         app.action_kill_agent()
         description = app.pushed_modals[0].agent_description
         assert "Panel: @chop" in description
-        assert "Kill: 1 lane" in description
-        assert "Dismiss: 1 lane" in description
+        assert "Kill: 1 sase agent" in description
+        assert "Dismiss: 1 sase agent" in description
         assert description.count("research.one") == 1
         assert description.count("research.two") == 1
         assert "other" not in description
@@ -265,7 +265,7 @@ def test_collapsed_panel_adds_loaded_workflow_children_but_not_neighbors() -> No
         app.action_kill_agent()
         description = app.pushed_modals[0].agent_description
         assert "Panel: @chop" in description
-        assert "Kill: 1 lane · 2 agents" in description
+        assert "Kill: 1 sase agent · 2 agents" in description
         assert "demo-flow" in description
         assert "workflow-child" not in description
         assert "neighbor" not in description

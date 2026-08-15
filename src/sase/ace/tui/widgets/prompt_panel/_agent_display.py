@@ -7,7 +7,7 @@ from rich.console import Group
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, wait_display_agent
 from ...models.agent_family_members import family_roster_container
-from ...models.agent_hoods import agent_owns_lane
+from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
@@ -220,7 +220,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             except Exception:
                 app = None
             clan_fold_level, clan_fold_overrides = panel_fold_state_from_widget(self)
-            lane_owner = agent_owns_lane(agent)
+            lane_owner = agent_owns_sase_agent(agent)
             lane_summary_enabled = (
                 agent.is_family_container_row
                 or lane_owner

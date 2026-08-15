@@ -1,15 +1,15 @@
-"""Agent-lane projection coverage for cleanup confirmation subjects."""
+"""Agent-sase-agent projection coverage for cleanup confirmation subjects."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
 
-from sase.ace.tui.actions.agents._confirmation_lanes import (
+from sase.ace.tui.actions.agents._confirmation_sase_agents import (
     AgentConfirmationSummary,
     _AgentConfirmationEntry,
-    confirmation_lane_entries,
-    confirmation_lane_summary,
+    confirmation_sase_agent_entries,
+    confirmation_sase_agent_summary,
     format_confirmation_entries,
 )
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
@@ -56,7 +56,9 @@ def _agent(
     )
 
 
-def test_projection_dedupes_workflow_descendants_in_first_seen_lane_order() -> None:
+def test_projection_dedupes_workflow_descendants_in_first_seen_sase_agent_order() -> (
+    None
+):
     workflow = _agent(
         None,
         "workflow",
@@ -75,7 +77,7 @@ def test_projection_dedupes_workflow_descendants_in_first_seen_lane_order() -> N
     )
     standalone = _agent("standalone", "standalone", status="RUNNING", pid=12)
 
-    entries = confirmation_lane_entries(
+    entries = confirmation_sase_agent_entries(
         [hidden_step, standalone, workflow, hidden_step],
         [workflow, hidden_step, standalone],
         include_running_family_members=True,
@@ -91,7 +93,7 @@ def test_projection_dedupes_workflow_descendants_in_first_seen_lane_order() -> N
     ]
 
 
-def test_sequential_family_uses_presented_lane_and_exact_running_member() -> None:
+def test_sequential_family_uses_presented_sase_agent_and_exact_running_member() -> None:
     root = _agent(
         "athena.feature--plan",
         "root",
@@ -113,7 +115,7 @@ def test_sequential_family_uses_presented_lane_and_exact_running_member() -> Non
     member.presented_agent_name = "buildbox.feature--code"
     member.presented_identity_name = "buildbox.feature--code"
 
-    entries = confirmation_lane_entries(
+    entries = confirmation_sase_agent_entries(
         [root, member],
         [root, member],
         include_running_family_members=True,
@@ -146,14 +148,14 @@ def test_completed_family_members_never_leak_into_dismiss_entries() -> None:
         role_suffix="--code",
     )
 
-    entries = confirmation_lane_entries([root, member], [root, member])
+    entries = confirmation_sase_agent_entries([root, member], [root, member])
 
     assert entries == (_AgentConfirmationEntry("family"),)
     assert "family--plan" not in "\n".join(format_confirmation_entries(entries))
     assert "family--code" not in "\n".join(format_confirmation_entries(entries))
 
 
-def test_rename_on_attach_family_root_uses_bare_family_lane() -> None:
+def test_rename_on_attach_family_root_uses_bare_family_sase_agent() -> None:
     renamed_root = _agent(
         "review-lane--original",
         "root",
@@ -162,12 +164,12 @@ def test_rename_on_attach_family_root_uses_bare_family_lane() -> None:
         role_suffix="--original",
     )
 
-    assert confirmation_lane_entries([renamed_root], [renamed_root]) == (
+    assert confirmation_sase_agent_entries([renamed_root], [renamed_root]) == (
         _AgentConfirmationEntry("review-lane"),
     )
 
 
-def test_plan_workflow_steps_resolve_to_family_lane() -> None:
+def test_plan_workflow_steps_resolve_to_family_sase_agent() -> None:
     root = _agent(
         "plan-family--plan",
         "root",
@@ -185,12 +187,12 @@ def test_plan_workflow_steps_resolve_to_family_lane() -> None:
         parent_workflow="plan-workflow",
     )
 
-    assert confirmation_lane_entries([hidden_step], [root, hidden_step]) == (
+    assert confirmation_sase_agent_entries([hidden_step], [root, hidden_step]) == (
         _AgentConfirmationEntry("plan-family"),
     )
 
 
-def test_clan_descendants_resolve_to_direct_member_lanes_not_clan() -> None:
+def test_clan_descendants_resolve_to_direct_member_sase_agents_not_clan() -> None:
     family_root = _agent(
         "research.family--plan",
         "family-root",
@@ -217,7 +219,7 @@ def test_clan_descendants_resolve_to_direct_member_lanes_not_clan() -> None:
     )
     loaded = project_clan_tree([family_root, family_member, direct_member])
 
-    entries = confirmation_lane_entries(
+    entries = confirmation_sase_agent_entries(
         [family_member, direct_member],
         loaded,
     )
@@ -226,7 +228,7 @@ def test_clan_descendants_resolve_to_direct_member_lanes_not_clan() -> None:
         _AgentConfirmationEntry("research.family"),
         _AgentConfirmationEntry("research.solo"),
     )
-    assert all(entry.lane_name != "research" for entry in entries)
+    assert all(entry.sase_agent_name != "research" for entry in entries)
 
 
 def test_missing_parent_uses_concrete_legacy_row_as_defensive_fallback() -> None:
@@ -237,12 +239,12 @@ def test_missing_parent_uses_concrete_legacy_row_as_defensive_fallback() -> None
         parent_workflow="old-workflow",
     )
 
-    assert confirmation_lane_entries([orphan], [orphan]) == (
+    assert confirmation_sase_agent_entries([orphan], [orphan]) == (
         _AgentConfirmationEntry("legacy-orphan"),
     )
 
 
-def test_summary_counts_family_lane_and_unique_concrete_agents() -> None:
+def test_summary_counts_family_sase_agent_and_unique_concrete_agents() -> None:
     root = _agent(
         "release--plan",
         "root",
@@ -262,17 +264,17 @@ def test_summary_counts_family_lane_and_unique_concrete_agents() -> None:
     ]
     targets = [root, *members, root]
 
-    summary = confirmation_lane_summary(targets, targets)
+    summary = confirmation_sase_agent_summary(targets, targets)
 
     assert summary.agent_count == 4
-    assert summary.lane_count == 1
+    assert summary.sase_agent_count == 1
     assert summary.subject_lines("Dismiss") == [
-        "Dismiss: 1 lane · 4 agents",
+        "Dismiss: 1 sase agent · 4 agents",
         "  release",
     ]
 
 
-def test_summary_counts_workflow_with_hidden_steps_as_one_lane() -> None:
+def test_summary_counts_workflow_with_hidden_steps_as_one_sase_agent() -> None:
     workflow = _agent(
         None,
         "workflow",
@@ -290,32 +292,32 @@ def test_summary_counts_workflow_with_hidden_steps_as_one_lane() -> None:
     ]
     targets = [workflow, *hidden_steps]
 
-    summary = confirmation_lane_summary(targets, targets)
+    summary = confirmation_sase_agent_summary(targets, targets)
 
     assert summary.subject_lines("Dismiss") == [
-        "Dismiss: 1 lane · 3 agents",
+        "Dismiss: 1 sase agent · 3 agents",
         "  release-flow",
     ]
 
 
-def test_summary_omits_agent_detail_for_standalone_lanes() -> None:
+def test_summary_omits_agent_detail_for_standalone_sase_agents() -> None:
     first = _agent("first", "first")
     second = _agent("second", "second")
 
-    summary = confirmation_lane_summary([first, second], [first, second])
+    summary = confirmation_sase_agent_summary([first, second], [first, second])
 
     assert summary.subject_lines("Kill") == [
-        "Kill: 2 lanes",
+        "Kill: 2 sase agents",
         "  first",
         "  second",
     ]
 
 
-def test_summary_subject_lines_use_singular_lane_and_agent_units() -> None:
+def test_summary_subject_lines_use_singular_sase_agent_and_agent_units() -> None:
     assert AgentConfirmationSummary(
         entries=(_AgentConfirmationEntry("first"),),
         agent_count=1,
-    ).subject_lines("Kill") == ["Kill: 1 lane", "  first"]
+    ).subject_lines("Kill") == ["Kill: 1 sase agent", "  first"]
     assert AgentConfirmationSummary(
         entries=(
             _AgentConfirmationEntry("first"),
@@ -323,7 +325,7 @@ def test_summary_subject_lines_use_singular_lane_and_agent_units() -> None:
         ),
         agent_count=1,
     ).subject_lines("Dismiss") == [
-        "Dismiss: 2 lanes · 1 agent",
+        "Dismiss: 2 sase agents · 1 agent",
         "  first",
         "  second",
     ]
@@ -333,27 +335,27 @@ def test_summary_deduplicates_repeated_concrete_identity() -> None:
     first = _agent("standalone", "same-suffix")
     repeated_identity = _agent("standalone", "same-suffix")
 
-    summary = confirmation_lane_summary(
+    summary = confirmation_sase_agent_summary(
         [first, repeated_identity, first],
         [first, repeated_identity],
     )
 
     assert summary.agent_count == 1
     assert summary.subject_lines("Dismiss") == [
-        "Dismiss: 1 lane",
+        "Dismiss: 1 sase agent",
         "  standalone",
     ]
 
 
 def test_empty_summary_emits_no_subject_lines() -> None:
-    summary = confirmation_lane_summary([], [])
+    summary = confirmation_sase_agent_summary([], [])
 
-    assert summary.lane_count == 0
+    assert summary.sase_agent_count == 0
     assert summary.agent_count == 0
     assert summary.subject_lines("Dismiss") == []
 
 
-def test_summary_headline_lane_count_equals_roster_length() -> None:
+def test_summary_headline_sase_agent_count_equals_roster_length() -> None:
     root = _agent(
         "family--plan",
         "root",
@@ -370,7 +372,7 @@ def test_summary_headline_lane_count_equals_roster_length() -> None:
     )
     standalone = _agent("standalone", "standalone")
 
-    lines = confirmation_lane_summary(
+    lines = confirmation_sase_agent_summary(
         [root, member, standalone],
         [root, member, standalone],
     ).subject_lines("Dismiss")
@@ -398,7 +400,9 @@ class _BulkConfirmationApp(AgentMarkingMixin):
         del killable, dismissable
 
 
-def test_bulk_subject_can_show_same_family_lane_in_kill_and_dismiss_sections() -> None:
+def test_bulk_subject_can_show_same_family_sase_agent_in_kill_and_dismiss_sections() -> (
+    None
+):
     completed_root = _agent(
         "release--plan",
         "root",
@@ -421,5 +425,5 @@ def test_bulk_subject_can_show_same_family_lane_in_kill_and_dismiss_sections() -
 
     description = app.pushed[0][0].agent_description
     assert description == (
-        "Kill: 1 lane\n  release @release--code\nDismiss: 1 lane\n  release"
+        "Kill: 1 sase agent\n  release @release--code\nDismiss: 1 sase agent\n  release"
     )

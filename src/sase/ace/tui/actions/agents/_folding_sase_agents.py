@@ -1,4 +1,4 @@
-"""Group- and panel-scoped agent-lane collapse target resolution."""
+"""Group- and panel-scoped sase-agent collapse target resolution."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentLaneCollapseTarget:
+class SaseAgentCollapseTarget:
     """One validated, group-scoped, saturating lane-collapse action."""
 
     panel_key: PanelKey
@@ -129,7 +129,7 @@ def _open_canonical_lane_keys(
 def resolve_group_lane_collapse_target(
     owner: Any,
     group_key: GroupKey,
-) -> AgentLaneCollapseTarget | None:
+) -> SaseAgentCollapseTarget | None:
     """Resolve every open canonical lane in one focused-panel group.
 
     Group membership comes from a fully expanded grouping projection. This
@@ -180,7 +180,7 @@ def resolve_group_lane_collapse_target(
 
     panel_group = getattr(owner, "_panel_group", None)
     panel_key = panel_group.focused_key if panel_group is not None else None
-    return AgentLaneCollapseTarget(
+    return SaseAgentCollapseTarget(
         panel_key=panel_key,
         group_key=group_key,
         fold_keys=tuple(open_keys),
@@ -211,7 +211,7 @@ def resolve_panel_lane_collapse_target(
 
 
 __all__ = [
-    "AgentLaneCollapseTarget",
+    "SaseAgentCollapseTarget",
     "resolve_group_lane_collapse_target",
     "resolve_panel_lane_collapse_target",
 ]

@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 
 def resolve_prompt_name(
     plan_slug: str | None,
-    agent_lane: str,
+    sase_agent: str,
     existing_listing: Iterable[str | Path],
     *,
     reusable_names: Iterable[str] = (),
@@ -19,7 +19,7 @@ def resolve_prompt_name(
     run, which lets repeated commits update one prompt byte-for-byte.
     """
 
-    base = _safe_name(plan_slug or agent_lane)
+    base = _safe_name(plan_slug or sase_agent)
     existing = {Path(value).name.removesuffix(".md") for value in existing_listing}
     reusable = {value.removesuffix(".md") for value in reusable_names}
     if base not in existing or base in reusable:

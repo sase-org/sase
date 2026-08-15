@@ -126,8 +126,8 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         confirm = page.app.screen
         description = confirm.agent_description
         assert "Clan: alpha" in description
-        assert "Kill: 1 lane" in description
-        assert "Dismiss: 1 lane" in description
+        assert "Kill: 1 sase agent" in description
+        assert "Dismiss: 1 sase agent" in description
         assert "alpha.run" in description
         assert "alpha.done" in description
         assert "review.done" not in description

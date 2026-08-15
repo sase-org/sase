@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 from sase.core.time import local_now
 
-from ...models.agent_hoods import agent_owns_lane
+from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.fold_state import (
     FoldLevel,
     cycle_deltas_fold_level,
@@ -296,7 +296,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         if not callable(get_selected):
             return
         agent = get_selected()
-        if agent is None or not agent_owns_lane(agent):
+        if agent is None or not agent_owns_sase_agent(agent):
             return
         if getattr(agent, "is_family_container_row", False):
             return

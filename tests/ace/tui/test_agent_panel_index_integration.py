@@ -354,7 +354,7 @@ def test_info_panel_agent_counts_use_visible_top_level_agents() -> None:
     # Position uses the selectable (rendered) top-level total, which excludes
     # the hidden STARTING row.
     assert info_panel.position == (0, 6)
-    # The lane headline includes six rendered standalone lanes plus the one
+    # The sase-agent headline includes six rendered standalone sase agents plus the one
     # hidden top-level STARTING lane (still one in the ``starting`` bucket).
     assert info_panel.counts == (1, 1, 1, 1, 1, 2, 0, 7)
 

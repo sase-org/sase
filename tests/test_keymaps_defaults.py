@@ -111,8 +111,8 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     assert ("zZ", "Toggle all metadata folds") in agent_pairs
     assert ("za", "Cycle foldable section/member") in agent_pairs
     assert ("zA", "Toggle foldable section/member") in agent_pairs
-    assert ("z1 / z2", "Set family lane level 1-2") in agent_pairs
-    assert ("z1 / z2 / z3", "Set clan/agent lane level 1-3") in agent_pairs
+    assert ("z1 / z2", "Set family level 1-2") in agent_pairs
+    assert ("z1 / z2 / z3", "Set clan/sase agent level 1-3") in agent_pairs
     assert (
         "z1 / z2 / z3 / z4",
         "Set selected tribe level 1-4",

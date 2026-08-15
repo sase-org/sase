@@ -606,7 +606,7 @@ def test_apply_wait_with_time_relaunches_with_replacement_directive(
     assert len(app.pushed_screens) == 1
     modal, callback = app.pushed_screens[0]
     assert "waiting for new, then 10m" in modal.agent_description  # type: ignore[attr-defined]
-    assert "Agent lane:\n  test_cl" in modal.agent_description  # type: ignore[attr-defined]
+    assert "Sase agent:\n  test_cl" in modal.agent_description  # type: ignore[attr-defined]
     assert callable(callback)
     callback(True)
 
@@ -629,7 +629,7 @@ def test_apply_wait_running_relaunches_with_canonical_wait(tmp_path: Path) -> No
 
     assert len(app.pushed_screens) == 1
     modal, callback = app.pushed_screens[0]
-    assert "Agent lane:\n  runner" in modal.agent_description  # type: ignore[attr-defined]
+    assert "Sase agent:\n  runner" in modal.agent_description  # type: ignore[attr-defined]
     assert callable(callback)
     callback(True)
 

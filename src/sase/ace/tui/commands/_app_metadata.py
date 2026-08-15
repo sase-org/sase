@@ -317,13 +317,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Collapse Agents group lanes, selected clan, remaining clans/groups; "
-        "panel lanes/clans/groups/panel / compact tools detail / collapse all "
-        "folds on other tabs",
+        "Collapse Agents group sase agents, selected clan, remaining clans/groups; "
+        "panel sase agents/clans/groups/panel / compact tools detail / collapse "
+        "all folds on other tabs",
         "Folding",
         ALL_TABS,
         (
-            "collapse lanes",
+            "collapse sase agents",
             "collapse clan",
             "collapse selected clan",
             "collapse clans",

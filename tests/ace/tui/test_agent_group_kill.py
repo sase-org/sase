@@ -187,12 +187,12 @@ def test_action_kill_on_clan_container_cascades_to_real_members() -> None:
     assert container not in mock_bulk.call_args.args[0]
     description = app.pushed_modals[0].agent_description
     assert "Clan: research" in description
-    assert "Kill: 1 lane" in description
-    assert "Dismiss: 1 lane" in description
+    assert "Kill: 1 sase agent" in description
+    assert "Dismiss: 1 sase agent" in description
 
 
 def test_group_kill_modal_header_includes_label_and_section_count() -> None:
-    """The scope stays label-only while the section carries its lane count."""
+    """The scope stays label-only while the section carries its sase-agent count."""
     a1 = _make_agent(
         cl_name="release-fix",
         project_file="/tmp/projects/proj_a/proj_a.sase",
@@ -212,7 +212,7 @@ def test_group_kill_modal_header_includes_label_and_section_count() -> None:
     description = app.pushed_modals[0].agent_description
     assert "Group: release-fix" in description
     assert "Group: release-fix (" not in description
-    assert "Kill: 2 lanes" in description
+    assert "Kill: 2 sase agents" in description
 
 
 def test_group_kill_partitions_killable_and_dismissable() -> None:
@@ -395,7 +395,7 @@ def test_group_kill_standard_mode_is_scoped_to_focused_panel() -> None:
     assert [agent.identity for agent in app._agents] == [epic.identity]
 
 
-def test_focused_running_kill_subject_uses_agent_lane() -> None:
+def test_focused_running_kill_subject_uses_sase_agent() -> None:
     agent = _make_agent(
         cl_name="focused-change",
         raw_suffix="20260713100500",
@@ -408,7 +408,7 @@ def test_focused_running_kill_subject_uses_agent_lane() -> None:
     app.action_kill_agent()
 
     assert app.pushed_modals[0].agent_description == (
-        "Agent lane:\n  focused-lane\nType: run\nWorkspace: #17\nPID: 7123"
+        "Sase agent:\n  focused-lane\nType: run\nWorkspace: #17\nPID: 7123"
     )
 
 

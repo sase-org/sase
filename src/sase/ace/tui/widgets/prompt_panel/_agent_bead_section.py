@@ -63,7 +63,7 @@ class _BeadDetail(IntEnum):
 
 
 def bead_detail_level(level: FoldLevel, scale: FoldScale) -> _BeadDetail:
-    """Resolve a lane fold level to the positional BEAD detail tier."""
+    """Resolve a sase-agent fold level to the positional BEAD detail tier."""
     position, _size = fold_scale_position(level, scale)
     return _BeadDetail.DIGEST if position == 1 else _BeadDetail.FULL
 

@@ -10,7 +10,7 @@ from ._folding_clans import (
     resolve_panel_clan_collapse_target,
     selected_enclosing_clan_fold_key,
 )
-from ._folding_lanes import resolve_panel_lane_collapse_target
+from ._folding_sase_agents import resolve_panel_lane_collapse_target
 from ._navigation_order import rendered_panel_slice
 from ._panel_fold_intent import panel_is_collapsed
 

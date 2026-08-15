@@ -184,11 +184,11 @@ def agent_summary_status_counts(
     return _status_counts_for_projections(projected)
 
 
-def agent_lane_status_counts(
+def sase_agent_status_counts(
     agents: Iterable[Agent],
     unread_ids: Collection[tuple[AgentType, str, str | None]],
 ) -> _AgentSummaryStatusCounts:
-    """Project containers into deduplicated agent-lane status counts."""
+    """Project containers into deduplicated sase-agent status counts."""
     projected = _dedupe_summary_projections(
         projection
         for agent in agents
@@ -385,7 +385,7 @@ def _dedupe_summary_projections(
 
 __all__ = [
     "ClanStatusCounts",
-    "agent_lane_status_counts",
+    "sase_agent_status_counts",
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",

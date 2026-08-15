@@ -11,7 +11,7 @@ SASE uses three different kinds of agent grouping:
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors
 in hood `foo`, and the agent named `foo` belongs to hood `foo` as well. A deeper name
 belongs to every hood along its dotted path, so ACE can group `foo.bar.worker` with
-peers under `foo.bar` and cousins under `foo`. A family lane joins hoods under its bare
+peers under `foo.bar` and cousins under `foo`. A family joins hoods under its bare
 family name, not its root member's `--` name, so a family `foo` and a single agent
 `foo.bar` are related in both directions exactly as two single agents with those names
 would be. Clans use that namespace rule deliberately, while dotted names alone do not
@@ -228,8 +228,8 @@ isolate or restore a tribe panel from whole-panel focus or a row selection insid
 panel, and `-` to sweep every open lane and clan (never a grouping banner) in the
 focused tribe panel closed in one press (or restore the last sweep) from whole-panel
 focus, a row selection, or merged layout; lowercase `z` starts fold mode. Fold state is
-panel-wide and applies when a clan or an agent lane is selected. Using a fold chord on a
-regular agent lane folds its `NEIGHBORS` and `SLOW TOOL CALLS` sections across that
+panel-wide and applies when a clan or a sase agent is selected. Using a fold chord on a
+regular sase agent folds its `NEIGHBORS` and `SLOW TOOL CALLS` sections across that
 agent's own three-level scale, leaves its other sections unchanged, and updates the
 session state for the next container selection.
 
@@ -345,14 +345,14 @@ navigation anchors for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them without changi
 override registry. Absent xprompt and prompt sections are omitted, while reply rows for
 members that have not responded yet remain visible with their pending state.
 
-A family root is an agent lane, so its panel also carries a `NEIGHBORS` section listing
-the lane's ancestors, descendants, and hood neighbors; it sits below `FAMILY MEMBERS`
-and above `SASE CONTEXT`. The lane participates under its bare family name rather than
-the root member's `--` name, so a family `fam` lists `fam.helper` as a descendant and
-`fam.helper` lists the family lane back as its ancestor. Both rosters draw their digits
-from one continuous ladder, so family members are numbered first and neighbors after,
-with a single shared number width. Lane members already shown under `FAMILY MEMBERS` are
-never repeated in `NEIGHBORS`; they are reported as a dim
+A family root is a sase agent, so its panel also carries a `NEIGHBORS` section listing
+the sase agent's ancestors, descendants, and hood neighbors; it sits below
+`FAMILY MEMBERS` and above `SASE CONTEXT`. The family participates under its bare family
+name rather than the root member's `--` name, so a family `fam` lists `fam.helper` as a
+descendant and `fam.helper` lists `fam` back as its ancestor. Both rosters draw their
+digits from one continuous ladder, so family members are numbered first and neighbors
+after, with a single shared number width. Family members already shown under
+`FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
 `… +N also listed under FAMILY MEMBERS` tail. The family's two-level scale drives the
 section too: level 1 shows the first three neighbors plus a hidden-count tail, and level
 2 shows all of them. See [Lane Neighbors Section](ace.md#lane-neighbors-section) for the
@@ -427,24 +427,23 @@ supports earlier static names such as `%i:foo` or `%i(foo)`; template-named and
 auto-named parents must already have an artifact before they can be used as attachment
 targets.
 
-### Lanes, families, and commit provenance
+### Sase Agents, Families, and Commit Provenance
 
-An agent _lane_ is either a family or a single agent that does not belong to one — the
-family is the lane its members share, and a solo agent is its own lane. Commit
-provenance is anchored on the lane, not on the member that happened to be running: a
-commit by `fam--code` is tagged `SASE_AGENT=<username>.<machine>.fam` and links to
-`families/<username>.<machine>.fam.md` with no member anchor, while a solo agent's
-footer is exactly what it has always been. The same projection is used for the sidecar
-publication identity and for the agent rows on plan headers and bead pages, so a family
-appears once as itself instead of once per member.
+A sase agent is either a family or a single agent that does not belong to one. Commit
+provenance is anchored on the sase agent, not on the concrete shell that happened to be
+running: a commit by `fam--code` is tagged `SASE_AGENT=<username>.<machine>.fam` and
+links to `families/<username>.<machine>.fam.md` with no member anchor, while a solo
+agent's footer is exactly what it has always been. The same projection is used for the
+sidecar publication identity and for the agent rows on plan headers and bead pages, so a
+family appears once as itself instead of once per member.
 
 The practical consequence is that the **family page is the durable home of a family's
 commits**. Members come and go — a member's artifact can be cleaned up long before the
-family is done — but the lane outlives them, so its commit history is carried on the
-family container and rendered on the family page, with member-attributed rows keeping
-their role and lane-level rows showing `—`. Commits made before this change name a
-concrete member and are still read that way forever; nothing is rewritten. See
-[runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload) and
+family is done — but the sase agent outlives them, so its commit history is carried on
+the family container and rendered on the family page, with member-attributed rows
+keeping their role and sase-agent-level rows showing `—`. Commits made before this
+change name a concrete member and are still read that way forever; nothing is rewritten.
+See [runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload) and
 [browsing page anatomy](agents_sidecar.md#browsing-page-anatomy).
 
 ## Agent Tribes

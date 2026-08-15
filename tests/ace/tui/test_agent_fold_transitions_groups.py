@@ -185,7 +185,7 @@ def test_capital_h_collapses_every_open_lane_before_status_group() -> None:
     app._fold_manager.expand(hs_key)
     _sync_fold_projection(app, agents, hu)
 
-    target = app._resolve_agent_lane_collapse_target()
+    target = app._resolve_sase_agent_collapse_target()
     assert target is not None
     assert target.group_key == ("Running",)
     assert set(target.fold_keys) == {ht_key, hs_key}
@@ -260,7 +260,7 @@ def test_collapsed_child_banner_scopes_lane_step_to_its_open_parent() -> None:
     app._group_fold_registry.collapse(child_group)
     app._current_group_key = child_group
 
-    target = app._resolve_agent_lane_collapse_target()
+    target = app._resolve_sase_agent_collapse_target()
     assert target is not None
     assert target.group_key == parent_group
 

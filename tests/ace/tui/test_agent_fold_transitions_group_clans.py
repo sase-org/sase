@@ -290,7 +290,7 @@ def test_row_h_narrows_deep_descendant_to_enclosing_clan() -> None:
     app._fold_manager.expand(member_key)
     _sync_fold_projection(app, rows, child)
     app._fold_manager.collapse_fully_all([member_key])
-    assert app._resolve_agent_lane_collapse_target() is None
+    assert app._resolve_sase_agent_collapse_target() is None
 
     target = app._resolve_agent_clan_collapse_target()
     assert target is not None

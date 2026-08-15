@@ -360,7 +360,7 @@ def walk_order(
     else:
         sortable_indices = list(range(len(keys_per_agent)))
 
-    # BY_STATUS partitions each status bucket into standalone lanes followed
+    # BY_STATUS partitions each status bucket into standalone sase agents followed
     # by visible name-root subgroups. Recency applies only inside those two
     # partitions, so an older standalone cannot fall below a newer subgroup.
     # Apply the same rule inside each visible name-root: direct lanes precede

@@ -48,12 +48,12 @@ class AgentKillAllActionsMixin:
 
         # Build description showing both groups.
         desc_parts: list[str] = []
-        from ._confirmation_lanes import confirmation_lane_summary
+        from ._confirmation_sase_agents import confirmation_sase_agent_summary
 
         loaded_agents = self._agents_with_children  # type: ignore[attr-defined]
         if killable:
             desc_parts.extend(
-                confirmation_lane_summary(
+                confirmation_sase_agent_summary(
                     killable,
                     loaded_agents,
                     include_running_family_members=True,
@@ -61,7 +61,7 @@ class AgentKillAllActionsMixin:
             )
         if dismissable:
             desc_parts.extend(
-                confirmation_lane_summary(
+                confirmation_sase_agent_summary(
                     dismissable,
                     loaded_agents,
                 ).subject_lines("Dismiss")

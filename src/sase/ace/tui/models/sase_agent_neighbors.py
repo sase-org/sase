@@ -32,7 +32,7 @@ class LaneNeighborRow:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentLaneNeighborProjection:
+class SaseAgentNeighborProjection:
     """Ordered neighbor rows for one lane-owning agent."""
 
     lane_identity: AgentIdentity
@@ -45,7 +45,7 @@ class AgentLaneNeighborProjection:
         return not self.rows
 
 
-def build_agent_lane_neighbor_projection(
+def build_sase_agent_neighbor_projection(
     *,
     lane_identity: AgentIdentity,
     lane_name: str | None,
@@ -54,8 +54,8 @@ def build_agent_lane_neighbor_projection(
     dismissed_descendants: Sequence[Agent] = (),
     suppressed_identities: Collection[AgentIdentity] = (),
     hood_labels: Mapping[str, str] | None = None,
-) -> AgentLaneNeighborProjection:
-    """Build the shared ordered neighbor projection for one agent lane."""
+) -> SaseAgentNeighborProjection:
+    """Build the shared ordered neighbor projection for one sase agent."""
     rows: list[LaneNeighborRow] = []
 
     for target in index.ancestor_targets_for(lane_identity):
@@ -145,7 +145,7 @@ def build_agent_lane_neighbor_projection(
         else:
             retained.append(row)
 
-    return AgentLaneNeighborProjection(
+    return SaseAgentNeighborProjection(
         lane_identity=lane_identity,
         rows=tuple(retained),
         suppressed_lane_member_count=suppressed_count,
@@ -153,8 +153,8 @@ def build_agent_lane_neighbor_projection(
 
 
 __all__ = [
-    "AgentLaneNeighborProjection",
+    "SaseAgentNeighborProjection",
     "LaneNeighborRow",
     "NeighborRelation",
-    "build_agent_lane_neighbor_projection",
+    "build_sase_agent_neighbor_projection",
 ]

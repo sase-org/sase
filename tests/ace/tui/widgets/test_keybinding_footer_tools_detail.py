@@ -389,7 +389,7 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("H", "collapse clans") not in selected_clan_collapse
     assert ("H", "collapse clans") in group_clan_collapse
     assert ("H", "collapse clan") not in group_clan_collapse
-    assert ("H", "collapse lanes") in lane_collapse
+    assert ("H", "collapse sase agents") in lane_collapse
     assert ("H", "collapse clan") not in lane_collapse
     assert ("H", "collapse group") not in lane_collapse
     # Whole-panel focus ignores row-scoped availability flags and shows the
@@ -446,7 +446,7 @@ def test_footer_saturated_hidden_leaf_advertises_group_lane_collapse() -> None:
     app._fold_manager.expand(root.raw_suffix)
     assert app._fold_manager.get(root.raw_suffix) is FoldLevel.FULLY_EXPANDED
     left = app._resolve_agent_left_navigation_target()
-    collapse = app._resolve_agent_lane_collapse_target()
+    collapse = app._resolve_sase_agent_collapse_target()
     assert left is not None
     assert collapse is not None
 
@@ -459,4 +459,4 @@ def test_footer_saturated_hidden_leaf_advertises_group_lane_collapse() -> None:
     )
 
     assert ("h", "parent workflow") in bindings
-    assert ("H", "collapse lanes") in bindings
+    assert ("H", "collapse sase agents") in bindings

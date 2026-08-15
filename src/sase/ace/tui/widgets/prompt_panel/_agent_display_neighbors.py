@@ -10,8 +10,8 @@ from rich.text import Text
 from sase.agent.status_buckets import agent_status_bucket
 
 from ...models.agent_hoods import AgentIdentity
-from ...models.agent_lane_neighbors import (
-    AgentLaneNeighborProjection,
+from ...models.sase_agent_neighbors import (
+    SaseAgentNeighborProjection,
     LaneNeighborRow,
 )
 from ...models.fold_scale import (
@@ -90,7 +90,7 @@ def _neighbor_roster_entries(
 def append_lane_neighbors_section(
     text: Text,
     *,
-    projection: AgentLaneNeighborProjection,
+    projection: SaseAgentNeighborProjection,
     panel_level: FoldLevel,
     scale: FoldScale,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,

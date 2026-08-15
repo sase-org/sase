@@ -11,7 +11,7 @@ only, and only when it can uniquely resolve the monitor's loaded family root.
 from datetime import datetime, timedelta
 
 from sase.ace.tui.models._agent_clan import (
-    agent_lane_status_counts,
+    sase_agent_status_counts,
     agent_summary_status_counts,
 )
 from sase.ace.tui.models._agent_status_family import (
@@ -184,7 +184,7 @@ def test_nested_monitor_family_lane_counts_running_without_extra_agent() -> None
     _apply_status_overrides([root, coder, monitor])
 
     summary = agent_summary_status_counts((root,), ())
-    lane = agent_lane_status_counts((root,), ())
+    lane = sase_agent_status_counts((root,), ())
 
     # root + coder only -- the monitor never counts as its own LLM agent.
     assert summary.total == 2

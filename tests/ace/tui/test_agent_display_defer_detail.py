@@ -235,7 +235,7 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     app._resolve_agent_left_navigation_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         kind="family"
     )
-    app._resolve_agent_lane_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
+    app._resolve_sase_agent_collapse_target = lambda: SimpleNamespace(  # type: ignore[attr-defined]
         fold_keys=("lane",)
     )
 
@@ -266,7 +266,7 @@ def test_footer_refresh_uses_navigation_and_collapse_resolver_capabilities() -> 
     assert call["group_collapse_available"] is False
     assert clan_resolver_calls == 0
 
-    app._resolve_agent_lane_collapse_target = lambda: None  # type: ignore[attr-defined]
+    app._resolve_sase_agent_collapse_target = lambda: None  # type: ignore[attr-defined]
     app._apply_agent_footer_update(
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
@@ -298,7 +298,7 @@ def test_footer_refresh_uses_panel_fold_sweep_probe_during_whole_panel_focus() -
         panel_key=None,
         collapsed=False,
     )
-    app._resolve_agent_lane_collapse_target = lambda: (_ for _ in ()).throw(  # type: ignore[attr-defined]
+    app._resolve_sase_agent_collapse_target = lambda: (_ for _ in ()).throw(  # type: ignore[attr-defined]
         AssertionError("row resolver used during whole-panel focus")
     )
     app._resolve_agent_structural_collapse_target = lambda: (  # type: ignore[attr-defined]

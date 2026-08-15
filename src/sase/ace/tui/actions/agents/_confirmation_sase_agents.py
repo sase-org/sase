@@ -1,4 +1,4 @@
-"""Pure agent-lane projection for kill and dismissal confirmations."""
+"""Pure sase-agent projection for kill and dismissal confirmations."""
 
 from __future__ import annotations
 
@@ -12,32 +12,32 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class _AgentConfirmationEntry:
-    """One affected agent lane and any exact running family members."""
+    """One affected sase agent and any exact running family members."""
 
-    lane_name: str
+    sase_agent_name: str
     running_member_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class AgentConfirmationSummary:
-    """Counted lane roster for one cleanup-confirmation section."""
+    """Counted sase-agent roster for one cleanup-confirmation section."""
 
     entries: tuple[_AgentConfirmationEntry, ...]
     agent_count: int
 
     @property
-    def lane_count(self) -> int:
-        """Return the number of projected agent lanes."""
+    def sase_agent_count(self) -> int:
+        """Return the number of projected sase agents."""
         return len(self.entries)
 
     def subject_lines(self, label: str) -> list[str]:
-        """Format a counted section followed by its projected lane roster."""
+        """Format a counted section followed by its projected sase-agent roster."""
         if not self.entries:
             return []
 
-        lane_suffix = "" if self.lane_count == 1 else "s"
-        phrase = f"{self.lane_count} lane{lane_suffix}"
-        if self.agent_count != self.lane_count:
+        sase_agent_suffix = "" if self.sase_agent_count == 1 else "s"
+        phrase = f"{self.sase_agent_count} sase agent{sase_agent_suffix}"
+        if self.agent_count != self.sase_agent_count:
             agent_suffix = "" if self.agent_count == 1 else "s"
             phrase += f" · {self.agent_count} agent{agent_suffix}"
         return [
@@ -48,18 +48,18 @@ class AgentConfirmationSummary:
 
 @dataclass(slots=True)
 class _PendingEntry:
-    lane_name: str
+    sase_agent_name: str
     running_member_names: list[str]
 
 
-def confirmation_lane_summary(
+def confirmation_sase_agent_summary(
     targets: Sequence[Agent],
     loaded_agents: Sequence[Agent],
     *,
     include_running_family_members: bool = False,
 ) -> AgentConfirmationSummary:
-    """Return the lane projection and unique concrete-target count."""
-    entries = confirmation_lane_entries(
+    """Return the sase-agent projection and unique concrete-target count."""
+    entries = confirmation_sase_agent_entries(
         targets,
         loaded_agents,
         include_running_family_members=include_running_family_members,
@@ -81,17 +81,17 @@ def confirmation_lane_summary(
     )
 
 
-def confirmation_lane_entries(
+def confirmation_sase_agent_entries(
     targets: Sequence[Agent],
     loaded_agents: Sequence[Agent],
     *,
     include_running_family_members: bool = False,
 ) -> tuple[_AgentConfirmationEntry, ...]:
-    """Project concrete cleanup targets into ordered agent-lane entries.
+    """Project concrete cleanup targets into ordered sase-agent entries.
 
-    Workflow descendants resolve to their workflow lane. Sequential-family
+    Workflow descendants resolve to their workflow sase agent. Sequential-family
     descendants resolve to the family reference, including families nested
-    directly inside a clan. Clan containers are not lanes: a descendant stops
+    directly inside a clan. Clan containers are not sase agents: a descendant stops
     at the direct member immediately below its clan container.
 
     Missing parents and compatibility rows degrade to the best identity
@@ -104,16 +104,16 @@ def confirmation_lane_entries(
     entry_indexes: dict[Hashable, int] = {}
 
     for target in targets:
-        owner = _lane_owner(target, parent_lookup)
+        owner = _sase_agent_owner(target, parent_lookup)
         family_name = _sequential_family_name(owner) or _sequential_family_name(target)
-        lane_name = _lane_name(owner, target, family_name)
-        lane_key = _lane_key(owner, target, family_name, lane_name)
+        sase_agent_name = _sase_agent_name(owner, target, family_name)
+        sase_agent_key = _sase_agent_key(owner, target, family_name, sase_agent_name)
 
-        entry_index = entry_indexes.get(lane_key)
+        entry_index = entry_indexes.get(sase_agent_key)
         if entry_index is None:
             entry_index = len(entries)
-            entry_indexes[lane_key] = entry_index
-            entries.append(_PendingEntry(lane_name, []))
+            entry_indexes[sase_agent_key] = entry_index
+            entries.append(_PendingEntry(sase_agent_name, []))
 
         if not include_running_family_members:
             continue
@@ -121,17 +121,17 @@ def confirmation_lane_entries(
             continue
         if _sequential_family_name(target) is None:
             continue
-        member_name = _presented_concrete_name(target, lane_name)
+        member_name = _presented_concrete_name(target, sase_agent_name)
         if (
             member_name
-            and member_name != lane_name
+            and member_name != sase_agent_name
             and member_name not in entries[entry_index].running_member_names
         ):
             entries[entry_index].running_member_names.append(member_name)
 
     return tuple(
         _AgentConfirmationEntry(
-            lane_name=entry.lane_name,
+            sase_agent_name=entry.sase_agent_name,
             running_member_names=tuple(entry.running_member_names),
         )
         for entry in entries
@@ -141,10 +141,10 @@ def confirmation_lane_entries(
 def format_confirmation_entries(
     entries: Iterable[_AgentConfirmationEntry],
 ) -> list[str]:
-    """Format lane entries for the shared confirmation-dialog subject parser."""
+    """Format sase-agent entries for the shared confirmation-dialog subject parser."""
     lines: list[str] = []
     for entry in entries:
-        line = f"  {entry.lane_name}"
+        line = f"  {entry.sase_agent_name}"
         if entry.running_member_names:
             line += " " + ", ".join(
                 f"@{member_name}" for member_name in entry.running_member_names
@@ -202,8 +202,8 @@ def _parent_lookup(rows: Sequence[Agent]) -> dict[str, Agent]:
     return lookup
 
 
-def _lane_owner(target: Agent, parent_lookup: dict[str, Agent]) -> Agent:
-    """Return the workflow/family/standalone row that owns *target*'s lane."""
+def _sase_agent_owner(target: Agent, parent_lookup: dict[str, Agent]) -> Agent:
+    """Return the workflow/family/standalone row that owns *target*'s sase agent."""
     current = target
     seen: set[int] = set()
     while id(current) not in seen:
@@ -242,7 +242,7 @@ def _sequential_family_name(agent: Agent) -> str | None:
 
     # Family-name inference is intentionally gated by structural metadata.
     # Arbitrary workflow step names may resemble legacy family suffixes (for
-    # example ``step.2``) but remain part of their owning workflow lane.
+    # example ``step.2``) but remain part of their owning workflow sase agent.
     is_family_root = bool(
         getattr(agent, "plan_chain_root", False)
         or getattr(agent, "agent_family_role", None) == "root"
@@ -265,7 +265,7 @@ def _sequential_family_name(agent: Agent) -> str | None:
         return None
 
 
-def _lane_name(
+def _sase_agent_name(
     owner: Agent,
     target: Agent,
     family_name: str | None,
@@ -300,11 +300,11 @@ def _lane_name(
     return "unnamed agent"
 
 
-def _lane_key(
+def _sase_agent_key(
     owner: Agent,
     target: Agent,
     family_name: str | None,
-    lane_name: str,
+    sase_agent_name: str,
 ) -> Hashable:
     if family_name:
         return (
@@ -321,17 +321,17 @@ def _lane_key(
             continue
         if identity is not None:
             return ("agent", identity)
-    return ("fallback", lane_name, id(owner))
+    return ("fallback", sase_agent_name, id(owner))
 
 
-def _presented_concrete_name(agent: Agent, lane_name: str) -> str | None:
+def _presented_concrete_name(agent: Agent, sase_agent_name: str) -> str | None:
     presented_identity = getattr(agent, "presented_identity_name", None)
     if presented_identity:
         return str(presented_identity)
 
     presented_name = getattr(agent, "presented_agent_name", None)
     raw_name = getattr(agent, "agent_name", None)
-    if presented_name and (presented_name != lane_name or not raw_name):
+    if presented_name and (presented_name != sase_agent_name or not raw_name):
         return str(presented_name)
     if raw_name:
         return str(raw_name)
@@ -340,7 +340,7 @@ def _presented_concrete_name(agent: Agent, lane_name: str) -> str | None:
 
 __all__ = [
     "AgentConfirmationSummary",
-    "confirmation_lane_entries",
-    "confirmation_lane_summary",
+    "confirmation_sase_agent_entries",
+    "confirmation_sase_agent_summary",
     "format_confirmation_entries",
 ]

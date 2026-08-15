@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 type AgentIdentity = tuple["AgentType", str, str | None]
 
 
-def agent_lane_name(agent: Agent) -> str | None:
+def sase_agent_name(agent: Agent) -> str | None:
     """Return the lane name a row presents on the Agents tab.
 
     A family root entry renders under its bare family base while its raw name
@@ -33,7 +33,7 @@ def agent_lane_name(agent: Agent) -> str | None:
 
 def agent_name_key(agent: Agent) -> str | None:
     """Return a case-folded valid dotted agent name key."""
-    name = agent_lane_name(agent)
+    name = sase_agent_name(agent)
     if not name:
         return None
     parts = name.split(".")
@@ -42,8 +42,8 @@ def agent_name_key(agent: Agent) -> str | None:
     return name.casefold()
 
 
-def agent_owns_lane(agent: Agent) -> bool:
-    """Return whether ``agent`` owns an agent-lane metadata document."""
+def agent_owns_sase_agent(agent: Agent) -> bool:
+    """Return whether ``agent`` owns a sase-agent metadata document."""
     if agent.is_clan_container:
         return False
     if agent.is_workflow_child or agent.is_hidden_step:
@@ -54,7 +54,7 @@ def agent_owns_lane(agent: Agent) -> bool:
 
 
 def _suppressed_family_root_member_key(agent: Agent) -> str | None:
-    """Return the concrete member name hidden behind a family lane root."""
+    """Return the concrete member name hidden behind a family root."""
     if not agent.is_family_root_entry:
         return None
     lane_key = agent_name_key(agent)

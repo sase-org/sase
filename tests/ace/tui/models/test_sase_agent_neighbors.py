@@ -1,4 +1,4 @@
-"""Tests for the shared agent-lane neighbor projection."""
+"""Tests for the shared sase-agent neighbor projection."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_hoods import (
     AgentNeighborIndex,
     AgentNeighborRow,
-    agent_owns_lane,
+    agent_owns_sase_agent,
 )
-from sase.ace.tui.models.agent_lane_neighbors import (
-    build_agent_lane_neighbor_projection,
+from sase.ace.tui.models.sase_agent_neighbors import (
+    build_sase_agent_neighbor_projection,
 )
 
 
@@ -74,7 +74,7 @@ def test_projection_orders_ancestors_descendants_and_hood_groups() -> None:
         parent,
     )
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name=source.presented_identity_name,
         index=index,
@@ -118,7 +118,7 @@ def test_projection_interleaves_dismissed_descendants_by_name() -> None:
     charlie = _agent("foo.charlie")
     bravo = _agent("foo.bravo", suffix="dismissed-bravo")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="foo",
         index=_index(charlie, source, alpha),
@@ -140,7 +140,7 @@ def test_projection_suppresses_family_members_and_counts_them() -> None:
     member = _agent("myclan.worker--impl")
     helper = _agent("myclan.worker--impl.helper")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="myclan.worker",
         index=_index(source, member, helper),
@@ -159,7 +159,7 @@ def test_projection_never_lists_the_lane_as_its_own_neighbor() -> None:
     duplicate = _agent("myclan.worker--plan", raw_suffix=None)
     peer = _agent("myclan.helper")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="myclan.worker--plan",
         index=_index(source, duplicate, peer),
@@ -178,7 +178,7 @@ def test_projection_drops_the_duplicate_root_member_row_of_a_family_lane() -> No
     duplicate = _agent("myclan.worker--plan", raw_suffix=None)
     peer = _agent("myclan.helper")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="myclan.worker",
         lane_row_names=("myclan.worker--plan",),
@@ -196,7 +196,7 @@ def test_projection_without_lane_row_names_leaks_the_duplicate_root_member() -> 
     duplicate = _agent("myclan.worker--plan", raw_suffix=None)
     peer = _agent("myclan.helper")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="myclan.worker",
         index=_index(source, duplicate, peer),
@@ -211,7 +211,7 @@ def test_top_level_family_lane_projects_its_dotted_hood_mates() -> None:
     helper = _agent("fam.helper")
     other = _agent("fam.other")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=root.identity,
         lane_name="fam",
         lane_row_names=("fam--plan",),
@@ -243,7 +243,7 @@ def test_projection_preserves_prospective_neighbor_flag() -> None:
         ]
     )
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="foo.plan",
         index=index,
@@ -256,7 +256,7 @@ def test_projection_preserves_prospective_neighbor_flag() -> None:
 def test_projection_is_empty_when_lane_has_no_relations() -> None:
     source = _agent("solo")
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=source.identity,
         lane_name="solo",
         index=_index(source),
@@ -267,7 +267,7 @@ def test_projection_is_empty_when_lane_has_no_relations() -> None:
     assert projection.is_empty is True
 
 
-def test_agent_owns_lane_truth_table() -> None:
+def test_agent_owns_sase_agent_truth_table() -> None:
     plain = _agent("plain")
     unnamed = _agent(None)
     clan = _agent("clan")
@@ -281,10 +281,10 @@ def test_agent_owns_lane_truth_table() -> None:
     family.followup_agents = [family_member]
 
     assert family.is_family_container_row is True
-    assert agent_owns_lane(family) is True
-    assert agent_owns_lane(plain) is True
-    assert agent_owns_lane(clan) is False
-    assert agent_owns_lane(family_member) is False
-    assert agent_owns_lane(workflow_child) is False
-    assert agent_owns_lane(hidden) is False
-    assert agent_owns_lane(unnamed) is False
+    assert agent_owns_sase_agent(family) is True
+    assert agent_owns_sase_agent(plain) is True
+    assert agent_owns_sase_agent(clan) is False
+    assert agent_owns_sase_agent(family_member) is False
+    assert agent_owns_sase_agent(workflow_child) is False
+    assert agent_owns_sase_agent(hidden) is False
+    assert agent_owns_sase_agent(unnamed) is False

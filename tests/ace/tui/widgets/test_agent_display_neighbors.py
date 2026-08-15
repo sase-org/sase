@@ -11,12 +11,12 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_hoods import (
     AgentNeighborIndex,
     AgentNeighborRow,
-    agent_lane_name,
+    sase_agent_name,
 )
-from sase.ace.tui.models.agent_lane_neighbors import (
-    AgentLaneNeighborProjection,
+from sase.ace.tui.models.sase_agent_neighbors import (
+    SaseAgentNeighborProjection,
     LaneNeighborRow,
-    build_agent_lane_neighbor_projection,
+    build_sase_agent_neighbor_projection,
 )
 from sase.ace.tui.models.fold_scale import AGENT_FOLD_SCALE, FAMILY_FOLD_SCALE
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -76,8 +76,8 @@ def _projection(
     rows: tuple[LaneNeighborRow, ...],
     *,
     suppressed: int = 0,
-) -> AgentLaneNeighborProjection:
-    return AgentLaneNeighborProjection(
+) -> SaseAgentNeighborProjection:
+    return SaseAgentNeighborProjection(
         lane_identity=lane.identity,
         rows=rows,
         suppressed_lane_member_count=suppressed,
@@ -294,9 +294,9 @@ def test_neighbors_section_renders_for_a_top_level_family_lane() -> None:
         ]
     )
 
-    projection = build_agent_lane_neighbor_projection(
+    projection = build_sase_agent_neighbor_projection(
         lane_identity=root.identity,
-        lane_name=agent_lane_name(root),
+        lane_name=sase_agent_name(root),
         lane_row_names=(root.presented_identity_name or "",),
         index=index,
         suppressed_identities={member.identity},

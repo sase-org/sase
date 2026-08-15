@@ -11,7 +11,7 @@ from ...models.agent_family_members import (
     concrete_family_member_rows,
     family_roster_container,
 )
-from ...models.agent_hoods import agent_owns_lane
+from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.agent_tribe_summary import AgentPanelFocus
 from ._agent_reveal import (
     AgentRevealFailure,
@@ -68,7 +68,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         agent = get_selected()
         if agent is None or not (
             agent.is_clan_container
-            or agent_owns_lane(agent)
+            or agent_owns_sase_agent(agent)
             or family_roster_container(agent) is not None
         ):
             return None

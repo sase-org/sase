@@ -162,7 +162,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Fully collapse lanes in scope",
+                    "Fully collapse sase agents in scope",
                 ),
                 (
                     d(a.hooks_or_collapse_all),
@@ -189,7 +189,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                         )
                         for position in range(1, 3)
                     ),
-                    "Set family lane level 1-2",
+                    "Set family level 1-2",
                 ),
                 (
                     " / ".join(
@@ -199,7 +199,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                         )
                         for position in range(1, 4)
                     ),
-                    "Set clan/agent lane level 1-3",
+                    "Set clan/sase agent level 1-3",
                 ),
                 (
                     " / ".join(

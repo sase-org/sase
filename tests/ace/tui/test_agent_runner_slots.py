@@ -6,7 +6,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from sase.ace.tui.agent_count_chip import format_agent_count_chip
-from sase.ace.tui.models._agent_clan import agent_lane_status_counts
+from sase.ace.tui.models._agent_clan import sase_agent_status_counts
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import (
@@ -494,7 +494,7 @@ def test_queued_rows_match_chip_header_summary_and_capacity_counts() -> None:
 
     capacity = refresh_runner_slot_context(agents, effective_limit=10)
     displayed_queued = sum(agent.status == "QUEUED" for agent in agents)
-    counts = agent_lane_status_counts(agents, ())
+    counts = sase_agent_status_counts(agents, ())
     chip = format_agent_count_chip(
         queued=counts.queued,
         waiting=counts.waiting,

@@ -868,26 +868,26 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 > [Grouping Modes](#grouping-modes) below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
-families. Relations are keyed on the name a row presents as its **lane** name, so a
-family lane participates under its bare family name rather than its root member's `--`
-name. It includes visible ancestors and descendants plus neighbors from every dotted
-hood that contains the selected lane name — including the hood that matches that name
-exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and cousins
-elsewhere under `foo`, grouped deepest hood first, and a family lane `fam` offers
-`fam.helper` as a descendant while `fam.helper` offers the family lane back as its
-ancestor. Dotless names can still have descendants such as `foo.child`. If there is
-exactly one related visible row and no dismissed descendant to offer, ACE jumps
-directly. Otherwise it opens a chooser that can also revive same-session dismissed
-descendants. A chosen target is resolved by stable identity and revealed through any
-clan, family, workflow, or grouping folds before focus moves.
+families. Relations are keyed on the name a row presents as its **sase agent** name, so
+a family participates under its bare family name rather than its root member's `--`
+name. ACE includes visible ancestors and descendants plus neighbors from every dotted
+hood that contains the selected sase-agent name — including the hood that matches that
+name exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and cousins
+elsewhere under `foo`, grouped deepest hood first, and a family `fam` offers
+`fam.helper` as a descendant while `fam.helper` offers `fam` back as its ancestor.
+Dotless names can still have descendants such as `foo.child`. If there is exactly one
+related visible row and no dismissed descendant to offer, ACE jumps directly. Otherwise
+it opens a chooser that can also revive same-session dismissed descendants. A chosen
+target is resolved by stable identity and revealed through any clan, family, workflow,
+or grouping folds before focus moves.
 
-When a clan or an agent lane is selected, its metadata panel assigns a fixed number to
-each numbered row, up to 100 targets. A lane is a multi-member family container or a
-single agent that owns its own lane; lane panels number their `FAMILY MEMBERS` roster
-(when present) and then their `NEIGHBORS` section from one continuous ladder. A selected
-family **member** row numbers its enclosing family's `FAMILY MEMBERS` roster the same
-way, listing every sibling except itself from the same ladder; a member row owns no
-lane, so it has no `NEIGHBORS` rows to follow the roster. Documents with at most ten
+When a clan or a sase agent is selected, its metadata panel assigns a fixed number to
+each numbered row, up to 100 targets. A sase agent is a multi-member family container or
+a single agent; sase-agent panels number their `FAMILY MEMBERS` roster (when present)
+and then their `NEIGHBORS` section from one continuous ladder. A selected family
+**member** row numbers its enclosing family's `FAMILY MEMBERS` roster the same way,
+listing every sibling except itself from the same ladder; a member row owns no sase
+agent, so it has no `NEIGHBORS` rows to follow the roster. Documents with at most ten
 numbered rows use `0`–`9`; larger documents number the first 100 rows with two-key
 values `00`–`99` and show any remaining entries as an unnumbered count. After the first
 digit of a two-key jump, press `Esc` to cancel or any non-digit key to cancel and
@@ -1041,13 +1041,13 @@ The default fold chords are:
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs
 on foldable headings show their effective per-section levels. Only family panels print
-that header line; a single-agent lane relies on the `NEIGHBORS` and `SLOW TOOL CALLS`
+that header line; a single sase agent relies on the `NEIGHBORS` and `SLOW TOOL CALLS`
 heading glyphs instead. On a family conversation heading, `za` and `zA` refresh normally
 but do not create or change a section override. A valid panel-level cycle, extreme
 toggle, or direct selection clears real per-section overrides. Fold state is shared by
 the Agents metadata panel: an ordinary agent's own three-level scale shapes its
 `NEIGHBORS` and `SLOW TOOL CALLS` sections, so `z*` chords have a visible effect on a
-regular-agent lane, and the same session scope carries over to the next selected clan or
+regular sase agent, and the same session scope carries over to the next selected clan or
 family container. Most other sections on a regular-agent panel stay fold-inert, except
 the `SASE CONTEXT / BEAD` lane's multi-line values: at scale position 1 (`z1`,
 Collapsed), a task or phase worker's `Notes`, and a task worker's `+1 Evidence`,
@@ -1154,40 +1154,39 @@ repeated paths, skips live marked rows that are still running or have no chat fi
 reports that live skip count. Stale marks are ignored for this action, and marks remain
 in place after the editor exits.
 
-### Lane Neighbors Section
+### Sase Agent Neighbors Section
 
-Every agent lane panel carries a numbered `NEIGHBORS` roster in its metadata region. A
-lane is a multi-member family container row or a single agent that owns its own lane, so
-the section appears on family container panels below their `FAMILY MEMBERS` roster and
-on ordinary agent panels. Clan containers, tribe panel summaries, family member child
-rows, and workflow aggregate rows have no `NEIGHBORS` section. A selected family member
-row owns no lane, so its panel carries only the `FAMILY MEMBERS` roster (siblings, minus
-itself) and never a `NEIGHBORS` section.
+Every sase agent panel carries a numbered `NEIGHBORS` roster in its metadata region. The
+section appears on family container panels below their `FAMILY MEMBERS` roster and on
+ordinary agent panels. Clan containers, tribe panel summaries, family member child rows,
+and workflow aggregate rows have no `NEIGHBORS` section. A selected family member row
+owns no sase agent, so its panel carries only the `FAMILY MEMBERS` roster (siblings,
+minus itself) and never a `NEIGHBORS` section.
 
-The rows are exactly the rows the `~` chooser offers for that lane — ancestors,
+The rows are exactly the rows the `~` chooser offers for that sase agent — ancestors,
 descendants including same-session dismissed descendants, then hood neighbors grouped by
 hood, nearest hood first — under dim `ancestors`, `descendants`, and `<hood> hood` group
-labels. A lane joins the hood that matches its own name, and a family lane uses its bare
-family name for that match, so a family lane `visual.worker` and a single agent
+labels. A sase agent joins the hood that matches its own name, and a family uses its
+bare family name for that match, so a family `visual.worker` and a single agent
 `visual.worker.notes` relate as ancestor and descendant exactly as two single agents
 with those names would. Row labels are shortened relative to their group, so a `myclan`
 hood neighbor reads `.code` and a descendant reads `--impl.helper`. A `⊘` glyph and a
 `dismissed` annotation mark dismissed rows, and `folded` marks a prospective row that
 currently lives inside a collapsed clan. The section sits directly below
-`WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`, so a lane's numbered
+`WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`, so a sase agent's numbered
 neighbors stay reachable without scrolling past the context, slow-call, and error
 sections.
 
-The row count follows the lane's fold scale by position, not by level name: the first
-position shows 3 rows, the last position shows all of them, and any middle position
-shows 10. A family lane therefore shows 3 rows at level 1 and every row at level 2,
-while a single-agent lane shows 3 / 10 / all across its three levels. The heading count
-is always the lane's total neighbor count, and a dim
+The row count follows the sase agent's fold scale by position, not by level name: the
+first position shows 3 rows, the last position shows all of them, and any middle
+position shows 10. A family therefore shows 3 rows at level 1 and every row at level 2,
+while a single sase agent shows 3 / 10 / all across its three levels. The heading count
+is always the sase agent's total neighbor count, and a dim
 `… +N more neighbors (zz / za to show more)` tail reports what is hidden. Only visible
-rows get digits. On a family lane, siblings that already appear under `FAMILY MEMBERS`
-are not repeated; they are reported by a dim `… +N also listed under FAMILY MEMBERS`
-tail instead. That suppression applies only to this section — the `~` chooser and the
-info panel's `neighbors:` badge still count them.
+rows get digits. On a family, siblings that already appear under `FAMILY MEMBERS` are
+not repeated; they are reported by a dim `… +N also listed under FAMILY MEMBERS` tail
+instead. That suppression applies only to this section — the `~` chooser and the info
+panel's `neighbors:` badge still count them.
 
 ### Opened Repository Context
 
@@ -1384,27 +1383,27 @@ effective agent **tribe**. Agents without a stored tribe live in the reserved `@
 panel; an explicit `default` assignment converges on the same panel, so the UI never
 creates a duplicate default bucket. `@default` is derived for presentation and is not
 backfilled into `agent_meta.json` or `agent_tribes.json`; clearing a user-managed tribe
-returns the agent to this panel. Every tribe renders as `@<tribe>` with an agent-lane
-count in the panel title. One standalone agent or one sequential family is one lane, and
-a rootless clan contributes one lane per direct member rather than one for its synthetic
-container. Per-tribe icons, identity colors, and initial expansion are configurable
-through [`ace.tribes`](configuration.md#acetribes); the special `default` entry styles
-the reserved panel. A manual panel fold lasts for that panel's current lifetime, and the
-configured initial state is applied again when the panel appears after a restart or
-after the tribe disappears and returns. Across structured ACE TUI surfaces, identity
-colors apply only to an existing configured icon and the `@tribe` name; they do not
-recolor free-form `@...` text or selection, fold, count, heading, and status chrome.
+returns the agent to this panel. Every tribe renders as `@<tribe>` with a sase-agent
+count in the panel title. One standalone agent or one sequential family is one sase
+agent, and a rootless clan contributes one sase agent per direct member rather than one
+for its synthetic container. Per-tribe icons, identity colors, and initial expansion are
+configurable through [`ace.tribes`](configuration.md#acetribes); the special `default`
+entry styles the reserved panel. A manual panel fold lasts for that panel's current
+lifetime, and the configured initial state is applied again when the panel appears after
+a restart or after the tribe disappears and returns. Across structured ACE TUI surfaces,
+identity colors apply only to an existing configured icon and the `@tribe` name; they do
+not recolor free-form `@...` text or selection, fold, count, heading, and status chrome.
 Configured icons remain limited to surfaces that already show an icon. Each panel title
 can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped
 for human input, `R` is running, `W` is waiting to start, `F` is failed, `U` is unread
 terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. The
-status metrics use the same lanes as the adjacent total and classify a sequential family
-once from its normalized owner status. The selected whole-panel `TRIBE` header uses that
-same lane projection, while its nested count and per-family/per-clan member summaries
-preserve the concrete-member distinction. On the selected whole panel, the title marker,
-total, brackets, and metric letters use the focus accent; each numeric metric count
-retains its semantic status color. Panel heights are sized to their content and
-separated by a one-row gap. When the panels fit, the first panel grows to absorb
+status metrics use the same sase-agent projection as the adjacent total and classify a
+sequential family once from its normalized owner status. The selected whole-panel
+`TRIBE` header uses that same projection, while its nested count and per-family/per-clan
+member summaries preserve the concrete-member distinction. On the selected whole panel,
+the title marker, total, brackets, and metric letters use the focus accent; each numeric
+metric count retains its semantic status color. Panel heights are sized to their content
+and separated by a one-row gap. When the panels fit, the first panel grows to absorb
 leftover vertical space while later panels stay pinned to their natural height; when the
 panels overflow, space is weighted by each panel's rendered row count.
 
@@ -1611,19 +1610,19 @@ waiters without merging the two categories.
 
 The uppercase `H` ladder is group-scoped, with the selected clan receiving precedence
 inside that scope. If the grouping banner that `H` would collapse next contains any open
-standalone workflow, agent, or sequential-family lane, the first press drives every such
-lane directly to fully collapsed while leaving the banner open. A selected child row
-re-anchors to its visible lane owner. Once lanes are saturated, a selection inside an
-open canonical clan makes the next press collapse only that clan. A selected descendant
-re-anchors to its visible clan container; selecting the container itself preserves
-selection without writing new selection memory. With the collapsed container still
-selected, the following press drives every remaining open canonical clan in the group
-directly to collapsed. A grouping banner, standalone lane, already-collapsed clan, or
-invalid clan owner falls through to that group-wide sweep immediately. The footer
-advertises `H collapse lanes`, then `H collapse clan`, then `H collapse clans`, and only
-then `H collapse group`. Equal group names in other tribe panels are never affected;
-merged layout intentionally treats the merged panel as one scope. Ambiguous or malformed
-clan owners are skipped without blocking valid siblings.
+standalone workflow, agent, or sequential-family sase agent, the first press drives
+every such lane directly to fully collapsed while leaving the banner open. A selected
+child row re-anchors to its visible lane owner. Once lanes are saturated, a selection
+inside an open canonical clan makes the next press collapse only that clan. A selected
+descendant re-anchors to its visible clan container; selecting the container itself
+preserves selection without writing new selection memory. With the collapsed container
+still selected, the following press drives every remaining open canonical clan in the
+group directly to collapsed. A grouping banner, standalone lane, already-collapsed clan,
+or invalid clan owner falls through to that group-wide sweep immediately. The footer
+advertises `H collapse sase agents`, then `H collapse clan`, then `H collapse clans`,
+and only then `H collapse group`. Equal group names in other tribe panels are never
+affected; merged layout intentionally treats the merged panel as one scope. Ambiguous or
+malformed clan owners are skipped without blocking valid siblings.
 
 Whole-panel focus gives `H` a hinted collapse instead of the group-scoped ladder,
 because it has no selected row or grouping scope to walk. It enumerates every currently
@@ -1684,8 +1683,8 @@ regardless of their own start time, and agents with no usable timestamp fall int
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the
 same singleton-suppression rule as `STANDARD`. Status priority fixes the bucket order:
 Stopped, Failed, Running, Queued, Waiting, Done, Starting. Within each bucket,
-standalone lanes render before every visible name-root subgroup; `start_time` sorts
-lanes newest-first inside the standalone partition and subgroup units newest-first
+standalone sase agents render before every visible name-root subgroup; `start_time`
+sorts lanes newest-first inside the standalone partition and subgroup units newest-first
 inside the subgroup partition. The same partitioning rule applies under a name-root,
 where directly contained lanes precede visible dotted-prefix subgroups. Units with no
 launch timestamp sort after timestamped units within their partition, with structural
@@ -1704,13 +1703,13 @@ collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in
 
 The active grouping strategy is also surfaced in the Agents tab header via a
 `[group: <label> (o)]` badge so the current session mode is always visible after the
-cycle toast fades. After the first scan, the header starts with the visible agent-lane
-total `N`. One standalone agent or one sequential family is one lane, regardless of
-whether the family is folded. A rootless clan container contributes no lane itself; each
-direct clan member contributes one, and a direct member that is a sequential family
-still contributes only one. A hidden top-level `STARTING` agent contributes one lane
-even though it is not selectable yet. Grouping mode, tribe ownership, and fold state do
-not change this projection.
+cycle toast fades. After the first scan, the header starts with the visible sase-agent
+total `N`. One standalone agent or one sequential family is one sase agent, regardless
+of whether the family is folded. A rootless clan container contributes no sase agent
+itself; each direct clan member contributes one, and a direct member that is a
+sequential family still contributes only one. A hidden top-level `STARTING` agent
+contributes one sase agent even though it is not selectable yet. Grouping mode, tribe
+ownership, and fold state do not change this projection.
 
 The lane total is followed by an always-visible capacity chip in the form
 `[R/L · Q queued]`: `R` is the global number of slot-participating user agents currently
@@ -3504,18 +3503,18 @@ pinned attempt view resets the cursor.
   absolute-time wait, the detail view shows a tagged `Wait:` block with one lane per
   active dimension: `[agents]`, `[beads]`, `[time]`, then `[runners]`. Present tags
   occupy a padded gutter, so every value begins in one aligned column and long
-  dependency lists wrap with a hanging indent beneath that value column. The agent lane
-  lists the dependency names recorded on the waiting agent, adds per-name status badges
-  for currently known agents, clan containers, or family containers, and marks unknown
-  names with `?` so typos and stale references are obvious. A WAITING list row also
-  shows one amber `?` when any named dependency is absent from the current agent status
-  snapshot; bead-only, timed-only, and runner-only waits do not receive that marker.
-  Timed waits add compact duration, target time, and countdown text when available. An
-  explicit runner threshold on a `QUEUED` row shows the live running count, threshold,
-  and its `queue #N of M` capacity-aware display rank; `runners=0` is labeled as a drain
-  barrier. A `QUEUED` detail uses a separate `Queue:` line led by its rank and elapsed
-  time since `slot_requested_at`, followed by cap context. It deliberately suppresses
-  the marker's stale dependency, bead, and time-wait fields.
+  dependency lists wrap with a hanging indent beneath that value column. The `[agents]`
+  lane lists the dependency names recorded on the waiting agent, adds per-name status
+  badges for currently known agents, clan containers, or family containers, and marks
+  unknown names with `?` so typos and stale references are obvious. A WAITING list row
+  also shows one amber `?` when any named dependency is absent from the current agent
+  status snapshot; bead-only, timed-only, and runner-only waits do not receive that
+  marker. Timed waits add compact duration, target time, and countdown text when
+  available. An explicit runner threshold on a `QUEUED` row shows the live running
+  count, threshold, and its `queue #N of M` capacity-aware display rank; `runners=0` is
+  labeled as a drain barrier. A `QUEUED` detail uses a separate `Queue:` line led by its
+  rank and elapsed time since `slot_requested_at`, followed by cap context. It
+  deliberately suppresses the marker's stale dependency, bead, and time-wait fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;

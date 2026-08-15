@@ -94,15 +94,15 @@ class AgentKillActionFlowMixin:
             )
             return
 
-        from ._confirmation_lanes import (
-            confirmation_lane_entries,
+        from ._confirmation_sase_agents import (
+            confirmation_sase_agent_entries,
             format_confirmation_entries,
         )
 
-        desc_parts = ["Agent lane:"]
+        desc_parts = ["Sase agent:"]
         desc_parts.extend(
             format_confirmation_entries(
-                confirmation_lane_entries(
+                confirmation_sase_agent_entries(
                     [agent],
                     self._agents_with_children,
                     include_running_family_members=True,

@@ -112,12 +112,12 @@ def _catalog(
         _entry(
             0,
             "Agent Hood",
-            definition="An Agent Hood points at Agent Lane before Agent Clan.",
+            definition="An Agent Hood points at Sase Agent before Agent Clan.",
             config_path=config_path,
         ),
         _entry(
             1,
-            "Agent Lane",
+            "Sase Agent",
             definition="A lane is a sequential agent home.",
             config_path=config_path,
         ),

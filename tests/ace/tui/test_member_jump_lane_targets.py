@@ -10,7 +10,7 @@ from ._member_jump_navigation_helpers import (
 )
 
 
-def test_single_agent_lane_digit_jumps_to_numbered_neighbor() -> None:
+def test_single_sase_agent_digit_jumps_to_numbered_neighbor() -> None:
     container = make_agent("foo.plan")
     neighbor = make_agent("foo.code")
     app = JumpHarness([container, neighbor], container)

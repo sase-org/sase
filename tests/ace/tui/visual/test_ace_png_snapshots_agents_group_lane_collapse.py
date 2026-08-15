@@ -66,7 +66,7 @@ async def test_group_lane_collapse_precedes_status_banner_png_snapshot(
 
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
-        assert ("H", "collapse lanes") in footer._last_layout_inputs[0]
+        assert ("H", "collapse sase agents") in footer._last_layout_inputs[0]
 
         await page.press("H")
         await page.expect_state("agent_count", 3)

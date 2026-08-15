@@ -16,7 +16,7 @@ from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
 from ...models.agent_family_members import family_roster_container
-from ...models.agent_hoods import agent_owns_lane
+from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.fold_scale import (
     FAMILY_FOLD_SCALE,
     effective_fold_level,
@@ -68,7 +68,7 @@ from ._helpers import (
 
 if TYPE_CHECKING:
     from ...models._agent_clan_sections import ClanSectionSnapshot
-    from ...models.agent_lane_neighbors import AgentLaneNeighborProjection
+    from ...models.sase_agent_neighbors import SaseAgentNeighborProjection
     from ...models.agent_runner_slots import RunnerCapacitySnapshot
     from ._member_roster import MemberJumpMap
 
@@ -90,7 +90,7 @@ def build_header_text(
     clan_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     lane_fold_level: FoldLevel | None = None,
     lane_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
-    lane_neighbors: AgentLaneNeighborProjection | None = None,
+    lane_neighbors: SaseAgentNeighborProjection | None = None,
     runner_capacity: RunnerCapacitySnapshot | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
@@ -126,7 +126,7 @@ def build_header_text(
     )
     family_fold_enabled = agent.is_family_container_row and lane_fold_level is not None
     roster_container = family_roster_container(agent)
-    lane_neighbors = lane_neighbors if agent_owns_lane(agent) else None
+    lane_neighbors = lane_neighbors if agent_owns_sase_agent(agent) else None
     neighbors_level = effective_fold_level(
         lane_overrides.get(NEIGHBORS_SECTION_ID, resolved_lane_fold_level),
         lane_scale,

@@ -249,8 +249,8 @@ class EntryRelaunchMixin:
             return
 
         # Build description for confirmation dialog.
-        from ..agents._confirmation_lanes import (
-            confirmation_lane_entries,
+        from ..agents._confirmation_sase_agents import (
+            confirmation_sase_agent_entries,
             format_confirmation_entries,
         )
 
@@ -259,10 +259,10 @@ class EntryRelaunchMixin:
             or getattr(self, "_agents", None)
             or (agent,)
         )
-        desc_parts = ["Agent lane:"]
+        desc_parts = ["Sase agent:"]
         desc_parts.extend(
             format_confirmation_entries(
-                confirmation_lane_entries(
+                confirmation_sase_agent_entries(
                     [agent],
                     loaded_agents,
                     include_running_family_members=True,

@@ -15,19 +15,21 @@ def test_styled_subject_text_colors_agent_list_semantics() -> None:
     modal = ConfirmDialog(
         "Dismiss Completed Agents",
         "Dismiss these completed agents?",
-        subject=("Dismiss: 2 lanes\n  sase @research.0s.cld\n  sase @research.0s.cdx"),
+        subject=(
+            "Dismiss: 2 sase agents\n  sase @research.0s.cld\n  sase @research.0s.cdx"
+        ),
         kind=ConfirmKind.DANGER,
     )
 
     text = modal._styled_subject_text()
 
     assert text.plain == (
-        "Dismiss: 2 lanes\n› sase @research.0s.cld\n› sase @research.0s.cdx"
+        "Dismiss: 2 sase agents\n› sase @research.0s.cld\n› sase @research.0s.cdx"
     )
     segments = _styled_segments(text)
     assert ("Dismiss:", "bold yellow") in segments
     assert ("2", "bold red") in segments
-    assert (" lanes", "dim white") in segments
+    assert (" sase agents", "dim white") in segments
     assert ("› ", "red") in segments
     assert ("sase", "bold green") in segments
     assert ("@", "dim white") in segments

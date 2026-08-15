@@ -1,4 +1,4 @@
-"""Tests for family-lane behavior in the agent neighbor index."""
+"""Tests for family-sase-agent behavior in the agent neighbor index."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from sase.ace.tui.models.agent_hoods import (
     AgentNeighborIndex,
     AgentNeighborRow,
     agent_hood,
-    agent_lane_name,
+    sase_agent_name,
     agent_name_key,
-    agent_owns_lane,
+    agent_owns_sase_agent,
 )
 from sase.core.agent_identity_facade import agent_name_in_hood
 
@@ -23,19 +23,19 @@ def test_lane_name_is_the_family_base_for_a_family_root_entry() -> None:
     clan.is_clan_container = True
 
     assert root.presented_identity_name == "fam--plan"
-    assert agent_lane_name(root) == "fam"
+    assert sase_agent_name(root) == "fam"
     assert agent_name_key(root) == "fam"
     # Members are not lanes; they keep their raw ``--`` key.
-    assert agent_lane_name(member) == "fam--code"
+    assert sase_agent_name(member) == "fam--code"
     assert agent_name_key(member) == "fam--code"
-    assert agent_lane_name(single) == "fam.helper"
+    assert sase_agent_name(single) == "fam.helper"
     assert agent_name_key(single) == "fam.helper"
-    assert agent_lane_name(clan) is None
+    assert sase_agent_name(clan) is None
     assert agent_name_key(clan) is None
 
 
 def test_lane_name_key_still_rejects_malformed_and_empty_names() -> None:
-    assert agent_lane_name(_agent(None)) is None
+    assert sase_agent_name(_agent(None)) is None
     assert agent_name_key(_agent(None)) is None
     assert agent_name_key(_agent("")) is None
     assert agent_name_key(_agent(".bar")) is None
@@ -46,7 +46,7 @@ def test_lane_name_key_still_rejects_malformed_and_empty_names() -> None:
     empty_family.agent_family = None
     empty_family.agent_name = None
     empty_family.refresh_raw_presented_agent_name()
-    assert agent_lane_name(empty_family) is None
+    assert sase_agent_name(empty_family) is None
 
 
 def test_lane_name_leaves_agent_hood_unchanged_for_family_roots() -> None:
@@ -89,7 +89,7 @@ def test_nested_family_lane_is_an_ancestor_of_its_dotted_hood_mates() -> None:
 
     assert index.ancestors_for(1) == (0,)
     assert index.descendants_for(0) == (1,)
-    # The family lane and its hood-mate now meet in ``a.b``, not only in ``a``.
+    # The family and its hood-mate now meet in ``a.b``, not only in ``a``.
     assert index.hood_neighbor_groups_for(1) == (("a", (2,)),)
     assert index.hood_neighbor_groups_for(0) == (("a", (2,)),)
 
@@ -110,7 +110,7 @@ def test_lane_hood_membership_agrees_with_the_core_identity_rule() -> None:
     # Family member children are not lanes and intentionally keep their raw
     # ``--`` key, so parity is scoped to the lane rows.
     lane_indices = [
-        idx for idx, agent in enumerate(rows_by_agent) if agent_owns_lane(agent)
+        idx for idx, agent in enumerate(rows_by_agent) if agent_owns_sase_agent(agent)
     ]
     assert lane_indices == [0, 2, 3, 4]
 
@@ -122,7 +122,7 @@ def test_lane_hood_membership_agrees_with_the_core_identity_rule() -> None:
     }
 
     for idx in lane_indices:
-        name = agent_lane_name(rows_by_agent[idx]) or ""
+        name = sase_agent_name(rows_by_agent[idx]) or ""
         related = {
             *index.ancestors_for(idx),
             *index.descendants_for(idx),
@@ -131,7 +131,7 @@ def test_lane_hood_membership_agrees_with_the_core_identity_rule() -> None:
         for other in lane_indices:
             if other == idx:
                 continue
-            other_name = agent_lane_name(rows_by_agent[other]) or ""
+            other_name = sase_agent_name(rows_by_agent[other]) or ""
             shares_hood = any(
                 agent_name_in_hood(name, hood) and agent_name_in_hood(other_name, hood)
                 for hood in hoods

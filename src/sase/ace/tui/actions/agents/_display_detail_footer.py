@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import agent_is_asking
 
-from ...models.agent_hoods import agent_owns_lane
+from ...models.agent_hoods import agent_owns_sase_agent
 from ._display_helpers import TabName
 
 if TYPE_CHECKING:
@@ -173,7 +173,7 @@ class AgentFooterDisplayMixin:
             # each already returns ``None`` while a panel holds focus.
             lane_collapse_available = False
             resolve_lane_collapse = getattr(
-                self, "_resolve_agent_lane_collapse_target", None
+                self, "_resolve_sase_agent_collapse_target", None
             )
             if (
                 not tools_visible
@@ -267,7 +267,7 @@ class AgentFooterDisplayMixin:
                 artifact_file_viewer_active=artifact_file_viewer_active,
                 lane_neighbor_jump_available=(
                     current_agent is not None
-                    and agent_owns_lane(current_agent)
+                    and agent_owns_sase_agent(current_agent)
                     and not current_agent.is_family_container_row
                     and neighbor_count > 0
                 ),

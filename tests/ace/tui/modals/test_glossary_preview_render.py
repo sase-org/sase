@@ -127,8 +127,8 @@ def test_title_renders_wrapped_alias_match_on_one_line() -> None:
 
 def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:
     entries = (
-        _entry(0, "Agent Hood", definition="Agent Clan, Agent Lane, Agent Clan."),
-        _entry(1, "Agent Lane"),
+        _entry(0, "Agent Hood", definition="Agent Clan, Sase Agent, Agent Clan."),
+        _entry(1, "Sase Agent"),
         _entry(2, "Agent Clan"),
     )
     catalog = SimpleNamespace(
@@ -137,7 +137,7 @@ def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:
             (
                 _span(0, "Agent Hood"),
                 _span(2, "Agent Clan"),
-                _span(1, "Agent Lane"),
+                _span(1, "Sase Agent"),
                 _span(2, "Agent Clan"),
             )
         ),
@@ -147,28 +147,28 @@ def test_cross_references_drop_self_dedupe_and_preserve_order() -> None:
 
 
 def test_definition_markdown_links_non_self_references() -> None:
-    entry = _entry(0, "Agent Hood", definition="See Agent Lane.")
-    reference = _entry(1, "Agent Lane")
+    entry = _entry(0, "Agent Hood", definition="See Sase Agent.")
+    reference = _entry(1, "Sase Agent")
     catalog = SimpleNamespace(
         entries=(entry, reference),
-        compiled=_CompiledGlossary((_span_at(1, "Agent Lane", start=4),)),
+        compiled=_CompiledGlossary((_span_at(1, "Sase Agent", start=4),)),
     )
 
     assert glossary_definition_markdown(catalog, entry) == (
-        "See [Agent Lane](glossary:1)."
+        "See [Sase Agent](glossary:1)."
     )
 
 
 def test_definition_markdown_normalizes_wrapped_link_text() -> None:
-    entry = _entry(0, "Agent Hood", definition="See agent\n  lane.")
-    reference = _entry(1, "Agent Lane")
+    entry = _entry(0, "Agent Hood", definition="See sase\n  agent.")
+    reference = _entry(1, "Sase Agent")
     catalog = SimpleNamespace(
         entries=(entry, reference),
-        compiled=_CompiledGlossary((_span_at(1, "agent\n  lane", start=4),)),
+        compiled=_CompiledGlossary((_span_at(1, "sase\n  agent", start=4),)),
     )
 
     assert glossary_definition_markdown(catalog, entry) == (
-        "See [agent lane](glossary:1)."
+        "See [sase agent](glossary:1)."
     )
 
 

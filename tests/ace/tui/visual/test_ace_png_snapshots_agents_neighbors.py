@@ -120,7 +120,7 @@ def _lane_agent(
 
 
 def _single_lane_neighbor_agents() -> list[Agent]:
-    """A single-agent lane with two hood groups of neighbors."""
+    """A single sase agent with two hood groups of neighbors."""
     rows = [
         _lane_agent("visual.lane.plan", index=0, status="RUNNING"),
         _lane_agent("visual.lane.code", index=1, status="DONE"),
@@ -172,7 +172,7 @@ def _lane_neighbor_agents_with_plan(tmp_path: Path) -> list[Agent]:
 
 
 def _family_lane_neighbor_agents() -> list[Agent]:
-    """A dotted family lane whose siblings share the enclosing ``visual`` hood."""
+    """A dotted family whose siblings share the enclosing ``visual`` hood."""
     root = _lane_agent(
         "visual.worker--plan",
         index=0,
@@ -596,5 +596,5 @@ async def test_agents_family_lane_neighbors_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "agents_family_lane_neighbors_160x50",
-            title="ACE family lane neighbors section",
+            title="ACE family neighbors section",
         )

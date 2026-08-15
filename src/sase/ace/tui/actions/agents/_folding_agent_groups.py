@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING, cast
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 from ._folding_clans import AgentPanelClanFoldingMixin
-from ._folding_lanes import AgentLaneCollapseTarget, resolve_group_lane_collapse_target
+from ._folding_sase_agents import (
+    SaseAgentCollapseTarget,
+    resolve_group_lane_collapse_target,
+)
 from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
@@ -324,9 +327,9 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         if self._fold_manager.collapse(key):
             self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _resolve_agent_lane_collapse_target(
+    def _resolve_sase_agent_collapse_target(
         self,
-    ) -> AgentLaneCollapseTarget | None:
+    ) -> SaseAgentCollapseTarget | None:
         """Resolve the group-wide lane step that precedes structural ``H``."""
         group_key = self._resolve_group_collapse_target()
         if group_key is None:
@@ -375,13 +378,13 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
             remembered_selection=remembered_selection,
         )
 
-    def _collapse_agent_lane_folds(
+    def _collapse_sase_agent_folds(
         self,
-        target: AgentLaneCollapseTarget | None = None,
+        target: SaseAgentCollapseTarget | None = None,
     ) -> bool:
         """Fully collapse all open canonical lanes in one resolved scope."""
         if target is None:
-            target = self._resolve_agent_lane_collapse_target()
+            target = self._resolve_sase_agent_collapse_target()
         if target is None:
             return False
 

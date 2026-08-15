@@ -17,7 +17,7 @@ from ...models.agent_family_members import (
     concrete_family_member_rows,
     family_roster_container,
 )
-from ...models.agent_hoods import agent_owns_lane
+from ...models.agent_hoods import agent_owns_sase_agent
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import CachedRenderable
 from ._agent_clan_aggregation import get_cached_clan_section_snapshot
@@ -143,7 +143,7 @@ def _hint_context_digest(
         if wait_display_agent(agent).waiting_for
         else None
     )
-    lane_owner = agent_owns_lane(agent)
+    lane_owner = agent_owns_sase_agent(agent)
     projection_resolver = getattr(app, "lane_neighbor_projection_for", None)
     lane_neighbors = (
         projection_resolver(agent)

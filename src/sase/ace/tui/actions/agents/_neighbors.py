@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_groups import GroupingMode
     from ...models.agent_hoods import AgentNeighborIndex, AgentNeighborRow
-    from ...models.agent_lane_neighbors import AgentLaneNeighborProjection
+    from ...models.sase_agent_neighbors import SaseAgentNeighborProjection
     from ...models.agent_panels import AgentPanelGroup
     from ...modals.agent_neighbor_modal import AgentNeighborChoice
 
@@ -267,16 +267,16 @@ class AgentNeighborMixin:
         selected_target = index.target_for_global_idx(self.current_idx)
         if selected_target is None:
             return
-        from ...models.agent_lane_neighbors import (
-            build_agent_lane_neighbor_projection,
+        from ...models.sase_agent_neighbors import (
+            build_sase_agent_neighbor_projection,
         )
 
-        from ...models.agent_hoods import agent_lane_name
+        from ...models.agent_hoods import sase_agent_name
 
         dismissed_descendants = self._dismissed_descendant_agents(selected)
-        projection = build_agent_lane_neighbor_projection(
+        projection = build_sase_agent_neighbor_projection(
             lane_identity=selected_target.identity,
-            lane_name=agent_lane_name(selected),
+            lane_name=sase_agent_name(selected),
             lane_row_names=(selected.presented_identity_name or "",),
             index=index,
             dismissed_descendants=dismissed_descendants,
@@ -496,7 +496,7 @@ class AgentNeighborMixin:
 
     def _agent_neighbor_choices(
         self,
-        projection: AgentLaneNeighborProjection,
+        projection: SaseAgentNeighborProjection,
         selected: Agent,
     ) -> tuple[list[AgentNeighborChoice], list[_AgentNeighborPayload]]:
         """Build modal choices and action payloads for related rows."""
@@ -538,15 +538,15 @@ class AgentNeighborMixin:
     def lane_neighbor_projection_for(
         self,
         agent: Agent,
-    ) -> AgentLaneNeighborProjection | None:
+    ) -> SaseAgentNeighborProjection | None:
         """Return the lane-relative neighbor projection for a lane-owning row."""
         from ...models.agent_family_members import concrete_family_member_rows
-        from ...models.agent_hoods import agent_lane_name, agent_owns_lane
-        from ...models.agent_lane_neighbors import (
-            build_agent_lane_neighbor_projection,
+        from ...models.agent_hoods import sase_agent_name, agent_owns_sase_agent
+        from ...models.sase_agent_neighbors import (
+            build_sase_agent_neighbor_projection,
         )
 
-        if not agent_owns_lane(agent):
+        if not agent_owns_sase_agent(agent):
             return None
 
         suppressed_identities = (
@@ -554,9 +554,9 @@ class AgentNeighborMixin:
             if agent.is_family_container_row
             else ()
         )
-        return build_agent_lane_neighbor_projection(
+        return build_sase_agent_neighbor_projection(
             lane_identity=agent.identity,
-            lane_name=agent_lane_name(agent),
+            lane_name=sase_agent_name(agent),
             lane_row_names=(agent.presented_identity_name or "",),
             index=self._agent_neighbor_index(),
             dismissed_descendants=self._dismissed_descendant_agents(agent),
@@ -567,12 +567,12 @@ class AgentNeighborMixin:
     def _dismissed_descendant_agents(self, selected: Agent) -> tuple[Agent, ...]:
         """Return active dismissed descendants of ``selected`` sorted by name."""
         from ...models.agent_hoods import (
-            agent_lane_name,
+            sase_agent_name,
             agent_name_key,
             is_agent_descendant,
         )
 
-        selected_name = agent_lane_name(selected)
+        selected_name = sase_agent_name(selected)
         if selected_name is None:
             return ()
 
@@ -593,9 +593,9 @@ class AgentNeighborMixin:
 
     def _agent_neighbor_display_hoods(self, agent: Agent) -> dict[str, str]:
         """Map selected-agent hood keys to labels preserving displayed case."""
-        from ...models.agent_hoods import agent_lane_name
+        from ...models.agent_hoods import sase_agent_name
 
-        parts = (agent_lane_name(agent) or "").split(".")
+        parts = (sase_agent_name(agent) or "").split(".")
         return {
             ".".join(parts[:depth]).casefold(): ".".join(parts[:depth])
             for depth in range(1, len(parts) + 1)

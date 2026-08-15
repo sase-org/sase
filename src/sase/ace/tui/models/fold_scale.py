@@ -56,7 +56,7 @@ def resolve_summary_fold_scale(
 
 
 def lane_fold_scale(agent: object) -> FoldScale:
-    """Return the fold scale owned by one agent lane's summary document."""
+    """Return the fold scale owned by one sase agent's summary document."""
     return (
         FAMILY_FOLD_SCALE
         if getattr(agent, "is_family_container_row", False)

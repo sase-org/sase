@@ -60,7 +60,7 @@ class SlowToolDetail(IntEnum):
 
 
 def slow_tool_detail_level(level: FoldLevel, scale: FoldScale) -> SlowToolDetail:
-    """Resolve a lane fold level to the positional slow-tool detail tier."""
+    """Resolve a sase-agent fold level to the positional slow-tool detail tier."""
     position, size = fold_scale_position(level, scale)
     if position == 1:
         return SlowToolDetail.COMPACT

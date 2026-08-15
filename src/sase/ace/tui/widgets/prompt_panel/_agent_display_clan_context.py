@@ -79,7 +79,7 @@ def _typed_context_value_path(
 
 
 def _resolve_path(path: str, workspace_dir: str | None) -> str:
-    """Resolve a delta/path seed with the same semantics as the agent lane."""
+    """Resolve a delta/path seed with the same semantics as the sase agent."""
     expanded = os.path.expanduser(path)
     if os.path.isabs(expanded):
         return expanded

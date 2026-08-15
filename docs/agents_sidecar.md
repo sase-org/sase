@@ -172,8 +172,8 @@ files and a no-op publication.
 After each pull/rebase, SASE rebuilds root, user, machine, hood, family, and agent
 Markdown from every validated owner manifest. Index and neighbor pages link a _specific
 run_, so their family member links use stable `member-<role>` anchors; solo links target
-the corresponding agent README. Commit footers are the other case: they identify an
-agent _lane_ rather than a run, so they link the family page with no member anchor (see
+the corresponding agent README. Commit footers are the other case: they identify a sase
+agent rather than a run, so they link the family page with no member anchor (see
 [runtime provenance](commit_workflows.md#cli-inputs-and-internal-payload)). Because
 owners mutate disjoint authority files, a bounded non-fast-forward retry can pull a
 competing owner, recompute the shared views, and converge without overwriting either
@@ -194,22 +194,22 @@ An agent page uses this anatomy:
 - Files: links to the published prompt and chat when each file exists.
 - Commits: the run's commit table, when any commits were attributed to the run.
 - Variables: sanitized output variables, when the run published any.
-- Neighbors: related lanes in the same owner/machine hood, when the run's lane has any.
+- Neighbors: related sase agents in the same owner/machine hood, when any exist.
 
 A family page keeps the `Lineage` diagram and accessible member table first, then uses
 the same optional artifact order: `Commits`, `Variables`, and `Neighbors`. Family commit
 and variable tables include the member role so each row can be traced back to a member.
-Family neighbor rows describe the family lane itself and never list its own members,
-which are already present in the member table.
+Family neighbor rows describe the family itself and never list its own members, which
+are already present in the member table.
 
 The family page is the durable home of a family's commits. Because a commit footer names
-the lane rather than the member, family-lane commit history is owned by the family
+the sase agent rather than the member, family commit history is owned by the family
 container itself and is carried in the published snapshot alongside the per-member rows.
 The `Commits` table unions both sources: rows recovered from a member's own artifact
-keep that member's role, and lane-level rows — including commits whose member artifact
-has since been cleaned up — render with a `—` role. Rows are deduplicated by SHA with
-the member-attributed row winning, then sorted and capped like every other commit table.
-Clan containers never accumulate commits this way; only families do.
+keep that member's role, and sase-agent-level rows — including commits whose member
+artifact has since been cleaned up — render with a `—` role. Rows are deduplicated by
+SHA with the member-attributed row winning, then sorted and capped like every other
+commit table. Clan containers never accumulate commits this way; only families do.
 
 When any member is associated with a bead, the family header line also names the
 distinct bead ids across the family's members after `Members:` — one as `Bead: <link>`,
@@ -238,10 +238,10 @@ string leaf, depth and node caps, and a 65,536-byte encoded-value cap. They are 
 to anyone who can read the agents sidecar, so do not use output variables for secrets,
 credentials, private tokens, or other sensitive values.
 
-Neighbor rosters are lane-scoped and owner-scoped. A sequential family is one lane, and
-each family member page renders that family lane's roster. Rows mirror the Agents tab's
-NEIGHBORS grouping: ancestors, descendants, then nearest hood groups, with links to
-solo-agent pages, family pages, and the hood roster when a group is truncated.
+Neighbor rosters are sase-agent-scoped and owner-scoped. A sequential family is one sase
+agent, and each family member page renders that family's roster. Rows mirror the Agents
+tab's NEIGHBORS grouping: ancestors, descendants, then nearest hood groups, with links
+to solo-agent pages, family pages, and the hood roster when a group is truncated.
 Cross-owner and cross-machine relationships are intentionally excluded.
 
 Compatibility note: snapshots published with `output_variables` metadata require readers
@@ -264,12 +264,12 @@ be contained is excluded with its artifact path and reason in the publication
 diagnostics. Historical records that share an old timestamp-derived run ID are assigned
 distinct, deterministic IDs and reported instead of invalidating the hood. Stale family
 metadata is likewise diagnosed and reconciled to the canonical name-derived
-classification. If a linked primary commit for a _solo_ lane remains after its local
-artifact has been cleaned up, publication synthesizes a minimal completed run from the
-commit association so its `SASE_AGENT` page does not become a permanent dead link. A
-family lane is never synthesized into a run: doing so would invent an
+classification. If a linked primary commit for a _solo_ sase agent remains after its
+local artifact has been cleaned up, publication synthesizes a minimal completed run from
+the commit association so its `SASE_AGENT` page does not become a permanent dead link. A
+family is never synthesized into a run: doing so would invent an
 `agents/<family>/README.md` page next to the real family page, so those commits reach
-the sidecar through the family container instead. When a family lane has commits that no
+the sidecar through the family container instead. When a family has commits that no
 published container can carry, the history is reported in the publication diagnostics
 rather than dropped silently. This read tolerance does not relax write validation: newly
 generated solo, family, and clan names must still satisfy the current strict naming
@@ -303,11 +303,11 @@ finishes one that had begun applying. Re-importing the same snapshot is a no-op;
 digest refreshes the existing imported records. When the package describes the current
 owner and SASE can match a local run by durable ID or primary commit evidence, it treats
 that run as already observed instead of creating a duplicate. Because a modern
-`SASE_AGENT` tag names a lane, commit evidence is matched at lane granularity: both the
-tag value and each expected run's global name are projected to their lane before
-comparison, so a family member's commit still proves that member ran. An exact
-member-name match is also still accepted, so legacy member-tagged commits remain valid
-evidence.
+`SASE_AGENT` tag names a sase agent, commit evidence is matched at sase-agent
+granularity: both the tag value and each expected run's global name are projected to
+their sase agent before comparison, so a family member's commit still proves that member
+ran. An exact member-name match is also still accepted, so legacy member-tagged commits
+remain valid evidence.
 
 ## Commands and status
 

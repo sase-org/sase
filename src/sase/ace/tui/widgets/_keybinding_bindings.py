@@ -241,7 +241,7 @@ class KeybindingBindingsMixin:
             if not tools_visible and panel_hint_collapse_available:
                 collapse_all_label = "collapse fold"
         elif lane_collapse_available:
-            collapse_all_label = "collapse lanes"
+            collapse_all_label = "collapse sase agents"
         elif clan_collapse_available:
             collapse_all_label = (
                 "collapse clan"

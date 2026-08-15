@@ -119,9 +119,9 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             self.notify(empty_message, severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ._confirmation_lanes import confirmation_lane_summary
+        from ._confirmation_sase_agents import confirmation_sase_agent_summary
 
-        desc_parts = confirmation_lane_summary(
+        desc_parts = confirmation_sase_agent_summary(
             dismissable,
             self._agents_with_children,
         ).subject_lines("Dismiss")

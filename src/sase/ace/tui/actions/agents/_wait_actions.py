@@ -441,13 +441,13 @@ class AgentWaitActionsMixin:
             return
 
         from ...modals import ConfirmKillModal
-        from ._confirmation_lanes import (
-            confirmation_lane_entries,
+        from ._confirmation_sase_agents import (
+            confirmation_sase_agent_entries,
             format_confirmation_entries,
         )
 
         desc_parts = [f"Kill and restart {wait_spec_label(result)}"]
-        desc_parts.append("Agent lane:")
+        desc_parts.append("Sase agent:")
         loaded_agents = (
             getattr(self, "_agents_with_children", None)
             or getattr(self, "_agents", None)
@@ -455,7 +455,7 @@ class AgentWaitActionsMixin:
         )
         desc_parts.extend(
             format_confirmation_entries(
-                confirmation_lane_entries(
+                confirmation_sase_agent_entries(
                     [agent],
                     loaded_agents,
                     include_running_family_members=True,

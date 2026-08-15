@@ -34,7 +34,7 @@ class AgentInfoPanel(Static):
         self._waiting_count = 0
         self._failed_count = 0
         self._read_count = 0
-        self._agent_lane_count = 0
+        self._sase_agent_count = 0
         self._runner_limit = 0
         self._runner_queue_count = 0
         self._neighbor_count = 0
@@ -104,7 +104,7 @@ class AgentInfoPanel(Static):
         self._waiting_count = waiting
         self._failed_count = failed
         self._read_count = read
-        self._agent_lane_count = total
+        self._sase_agent_count = total
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -171,7 +171,7 @@ class AgentInfoPanel(Static):
         waiting: int,
         failed: int,
         read: int,
-        agent_lane_count: int,
+        sase_agent_count: int,
         starting: int,
         neighbor_count: int = 0,
         countdown: int,
@@ -199,7 +199,7 @@ class AgentInfoPanel(Static):
             waiting,
             failed,
             read,
-            agent_lane_count,
+            sase_agent_count,
             runner_limit,
             runner_queue_count,
             max(0, neighbor_count),
@@ -217,7 +217,7 @@ class AgentInfoPanel(Static):
             self._waiting_count,
             self._failed_count,
             self._read_count,
-            self._agent_lane_count,
+            self._sase_agent_count,
             self._runner_limit,
             self._runner_queue_count,
             self._neighbor_count,
@@ -238,7 +238,7 @@ class AgentInfoPanel(Static):
             self._waiting_count,
             self._failed_count,
             self._read_count,
-            self._agent_lane_count,
+            self._sase_agent_count,
             self._runner_limit,
             self._runner_queue_count,
             self._neighbor_count,
@@ -362,7 +362,7 @@ class AgentInfoPanel(Static):
             text.append(": ", style="bold #87D7FF")
             text.append("…", style="dim italic")
             return text
-        text.append(f"{self._agent_lane_count}", style=self._TOTAL_COUNT_STYLE)
+        text.append(f"{self._sase_agent_count}", style=self._TOTAL_COUNT_STYLE)
         self._append_status_strip(text)
         self._append_neighbor_badge(text)
         if self._search_query:

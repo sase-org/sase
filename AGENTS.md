@@ -193,15 +193,18 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Agent Clan
 - Agent Family
 - Agent Hood (aka hood, agent neighborhood)
-- Agent Lane
 - Agent Instruction File (aka agents.md file)
 - Agent Neighbor
+- Agent Shell
 - Agent Tribe
 - Artifact Reference (aka ref)
 - Patch
 - Proc (aka background task)
+- Proc Shell
+- Sase Agent (aka agent)
 - Sase Project (aka project)
 - Sase Repo (aka repo)
+- Sase Shell (aka shell)
 - Sase Workspace (aka workspace)
 - Stitch
 - Xprompt

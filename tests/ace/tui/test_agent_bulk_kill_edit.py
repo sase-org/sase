@@ -333,7 +333,7 @@ def test_bulk_kill_and_edit_running_family_member_names_lane_and_member() -> Non
     app._bulk_kill_marked_agents_and_edit()
 
     assert app.pushed_modals[0].agent_description == (
-        "Kill: 1 lane\n  sase-8u.4.2 @sase-8u.4.2--code"
+        "Kill: 1 sase agent\n  sase-8u.4.2 @sase-8u.4.2--code"
     )
 
 

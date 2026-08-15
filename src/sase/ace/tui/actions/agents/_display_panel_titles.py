@@ -14,7 +14,7 @@ from ...agent_count_chip import (
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
     format_agent_count_chip,
 )
-from ...models._agent_clan import agent_lane_status_counts
+from ...models._agent_clan import sase_agent_status_counts
 from ...models._agent_tree import agent_is_tree_child
 from ...models.agent_panels import agent_panel_label
 from ...models.tribe_display import compose_tribe_identity_style
@@ -69,7 +69,7 @@ def agent_panel_counts(
     visible_top_level_agents = [
         agent for agent in agents if not agent_is_tree_child(agent)
     ]
-    projected = agent_lane_status_counts(
+    projected = sase_agent_status_counts(
         visible_top_level_agents,
         unread_ids,
     )

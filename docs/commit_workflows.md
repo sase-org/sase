@@ -280,17 +280,17 @@ checkpoint.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and
 `create_pull_request`, `CommitWorkflow` appends or updates a trailing
-`SASE_AGENT=<username>.<machine>.<lane>` line. The value is the committing agent's
-**lane**, not the concrete agent that ran: a family member commits as its family
+`SASE_AGENT=<username>.<machine>.<sase-agent>` line. The value is the committing sase
+agent, not the concrete agent shell that ran: a family member commits as its family
 (`pc--code` is tagged `<username>.<machine>.pc`), and a solo agent is tagged with its
 own name exactly as before. When the configured agents sidecar is hosted on GitHub, the
-value is a Markdown reference link to the lane's page — the family page for a family
-lane and the agent README for a solo lane — with no `#member-<role>` fragment. Every
+value is a Markdown reference link to the sase agent's page — the family page for a
+family and the agent README for a solo agent — with no `#member-<role>` fragment. Every
 fallback path (no owner, no project, unresolvable or non-hosted sidecar) still emits the
-lane label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
-`SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete member name is resolved first only
-so its lane can be derived — and it is omitted for manual non-agent commits. New commits
-never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT` and
+sase-agent label unlinked. `AGENT` comes from `SASE_AGENT_NAME`, falling back to
+`SASE_ARTIFACTS_DIR/agent_meta.json` — the concrete shell name is resolved first only so
+its sase agent can be derived — and it is omitted for manual non-agent commits. New
+commits never produce `SASE_MACHINE`, while cleanup still removes inherited `AGENT` and
 historical `MACHINE` values. `create_proposal` does not get runtime commit tags because
 it saves a diff instead of creating a VCS commit.
 
@@ -327,14 +327,14 @@ from a tracked stitch. Commits authored upstream in a linked repository classify
 `manual` when they have no SASE footer. A human who runs `sase stitch create` also gets
 `stitch`; the runtime `SASE_AGENT=` tag, when present, remains the actor metadata.
 
-**Legacy `SASE_AGENT` values:** commits written before provenance moved to the lane
-carry a concrete member name and a `#member-<role>` anchor — for example
+**Legacy `SASE_AGENT` values:** commits written before provenance moved to the sase
+agent carry a concrete member name and a `#member-<role>` anchor — for example
 `SASE_AGENT=[bbugyi200.athena.pc--code][2]` pointing at
 `families/bbugyi200.athena.pc.md#member-code`. History is never rewritten, so every
 reader (inventory history, import evidence, revert discovery, image-attachment scanning,
 plan and bead associations, the PR body footer) accepts both spellings permanently: a
-member-named tag keeps its exact per-run attribution, while a lane-named tag is
-attributed to the lane. Readers that need a link for a tag prefer the destination
+member-named tag keeps its exact per-run attribution, while a sase-agent-named tag is
+attributed to the sase agent. Readers that need a link for a tag prefer the destination
 recorded in the footer itself, because that URL already distinguishes a family page from
 a solo agent page for commits from either era.
 

@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_lane_neighbors import (
-    AgentLaneNeighborProjection,
+from sase.ace.tui.models.sase_agent_neighbors import (
+    SaseAgentNeighborProjection,
     LaneNeighborRow,
 )
 from sase.ace.tui.models.fold_scale import (
@@ -64,7 +64,7 @@ def _lane_neighbor(lane_name: str, index: int) -> Agent:
     )
 
 
-def _lane_projection(lane: Agent, lane_name: str) -> AgentLaneNeighborProjection:
+def _lane_projection(lane: Agent, lane_name: str) -> SaseAgentNeighborProjection:
     rows = tuple(
         LaneNeighborRow(
             agent=_lane_neighbor(lane_name, index),
@@ -76,7 +76,7 @@ def _lane_projection(lane: Agent, lane_name: str) -> AgentLaneNeighborProjection
         )
         for index in range(_LANE_NEIGHBOR_TOTAL)
     )
-    return AgentLaneNeighborProjection(
+    return SaseAgentNeighborProjection(
         lane_identity=lane.identity,
         rows=rows,
         suppressed_lane_member_count=0,
@@ -85,7 +85,7 @@ def _lane_projection(lane: Agent, lane_name: str) -> AgentLaneNeighborProjection
 
 def _render_lane(
     agent: Agent,
-    projection: AgentLaneNeighborProjection,
+    projection: SaseAgentNeighborProjection,
     level: FoldLevel,
 ) -> RenderedSummary:
     published: list[MemberJumpMap] = []
@@ -99,7 +99,7 @@ def _render_lane(
     return RenderedSummary(header.plain, single_jump_map(published))
 
 
-def _single_agent_lane_case() -> _LaneNeighborContractCase:
+def _single_sase_agent_case() -> _LaneNeighborContractCase:
     lane_name = "fold-contract-lane"
     lane = Agent(
         agent_type=AgentType.RUNNING,
@@ -114,7 +114,7 @@ def _single_agent_lane_case() -> _LaneNeighborContractCase:
     )
     projection = _lane_projection(lane, lane_name)
     return _LaneNeighborContractCase(
-        kind="single-agent-lane",
+        kind="single-sase-agent",
         scale=AGENT_FOLD_SCALE,
         leading_member_count=0,
         rendered={
@@ -131,7 +131,7 @@ def _family_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
     )
     projection = _lane_projection(lane, lane.presented_identity_name or "")
     return _LaneNeighborContractCase(
-        kind="family-lane",
+        kind="family-sase-agent",
         scale=FAMILY_FOLD_SCALE,
         leading_member_count=2,
         rendered={
@@ -140,13 +140,13 @@ def _family_lane_case(tmp_path: Path) -> _LaneNeighborContractCase:
     )
 
 
-@pytest.fixture(params=("single-agent-lane", "family-lane"))
+@pytest.fixture(params=("single-sase-agent", "family-sase-agent"))
 def lane_neighbor_case(
     request: pytest.FixtureRequest,
     tmp_path: Path,
 ) -> _LaneNeighborContractCase:
-    if request.param == "single-agent-lane":
-        return _single_agent_lane_case()
+    if request.param == "single-sase-agent":
+        return _single_sase_agent_case()
     return _family_lane_case(tmp_path)
 
 

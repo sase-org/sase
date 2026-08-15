@@ -10,7 +10,7 @@ from ._marking_navigation import AgentMarkNavigationMixin
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
-    from ._confirmation_lanes import AgentConfirmationSummary
+    from ._confirmation_sase_agents import AgentConfirmationSummary
 
 
 class AgentMarkedKillMixin(AgentMarkNavigationMixin):
@@ -190,18 +190,18 @@ class AgentMarkedKillMixin(AgentMarkNavigationMixin):
         desc_parts: list[str] = []
         if header:
             desc_parts.append(header)
-        from ._confirmation_lanes import confirmation_lane_summary
+        from ._confirmation_sase_agents import confirmation_sase_agent_summary
 
         loaded_agents = self._agents_with_children
         if killable:
-            kill_summary: AgentConfirmationSummary = confirmation_lane_summary(
+            kill_summary: AgentConfirmationSummary = confirmation_sase_agent_summary(
                 killable,
                 loaded_agents,
                 include_running_family_members=True,
             )
             desc_parts.extend(kill_summary.subject_lines("Kill"))
         if dismissable:
-            dismiss_summary: AgentConfirmationSummary = confirmation_lane_summary(
+            dismiss_summary: AgentConfirmationSummary = confirmation_sase_agent_summary(
                 dismissable,
                 loaded_agents,
             )

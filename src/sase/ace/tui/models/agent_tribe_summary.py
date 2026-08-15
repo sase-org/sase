@@ -13,7 +13,7 @@ from sase.agent.status_buckets import (
     aggregate_agent_group_effective_status,
 )
 from ._agent_clan import (
-    agent_lane_status_counts,
+    sase_agent_status_counts,
     agent_status_projections,
     agent_summary_status_counts,
 )
@@ -346,7 +346,7 @@ def _lane_status_counts(
     rows: Sequence[Agent],
     unread_ids: Collection[AgentIdentity],
 ) -> tuple[TribeStatusCounts, int]:
-    counts = agent_lane_status_counts(rows, unread_ids)
+    counts = sase_agent_status_counts(rows, unread_ids)
     return (
         TribeStatusCounts(
             stopped=counts.stopped,

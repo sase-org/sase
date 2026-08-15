@@ -89,7 +89,7 @@ def _single_slow_tool_lane_case() -> _SlowToolFoldContractCase:
         model="gpt-5",
     )
     return _SlowToolFoldContractCase(
-        kind="single-agent-lane",
+        kind="single-sase-agent",
         scale=AGENT_FOLD_SCALE,
         rendered={
             level: _render_slow_tool_lane(lane, level) for level in AGENT_FOLD_SCALE
@@ -104,7 +104,7 @@ def _family_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
         with_prompt_content=False,
     )
     return _SlowToolFoldContractCase(
-        kind="family-lane",
+        kind="family-sase-agent",
         scale=FAMILY_FOLD_SCALE,
         rendered={
             level: _render_slow_tool_lane(lane, level) for level in FAMILY_FOLD_SCALE
@@ -112,12 +112,12 @@ def _family_slow_tool_lane_case(tmp_path: Path) -> _SlowToolFoldContractCase:
     )
 
 
-@pytest.fixture(params=("single-agent-lane", "family-lane"))
+@pytest.fixture(params=("single-sase-agent", "family-sase-agent"))
 def slow_tool_fold_case(
     request: pytest.FixtureRequest,
     tmp_path: Path,
 ) -> _SlowToolFoldContractCase:
-    if request.param == "single-agent-lane":
+    if request.param == "single-sase-agent":
         return _single_slow_tool_lane_case()
     return _family_slow_tool_lane_case(tmp_path)
 

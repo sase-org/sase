@@ -105,9 +105,9 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._arm_panel_fold_hint_mode(intent="collapse")  # type: ignore[attr-defined]
                 return
 
-            lane_target = self._resolve_agent_lane_collapse_target()
+            lane_target = self._resolve_sase_agent_collapse_target()
             if lane_target is not None:
-                self._collapse_agent_lane_folds(lane_target)
+                self._collapse_sase_agent_folds(lane_target)
                 return
             clan_target = self._resolve_agent_clan_collapse_target()
             if clan_target is not None:

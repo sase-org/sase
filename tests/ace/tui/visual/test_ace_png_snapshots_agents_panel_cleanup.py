@@ -126,7 +126,7 @@ def _cleanup_confirmation_agents() -> list[Agent]:
     ]
 
 
-async def test_agent_lane_cleanup_confirmation_png_snapshot(
+async def test_sase_agent_cleanup_confirmation_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -150,7 +150,7 @@ async def test_agent_lane_cleanup_confirmation_png_snapshot(
         modal = page.app.screen
         assert isinstance(modal, ConfirmDismissAllModal)
         description = modal.agent_description
-        assert "Dismiss: 3 lanes · 9 agents" in description
+        assert "Dismiss: 3 sase agents · 9 agents" in description
         assert "lane.cleanup.standalone" in description
         assert "lane.cleanup.workflow" in description
         assert "lane.cleanup.family" in description
@@ -161,6 +161,6 @@ async def test_agent_lane_cleanup_confirmation_png_snapshot(
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
-            "agent_lane_cleanup_confirmation_120x40",
-            title="ACE agent lane cleanup confirmation",
+            "sase_agent_cleanup_confirmation_120x40",
+            title="ACE sase agent cleanup confirmation",
         )

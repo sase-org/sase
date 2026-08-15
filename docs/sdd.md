@@ -320,18 +320,18 @@ not become dead links. If the store cannot be read, refresh preserves a candidat
 link rather than stripping potentially valid links during a transient failure. The
 association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and
 agent artifact metadata on every refresh, so a stale or wrong entry disappears once its
-source is corrected. Both sources are normalized to the agent **lane**, so each lane is
-listed exactly once: a plan touched by `pc--code` and `pc--plan` shows a single `pc` row
-linked to the family page, never the member and its family as two agents. Solo agents
-are listed exactly as before. The row's link is taken from the concrete member when any
-source knew one, otherwise from the destination recorded in the commit footer, and it
-degrades to an unlinked label rather than guessing a URL. Bead-page agent rows follow
-the same rule, and their commit counts are the lane's commits. An epic plan's sections
-roll up its own associations with those of every descendant plan reachable through
-`PARENT`. `sase plan links refresh` reconciles the whole tree (dry run by default;
-`--write` to apply, `--plan <ref>` to scope to one plan), and each primary commit
-refreshes the plan it names on a best-effort basis — a plans-store failure never blocks
-the code commit.
+source is corrected. Both sources are normalized to the **sase agent**, so each sase
+agent is listed exactly once: a plan touched by `pc--code` and `pc--plan` shows a single
+`pc` row linked to the family page, never the member and its family as two agents. Solo
+agents are listed exactly as before. The row's link is taken from the concrete shell
+when any source knew one, otherwise from the destination recorded in the commit footer,
+and it degrades to an unlinked label rather than guessing a URL. Bead-page agent rows
+follow the same rule, and their commit counts are the sase agent's commits. An epic
+plan's sections roll up its own associations with those of every descendant plan
+reachable through `PARENT`. `sase plan links refresh` reconciles the whole tree (dry run
+by default; `--write` to apply, `--plan <ref>` to scope to one plan), and each primary
+commit refreshes the plan it names on a best-effort basis — a plans-store failure never
+blocks the code commit.
 
 A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter
 property is deprecated: it remains accepted so already-committed plans still validate,

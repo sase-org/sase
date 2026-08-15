@@ -105,7 +105,7 @@ def _visual_glossary_catalog(*, full: bool) -> EditorGlossaryCatalog:
                 "Agent Hood",
                 definition=(
                     "An agent hood is a group of agents that share a `<name>.` "
-                    "prefix. It points readers toward Agent Lane and Agent Clan "
+                    "prefix. It points readers toward Sase Agent and Agent Clan "
                     "when naming related work."
                 ),
                 config_path=config_path,
@@ -114,7 +114,7 @@ def _visual_glossary_catalog(*, full: bool) -> EditorGlossaryCatalog:
             ),
             _entry(
                 1,
-                "Agent Lane",
+                "Sase Agent",
                 definition="A lane is the sequential home for one agent family.",
                 config_path=config_path,
             ),

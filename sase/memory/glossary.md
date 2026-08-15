@@ -7,15 +7,18 @@ description: |-
   - Agent Clan
   - Agent Family
   - Agent Hood (aka hood, agent neighborhood)
-  - Agent Lane
   - Agent Instruction File (aka agents.md file)
   - Agent Neighbor
+  - Agent Shell
   - Agent Tribe
   - Artifact Reference (aka ref)
   - Patch
   - Proc (aka background task)
+  - Proc Shell
+  - Sase Agent (aka agent)
   - Sase Project (aka project)
   - Sase Repo (aka repo)
+  - Sase Shell (aka shell)
   - Sase Workspace (aka workspace)
   - Stitch
   - Xprompt
@@ -38,10 +41,10 @@ the clan name is reserved and is never itself an agent.
 
 ## Agent Family
 
-An agent family is a strictly sequential chain whose members use `<family>--<suffix>`
-names. The first `%id(parent, suffix)` attachment renames the original agent with its
-own suffix and reserves the bare family name as a pure container, so a family always has
-at least two members.
+An agent family is a sase agent whose agent shells run as a strictly sequential chain.
+Its shells use `<family>--<suffix>` names. The first `%id(parent, suffix)` attachment
+renames the original shell with its own suffix and reserves the bare family name as the
+sase agent container, so a family always has at least two shells.
 
 ## Agent Hood
 
@@ -51,17 +54,6 @@ An agent hood is a group of agents that are all named with the same `<name>.` pr
 For example, agents named `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the
 same `foo` agent hood. The agent `foo`, if it exists, is also considered part of the
 `foo` agent hood.
-
-## Agent Lane
-
-An agent lane is a term that describes either an agent family or a single agent that
-does not belong to a family. Agent lanes never have a name that ends with `--<suffix>`
-since that suffix is reserved for family members. We think of an agent lane like an
-agent's house (i.e. where they live). When agent's are single, they live in their own
-lane. When a new member joins their family (which can only happen once the original
-agent completes, since agents in agent lanes run sequentially), that member moves into
-the same lane. At that point, the lane and the family share a name instead of the lane
-and the original agent, which is renamed with its own `--<suffix>`.
 
 ## Agent Instruction File
 
@@ -81,6 +73,11 @@ directory contain the same contents.
 An agent neighbor is any agent that is in the same agent hood as another agent. For
 example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all neighbors of each other
 because they are all in the same `foo` agent hood.
+
+## Agent Shell
+
+An agent shell is one concrete LLM/provider run. It holds a workspace claim while active
+and is the execution row shown by `sase agent list`.
 
 ## Agent Tribe
 
@@ -116,9 +113,26 @@ Submitted.
 ALIASES: background task
 
 A Proc is a durable background process SASE records, supervises, and can stream or kill.
-Procs live in `~/.sase/procs/procs.jsonl` with combined output logs, come in `command`,
-`tui`, and `detached` kinds, and are surfaced by `sase proc` and ACE's Procs tab.
-Distinct from a task bead, which is a work item, and from an asyncio task.
+Procs live in `~/.sase/procs/procs.jsonl` with combined output logs and are surfaced by
+`sase proc` and ACE's Procs tab. Historical proc rows may use `command`, `tui`, or
+`detached` kind values, but those names are compatibility labels rather than permanent
+semantic categories. Distinct from a task bead, which is a work item, and from an
+asyncio task.
+
+## Proc Shell
+
+A proc shell is a named supervised proc belonging to a sase agent, with durable output
+and lifecycle state. A family-attached proc shell is a monitor and may carry timeout,
+workspace-claim, and follow-up policy.
+
+## Sase Agent
+
+ALIASES: agent
+
+A sase agent is an agent family or a single agent that does not belong to a family. It
+owns an ordered sequence of sase shells, and its name never ends in `--<suffix>` because
+that suffix is reserved for agent shells. A one-shell agent may share its shell name,
+while a family uses the bare name for its container.
 
 ## Sase Project
 
@@ -141,6 +155,13 @@ ALIASES: repo
 A sase repo is any repository SASE knows: a project's primary repo, an artifact sidecar
 repo such as `<project>--plans` or `<project>--research`, or a repo declared through
 `repos.linked`.
+
+## Sase Shell
+
+ALIASES: shell
+
+A sase shell is one executing member of a sase agent, either an agent shell or a proc
+shell. A sase agent is a sequence of sase shells.
 
 ## Sase Workspace
 
