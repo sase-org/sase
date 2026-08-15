@@ -846,16 +846,19 @@ llm_provider:
   # via %effort or a %model:<model>@<effort> suffix. Empty means no override.
   # Allowed: none, minimal, low, medium, high, xhigh, max.
   default_effort: ""
-  # Model aliases for no-%model launches, delegated work, and reusable prompts.
-  # Builtin role overrides live under builtin. @default delegates to @smarter
-  # unless configured, normal epic landers fall back to @default, and accepted
-  # tale follow-ups use the tale size's @<size>_worker alias. Medium phases use
-  # @smart, large phases use @smarter, and threshold-selected epic landers plus
-  # extra-large phases use @smartest. `smart`, `smarter`, `cheap`, `cheaper`,
-  # and `cheapest` own independent round-robin pools by default, while
-  # @smartest owns a stateless ordered fallback across providers. Use `A | B`
-  # for round-robin or `A || B` for ordered fallback; do not mix the
-  # operators.
+  # Scalar launch defaults. These use the same grammar as %model and may point
+  # at one of the five built-in size aliases. Invalid values are ignored and
+  # fall back to the shipped defaults below.
+  default_model: "@large"
+  epic_lander_model: "@large"
+  big_epic_lander_model: "@xlarge"
+  # Model aliases for launch sizes, delegated work, and reusable prompts.
+  # SASE ships exactly five built-in aliases: @xsmall, @small, @medium, @large,
+  # and @xlarge. Phase and tale size launches route through these aliases
+  # directly, and the scalar launch defaults above choose the no-%model and
+  # epic lander defaults.
+  # Use `A | B` for round-robin or `A || B` for ordered fallback; do not mix
+  # the operators.
   # Values may be a bare known model (opus), an explicit
   # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.2), a nested
   # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an
@@ -863,36 +866,24 @@ llm_provider:
   # reference may carry a trailing @<effort> that overrides its target's effort.
   # User-invented aliases live under custom and must include a description for
   # completions and the Models panel. Bucket membership is display-only: ACE
-  # always supplies `worker`, and custom aliases assigned to that bucket
-  # coalesce with its builtin aliases.
+  # shows only buckets referenced by custom aliases.
   # Current shipped defaults and descriptions for every builtin alias below are
   # the single responsibility of
   # src/sase/llm_provider/model_alias_defaults.yml; the target values shown
   # here are grammar examples only, not the shipped defaults.
   # model_aliases:
   #   builtin:
-  #     default: "@smarter"        # no-%model launch alias
-  #     epic_lander: "@default"     # epic land agents
-  #     big_epic_lander: "@smartest" # threshold-selected epic land agents
-  #     xsmall_worker: "@cheaper" # extra-small bead phase agents
-  #     small_worker: "@cheap"    # small bead phase agents
-  #     medium_worker: "@smart"   # medium bead phase agents
-  #     large_worker: "@smarter"  # large bead phase agents
-  #     xlarge_worker: "@smartest" # extra-large bead phase agents
-  #     smart: "claude/sonnet@xhigh | codex/gpt-5.5@xhigh" # pool example
-  #     smarter: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh" # pool example
-  #     smartest: "claude/opus@max"                  # example maximum-effort override
-  #     cheap: "claude/haiku | codex/gpt-4.1-mini"   # load-balanced pool example
-  #     cheaper: "claude/haiku | codex/gpt-4.1-mini" # load-balanced pool example
-  #     cheapest: "claude/haiku | codex/gpt-4.1-mini" # explicit-use pool example
+  #     xsmall: "claude/sonnet@medium | codex/gpt-5.5@medium"
+  #     small: "claude/sonnet@high | codex/gpt-5.5@high"
+  #     medium: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh"
+  #     large: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh"
+  #     xlarge: "claude/opus@max || codex/gpt-5.6-sol@max"
   #   custom:
   #     blogger:
   #       model: claude/opus
   #       description: "Agents that draft and edit blog posts."
   #       bucket: writing          # optional Models-panel grouping
   #   buckets:
-  #     worker:
-  #       description: "Size-specific phase-agent roles."
   #     writing:
   #       description: "Writing and editing roles."
   retry:
@@ -1009,8 +1000,9 @@ workspace:
   cleanup_ttl_days: 14
 
 bead:
-  # Epic plans with at least this many authored phases use the implicit
-  # @big_epic_lander role unless the plan sets an explicit land model.
+  # Epic plans with at least this many authored phases use
+  # llm_provider.big_epic_lander_model unless the plan sets an explicit land
+  # model.
   big_epic_phase_threshold: 5
   # Controls the post-commit `git push` after `sase bead work` successfully
   # commits the sdd/beads bead-state mutation (canonical events plus

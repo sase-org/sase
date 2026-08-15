@@ -12,7 +12,7 @@ from tests._xprompt_model_completion_helpers import (
 )
 
 
-def test_model_completion_filter_matches_values_and_short_aliases(
+def test_model_completion_filter_matches_values_without_unconfigured_default_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(model_completion, "get_llm_metadata_payload", metadata_payload)
@@ -34,7 +34,7 @@ def test_model_completion_filter_matches_values_and_short_aliases(
         for entry in model_completion.filter_model_completion_entries(
             entries, "default"
         )
-    ] == ["@default"]
+    ] == []
     assert all(
         entry.kind in {"implicit_alias", "user_alias"}
         for entry in model_completion.filter_model_completion_entries(entries, "@")
@@ -42,7 +42,7 @@ def test_model_completion_filter_matches_values_and_short_aliases(
     assert [
         entry.value
         for entry in model_completion.filter_model_completion_entries(entries, "@def")
-    ] == ["@default"]
+    ] == []
 
 
 def test_model_completion_provider_scoped_filter_derives_qualified_rows(

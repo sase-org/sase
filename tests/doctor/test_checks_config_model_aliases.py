@@ -5,22 +5,17 @@ from __future__ import annotations
 import pytest
 
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
-from sase.llm_provider.model_alias_policy import (
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    implicit_alias_targets,
-    role_alias_fallbacks,
-)
 
 
-def test_model_aliases_warns_on_worker_models_and_default_model(
+def test_model_aliases_warns_on_worker_models_but_accepts_default_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Removed ``worker_models`` / ``default_model`` keys get migration warnings."""
+    """Removed ``worker_models`` warns; scalar ``default_model`` is supported."""
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "worker_models": {"claude": "codex/gpt-5.6-sol"},
-            "default_model": "claude/opus",
+            "default_model": "@large",
         },
     )
 
@@ -28,10 +23,9 @@ def test_model_aliases_warns_on_worker_models_and_default_model(
 
     assert check.status == "WARN"
     keys = {row["key"] for row in check.data["problems"]}
-    assert keys == {"worker_models", "default_model"}
+    assert keys == {"worker_models"}
     detail_text = " ".join(check.details)
-    assert "model_aliases" in detail_text
-    assert "model_aliases.builtin.default" in detail_text
+    assert "llm_provider.model_aliases.builtin.medium" in detail_text
 
 
 def test_model_aliases_warns_on_retired_and_unknown_alias_references(
@@ -48,6 +42,7 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
                     "phase_worker": "@nope",
                     "epic_creator": "@default",
                     "epic_lander": "claude/opus",
+                    "default": "codex/gpt-5.5",
                 }
             }
         },
@@ -65,17 +60,17 @@ def test_model_aliases_warns_on_retired_and_unknown_alias_references(
         in by_key["model_aliases.builtin.claude_coder"]
     )
     assert "model_aliases.builtin.phase_worker" in by_key
-    assert "medium_worker" in by_key["model_aliases.builtin.phase_worker"]
-    assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
-    medium_worker_default = (
-        implicit_alias_targets().get(MEDIUM_WORKER_MODEL_ALIAS_NAME)
-        or role_alias_fallbacks()[MEDIUM_WORKER_MODEL_ALIAS_NAME]
+    assert (
+        "model_aliases.builtin.medium" in by_key["model_aliases.builtin.phase_worker"]
     )
-    assert medium_worker_default in by_key["model_aliases.builtin.phase_worker"]
+    assert "remove it" in by_key["model_aliases.builtin.phase_worker"]
     assert "model_aliases.builtin.epic_creator" in by_key
     assert "retired" in by_key["model_aliases.builtin.epic_creator"]
     assert "remove this entry" in by_key["model_aliases.builtin.epic_creator"]
-    assert "model_aliases.builtin.epic_lander" not in by_key
+    assert (
+        "llm_provider.epic_lander_model" in by_key["model_aliases.builtin.epic_lander"]
+    )
+    assert "llm_provider.default_model" in by_key["model_aliases.builtin.default"]
 
 
 def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
@@ -86,8 +81,8 @@ def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
         lambda: {
             "model_aliases": {
                 "builtin": {
-                    "medium_worker": "@default@high",
-                    "epic_lander": "@phase_worker@high",
+                    "medium": "@large@high",
+                    "large": "@phase_worker@high",
                 },
                 "custom": {
                     "blogger": {
@@ -103,14 +98,14 @@ def test_model_aliases_accepts_reference_effort_and_parses_problem_aliases(
 
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
-    assert "model_aliases.builtin.medium_worker" not in by_key
+    assert "model_aliases.builtin.medium" not in by_key
     assert (
         "references unknown alias '@nope'"
         in by_key["model_aliases.custom.blogger.model"]
     )
     assert (
         "references the retired '@phase_worker' alias"
-        in by_key["model_aliases.builtin.epic_lander"]
+        in by_key["model_aliases.builtin.large"]
     )
 
 
@@ -126,7 +121,7 @@ def test_model_aliases_warns_on_nested_schema_misuse(
                     "shadow": "claude/haiku",
                 },
                 "custom": {
-                    "small_worker": {
+                    "small": {
                         "model": "claude/opus",
                         "description": "Wrong location.",
                     },
@@ -153,8 +148,8 @@ def test_model_aliases_warns_on_nested_schema_misuse(
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.builtin.blogger" in by_key
     assert "model_aliases.custom" in by_key["model_aliases.builtin.blogger"]
-    assert "model_aliases.custom.small_worker" in by_key
-    assert "builtin alias" in by_key["model_aliases.custom.small_worker"]
+    assert "model_aliases.custom.small" in by_key
+    assert "builtin alias" in by_key["model_aliases.custom.small"]
     assert "model_aliases.builtin.shadow" in by_key
     assert (
         "both model_aliases.builtin and model_aliases.custom"
@@ -188,7 +183,7 @@ def test_model_aliases_warns_on_legacy_flat_and_top_level_custom(
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.coder" in by_key
-    assert "model_aliases.custom.coder" in by_key["model_aliases.coder"]
+    assert "llm_provider.model_aliases.builtin.medium" in by_key["model_aliases.coder"]
     assert "model_aliases.blogger" in by_key
     assert "model_aliases.custom.blogger" in by_key["model_aliases.blogger"]
     assert "custom_model_aliases" in by_key
@@ -202,7 +197,7 @@ def test_model_aliases_ok_when_config_is_clean(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "builtin": {"default": "claude/opus"},
+                "builtin": {"large": "claude/opus"},
                 "custom": {
                     "big": {
                         "model": "claude/opus",
@@ -247,14 +242,12 @@ def test_model_aliases_allows_custom_worker(
 @pytest.mark.parametrize(
     "alias",
     [
-        "big_epic_lander",
-        "xsmall_worker",
-        "xlarge_worker",
-        "smart",
-        "cheap",
+        "xsmall",
+        "medium",
+        "xlarge",
     ],
 )
-def test_model_aliases_recognizes_implicit_roles_as_builtin(
+def test_model_aliases_recognizes_size_aliases_as_builtin(
     monkeypatch: pytest.MonkeyPatch,
     alias: str,
 ) -> None:
@@ -277,6 +270,40 @@ def test_model_aliases_recognizes_implicit_roles_as_builtin(
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "builtin alias" in by_key[f"model_aliases.custom.{alias}"]
+
+
+@pytest.mark.parametrize(
+    "alias",
+    [
+        "default",
+        "big_epic_lander",
+        "xsmall_worker",
+        "smart",
+        "cheap",
+    ],
+)
+def test_model_aliases_allows_retired_names_as_custom_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    alias: {
+                        "model": "claude/opus",
+                        "description": "Explicit custom alias.",
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "OK"
+    assert not check.data["problems"]
 
 
 def test_model_aliases_warns_on_dangling_bucket_metadata(
@@ -308,7 +335,7 @@ def test_model_aliases_warns_on_dangling_bucket_metadata(
     assert check.status == "WARN"
     by_key = {row["key"]: row["message"] for row in check.data["problems"]}
     assert "model_aliases.buckets.coders" in by_key
-    assert "model_aliases.buckets.worker" not in by_key
+    assert "model_aliases.buckets.worker" in by_key
     assert "model_aliases.buckets.research" not in by_key
     assert "model_aliases.buckets.unused" in by_key
     assert "no custom aliases" in by_key["model_aliases.buckets.unused"]
@@ -322,8 +349,8 @@ def test_model_aliases_warns_on_malformed_and_nested_pools(
         lambda: {
             "model_aliases": {
                 "builtin": {
-                    "cheapest": "claude/opus || || codex/gpt-5.5",
-                    "medium_worker": "@nested | claude/sonnet",
+                    "xlarge": "claude/opus || || codex/gpt-5.5",
+                    "medium": "@nested | claude/sonnet",
                 },
                 "custom": {
                     "nested": {
@@ -350,7 +377,7 @@ def test_model_aliases_notes_unavailable_pool_members_without_warning(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "builtin": {"cheapest": "claude/opus@medium | codex/gpt-5.5"}
+                "builtin": {"medium": "claude/opus@medium | codex/gpt-5.5"}
             }
         },
     )
@@ -374,7 +401,7 @@ def test_model_aliases_reports_ordered_fallback_winner_as_information(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "builtin": {"smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
+                "builtin": {"xlarge": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
             }
         },
     )
@@ -388,7 +415,7 @@ def test_model_aliases_reports_ordered_fallback_winner_as_information(
     assert check.status == "OK"
     assert check.data["problems"] == ()
     assert check.data["notes"] == (
-        "model_aliases.builtin.smartest fallback candidate "
+        "model_aliases.builtin.xlarge fallback candidate "
         "'claude/claude-fable-5' is currently unavailable; ordered fallback "
         "currently selects 'codex/gpt-5.6-sol'",
     )
@@ -401,7 +428,7 @@ def test_model_aliases_reports_all_unavailable_fallback_diagnostic_choice(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {
             "model_aliases": {
-                "builtin": {"smartest": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
+                "builtin": {"xlarge": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
             }
         },
     )

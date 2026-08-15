@@ -1218,22 +1218,13 @@ fallback. The current shipped defaults are generated from
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias              | Description                                                                                                | Shipped default                                                                                     |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `@default`         | Model used when a prompt has no %model directive; delegates to @smarter unless configured.                 | `@smarter`                                                                                          |
-| `@epic_lander`     | Epic land agents that finalize and submit an epic.                                                         | `@default`                                                                                          |
-| `@big_epic_lander` | Epic land agents selected for plans at or above the configured phase-count threshold.                      | `@smartest`                                                                                         |
-| `@xsmall_worker`   | Extra-small bead phase agents that implement the simplest tasks directly.                                  | `@cheaper`                                                                                          |
-| `@small_worker`    | Small bead phase agents that implement directly.                                                           | `@cheap`                                                                                            |
-| `@medium_worker`   | Medium bead phase agents that implement directly.                                                          | `@smart`                                                                                            |
-| `@large_worker`    | Large bead phase agents that plan before implementation.                                                   | `@smarter`                                                                                          |
-| `@xlarge_worker`   | Extra-large bead phase agents that author an epic plan before implementation.                              | `@smartest`                                                                                         |
-| `@smart`           | High-capability pool used automatically by medium phase agents.                                            | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
-| `@smarter`         | Higher-capability pool used automatically by large phase agents and by `@default`.                         | `codex/gpt-5.6-sol@xhigh \| claude/opus@xhigh`                                                      |
-| `@smartest`        | Highest-capability ordered fallback used automatically by extra-large phase agents and large epic landers. | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                 |
-| `@cheap`           | Load-balanced pool used automatically by small phase agents.                                               | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
-| `@cheaper`         | Lower-cost load-balanced pool used automatically by extra-small phase agents.                              | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.7-flash-high` |
-| `@cheapest`        | Lowest-cost load-balanced pool available for explicit use.                                                 | `claude/haiku \| codex/gpt-5.3-codex-spark`                                                         |
+| Alias     | Description                                                                 | Shipped default                                                                                     |
+| --------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for the smallest direct tasks and tale follow-ups. | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.7-flash-high` |
+| `@small`  | Small launch alias for straightforward task and phase work.                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
+| `@medium` | Medium launch alias for ordinary implementation work.                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
+| `@large`  | Large launch alias for planning-heavy work and default launches.            | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh`                                                      |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                 |
 
 <!-- END GENERATED: model-alias-defaults -->
 

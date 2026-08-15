@@ -194,7 +194,7 @@ def test_setting_one_alias_preserves_others() -> None:
     assert set(get_active_alias_overrides()) == {
         "coder",
         "worker",
-        "epic_lander",
+        "setting:epic_lander_model",
     }
 
 
@@ -241,7 +241,7 @@ def test_alias_and_default_overrides_coexist() -> None:
     assert default_override.model == "opus"
 
     # The alias map sees both.
-    assert set(get_active_alias_overrides()) == {"default", "coder"}
+    assert set(get_active_alias_overrides()) == {"setting:default_model", "coder"}
 
 
 # ---------------------------------------------------------------------------
@@ -393,8 +393,8 @@ def test_set_empty_source_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_v1_flat_state_migrates_to_default_alias() -> None:
-    """A legacy flat v1 object is read as the ``default`` alias override."""
+def test_v1_flat_state_migrates_to_default_launch_setting() -> None:
+    """A legacy flat v1 object is read as the default launch-setting override."""
     _write_state(
         {
             "provider": "codex",
@@ -406,7 +406,7 @@ def test_v1_flat_state_migrates_to_default_alias() -> None:
         }
     )
 
-    fetched = get_active_alias_override("default")
+    fetched = get_active_alias_override("setting:default_model")
     assert fetched is not None
     assert fetched.provider == "codex"
     assert fetched.model == "o3"
@@ -431,8 +431,8 @@ def test_v1_flat_state_is_rewritten_as_v2_on_read() -> None:
 
     data = _read_state()
     assert data["version"] == 2
-    assert set(data["overrides"]) == {"default"}
-    assert data["overrides"]["default"]["effort"] is None
+    assert set(data["overrides"]) == {"setting:default_model"}
+    assert data["overrides"]["setting:default_model"]["effort"] is None
     # Canonical entry only — no stray top-level v1 keys remain.
     assert set(data) == {"version", "overrides"}
 

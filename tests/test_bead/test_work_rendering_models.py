@@ -10,8 +10,8 @@ from sase.bead.model import PhaseSize, Status
 from sase.bead.work import _build_epic_work_plan, render_multi_prompt
 from sase.llm_provider.config import resolve_model_alias_with_effort
 from sase.llm_provider.model_alias_policy import (
-    CHEAP_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
 )
 from sase.llm_provider.registry import resolve_model_provider
 from tests._model_alias_defaults_fixture import frozen_selector_member
@@ -24,12 +24,12 @@ class TestModelDirective:
     @pytest.mark.parametrize(
         ("size", "expected_model", "expects_plan"),
         [
-            (None, "@small_worker", False),
-            (PhaseSize.XSMALL, "@xsmall_worker", False),
-            (PhaseSize.SMALL, "@small_worker", False),
-            (PhaseSize.MEDIUM, "@medium_worker", False),
-            (PhaseSize.LARGE, "@large_worker", True),
-            (PhaseSize.XLARGE, "@xlarge_worker", True),
+            (None, "@small", False),
+            (PhaseSize.XSMALL, "@xsmall", False),
+            (PhaseSize.SMALL, "@small", False),
+            (PhaseSize.MEDIUM, "@medium", False),
+            (PhaseSize.LARGE, "@large", True),
+            (PhaseSize.XLARGE, "@xlarge", True),
         ],
     )
     def test_phase_size_controls_model_and_planning_handoff(
@@ -60,7 +60,7 @@ class TestModelDirective:
             pytest.param(None, "claude/sonnet", False, id="legacy"),
             pytest.param(PhaseSize.XSMALL, "claude/haiku", False, id="xsmall"),
             pytest.param(PhaseSize.SMALL, "claude/sonnet", False, id="small"),
-            pytest.param(PhaseSize.MEDIUM, "@smart", False, id="medium"),
+            pytest.param(PhaseSize.MEDIUM, "@medium", False, id="medium"),
             pytest.param(
                 PhaseSize.LARGE,
                 "codex/gpt-5.6-sol",
@@ -111,12 +111,12 @@ class TestModelDirective:
     @pytest.mark.parametrize(
         ("threshold", "phase_count", "expected_alias"),
         [
-            pytest.param(5, 4, "@epic_lander", id="default-below"),
-            pytest.param(5, 5, "@big_epic_lander", id="default-exact"),
-            pytest.param(5, 6, "@big_epic_lander", id="default-above"),
-            pytest.param(3, 2, "@epic_lander", id="custom-below"),
-            pytest.param(3, 3, "@big_epic_lander", id="custom-exact"),
-            pytest.param(3, 4, "@big_epic_lander", id="custom-above"),
+            pytest.param(5, 4, "@large", id="default-below"),
+            pytest.param(5, 5, "@xlarge", id="default-exact"),
+            pytest.param(5, 6, "@xlarge", id="default-above"),
+            pytest.param(3, 2, "@large", id="custom-below"),
+            pytest.param(3, 3, "@xlarge", id="custom-exact"),
+            pytest.param(3, 4, "@xlarge", id="custom-above"),
         ],
     )
     def test_implicit_land_alias_uses_authored_phase_threshold(
@@ -176,7 +176,7 @@ class TestModelDirective:
 
         assert plan.total_phase_count == 5
         assert sum(len(wave) for wave in plan.waves) == 4
-        assert "%model:@big_epic_lander" in rendered.split("\n---\n")[-1]
+        assert "%model:@xlarge" in rendered.split("\n---\n")[-1]
 
     def test_explicit_land_model_wins_for_large_epic(
         self,
@@ -201,7 +201,7 @@ class TestModelDirective:
 
         land_segment = rendered.split("\n---\n")[-1]
         assert "%model:claude/opus" in land_segment
-        assert "@big_epic_lander" not in land_segment
+        assert "@xlarge" not in land_segment
 
     def test_big_epic_directive_resolves_configured_target(
         self,
@@ -214,9 +214,7 @@ class TestModelDirective:
         )
         config = {
             "provider": "claude",
-            "model_aliases": {
-                "builtin": {"big_epic_lander": "codex/o3"},
-            },
+            "big_epic_lander_model": "codex/o3",
         }
         monkeypatch.setattr(
             "sase.llm_provider.config.get_llm_provider_config",
@@ -235,8 +233,8 @@ class TestModelDirective:
             land_epic_xprompt=Workflow(name="bd/land_epic"),
         )
 
-        assert "%model:@big_epic_lander" in rendered.split("\n---\n")[-1]
-        assert resolve_model_provider("@big_epic_lander") == ("codex", "o3")
+        assert "%model:codex/o3" in rendered.split("\n---\n")[-1]
+        assert resolve_model_provider("codex/o3") == ("codex", "o3")
 
     def test_phase_model_emits_after_clan_and_tribe_before_plan(
         self, conn: sqlite3.Connection
@@ -259,11 +257,11 @@ class TestModelDirective:
             "%auto\n"
             "#bd/work_phase_bead:p1"
         )
-        # The epic has no explicit land model, so the land agent defaults to the
-        # epic-lander role alias.
-        assert "%model:@epic_lander" in land_segment
+        # The epic has no explicit land model, so the land agent defaults to
+        # llm_provider.epic_lander_model.
+        assert "%model:@large" in land_segment
 
-    def test_phase_model_empty_renders_small_worker_directive(
+    def test_phase_model_empty_renders_small_directive(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -276,8 +274,8 @@ class TestModelDirective:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
-        assert "%model:@small_worker" in phase_segment
-        assert "%model:@epic_lander" in land_segment
+        assert "%model:@small" in phase_segment
+        assert "%model:@large" in land_segment
 
     def test_mixed_phase_models_only_decorate_set_phases(
         self, conn: sqlite3.Connection
@@ -305,9 +303,9 @@ class TestModelDirective:
         p3_seg = next(s for s in segments if "#bd/work_phase_bead:p3" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.6-sol" in p1_seg
-        assert "%model:@small_worker" in p2_seg
+        assert "%model:@small" in p2_seg
         assert "%model:#pro" in p3_seg
-        assert "%model:@epic_lander" in land_seg
+        assert "%model:@large" in land_seg
 
     def test_epic_land_model_emits_on_land_segment(
         self, conn: sqlite3.Connection
@@ -324,8 +322,8 @@ class TestModelDirective:
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
         assert_bare_auto_directives(rendered)
-        assert "%model:@small_worker" in phase_segment
-        # An explicit per-epic land model still wins over the epic-lander alias.
+        assert "%model:@small" in phase_segment
+        # An explicit per-epic land model still wins over the scalar lander setting.
         assert land_segment == (
             "%id(!land, clan=e1, bead=e1)\n"
             "%model:claude/opus\n"
@@ -376,22 +374,22 @@ class TestModelDirective:
             "%w(bead=p2)\n"
             "#bd/land_epic:e1"
         )
-        # The only additions over the baseline are the role-alias model
-        # directives: @small_worker on each phase and @epic_lander on land.
-        stripped = rendered.replace("%model:@small_worker\n", "").replace(
-            "%model:@epic_lander\n", ""
+        # The only additions over the baseline are the size/scalar model
+        # directives: @small on each phase and @large on land.
+        stripped = rendered.replace("%model:@small\n", "").replace(
+            "%model:@large\n", ""
         )
         assert stripped == pre_model_baseline
         assert_bare_auto_directives(rendered)
-        # The selector-backed phase role preserves its pool member's effort.
-        small = resolve_model_alias_with_effort("@small_worker")
+        # The selector-backed phase size preserves its pool member's effort.
+        small = resolve_model_alias_with_effort("@small")
         assert (small.target, small.effort) == frozen_selector_member(
-            CHEAP_MODEL_ALIAS_NAME, 0
+            SMALL_MODEL_ALIAS_NAME, 0
         )
-        # The lander role resolves through @default, which delegates to @smarter.
-        lander = resolve_model_alias_with_effort("@epic_lander")
+        # The scalar lander default resolves through @large.
+        lander = resolve_model_alias_with_effort("@large")
         assert (lander.target, lander.effort) == frozen_selector_member(
-            SMARTER_MODEL_ALIAS_NAME, 0
+            LARGE_MODEL_ALIAS_NAME, 0
         )
 
     def test_model_does_not_inject_extra_directives(

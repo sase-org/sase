@@ -34,7 +34,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     entries = model_completion.build_model_completion_catalog()
     values = [entry.value for entry in entries]
 
-    # Models, then the implicit role aliases, then user-configured aliases.
+    # Models, then the implicit size aliases, then user-configured aliases.
     # A user-configured ``worker`` is now an ordinary alias (no retired
     # @worker/@other entries).
     assert values == [
@@ -44,20 +44,11 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "gpt-5.5",
         "o4-mini",
         "anthropic/claude-sonnet-4-5",
-        "@default",
-        "@epic_lander",
-        "@big_epic_lander",
-        "@xsmall_worker",
-        "@small_worker",
-        "@medium_worker",
-        "@large_worker",
-        "@xlarge_worker",
-        "@smartest",
-        "@smarter",
-        "@smart",
-        "@cheap",
-        "@cheaper",
-        "@cheapest",
+        "@xsmall",
+        "@small",
+        "@medium",
+        "@large",
+        "@xlarge",
         "@fast",
         "@worker",
         "claude/",
@@ -80,13 +71,10 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert by_value["claude/"].provider_model_count == 2
     assert by_value["codex/"].provider_model_count == 3
     assert by_value["opencode/"].provider_model_count == 1
-    assert by_value["@default"].kind == "implicit_alias"
-    assert by_value["@default"].aliases == ("default",)
-    assert by_value["@big_epic_lander"].aliases == ("big_epic_lander",)
-    assert by_value["@medium_worker"].aliases == ("medium_worker",)
-    assert by_value["@cheap"].aliases == ("cheap",)
-    assert by_value["@smartest"].aliases == ("smartest",)
-    assert by_value["@smarter"].aliases == ("smarter",)
+    assert by_value["@xsmall"].kind == "implicit_alias"
+    assert by_value["@xsmall"].aliases == ("xsmall",)
+    assert by_value["@medium"].aliases == ("medium",)
+    assert by_value["@xlarge"].aliases == ("xlarge",)
     assert by_value["@fast"].kind == "user_alias"
     assert by_value["@fast"].aliases == ("fast",)
 

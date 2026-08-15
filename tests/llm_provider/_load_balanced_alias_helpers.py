@@ -17,7 +17,14 @@ def configure_pool(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"pool": value}},
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": value,
+                        "description": "Test load-balanced pool.",
+                    }
+                }
+            },
         },
     )
     llm_config._get_model_aliases_for_token.cache_clear()

@@ -1,4 +1,4 @@
-"""Tests for the shipped load-balanced model aliases."""
+"""Tests for the shipped load-balanced size model aliases."""
 
 from __future__ import annotations
 
@@ -10,15 +10,16 @@ from sase.llm_provider.config import (
     resolve_model_alias_with_effort,
 )
 from sase.llm_provider.model_alias_policy import (
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
+    XSMALL_MODEL_ALIAS_NAME,
 )
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
-def test_small_phase_and_cheap_share_one_rotation(
+def test_small_size_alias_rotates_its_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -28,18 +29,18 @@ def test_small_phase_and_cheap_share_one_rotation(
         lambda _target: True,
     )
 
-    small = resolve_model_alias_with_effort("@small_worker", consume=True)
-    cheap = resolve_model_alias_with_effort("@cheap", consume=True)
+    first = resolve_model_alias_with_effort("@small", consume=True)
+    second = resolve_model_alias_with_effort("@small", consume=True)
 
-    assert (small.target, small.effort) == frozen_selector_member(
-        CHEAP_MODEL_ALIAS_NAME, 0
+    assert (first.target, first.effort) == frozen_selector_member(
+        SMALL_MODEL_ALIAS_NAME, 0
     )
-    assert (cheap.target, cheap.effort) == frozen_selector_member(
-        CHEAP_MODEL_ALIAS_NAME, 1
+    assert (second.target, second.effort) == frozen_selector_member(
+        SMALL_MODEL_ALIAS_NAME, 1
     )
 
 
-def test_xsmall_phase_and_cheaper_share_one_rotation(
+def test_size_aliases_use_independent_rotations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -49,18 +50,26 @@ def test_xsmall_phase_and_cheaper_share_one_rotation(
         lambda _target: True,
     )
 
-    xsmall = resolve_model_alias_with_effort("@xsmall_worker", consume=True)
-    cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
+    xsmall_first = resolve_model_alias_with_effort("@xsmall", consume=True)
+    medium_first = resolve_model_alias_with_effort("@medium", consume=True)
+    xsmall_second = resolve_model_alias_with_effort("@xsmall", consume=True)
+    medium_second = resolve_model_alias_with_effort("@medium", consume=True)
 
-    assert (xsmall.target, xsmall.effort) == frozen_selector_member(
-        CHEAPER_MODEL_ALIAS_NAME, 0
+    assert (xsmall_first.target, xsmall_first.effort) == frozen_selector_member(
+        XSMALL_MODEL_ALIAS_NAME, 0
     )
-    assert (cheaper.target, cheaper.effort) == frozen_selector_member(
-        CHEAPER_MODEL_ALIAS_NAME, 1
+    assert (medium_first.target, medium_first.effort) == frozen_selector_member(
+        MEDIUM_MODEL_ALIAS_NAME, 0
+    )
+    assert (xsmall_second.target, xsmall_second.effort) == frozen_selector_member(
+        XSMALL_MODEL_ALIAS_NAME, 1
+    )
+    assert (medium_second.target, medium_second.effort) == frozen_selector_member(
+        MEDIUM_MODEL_ALIAS_NAME, 1
     )
 
 
-def test_cheaper_packaged_defaults_select_correct_effort_per_provider(
+def test_xsmall_packaged_defaults_select_correct_effort_per_provider(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -79,129 +88,21 @@ def test_cheaper_packaged_defaults_select_correct_effort_per_provider(
             lambda target, prefix=prefix: target.startswith(prefix),
         )
 
-        cheaper = resolve_model_alias_with_effort("@cheaper", consume=True)
+        xsmall = resolve_model_alias_with_effort("@xsmall", consume=True)
 
-        assert cheaper.target == expected_target
-        assert cheaper.effort == expected_effort
-
-
-def test_cheap_and_cheaper_use_independent_rotations(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_provider_config(monkeypatch, {"provider": "claude"})
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda _target: True,
-    )
-
-    cheap_first = resolve_model_alias_with_effort("@cheap", consume=True)
-    cheaper_first = resolve_model_alias_with_effort("@cheaper", consume=True)
-    cheap_second = resolve_model_alias_with_effort("@cheap", consume=True)
-    cheaper_second = resolve_model_alias_with_effort("@cheaper", consume=True)
-
-    assert (cheap_first.target, cheap_first.effort) == frozen_selector_member(
-        CHEAP_MODEL_ALIAS_NAME, 0
-    )
-    assert (cheaper_first.target, cheaper_first.effort) == frozen_selector_member(
-        CHEAPER_MODEL_ALIAS_NAME, 0
-    )
-    assert (cheap_second.target, cheap_second.effort) == frozen_selector_member(
-        CHEAP_MODEL_ALIAS_NAME, 1
-    )
-    assert (cheaper_second.target, cheaper_second.effort) == frozen_selector_member(
-        CHEAPER_MODEL_ALIAS_NAME, 1
-    )
-
-
-def test_implicit_cheapest_pool_peeks_and_consumes_independently(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_provider_config(monkeypatch, {"provider": "claude"})
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda _target: True,
-    )
-
-    assert (
-        resolve_model_alias("@cheapest")
-        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
-    )
-    assert (
-        resolve_model_alias("@cheapest")
-        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
-    )
-    assert (
-        resolve_model_alias("@cheapest", consume=True)
-        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
-    )
-    assert (
-        resolve_model_alias("@cheapest")
-        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 1)[0]
-    )
-    assert (
-        resolve_model_alias("@cheapest", consume=True)
-        == (frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 1)[0])
-    )
-    assert (
-        resolve_model_alias("@cheapest", consume=True)
-        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
-    )
-
-
-def test_cheap_cheaper_and_cheapest_use_independent_rotations(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    mock_provider_config(monkeypatch, {"provider": "claude"})
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda _target: True,
-    )
-
-    cheap_first = resolve_model_alias_with_effort("@cheap", consume=True)
-    cheaper_first = resolve_model_alias_with_effort("@cheaper", consume=True)
-    cheapest_first = resolve_model_alias_with_effort("@cheapest", consume=True)
-    cheap_second = resolve_model_alias_with_effort("@cheap", consume=True)
-    cheaper_second = resolve_model_alias_with_effort("@cheaper", consume=True)
-    cheapest_second = resolve_model_alias_with_effort("@cheapest", consume=True)
-
-    assert (cheap_first.target, cheap_first.effort) == frozen_selector_member(
-        CHEAP_MODEL_ALIAS_NAME, 0
-    )
-    assert (cheaper_first.target, cheaper_first.effort) == frozen_selector_member(
-        CHEAPER_MODEL_ALIAS_NAME, 0
-    )
-    assert (cheapest_first.target, cheapest_first.effort) == frozen_selector_member(
-        CHEAPEST_MODEL_ALIAS_NAME, 0
-    )
-    assert (cheap_second.target, cheap_second.effort) == frozen_selector_member(
-        CHEAP_MODEL_ALIAS_NAME, 1
-    )
-    assert (cheaper_second.target, cheaper_second.effort) == frozen_selector_member(
-        CHEAPER_MODEL_ALIAS_NAME, 1
-    )
-    assert (cheapest_second.target, cheapest_second.effort) == frozen_selector_member(
-        CHEAPEST_MODEL_ALIAS_NAME, 1
-    )
+        assert xsmall.target == expected_target
+        assert xsmall.effort == expected_effort
 
 
 @pytest.mark.parametrize(
     ("alias", "expected"),
     [
-        (CHEAP_MODEL_ALIAS_NAME, frozen_selector_member(CHEAP_MODEL_ALIAS_NAME, 1)),
-        (
-            CHEAPER_MODEL_ALIAS_NAME,
-            frozen_selector_member(CHEAPER_MODEL_ALIAS_NAME, 1),
-        ),
-        (
-            CHEAPEST_MODEL_ALIAS_NAME,
-            frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 1),
-        ),
+        (XSMALL_MODEL_ALIAS_NAME, frozen_selector_member(XSMALL_MODEL_ALIAS_NAME, 1)),
+        (SMALL_MODEL_ALIAS_NAME, frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 1)),
+        (MEDIUM_MODEL_ALIAS_NAME, frozen_selector_member(MEDIUM_MODEL_ALIAS_NAME, 0)),
     ],
 )
-def test_implicit_cheap_pools_skip_unavailable_provider(
+def test_size_alias_pools_skip_unavailable_provider(
     monkeypatch: pytest.MonkeyPatch,
     alias: str,
     expected: tuple[str, str | None],
@@ -219,27 +120,54 @@ def test_implicit_cheap_pools_skip_unavailable_provider(
     assert (peeked.target, peeked.effort) == expected
 
 
-def test_prior_cheapest_fingerprint_does_not_carry_cursor_to_shipped_pool(
+def test_xlarge_ordered_fallback_selects_available_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    cfg: dict[str, object] = {
-        "provider": "claude",
-        "model_aliases": {
-            "builtin": {"cheapest": "claude/opus@medium | codex/gpt-5.5"}
-        },
-    }
-    mock_provider_config(monkeypatch, cfg)
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    monkeypatch.setattr(
+        llm_config,
+        "_resolved_target_is_available",
+        lambda target: target.startswith("codex/"),
+    )
+
+    selected = resolve_model_alias_with_effort("@xlarge", consume=True)
+
+    assert (selected.target, selected.effort) == frozen_selector_member(
+        XLARGE_MODEL_ALIAS_NAME, 1
+    )
+
+
+def test_size_alias_pool_peeks_and_consumes_independently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
         llm_config,
         "_resolved_target_is_available",
         lambda _target: True,
     )
-    assert resolve_model_alias("@cheapest", consume=True) == "claude/opus"
-
-    cfg["model_aliases"] = {}
-    llm_config._get_model_aliases_for_token.cache_clear()
 
     assert (
-        resolve_model_alias("@cheapest", consume=True)
-        == frozen_selector_member(CHEAPEST_MODEL_ALIAS_NAME, 0)[0]
+        resolve_model_alias("@small")
+        == frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 0)[0]
+    )
+    assert (
+        resolve_model_alias("@small")
+        == frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 0)[0]
+    )
+    assert (
+        resolve_model_alias("@small", consume=True)
+        == frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 0)[0]
+    )
+    assert (
+        resolve_model_alias("@small")
+        == frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 1)[0]
+    )
+    assert (
+        resolve_model_alias("@small", consume=True)
+        == frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 1)[0]
+    )
+    assert (
+        resolve_model_alias("@small", consume=True)
+        == frozen_selector_member(SMALL_MODEL_ALIAS_NAME, 0)[0]
     )

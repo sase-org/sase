@@ -195,7 +195,7 @@ class TestPlanFollowupMetadata:
     ) -> None:
         """Without a picker model, agent_meta.json records the resolved size alias.
 
-        The coder follow-up emits ``%model:@small_worker`` and the
+        The coder follow-up emits ``%model:@small`` and the
         recorded meta resolves that alias to the concrete provider/model the
         launch will actually use, so display and behavior stay in sync.
         """
@@ -233,10 +233,10 @@ class TestPlanFollowupMetadata:
             ) as resolve_mock,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        resolve_mock.assert_any_call("@small_worker")
+        resolve_mock.assert_any_call("@small")
         assert meta_updates.get("model") == "gpt-5.6-sol"
         assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith("%model:@small_worker\n")
+        assert state.current_prompt.startswith("%model:@small\n")
 
     def test_followup_model_meta_records_size_alias(self, tmp_path) -> None:
         """The metadata rewrite records the alias that produced the model."""
@@ -267,14 +267,14 @@ class TestPlanFollowupMetadata:
             accept_mod._write_followup_model_meta(
                 state,
                 accept_mod._FollowupModel(
-                    model_prefix="%model:@small_worker\n",
+                    model_prefix="%model:@small\n",
                     meta=("codex", "gpt-5.6-sol"),
-                    model_alias="small_worker",
+                    model_alias="small",
                 ),
             )
 
         meta = json.loads((followup_dir / "agent_meta.json").read_text())
-        assert meta["model_alias"] == "small_worker"
+        assert meta["model_alias"] == "small"
 
     def test_followup_model_meta_clears_alias_for_concrete_model(
         self, tmp_path

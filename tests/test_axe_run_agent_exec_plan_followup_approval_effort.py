@@ -50,7 +50,7 @@ class TestPlanFollowupApprovalEffort:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert call("/tmp/followup", "reasoning_effort", "low") in (
+        assert call("/tmp/followup", "reasoning_effort", "high") in (
             accept_mod.update_meta_field.call_args_list
         )
 
@@ -134,7 +134,7 @@ class TestPlanFollowupApprovalEffort:
         state.current_artifacts_dir = "/tmp/followup"
 
         accept_mod._write_followup_effort_meta(
-            state, "%model:@small_worker@xhigh\nImplement the approved plan."
+            state, "%model:@small@xhigh\nImplement the approved plan."
         )
 
         assert call("/tmp/followup", "reasoning_effort", "xhigh") in (

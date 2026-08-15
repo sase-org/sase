@@ -23,6 +23,7 @@ from sase.llm_provider.registry import (
 )
 from sase.llm_provider.temporary_override import (
     resolve_effective_default_provider_model_with_effort,
+    set_temporary_override,
 )
 from sase.llm_provider.temporary_override_state import TemporaryLLMOverride
 from sase.xprompt import model_completion
@@ -71,7 +72,14 @@ def test_round_robin_skips_disabled_member_and_restores_priority(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"pool": "claude/opus | codex/gpt-5.5"}},
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "claude/opus | codex/gpt-5.5",
+                        "description": "Test pool.",
+                    }
+                }
+            },
         },
     )
 
@@ -102,7 +110,14 @@ def test_all_disabled_pool_retains_member_zero_without_cursor_advance(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"pool": "claude/opus | codex/gpt-5.5"}},
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "claude/opus | codex/gpt-5.5",
+                        "description": "Test pool.",
+                    }
+                }
+            },
         },
     )
     disables = {"claude": _disable("claude"), "codex": _disable("codex")}
@@ -133,7 +148,12 @@ def test_ordered_fallback_skips_disabled_member(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"fallback": "claude/opus@high || codex/gpt-5.6-sol@medium"}
+                "custom": {
+                    "fallback": {
+                        "model": "claude/opus@high || codex/gpt-5.6-sol@medium",
+                        "description": "Test fallback.",
+                    }
+                }
             },
         },
     )
@@ -159,33 +179,33 @@ def test_alias_override_pauses_and_resumes(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"medium_worker": "claude/sonnet || codex/gpt-5.6-sol"}
+                "builtin": {"medium": "claude/sonnet || codex/gpt-5.6-sol"}
             },
         },
     )
     monkeypatch.setattr(
         llm_config,
         "_active_alias_overrides",
-        lambda: {"medium_worker": override},
+        lambda: {"medium": override},
     )
     disables = {"claude": _disable("claude")}
 
     assert resolve_model_provider_with_effort(
-        "@medium_worker",
+        "@medium",
         provider_disables=disables,
     ) == ("codex", "gpt-5.6-sol", None)
     assert resolve_model_provider_with_effort(
-        "@medium_worker",
+        "@medium",
         provider_disables={},
     ) == ("claude", "opus", None)
 
     view = next(
         view
         for view in build_alias_views(
-            overrides={"medium_worker": override},
+            overrides={"medium": override},
             provider_disables=disables,
         )
-        if view.name == "medium_worker"
+        if view.name == "medium"
     )
     assert view.override is override
     assert view.is_override_paused
@@ -196,20 +216,14 @@ def test_default_override_pauses_for_disabled_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _pin_cli_available(monkeypatch)
-    override = _override("claude", "opus", effort="high")
     mock_provider_config(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {
-                "builtin": {"default": "claude/sonnet@high || codex/gpt-5.6-sol@medium"}
-            },
+            "default_model": "claude/sonnet@high || codex/gpt-5.6-sol@medium",
         },
     )
-    monkeypatch.setattr(
-        "sase.llm_provider.temporary_override_defaults._active_default_override",
-        lambda: override,
-    )
+    set_temporary_override("claude/opus@high", None, source="test")
 
     assert resolve_effective_default_provider_model_with_effort(
         provider_disables={"claude": _disable("claude")}

@@ -350,6 +350,7 @@ def test_invoke_agent_threads_config_default_effort(
     invoke_agent(
         "prompt",
         agent_type="test",
+        provider_name="claude",
         suppress_output=True,
         skip_preprocessing=True,
         directives=PromptDirectives(),

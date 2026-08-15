@@ -26,8 +26,8 @@ from ._subprocess import start_interrupt_monitor, stream_and_parse_muse_json_out
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
-# Both tiers map to the full-price model on purpose. ``small`` is what
-# ``@cheap``/``@cheaper`` reach for automatically, and
+# Both tiers map to the full-price model on purpose. ``small`` is what compact
+# size aliases can reach for automatically, and
 # ``muse-spark-1.2-contributor`` is trained on its inputs and outputs — SASE
 # must never route a user's proprietary source into Meta's training corpus
 # without being told to. The Contributor model stays fully reachable by name.

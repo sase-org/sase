@@ -57,7 +57,7 @@ def test_description_text_distinguishes_fallback_and_selected_candidate() -> Non
     )
     text = _description_text_for_view(
         make_alias_view(
-            "smartest",
+            "xlarge",
             "role",
             description="Highest-capability model used by large phases.",
             selector_mode="fallback",
@@ -91,7 +91,7 @@ def test_description_text_preserves_pool_rendering() -> None:
     )
     text = _description_text_for_view(
         make_alias_view(
-            "cheaper",
+            "xsmall",
             "role",
             selector_mode="round_robin",
             selector_members=members,

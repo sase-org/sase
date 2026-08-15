@@ -300,7 +300,14 @@ def test_invoke_agent_consumes_pool_once_per_invocation(
 
     config = {
         "provider": "claude",
-        "model_aliases": {"builtin": {"pool": "claude/opus@medium | codex/gpt-5.5"}},
+        "model_aliases": {
+            "custom": {
+                "pool": {
+                    "model": "claude/opus@medium | codex/gpt-5.5",
+                    "description": "Test pool.",
+                }
+            }
+        },
     }
     monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
     monkeypatch.setattr(
@@ -398,23 +405,17 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
 @patch("sase.llm_provider._invoke.get_provider")
 @patch("sase.llm_provider._invoke.preprocess_prompt")
 @patch("sase.llm_provider._invoke.postprocess_success")
-def test_invoke_agent_no_directive_routes_through_configured_default_alias(
+def test_invoke_agent_no_directive_routes_through_configured_default_model(
     mock_postprocess: MagicMock,
     mock_preprocess: MagicMock,
     mock_get_provider: MagicMock,
     mock_config: MagicMock,
     mock_registry_config: MagicMock,
 ) -> None:
-    """A no-%model launch routes through a configured ``@default`` alias.
-
-    With ``model_aliases.builtin.default`` set, the no-directive launch must
-    select the configured default's provider/model instead of silently falling
-    back to the autodetected provider's tier default (epic sase-5d phase 1 exit
-    criterion).
-    """
+    """A no-%model launch routes through ``llm_provider.default_model``."""
     cfg = {
         "provider": "claude",
-        "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol"}},
+        "default_model": "codex/gpt-5.6-sol",
     }
     mock_config.return_value = cfg
     mock_registry_config.return_value = cfg
@@ -438,9 +439,9 @@ def test_invoke_agent_no_directive_routes_through_configured_default_alias(
 def test_invoke_agent_no_directive_routes_through_shipped_default_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The invoke default branch consumes the implicit ``@default`` pool."""
+    """The invoke default branch consumes the shipped ``@large`` pool."""
     from sase.llm_provider import config as llm_config
-    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+    from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
     from tests._model_alias_defaults_fixture import (
         frozen_selector_provider_model_effort,
     )
@@ -477,10 +478,10 @@ def test_invoke_agent_no_directive_routes_through_shipped_default_pool(
             )
 
     _first_provider, first_model, first_effort = frozen_selector_provider_model_effort(
-        SMARTER_MODEL_ALIAS_NAME, 0
+        LARGE_MODEL_ALIAS_NAME, 0
     )
     _second_provider, second_model, second_effort = (
-        frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 1)
+        frozen_selector_provider_model_effort(LARGE_MODEL_ALIAS_NAME, 1)
     )
     assert provider.invoke.call_args_list[0].kwargs == {
         "model_tier": "large",

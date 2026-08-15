@@ -44,8 +44,8 @@ def make_disable(
 
 
 def test_custom_builtin_warning_message_uses_singular_guidance() -> None:
-    assert custom_builtin_shadow_warning_message(["small_worker"]) == (
-        "Builtin alias @small_worker is configured under "
+    assert custom_builtin_shadow_warning_message(["small"]) == (
+        "Builtin alias @small is configured under "
         "llm_provider.model_aliases.custom. Move its model value from "
         "llm_provider.model_aliases.custom to llm_provider.model_aliases.builtin."
     )
@@ -65,90 +65,75 @@ def test_state_tag_configured() -> None:
 def test_state_tag_configured_reference_uses_shared_reference_accent() -> None:
     configured = _state_tag(
         make_alias_view(
-            "medium_worker",
+            "medium",
             "role",
             configured=True,
-            configured_value="@default",
+            configured_value="@large",
         ),
         now=0.0,
     )
-    implicit = _state_tag(
-        make_alias_view("big_epic_lander", "role"),
+    other_configured = _state_tag(
+        make_alias_view(
+            "xlarge",
+            "role",
+            configured=True,
+            configured_value="@small",
+        ),
         now=0.0,
     )
 
-    assert configured.plain == "configured → @default"
+    assert configured.plain == "configured → @large"
     configured_target = next(
         span
         for span in configured.spans
-        if configured.plain[span.start : span.end] == "@default"
+        if configured.plain[span.start : span.end] == "@large"
     )
-    implicit_target = next(
+    other_target = next(
         span
-        for span in implicit.spans
-        if implicit.plain[span.start : span.end] == "@smartest"
+        for span in other_configured.spans
+        if other_configured.plain[span.start : span.end] == "@small"
     )
-    assert configured_target.style == implicit_target.style
+    assert configured_target.style == other_target.style
     assert "#87d7ff" in str(configured_target.style).lower()
 
 
 def test_state_tag_configured_reference_includes_effort_overlay() -> None:
     text = _state_tag(
         make_alias_view(
-            "medium_worker",
+            "medium",
             "role",
             configured=True,
-            configured_value="@default@high",
+            configured_value="@large@high",
         ),
         now=0.0,
     )
 
-    assert text.plain == "configured → @default @ high"
+    assert text.plain == "configured → @large @ high"
 
 
-def test_state_tag_implicit_default_shows_shipped_delegation() -> None:
-    text = _state_tag(make_alias_view("default", "default"), now=0.0)
-    assert text.plain == "implicit → @smarter"
-
-
-def test_state_tag_implicit_default_without_fallback_shows_bare_implicit(
+def test_state_tag_implicit_size_alias_shows_bare_implicit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
         alias_view_module, "implicit_model_alias_fallback", lambda _name: None
     )
-    text = _state_tag(make_alias_view("default", "default"), now=0.0)
+    text = _state_tag(make_alias_view("large", "role"), now=0.0)
     assert text.plain == "implicit"
-
-
-def test_state_tag_implicit_role() -> None:
-    text = _state_tag(make_alias_view("medium_worker", "role"), now=0.0)
-    assert text.plain == "implicit → @smart"
-
-
-def test_state_tag_implicit_big_epic_lander() -> None:
-    text = _state_tag(make_alias_view("big_epic_lander", "role"), now=0.0)
-    assert text.plain == "implicit → @smartest"
-
-
-def test_state_tag_implicit_concrete_size_worker() -> None:
-    text = _state_tag(make_alias_view("medium_worker", "role"), now=0.0)
-    assert text.plain == "implicit → @smart"
 
 
 def test_custom_builtin_warning_survives_active_override() -> None:
     view = make_alias_view(
-        "small_worker",
+        "small",
         "role",
         configured=True,
-        configured_value="@default",
+        configured_value="@large",
         configured_source="custom",
     )
     overridden = make_alias_view(
-        "small_worker",
+        "small",
         "role",
         configured=True,
-        configured_value="@default",
+        configured_value="@large",
         configured_source="custom",
         override=make_override(),
     )
@@ -160,35 +145,31 @@ def test_custom_builtin_warning_survives_active_override() -> None:
     description = _description_text_for_view(view).plain
 
     assert line.startswith("  ! role")
-    assert "configured → @default" in line
+    assert "configured → @large" in line
     assert override_line.startswith("  ! role")
     assert "override · 1h left" in override_line
     assert description.splitlines() == [
-        "! Misplaced builtin alias: @small_worker",
+        "! Misplaced builtin alias: @small",
         "Move its model value from llm_provider.model_aliases.custom to "
         "llm_provider.model_aliases.builtin.",
     ]
 
 
 def test_state_tag_override_with_remaining() -> None:
-    view = make_alias_view(
-        "medium_worker", "role", override=make_override(expires_at=3600.0)
-    )
+    view = make_alias_view("medium", "role", override=make_override(expires_at=3600.0))
     text = _state_tag(view, now=0.0)
     assert text.plain == "override · 1h left"
 
 
 def test_state_tag_override_until_cleared() -> None:
-    view = make_alias_view(
-        "medium_worker", "role", override=make_override(expires_at=None)
-    )
+    view = make_alias_view("medium", "role", override=make_override(expires_at=None))
     text = _state_tag(view, now=0.0)
     assert text.plain == "override · until cleared"
 
 
 def test_state_tag_paused_override_names_disabled_provider() -> None:
     view = make_alias_view(
-        "medium_worker",
+        "medium",
         "role",
         override=make_override(),
         override_paused_by_provider_disable=make_disable("codex"),
@@ -267,17 +248,17 @@ def test_paused_override_pool_shows_live_selector_description() -> None:
 
 
 def test_render_alias_row_contains_name_provider_and_state() -> None:
-    view = make_alias_view("medium_worker", "role", provider="codex", model="o3")
+    view = make_alias_view("medium", "role", provider="codex", model="o3")
     width = _provider_model_column_width([view])
     line = _render_alias_row(view, now=0.0, provider_model_width=width).plain
-    assert "medium_worker" in line
+    assert "medium" in line
     assert "CODEX(o3)" in line
     assert "implicit" in line
 
 
 def test_render_alias_row_ownership_gutter_is_semantic() -> None:
     builtin = make_alias_view(
-        "smart",
+        "small",
         "role",
         configured=True,
         configured_source="custom",
@@ -350,7 +331,7 @@ def test_render_alias_row_includes_effort_in_measured_badge() -> None:
 def test_render_alias_rows_align_state_column() -> None:
     """Rows with different badge widths share one state-column start cell."""
     short = make_alias_view(
-        "medium_worker",
+        "medium",
         "role",
         provider="codex",
         model="o3",
@@ -379,8 +360,8 @@ def test_render_alias_rows_align_state_column() -> None:
 def test_render_alias_row_preserves_production_length_provider_model_label() -> None:
     """A representative badge that exceeded the old cap remains readable."""
     view = make_alias_view(
-        "default",
-        "default",
+        "large",
+        "role",
         provider="claude",
         model="claude-fable-4-10",
     )
@@ -454,21 +435,21 @@ def test_reference_effort_description_names_configured_source(
     comparison: str,
 ) -> None:
     view = make_alias_view(
-        "medium_worker",
+        "medium",
         "role",
         configured=True,
-        configured_value="@default@high",
+        configured_value="@large@high",
         effort="high",
     )
 
     text = _description_text_for_view(view, default_effort).plain
 
-    assert text == f"effort: high (via @default@high) · {comparison}"
+    assert text == f"effort: high (via @large@high) · {comparison}"
 
 
-def test_medium_worker_description_omits_reference_source() -> None:
+def test_medium_description_omits_reference_source() -> None:
     view = make_alias_view(
-        "medium_worker",
+        "medium",
         "role",
         effort="xhigh",
     )
@@ -480,7 +461,7 @@ def test_medium_worker_description_omits_reference_source() -> None:
 
 def test_reference_effort_description_is_suppressed_during_override() -> None:
     view = make_alias_view(
-        "medium_worker",
+        "medium",
         "role",
         override=make_override(),
         effort="medium",

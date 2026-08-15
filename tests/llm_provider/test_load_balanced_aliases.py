@@ -122,7 +122,14 @@ def test_pool_edit_fingerprint_resets_cursor(
 ) -> None:
     cfg: dict[str, object] = {
         "provider": "claude",
-        "model_aliases": {"builtin": {"pool": "claude/opus | codex/gpt-5.5"}},
+        "model_aliases": {
+            "custom": {
+                "pool": {
+                    "model": "claude/opus | codex/gpt-5.5",
+                    "description": "Test pool.",
+                }
+            }
+        },
     }
     mock_provider_config(monkeypatch, cfg)
     monkeypatch.setattr(
@@ -132,7 +139,14 @@ def test_pool_edit_fingerprint_resets_cursor(
     )
     assert resolve_model_alias("@pool", consume=True) == "claude/opus"
 
-    cfg["model_aliases"] = {"builtin": {"pool": "codex/o3 | claude/sonnet"}}
+    cfg["model_aliases"] = {
+        "custom": {
+            "pool": {
+                "model": "codex/o3 | claude/sonnet",
+                "description": "Test pool.",
+            }
+        }
+    }
     llm_config._get_model_aliases_for_token.cache_clear()
     assert resolve_model_alias("@pool", consume=True) == "codex/o3"
 
@@ -161,7 +175,14 @@ def test_alias_effort_is_split_and_has_expected_precedence(
         {
             "provider": "claude",
             "default_effort": "low",
-            "model_aliases": {"builtin": {"focused": "claude/opus@medium"}},
+            "model_aliases": {
+                "custom": {
+                    "focused": {
+                        "model": "claude/opus@medium",
+                        "description": "Focused alias.",
+                    }
+                }
+            },
         },
     )
     monkeypatch.setattr(llm_config, "_get_default_effort", lambda: "low")

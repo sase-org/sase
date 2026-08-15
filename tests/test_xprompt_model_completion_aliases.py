@@ -55,20 +55,14 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     monkeypatch.setattr(
         model_completion,
         "get_model_aliases",
-        lambda: {"blogger": "@medium_worker@high"},
+        lambda: {"blogger": "@medium@high"},
     )
     monkeypatch.setattr(
         model_completion,
         "build_alias_views",
         lambda **_kwargs: [
             alias_view(
-                "default",
-                kind="default",
-                configured=False,
-                description="Default model.",
-            ),
-            alias_view(
-                "cheap",
+                "small",
                 kind="role",
                 configured=False,
                 provider="codex",
@@ -97,7 +91,7 @@ def test_model_completion_alias_enrichment_and_pool_counts(
                 "blogger",
                 kind="user",
                 configured=True,
-                configured_value="@medium_worker@high",
+                configured_value="@medium@high",
                 description="Draft and edit blog posts.",
                 config_source="custom",
                 bucket="writing",
@@ -109,21 +103,17 @@ def test_model_completion_alias_enrichment_and_pool_counts(
     entries = model_completion.build_model_completion_catalog()
     by_value = {entry.value: entry for entry in entries}
 
-    default = by_value["@default"]
-    assert default.description == "Default model."
-    assert default.alias_kind == "default"
-    assert (default.target_provider, default.target_model) == ("claude", "opus")
-    assert default.provenance == "implicit"
-
-    cheap = by_value["@cheap"]
-    assert cheap.selector_mode == "round_robin"
-    assert (cheap.pool_available, cheap.pool_total) == (1, 2)
+    small = by_value["@small"]
+    assert small.description == "Small-agent pool."
+    assert small.alias_kind == "role"
+    assert small.selector_mode == "round_robin"
+    assert (small.pool_available, small.pool_total) == (1, 2)
 
     blogger = by_value["@blogger"]
     assert blogger.description == "Draft and edit blog posts."
     assert blogger.alias_kind == "user"
     assert blogger.provenance == "configured"
-    assert blogger.reference == "medium_worker"
+    assert blogger.reference == "medium"
     assert blogger.reference_effort == "high"
     assert blogger.target_effort == "high"
     assert blogger.config_source == "custom"
@@ -140,10 +130,10 @@ def test_model_completion_override_overlay_rewrites_only_alias_target(
         "build_alias_views",
         lambda **_kwargs: [
             alias_view(
-                "default",
-                kind="default",
+                "large",
+                kind="role",
                 configured=False,
-                description="Default model.",
+                description="Default launch model.",
             )
         ],
     )
@@ -159,25 +149,25 @@ def test_model_completion_override_overlay_rewrites_only_alias_target(
 
     static = model_completion.build_model_completion_catalog()
     overlaid = model_completion.build_model_completion_catalog(
-        overrides={"default": override}
+        overrides={"large": override}
     )
-    static_default = next(entry for entry in static if entry.value == "@default")
-    live_default = next(entry for entry in overlaid if entry.value == "@default")
+    static_large = next(entry for entry in static if entry.value == "@large")
+    live_large = next(entry for entry in overlaid if entry.value == "@large")
     static_provider = next(entry for entry in static if entry.value == "claude/")
     live_provider = next(entry for entry in overlaid if entry.value == "claude/")
 
-    assert static_default.provenance == "implicit"
-    assert (static_default.target_provider, static_default.target_model) == (
+    assert static_large.provenance == "implicit"
+    assert (static_large.target_provider, static_large.target_model) == (
         "claude",
         "opus",
     )
-    assert live_default.provenance == "override"
+    assert live_large.provenance == "override"
     assert (
-        live_default.target_provider,
-        live_default.target_model,
-        live_default.target_effort,
+        live_large.target_provider,
+        live_large.target_model,
+        live_large.target_effort,
     ) == ("codex", "gpt-5.6-sol", "medium")
-    assert live_default.reference == ""
+    assert live_large.reference == ""
     assert live_provider == static_provider
 
 
@@ -253,7 +243,8 @@ def test_model_completion_alias_enrichment_failure_keeps_plain_rows(
         for entry in model_completion.build_model_completion_catalog()
     }
 
-    assert "@default" in by_value
+    assert "@xsmall" in by_value
+    assert "@large" in by_value
     assert "@fast" in by_value
     assert by_value["@fast"].alias_kind == ""
     assert by_value["@fast"].target_model == ""

@@ -97,10 +97,10 @@ def _collect_findings(advisories: dict[str, dict[str, str]]) -> list[dict[str, A
 def _resolved_routes() -> list[tuple[str, str, str]]:
     """Return ``(source, provider, model)`` for every route doctor inspects.
 
-    Two families of route can send SASE traffic to a model: a model alias
-    (including ``@default``, which is what an unqualified run uses) and the
-    default provider's own tier mapping, which is what ``model_tier`` resolves
-    to when no alias or ``%model`` names a model explicitly.
+    Two families of route can send SASE traffic to a model: model aliases
+    (including aliases reached by launch-default settings) and the default
+    provider's own tier mapping, which is what ``model_tier`` resolves to when
+    no alias or ``%model`` names a model explicitly.
     """
     from sase.llm_provider import registry as llm_registry
     from sase.llm_provider.alias_view import build_alias_views

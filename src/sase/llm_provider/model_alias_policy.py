@@ -1,8 +1,8 @@
 """Names, defaults, and descriptions for built-in model aliases.
 
-Shipped defaults (targets, role fallbacks, and descriptions) live in the
-bundled ``model_alias_defaults.yml`` sibling file, not in this module. Editing
-that YAML is the single change needed to alter what an implicit alias resolves
+Shipped defaults (targets and descriptions) live in the bundled
+``model_alias_defaults.yml`` sibling file, not in this module. Editing that
+YAML is the single change needed to alter what a built-in size alias resolves
 to out of the box; this module only owns the alias *name* constants and the
 loader that turns the YAML into cached accessor mappings.
 """
@@ -22,84 +22,47 @@ from sase.xprompt.effort import EFFORT_LEVELS_ORDERED, split_model_effort
 
 from .load_balancing import ModelAliasSelectorError, parse_model_alias_selector
 
-# Builtin-role overrides are configured under
-# ``llm_provider.model_aliases.builtin``; user-created aliases live under
-# ``llm_provider.model_aliases.custom`` so they can carry required descriptions.
-# On top of the configured maps, SASE exposes a fixed set of *implicit* special
+# Builtin overrides are configured under ``llm_provider.model_aliases.builtin``;
+# user-created aliases live under ``llm_provider.model_aliases.custom`` so they
+# can carry required descriptions. SASE ships exactly five implicit built-in
 # aliases that always resolve, even when the user has not defined them:
-#
-#   - ``default``: the model used when a prompt has no explicit ``%model``.
-#   - ``epic_lander`` / ``big_epic_lander`` /
-#     ``<size>_worker`` / ``smart`` / ``smarter`` / ``smartest`` /
-#     ``cheap`` / ``cheaper`` / ``cheapest``: bead/epic roles.
-#
-# Most roles fall back to another alias when they are
-# not explicitly configured. A fallback reference may carry an effort overlay,
-# such as ``@default@high``; an outer effort still wins.
-# ``smarter``, ``smart``, ``smartest``, ``cheap``, ``cheaper``, and
-# ``cheapest`` own independent concrete targets/pools. ``default`` delegates
-# to ``@smarter`` by default; if it declares no fallback, it falls through to
-# the configured or autodetected provider's tier default.
+# ``xsmall``, ``small``, ``medium``, ``large``, and ``xlarge``.
 # See ``model_alias_defaults.yml`` for the current value of every default.
 
-#: The implicit "default" alias name (used for no-``%model`` launches).
+#: Retired public alias name retained only for compatibility wrappers and
+#: migration diagnostics. No-``%model`` launches now use
+#: ``llm_provider.default_model``.
 DEFAULT_MODEL_ALIAS_NAME = "default"
 
-#: The implicit "epic_lander" role alias (epic land follow-up default).
+#: Retired public alias names retained only for migrations/diagnostics.
 EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
-
-#: The implicit large-epic lander role alias (threshold-selected follow-up).
 BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
-
-#: The implicit extra-small-phase role alias.
 XSMALL_WORKER_MODEL_ALIAS_NAME = "xsmall_worker"
-
-#: The implicit small-phase role alias.
 SMALL_WORKER_MODEL_ALIAS_NAME = "small_worker"
-
-#: The implicit medium-phase role alias.
 MEDIUM_WORKER_MODEL_ALIAS_NAME = "medium_worker"
-
-#: The implicit large-phase role alias.
 LARGE_WORKER_MODEL_ALIAS_NAME = "large_worker"
-
-#: The implicit extra-large-phase role alias.
 XLARGE_WORKER_MODEL_ALIAS_NAME = "xlarge_worker"
-
-#: The implicit "smart" high-capability alias.
 SMART_MODEL_ALIAS_NAME = "smart"
-
-#: The implicit "smarter" high-capability alias.
 SMARTER_MODEL_ALIAS_NAME = "smarter"
-
-#: The implicit "smartest" highest-capability alias.
 SMARTEST_MODEL_ALIAS_NAME = "smartest"
-
-#: The implicit load-balanced small-phase alias.
 CHEAP_MODEL_ALIAS_NAME = "cheap"
-
-#: The implicit load-balanced extra-small-phase alias.
 CHEAPER_MODEL_ALIAS_NAME = "cheaper"
-
-#: The implicit lowest-cost alias.
 CHEAPEST_MODEL_ALIAS_NAME = "cheapest"
 
-#: Every implicit role-alias name declared by this module, in YAML-entry order.
-_ROLE_ALIAS_NAME_CONSTANTS: tuple[str, ...] = (
-    DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
+#: Public built-in size alias names.
+XSMALL_MODEL_ALIAS_NAME = "xsmall"
+SMALL_MODEL_ALIAS_NAME = "small"
+MEDIUM_MODEL_ALIAS_NAME = "medium"
+LARGE_MODEL_ALIAS_NAME = "large"
+XLARGE_MODEL_ALIAS_NAME = "xlarge"
+
+#: Every shipped built-in alias name declared by this module, in YAML-entry order.
+BUILTIN_MODEL_ALIAS_NAMES: tuple[str, ...] = (
+    XSMALL_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
 )
 
 _DEFAULTS_RESOURCE_NAME = "model_alias_defaults.yml"
@@ -225,7 +188,7 @@ def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefa
     if not isinstance(aliases, dict):
         raise _defaults_error(source, "must have a top-level 'aliases' mapping")
 
-    known_names = set(_ROLE_ALIAS_NAME_CONSTANTS)
+    known_names = set(BUILTIN_MODEL_ALIAS_NAMES)
     yaml_names = set(aliases)
     if yaml_names != known_names:
         missing = sorted(known_names - yaml_names)
@@ -251,12 +214,7 @@ def _parse_model_alias_defaults(text: str, *, source: object) -> _ModelAliasDefa
             raise _defaults_error(
                 source, f"entry {name!r} sets both 'fallback' and 'target'"
             )
-        if name == DEFAULT_MODEL_ALIAS_NAME and target is not None:
-            raise _defaults_error(
-                source,
-                f"entry {name!r} must not set 'target'",
-            )
-        if name != DEFAULT_MODEL_ALIAS_NAME and fallback is None and target is None:
+        if fallback is None and target is None:
             raise _defaults_error(
                 source, f"entry {name!r} must set either 'fallback' or 'target'"
             )
@@ -322,10 +280,11 @@ def _load_model_alias_defaults() -> _ModelAliasDefaults:
 
 
 def role_alias_fallbacks() -> Mapping[str, str]:
-    """Return the ``@<alias>`` reference each role falls back to, if any.
+    """Return built-in alias fallback references, if any.
 
-    A reference may carry a trailing ``@<effort>`` overlay; it does not form a
-    separate target, and an outer effort still wins.
+    The compact built-in contract ships no fallbacks; this accessor remains as
+    a compatibility surface for older callers and tests that exercise malformed
+    bundled defaults.
     """
     return _load_model_alias_defaults().role_alias_fallbacks
 

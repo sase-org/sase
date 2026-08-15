@@ -1,8 +1,8 @@
 """Tests for the AliasOverridesIndicator widget rendering.
 
 Phase 4 (epic sase-5e): the concise, uniform top-bar pill that surfaces
-temporary overrides on *non-*``default`` aliases, next to the gold ``default``
-pill rendered by :class:`LLMOverrideIndicator`.
+temporary overrides on aliases other than the launch-default setting, next to
+the gold default pill rendered by :class:`LLMOverrideIndicator`.
 """
 
 from __future__ import annotations
@@ -14,6 +14,10 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.alias_overrides_indicator import (
     AliasOverridesIndicator,
     _ACTIVE_STYLE,
+)
+from sase.llm_provider.config import (
+    DEFAULT_MODEL_FIELD,
+    launch_model_setting_override_key,
 )
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
@@ -52,10 +56,10 @@ def test_no_overrides_renders_empty() -> None:
 
 def test_single_override_renders_alias_and_countdown() -> None:
     text = AliasOverridesIndicator._build_content(
-        {"medium_worker": _override(expires_at=3_820.0)}, now=100.0
+        {"medium": _override(expires_at=3_820.0)}, now=100.0
     )
 
-    assert text.plain == " @medium_worker 1h2m "
+    assert text.plain == " @medium 1h2m "
     assert "#AF87FF" in str(text.style)
 
 
@@ -69,11 +73,11 @@ def test_single_override_until_cleared_renders_without_countdown() -> None:
 
 def test_single_override_renders_effort_suffix() -> None:
     text = AliasOverridesIndicator._build_content(
-        {"medium_worker": _override(expires_at=None, effort="medium")},
+        {"medium": _override(expires_at=None, effort="medium")},
         now=100.0,
     )
 
-    assert text.plain == " @medium_worker@medium ∞ "
+    assert text.plain == " @medium@medium ∞ "
     assert str(text.style) == _ACTIVE_STYLE
     styled_segments = [
         (text.plain[span.start : span.end], str(span.style)) for span in text.spans
@@ -86,7 +90,7 @@ def test_single_expired_override_renders_empty() -> None:
     # Live reads prune expired entries, but the direct-call path must still
     # collapse to nothing rather than show a zero-time pill.
     text = AliasOverridesIndicator._build_content(
-        {"medium_worker": _override(expires_at=99.0)}, now=100.0
+        {"medium": _override(expires_at=99.0)}, now=100.0
     )
 
     assert text.plain == ""
@@ -110,13 +114,13 @@ def test_multiple_overrides_prune_expired_entries_before_rendering() -> None:
     text = AliasOverridesIndicator._build_content(
         {
             "alpha": _override(expires_at=99.0),
-            "medium_worker": _override(expires_at=None),
+            "medium": _override(expires_at=None),
             "zeta": _override(expires_at=50.0),
         },
         now=100.0,
     )
 
-    assert text.plain == " @medium_worker ∞ "
+    assert text.plain == " @medium ∞ "
 
 
 def test_tooltip_is_none_without_active_overrides() -> None:
@@ -133,7 +137,7 @@ def test_tooltip_is_none_without_active_overrides() -> None:
 def test_tooltip_describes_single_override_target_and_effort() -> None:
     tooltip = AliasOverridesIndicator._build_tooltip(
         {
-            "medium_worker": _override(
+            "medium": _override(
                 provider="claude",
                 model="opus",
                 effort="xhigh",
@@ -144,8 +148,8 @@ def test_tooltip_describes_single_override_target_and_effort() -> None:
     )
 
     assert tooltip == (
-        "Temporary alias overrides:\n"
-        "@medium_worker -> CLAUDE(opus) @ xhigh - 1h2m left\n"
+        "Temporary model overrides:\n"
+        "@medium -> CLAUDE(opus) @ xhigh - 1h2m left\n"
         "Press ,m for the Models panel."
     )
 
@@ -154,7 +158,7 @@ def test_tooltip_sorts_multiple_overrides_and_describes_until_cleared() -> None:
     tooltip = AliasOverridesIndicator._build_tooltip(
         {
             "fast": _override(provider="claude", model="haiku", expires_at=None),
-            "medium_worker": _override(
+            "medium": _override(
                 provider="claude",
                 model="opus",
                 effort="xhigh",
@@ -165,9 +169,9 @@ def test_tooltip_sorts_multiple_overrides_and_describes_until_cleared() -> None:
     )
 
     assert tooltip == (
-        "Temporary alias overrides:\n"
+        "Temporary model overrides:\n"
         "@fast -> CLAUDE(haiku) - until cleared\n"
-        "@medium_worker -> CLAUDE(opus) @ xhigh - 1h2m left\n"
+        "@medium -> CLAUDE(opus) @ xhigh - 1h2m left\n"
         "Press ,m for the Models panel."
     )
 
@@ -183,14 +187,14 @@ def test_active_non_default_overrides_drops_default(
     monkeypatch.setattr(
         f"{_MODULE}.get_active_alias_overrides",
         lambda: {
-            "default": _override(),
-            "medium_worker": _override(model="gpt-5.6-sol"),
+            launch_model_setting_override_key(DEFAULT_MODEL_FIELD): _override(),
+            "medium": _override(model="gpt-5.6-sol"),
         },
     )
 
     result = AliasOverridesIndicator._active_non_default_overrides()
 
-    assert set(result) == {"medium_worker"}
+    assert set(result) == {"medium"}
 
 
 def test_default_only_override_renders_empty(
@@ -198,7 +202,7 @@ def test_default_only_override_renders_empty(
 ) -> None:
     monkeypatch.setattr(
         f"{_MODULE}.get_active_alias_overrides",
-        lambda: {"default": _override()},
+        lambda: {launch_model_setting_override_key(DEFAULT_MODEL_FIELD): _override()},
     )
 
     rendered = AliasOverridesIndicator()._build_initial_content()
@@ -213,15 +217,15 @@ def test_initial_content_reflects_non_default_override(
     monkeypatch.setattr(
         f"{_MODULE}.get_active_alias_overrides",
         lambda: {
-            "default": _override(),
-            "medium_worker": _override(model="gpt-5.6-sol", expires_at=None),
+            launch_model_setting_override_key(DEFAULT_MODEL_FIELD): _override(),
+            "medium": _override(model="gpt-5.6-sol", expires_at=None),
         },
     )
 
     rendered = AliasOverridesIndicator()._build_initial_content()
 
     assert isinstance(rendered, Text)
-    assert rendered.plain == " @medium_worker ∞ "
+    assert rendered.plain == " @medium ∞ "
 
 
 # ---------------------------------------------------------------------------
@@ -253,11 +257,11 @@ async def test_refresh_picks_up_new_non_default_override(
         )
         assert indicator._build_initial_content().plain == ""
 
-        overrides["medium_worker"] = _override(expires_at=None)
+        overrides["medium"] = _override(expires_at=None)
         indicator.refresh()
         await page.pause()
 
-    assert indicator._build_initial_content().plain == " @medium_worker ∞ "
+    assert indicator._build_initial_content().plain == " @medium ∞ "
 
 
 async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:

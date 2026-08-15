@@ -19,80 +19,35 @@ import yaml  # type: ignore[import-untyped]
 from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider import model_alias_policy
 from sase.llm_provider.model_alias_policy import (
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
-    DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
+    XSMALL_MODEL_ALIAS_NAME,
     _ModelAliasDefaults,
 )
 from sase.xprompt.effort import split_model_effort
 
 _FROZEN_ALIASES: dict[str, dict[str, str]] = {
-    DEFAULT_MODEL_ALIAS_NAME: {
-        "fallback": "@smarter",
-        "description": "Frozen test description for default.",
+    XSMALL_MODEL_ALIAS_NAME: {
+        "target": "claude/sonnet@medium | codex/gpt-5.5@medium",
+        "description": "Frozen test description for xsmall.",
     },
-    EPIC_LANDER_MODEL_ALIAS_NAME: {
-        "fallback": "@default",
-        "description": "Frozen test description for epic_lander.",
+    SMALL_MODEL_ALIAS_NAME: {
+        "target": "claude/sonnet@high | codex/gpt-5.5@high",
+        "description": "Frozen test description for small.",
     },
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME: {
-        "fallback": "@smartest",
-        "description": "Frozen test description for big_epic_lander.",
+    MEDIUM_MODEL_ALIAS_NAME: {
+        "target": "codex/gpt-5.5@xhigh | claude/sonnet@xhigh",
+        "description": "Frozen test description for medium.",
     },
-    XSMALL_WORKER_MODEL_ALIAS_NAME: {
-        "fallback": "@cheaper",
-        "description": "Frozen test description for xsmall_worker.",
+    LARGE_MODEL_ALIAS_NAME: {
+        "target": "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh",
+        "description": "Frozen test description for large.",
     },
-    SMALL_WORKER_MODEL_ALIAS_NAME: {
-        "fallback": "@cheap",
-        "description": "Frozen test description for small_worker.",
-    },
-    MEDIUM_WORKER_MODEL_ALIAS_NAME: {
-        "fallback": "@smart",
-        "description": "Frozen test description for medium_worker.",
-    },
-    LARGE_WORKER_MODEL_ALIAS_NAME: {
-        "fallback": "@smarter",
-        "description": "Frozen test description for large_worker.",
-    },
-    XLARGE_WORKER_MODEL_ALIAS_NAME: {
-        "fallback": "@smartest",
-        "description": "Frozen test description for xlarge_worker.",
-    },
-    SMART_MODEL_ALIAS_NAME: {
-        "target": "codex/o3@high | claude/sonnet@high",
-        "description": "Frozen test description for smart.",
-    },
-    SMARTER_MODEL_ALIAS_NAME: {
-        "target": "codex/gpt-5.6-sol@high | claude/opus@high",
-        "description": "Frozen test description for smarter.",
-    },
-    SMARTEST_MODEL_ALIAS_NAME: {
-        "target": "claude/sonnet@max",
-        "description": "Frozen test description for smartest.",
-    },
-    CHEAP_MODEL_ALIAS_NAME: {
-        "target": "claude/haiku@low | codex/gpt-4.1@low",
-        "description": "Frozen test description for cheap.",
-    },
-    CHEAPER_MODEL_ALIAS_NAME: {
-        "target": "claude/haiku@minimal | codex/gpt-4.1-mini@low",
-        "description": "Frozen test description for cheaper.",
-    },
-    CHEAPEST_MODEL_ALIAS_NAME: {
-        "target": "claude/haiku@minimal | codex/gpt-4o-mini",
-        "description": "Frozen test description for cheapest.",
+    XLARGE_MODEL_ALIAS_NAME: {
+        "target": "claude/opus@max || codex/gpt-5.6-sol@max",
+        "description": "Frozen test description for xlarge.",
     },
 }
 

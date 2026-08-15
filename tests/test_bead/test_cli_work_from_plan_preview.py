@@ -60,10 +60,10 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     assert result.waves == (("core",), ("cli",), ("verify",))
     assert not result.archived_plan_path.exists()
     output = capsys.readouterr().out
-    assert "core Build the core (small · @small_worker)" in output
-    assert "cli Add the CLI (medium · @medium_worker)" in output
-    assert "verify Verify the result (large · @large_worker · #plan)" in output
-    assert "Land    @epic_lander" in output
+    assert "core Build the core (small · @small)" in output
+    assert "cli Add the CLI (medium · @medium)" in output
+    assert "verify Verify the result (large · @large · #plan)" in output
+    assert "Land    @large" in output
 
 
 def test_plan_file_launch_mode_keeps_legacy_sizeless_epic_resumable(
@@ -86,21 +86,21 @@ def test_plan_file_launch_mode_keeps_legacy_sizeless_epic_resumable(
 
     assert result.waves == (("core",), ("cli",), ("verify",))
     output = capsys.readouterr().out
-    assert output.count("small · @small_worker") == 3
-    assert "@medium_worker" not in output
-    assert "@large_worker" not in output
+    assert output.count("small · @small") == 3
+    assert "@medium" not in output
+    assert "@large · #plan" not in output
     assert "#plan" not in output
 
 
 @pytest.mark.parametrize(
     ("threshold", "phase_count", "model", "expected_model"),
     [
-        pytest.param(5, 4, None, "@epic_lander", id="default-below"),
-        pytest.param(5, 5, None, "@big_epic_lander", id="default-exact"),
-        pytest.param(5, 6, None, "@big_epic_lander", id="default-above"),
-        pytest.param(3, 2, None, "@epic_lander", id="custom-below"),
-        pytest.param(3, 3, None, "@big_epic_lander", id="custom-exact"),
-        pytest.param(3, 4, None, "@big_epic_lander", id="custom-above"),
+        pytest.param(5, 4, None, "@large", id="default-below"),
+        pytest.param(5, 5, None, "@xlarge", id="default-exact"),
+        pytest.param(5, 6, None, "@xlarge", id="default-above"),
+        pytest.param(3, 2, None, "@large", id="custom-below"),
+        pytest.param(3, 3, None, "@xlarge", id="custom-exact"),
+        pytest.param(3, 4, None, "@xlarge", id="custom-above"),
         pytest.param(5, 6, "claude/opus", "claude/opus", id="explicit-model"),
     ],
 )

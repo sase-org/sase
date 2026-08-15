@@ -274,7 +274,10 @@ def extract_directives_and_write_meta(
         # prompt step invokes the provider — see WorkflowExecutor. This
         # preview never advances a load-balanced alias pool's cursor, and its
         # metadata is reconciled with the authoritative selection afterward.
-        from sase.llm_provider.config import default_model_alias_name
+        from sase.llm_provider.config import (
+            DEFAULT_MODEL_FIELD,
+            launch_model_setting_alias,
+        )
         from sase.llm_provider.launch_selection import resolve_launch_selection
 
         preview = resolve_launch_selection(
@@ -286,9 +289,12 @@ def extract_directives_and_write_meta(
         agent_model = preview.model
         agent_llm_provider = preview.provider
         agent_reasoning_effort = preview.reasoning_effort
-        agent_model_alias = (
-            directives.model_alias if directives.model else default_model_alias_name()
-        )
+        agent_model_alias = directives.model_alias
+        if not directives.model:
+            agent_model_alias = launch_model_setting_alias(
+                DEFAULT_MODEL_FIELD,
+                model_alias_overrides,
+            )
 
     vcs_name = detect_vcs(workspace_dir)
     if vcs_name:

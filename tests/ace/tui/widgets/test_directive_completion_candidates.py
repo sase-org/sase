@@ -277,7 +277,7 @@ def test_model_paren_completion_offers_alias_keys_and_model_values() -> None:
         partial,
     )
 
-    assert "medium_worker=" in {candidate.insertion for candidate in candidates}
+    assert "medium=" in {candidate.insertion for candidate in candidates}
 
 
 def test_wait_paren_completion_uses_keyword_aware_context() -> None:
@@ -291,9 +291,9 @@ def test_wait_paren_completion_uses_keyword_aware_context() -> None:
 
 
 def test_model_paren_completion_replaces_kwarg_value_only() -> None:
-    line = "%m(opus, medium_worker=son"
+    line = "%m(opus, medium=son"
     assert extract_directive_arg_token_around_cursor(line, len(line)) == (
-        len("%m(opus, medium_worker="),
+        len("%m(opus, medium="),
         len(line),
         "model",
         "son",

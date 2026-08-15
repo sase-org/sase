@@ -13,20 +13,11 @@ from sase.llm_provider.load_balancing import (
 )
 from sase.llm_provider import registry
 from sase.llm_provider.model_alias_policy import (
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
-    DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
+    XSMALL_MODEL_ALIAS_NAME,
     _parse_model_alias_defaults,
     implicit_alias_targets,
     role_alias_descriptions,
@@ -44,20 +35,11 @@ from tests._model_alias_defaults_fixture import (
 # enumerated here rather than derived from the loader under test.
 _DECLARED_ROLE_ALIAS_NAMES = frozenset(
     {
-        DEFAULT_MODEL_ALIAS_NAME,
-        EPIC_LANDER_MODEL_ALIAS_NAME,
-        BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-        XSMALL_WORKER_MODEL_ALIAS_NAME,
-        SMALL_WORKER_MODEL_ALIAS_NAME,
-        MEDIUM_WORKER_MODEL_ALIAS_NAME,
-        LARGE_WORKER_MODEL_ALIAS_NAME,
-        XLARGE_WORKER_MODEL_ALIAS_NAME,
-        SMART_MODEL_ALIAS_NAME,
-        SMARTER_MODEL_ALIAS_NAME,
-        SMARTEST_MODEL_ALIAS_NAME,
-        CHEAP_MODEL_ALIAS_NAME,
-        CHEAPER_MODEL_ALIAS_NAME,
-        CHEAPEST_MODEL_ALIAS_NAME,
+        XSMALL_MODEL_ALIAS_NAME,
+        SMALL_MODEL_ALIAS_NAME,
+        MEDIUM_MODEL_ALIAS_NAME,
+        LARGE_MODEL_ALIAS_NAME,
+        XLARGE_MODEL_ALIAS_NAME,
     }
 )
 
@@ -129,17 +111,8 @@ def test_fallback_and_target_are_mutually_exclusive_and_cover_every_role(
     fallbacks = role_alias_fallbacks()
     targets = implicit_alias_targets()
 
-    assert set(fallbacks).isdisjoint(targets)
-    assert set(fallbacks) | set(targets) | {DEFAULT_MODEL_ALIAS_NAME} == (
-        _DECLARED_ROLE_ALIAS_NAMES
-    )
-
-
-def test_default_alias_declares_fallback_and_no_target(
-    real_model_alias_defaults: None,
-) -> None:
-    assert role_alias_fallbacks()[DEFAULT_MODEL_ALIAS_NAME] == "@smarter"
-    assert DEFAULT_MODEL_ALIAS_NAME not in implicit_alias_targets()
+    assert not fallbacks
+    assert set(targets) == _DECLARED_ROLE_ALIAS_NAMES
 
 
 def test_every_description_is_a_nonempty_stripped_string(
@@ -191,53 +164,37 @@ def test_shipped_defaults_match_the_frozen_graph_shape(
 
 def test_parser_rejects_unknown_fallback_reference() -> None:
     aliases = _fixture_aliases()
-    aliases[EPIC_LANDER_MODEL_ALIAS_NAME]["fallback"] = "@nope"
+    aliases[SMALL_MODEL_ALIAS_NAME].pop("target")
+    aliases[SMALL_MODEL_ALIAS_NAME]["fallback"] = "@nope"
 
-    with pytest.raises(RuntimeError, match="epic_lander.*unknown alias '@nope'"):
+    with pytest.raises(RuntimeError, match="small.*unknown alias '@nope'"):
         _parse_fixture_aliases(aliases)
 
 
 def test_parser_rejects_unparseable_target() -> None:
     aliases = _fixture_aliases()
-    aliases[CHEAP_MODEL_ALIAS_NAME]["target"] = "claude/opus || || codex/o3"
+    aliases[XSMALL_MODEL_ALIAS_NAME]["target"] = "claude/opus || || codex/o3"
 
-    with pytest.raises(RuntimeError, match="cheap.*empty members"):
+    with pytest.raises(RuntimeError, match="xsmall.*empty members"):
         _parse_fixture_aliases(aliases)
 
 
-def test_parser_rejects_default_target() -> None:
+def test_parser_rejects_size_alias_without_target_or_fallback() -> None:
     aliases = _fixture_aliases()
-    aliases[DEFAULT_MODEL_ALIAS_NAME].pop("fallback")
-    aliases[DEFAULT_MODEL_ALIAS_NAME]["target"] = "claude/opus"
+    aliases[LARGE_MODEL_ALIAS_NAME].pop("target")
 
-    with pytest.raises(RuntimeError, match="default.*must not set 'target'"):
+    with pytest.raises(RuntimeError, match="large.*must set either"):
         _parse_fixture_aliases(aliases)
-
-
-def test_parser_accepts_default_with_neither_fallback_nor_target() -> None:
-    aliases = _fixture_aliases()
-    aliases[DEFAULT_MODEL_ALIAS_NAME].pop("fallback")
-
-    _parse_fixture_aliases(aliases)
 
 
 def test_parser_rejects_two_alias_fallback_cycle() -> None:
     aliases = _fixture_aliases()
-    aliases[SMART_MODEL_ALIAS_NAME].pop("target")
-    aliases[SMART_MODEL_ALIAS_NAME]["fallback"] = "@smartest"
-    aliases[SMARTEST_MODEL_ALIAS_NAME].pop("target")
-    aliases[SMARTEST_MODEL_ALIAS_NAME]["fallback"] = "@smart"
+    aliases[SMALL_MODEL_ALIAS_NAME].pop("target")
+    aliases[SMALL_MODEL_ALIAS_NAME]["fallback"] = "@medium"
+    aliases[MEDIUM_MODEL_ALIAS_NAME].pop("target")
+    aliases[MEDIUM_MODEL_ALIAS_NAME]["fallback"] = "@small"
 
-    with pytest.raises(RuntimeError, match="smart.*cycle|cycle.*smart"):
-        _parse_fixture_aliases(aliases)
-
-
-def test_parser_rejects_fallback_cycle_routed_through_default() -> None:
-    aliases = _fixture_aliases()
-    aliases[SMARTER_MODEL_ALIAS_NAME].pop("target")
-    aliases[SMARTER_MODEL_ALIAS_NAME]["fallback"] = "@default"
-
-    with pytest.raises(RuntimeError, match="default.*cycle|cycle.*default"):
+    with pytest.raises(RuntimeError, match="small.*cycle|cycle.*small"):
         _parse_fixture_aliases(aliases)
 
 

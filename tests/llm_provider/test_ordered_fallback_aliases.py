@@ -24,10 +24,15 @@ def test_ordered_fallback_selects_first_available_without_cursor_state(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
+                "custom": {
                     "fallback": (
-                        "claude/claude-fable-5@high || codex/gpt-5.6-sol@medium"
-                    )
+                        {
+                            "model": (
+                                "claude/claude-fable-5@high || codex/gpt-5.6-sol@medium"
+                            ),
+                            "description": "Test fallback.",
+                        }
+                    ),
                 }
             },
         },
@@ -67,9 +72,15 @@ def test_nested_pool_fails_closed_and_validation_is_actionable(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "outer": "@inner | claude/opus",
-                    "inner": "codex/o3 | claude/sonnet",
+                "custom": {
+                    "outer": {
+                        "model": "@inner | claude/opus",
+                        "description": "Outer pool.",
+                    },
+                    "inner": {
+                        "model": "codex/o3 | claude/sonnet",
+                        "description": "Inner pool.",
+                    },
                 }
             },
         },
@@ -89,10 +100,19 @@ def test_nested_fallback_and_mixed_selectors_fail_closed(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "outer": "@inner || claude/opus",
-                    "inner": "codex/o3 || claude/sonnet",
-                    "mixed": "claude/opus | codex/o3 || claude/sonnet",
+                "custom": {
+                    "outer": {
+                        "model": "@inner || claude/opus",
+                        "description": "Outer fallback.",
+                    },
+                    "inner": {
+                        "model": "codex/o3 || claude/sonnet",
+                        "description": "Inner fallback.",
+                    },
+                    "mixed": {
+                        "model": "claude/opus | codex/o3 || claude/sonnet",
+                        "description": "Mixed selector.",
+                    },
                 }
             },
         },
@@ -120,9 +140,15 @@ def test_fallback_members_support_alias_chains_and_explicit_unknown_provider(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "primary": "missing-provider/frontier@xhigh",
-                    "fallback": "@primary || codex/gpt-5.6-sol@medium",
+                "custom": {
+                    "primary": {
+                        "model": "missing-provider/frontier@xhigh",
+                        "description": "Primary.",
+                    },
+                    "fallback": {
+                        "model": "@primary || codex/gpt-5.6-sol@medium",
+                        "description": "Fallback.",
+                    },
                 }
             },
         },
@@ -148,7 +174,15 @@ def test_fallback_validation_reports_cycles_and_depth_limits(
     chain.update({"cycle_a": "@cycle_b", "cycle_b": "@cycle_a"})
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"builtin": chain}},
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    alias: {"model": target, "description": alias}
+                    for alias, target in chain.items()
+                }
+            },
+        },
     )
 
     cycle_errors = validate_model_alias_selector_value(
@@ -170,7 +204,12 @@ def test_launch_and_temporary_overrides_suspend_ordered_fallback(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"fallback": ("claude/claude-fable-5 || codex/gpt-5.6-sol")}
+                "custom": {
+                    "fallback": {
+                        "model": "claude/claude-fable-5 || codex/gpt-5.6-sol",
+                        "description": "Fallback.",
+                    }
+                }
             },
         },
     )
@@ -227,5 +266,5 @@ def test_shipped_smartest_ordered_fallback_selects_by_availability(
         lambda target: target in available,
     )
 
-    resolved = resolve_model_alias_with_effort("@smartest", consume=True)
+    resolved = resolve_model_alias_with_effort("@xlarge", consume=True)
     assert (resolved.target, resolved.effort) == (expected_target, "max")

@@ -17,20 +17,7 @@ from sase.config.core import current_config_token
 from sase.llm_provider.alias_view import AliasView, build_alias_views
 
 from sase.llm_provider.config import (
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
-    DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
+    BUILTIN_MODEL_ALIAS_NAMES,
     get_model_aliases,
 )
 from sase.llm_provider.registry import (
@@ -52,25 +39,8 @@ MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
 
 _INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
 
-# Implicit role aliases surfaced as ``%model`` completions, in display order.
-# These are the migration replacements for the retired reserved
-# ``@worker``/``@other`` aliases (epic sase-5d phase 2).
-_IMPLICIT_ALIASES: tuple[str, ...] = (
-    DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
-)
+# Built-in size aliases surfaced as ``%model`` completions, in display order.
+_IMPLICIT_ALIASES: tuple[str, ...] = BUILTIN_MODEL_ALIAS_NAMES
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,12 +84,9 @@ def build_model_completion_catalog(
 
     Canonical model names come from the cached LLM metadata payload. Short
     aliases are kept as match/display hints only; they are not inserted as
-    completion values. The implicit role aliases (``@default``,
-    ``@epic_lander``, ``@big_epic_lander``, the five size-specific phase
-    aliases, ``@smartest``, ``@smarter``, ``@smart``, ``@cheap``,
-    ``@cheaper``, and ``@cheapest``) and user-configured aliases are inserted
-    with their ``@`` form because those values resolve through the
-    normal ``%model`` path.
+    completion values. The five implicit size aliases and user-configured
+    aliases are inserted with their ``@`` form because those values resolve
+    through the normal ``%model`` path.
     """
     global _CATALOG_CACHE  # noqa: PLW0603
 
@@ -464,7 +431,7 @@ def _append_implicit_alias_entries(
     user_aliases: dict[str, str],
     alias_views: dict[str, AliasView],
 ) -> None:
-    """Append the implicit role aliases (``@default``, ``@epic_lander``, etc.).
+    """Append the implicit built-in size aliases.
 
     An implicit alias the user has shadowed via ``model_aliases`` is skipped here
     so the user-configured target is surfaced once, with its real

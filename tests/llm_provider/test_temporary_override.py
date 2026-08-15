@@ -240,13 +240,13 @@ def test_set_empty_source_raises() -> None:
 
 
 def test_state_file_uses_v2_keyed_schema() -> None:
-    """The default override is written under the v2 ``overrides.default`` key."""
+    """The default override is written under its launch-setting key."""
     set_temporary_override("codex/o3", 3600.0, source="ace")
     raw = state_path().read_text(encoding="utf-8")
     data = json.loads(raw)
 
     assert data["version"] == 2
-    entry = data["overrides"]["default"]
+    entry = data["overrides"]["setting:default_model"]
     assert entry["provider"] == "codex"
     assert entry["model"] == "o3"
     assert entry["raw_model"] == "codex/o3"

@@ -38,13 +38,13 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
         description="Phase roles.",
         members=(
             make_alias_view(
-                "small_worker",
+                "small",
                 "role",
                 configured=True,
                 configured_source="custom",
                 override=make_override(),
             ),
-            make_alias_view("medium_worker", "role"),
+            make_alias_view("medium", "role"),
         ),
     )
 
@@ -55,19 +55,19 @@ def test_render_bucket_row_and_description_surface_custom_builtin_warnings() -> 
     assert "! 1 misplaced" in line
     assert "1 override" in line
     assert description.splitlines() == [
-        "! Misplaced builtin alias: @small_worker",
+        "! Misplaced builtin alias: @small",
         "Move its model value from llm_provider.model_aliases.custom to "
         "llm_provider.model_aliases.builtin.",
     ]
 
 
-def test_render_builtin_bucket_appends_custom_after_warning_and_override() -> None:
+def test_render_custom_bucket_with_warning_and_override() -> None:
     bucket = BucketView(
         name="worker",
         description="Phase roles.",
         members=(
             make_alias_view(
-                "small_worker",
+                "small",
                 "role",
                 configured=True,
                 configured_source="custom",
@@ -79,8 +79,8 @@ def test_render_builtin_bucket_appends_custom_after_warning_and_override() -> No
 
     line = render_bucket_row(bucket, provider_model_width=13).plain
 
-    assert line.startswith("  ▸ ! bucket")
-    assert line.endswith("! 1 misplaced · 1 override · 1 custom")
+    assert line.startswith("▌ ▸ ! bucket")
+    assert line.endswith("! 1 misplaced · 1 override")
 
 
 def test_render_user_bucket_uses_ownership_gutter_and_accent() -> None:

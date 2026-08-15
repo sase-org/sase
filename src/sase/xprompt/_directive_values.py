@@ -512,8 +512,7 @@ def _validate_model_alias_prefix(model: str, *, had_alias_prefix: bool) -> str:
         if model not in aliases:
             raise DirectiveError(
                 f"'@{model}' is not a known model alias; @ may only prefix a "
-                "configured or built-in model alias (e.g. @default, "
-                "@medium_worker)."
+                "configured or built-in model alias (e.g. @large or @medium)."
             )
     elif model in aliases:
         raise DirectiveError(

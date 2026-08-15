@@ -27,45 +27,23 @@ class StyledModelPickerTestApp(ModelPickerTestApp):
 
 def make_alias_context(
     *,
-    target: str = "big_epic_lander",
+    target: str = "large",
     operation: str = "persistent",
     views=None,
 ) -> AliasSelectionContext:
     """Build the standard alias selection context used by picker tests."""
     if views is None:
         views = [
+            make_alias_view("xsmall", "role", provider="claude", model="sonnet"),
+            make_alias_view("small", "role", provider="claude", model="sonnet"),
             make_alias_view(
-                "default",
-                "default",
-                provider="claude",
-                model="opus",
-                description="Default launch model.",
-            ),
-            make_alias_view("epic_lander", "role", provider="claude", model="opus"),
-            make_alias_view("big_epic_lander", "role", provider="claude", model="opus"),
-            make_alias_view("xsmall_worker", "role", provider="claude", model="sonnet"),
-            make_alias_view("small_worker", "role", provider="claude", model="opus"),
-            make_alias_view(
-                "medium_worker",
+                "medium",
                 "role",
                 provider="codex",
-                model="gpt-5.6-sol",
+                model="gpt-5.5",
             ),
-            make_alias_view("large_worker", "role", provider="claude", model="opus"),
-            make_alias_view(
-                "xlarge_worker",
-                "role",
-                provider="claude",
-                model="claude-fable-5",
-            ),
-            make_alias_view(
-                "smartest", "role", provider="claude", model="claude-fable-5"
-            ),
-            make_alias_view("smarter", "role", provider="claude", model="opus"),
-            make_alias_view("smart", "role", provider="claude", model="opus"),
-            make_alias_view("cheap", "role", provider="claude", model="opus"),
-            make_alias_view("cheaper", "role", provider="claude", model="sonnet"),
-            make_alias_view("cheapest", "role", provider="claude", model="haiku"),
+            make_alias_view("large", "role", provider="claude", model="opus"),
+            make_alias_view("xlarge", "role", provider="claude", model="opus"),
         ]
     return AliasSelectionContext(
         views=tuple(views),

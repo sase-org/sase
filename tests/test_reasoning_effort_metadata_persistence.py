@@ -33,8 +33,11 @@ def test_agent_meta_persists_explicit_effort(tmp_path: Path) -> None:
 def test_agent_meta_records_default_alias_for_plain_prompt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A no-%model launch records the implicit default alias provenance."""
+    """A no-%model launch records the configured launch-default alias provenance."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from tests._model_alias_defaults_fixture import (
+        frozen_selector_provider_model_effort,
+    )
 
     # Pin the config default to "unset" so the test is independent of the
     # developer's ~/.config/sase/sase.yml (which Phase 6 sets to xhigh).
@@ -54,15 +57,23 @@ def test_agent_meta_records_default_alias_for_plain_prompt(
     meta = json.loads(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert meta["reasoning_effort"] == "high"
-    assert meta["model_alias"] == "default"
+    provider, model, effort = frozen_selector_provider_model_effort("large", 0)
+    assert (meta["llm_provider"], meta["model"], meta["reasoning_effort"]) == (
+        provider,
+        model,
+        effort,
+    )
+    assert meta["model_alias"] == "large"
 
 
 def test_agent_meta_default_alias_effort_beats_config_default_effort(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Alias-borne default-lane effort wins before ``default_effort``."""
+    """Alias-borne launch-default effort wins before ``default_effort``."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from tests._model_alias_defaults_fixture import (
+        frozen_selector_provider_model_effort,
+    )
 
     monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "low")
 
@@ -80,8 +91,13 @@ def test_agent_meta_default_alias_effort_beats_config_default_effort(
     meta = json.loads(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert meta["reasoning_effort"] == "high"
-    assert meta["model_alias"] == "default"
+    provider, model, effort = frozen_selector_provider_model_effort("large", 0)
+    assert (meta["llm_provider"], meta["model"], meta["reasoning_effort"]) == (
+        provider,
+        model,
+        effort,
+    )
+    assert meta["model_alias"] == "large"
 
 
 def test_agent_meta_records_model_alias_and_launch_override_target(
@@ -94,7 +110,7 @@ def test_agent_meta_records_model_alias_and_launch_override_target(
 
     config = {
         "provider": "claude",
-        "model_aliases": {"builtin": {"medium_worker": "claude/sonnet"}},
+        "model_aliases": {"builtin": {"medium": "claude/sonnet"}},
     }
     monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
     monkeypatch.setattr(
@@ -108,7 +124,7 @@ def test_agent_meta_records_model_alias_and_launch_override_target(
     os.makedirs(artifacts_dir, exist_ok=True)
 
     extract_directives_and_write_meta(
-        prompt="%m(@medium_worker, medium_worker=codex/gpt-5)\ndo the work",
+        prompt="%m(@medium, medium=codex/gpt-5)\ndo the work",
         workspace_dir=workspace_dir,
         artifacts_dir=artifacts_dir,
     )
@@ -116,7 +132,7 @@ def test_agent_meta_records_model_alias_and_launch_override_target(
     meta = json.loads(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert meta["model_alias"] == "medium_worker"
+    assert meta["model_alias"] == "medium"
     assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5")
 
 
@@ -158,7 +174,12 @@ def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_sele
         lambda: {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"pool": "claude/opus@medium | codex/gpt-5.5"}
+                "custom": {
+                    "pool": {
+                        "model": "claude/opus@medium | codex/gpt-5.5",
+                        "description": "Test pool.",
+                    }
+                }
             },
         },
     )
@@ -228,7 +249,7 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
     ``test_workflow_executor.py`` for the composed, consuming path)."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
     from sase.llm_provider import config as llm_config
-    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+    from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
     from tests._model_alias_defaults_fixture import (
         frozen_selector_provider_model_effort,
     )
@@ -257,7 +278,7 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         if not state_path.exists():
             return 0
         state = json.loads(state_path.read_text(encoding="utf-8"))
-        return int(state["entries"][SMARTER_MODEL_ALIAS_NAME]["cursor"])
+        return int(state["entries"][LARGE_MODEL_ALIAS_NAME]["cursor"])
 
     extract_directives_and_write_meta(
         prompt="do the work",
@@ -268,14 +289,14 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         (Path(first_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
     first_provider, first_model, first_effort = frozen_selector_provider_model_effort(
-        SMARTER_MODEL_ALIAS_NAME, 0
+        LARGE_MODEL_ALIAS_NAME, 0
     )
     assert (first["llm_provider"], first["model"], first["reasoning_effort"]) == (
         first_provider,
         first_model,
         first_effort,
     )
-    assert first["model_alias"] == "default"
+    assert first["model_alias"] == "large"
     assert cursor() == 0
 
     extract_directives_and_write_meta(
@@ -286,7 +307,7 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
     preserved = json.loads(
         (Path(first_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
-    assert preserved["model_alias"] == "default"
+    assert preserved["model_alias"] == "large"
     assert (preserved["llm_provider"], preserved["model"]) == (
         first_provider,
         first_model,
@@ -308,7 +329,7 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         first_model,
         first_effort,
     )
-    assert second["model_alias"] == "default"
+    assert second["model_alias"] == "large"
     assert cursor() == 0
 
 
@@ -333,13 +354,13 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
         model="opus",
         llm_provider="claude",
         reasoning_effort="xhigh",
-        model_alias="medium_worker",
+        model_alias="medium",
     )
 
     marker_path = tmp_path / "prompt_step_s1.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["reasoning_effort"] == "xhigh"
-    assert marker["model_alias"] == "medium_worker"
+    assert marker["model_alias"] == "medium"
 
     # A later rewrite that does not re-pass the effort keeps the stored value
     # (mirrors model/llm_provider preservation).
@@ -347,4 +368,4 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
     executor._save_prompt_step_marker("s1", state)
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["reasoning_effort"] == "xhigh"
-    assert marker["model_alias"] == "medium_worker"
+    assert marker["model_alias"] == "medium"

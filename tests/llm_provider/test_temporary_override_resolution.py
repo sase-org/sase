@@ -35,7 +35,7 @@ def test_resolve_effective_default_ignores_expired_override() -> None:
     # Force the override to be in the past by rewriting the v2 state entry.
     path = state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["overrides"]["default"]["expires_at"] = time.time() - 1
+    data["overrides"]["setting:default_model"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
     provider, _ = resolve_effective_default_provider_model()

@@ -9,6 +9,7 @@ from sase.config.core import current_config_token
 from sase.xprompt.effort import split_model_effort
 
 from .model_alias_policy import (
+    BUILTIN_MODEL_ALIAS_NAMES,
     DEFAULT_MODEL_ALIAS_NAME,
     implicit_alias_targets,
     role_alias_descriptions,
@@ -37,7 +38,12 @@ def _raw_model_aliases_config() -> dict[str, Any]:
 
 def get_builtin_model_aliases() -> dict[str, str]:
     """Return cleaned ``llm_provider.model_aliases.builtin`` entries."""
-    return _clean_string_mapping(_raw_model_aliases_config().get("builtin", {}))
+    cleaned = _clean_string_mapping(_raw_model_aliases_config().get("builtin", {}))
+    return {
+        alias: target
+        for alias, target in cleaned.items()
+        if alias in BUILTIN_MODEL_ALIAS_NAMES
+    }
 
 
 def get_custom_model_aliases() -> dict[str, str]:
@@ -168,7 +174,7 @@ def model_alias_config_source(name: str) -> ModelAliasConfigSource | None:
 
 
 def default_model_alias_name() -> str:
-    """Return the implicit "default" model alias name."""
+    """Return the retired public "default" alias name for compatibility."""
     return DEFAULT_MODEL_ALIAS_NAME
 
 
@@ -178,12 +184,8 @@ def role_model_directive_value(role: str) -> str:
 
 
 def role_model_alias_names() -> set[str]:
-    """Return the fixed implicit role aliases (``default`` plus role aliases)."""
-    return {
-        DEFAULT_MODEL_ALIAS_NAME,
-        *role_alias_fallbacks(),
-        *implicit_alias_targets(),
-    }
+    """Return the fixed implicit built-in aliases."""
+    return set(implicit_alias_targets())
 
 
 def special_model_alias_names() -> set[str]:
@@ -197,9 +199,7 @@ def model_alias_names() -> set[str]:
 
 
 def model_alias_kind(name: str) -> str:
-    """Classify *name* for display as a default, role, or user alias."""
-    if name == DEFAULT_MODEL_ALIAS_NAME:
-        return "default"
+    """Classify *name* for display as a built-in or user alias."""
     if name in role_alias_fallbacks() or name in implicit_alias_targets():
         return "role"
     return "user"

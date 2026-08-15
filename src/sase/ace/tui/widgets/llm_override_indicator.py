@@ -184,7 +184,7 @@ class LLMOverrideIndicator(Static):
         if override is not None:
             return "\n".join(
                 (
-                    "Temporary override on @default",
+                    "Temporary override on launch default",
                     format_tooltip_target(override),
                     format_tooltip_remaining(override.expires_at, now),
                     "Press ,m for the Models panel.",

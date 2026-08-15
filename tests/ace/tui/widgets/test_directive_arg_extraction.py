@@ -170,7 +170,7 @@ def test_directive_arg_extraction_keeps_leading_at_model_alias_context() -> None
     for line, expected_start, expected_partial in (
         ("%m:@", len("%m:"), "@"),
         ("%m:@def", len("%m:"), "@def"),
-        ("%model:@medium_worker", len("%model:"), "@medium_worker"),
+        ("%model:@medium", len("%model:"), "@medium"),
     ):
         assert extract_directive_arg_token_around_cursor(line, len(line)) == (
             expected_start,
@@ -181,10 +181,10 @@ def test_directive_arg_extraction_keeps_leading_at_model_alias_context() -> None
 
 
 def test_directive_arg_extraction_redirects_alias_effort_suffix_to_effort() -> None:
-    line = "%model:@default@hi"
+    line = "%model:@large@hi"
 
     assert extract_directive_arg_token_around_cursor(line, len(line)) == (
-        len("%model:@default@"),
+        len("%model:@large@"),
         len(line),
         "effort",
         "hi",

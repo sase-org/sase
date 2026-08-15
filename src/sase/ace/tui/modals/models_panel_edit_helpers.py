@@ -48,8 +48,8 @@ CUSTOM_MODEL_ALIASES_FIELD_PREFIX = "llm_provider.model_aliases.custom"
 def _alias_field_path(alias: str) -> str:
     """Return the dotted config path for the *alias* map key.
 
-    For example ``_alias_field_path("medium_worker")`` is
-    ``"llm_provider.model_aliases.builtin.medium_worker"``.
+    For example ``_alias_field_path("medium")`` is
+    ``"llm_provider.model_aliases.builtin.medium"``.
     """
     cleaned = alias.strip()
     if not cleaned:

@@ -27,7 +27,7 @@ def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:
     assert rendered == (
         "#gh:sase\n"
         "%id(!sase-42, bead=sase-42)\n"
-        "%m:@small_worker\n"
+        "%m:@small\n"
         "#custom/work_task:sase-42\n"
         "Please preserve the compatibility shim."
     )
@@ -47,14 +47,14 @@ def test_task_prompt_omits_commit_rollover_xprompt() -> None:
 @pytest.mark.parametrize(
     ("size", "expected"),
     [
-        (PhaseSize.XSMALL, "@xsmall_worker"),
-        (PhaseSize.SMALL, "@small_worker"),
-        (PhaseSize.MEDIUM, "@medium_worker"),
-        (PhaseSize.LARGE, "@large_worker"),
-        (PhaseSize.XLARGE, "@xlarge_worker"),
+        (PhaseSize.XSMALL, "@xsmall"),
+        (PhaseSize.SMALL, "@small"),
+        (PhaseSize.MEDIUM, "@medium"),
+        (PhaseSize.LARGE, "@large"),
+        (PhaseSize.XLARGE, "@xlarge"),
     ],
 )
-def test_task_model_uses_size_specific_worker_alias(
+def test_task_model_uses_size_alias(
     size: PhaseSize,
     expected: str,
 ) -> None:
@@ -62,11 +62,11 @@ def test_task_model_uses_size_specific_worker_alias(
 
 
 def test_task_model_precedence_prefers_alias_aware_explicit_model() -> None:
-    assert task_model_directive_value("smart", size=PhaseSize.LARGE) == "@smart"
+    assert task_model_directive_value("medium", size=PhaseSize.LARGE) == "@medium"
     assert task_model_directive_value("claude/opus", size=PhaseSize.LARGE) == (
         "claude/opus"
     )
-    assert task_model_directive_value("", size=None) == "@small_worker"
+    assert task_model_directive_value("", size=None) == "@small"
 
 
 @pytest.mark.parametrize(

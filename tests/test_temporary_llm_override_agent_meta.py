@@ -47,10 +47,10 @@ def test_agent_meta_after_clear_uses_configured_default_provider(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The next launch after clear resolves through the default alias."""
+    """The next launch after clear resolves through the default model setting."""
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
     from sase.llm_provider import config as llm_config
-    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+    from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
     from tests._model_alias_defaults_fixture import (
         frozen_selector_provider_model_effort,
     )
@@ -89,11 +89,11 @@ def test_agent_meta_after_clear_uses_configured_default_provider(
 
     assert (meta_a["llm_provider"], meta_a["model"]) == ("codex", "o3")
     provider, model, effort = frozen_selector_provider_model_effort(
-        SMARTER_MODEL_ALIAS_NAME, 0
+        LARGE_MODEL_ALIAS_NAME, 0
     )
     assert (meta_b["llm_provider"], meta_b["model"]) == (provider, model)
     assert meta_b["reasoning_effort"] == effort
-    assert meta_b["model_alias"] == "default"
+    assert meta_b["model_alias"] == "large"
     assert (meta_b["llm_provider"], meta_b["model"]) != ("codex", "o3")
 
 
@@ -142,13 +142,13 @@ def test_launch_alias_overrides_persist_to_meta_and_process_env(
         patch("sase.agent.names.claim_agent_name"),
     ):
         extract_directives_and_write_meta(
-            prompt="%m(opus, medium_worker=sonnet)\nDo work",
+            prompt="%m(opus, medium=sonnet)\nDo work",
             workspace_dir=str(workspace_dir),
             artifacts_dir=str(artifacts_dir),
         )
 
     meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
-    assert meta["model_alias_overrides"] == {"medium_worker": "sonnet"}
+    assert meta["model_alias_overrides"] == {"medium": "sonnet"}
     assert json.loads(os.environ[SASE_MODEL_ALIAS_OVERRIDES_ENV]) == {
-        "medium_worker": "sonnet"
+        "medium": "sonnet"
     }

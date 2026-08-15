@@ -583,66 +583,6 @@ def resolve_model_provider_with_effort(
     return None, model_override, resolved.effort
 
 
-def resolve_default_alias_provider_model(
-    model_tier: ModelTier = "large",
-    model_alias_overrides: Mapping[str, str] | None = None,
-    *,
-    consume: bool = False,
-    provider_disables: ProviderDisableSnapshot | None = None,
-) -> tuple[str, str]:
-    """Resolve the implicit ``@default`` alias to ``(provider, model)``.
-
-    An active temporary ``default`` override wins and ignores *model_tier*.
-    Otherwise, resolves the full ``@default`` alias chain, including shipped
-    fallbacks. If the chain terminates at the provider tier default, *model_tier*
-    selects that terminal model.
-    """
-    provider, model, _effort = resolve_default_alias_provider_model_with_effort(
-        model_tier,
-        model_alias_overrides,
-        consume=consume,
-        provider_disables=provider_disables,
-    )
-    return provider, model
-
-
-def resolve_default_alias_provider_model_with_effort(
-    model_tier: ModelTier = "large",
-    model_alias_overrides: Mapping[str, str] | None = None,
-    *,
-    consume: bool = False,
-    provider_disables: ProviderDisableSnapshot | None = None,
-) -> tuple[str, str, str | None]:
-    """Resolve ``@default`` including temporary overrides and alias effort.
-
-    An active temporary override wins and ignores *model_tier*.
-    """
-    disables = (
-        capture_provider_disable_snapshot()
-        if provider_disables is None
-        else provider_disables
-    )
-
-    from .config import default_model_alias_name
-
-    provider, model, effort = resolve_model_provider_with_effort(
-        f"@{default_model_alias_name()}",
-        model_alias_overrides,
-        consume=consume,
-        model_tier=model_tier,
-        provider_disables=disables,
-    )
-    if provider is not None:
-        return provider, model, effort
-    # A configured default may be a bare/unknown model. Run it on the configured
-    # provider rather than silently dropping the user's choice.
-    return (
-        get_configured_default_provider_name(provider_disables=disables),
-        model,
-        effort,
-    )
-
-
 def format_provider_model_label(
     llm_provider: str | None = None,
     model: str | None = None,

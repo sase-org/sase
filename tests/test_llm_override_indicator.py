@@ -203,7 +203,7 @@ def test_tooltip_describes_active_override_with_effort_and_expiry() -> None:
     )
 
     assert tooltip == (
-        "Temporary override on @default\n"
+        "Temporary override on launch default\n"
         "CLAUDE(opus) @ xhigh\n"
         "1h2m left\n"
         "Press ,m for the Models panel."
@@ -216,7 +216,7 @@ def test_tooltip_describes_until_cleared_override() -> None:
     tooltip = indicator._build_tooltip(_override(expires_at=None), now=100.0)
 
     assert tooltip == (
-        "Temporary override on @default\n"
+        "Temporary override on launch default\n"
         "CODEX(o3)\n"
         "Until cleared\n"
         "Press ,m for the Models panel."

@@ -101,18 +101,18 @@ def test_provider_description_lists_disabled_effect_and_aliases() -> None:
         _status(
             "claude",
             active_disable=_disable("claude", expires_at=None),
-            affected_aliases=("default", "smart", "worker"),
+            affected_aliases=("large", "medium", "xlarge"),
         ),
         now=100.0,
     )
 
     assert "New launches and fallbacks route around CLAUDE" in description.plain
     assert "running provider processes continue" in description.plain
-    assert "Affected aliases: @default, @smart, @worker." in description.plain
+    assert "Affected aliases: @large, @medium, @xlarge." in description.plain
 
 
 async def test_panel_p_opens_provider_routing_modal(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
     snapshot = _snapshot(_status("claude"), _status("codex"))
     monkeypatch.setattr(
         providers,

@@ -45,20 +45,20 @@ def test_model_directive_paren_arg() -> None:
     ("source", "model", "overrides"),
     [
         (
-            "%m(opus, medium_worker=sonnet)",
+            "%m(opus, medium=sonnet)",
             "opus",
-            {"medium_worker": "sonnet"},
+            {"medium": "sonnet"},
         ),
-        ("%m(medium_worker=sonnet)", None, {"medium_worker": "sonnet"}),
+        ("%m(medium=sonnet)", None, {"medium": "sonnet"}),
         (
-            "%m(opus@high, medium_worker=@small_worker)",
+            "%m(opus@high, medium=@small)",
             "opus",
-            {"medium_worker": "@small_worker"},
+            {"medium": "@small"},
         ),
         (
-            '%model(claude/models/opus, medium_worker="provider/model with spaces")',
+            '%model(claude/models/opus, medium="provider/model with spaces")',
             "claude/models/opus",
-            {"medium_worker": "provider/model with spaces"},
+            {"medium": "provider/model with spaces"},
         ),
     ],
 )
@@ -81,21 +81,21 @@ def test_model_directive_alias_overrides_are_parsed(
     ("source", "message"),
     [
         ("%m(opus, foo=sonnet)", "Unknown model alias 'foo'"),
-        ("%m(opus, @medium_worker=sonnet)", "keys are bare"),
+        ("%m(opus, @medium=sonnet)", "keys are bare"),
         (
-            "%m(opus, medium_worker=small_worker)",
-            "did you mean @small_worker",
+            "%m(opus, medium=small)",
+            "did you mean @small",
         ),
-        ("%m(opus, medium_worker=@missing)", "is not a known model alias"),
-        ("%m(opus, medium_worker=sonnet@high)", "cannot set reasoning effort"),
-        ("%m(opus, medium_worker=)", "requires a model value"),
+        ("%m(opus, medium=@missing)", "is not a known model alias"),
+        ("%m(opus, medium=sonnet@high)", "cannot set reasoning effort"),
+        ("%m(opus, medium=)", "requires a model value"),
         (
-            "%m(opus, medium_worker=a, medium_worker=b)",
-            "Duplicate keyword argument 'medium_worker'",
+            "%m(opus, medium=a, medium=b)",
+            "Duplicate keyword argument 'medium'",
         ),
-        ("%m:medium_worker=sonnet", "require the parenthesized form"),
+        ("%m:medium=sonnet", "require the parenthesized form"),
         (
-            "%m(opus, medium_worker=@medium_worker)",
+            "%m(opus, medium=@medium)",
             "cannot reference itself",
         ),
     ],
@@ -111,9 +111,9 @@ def test_model_directive_alias_override_validation(
 def test_model_directive_alias_kwargs_do_not_count_as_positional_models() -> None:
     with pytest.raises(
         DirectiveError,
-        match=r"%m\(opus, sonnet, medium_worker=haiku\)",
+        match=r"%m\(opus, sonnet, medium=haiku\)",
     ):
-        extract_prompt_directives("%m(opus, sonnet, medium_worker=haiku)\nReview")
+        extract_prompt_directives("%m(opus, sonnet, medium=haiku)\nReview")
 
 
 def test_model_directive_alias_override_expands_xprompt_reference() -> None:
@@ -121,11 +121,9 @@ def test_model_directive_alias_override_expands_xprompt_reference() -> None:
         "sase.xprompt.directives.process_xprompt_references",
         return_value="sonnet",
     ) as process:
-        _, directives = extract_prompt_directives(
-            "%m(opus, medium_worker=#fast)\nReview"
-        )
+        _, directives = extract_prompt_directives("%m(opus, medium=#fast)\nReview")
 
-    assert dict(directives.model_alias_overrides) == {"medium_worker": "sonnet"}
+    assert dict(directives.model_alias_overrides) == {"medium": "sonnet"}
     process.assert_called_once_with("#fast")
 
 
@@ -237,17 +235,17 @@ def test_model_bare_alias_raises_with_migration_hint(
 
 
 def test_model_role_alias_requires_at_prefix() -> None:
-    _, directives = extract_prompt_directives("%m:@medium_worker\nReview")
-    assert directives.model == "medium_worker"
+    _, directives = extract_prompt_directives("%m:@medium\nReview")
+    assert directives.model == "medium"
 
     with pytest.raises(
         DirectiveError,
         match=(
             r"Model aliases must be prefixed with @ .* "
-            r"did you mean @medium_worker"
+            r"did you mean @medium"
         ),
     ):
-        extract_prompt_directives("%m:medium_worker\nReview")
+        extract_prompt_directives("%m:medium\nReview")
 
 
 def test_model_retired_worker_alias_is_not_known() -> None:

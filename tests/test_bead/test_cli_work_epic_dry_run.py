@@ -126,13 +126,13 @@ def test_work_dry_run_renders_model_directives(
         f"%id(!{p1_id}, bead={p1_id})\n{membership}\n"
         "%model:codex/gpt-5.6-sol\n%auto\n" in out
     )
-    # Phase without size metadata defaults to the small-phase role alias.
+    # Phase without size metadata defaults to the small size alias.
     p2_suffix = p2_id.removeprefix(f"{epic_id}.")
     assert (
         f"%id(!{p2_suffix}, clan={epic_id}, bead={p2_id})\n"
-        "%model:@small_worker\n%auto\n" in out
+        "%model:@small\n%auto\n" in out
     )
-    # The epic's explicit land model still wins over the epic-lander alias.
+    # The epic's explicit land model still wins over the scalar lander default.
     assert (
         f"%id(!land, clan={epic_id}, bead={epic_id})\n"
         "%model:claude/opus\n%auto\n" in out
@@ -164,7 +164,7 @@ def test_work_dry_run_relaunches_from_stored_phase_sizes(
             IssueType.PHASE,
             parent_id=epic.id,
             size=PhaseSize.MEDIUM,
-            model="@medium_worker",
+            model="@medium",
         )
         large = project.create(
             "Large",
@@ -188,7 +188,7 @@ def test_work_dry_run_relaunches_from_stored_phase_sizes(
     }
     assert "%model:claude/sonnet" in by_bead[small.id]
     assert "#plan" not in by_bead[small.id].splitlines()
-    assert "%model:@medium_worker" in by_bead[medium.id]
+    assert "%model:@medium" in by_bead[medium.id]
     assert "#plan" not in by_bead[medium.id].splitlines()
     assert "%model:codex/gpt-5.6-sol" in by_bead[large.id]
     assert by_bead[large.id].rstrip().endswith(f"#bd/work_phase_bead:{large.id}\n#plan")
@@ -213,4 +213,4 @@ def test_work_dry_run_uses_custom_big_epic_threshold(
     out = capsys.readouterr().out
     land_segment = out.split("\n---\n")[-1]
     assert f"%id(!land, clan={epic.id}, bead={epic.id})" in land_segment
-    assert "%model:@big_epic_lander" in land_segment
+    assert "%model:@xlarge" in land_segment

@@ -1,69 +1,25 @@
-# Shipped defaults for SASE's implicit model aliases. This file is the single
-# edit point for changing what @smartest, @cheap, @medium_worker, ...
+# Shipped defaults for SASE's built-in size aliases. This file is the single
+# edit point for changing what @xsmall, @small, @medium, @large, and @xlarge
 # resolve to out of the box. User config (llm_provider.model_aliases.builtin)
-# still overrides anything here.
+# can override only these built-in names.
 #
-# Each entry carries at most one of `fallback` (an @<alias> reference,
-# optionally with a trailing @<effort>) or `target` (a concrete model,
-# provider/model, `A | B` pool, or `A || B` ordered fallback).
-# `default` normally delegates through a shipped fallback; when it declares no
-# fallback, it resolves through the configured/autodetected provider's tier
-# default. Every entry requires a `description`.
+# Each entry carries a `target` (a concrete model, provider/model, `A | B`
+# pool, or `A || B` ordered fallback) and a `description`.
 schema_version: 1
 aliases:
-  default:
-    fallback: "@smarter"
-    description: >-
-      Model used when a prompt has no %model directive; delegates to @smarter
-      unless configured.
-  epic_lander:
-    fallback: "@default"
-    description: "Epic land agents that finalize and submit an epic."
-  big_epic_lander:
-    fallback: "@smartest"
-    description: >-
-      Epic land agents selected for plans at or above the configured
-      phase-count threshold.
-  xsmall_worker:
-    fallback: "@cheaper"
-    description: >-
-      Extra-small bead phase agents that implement the simplest tasks
-      directly.
-  small_worker:
-    fallback: "@cheap"
-    description: "Small bead phase agents that implement directly."
-  medium_worker:
-    fallback: "@smart"
-    description: "Medium bead phase agents that implement directly."
-  large_worker:
-    fallback: "@smarter"
-    description: "Large bead phase agents that plan before implementation."
-  xlarge_worker:
-    fallback: "@smartest"
-    description: >-
-      Extra-large bead phase agents that author an epic plan before
-      implementation.
-  smart:
-    target: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh | grok/grok-4.6@xhigh"
-    description: "High-capability pool used automatically by medium phase agents."
-  smarter:
-    target: "codex/gpt-5.6-sol@xhigh | claude/opus@xhigh"
-    description: >-
-      Higher-capability pool used automatically by large phase agents and by
-      `@default`.
-  smartest:
-    target: "claude/opus@max || codex/gpt-5.6-sol@max || grok/grok-4.6@max"
-    description: >-
-      Highest-capability ordered fallback used automatically by extra-large
-      phase agents and large epic landers.
-  cheap:
-    target: "claude/sonnet@high | codex/gpt-5.5@high | grok/grok-4.6@high"
-    description: "Load-balanced pool used automatically by small phase agents."
-  cheaper:
+  xsmall:
     target: "claude/sonnet@medium | codex/gpt-5.5@medium | grok/grok-4.6@medium | agy/gemini-3.7-flash-high"
     description: >-
-      Lower-cost load-balanced pool used automatically by extra-small phase
-      agents.
-  cheapest:
-    target: "claude/haiku | codex/gpt-5.3-codex-spark"
-    description: "Lowest-cost load-balanced pool available for explicit use."
+      Extra-small launch alias for the smallest direct tasks and tale follow-ups.
+  small:
+    target: "claude/sonnet@high | codex/gpt-5.5@high | grok/grok-4.6@high"
+    description: "Small launch alias for straightforward task and phase work."
+  medium:
+    target: "codex/gpt-5.5@xhigh | claude/sonnet@xhigh | grok/grok-4.6@xhigh"
+    description: "Medium launch alias for ordinary implementation work."
+  large:
+    target: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh"
+    description: "Large launch alias for planning-heavy work and default launches."
+  xlarge:
+    target: "claude/opus@max || codex/gpt-5.6-sol@max || grok/grok-4.6@max"
+    description: "Extra-large launch alias for maximum-effort work."

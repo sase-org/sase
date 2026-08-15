@@ -11,6 +11,20 @@ from sase.xprompt.effort import split_model_effort
 
 
 _RETIRED_BUILTIN_ALIAS_NAMES = {
+    "default",
+    "epic_lander",
+    "big_epic_lander",
+    "xsmall_worker",
+    "small_worker",
+    "medium_worker",
+    "large_worker",
+    "xlarge_worker",
+    "smart",
+    "smarter",
+    "smartest",
+    "cheap",
+    "cheaper",
+    "cheapest",
     "coder",
     "epic_creator",
     "phase_worker",
@@ -21,25 +35,40 @@ _RETIRED_BUILTIN_ALIAS_NAMES = {
     "xlarge_phase_worker",
 }
 
-#: Retired ``<size>_phase_worker`` builtin-alias names, mapped to their
-#: ``<size>_worker`` replacements.
-_RETIRED_SIZE_ALIAS_REPLACEMENTS = {
-    "xsmall_phase_worker": "xsmall_worker",
-    "small_phase_worker": "small_worker",
-    "medium_phase_worker": "medium_worker",
-    "large_phase_worker": "large_worker",
-    "xlarge_phase_worker": "xlarge_worker",
+#: Retired builtin-alias names mapped to exact config destinations.
+_RETIRED_BUILTIN_DESTINATIONS = {
+    "default": "llm_provider.default_model",
+    "epic_lander": "llm_provider.epic_lander_model",
+    "big_epic_lander": "llm_provider.big_epic_lander_model",
+    "phase_worker": "llm_provider.model_aliases.builtin.medium",
+    "xsmall_worker": "llm_provider.model_aliases.builtin.xsmall",
+    "small_worker": "llm_provider.model_aliases.builtin.small",
+    "medium_worker": "llm_provider.model_aliases.builtin.medium",
+    "large_worker": "llm_provider.model_aliases.builtin.large",
+    "xlarge_worker": "llm_provider.model_aliases.builtin.xlarge",
+    "xsmall_phase_worker": "llm_provider.model_aliases.builtin.xsmall",
+    "small_phase_worker": "llm_provider.model_aliases.builtin.small",
+    "medium_phase_worker": "llm_provider.model_aliases.builtin.medium",
+    "large_phase_worker": "llm_provider.model_aliases.builtin.large",
+    "xlarge_phase_worker": "llm_provider.model_aliases.builtin.xlarge",
+}
+
+_CONCEPTUAL_SIZE_REPLACEMENTS = {
+    "cheaper": "xsmall",
+    "cheap": "small",
+    "smart": "medium",
+    "smarter": "large",
+    "smartest": "xlarge",
 }
 
 
 def check_config_model_aliases() -> DiagnosticCheck:
-    """Surface model-alias config that needs migrating (epic sase-5d).
+    """Surface model-alias config that needs migrating.
 
     Stale config is reported as actionable warnings:
 
-    - the removed ``llm_provider.worker_models`` and ``llm_provider.default_model``
-      keys (the former should move to size-specific worker aliases or
-      explicit launch choices, the latter to ``model_aliases.builtin.default``);
+    - the removed ``llm_provider.worker_models`` key (entries should move to
+      size aliases or explicit launch choices);
     - legacy flat entries directly under ``llm_provider.model_aliases``;
     - the removed top-level ``llm_provider.custom_model_aliases`` map;
     - user-created aliases that live in ``model_aliases.builtin`` or builtin
@@ -49,8 +78,8 @@ def check_config_model_aliases() -> DiagnosticCheck:
     - bucket metadata entries that have no member aliases;
     - stale ``model_aliases.builtin.coder``, registered
       ``model_aliases.builtin.<provider>_coder``,
-      ``model_aliases.builtin.phase_worker``, and
-      ``model_aliases.builtin.epic_creator`` entries, plus alias values that
+      retired builtin aliases such as ``default``, ``<size>_worker``,
+      ``smart``, ``cheap``, and ``phase_worker``, plus alias values that
       reference a retired implicit alias;
     - merged alias values that reference an ``@<alias>`` name that resolves to
       nothing, which would silently fall through at launch.
@@ -69,9 +98,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
         validate_model_alias_selector_value,
     )
     from sase.llm_provider.model_alias_policy import (
-        MEDIUM_WORKER_MODEL_ALIAS_NAME,
-        implicit_alias_targets,
-        role_alias_fallbacks,
+        BUILTIN_MODEL_ALIAS_NAMES,
     )
 
     config = get_llm_provider_config()
@@ -106,19 +133,9 @@ def check_config_model_aliases() -> DiagnosticCheck:
                 "key": "worker_models",
                 "message": (
                     "llm_provider.worker_models is no longer supported; migrate "
-                    "entries to size-specific worker aliases such as "
-                    "llm_provider.model_aliases.builtin.medium_worker, "
-                    "or use explicit approval/model overrides"
-                ),
-            }
-        )
-    if "default_model" in config:
-        problems.append(
-            {
-                "key": "default_model",
-                "message": (
-                    "llm_provider.default_model is not a supported key; move its "
-                    "value to llm_provider.model_aliases.builtin.default"
+                    "entries to size aliases such as "
+                    "llm_provider.model_aliases.builtin.medium, or use "
+                    "explicit approval/model overrides"
                 ),
             }
         )
@@ -155,7 +172,20 @@ def check_config_model_aliases() -> DiagnosticCheck:
         alias = raw_key.strip()
         if not alias:
             continue
-        if model_alias_kind(alias) == "user":
+        if (
+            alias in _RETIRED_BUILTIN_ALIAS_NAMES
+            or alias in registered_provider_coder_aliases
+            or alias in BUILTIN_MODEL_ALIAS_NAMES
+        ):
+            message = _retired_builtin_alias_message(
+                alias,
+                key=f"model_aliases.{alias}",
+                registered_provider_coder_aliases=registered_provider_coder_aliases,
+            ) or (
+                f"model_aliases.{alias} is a legacy builtin alias override; "
+                f"move it to llm_provider.model_aliases.builtin.{alias}"
+            )
+        elif model_alias_kind(alias) == "user":
             message = (
                 f"model_aliases.{alias} is a legacy custom alias; move it to "
                 f"llm_provider.model_aliases.custom.{alias} with model and "
@@ -183,18 +213,7 @@ def check_config_model_aliases() -> DiagnosticCheck:
             if not isinstance(raw_bucket, str):
                 continue
             bucket = raw_bucket.strip()
-            if bucket == "phase_worker":
-                problems.append(
-                    {
-                        "key": "model_aliases.buckets.phase_worker",
-                        "message": (
-                            "model_aliases.buckets.phase_worker was renamed to "
-                            "model_aliases.buckets.worker; move this metadata "
-                            "to the worker bucket"
-                        ),
-                    }
-                )
-            elif bucket and bucket not in member_buckets:
+            if bucket and bucket not in member_buckets:
                 problems.append(
                     {
                         "key": f"model_aliases.buckets.{bucket}",
@@ -227,88 +246,32 @@ def check_config_model_aliases() -> DiagnosticCheck:
             }
         )
 
-    if "coder" in raw_builtin_alias_names:
-        problems.append(
-            {
-                "key": "model_aliases.builtin.coder",
-                "message": (
-                    "model_aliases.builtin.coder is retired; accepted tale "
-                    "follow-ups now route through size-specific "
-                    "@<size>_worker aliases. Move this target to "
-                    "llm_provider.model_aliases.builtin.medium_worker or "
-                    "another size-specific worker alias, or remove it"
-                ),
-            }
-        )
-
-    for alias in sorted(stale_provider_coder_builtin_aliases):
-        problems.append(
-            {
-                "key": f"model_aliases.builtin.{alias}",
-                "message": (
-                    f"model_aliases.builtin.{alias} is retired; planner-provider "
-                    "coder aliases no longer exist. Route accepted tales with "
-                    "size-specific aliases such as @medium_worker, or use "
-                    "an explicit approval/model override"
-                ),
-            }
-        )
-
-    for alias in sorted(builtin_aliases):
-        if alias == "coder" or alias in stale_provider_coder_builtin_aliases:
-            continue
-        if alias == "phase_worker":
-            medium_worker_default = (
-                implicit_alias_targets().get(MEDIUM_WORKER_MODEL_ALIAS_NAME)
-                or role_alias_fallbacks()[MEDIUM_WORKER_MODEL_ALIAS_NAME]
+    for alias in sorted(raw_builtin_alias_names):
+        if alias not in builtin_aliases:
+            retired_message = _retired_builtin_alias_message(
+                alias,
+                key=f"model_aliases.builtin.{alias}",
+                registered_provider_coder_aliases=registered_provider_coder_aliases,
             )
-            problems.append(
-                {
-                    "key": "model_aliases.builtin.phase_worker",
-                    "message": (
-                        "model_aliases.builtin.phase_worker is no longer a "
-                        "builtin alias override; move its target to "
-                        "llm_provider.model_aliases.builtin.medium_worker "
-                        "to keep controlling medium phases, or remove it to "
-                        f"accept the shipped {medium_worker_default} default"
-                    ),
-                }
-            )
-        elif alias in _RETIRED_SIZE_ALIAS_REPLACEMENTS:
-            replacement = _RETIRED_SIZE_ALIAS_REPLACEMENTS[alias]
-            problems.append(
-                {
-                    "key": f"model_aliases.builtin.{alias}",
-                    "message": (
-                        f"model_aliases.builtin.{alias} is retired; move its "
-                        "target to "
-                        f"llm_provider.model_aliases.builtin.{replacement} "
-                        "to keep controlling that phase size, or remove it"
-                    ),
-                }
-            )
-        elif alias == "epic_creator":
-            problems.append(
-                {
-                    "key": "model_aliases.builtin.epic_creator",
-                    "message": (
-                        "model_aliases.builtin.epic_creator is retired; SASE no "
-                        "longer launches an epic-creator role, so remove this entry"
-                    ),
-                }
-            )
-        elif model_alias_kind(alias) == "user":
-            problems.append(
-                {
-                    "key": f"model_aliases.builtin.{alias}",
-                    "message": (
-                        f"model_aliases.builtin.{alias} is a custom alias in "
-                        "the builtin-override map; move it to "
-                        f"llm_provider.model_aliases.custom.{alias} with a "
-                        "description"
-                    ),
-                }
-            )
+            if retired_message is not None:
+                problems.append(
+                    {
+                        "key": f"model_aliases.builtin.{alias}",
+                        "message": retired_message,
+                    }
+                )
+            elif model_alias_kind(alias) == "user":
+                problems.append(
+                    {
+                        "key": f"model_aliases.builtin.{alias}",
+                        "message": (
+                            f"model_aliases.builtin.{alias} is a custom alias in "
+                            "the builtin-override map; move it to "
+                            f"llm_provider.model_aliases.custom.{alias} with a "
+                            "description"
+                        ),
+                    }
+                )
         if alias in custom_aliases:
             problems.append(
                 {
@@ -515,6 +478,52 @@ def _registered_provider_coder_alias_names() -> set[str]:
         return set()
 
 
+def _retired_builtin_alias_message(
+    alias: str,
+    *,
+    key: str,
+    registered_provider_coder_aliases: set[str],
+) -> str | None:
+    """Return raw-config migration guidance for a retired builtin alias."""
+    if alias in registered_provider_coder_aliases:
+        return (
+            f"{key} is retired; planner-provider coder aliases no longer exist. "
+            "Route accepted tales by size with aliases such as @medium, or use "
+            "an explicit approval/model override"
+        )
+    if alias == "coder":
+        return (
+            f"{key} is retired; accepted tale follow-ups now route by tale size. "
+            "Move this target to llm_provider.model_aliases.builtin.medium or "
+            "another size alias, define a described custom @coder alias for "
+            "explicit use, or remove it"
+        )
+    if alias in _RETIRED_BUILTIN_DESTINATIONS:
+        destination = _RETIRED_BUILTIN_DESTINATIONS[alias]
+        return (
+            f"{key} is retired; move its target to {destination} to preserve "
+            "the customized routing, or remove it"
+        )
+    if alias in _CONCEPTUAL_SIZE_REPLACEMENTS:
+        replacement = _CONCEPTUAL_SIZE_REPLACEMENTS[alias]
+        return (
+            f"{key} is retired; use @{replacement} for the closest shipped "
+            f"size alias, or define a described custom @{alias} alias to "
+            "preserve this customized target"
+        )
+    if alias == "cheapest":
+        return (
+            f"{key} is retired and has no automatic replacement; define a "
+            "described custom @cheapest alias if you still need this target"
+        )
+    if alias == "epic_creator":
+        return (
+            f"{key} is retired; SASE no longer launches an epic-creator role, "
+            "so remove this entry"
+        )
+    return None
+
+
 def _retired_alias_reference_guidance(
     alias: str,
     *,
@@ -529,6 +538,6 @@ def _retired_alias_reference_guidance(
     if alias in registered_provider_coder_aliases:
         return (
             "accepted tale follow-ups now route by tale size; use a "
-            "size-specific alias such as @medium_worker or an explicit model"
+            "size alias such as @medium or an explicit model"
         )
     return None

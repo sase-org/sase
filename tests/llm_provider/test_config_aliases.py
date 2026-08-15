@@ -17,15 +17,11 @@ from sase.llm_provider.config import (
     model_alias_names,
 )
 from sase.llm_provider.model_alias_policy import (
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
-    DEFAULT_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
+    XSMALL_MODEL_ALIAS_NAME,
 )
 from tests._model_alias_defaults_fixture import FROZEN_DESCRIPTIONS
 
@@ -36,7 +32,8 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
     mock_config.return_value = {
         "model_aliases": {
             "builtin": {
-                " other ": " claude/opus ",
+                " medium ": " claude/opus ",
+                "other": "codex/o3",
                 123: "opus",
                 "empty": "   ",
                 "bad": ["opus"],
@@ -44,8 +41,8 @@ def test_model_aliases_ignore_invalid_entries(mock_config: MagicMock) -> None:
         }
     }
 
-    assert _get_model_aliases() == {"other": "claude/opus"}
-    assert get_builtin_model_aliases() == {"other": "claude/opus"}
+    assert _get_model_aliases() == {"medium": "claude/opus"}
+    assert get_builtin_model_aliases() == {"medium": "claude/opus"}
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -121,19 +118,23 @@ def test_custom_model_aliases_merge_over_legacy(mock_config: MagicMock) -> None:
     """The described custom map is authoritative on name collisions."""
     mock_config.return_value = {
         "model_aliases": {
-            "builtin": {"blogger": "claude/haiku", "reviewer": "@default"},
+            "builtin": {"large": "claude/haiku"},
             "custom": {
-                "blogger": {
+                "large": {
                     "model": "claude/opus",
                     "description": "Draft blog posts.",
-                }
+                },
+                "reviewer": {
+                    "model": "codex/o3",
+                    "description": "Review alias.",
+                },
             },
         },
     }
 
-    assert _get_model_aliases()["blogger"] == "claude/opus"
-    assert model_alias_config_source("blogger") == "custom"
-    assert model_alias_config_source("reviewer") == "builtin"
+    assert _get_model_aliases()["large"] == "claude/opus"
+    assert model_alias_config_source("large") == "custom"
+    assert model_alias_config_source("reviewer") == "custom"
 
 
 @patch("sase.llm_provider.config.get_llm_provider_config")
@@ -151,40 +152,26 @@ def test_model_alias_description_builtin_and_custom(
             }
         }
     }
-    assert (
-        model_alias_description("default")
-        == FROZEN_DESCRIPTIONS[DEFAULT_MODEL_ALIAS_NAME]
-    )
-    assert (
-        model_alias_description("big_epic_lander")
-        == FROZEN_DESCRIPTIONS[BIG_EPIC_LANDER_MODEL_ALIAS_NAME]
-    )
+    assert model_alias_description("default") is None
+    assert model_alias_description("big_epic_lander") is None
     assert model_alias_description("worker") is None
     assert (
-        model_alias_description("medium_worker")
-        == FROZEN_DESCRIPTIONS[MEDIUM_WORKER_MODEL_ALIAS_NAME]
+        model_alias_description("xsmall")
+        == FROZEN_DESCRIPTIONS[XSMALL_MODEL_ALIAS_NAME]
     )
     assert (
-        model_alias_description("smart") == FROZEN_DESCRIPTIONS[SMART_MODEL_ALIAS_NAME]
+        model_alias_description("small") == FROZEN_DESCRIPTIONS[SMALL_MODEL_ALIAS_NAME]
     )
     assert (
-        model_alias_description("smarter")
-        == FROZEN_DESCRIPTIONS[SMARTER_MODEL_ALIAS_NAME]
+        model_alias_description("medium")
+        == FROZEN_DESCRIPTIONS[MEDIUM_MODEL_ALIAS_NAME]
     )
     assert (
-        model_alias_description("smartest")
-        == FROZEN_DESCRIPTIONS[SMARTEST_MODEL_ALIAS_NAME]
+        model_alias_description("large") == FROZEN_DESCRIPTIONS[LARGE_MODEL_ALIAS_NAME]
     )
     assert (
-        model_alias_description("cheap") == FROZEN_DESCRIPTIONS[CHEAP_MODEL_ALIAS_NAME]
-    )
-    assert (
-        model_alias_description("cheaper")
-        == FROZEN_DESCRIPTIONS[CHEAPER_MODEL_ALIAS_NAME]
-    )
-    assert (
-        model_alias_description("cheapest")
-        == FROZEN_DESCRIPTIONS[CHEAPEST_MODEL_ALIAS_NAME]
+        model_alias_description("xlarge")
+        == FROZEN_DESCRIPTIONS[XLARGE_MODEL_ALIAS_NAME]
     )
     assert model_alias_description("claude_coder") is None
     assert model_alias_description("blogger") == "Draft blog posts."
@@ -200,26 +187,24 @@ def test_model_alias_names_include_configured_and_special(
     The legacy ``worker``/``other`` reserved aliases were retired with the
     worker lane (epic sase-5d phase 4), so they are no longer implicit.
     """
-    mock_config.return_value = {"model_aliases": {"builtin": {"fast": "codex/o4-mini"}}}
+    mock_config.return_value = {
+        "model_aliases": {
+            "custom": {
+                "fast": {
+                    "model": "codex/o4-mini",
+                    "description": "Fast custom alias.",
+                }
+            }
+        }
+    }
 
     assert model_alias_names() == {
-        # user-configured
         "fast",
-        # fixed implicit role aliases
-        "default",
-        "epic_lander",
-        "big_epic_lander",
-        "xsmall_worker",
-        "small_worker",
-        "medium_worker",
-        "large_worker",
-        "xlarge_worker",
-        "smart",
-        "smarter",
-        "smartest",
-        "cheap",
-        "cheaper",
-        "cheapest",
+        "xsmall",
+        "small",
+        "medium",
+        "large",
+        "xlarge",
     }
 
 
@@ -230,9 +215,14 @@ def test_format_model_directive_value_adds_alias_prefix(
     mock_config.return_value = {
         "model_aliases": {
             "builtin": {
-                "fast": "codex/o4-mini",
-                "other": "claude/opus",
-            }
+                "medium": "codex/o4-mini",
+            },
+            "custom": {
+                "other": {
+                    "model": "claude/opus",
+                    "description": "Other custom alias.",
+                }
+            },
         }
     }
 
@@ -240,7 +230,7 @@ def test_format_model_directive_value_adds_alias_prefix(
     # is no longer special and is left bare.
     assert format_model_directive_value("worker") == "worker"
     assert format_model_directive_value("other") == "@other"
-    assert format_model_directive_value("fast") == "@fast"
-    assert format_model_directive_value("@fast") == "@fast"
+    assert format_model_directive_value("medium") == "@medium"
+    assert format_model_directive_value("@medium") == "@medium"
     assert format_model_directive_value("opus") == "opus"
     assert format_model_directive_value("claude/opus") == "claude/opus"

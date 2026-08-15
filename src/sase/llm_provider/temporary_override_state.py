@@ -1,12 +1,13 @@
-"""On-disk state store for temporary, per-alias LLM provider/model overrides.
+"""On-disk state store for temporary LLM provider/model overrides.
 
 The state lives at ``~/.sase/llm_override.json`` so all sase processes on the
 same machine see the same active overrides. The on-disk schema is versioned:
-``{"version": 2, "overrides": {"<alias>": {...}}}``. A legacy v1 flat object (a
-single, top-level override) is migrated on read into ``overrides.default`` so an
-override set by an older build keeps working. Writes are atomic (temp file +
-``os.replace``); reads are best-effort self-cleaning — expired or malformed
-entries are pruned and the file is removed once no override remains.
+``{"version": 2, "overrides": {"<alias-or-setting>": {...}}}``. A legacy v1
+flat object (a single, top-level override) is migrated on read into the
+namespaced default-launch setting key so an override set by an older build
+keeps working. Writes are atomic (temp file + ``os.replace``); reads are
+best-effort self-cleaning — expired or malformed entries are pruned and the
+file is removed once no override remains.
 
 Every mutation here takes the process-shared file lock, so the full
 read/modify/write cycle is serialized across sase processes. The user-facing API
@@ -32,13 +33,42 @@ from typing import Any
 from sase.core.paths import sase_home
 from sase.xprompt.effort import is_valid_effort
 
-from .config import DEFAULT_MODEL_ALIAS_NAME
+from .model_launch_settings import (
+    BIG_EPIC_LANDER_MODEL_FIELD,
+    DEFAULT_MODEL_FIELD,
+    EPIC_LANDER_MODEL_FIELD,
+    launch_model_setting_override_key,
+)
 
 _STATE_FILENAME = "llm_override.json"
 _LOCK_FILENAME = "llm_override.lock"
 
 #: On-disk schema version for the per-alias override state file.
 _STATE_VERSION = 2
+
+_SETTING_KEY_REPLACEMENTS = {
+    "default": launch_model_setting_override_key(DEFAULT_MODEL_FIELD),
+    "epic_lander": launch_model_setting_override_key(EPIC_LANDER_MODEL_FIELD),
+    "big_epic_lander": launch_model_setting_override_key(BIG_EPIC_LANDER_MODEL_FIELD),
+}
+
+_DIRECT_SIZE_KEY_REPLACEMENTS = {
+    "xsmall_worker": "xsmall",
+    "small_worker": "small",
+    "medium_worker": "medium",
+    "large_worker": "large",
+    "xlarge_worker": "xlarge",
+}
+
+_FALLBACK_SIZE_KEY_REPLACEMENTS = {
+    "cheaper": "xsmall",
+    "cheap": "small",
+    "smart": "medium",
+    "smarter": "large",
+    "smartest": "xlarge",
+}
+
+_DROPPED_RETIRED_KEYS = frozenset({"cheapest"})
 
 
 @dataclass(frozen=True)
@@ -137,13 +167,14 @@ def extract_raw_entries(data: dict) -> tuple[dict[str, Any] | None, bool]:
     Handles both schema versions:
 
     * **v2** (``{"version": 2, "overrides": {...}}``) — the ``overrides`` map is
-      returned directly. ``canonical`` is ``True`` only when the file is already
-      in fully canonical v2 form (correct version, a dict of string-keyed
-      entries, and no stray top-level keys), so a steady-state read never
+      returned after retired keys are migrated to the compact contract.
+      ``canonical`` is ``True`` only when the file is already in fully
+      canonical v2 form (correct version, a dict of string-keyed entries, no
+      retired keys, and no stray top-level keys), so a steady-state read never
       rewrites the file.
     * **v1** (a flat, top-level single override) — migrated in-memory into
-      ``{"default": data}`` with ``canonical=False`` so the next write upgrades
-      the file to v2.
+      the namespaced default-launch setting key with ``canonical=False`` so the
+      next write upgrades the file to v2.
 
     Returns ``(None, True)`` when the structure is unrecoverable (a v2 file whose
     ``overrides`` is not a dict), signalling the caller to delete the file.
@@ -152,16 +183,66 @@ def extract_raw_entries(data: dict) -> tuple[dict[str, Any] | None, bool]:
         overrides = data.get("overrides")
         if not isinstance(overrides, dict):
             return None, True
-        cleaned = {k: v for k, v in overrides.items() if isinstance(k, str)}
+        cleaned, migrated = _migrate_raw_override_entries(
+            {k: v for k, v in overrides.items() if isinstance(k, str)}
+        )
         canonical = (
             data.get("version") == _STATE_VERSION
+            and not migrated
             and len(cleaned) == len(overrides)
             and set(data.keys()) <= {"version", "overrides"}
         )
         return cleaned, canonical
 
-    # Legacy v1 flat object: a single top-level override → overrides.default.
-    return {DEFAULT_MODEL_ALIAS_NAME: data}, False
+    # Legacy v1 flat object: a single top-level override → default launch setting.
+    return {launch_model_setting_override_key(DEFAULT_MODEL_FIELD): data}, False
+
+
+def _migrate_raw_override_entries(
+    entries: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """Return entries with retired override keys mapped to the compact contract."""
+    migrated: dict[str, tuple[int, int, str, Any]] = {}
+    changed = False
+    for order, (raw_key, entry) in enumerate(entries.items()):
+        key = raw_key.strip()
+        if not key:
+            changed = True
+            continue
+        normalized, priority = _normalize_override_key(key)
+        if normalized is None:
+            changed = True
+            continue
+        if normalized != raw_key:
+            changed = True
+        previous = migrated.get(normalized)
+        # Higher priority wins. For equal priority, later entries win
+        # deterministically to mirror JSON object overwrite semantics.
+        if previous is None or (priority, order) >= (previous[0], previous[1]):
+            migrated[normalized] = (priority, order, raw_key, entry)
+        else:
+            changed = True
+    changed = changed or any(
+        normalized != original
+        for normalized, (_priority, _order, original, _entry) in migrated.items()
+    )
+    return {
+        normalized: entry
+        for normalized, (_priority, _order, _original, entry) in migrated.items()
+    }, changed
+
+
+def _normalize_override_key(key: str) -> tuple[str | None, int]:
+    if key in _DROPPED_RETIRED_KEYS:
+        return None, 0
+    if key in _SETTING_KEY_REPLACEMENTS:
+        return _SETTING_KEY_REPLACEMENTS[key], 2
+    if key in _DIRECT_SIZE_KEY_REPLACEMENTS:
+        return _DIRECT_SIZE_KEY_REPLACEMENTS[key], 2
+    if key in _FALLBACK_SIZE_KEY_REPLACEMENTS:
+        return _FALLBACK_SIZE_KEY_REPLACEMENTS[key], 1
+    # New keys and arbitrary custom aliases are already canonical.
+    return key, 3
 
 
 def entry_from_dict(entry: object) -> TemporaryLLMOverride | None:

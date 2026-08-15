@@ -16,6 +16,10 @@ from sase.ace.tui.widgets import (
     UpdatesAvailableIndicator,
 )
 from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
+from sase.llm_provider.config import (
+    DEFAULT_MODEL_FIELD,
+    launch_model_setting_override_key,
+)
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 
 # Expected left-to-right order of widgets inside ``#top-bar``. The ``#tab-bar``
@@ -119,8 +123,8 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         alias_overrides_indicator,
         "get_active_alias_overrides",
         lambda: {
-            "default": default_override,
-            "medium_worker": alias_override,
+            launch_model_setting_override_key(DEFAULT_MODEL_FIELD): default_override,
+            "medium": alias_override,
         },
     )
     monkeypatch.setattr(
@@ -147,7 +151,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         await page.app.wait_for_refresh()
 
         assert default_indicator.render().plain == " CODEX(o3)@xhigh ∞ "
-        assert alias_indicator.render().plain == " @medium_worker@max ∞ "
+        assert alias_indicator.render().plain == " @medium@max ∞ "
         assert provider_indicator.render().plain == " CLAUDE off ∞ "
         visible_children = [
             child for child in top_bar.children if child.region.width > 0

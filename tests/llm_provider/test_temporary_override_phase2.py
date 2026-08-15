@@ -62,7 +62,7 @@ def test_get_default_provider_name_ignores_expired_override(
     set_temporary_override("codex/o3", 60.0, source="test")
     path = state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["overrides"]["default"]["expires_at"] = time.time() - 1
+    data["overrides"]["setting:default_model"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
     assert get_default_provider_name() == "claude"
@@ -137,13 +137,13 @@ def test_invoke_agent_applies_nondefault_alias_override_effort(
 ) -> None:
     mock_preprocess.return_value = PreprocessResult(
         prompt="preprocessed prompt",
-        directives=PromptDirectives(model="@medium_worker"),
+        directives=PromptDirectives(model="@medium"),
     )
     mock_provider = MagicMock()
     mock_provider.invoke.return_value = InvokeResult(content="response")
     mock_get_provider.return_value = mock_provider
 
-    set_alias_override("medium_worker", "codex/o3@medium", 3600.0, source="test")
+    set_alias_override("medium", "codex/o3@medium", 3600.0, source="test")
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
     mock_get_provider.assert_called_once_with("codex")
@@ -234,7 +234,6 @@ def test_invoke_agent_expired_override_ignored(
     import time
 
     from sase.llm_provider import config as llm_config
-    from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
     from sase.llm_provider.temporary_override_state import state_path
     from tests._model_alias_defaults_fixture import (
         frozen_selector_provider_model_effort,
@@ -261,14 +260,12 @@ def test_invoke_agent_expired_override_ignored(
     set_temporary_override("codex/o3", 60.0, source="test")
     path = state_path()
     data = json.loads(path.read_text(encoding="utf-8"))
-    data["overrides"]["default"]["expires_at"] = time.time() - 1
+    data["overrides"]["setting:default_model"]["expires_at"] = time.time() - 1
     path.write_text(json.dumps(data), encoding="utf-8")
 
     invoke_agent("prompt", agent_type="test", suppress_output=True)
 
-    provider, model, effort = frozen_selector_provider_model_effort(
-        SMARTER_MODEL_ALIAS_NAME, 0
-    )
+    provider, model, effort = frozen_selector_provider_model_effort("large", 0)
     mock_get_provider.assert_called_once_with(provider)
     mock_provider.invoke.assert_called_once_with(
         "preprocessed",

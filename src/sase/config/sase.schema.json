@@ -1959,6 +1959,21 @@
           "enum": ["", "none", "minimal", "low", "medium", "high", "xhigh", "max"],
           "default": ""
         },
+        "default_model": {
+          "type": "string",
+          "description": "Model expression used when a prompt has no %model directive. Values use the same grammar as %model and may reference built-in size aliases such as @large.",
+          "default": "@large"
+        },
+        "epic_lander_model": {
+          "type": "string",
+          "description": "Model expression used for epic land agents unless the plan sets an explicit land model.",
+          "default": "@large"
+        },
+        "big_epic_lander_model": {
+          "type": "string",
+          "description": "Model expression used for threshold-selected big epic land agents unless the plan sets an explicit land model.",
+          "default": "@xlarge"
+        },
         "model_tier_map": {
           "type": "object",
           "description": "Mapping from model tiers to specific model identifiers",
@@ -1975,12 +1990,12 @@
         },
         "model_aliases": {
           "type": "object",
-          "description": "Model alias configuration. builtin contains overrides for SASE role aliases; custom contains user-defined aliases with required descriptions.",
+          "description": "Model alias configuration. builtin contains overrides for SASE's five size aliases; custom contains user-defined aliases with required descriptions.",
           "additionalProperties": false,
           "properties": {
             "builtin": {
               "type": "object",
-              "description": "Overrides for SASE's builtin model aliases: default, epic_lander, big_epic_lander, xsmall_worker, small_worker, medium_worker, large_worker, xlarge_worker, smartest, smarter, smart, cheap, cheaper, and cheapest. Accepted tale follow-ups route through the tale size's <size>_worker alias. See src/sase/llm_provider/model_alias_defaults.yml for the current shipped default of each alias. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references; a reference may carry a trailing '@<effort>' that overrides the referenced alias's effort. Single-pipe values (A | B) form load-balanced round-robin pools; double-pipe values (A || B) form ordered provider-availability fallbacks. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>.",
+              "description": "Overrides for SASE's built-in size aliases: xsmall, small, medium, large, and xlarge. See src/sase/llm_provider/model_alias_defaults.yml for the current shipped default of each alias. Values are bare known models, explicit provider/model targets, nested provider-local model paths, or '@<alias>' references; a reference may carry a trailing '@<effort>' that overrides the referenced alias's effort. Single-pipe values (A | B) form load-balanced round-robin pools; double-pipe values (A || B) form ordered provider-availability fallbacks. Operators cannot be mixed, and every member uses the same grammar and may carry a trailing @<effort>.",
               "additionalProperties": {
                 "type": "string"
               }
@@ -2007,14 +2022,14 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 40,
-                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged. The built-in worker bucket is supplied by ACE, and custom aliases assigned to it coalesce with its builtin members."
+                    "description": "Optional display-only bucket in the ACE Models panel; alias resolution remains flat and unchanged."
                   }
                 }
               }
             },
             "buckets": {
               "type": "object",
-              "description": "Optional display-only Models-panel bucket metadata. ACE supplies the built-in worker bucket even without custom members; its description may be overridden here, and custom aliases assigned to it coalesce with it.",
+              "description": "Optional display-only Models-panel bucket metadata for buckets referenced by custom aliases.",
               "propertyNames": {
                 "minLength": 1,
                 "maxLength": 40
@@ -2366,7 +2381,7 @@
       "properties": {
         "big_epic_phase_threshold": {
           "type": "integer",
-          "description": "Minimum authored phase count that selects the implicit @big_epic_lander role for an epic without an explicit land model.",
+          "description": "Minimum authored phase count that selects llm_provider.big_epic_lander_model for an epic without an explicit land model.",
           "default": 5,
           "minimum": 1
         },

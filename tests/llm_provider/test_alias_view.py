@@ -1,8 +1,4 @@
-"""Tests for alias resolution in :mod:`sase.llm_provider.alias_view`.
-
-Phase 2 (epic sase-5e) aggregation helper: covers kind/provenance
-classification, deterministic ordering, and effective model resolution.
-"""
+"""Tests for alias resolution in :mod:`sase.llm_provider.alias_view`."""
 
 from __future__ import annotations
 
@@ -10,18 +6,10 @@ import pytest
 
 from sase.llm_provider import build_alias_views
 from sase.llm_provider.load_balancing import parse_model_alias_selector
-from sase.llm_provider.model_alias_policy import (
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    implicit_alias_targets,
-)
+from sase.llm_provider.model_alias_policy import implicit_alias_targets
 from tests._model_alias_defaults_fixture import (
     FROZEN_SELECTOR_MEMBER_DETAILS,
     FROZEN_TARGETS,
-    frozen_provider_model_effort,
     frozen_selector_provider_model_effort,
 )
 from tests.llm_provider._provider_config_helpers import (
@@ -30,7 +18,7 @@ from tests.llm_provider._provider_config_helpers import (
 )
 
 
-def test_includes_default_role_and_user_aliases(
+def test_includes_size_and_user_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -53,107 +41,22 @@ def test_includes_default_role_and_user_aliases(
     by_name = {v.name: v for v in views}
     targets = implicit_alias_targets()
 
-    assert by_name["default"].kind == "default"
-    assert by_name["default"].configured is False
-    assert by_name["big_epic_lander"].kind == "role"
-    assert by_name["big_epic_lander"].configured is False
-    assert by_name["big_epic_lander"].implicit_fallback == "smartest"
-    assert (
-        by_name["big_epic_lander"].provider,
-        by_name["big_epic_lander"].model,
-        by_name["big_epic_lander"].effort,
-    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
-    assert "worker" not in by_name
-    assert by_name["xsmall_worker"].kind == "role"
-    assert by_name["small_worker"].kind == "role"
-    assert by_name["medium_worker"].kind == "role"
-    assert by_name["medium_worker"].configured is False
-    assert by_name["medium_worker"].implicit_fallback == "smart"
-    assert by_name["medium_worker"].reference_effort is None
-    assert by_name["medium_worker"].implicit_value is None
-    assert (
-        by_name["medium_worker"].provider,
-        by_name["medium_worker"].model,
-        by_name["medium_worker"].effort,
-    ) == frozen_selector_provider_model_effort(SMART_MODEL_ALIAS_NAME, 0)
-    assert by_name["large_worker"].kind == "role"
-    assert by_name["large_worker"].implicit_fallback == "smarter"
-    assert (
-        by_name["large_worker"].provider,
-        by_name["large_worker"].model,
-        by_name["large_worker"].effort,
-    ) == frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 0)
-    assert by_name["xlarge_worker"].kind == "role"
-    assert (
-        by_name["xlarge_worker"].provider,
-        by_name["xlarge_worker"].model,
-        by_name["xlarge_worker"].effort,
-    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
-    assert by_name["smart"].kind == "role"
-    assert by_name["smart"].implicit_fallback is None
-    assert by_name["smart"].implicit_value == FROZEN_TARGETS[SMART_MODEL_ALIAS_NAME]
-    smart_selector = parse_model_alias_selector(targets["smart"])
-    assert smart_selector is not None
-    assert by_name["smart"].selector_mode == smart_selector.mode == "round_robin"
-    assert [
-        (member.target, member.effort) for member in by_name["smart"].selector_members
-    ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[SMART_MODEL_ALIAS_NAME])
-    assert by_name["smarter"].kind == "role"
-    assert by_name["smarter"].implicit_fallback is None
-    assert by_name["smarter"].implicit_value == FROZEN_TARGETS[SMARTER_MODEL_ALIAS_NAME]
-    smarter_selector = parse_model_alias_selector(targets["smarter"])
-    assert smarter_selector is not None
-    assert by_name["smarter"].selector_mode == smarter_selector.mode == "round_robin"
-    assert [
-        (member.target, member.effort) for member in by_name["smarter"].selector_members
-    ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[SMARTER_MODEL_ALIAS_NAME])
-    assert by_name["smartest"].kind == "role"
-    assert by_name["smartest"].configured is False
-    assert by_name["smartest"].configured_source is None
-    assert by_name["smartest"].implicit_fallback is None
-    assert (
-        by_name["smartest"].implicit_value == FROZEN_TARGETS[SMARTEST_MODEL_ALIAS_NAME]
-    )
-    assert (
-        by_name["smartest"].provider,
-        by_name["smartest"].model,
-        by_name["smartest"].effort,
-    ) == frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
-    assert by_name["smartest"].selector_mode is None
-    assert by_name["smartest"].selector_members == ()
-    assert by_name["cheap"].kind == "role"
-    assert by_name["cheaper"].kind == "role"
-    cheap_selector = parse_model_alias_selector(targets["cheap"])
-    assert cheap_selector is not None
-    assert by_name["cheap"].implicit_value == targets["cheap"]
-    assert by_name["cheap"].selector_mode == cheap_selector.mode == "round_robin"
-    assert [member.value for member in by_name["cheap"].selector_members] == list(
-        cheap_selector.members
-    )
-    assert [
-        (member.target, member.effort) for member in by_name["cheap"].selector_members
-    ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[CHEAP_MODEL_ALIAS_NAME])
-    cheaper_selector = parse_model_alias_selector(targets["cheaper"])
-    assert cheaper_selector is not None
-    assert by_name["cheaper"].implicit_value == targets["cheaper"]
-    assert by_name["cheaper"].selector_mode == cheaper_selector.mode == "round_robin"
-    assert [member.value for member in by_name["cheaper"].selector_members] == list(
-        cheaper_selector.members
-    )
-    assert [
-        (member.target, member.effort) for member in by_name["cheaper"].selector_members
-    ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[CHEAPER_MODEL_ALIAS_NAME])
-    assert by_name["cheapest"].kind == "role"
-    cheapest_selector = parse_model_alias_selector(targets["cheapest"])
-    assert cheapest_selector is not None
-    assert by_name["cheapest"].implicit_value == targets["cheapest"]
-    assert by_name["cheapest"].selector_mode == cheapest_selector.mode == "round_robin"
-    assert [member.value for member in by_name["cheapest"].selector_members] == list(
-        cheapest_selector.members
-    )
+    for alias in ("xsmall", "small", "medium", "large", "xlarge"):
+        assert by_name[alias].kind == "role"
+        assert by_name[alias].configured is False
+        assert by_name[alias].implicit_fallback is None
+        assert by_name[alias].implicit_value == FROZEN_TARGETS[alias]
+        selector = parse_model_alias_selector(targets[alias])
+        assert selector is not None
+        assert by_name[alias].selector_mode == selector.mode
+        assert [
+            (member.target, member.effort) for member in by_name[alias].selector_members
+        ] == list(FROZEN_SELECTOR_MEMBER_DETAILS[alias])
+
+    assert "default" not in by_name
+    assert "medium_worker" not in by_name
+    assert "smart" not in by_name
     assert "coder" not in by_name
-    assert "claude_coder" not in by_name
-    assert "codex_coder" not in by_name
 
     myalias = by_name["myalias"]
     assert myalias.kind == "user"
@@ -176,7 +79,6 @@ def test_retired_provider_coder_aliases_hidden_by_default(
 def test_configured_fakey_coder_alias_still_surfaces(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A user-configured ``fakey_coder`` alias must still appear in the panel."""
     mock_provider_config(
         monkeypatch,
         {
@@ -199,7 +101,7 @@ def test_configured_fakey_coder_alias_still_surfaces(
     assert by_name["fakey_coder"].configured_value == "fakey/fakey-large"
 
 
-def test_default_is_first_and_groups_are_ordered(
+def test_size_aliases_are_first_and_user_aliases_are_ordered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -218,29 +120,11 @@ def test_default_is_first_and_groups_are_ordered(
 
     names = [v.name for v in build_alias_views()]
 
-    assert names[0] == "default"
-    # role aliases follow default, in canonical order
-    role_slice = names[1:14]
-    assert role_slice == [
-        "epic_lander",
-        "big_epic_lander",
-        "xsmall_worker",
-        "small_worker",
-        "medium_worker",
-        "large_worker",
-        "xlarge_worker",
-        "smartest",
-        "smarter",
-        "smart",
-        "cheap",
-        "cheaper",
-        "cheapest",
-    ]
-    # user aliases come last, alphabetically
+    assert names[:5] == ["xsmall", "small", "medium", "large", "xlarge"]
     assert names.index("alpha") < names.index("zeta")
 
 
-def test_smartest_view_is_a_direct_target_even_when_claude_is_unavailable(
+def test_xlarge_view_uses_ordered_fallback_availability(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
@@ -250,21 +134,32 @@ def test_smartest_view_is_a_direct_target_even_when_claude_is_unavailable(
         lambda target: target.startswith("codex/"),
     )
 
-    smartest = {view.name: view for view in build_alias_views()}["smartest"]
+    xlarge = {view.name: view for view in build_alias_views()}["xlarge"]
 
-    assert (smartest.provider, smartest.model, smartest.effort) == (
-        frozen_provider_model_effort(SMARTEST_MODEL_ALIAS_NAME)
+    assert (xlarge.provider, xlarge.model, xlarge.effort) == (
+        frozen_selector_provider_model_effort("xlarge", 1)
     )
-    assert smartest.selector_mode is None
-    assert smartest.selector_members == ()
+    assert xlarge.selector_mode == "fallback"
+    selected = next(member for member in xlarge.selector_members if member.selected)
+    assert selected.provider == "codex"
 
 
-def test_configured_retired_coder_alias_is_user_owned(
+def test_configured_retired_coder_alias_is_user_owned_when_custom(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
         monkeypatch,
-        {"provider": "claude", "model_aliases": {"builtin": {"coder": "codex/o3"}}},
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "coder": {
+                        "model": "codex/o3",
+                        "description": "Explicit coder alias.",
+                    }
+                }
+            },
+        },
     )
     patch_available_providers(monkeypatch)
 

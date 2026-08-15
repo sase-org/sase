@@ -3,7 +3,7 @@
 Exercises the runner metadata preview (``extract_directives_and_write_meta``)
 together with the anonymous workflow's real prompt-step invocation
 (``WorkflowExecutor`` / ``invoke_agent``) against the shipped two-member
-``@smarter`` pool that ``@default`` delegates to. A pooled alias must advance
+``@large`` pool that ``llm_provider.default_model`` delegates to. A pooled alias must advance
 its machine-global round-robin cursor exactly once per real LLM invocation:
 never during the runner's metadata preview, and never twice for one launch.
 """
@@ -20,23 +20,23 @@ import pytest
 
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.llm_provider.messages import AIMessage
-from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
+from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
 from sase.xprompt.models import create_anonymous_workflow
 from sase.xprompt.workflow_executor import WorkflowExecutor
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 
-_POOL_ALIAS = SMARTER_MODEL_ALIAS_NAME
+_POOL_ALIAS = LARGE_MODEL_ALIAS_NAME
 
 
 @pytest.fixture(autouse=True)
 def _force_pool_availability(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Treat both frozen ``@smarter`` pool members as always available.
+    """Treat both frozen ``@large`` pool members as always available.
 
     Mirrors the setup already used by the runner-metadata pool tests in
     ``test_reasoning_effort_metadata_persistence.py``: a bare ``claude``
-    provider config (so ``@default`` falls through to the shipped
-    ``@smarter`` fallback) with availability filtering disabled so member
+    provider config (so the default launch setting uses the shipped
+    ``@large`` pool) with availability filtering disabled so member
     selection is deterministic regardless of installed provider CLIs.
     """
     from sase.llm_provider import config as llm_config
@@ -144,10 +144,10 @@ def test_two_consecutive_default_launches_alternate_pool_members(
     assert _pool_cursor() == 0
 
 
-def test_explicit_smarter_directive_and_default_alias_share_pool_cursor(
+def test_explicit_large_directive_and_default_alias_share_pool_cursor(
     tmp_path: Path,
 ) -> None:
-    """A no-%model launch and a %model:@smarter launch share one cursor."""
+    """A no-%model launch and a %model:@large launch share one cursor."""
     member0 = frozen_selector_provider_model_effort(_POOL_ALIAS, 0)
     member1 = frozen_selector_provider_model_effort(_POOL_ALIAS, 1)
 
@@ -155,7 +155,7 @@ def test_explicit_smarter_directive_and_default_alias_share_pool_cursor(
     assert _selected(first) == (member0[0], member0[1])
 
     _, _, second = _run_composed_launch(
-        tmp_path, "second", "%model:@smarter\ndo the work"
+        tmp_path, "second", "%model:@large\ndo the work"
     )
     assert _selected(second) == (member1[0], member1[1])
     assert _pool_cursor() == 0

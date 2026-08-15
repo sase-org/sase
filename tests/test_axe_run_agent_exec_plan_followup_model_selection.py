@@ -22,10 +22,8 @@ class TestPlanFollowupModelSelection:
         "size",
         ["xsmall", "small", "medium"],
     )
-    def test_coder_followup_uses_tale_size_worker_alias(
-        self, tmp_path, size: str
-    ) -> None:
-        """An approved tale routes its follow-up through ``@<size>_worker``."""
+    def test_coder_followup_uses_tale_size_alias(self, tmp_path, size: str) -> None:
+        """An approved tale routes its follow-up through ``@<size>``."""
         plan_file = write_plan_file(tmp_path, size=size)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         _, state, _ = run_plan_approval(
@@ -34,11 +32,11 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith(f"%model:@{size}_worker\n")
+        assert state.current_prompt.startswith(f"%model:@{size}\n")
         assert "%model:@worker" not in state.current_prompt
 
     @pytest.mark.parametrize("size", ["large", "xlarge"])
-    def test_legacy_oversized_tale_defaults_to_medium_worker(
+    def test_legacy_oversized_tale_defaults_to_medium(
         self, tmp_path, size: str
     ) -> None:
         """Launch compatibility treats oversized legacy tales as medium work."""
@@ -50,11 +48,11 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider=None,
         )
-        assert state.current_prompt.startswith("%model:@medium_worker\n")
-        assert f"%model:@{size}_worker" not in state.current_prompt
+        assert state.current_prompt.startswith("%model:@medium\n")
+        assert f"%model:@{size}\n" not in state.current_prompt
         assert "%model:@worker" not in state.current_prompt
 
-    def test_sizeless_legacy_tale_defaults_to_medium_worker(self, tmp_path) -> None:
+    def test_sizeless_legacy_tale_defaults_to_medium(self, tmp_path) -> None:
         plan_file = write_plan_file(tmp_path, size=None)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
         _, state, _ = run_plan_approval(
@@ -63,7 +61,7 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider=None,
         )
-        assert state.current_prompt.startswith("%model:@medium_worker\n")
+        assert state.current_prompt.startswith("%model:@medium\n")
 
     def test_tale_size_alias_ignores_planner_provider(self, tmp_path) -> None:
         state = run_followup_plan(
@@ -72,7 +70,7 @@ class TestPlanFollowupModelSelection:
             agent_model=None,
             agent_llm_provider="codex",
         )
-        assert state.current_prompt.startswith("%model:@small_worker\n")
+        assert state.current_prompt.startswith("%model:@small\n")
 
     def test_epic_approval_has_no_creator_model_followup(self, tmp_path) -> None:
         """Epic approval launches bead work directly without a model-prefixed child."""
@@ -100,7 +98,7 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:@small_worker\n")
+        assert state.current_prompt.startswith("%model:@small\n")
         assert "%model:@worker" not in state.current_prompt
 
     def test_coder_prompt_picker_model_wins_over_default(self, tmp_path) -> None:
@@ -117,7 +115,7 @@ class TestPlanFollowupModelSelection:
             agent_model="opus",
         )
         assert state.current_prompt.startswith("%model:sonnet\n")
-        assert "%model:@small_worker" not in state.current_prompt
+        assert "%model:@small" not in state.current_prompt
         assert "%model:@worker" not in state.current_prompt
 
     def test_coder_prompt_picker_alias_keeps_at_spelling(
@@ -151,4 +149,4 @@ class TestPlanFollowupModelSelection:
         )
 
         assert state.current_prompt.startswith("%model:@fast\n")
-        assert "%model:@small_worker" not in state.current_prompt
+        assert "%model:@small" not in state.current_prompt

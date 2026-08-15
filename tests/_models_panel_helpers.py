@@ -124,20 +124,20 @@ def make_edit_plan(
     op: str = "set",
     value: str | None = "opus",
     target_path: str = "/tmp/sase.yml",
-    diff: str = ("@@ -1 +1 @@\n-medium_worker: old\n+medium_worker: opus\n"),
+    diff: str = ("@@ -1 +1 @@\n-medium: old\n+medium: opus\n"),
     valid: bool = True,
     used_chezmoi: bool = False,
 ) -> EditPlanResult:
     write_plan = ConfigWritePlan(
         file=target_path,
         layer="user",
-        key_path=("llm_provider", "model_aliases", "builtin", "medium_worker"),
+        key_path=("llm_provider", "model_aliases", "builtin", "medium"),
         op=op,
         has_value=op == "set",
         new_value=value if op == "set" else None,
     )
     preview = ConfigEffectivePreview(
-        path="llm_provider.model_aliases.builtin.medium_worker",
+        path="llm_provider.model_aliases.builtin.medium",
         has_before=True,
         before="old",
         has_after=op == "set",
@@ -151,7 +151,7 @@ def make_edit_plan(
                 severity="error",
                 code="bad",
                 message="bad value",
-                path="llm_provider.model_aliases.builtin.medium_worker",
+                path="llm_provider.model_aliases.builtin.medium",
                 layer="user",
             ),
         )
@@ -164,8 +164,8 @@ def make_edit_plan(
         diagnostics=(),
         target_path=target_path,
         used_chezmoi=used_chezmoi,
-        current_text="medium_worker: old\n",
-        new_text="medium_worker: opus\n" if op == "set" else "",
+        current_text="medium: old\n",
+        new_text="medium: opus\n" if op == "set" else "",
         text_diff=diff,
     )
 
@@ -178,8 +178,8 @@ async def wait_for(
 
 def make_bucketed_views() -> list[AliasView]:
     return [
-        make_alias_view("default", "default"),
-        make_alias_view("medium_worker", "role"),
+        make_alias_view("large", "role"),
+        make_alias_view("medium", "role"),
         make_alias_view(
             "research_a",
             "user",
@@ -212,27 +212,20 @@ def make_bucketed_views() -> list[AliasView]:
 
 def make_worker_bucket_views() -> list[AliasView]:
     return [
-        make_alias_view("default", "default", description="Default model."),
-        make_alias_view("xsmall_worker", "role", provider="claude", model="sonnet"),
-        make_alias_view("small_worker", "role", provider="claude", model="opus"),
+        make_alias_view("xsmall", "role", provider="claude", model="sonnet"),
+        make_alias_view("small", "role", provider="claude", model="opus"),
         make_alias_view(
-            "medium_worker",
+            "medium",
             "role",
             provider="claude",
             model="opus",
             effort="high",
         ),
-        make_alias_view("large_worker", "role", provider="claude", model="opus"),
+        make_alias_view("large", "role", provider="claude", model="opus"),
         make_alias_view(
-            "xlarge_worker",
+            "xlarge",
             "role",
             provider="claude",
             model="claude-fable-5",
         ),
-        make_alias_view("smartest", "role", provider="claude", model="claude-fable-5"),
-        make_alias_view("smarter", "role", provider="claude", model="opus"),
-        make_alias_view("smart", "role", provider="claude", model="opus"),
-        make_alias_view("cheap", "role", provider="claude", model="opus"),
-        make_alias_view("cheaper", "role", provider="claude", model="sonnet"),
-        make_alias_view("cheapest", "role", provider="claude", model="haiku"),
     ]

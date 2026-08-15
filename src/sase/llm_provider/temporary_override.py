@@ -1,14 +1,15 @@
 """Temporary, per-alias LLM provider/model overrides.
 
 A small, process-shared state file that lets the user set time-bound
-temporary overrides for model aliases (the ``default`` alias plus any
-role/user alias) without editing ``~/.config/sase/sase.yml``.
+temporary overrides for model aliases and launch settings without editing
+``~/.config/sase/sase.yml``.
 
 Each entry snapshots the resolved provider/model and optional canonical effort
-while retaining the original raw reference. Every override, including
-``default``, takes effect wherever that alias is resolved. Explicit ``%model``
-directives and an explicit ``provider_name`` argument to :func:`invoke_agent`
-still win (see :func:`sase.llm_provider.config.resolve_model_alias`).
+while retaining the original raw reference. Alias overrides take effect
+wherever that alias is resolved, while namespaced setting overrides cover
+launch defaults. Explicit ``%model`` directives and an explicit
+``provider_name`` argument to :func:`invoke_agent` still win (see
+:func:`sase.llm_provider.config.resolve_model_alias`).
 
 This module is the public entry point. The pieces behind it live in siblings:
 
@@ -17,8 +18,8 @@ This module is the public entry point. The pieces behind it live in siblings:
 * :mod:`sase.llm_provider.temporary_override_peek` — the lock-free, time-gated
   display read used by keystroke paths.
 * :mod:`sase.llm_provider.temporary_override_defaults` — effective launch
-  default resolution, which folds the ``default`` override into ``@default``
-  alias precedence.
+  default resolution, which folds the namespaced default-launch setting
+  override into ``llm_provider.default_model`` precedence.
 """
 
 from __future__ import annotations
@@ -27,7 +28,10 @@ import math
 import re
 import time
 
-from .config import DEFAULT_MODEL_ALIAS_NAME
+from .model_launch_settings import (
+    DEFAULT_MODEL_FIELD,
+    launch_model_setting_override_key,
+)
 from .temporary_override_defaults import (
     resolve_effective_default_provider_model,
     resolve_effective_default_provider_model_with_effort,
@@ -260,20 +264,24 @@ def clear_alias_override(alias: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Public API — back-compat ``default`` wrappers
+# Public API — back-compat launch-default wrappers
 # ---------------------------------------------------------------------------
 #
 # The no-``%model`` default launch lane and the existing TUI override indicator
 # operate on a single global override. These wrappers keep that surface working
-# by targeting the ``default`` key in the per-alias map, so default behavior is
-# unchanged.
+# while storing the value under a namespaced launch-setting key, so a
+# user-defined custom ``@default`` alias cannot collide with launch-default
+# state.
 
 
 def get_active_temporary_override(
     now: float | None = None,
 ) -> TemporaryLLMOverride | None:
-    """Return the active ``default`` override, or ``None`` if none/expired."""
-    return get_active_alias_override(DEFAULT_MODEL_ALIAS_NAME, now)
+    """Return the active default-launch override, or ``None`` if none/expired."""
+    return get_active_alias_override(
+        launch_model_setting_override_key(DEFAULT_MODEL_FIELD),
+        now,
+    )
 
 
 def set_temporary_override(
@@ -282,12 +290,15 @@ def set_temporary_override(
     *,
     source: str,
 ) -> TemporaryLLMOverride:
-    """Set the ``default`` temporary override (back-compat wrapper)."""
+    """Set the default-launch temporary override (back-compat wrapper)."""
     return set_alias_override(
-        DEFAULT_MODEL_ALIAS_NAME, raw_model, duration_seconds, source=source
+        launch_model_setting_override_key(DEFAULT_MODEL_FIELD),
+        raw_model,
+        duration_seconds,
+        source=source,
     )
 
 
 def clear_temporary_override() -> bool:
-    """Clear the ``default`` temporary override (back-compat wrapper)."""
-    return clear_alias_override(DEFAULT_MODEL_ALIAS_NAME)
+    """Clear the default-launch temporary override (back-compat wrapper)."""
+    return clear_alias_override(launch_model_setting_override_key(DEFAULT_MODEL_FIELD))

@@ -19,16 +19,10 @@ from sase.bead.close_history_codec import close_history_to_dicts
 from sase.bead.config import get_big_epic_phase_threshold
 from sase.bead.model import Dependency, Issue, PhaseSize
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
+from sase.core.model_route_facade import size_model_route_alias
 from sase.core.rust import require_rust_binding
-from sase.llm_provider.config import BIG_EPIC_LANDER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import LARGE_WORKER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import MEDIUM_WORKER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import SMALL_WORKER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import XLARGE_WORKER_MODEL_ALIAS_NAME
-from sase.llm_provider.config import XSMALL_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
-from sase.llm_provider.config import role_model_directive_value
+from sase.llm_provider.config import select_epic_land_model_expression
 
 if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
@@ -289,18 +283,16 @@ def epic_land_model_directive_value(
 ) -> str:
     """Return the authoritative ``%model`` value for an epic land agent.
 
-    Explicit plan models always win. Otherwise, large epics use the dedicated
-    role alias according to the merged authored-phase threshold, while smaller
-    epics retain the original epic-lander role.
+    Explicit plan models always win. Otherwise, the authored phase-count
+    threshold selects ``llm_provider.epic_lander_model`` or
+    ``llm_provider.big_epic_lander_model``.
     """
-    if explicit_model:
-        return format_model_directive_value(explicit_model)
-    alias = (
-        BIG_EPIC_LANDER_MODEL_ALIAS_NAME
-        if total_phase_count >= get_big_epic_phase_threshold()
-        else EPIC_LANDER_MODEL_ALIAS_NAME
+    model = select_epic_land_model_expression(
+        explicit_model,
+        total_phase_count=total_phase_count,
+        threshold=get_big_epic_phase_threshold(),
     )
-    return role_model_directive_value(alias)
+    return format_model_directive_value(model)
 
 
 def phase_model_directive_value(
@@ -311,14 +303,7 @@ def phase_model_directive_value(
     """Return the authoritative ``%model`` value for a phase agent."""
     if explicit_model:
         return format_model_directive_value(explicit_model)
-    alias_by_size = {
-        PhaseSize.XSMALL: XSMALL_WORKER_MODEL_ALIAS_NAME,
-        PhaseSize.SMALL: SMALL_WORKER_MODEL_ALIAS_NAME,
-        PhaseSize.MEDIUM: MEDIUM_WORKER_MODEL_ALIAS_NAME,
-        PhaseSize.LARGE: LARGE_WORKER_MODEL_ALIAS_NAME,
-        PhaseSize.XLARGE: XLARGE_WORKER_MODEL_ALIAS_NAME,
-    }
-    return role_model_directive_value(alias_by_size[_phase_size(size)])
+    return size_model_route_alias(_phase_size(size).value)
 
 
 def task_model_directive_value(

@@ -112,11 +112,11 @@ async def test_default_model_shows_tale_size_alias_label(tmp_path) -> None:
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
             assert "Follow-up — CLAUDE(opus)" in display_text
-    resolve_mock.assert_any_call("@small_worker")
+    resolve_mock.assert_any_call("@small")
 
 
 async def test_default_model_uses_validated_tale_size(tmp_path) -> None:
-    """The default resolves the approved tale's phase-worker size alias."""
+    """The default resolves the approved tale's size alias."""
     plan_file = _write_tale_plan(tmp_path, size="medium")
     with patch(
         "sase.llm_provider.registry.resolve_model_provider",
@@ -133,7 +133,7 @@ async def test_default_model_uses_validated_tale_size(tmp_path) -> None:
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
             assert "Follow-up — CODEX(gpt-5.6-sol)" in display_text
-    resolve_mock.assert_any_call("@medium_worker")
+    resolve_mock.assert_any_call("@medium")
 
 
 async def test_default_model_without_plan_file_uses_medium_fallback() -> None:

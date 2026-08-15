@@ -23,7 +23,7 @@ from tests._models_panel_helpers import (
 
 def _outcome(op: str = "set") -> AliasEditOutcome:
     return AliasEditOutcome(
-        alias="medium_worker",
+        alias="medium",
         applied=AppliedResult(
             path="/tmp/sase.yml",
             op=op,
@@ -31,7 +31,7 @@ def _outcome(op: str = "set") -> AliasEditOutcome:
                 "llm_provider",
                 "model_aliases",
                 "builtin",
-                "medium_worker",
+                "medium",
             ),
             created=False,
             used_chezmoi=False,
@@ -40,7 +40,7 @@ def _outcome(op: str = "set") -> AliasEditOutcome:
 
 
 async def test_on_alias_edited_none_is_noop(monkeypatch: Any) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
     offer_mock = MagicMock()
     monkeypatch.setattr(models_panel, "build_alias_commit_offer", offer_mock)
 
@@ -56,7 +56,7 @@ async def test_on_alias_edited_none_is_noop(monkeypatch: Any) -> None:
 
 
 async def test_on_alias_edited_no_repo_skips_commit_offer(monkeypatch: Any) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
     monkeypatch.setattr(models_panel, "build_alias_commit_offer", lambda *a, **k: None)
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -64,23 +64,21 @@ async def test_on_alias_edited_no_repo_skips_commit_offer(monkeypatch: Any) -> N
         pilot.app.push_screen(panel)
         await pilot.pause()
         panel.notify = MagicMock()  # type: ignore[method-assign]
-        panel._pending_edit_raw_model = "@default@medium"
+        panel._pending_edit_raw_model = "@large@medium"
         panel._on_alias_edited(_outcome())
         await pilot.pause()
         # The panel stays on top — no commit-confirm modal pushed.
         assert isinstance(pilot.app.screen, ModelsPanel)
-        panel.notify.assert_called_once_with(
-            "Updated @medium_worker to @default@medium"
-        )
+        panel.notify.assert_called_once_with("Updated @medium to @large@medium")
 
 
 async def test_on_alias_edited_offers_commit_when_in_repo(monkeypatch: Any) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
     offer = AliasCommitOffer(
         git_root="/repo",
         file_path="/repo/sase.yml",
         rel_path="sase.yml",
-        message="chore: Update model alias @medium_worker\n\nSASE_TYPE=config",
+        message="chore: Update model alias @medium\n\nSASE_TYPE=config",
     )
     monkeypatch.setattr(models_panel, "build_alias_commit_offer", lambda *a, **k: offer)
 
@@ -101,12 +99,12 @@ async def test_on_alias_edited_offers_commit_when_in_repo(monkeypatch: Any) -> N
 
 
 async def test_submit_commit_task_uses_app_queue(monkeypatch: Any) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+    patch_alias_views(monkeypatch, [make_alias_view("medium", "role")])
     offer = AliasCommitOffer(
         git_root="/repo",
         file_path="/repo/sase.yml",
         rel_path="sase.yml",
-        message="chore: Update model alias @medium_worker\n\nSASE_TYPE=config",
+        message="chore: Update model alias @medium\n\nSASE_TYPE=config",
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:

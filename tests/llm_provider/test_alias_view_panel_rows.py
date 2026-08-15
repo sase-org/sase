@@ -7,7 +7,6 @@ import pytest
 from sase.llm_provider import (
     AliasView,
     BucketView,
-    WORKER_BUCKET_DESCRIPTION,
     TemporaryLLMOverride,
     build_models_panel_rows,
     clear_alias_override,
@@ -109,23 +108,18 @@ def test_models_panel_rows_fold_buckets_before_ungrouped_aliases(
 
     rows = build_models_panel_rows()
     assert [row.name for row in rows] == [
-        "default",
-        "epic_lander",
-        "big_epic_lander",
-        "worker",
-        "smartest",
-        "smarter",
-        "smart",
-        "cheap",
-        "cheaper",
-        "cheapest",
+        "xsmall",
+        "small",
+        "medium",
+        "large",
+        "xlarge",
         "coding",
         "research",
         "alpha",
     ]
     assert all(row.name not in {"coder", "claude_coder", "codex_coder"} for row in rows)
 
-    user_rows = rows[10:]
+    user_rows = rows[5:]
     assert [row.name for row in user_rows] == ["coding", "research", "alpha"]
     coding, research, alpha = user_rows
     assert isinstance(coding, BucketView)
@@ -146,11 +140,15 @@ def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {
-                    "coder": "claude/sonnet",
-                    "claude_coder": "codex/o3",
-                },
                 "custom": {
+                    "coder": {
+                        "model": "claude/sonnet",
+                        "description": "Explicit coding helper.",
+                    },
+                    "claude_coder": {
+                        "model": "codex/o3",
+                        "description": "Explicit Claude coding helper.",
+                    },
                     "helper": {
                         "model": "claude/sonnet",
                         "description": "Extra coding helper.",
@@ -182,16 +180,11 @@ def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
         clear_alias_override("helper")
 
     assert [row.name for row in rows] == [
-        "default",
-        "epic_lander",
-        "big_epic_lander",
-        "worker",
-        "smartest",
-        "smarter",
-        "smart",
-        "cheap",
-        "cheaper",
-        "cheapest",
+        "xsmall",
+        "small",
+        "medium",
+        "large",
+        "xlarge",
         "coding",
         "research",
         "alpha",
@@ -217,11 +210,11 @@ def test_models_panel_rows_treat_retired_coder_aliases_as_user_aliases(
         for row in rows
         if isinstance(row, AliasView) and row.kind == "user"
     }
-    assert user_by_name["coder"].configured_source == "builtin"
-    assert user_by_name["claude_coder"].configured_source == "builtin"
+    assert user_by_name["coder"].configured_source == "custom"
+    assert user_by_name["claude_coder"].configured_source == "custom"
 
 
-def test_models_panel_worker_bucket_coalesces_builtin_and_custom_members(
+def test_models_panel_worker_bucket_groups_only_custom_members(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(
@@ -229,7 +222,6 @@ def test_models_panel_worker_bucket_coalesces_builtin_and_custom_members(
         {
             "provider": "claude",
             "model_aliases": {
-                "builtin": {"large_worker": "codex/o3"},
                 "custom": {
                     "worker": {
                         "model": "claude/sonnet",
@@ -248,49 +240,44 @@ def test_models_panel_worker_bucket_coalesces_builtin_and_custom_members(
     )
     patch_available_providers(monkeypatch)
 
-    set_alias_override("medium_worker", "codex/gpt-5.6-sol", 3600.0, source="test")
+    set_alias_override("worker", "codex/gpt-5.6-sol", 3600.0, source="test")
     try:
         rows = build_models_panel_rows()
     finally:
-        clear_alias_override("medium_worker")
+        clear_alias_override("worker")
 
     assert [row.name for row in rows] == [
-        "default",
-        "epic_lander",
-        "big_epic_lander",
+        "xsmall",
+        "small",
+        "medium",
+        "large",
+        "xlarge",
         "worker",
-        "smartest",
-        "smarter",
-        "smart",
-        "cheap",
-        "cheaper",
-        "cheapest",
     ]
-    workers = rows[3]
+    workers = rows[5]
     assert isinstance(workers, BucketView)
     assert workers.description == "Configured phase roles."
     assert [member.name for member in workers.members] == [
-        "xsmall_worker",
-        "small_worker",
-        "medium_worker",
-        "large_worker",
-        "xlarge_worker",
         "phase_reviewer",
         "worker",
     ]
-    assert workers.alias_count == 7
+    assert workers.alias_count == 2
     assert workers.override_count == 1
 
 
-def test_models_panel_worker_bucket_uses_builtin_fallback_description(
+def test_models_panel_does_not_create_builtin_worker_bucket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
     patch_available_providers(monkeypatch)
 
     rows = build_models_panel_rows()
-    workers = next(row for row in rows if row.name == "worker")
 
-    assert isinstance(workers, BucketView)
-    assert workers.description == WORKER_BUCKET_DESCRIPTION
-    assert workers.alias_count == 5
+    assert [row.name for row in rows] == [
+        "xsmall",
+        "small",
+        "medium",
+        "large",
+        "xlarge",
+    ]
+    assert all(isinstance(row, AliasView) for row in rows)

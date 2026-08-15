@@ -75,10 +75,10 @@ def resolve_default_alias_target(
     *,
     provider_disables: ProviderDisableSnapshot | None = None,
 ) -> str:
-    """Return the implicit ``@default`` target as a ``provider/model`` string.
+    """Return the fallback target for a user-defined ``@default`` alias.
 
     Only reached when ``default`` is neither temporarily overridden nor
-    user-configured and declares no shipped fallback.
+    configured with an explicit target.
     """
     try:
         # Lazy import to avoid an import cycle: registry imports config.
@@ -235,10 +235,7 @@ def _resolve_model_alias_result(
                 return fail()
 
             known_alias = (
-                bare in aliases
-                or bare == DEFAULT_MODEL_ALIAS_NAME
-                or bare in role_fallbacks
-                or bare in role_targets
+                bare in aliases or bare in role_fallbacks or bare in role_targets
             )
             launch_target = launch_overrides.get(bare) if known_alias else None
             if launch_target is not None:
@@ -345,28 +342,6 @@ def _resolve_model_alias_result(
                             return _with_suspended_override(
                                 result, override, suspended_disable
                             )
-                        if bare == DEFAULT_MODEL_ALIAS_NAME:
-                            default_target = config.__dict__.get(
-                                "_resolve_default_alias_target",
-                                resolve_default_alias_target,
-                            )
-                            try:
-                                default_target_value = default_target(
-                                    model_tier,
-                                    provider_disables=disables,
-                                )
-                            except TypeError:
-                                default_target_value = default_target()
-                            default_resolved_target, target_effort = split_model_effort(
-                                default_target_value
-                            )
-                            return _ResolvedModelAlias(
-                                default_resolved_target,
-                                effort or target_effort,
-                                selector_owner,
-                                suspended_override=override,
-                                suspended_provider_disable=suspended_disable,
-                            )
                     return _ResolvedModelAlias(
                         f"{override.provider}/{override.model}",
                         effort or override_effort,
@@ -436,25 +411,6 @@ def _resolve_model_alias_result(
                 current = fallback_reference
                 steps += 1
                 continue
-
-            if bare == DEFAULT_MODEL_ALIAS_NAME:
-                default_target = config.__dict__.get(
-                    "_resolve_default_alias_target",
-                    resolve_default_alias_target,
-                )
-                try:
-                    default_target_value = default_target(
-                        model_tier,
-                        provider_disables=disables,
-                    )
-                except TypeError:
-                    default_target_value = default_target()
-                target, target_effort = split_model_effort(default_target_value)
-                return _ResolvedModelAlias(
-                    target,
-                    effort or target_effort,
-                    selector_owner,
-                )
 
             # A concrete model name (or dangling alias reference) is terminal.
             return _ResolvedModelAlias(

@@ -31,6 +31,31 @@ _STATE_FILENAME = "llm_lb.json"
 _LOCK_FILENAME = "llm_lb.lock"
 _STATE_VERSION = 1
 
+_DIRECT_SIZE_CURSOR_REPLACEMENTS = {
+    "xsmall_worker": "xsmall",
+    "small_worker": "small",
+    "medium_worker": "medium",
+    "large_worker": "large",
+    "xlarge_worker": "xlarge",
+}
+
+_FALLBACK_SIZE_CURSOR_REPLACEMENTS = {
+    "cheaper": "xsmall",
+    "cheap": "small",
+    "smart": "medium",
+    "smarter": "large",
+}
+
+_DROPPED_RETIRED_CURSOR_KEYS = frozenset(
+    {
+        "default",
+        "epic_lander",
+        "big_epic_lander",
+        "smartest",
+        "cheapest",
+    }
+)
+
 
 ModelAliasSelectorMode = Literal["round_robin", "fallback"]
 
@@ -161,10 +186,14 @@ def _read_entries_unlocked() -> tuple[dict[str, dict[str, Any]], bool]:
         _delete_state_best_effort()
         return {}, True
 
-    entries: dict[str, dict[str, Any]] = {}
+    entries: dict[str, tuple[int, int, str, dict[str, Any]]] = {}
     changed = set(data) - {"version", "entries"} != set()
-    for alias, raw_entry in raw_entries.items():
+    for order, (alias, raw_entry) in enumerate(raw_entries.items()):
         if not isinstance(alias, str) or not isinstance(raw_entry, dict):
+            changed = True
+            continue
+        normalized_alias, priority = _normalize_cursor_key(alias.strip())
+        if normalized_alias is None:
             changed = True
             continue
         stored_alias = raw_entry.get("alias")
@@ -179,14 +208,42 @@ def _read_entries_unlocked() -> tuple[dict[str, dict[str, Any]], bool]:
         ):
             changed = True
             continue
-        entries[alias] = {
-            "alias": alias,
+        if normalized_alias != alias:
+            changed = True
+        entry = {
+            "alias": normalized_alias,
             "fingerprint": fingerprint,
             "cursor": cursor,
         }
+        previous = entries.get(normalized_alias)
+        if previous is None or (priority, order) >= (previous[0], previous[1]):
+            entries[normalized_alias] = (priority, order, alias, entry)
+        else:
+            changed = True
         if set(raw_entry) != {"alias", "fingerprint", "cursor"}:
             changed = True
-    return entries, changed or len(entries) != len(raw_entries)
+    changed = changed or len(entries) != len(raw_entries)
+    changed = changed or any(
+        normalized != original
+        for normalized, (_priority, _order, original, _entry) in entries.items()
+    )
+    return (
+        {
+            normalized: entry
+            for normalized, (_priority, _order, _original, entry) in entries.items()
+        },
+        changed,
+    )
+
+
+def _normalize_cursor_key(key: str) -> tuple[str | None, int]:
+    if not key or key in _DROPPED_RETIRED_CURSOR_KEYS:
+        return None, 0
+    if key in _DIRECT_SIZE_CURSOR_REPLACEMENTS:
+        return _DIRECT_SIZE_CURSOR_REPLACEMENTS[key], 2
+    if key in _FALLBACK_SIZE_CURSOR_REPLACEMENTS:
+        return _FALLBACK_SIZE_CURSOR_REPLACEMENTS[key], 1
+    return key, 3
 
 
 def _write_entries_unlocked(entries: dict[str, dict[str, Any]]) -> None:

@@ -62,7 +62,14 @@ def test_pool_member_snapshot_resets_next_marker_after_membership_change(
 ) -> None:
     cfg: dict[str, object] = {
         "provider": "claude",
-        "model_aliases": {"builtin": {"pool": "claude/opus | codex/o3"}},
+        "model_aliases": {
+            "custom": {
+                "pool": {
+                    "model": "claude/opus | codex/o3",
+                    "description": "Test pool.",
+                }
+            }
+        },
     }
     mock_provider_config(monkeypatch, cfg)
     monkeypatch.setattr(
@@ -76,7 +83,14 @@ def test_pool_member_snapshot_resets_next_marker_after_membership_change(
         True,
     ]
 
-    cfg["model_aliases"] = {"builtin": {"pool": "codex/gpt-5.5 | claude/sonnet"}}
+    cfg["model_aliases"] = {
+        "custom": {
+            "pool": {
+                "model": "codex/gpt-5.5 | claude/sonnet",
+                "description": "Test pool.",
+            }
+        }
+    }
     llm_config._get_model_aliases_for_token.cache_clear()
     assert [member.selected for member in pool_member_snapshot()] == [
         True,

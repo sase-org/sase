@@ -314,12 +314,18 @@ class PromptStepMixin:
             # metadata preview written before this real invocation all agree
             # with what actually ran.
             from sase.axe.run_agent_helpers import update_meta_fields
-            from sase.llm_provider.config import default_model_alias_name
+            from sase.llm_provider.config import (
+                DEFAULT_MODEL_FIELD,
+                launch_model_setting_alias,
+            )
 
             root_model_alias = (
                 effective_directives.model_alias
                 if effective_directives.model
-                else default_model_alias_name()
+                else launch_model_setting_alias(
+                    DEFAULT_MODEL_FIELD,
+                    effective_directives.model_alias_overrides,
+                )
             )
             root_meta_fields: dict[str, Any] = {
                 "model": step_model,

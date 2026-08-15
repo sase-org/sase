@@ -9,7 +9,7 @@ one deterministically-ordered list of :class:`AliasView` rows.
 This is the data layer behind the ace **Models** panel (leader ``,m``): it knows
 nothing about Textual or rendering, so it is cheaply unit-testable and reusable
 by any future (CLI/web) surface. Each row carries the alias name, its kind
-(``default`` / ``role`` / ``user``), whether it is
+(``role`` / ``user``), whether it is
 explicitly configured (vs. an implicit special), the raw configured value if
 any, the *currently effective* provider/model (an active temporary override
 wins), and the active override itself when present.
@@ -20,24 +20,14 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from functools import partial
 from typing import Literal, cast
 
 from .config import (
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
-    DEFAULT_MODEL_ALIAS_NAME,
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
+    XSMALL_MODEL_ALIAS_NAME,
     ModelAliasSelectorMember,
     get_model_aliases,
     implicit_model_alias_fallback,
@@ -57,57 +47,19 @@ from .provider_disable import TemporaryProviderDisable
 from .temporary_override import TemporaryLLMOverride, get_active_alias_overrides
 
 #: The kind of an alias, used for badge styling and grouping.
-AliasKind = Literal["default", "role", "user"]
+AliasKind = Literal["role", "user"]
 
-#: Canonical display order for the implicit role aliases (after ``default``).
+#: Canonical display order for built-in size aliases.
 _ROLE_ALIAS_ORDER: tuple[str, ...] = (
-    EPIC_LANDER_MODEL_ALIAS_NAME,
-    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
-    XSMALL_WORKER_MODEL_ALIAS_NAME,
-    SMALL_WORKER_MODEL_ALIAS_NAME,
-    MEDIUM_WORKER_MODEL_ALIAS_NAME,
-    LARGE_WORKER_MODEL_ALIAS_NAME,
-    XLARGE_WORKER_MODEL_ALIAS_NAME,
-    SMARTEST_MODEL_ALIAS_NAME,
-    SMARTER_MODEL_ALIAS_NAME,
-    SMART_MODEL_ALIAS_NAME,
-    CHEAP_MODEL_ALIAS_NAME,
-    CHEAPER_MODEL_ALIAS_NAME,
-    CHEAPEST_MODEL_ALIAS_NAME,
+    XSMALL_MODEL_ALIAS_NAME,
+    SMALL_MODEL_ALIAS_NAME,
+    MEDIUM_MODEL_ALIAS_NAME,
+    LARGE_MODEL_ALIAS_NAME,
+    XLARGE_MODEL_ALIAS_NAME,
 )
 
-#: Built-in Models-panel bucket for the five size-specific phase roles.
-WORKER_BUCKET_NAME = "worker"
-
-#: Description used when config does not override the worker bucket.
-WORKER_BUCKET_DESCRIPTION = "Size-specific phase-agent aliases."
-
-#: Built-in bucket names accepted by doctor even without custom members.
-BUILTIN_MODEL_ALIAS_BUCKET_NAMES = frozenset({WORKER_BUCKET_NAME})
-
-
-@dataclass(frozen=True)
-class _BuiltinBucketSpec:
-    """Display policy for one always-present Models-panel bucket."""
-
-    name: str
-    description: str
-    fixed_members: tuple[str, ...]
-
-
-_BUILTIN_BUCKET_SPECS: tuple[_BuiltinBucketSpec, ...] = (
-    _BuiltinBucketSpec(
-        name=WORKER_BUCKET_NAME,
-        description=WORKER_BUCKET_DESCRIPTION,
-        fixed_members=(
-            XSMALL_WORKER_MODEL_ALIAS_NAME,
-            SMALL_WORKER_MODEL_ALIAS_NAME,
-            MEDIUM_WORKER_MODEL_ALIAS_NAME,
-            LARGE_WORKER_MODEL_ALIAS_NAME,
-            XLARGE_WORKER_MODEL_ALIAS_NAME,
-        ),
-    ),
-)
+#: There are no built-in Models-panel buckets in the compact alias contract.
+BUILTIN_MODEL_ALIAS_BUCKET_NAMES: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -116,7 +68,7 @@ class AliasView:
 
     Attributes:
         name: The bare alias name (no ``@`` marker).
-        kind: ``default`` / ``role`` / ``user``.
+        kind: ``role`` / ``user``.
         configured: ``True`` when ``name`` is an explicit
             ``llm_provider.model_aliases.builtin`` or
             ``llm_provider.model_aliases.custom`` entry (vs. an implicit
@@ -358,20 +310,18 @@ def _alias_kind(name: str) -> AliasKind:
 
 
 def _sort_key(view: AliasView) -> tuple[int, int, str]:
-    """Deterministic ordering: default, role, then user.
+    """Deterministic ordering: built-in size aliases, then user aliases.
 
-    Role aliases follow :data:`_ROLE_ALIAS_ORDER`; the other groups sort
+    Built-in aliases follow :data:`_ROLE_ALIAS_ORDER`; user aliases sort
     alphabetically by name.
     """
-    if view.kind == "default":
-        return (0, 0, "")
     if view.kind == "role":
         try:
             role_index = _ROLE_ALIAS_ORDER.index(view.name)
         except ValueError:
             role_index = len(_ROLE_ALIAS_ORDER)
-        return (1, role_index, view.name)
-    return (2, 0, view.name)
+        return (0, role_index, view.name)
+    return (1, 0, view.name)
 
 
 def _effective_provider_model(
@@ -421,9 +371,8 @@ def build_alias_views(
     Combines the alias policy (:func:`model_alias_names`,
     :func:`get_model_aliases`), live resolution (:func:`resolve_model_alias` /
     ``resolve_model_provider``), and active temporary overrides
-    (:func:`get_active_alias_overrides`). The result is sorted with ``default``
-    first, then the other role aliases, then user-defined aliases
-    alphabetically.
+    (:func:`get_active_alias_overrides`). The result is sorted with the five
+    built-in size aliases first, then user-defined aliases alphabetically.
 
     Args:
         now: Optional fixed timestamp forwarded to the override loader (lets
@@ -499,72 +448,13 @@ def build_alias_views(
 def build_models_panel_rows(
     views: list[AliasView] | None = None,
 ) -> list[AliasView | BucketView]:
-    """Fold related aliases into top-level Models-panel bucket rows.
-
-    The built-in worker family forms an always-present ``worker``
-    bucket, with custom aliases that name that bucket coalesced after the
-    built-in members. Other custom bucket rows come first alphabetically in the
-    user region, followed by ungrouped aliases alphabetically. Bucket metadata
-    without any member aliases intentionally produces no row.
-    """
+    """Fold user-owned aliases into custom bucket rows."""
     source = sorted(build_alias_views() if views is None else views, key=_sort_key)
-    specs_by_name = {spec.name: spec for spec in _BUILTIN_BUCKET_SPECS}
-
-    def builtin_bucket_for_alias(view: AliasView) -> str | None:
-        if view.name in specs_by_name[WORKER_BUCKET_NAME].fixed_members:
-            return WORKER_BUCKET_NAME
-        return None
-
-    builtin_members: dict[str, list[AliasView]] = {
-        spec.name: [] for spec in _BUILTIN_BUCKET_SPECS
-    }
-    for view in source:
-        bucket_name = builtin_bucket_for_alias(view)
-        if bucket_name is None and view.kind == "user":
-            bucket_name = view.bucket
-        if bucket_name in BUILTIN_MODEL_ALIAS_BUCKET_NAMES:
-            builtin_members[bucket_name].append(view)
-
-    def builtin_member_sort_key(
-        bucket_name: str, view: AliasView
-    ) -> tuple[int, int, str]:
-        spec = specs_by_name[bucket_name]
-        try:
-            return (0, spec.fixed_members.index(view.name), view.name)
-        except ValueError:
-            return (1, 0, view.name)
-
-    builtin_buckets = {
-        spec.name: BucketView(
-            name=spec.name,
-            description=(model_alias_bucket_description(spec.name) or spec.description),
-            members=tuple(
-                sorted(
-                    builtin_members[spec.name],
-                    key=partial(builtin_member_sort_key, spec.name),
-                )
-            ),
-        )
-        for spec in _BUILTIN_BUCKET_SPECS
-    }
-
-    top_rows: list[AliasView | BucketView] = []
-    emitted_builtin_buckets: set[str] = set()
-    for view in source:
-        bucket_name = builtin_bucket_for_alias(view)
-        if bucket_name is not None:
-            if bucket_name not in emitted_builtin_buckets:
-                top_rows.append(builtin_buckets[bucket_name])
-                emitted_builtin_buckets.add(bucket_name)
-            continue
-        if view.kind != "user":
-            top_rows.append(view)
-
-    user = [
-        view
-        for view in source
-        if view.kind == "user" and view.bucket not in BUILTIN_MODEL_ALIAS_BUCKET_NAMES
+    top_rows: list[AliasView | BucketView] = [
+        view for view in source if view.kind != "user"
     ]
+
+    user = [view for view in source if view.kind == "user"]
 
     members_by_bucket: dict[str, list[AliasView]] = {}
     ungrouped: list[AliasView] = []

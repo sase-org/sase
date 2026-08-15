@@ -3,48 +3,42 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
-import yaml  # type: ignore[import-untyped]
 
 import pytest
 
-from sase.llm_provider import model_alias_policy
-from sase.llm_provider.registry import (
-    resolve_default_alias_provider_model,
-    resolve_default_alias_provider_model_with_effort,
-    resolve_model_provider,
+from sase.llm_provider.config import (
+    resolve_default_launch_provider_model,
+    resolve_default_launch_provider_model_with_effort,
 )
+from sase.llm_provider.registry import resolve_model_provider
 from sase.llm_provider.temporary_override import (
     resolve_effective_default_provider_model,
     resolve_effective_default_provider_model_with_effort,
 )
-from sase.llm_provider.model_alias_policy import SMARTER_MODEL_ALIAS_NAME
-from tests._model_alias_defaults_fixture import (
-    frozen_alias_defaults_yaml,
-    frozen_selector_provider_model_effort,
-)
+from tests._model_alias_defaults_fixture import frozen_selector_provider_model_effort
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
-def test_effective_default_uses_configured_default_alias(
+def test_effective_default_uses_configured_default_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A no-directive launch routes through a configured ``@default`` alias."""
+    """A no-directive launch routes through ``llm_provider.default_model``."""
     mock_provider_config(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol"}},
+            "default_model": "codex/gpt-5.6-sol",
         },
     )
 
-    assert resolve_default_alias_provider_model() == ("codex", "gpt-5.6-sol")
+    assert resolve_default_launch_provider_model() == ("codex", "gpt-5.6-sol")
     assert resolve_effective_default_provider_model() == ("codex", "gpt-5.6-sol")
 
 
-def test_unconfigured_default_routes_through_shipped_fallback_pool(
+def test_unconfigured_default_routes_through_shipped_large_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no configured ``default``, the shipped fallback pool is authoritative."""
+    """With no configured default, the shipped ``@large`` pool is authoritative."""
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
         "sase.llm_provider.config._resolved_target_is_available",
@@ -54,39 +48,31 @@ def test_unconfigured_default_routes_through_shipped_fallback_pool(
     first = resolve_effective_default_provider_model_with_effort(consume=True)
     second = resolve_effective_default_provider_model_with_effort(consume=True)
 
-    assert first == frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 0)
-    assert second == frozen_selector_provider_model_effort(SMARTER_MODEL_ALIAS_NAME, 1)
+    assert first == frozen_selector_provider_model_effort("large", 0)
+    assert second == frozen_selector_provider_model_effort("large", 1)
 
 
-def test_default_without_shipped_fallback_uses_provider_tier_default(
+def test_invalid_configured_default_model_falls_back_to_shipped_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The terminal provider default still honors the requested model tier."""
-    aliases = yaml.safe_load(frozen_alias_defaults_yaml())["aliases"]
-    aliases["default"] = {"description": "Default with no shipped fallback."}
-    defaults = model_alias_policy._parse_model_alias_defaults(
-        frozen_alias_defaults_yaml(aliases),
-        source="test",
+    mock_provider_config(
+        monkeypatch,
+        {"provider": "claude", "default_model": "bad || || value"},
     )
     monkeypatch.setattr(
-        model_alias_policy, "_load_model_alias_defaults", lambda: defaults
+        "sase.llm_provider.config._resolved_target_is_available",
+        lambda _target: True,
     )
-    mock_provider_config(monkeypatch, {"provider": "claude"})
 
-    assert resolve_default_alias_provider_model() == ("claude", "opus")
-    assert resolve_default_alias_provider_model("small") == ("claude", "sonnet")
-    assert resolve_default_alias_provider_model_with_effort("small") == (
-        "claude",
-        "sonnet",
-        None,
+    assert resolve_effective_default_provider_model_with_effort(consume=True) == (
+        frozen_selector_provider_model_effort("large", 0)
     )
-    assert resolve_effective_default_provider_model() == ("claude", "opus")
 
 
-def test_active_override_replaces_configured_default_alias(
+def test_active_override_replaces_configured_default_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An active override wins both launch and explicit default resolution."""
+    """An active override wins launch-default resolution only."""
     from sase.llm_provider.config import resolve_model_alias
     from sase.llm_provider.temporary_override import set_temporary_override
 
@@ -94,15 +80,15 @@ def test_active_override_replaces_configured_default_alias(
         monkeypatch,
         {
             "provider": "claude",
-            "model_aliases": {"builtin": {"default": "codex/gpt-5.6-sol"}},
+            "default_model": "codex/gpt-5.6-sol",
         },
     )
 
     set_temporary_override("agy/custom-pro", 3600.0, source="test")
 
     assert resolve_effective_default_provider_model() == ("agy", "custom-pro")
-    assert resolve_default_alias_provider_model() == ("agy", "custom-pro")
-    assert resolve_model_alias("default") == "agy/custom-pro"
+    assert resolve_default_launch_provider_model() == ("agy", "custom-pro")
+    assert resolve_model_alias("default") == "default"
 
 
 def test_active_override_replaces_unconfigured_provider_default(
@@ -114,8 +100,8 @@ def test_active_override_replaces_unconfigured_provider_default(
     mock_provider_config(monkeypatch, {"provider": "claude"})
     set_temporary_override("codex/o3@medium", 3600.0, source="test")
 
-    assert resolve_default_alias_provider_model("small") == ("codex", "o3")
-    assert resolve_default_alias_provider_model_with_effort("small") == (
+    assert resolve_default_launch_provider_model("small") == ("codex", "o3")
+    assert resolve_default_launch_provider_model_with_effort("small") == (
         "codex",
         "o3",
         "medium",

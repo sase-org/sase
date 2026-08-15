@@ -21,7 +21,7 @@ from tests._models_panel_helpers import (
 
 
 async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
     result: ModelsPanelResult | None = None
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -45,7 +45,7 @@ async def test_panel_o_opens_model_picker(monkeypatch) -> None:
     async with ModelsPanelTestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
         await pilot.pause()
-        await pilot.press("j", "l", "o")
+        await pilot.press("o")
         await pilot.pause()
         assert isinstance(pilot.app.screen, ModelPickerModal)
 
@@ -54,10 +54,10 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
     patch_alias_views(
         monkeypatch,
         [
-            make_alias_view("default", "default"),
-            make_alias_view("small_worker", "role", override=make_override()),
-            make_alias_view("medium_worker", "role"),
-            make_alias_view("large_worker", "role"),
+            make_alias_view("xsmall", "role"),
+            make_alias_view("small", "role", override=make_override()),
+            make_alias_view("medium", "role"),
+            make_alias_view("large", "role"),
         ],
     )
     clear_mock = MagicMock(return_value=True)
@@ -72,12 +72,12 @@ async def test_panel_x_clears_active_override(monkeypatch) -> None:
 
         pilot.app.push_screen(ModelsPanel(), callback=on_dismiss)
         await pilot.pause()
-        await pilot.press("j", "l", "x")
+        await pilot.press("j", "x")
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
 
-    clear_mock.assert_called_once_with("small_worker")
+    clear_mock.assert_called_once_with("small")
     assert isinstance(result, ModelsPanelResult)
     assert result.changed is True
 
@@ -91,7 +91,7 @@ async def test_panel_x_without_override_does_not_clear(monkeypatch) -> None:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        await pilot.press("j", "l", "x")
+        await pilot.press("x")
         await pilot.pause()
         clear_mock.assert_not_called()
         assert panel._changed is False
@@ -101,7 +101,7 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
     patch_alias_views(
         monkeypatch,
         [
-            make_alias_view("default", "default", description="Default model."),
+            make_alias_view("large", "role", description="Default launch model."),
             make_alias_view(
                 "blogger",
                 "user",
@@ -116,16 +116,16 @@ async def test_panel_description_strip_updates_on_highlight(monkeypatch) -> None
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
-        assert panel._highlighted_row_id() == "default"
+        assert panel._highlighted_row_id() == "large"
         description = panel.query_one("#models-panel-description", Static)
-        assert "Default model." in description.content.plain
+        assert "Default launch model." in description.content.plain
         await pilot.press("j")
         await pilot.pause()
         assert "Draft blog posts." in description.content.plain
 
 
 async def test_panel_does_not_warn_for_clean_alias_views(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
@@ -136,13 +136,13 @@ async def test_panel_does_not_warn_for_clean_alias_views(monkeypatch) -> None:
         panel.notify.assert_not_called()
 
 
-async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
+async def test_panel_warns_once_and_keeps_alias_warning_through_refresh(
     monkeypatch,
 ) -> None:
     views = [
-        make_alias_view("default", "default"),
+        make_alias_view("large", "role"),
         make_alias_view(
-            "small_worker",
+            "small",
             "role",
             configured=True,
             configured_source="custom",
@@ -158,62 +158,49 @@ async def test_panel_warns_once_and_keeps_bucket_warning_through_refresh(
         await pilot.pause()
 
         panel.notify.assert_called_once_with(
-            "Builtin alias @small_worker is configured under "
+            "Builtin alias @small is configured under "
             "llm_provider.model_aliases.custom. Move its model value from "
             "llm_provider.model_aliases.custom to "
             "llm_provider.model_aliases.builtin.",
             severity="warning",
         )
 
-        await pilot.press("j")
         option_list = panel.query_one("#models-panel-list", OptionList)
-        bucket_index = option_list.get_option_index("bucket:worker")
-        bucket_row = option_list.get_option_at_index(bucket_index).prompt.plain
-        assert "▸ ! bucket" in bucket_row
-        assert "! 1 misplaced" in bucket_row
-        assert "1 override" in bucket_row
+        alias_index = option_list.get_option_index("small")
+        alias_row = option_list.get_option_at_index(alias_index).prompt.plain
+        assert alias_row.startswith("  ! role")
+        assert "override · 1h left" in alias_row
         description = panel.query_one("#models-panel-description", Static).content.plain
-        assert "@small_worker" in description
+        assert "@small" in description
         assert "llm_provider.model_aliases.custom" in description
         assert "llm_provider.model_aliases.builtin" in description
 
-        await pilot.press("l")
+        panel._refresh_rows(keep="small")
         await pilot.pause()
-        coder_row = option_list.get_option_at_index(0).prompt.plain
-        assert coder_row.startswith("  ! role")
-        assert "override · 1h left" in coder_row
-
-        panel._refresh_rows(keep="small_worker")
-        await pilot.pause()
-        assert option_list.get_option_at_index(0).prompt.plain.startswith("  ! role")
-        panel.notify.assert_called_once()
-
-        await pilot.press("h")
-        await pilot.pause()
-        bucket_index = option_list.get_option_index("bucket:worker")
-        assert (
-            "▸ ! bucket" in option_list.get_option_at_index(bucket_index).prompt.plain
+        alias_index = option_list.get_option_index("small")
+        assert option_list.get_option_at_index(alias_index).prompt.plain.startswith(
+            "  ! role"
         )
         panel.notify.assert_called_once()
 
         views[:] = [
-            make_alias_view("default", "default"),
+            make_alias_view("large", "role"),
             make_alias_view(
-                "small_worker",
+                "small",
                 "role",
                 configured=True,
                 configured_source="builtin",
                 override=make_override(),
             ),
         ]
-        panel._refresh_rows(keep="bucket:worker")
+        panel._refresh_rows(keep="small")
         await pilot.pause()
-        repaired_bucket_index = option_list.get_option_index("bucket:worker")
-        repaired_bucket_row = option_list.get_option_at_index(
-            repaired_bucket_index
+        repaired_alias_index = option_list.get_option_index("small")
+        repaired_alias_row = option_list.get_option_at_index(
+            repaired_alias_index
         ).prompt.plain
-        assert "!" not in repaired_bucket_row
-        assert "override · 1 active" in repaired_bucket_row
+        assert repaired_alias_row.startswith("  role")
+        assert "override · 1h left" in repaired_alias_row
         panel.notify.assert_called_once()
 
 
@@ -272,7 +259,7 @@ async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
         assert panel._highlighted_row_id() == "research_a"
 
 
-async def test_panel_worker_bucket_navigation_and_member_order(
+async def test_panel_size_alias_navigation_and_order(
     monkeypatch,
 ) -> None:
     patch_alias_views(monkeypatch, make_worker_bucket_views())
@@ -282,38 +269,26 @@ async def test_panel_worker_bucket_navigation_and_member_order(
         pilot.app.push_screen(panel)
         await pilot.pause()
 
-        await pilot.press("j")
-        assert panel._highlighted_row_id() == "bucket:worker"
-        description = panel.query_one("#models-panel-description", Static).content.plain
-        assert "Size-specific phase-agent aliases" in description
-        assert "claude/opus ×2" in description
-
-        await pilot.press("l")
-        await pilot.pause()
-        assert panel._active_bucket == "worker"
         assert list(panel._row_by_id) == [
-            "xsmall_worker",
-            "small_worker",
-            "medium_worker",
-            "large_worker",
-            "xlarge_worker",
+            "xsmall",
+            "small",
+            "medium",
+            "large",
+            "xlarge",
         ]
-        assert panel._highlighted_row_id() == "xsmall_worker"
+        assert panel._highlighted_row_id() == "xsmall"
+        description = panel.query_one("#models-panel-description", Static).content.plain
+        assert "CLAUDE" not in description
 
         await pilot.press("j")
-        assert panel._highlighted_row_id() == "small_worker"
+        assert panel._highlighted_row_id() == "small"
 
         await pilot.press("j")
-        assert panel._highlighted_row_id() == "medium_worker"
-
-        await pilot.press("h")
-        await pilot.pause()
-        assert panel._active_bucket is None
-        assert panel._highlighted_row_id() == "bucket:worker"
+        assert panel._highlighted_row_id() == "medium"
 
 
 @pytest.mark.parametrize("member_steps", [[], ["j", "j"]])
-async def test_panel_worker_members_open_override_picker(
+async def test_panel_size_aliases_open_override_picker(
     monkeypatch, member_steps: list[str]
 ) -> None:
     patch_alias_views(monkeypatch, make_worker_bucket_views())
@@ -321,7 +296,7 @@ async def test_panel_worker_members_open_override_picker(
     async with ModelsPanelTestApp().run_test() as pilot:
         pilot.app.push_screen(ModelsPanel())
         await pilot.pause()
-        await pilot.press("j", "l", *member_steps, "o")
+        await pilot.press(*member_steps, "o")
         await pilot.pause()
 
         assert isinstance(pilot.app.screen, ModelPickerModal)
@@ -378,7 +353,7 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
     monkeypatch,
 ) -> None:
     views = [
-        make_alias_view("default", "default"),
+        make_alias_view("large", "role"),
         make_alias_view(
             "researcher",
             "user",
@@ -394,20 +369,20 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
         await pilot.pause()
         option_list = panel.query_one("#models-panel-list", OptionList)
 
-        assert panel._highlighted_row_id() == "default"
+        assert panel._highlighted_row_id() == "large"
         assert option_list.get_option_at_index(0).disabled is True
         assert option_list.get_option_at_index(2).disabled is True
-        assert set(panel._row_by_id) == {"default", "researcher"}
+        assert set(panel._row_by_id) == {"large", "researcher"}
 
         await pilot.press("j")
         assert panel._highlighted_row_id() == "researcher"
         await pilot.press("j")
-        assert panel._highlighted_row_id() == "default"
+        assert panel._highlighted_row_id() == "large"
         await pilot.press("k")
         assert panel._highlighted_row_id() == "researcher"
 
-        views[:] = [make_alias_view("default", "default")]
-        panel._refresh_rows(keep="default")
+        views[:] = [make_alias_view("large", "role")]
+        panel._refresh_rows(keep="large")
         await pilot.pause()
         assert option_list.option_count == 4
         assert option_list.get_option_at_index(3).disabled is True
@@ -416,13 +391,13 @@ async def test_panel_navigation_skips_headers_and_empty_hint_with_wrap(
         )
 
         await pilot.press("j", "k")
-        assert panel._highlighted_row_id() == "default"
+        assert panel._highlighted_row_id() == "large"
 
 
 async def test_panel_decorative_option_ids_never_resolve_to_actions(
     monkeypatch,
 ) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
@@ -453,11 +428,7 @@ async def test_panel_decorative_option_ids_never_resolve_to_actions(
 
 async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> None:
     views = [
-        make_alias_view("default", "default"),
-        make_alias_view(
-            "small_worker",
-            "role",
-        ),
+        make_alias_view("large", "role"),
         make_alias_view(
             "phase_reviewer",
             "user",
@@ -477,24 +448,16 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
 
         option_list = panel.query_one("#models-panel-list", OptionList)
         assert panel._active_bucket == "worker"
-        assert panel._highlighted_row_id() == "small_worker"
-        assert option_list.option_count == 4
-        assert option_list.get_option_at_index(0).disabled is True
-        assert option_list.get_option_at_index(2).disabled is True
+        assert panel._highlighted_row_id() == "phase_reviewer"
+        assert option_list.option_count == 1
         assert panel.query_one("#models-panel-title", Static).content.plain == (
-            "Models › worker · built-in bucket"
+            "Models › ▌ worker · custom bucket"
             "\ndefault effort: provider default"
             "\nmax running agents: 10"
         )
 
-        await pilot.press("j")
-        assert panel._highlighted_row_id() == "phase_reviewer"
         panel._refresh_rows(keep="phase_reviewer")
         await pilot.pause()
-        assert panel._highlighted_row_id() == "phase_reviewer"
-        await pilot.press("j")
-        assert panel._highlighted_row_id() == "small_worker"
-        await pilot.press("k")
         assert panel._highlighted_row_id() == "phase_reviewer"
 
         await pilot.press("h")
@@ -503,7 +466,7 @@ async def test_panel_mixed_bucket_sections_title_and_restore(monkeypatch) -> Non
 
 
 async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
     effort = MagicMock(return_value="xhigh")
     monkeypatch.setattr(models_panel, "default_reasoning_effort", effort)
 
@@ -521,13 +484,13 @@ async def test_panel_title_shows_configured_default_effort(monkeypatch) -> None:
 async def test_panel_preferred_width_fits_production_description(monkeypatch) -> None:
     """The description strip has a non-zero content area with production CSS."""
     description_text = (
-        "Model used when a prompt has no %model directive; delegates to @smarter "
+        "Model used when a prompt has no %model directive; delegates to @large "
         "unless configured."
     )
-    assert len(description_text) == 90
+    assert len(description_text) == 88
     patch_alias_views(
         monkeypatch,
-        [make_alias_view("default", "default", description=description_text)],
+        [make_alias_view("large", "role", description=description_text)],
     )
 
     async with StyledModelsPanelTestApp().run_test(size=(120, 40)) as pilot:
@@ -543,7 +506,7 @@ async def test_panel_preferred_width_fits_production_description(monkeypatch) ->
 
 
 async def test_panel_width_is_contained_by_narrow_viewport(monkeypatch) -> None:
-    patch_alias_views(monkeypatch, [make_alias_view("default", "default")])
+    patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
 
     async with StyledModelsPanelTestApp().run_test(size=(80, 40)) as pilot:
         panel = ModelsPanel()
