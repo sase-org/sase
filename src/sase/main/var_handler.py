@@ -9,28 +9,25 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from rich.console import Console
-from rich.text import Text
-
-from sase.core.artifact_file_helpers import read_json_object
+from sase.core.agent_output_variable_history_wire import (
+    AgentOutputVariableHistoryQueryWire,
+)
 from sase.core.agent_output_variables import (
     parse_output_variable_assignments,
     read_agent_output_variables,
     set_agent_output_variables,
 )
-from sase.core.output_variable_display import VarLine, format_var_value_lines
+from sase.core.agent_scan_facade import query_agent_output_variable_history
 from sase.core.output_variable_values import VarValue, normalize_var_value
-
-_KEY_STYLE = "bold #87D7FF"
-_VALUE_STYLES = {
-    "string": "#5FD75F",
-    "number": "#FFAF5F",
-    "boolean": "italic #AFAFAF",
-    "null": "italic #AFAFAF",
-    "list": "dim",
-    "map": "dim",
-    "block": "dim",
-}
+from sase.main.var_cli import (
+    artifact_timestamp_from_date,
+    prepare_output_variable_index,
+    resolve_current_var_agent_name,
+    resolve_named_var_artifact,
+    resolve_var_projects,
+)
+from sase.main.var_render import render_var_history, render_var_snapshot
+from sase.project_display_names import ProjectRefDisplaySnapshot
 
 
 def handle_var_command(args: argparse.Namespace) -> NoReturn:
@@ -40,41 +37,95 @@ def handle_var_command(args: argparse.Namespace) -> NoReturn:
         _handle_var_list(args)
     if subcommand == "set":
         _handle_var_set(args)
+    if subcommand == "show":
+        _handle_var_show(args)
 
-    print("Usage: sase var {list,set}", file=sys.stderr)
+    print("Usage: sase var {list,set,show}", file=sys.stderr)
     sys.exit(1)
 
 
-def _handle_var_list(args: argparse.Namespace) -> NoReturn:
-    """Display output variables for the current SASE agent."""
-    agent_artifacts_dir = _require_agent_artifacts_dir("list")
+def _handle_var_show(args: argparse.Namespace) -> NoReturn:
+    """Display one agent's stored output-variable snapshot."""
+    agent_name = getattr(args, "agent_name", None)
+    output_format = str(getattr(args, "format", "pretty") or "pretty")
+    color = str(getattr(args, "color", "auto") or "auto")
+    if agent_name:
+        record = resolve_named_var_artifact(
+            agent_name,
+            project=getattr(args, "project", None),
+        )
+        if record is None:
+            project = getattr(args, "project", None)
+            suffix = f" (project {project})" if project else ""
+            print(f"Error: unknown agent: {agent_name}{suffix}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            variables = read_agent_output_variables(record.artifact_dir)
+        except Exception as exc:
+            print(f"Error: failed to show output variables: {exc}", file=sys.stderr)
+            sys.exit(1)
+        render_var_snapshot(variables, output_format=output_format, color=color)
+        sys.exit(0)
+
+    agent_artifacts_dir = _require_show_artifacts_dir()
     try:
         variables = read_agent_output_variables(agent_artifacts_dir)
+    except Exception as exc:
+        print(f"Error: failed to show output variables: {exc}", file=sys.stderr)
+        sys.exit(1)
+    render_var_snapshot(variables, output_format=output_format, color=color)
+    sys.exit(0)
+
+
+def _handle_var_list(args: argparse.Namespace) -> NoReturn:
+    """Display grouped historical output variables."""
+    try:
+        query, display = _history_query_from_args(args)
+        index, _root = prepare_output_variable_index()
+        history = query_agent_output_variable_history(index, query)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     except Exception as exc:
         print(f"Error: failed to list output variables: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    if bool(getattr(args, "json", False)):
-        print(
-            json.dumps(
-                variables,
-                allow_nan=False,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            )
-        )
-        sys.exit(0)
-
-    if not variables:
-        Console().print(Text("No output variables set.", style="dim"))
-        sys.exit(0)
-
-    lines, _ = format_var_value_lines(variables)
-    console = Console()
-    for line in lines:
-        console.print(_styled_var_line(line))
+    render_var_history(
+        history,
+        output_format=str(getattr(args, "format", "pretty") or "pretty"),
+        color=str(getattr(args, "color", "auto") or "auto"),
+        display=display,
+    )
     sys.exit(0)
+
+
+def _history_query_from_args(
+    args: argparse.Namespace,
+) -> tuple[AgentOutputVariableHistoryQueryWire, ProjectRefDisplaySnapshot]:
+    project_keys, display = resolve_var_projects(getattr(args, "projects", None))
+    key_limit, value_limit = getattr(args, "limit", (20, 5))
+    since = getattr(args, "since", None)
+    until = getattr(args, "until", None)
+    return (
+        AgentOutputVariableHistoryQueryWire(
+            projects=project_keys,
+            agents=list(getattr(args, "agents", None) or []),
+            keys=list(getattr(args, "keys", None) or []),
+            values=list(getattr(args, "values", None) or []),
+            value_json=list(getattr(args, "value_json", None) or []),
+            since_timestamp=(
+                artifact_timestamp_from_date(since, boundary="since") if since else None
+            ),
+            until_timestamp=(
+                artifact_timestamp_from_date(until, boundary="until") if until else None
+            ),
+            include_hidden=bool(getattr(args, "hidden", False)),
+            key_limit=int(key_limit),
+            value_limit=int(value_limit),
+            reverse=bool(getattr(args, "reverse", False)),
+        ),
+        display,
+    )
 
 
 def _handle_var_set(args: argparse.Namespace) -> NoReturn:
@@ -97,6 +148,18 @@ def _handle_var_set(args: argparse.Namespace) -> NoReturn:
     print(f"keys: {', '.join(sorted(stored))}")
     print(f"artifacts_dir: {Path(agent_artifacts_dir).expanduser()}")
     sys.exit(0)
+
+
+def _require_show_artifacts_dir() -> str:
+    """Return the current artifact directory for no-argument ``show``."""
+    agent_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not agent_artifacts_dir:
+        print(
+            "Error: sase var show requires SASE_ARTIFACTS_DIR or an AGENT_NAME",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return agent_artifacts_dir
 
 
 def _require_agent_artifacts_dir(subcommand: str) -> str:
@@ -193,23 +256,6 @@ def _decode_json_value(raw_value: str, *, key: str, source: str) -> VarValue:
     return normalize_var_value(key, value)
 
 
-def _styled_var_line(line: VarLine) -> Text:
-    rendered = Text("  " * line.indent)
-    if line.bullet:
-        rendered.append("-", style="dim")
-    if line.key is not None:
-        if line.bullet:
-            rendered.append(" ")
-        rendered.append(f"{line.key}:", style=_KEY_STYLE)
-        if line.text is not None:
-            rendered.append(" ")
-    elif line.bullet and line.text is not None:
-        rendered.append(" ")
-    if line.text is not None:
-        rendered.append(line.text, style=_VALUE_STYLES[line.kind])
-    return rendered
-
-
 def _read_output_variable_value(source: str) -> str:
     if source == "-":
         try:
@@ -239,9 +285,4 @@ def _read_output_variable_value(source: str) -> str:
 
 
 def _current_agent_name(artifacts_dir: str) -> str | None:
-    env_name = os.environ.get("SASE_AGENT_NAME")
-    if env_name:
-        return env_name
-    meta = read_json_object(Path(artifacts_dir).expanduser() / "agent_meta.json")
-    name = meta.get("name")
-    return name if isinstance(name, str) and name else None
+    return resolve_current_var_agent_name(artifacts_dir)

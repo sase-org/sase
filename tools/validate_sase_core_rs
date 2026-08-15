@@ -41,6 +41,8 @@ REQUIRED_BINDINGS = (
     "scan_agent_artifacts",
     "scan_agent_artifact_dirs",
     "rebuild_agent_artifact_index",
+    "query_agent_output_variable_history",
+    "agent_output_variable_history_wire_schema_version",
     "agent_stats_query_runs",
     "agent_stats_query_activity",
     "agent_cleanup_wire_schema_version",

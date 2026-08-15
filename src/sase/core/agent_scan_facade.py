@@ -29,6 +29,12 @@ from sase.core.agent_artifact_index_lock import (
     agent_artifact_index_operation_lock,
     try_agent_artifact_index_operation_lock,
 )
+from sase.core.agent_output_variable_history_wire import (
+    AgentOutputVariableHistoryQueryWire,
+    AgentOutputVariableHistoryWire,
+    agent_output_variable_history_from_dict,
+    agent_output_variable_history_query_to_dict,
+)
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
@@ -258,6 +264,21 @@ def agent_artifact_index_status(
     return agent_artifact_index_status_from_dict(payload)
 
 
+def query_agent_output_variable_history(
+    index_path: Path | str,
+    query: AgentOutputVariableHistoryQueryWire | None = None,
+) -> AgentOutputVariableHistoryWire:
+    """Return grouped output-variable history from the persistent artifact index."""
+    query_wire = query or AgentOutputVariableHistoryQueryWire()
+    with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_agent_output_variable_history")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            agent_output_variable_history_query_to_dict(query_wire),
+        )
+    return agent_output_variable_history_from_dict(payload)
+
+
 def query_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,
@@ -404,6 +425,7 @@ __all__ = [
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
     "query_agent_artifact_index",
+    "query_agent_output_variable_history",
     "query_related_agent_artifact_dirs",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",

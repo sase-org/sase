@@ -218,6 +218,20 @@ def test_validate_proc_lifecycle_contract_fails_on_stale_reserve_schema() -> Non
     assert not validator._validate_proc_lifecycle_contract(module)
 
 
+def test_validate_sase_core_rs_requires_output_variable_history_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    history_bindings = {
+        "query_agent_output_variable_history",
+        "agent_output_variable_history_wire_schema_version",
+    }
+
+    assert history_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in history_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_agent_stats_work_bindings() -> None:
     validator = _load_validate_sase_core_rs()
     stats_bindings = {

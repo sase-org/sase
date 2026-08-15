@@ -43,23 +43,22 @@ def test_parser_registers_var_set_assignments() -> None:
     assert args.assignments == ["plan_file=sdd/plan.md", "status=ok"]
 
 
-def test_parser_registers_json_for_var_list_and_set() -> None:
+def test_parser_registers_json_for_var_set() -> None:
     parser = create_parser()
 
-    list_args = parser.parse_args(["var", "list", "--json"])
     set_args = parser.parse_args(["var", "set", "cfg={}", "--json"])
 
-    assert list_args.var_subcommand == "list"
-    assert list_args.json is True
     assert set_args.var_subcommand == "set"
     assert set_args.json is True
 
 
 def test_bare_var_delegates_to_list() -> None:
     args = create_parser().parse_args(["var"])
+    explicit = create_parser().parse_args(["var", "list"])
 
     assert args.var_subcommand == "list"
-    assert args.json is False
+    assert args.format == "pretty"
+    assert args.limit == explicit.limit
     assert default_list_delegation_notice(args) == (
         "No subcommand provided for 'sase var'; delegating to 'sase var list'."
     )
@@ -75,6 +74,7 @@ def test_var_help_keeps_subcommands_and_set_options_alphabetized(
     assert exc.value.code == 0
     group_help = capsys.readouterr().out
     assert group_help.index("\n    list ") < group_help.index("\n    set ")
+    assert group_help.index("\n    set ") < group_help.index("\n    show ")
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "set", "--help"])
@@ -550,7 +550,7 @@ def test_var_set_json_validation_errors_are_visible(
     assert "signed 64-bit range" in capsys.readouterr().err
 
 
-def test_var_list_renders_canonical_block_form(
+def test_var_show_renders_canonical_block_form(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -569,7 +569,7 @@ def test_var_list_renders_canonical_block_form(
     )
 
     with pytest.raises(SystemExit) as exc:
-        handle_var_command(_args(var_subcommand="list"))
+        handle_var_command(_args(var_subcommand="show", format="pretty", color="never"))
 
     assert exc.value.code == 0
     assert capsys.readouterr().out == (
@@ -577,7 +577,7 @@ def test_var_list_renders_canonical_block_form(
     )
 
 
-def test_var_list_json_is_compact_and_sorted(
+def test_var_show_json_is_compact_and_sorted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -589,7 +589,7 @@ def test_var_list_json_is_compact_and_sorted(
     )
 
     with pytest.raises(SystemExit) as exc:
-        handle_var_command(_args(var_subcommand="list", json=True))
+        handle_var_command(_args(var_subcommand="show", format="json", color="never"))
 
     assert exc.value.code == 0
     assert capsys.readouterr().out == '{"a":[2,true],"z":null}\n'

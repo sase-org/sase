@@ -26,7 +26,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 6
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 19
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 21
 
 # Workflow directory categories the Phase 3A scanner walks.
 #
@@ -152,6 +152,7 @@ class AgentArtifactIndexStatusWire:
     agent_artifacts_rows: int = 0
     dismissed_agents_rows: int = 0
     agent_artifact_aliases_rows: int = 0
+    agent_output_variables_rows: int = 0
 
 
 @dataclass(frozen=True)
