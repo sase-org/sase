@@ -223,6 +223,9 @@ def test_validate_sase_core_rs_requires_output_variable_history_bindings() -> No
     history_bindings = {
         "query_agent_output_variable_history",
         "agent_output_variable_history_wire_schema_version",
+        "parse_output_variable_selector",
+        "query_agent_output_variable_selectors",
+        "agent_output_variable_selector_wire_schema_version",
     }
 
     assert history_bindings <= set(validator.REQUIRED_BINDINGS)

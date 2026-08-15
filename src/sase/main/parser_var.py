@@ -10,6 +10,11 @@ from sase.core.agent_output_variable_history_wire import (
     DEFAULT_OUTPUT_VARIABLE_KEY_LIMIT,
     DEFAULT_OUTPUT_VARIABLE_VALUE_LIMIT,
 )
+from sase.core.agent_output_variable_selector_wire import (
+    DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
+    OutputVariableSelectorWire,
+)
+from sase.core.agent_scan_facade import parse_output_variable_selector
 from sase.core.output_variable_values import VarValue, normalize_var_value
 from sase.main.parser_bead_common import bead_date_arg
 from sase.vcs_log.dates import DATE_HELP
@@ -56,6 +61,19 @@ def _parse_var_value_json(value: str) -> VarValue:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
+def _parse_var_selector(value: str) -> OutputVariableSelectorWire:
+    """Parse one ``sase var get`` selector through the Rust domain parser."""
+    try:
+        return parse_output_variable_selector(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _parse_var_get_limit(value: str) -> int:
+    """Parse a nonnegative wildcard-expansion limit. Zero means unlimited."""
+    return _nonnegative_limit(value, "match")
+
+
 def _nonnegative_limit(value: str, label: str) -> int:
     try:
         parsed = int(value.strip())
@@ -76,8 +94,9 @@ def register_var_parser(subparsers: argparse._SubParsersAction) -> None:
         "var",
         help="Inspect and set SASE agent output variables",
         description=(
-            "Inspect historical output variables, show one agent's stored "
-            "snapshot, or set variables on the current SASE agent run.\n\n"
+            "Inspect historical output variables, retrieve values by selector, "
+            "show one agent's stored snapshot, or set variables on the current "
+            "SASE agent run.\n\n"
             "With no subcommand, `sase var` defaults to `sase var list`."
         ),
         epilog=(
@@ -86,6 +105,9 @@ def register_var_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase var show\n"
             "  sase var show build --format json\n"
             "  sase var list --key status --limit 10:3\n"
+            "  sase var get status\n"
+            "  sase var get build.status --format raw\n"
+            "  sase var get '*.status' --format json\n"
             '  sase var set "summary=tests passed"\n'
             "  sase var set 'cfg={\"retries\":3}' --json"
         ),
@@ -99,9 +121,88 @@ def register_var_parser(subparsers: argparse._SubParsersAction) -> None:
         title="subcommands",
     )
 
+    _register_var_get_parser(var_subparsers)
     _register_var_list_parser(var_subparsers)
     _register_var_set_parser(var_subparsers)
     _register_var_show_parser(var_subparsers)
+
+
+def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "get",
+        help="Get output-variable values by selector",
+        description=(
+            "Retrieve precise output-variable values with a compact selector "
+            "language. Unscoped keys choose the newest matching occurrence. "
+            "Exact-agent selectors choose that name's newest artifact. "
+            "Global (`*.KEY`) and hood (`HOOD.*.KEY`) selectors collapse "
+            "repeated runs to the newest value per agent name. JSON paths "
+            'use [INDEX] or ["KEY"] after the selected value; dotted map '
+            "traversal is not accepted."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase var get status\n"
+            "  sase var get results[0]\n"
+            "  sase var get build.status --format raw\n"
+            "  sase var get 'research.foo.report[\"summary\"]'\n"
+            "  sase var get 'research.*.status'\n"
+            "  sase var get '*.status' --format json\n"
+            "  sase var get build.* --limit 0\n\n"
+            "Grammar: [SCOPE.]KEY[PATH ...]\n"
+            "SCOPE is an exact agent name, *, or HOOD.*; KEY is a variable "
+            'name or *; PATH is [INDEX] or ["JSON map key"]. Wildcard '
+            f"expansion defaults to {DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT} "
+            "matches; 0 means unlimited."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "selectors",
+        nargs="+",
+        metavar="SELECTOR",
+        type=_parse_var_selector,
+        help="Selector such as status, build.status, *.status, or results[0]",
+    )
+    parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=["pretty", "raw", "json", "jsonl"],
+        default="pretty",
+        help="Output format: pretty, raw, json, or jsonl (default: pretty)",
+    )
+    parser.add_argument(
+        "-H",
+        "--hidden",
+        action="store_true",
+        help="Include hidden indexed agents (visible history is the default)",
+    )
+    parser.add_argument(
+        "-n",
+        "--limit",
+        type=_parse_var_get_limit,
+        default=DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
+        metavar="N",
+        help=(
+            "Maximum matches from wildcard expansion; 0 means unlimited "
+            f"(default: {DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT})"
+        ),
+    )
+    parser.add_argument(
+        "-p",
+        "--project",
+        action="append",
+        dest="projects",
+        metavar="PROJECT",
+        help="Filter by project display name or alias (repeatable)",
+    )
 
 
 def _register_var_list_parser(subparsers: argparse._SubParsersAction) -> None:

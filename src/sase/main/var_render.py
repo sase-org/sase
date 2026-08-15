@@ -19,6 +19,13 @@ from sase.core.agent_output_variable_history_wire import (
     AgentOutputVariableOccurrenceWire,
     AgentOutputVariableValueGroupWire,
 )
+from sase.core.agent_output_variable_selector_wire import (
+    AgentOutputVariableSelectorMatchWire,
+    AgentOutputVariableSelectorQueryWire,
+    AgentOutputVariableSelectorResultWire,
+    OutputVariableSelectorPathWire,
+    output_variable_selector_to_dict,
+)
 from sase.core.output_variable_display import VarLine, format_var_value_lines
 from sase.core.output_variable_values import VarValue
 from sase.main.var_cli import display_project_name
@@ -39,6 +46,7 @@ _AGENT_STYLE = "#D7AFFF"
 _TRUNCATION_STYLE = "italic #AFAFAF"
 _EMPTY_SHOW_MESSAGE = "No output variables set."
 _EMPTY_LIST_MESSAGE = "No matching output variables."
+_UNNAMED_AGENT = "(unnamed)"
 
 
 def _var_console(color: str, *, file: TextIO | None = None) -> Console:
@@ -72,6 +80,26 @@ def render_var_snapshot(
         console.print(_styled_var_line(line, use_color=use_color))
 
 
+def render_var_get(
+    result: AgentOutputVariableSelectorResultWire,
+    *,
+    output_format: str,
+    color: str,
+    display: ProjectRefDisplaySnapshot,
+) -> None:
+    """Render selector matches for ``sase var get``."""
+    if output_format == "raw":
+        _render_get_raw(result)
+        return
+    if output_format == "json":
+        print(_compact_json(_get_envelope(result, display=display)))
+        return
+    if output_format == "jsonl":
+        _render_get_jsonl(result, display=display)
+        return
+    _render_get_pretty(result, color=color, display=display)
+
+
 def render_var_history(
     history: AgentOutputVariableHistoryWire,
     *,
@@ -87,6 +115,162 @@ def render_var_history(
         _render_history_jsonl(history, display=display)
         return
     _render_history_pretty(history, color=color, display=display)
+
+
+def _render_get_raw(result: AgentOutputVariableSelectorResultWire) -> None:
+    match = result.matches[0]
+    if isinstance(match.value, str):
+        print(match.value)
+        return
+    print(match.value_json)
+
+
+def _get_envelope(
+    result: AgentOutputVariableSelectorResultWire,
+    *,
+    display: ProjectRefDisplaySnapshot,
+) -> dict[str, object]:
+    return {
+        "schema_version": result.schema_version,
+        "index_path": result.index_path,
+        "query": _selector_query_payload(result.query, display=display),
+        "limits": {
+            "matches": _limit_payload(
+                result.matches_limit,
+                requested=result.query.limit,
+            )
+        },
+        "matches": [
+            _selector_match_payload(match, display=display) for match in result.matches
+        ],
+    }
+
+
+def _render_get_jsonl(
+    result: AgentOutputVariableSelectorResultWire,
+    *,
+    display: ProjectRefDisplaySnapshot,
+) -> None:
+    for match in result.matches:
+        print(
+            _compact_json(
+                {
+                    "schema_version": result.schema_version,
+                    "matches_limit": _limit_payload(
+                        result.matches_limit,
+                        requested=result.query.limit,
+                    ),
+                    **_selector_match_payload(match, display=display),
+                }
+            )
+        )
+
+
+def _render_get_pretty(
+    result: AgentOutputVariableSelectorResultWire,
+    *,
+    color: str,
+    display: ProjectRefDisplaySnapshot,
+) -> None:
+    console = _var_console(color)
+    use_color = resolve_color(color)
+    for index, match in enumerate(result.matches):
+        if index:
+            console.print()
+        _print_selector_match(console, match, display=display, use_color=use_color)
+    if result.matches_limit.truncated:
+        hidden = result.matches_limit.total_count - result.matches_limit.returned_count
+        console.print(
+            Text(
+                _more_label(hidden, "match", "matches", result.matches_limit.limit),
+                style=_style(_TRUNCATION_STYLE, use_color),
+            )
+        )
+
+
+def _print_selector_match(
+    console: Console,
+    match: AgentOutputVariableSelectorMatchWire,
+    *,
+    display: ProjectRefDisplaySnapshot,
+    use_color: bool,
+) -> None:
+    lines, _truncated = format_var_value_lines(match.value)
+    if lines:
+        first = _styled_var_line(lines[0], use_color=use_color)
+        console.print(first)
+        for line in lines[1:]:
+            console.print(_styled_var_line(line, use_color=use_color))
+    attribution = Text("  ")
+    agent = match.agent_name or _UNNAMED_AGENT
+    attribution.append(agent, style=_style(_AGENT_STYLE, use_color))
+    attribution.append(" · ", style=_style(_COUNT_STYLE, use_color))
+    attribution.append(
+        display_project_name(match.project_name, display),
+        style=_style(_COUNT_STYLE, use_color),
+    )
+    attribution.append(" · ", style=_style(_COUNT_STYLE, use_color))
+    attribution.append(match.timestamp, style=_style(_COUNT_STYLE, use_color))
+    attribution.append(" · ", style=_style(_COUNT_STYLE, use_color))
+    attribution.append(
+        match.key + _format_selector_path(match.path),
+        style=_style(_KEY_STYLE, use_color),
+    )
+    console.print(attribution)
+
+
+def _format_selector_path(path: list[OutputVariableSelectorPathWire]) -> str:
+    """Render JSON-path steps as ``[0]["key"]``."""
+    rendered: list[str] = []
+    for step in path:
+        if step.kind == "index" and step.index is not None:
+            rendered.append(f"[{step.index}]")
+        elif step.kind == "key" and step.key is not None:
+            rendered.append(f"[{json.dumps(step.key, ensure_ascii=False)}]")
+    return "".join(rendered)
+
+
+def _selector_query_payload(
+    query: AgentOutputVariableSelectorQueryWire,
+    *,
+    display: ProjectRefDisplaySnapshot,
+) -> dict[str, object]:
+    return {
+        "selectors": [
+            output_variable_selector_to_dict(selector) for selector in query.selectors
+        ],
+        "projects": [display_project_name(name, display) for name in query.projects],
+        "include_hidden": query.include_hidden,
+        "limit": query.limit,
+    }
+
+
+def _selector_match_payload(
+    match: AgentOutputVariableSelectorMatchWire,
+    *,
+    display: ProjectRefDisplaySnapshot,
+) -> dict[str, object]:
+    return {
+        "selector": match.selector,
+        "key": match.key,
+        "path": [
+            {
+                "kind": step.kind,
+                **({"index": step.index} if step.index is not None else {}),
+                **({"key": step.key} if step.key is not None else {}),
+            }
+            for step in match.path
+        ],
+        "value": match.value,
+        "value_json": match.value_json,
+        "artifact_dir": match.artifact_dir,
+        "project_name": display_project_name(match.project_name, display),
+        "workflow_dir_name": match.workflow_dir_name,
+        "timestamp": match.timestamp,
+        "agent_name": match.agent_name,
+        "cl_name": match.cl_name,
+        "hidden": match.hidden,
+    }
 
 
 def _history_envelope(
@@ -367,6 +551,7 @@ def _more_label(hidden: int, singular: str, plural: str, limit: int) -> str:
 
 
 __all__ = [
+    "render_var_get",
     "render_var_history",
     "render_var_snapshot",
 ]

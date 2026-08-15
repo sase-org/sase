@@ -35,6 +35,14 @@ from sase.core.agent_output_variable_history_wire import (
     agent_output_variable_history_from_dict,
     agent_output_variable_history_query_to_dict,
 )
+from sase.core.agent_output_variable_selector_wire import (
+    AgentOutputVariableSelectorQueryWire,
+    AgentOutputVariableSelectorResultWire,
+    OutputVariableSelectorWire,
+    agent_output_variable_selector_query_to_dict,
+    agent_output_variable_selector_result_from_dict,
+    output_variable_selector_from_dict,
+)
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
@@ -279,6 +287,28 @@ def query_agent_output_variable_history(
     return agent_output_variable_history_from_dict(payload)
 
 
+def parse_output_variable_selector(selector: str) -> OutputVariableSelectorWire:
+    """Parse one ``sase var get`` selector through the Rust domain parser."""
+    rust_parse = require_rust_binding("parse_output_variable_selector")
+    payload: dict[str, Any] = rust_parse(selector)
+    return output_variable_selector_from_dict(payload)
+
+
+def query_agent_output_variable_selectors(
+    index_path: Path | str,
+    query: AgentOutputVariableSelectorQueryWire | None = None,
+) -> AgentOutputVariableSelectorResultWire:
+    """Resolve output-variable selectors against the persistent artifact index."""
+    query_wire = query or AgentOutputVariableSelectorQueryWire()
+    with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_agent_output_variable_selectors")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            agent_output_variable_selector_query_to_dict(query_wire),
+        )
+    return agent_output_variable_selector_result_from_dict(payload)
+
+
 def query_agent_artifact_index(
     index_path: Path | str,
     projects_root: Path | str,
@@ -424,8 +454,10 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
+    "parse_output_variable_selector",
     "query_agent_artifact_index",
     "query_agent_output_variable_history",
+    "query_agent_output_variable_selectors",
     "query_related_agent_artifact_dirs",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",

@@ -12,27 +12,41 @@ from typing import NoReturn
 from sase.core.agent_output_variable_history_wire import (
     AgentOutputVariableHistoryQueryWire,
 )
+from sase.core.agent_output_variable_selector_wire import (
+    AgentOutputVariableSelectorQueryWire,
+    OutputVariableSelectorWire,
+)
 from sase.core.agent_output_variables import (
     parse_output_variable_assignments,
     read_agent_output_variables,
     set_agent_output_variables,
 )
-from sase.core.agent_scan_facade import query_agent_output_variable_history
+from sase.core.agent_scan_facade import (
+    query_agent_output_variable_history,
+    query_agent_output_variable_selectors,
+)
 from sase.core.output_variable_values import VarValue, normalize_var_value
 from sase.main.var_cli import (
     artifact_timestamp_from_date,
+    display_project_name,
     prepare_output_variable_index,
     resolve_current_var_agent_name,
     resolve_named_var_artifact,
     resolve_var_projects,
 )
-from sase.main.var_render import render_var_history, render_var_snapshot
+from sase.main.var_render import (
+    render_var_get,
+    render_var_history,
+    render_var_snapshot,
+)
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
 
 def handle_var_command(args: argparse.Namespace) -> NoReturn:
     """Dispatch ``sase var`` subcommands."""
     subcommand = getattr(args, "var_subcommand", None)
+    if subcommand == "get":
+        _handle_var_get(args)
     if subcommand == "list":
         _handle_var_list(args)
     if subcommand == "set":
@@ -40,7 +54,7 @@ def handle_var_command(args: argparse.Namespace) -> NoReturn:
     if subcommand == "show":
         _handle_var_show(args)
 
-    print("Usage: sase var {list,set,show}", file=sys.stderr)
+    print("Usage: sase var {get,list,set,show}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -75,6 +89,132 @@ def _handle_var_show(args: argparse.Namespace) -> NoReturn:
         sys.exit(1)
     render_var_snapshot(variables, output_format=output_format, color=color)
     sys.exit(0)
+
+
+def _handle_var_get(args: argparse.Namespace) -> NoReturn:
+    """Retrieve output-variable values by selector."""
+    output_format = str(getattr(args, "format", "pretty") or "pretty")
+    color = str(getattr(args, "color", "auto") or "auto")
+    display: ProjectRefDisplaySnapshot | None = None
+    try:
+        query, display = _selector_query_from_args(args)
+        index, _root = prepare_output_variable_index()
+        result = query_agent_output_variable_selectors(index, query)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except RuntimeError as exc:
+        _print_selector_query_error(str(exc), display)
+        sys.exit(1)
+    except Exception as exc:
+        print(f"Error: failed to get output variables: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if output_format == "raw" and (
+        len(result.matches) != 1 or result.matches_limit.truncated
+    ):
+        print(
+            "Error: raw format requires exactly one resolved value",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    assert display is not None
+    render_var_get(
+        result,
+        output_format=output_format,
+        color=color,
+        display=display,
+    )
+    sys.exit(0)
+
+
+def _selector_query_from_args(
+    args: argparse.Namespace,
+) -> tuple[AgentOutputVariableSelectorQueryWire, ProjectRefDisplaySnapshot]:
+    project_keys, display = resolve_var_projects(getattr(args, "projects", None))
+    selectors = list(getattr(args, "selectors", None) or [])
+    return (
+        AgentOutputVariableSelectorQueryWire(
+            selectors=_selectors_from_args(selectors),
+            projects=project_keys,
+            include_hidden=bool(getattr(args, "hidden", False)),
+            limit=int(getattr(args, "limit", 20)),
+        ),
+        display,
+    )
+
+
+def _selectors_from_args(
+    selectors: list[object],
+) -> list[OutputVariableSelectorWire]:
+    parsed: list[OutputVariableSelectorWire] = []
+    for selector in selectors:
+        if not isinstance(selector, OutputVariableSelectorWire):
+            raise ValueError(
+                "selectors must be parsed OutputVariableSelectorWire values"
+            )
+        parsed.append(selector)
+    return parsed
+
+
+def _print_selector_query_error(
+    raw: str,
+    display: ProjectRefDisplaySnapshot | None,
+) -> None:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        print(f"Error: {raw}", file=sys.stderr)
+        return
+    if not isinstance(payload, dict):
+        print(f"Error: {raw}", file=sys.stderr)
+        return
+    kind = payload.get("kind")
+    selector = payload.get("selector")
+    if kind == "no_match":
+        print(f"Error: no match for selector {selector!r}", file=sys.stderr)
+        return
+    if kind == "ambiguous_project":
+        projects = [
+            display_project_name(str(name), display)
+            if display is not None
+            else str(name)
+            for name in payload.get("projects") or []
+        ]
+        print(
+            f"Error: selector {selector!r} matches agent "
+            f"{payload.get('agent')!r} in multiple projects "
+            f"({', '.join(projects)}); pass --project to disambiguate",
+            file=sys.stderr,
+        )
+        return
+    if kind == "path_type":
+        print(
+            f"Error: selector {selector!r} path {payload.get('path')} "
+            f"expected {payload.get('expected')}, found {payload.get('actual')}",
+            file=sys.stderr,
+        )
+        return
+    if kind == "path_missing":
+        print(
+            f"Error: selector {selector!r} path {payload.get('path')} "
+            f"is missing key {payload.get('key')}",
+            file=sys.stderr,
+        )
+        return
+    if kind == "path_range":
+        print(
+            f"Error: selector {selector!r} path {payload.get('path')} "
+            f"index {payload.get('index')} is out of range "
+            f"(length {payload.get('len')})",
+            file=sys.stderr,
+        )
+        return
+    if kind == "index":
+        print(f"Error: {payload.get('message')}", file=sys.stderr)
+        return
+    print(f"Error: {raw}", file=sys.stderr)
 
 
 def _handle_var_list(args: argparse.Namespace) -> NoReturn:

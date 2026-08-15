@@ -73,6 +73,7 @@ def test_var_help_keeps_subcommands_and_set_options_alphabetized(
         parser.parse_args(["var", "--help"])
     assert exc.value.code == 0
     group_help = capsys.readouterr().out
+    assert group_help.index("\n    get ") < group_help.index("\n    list ")
     assert group_help.index("\n    list ") < group_help.index("\n    set ")
     assert group_help.index("\n    set ") < group_help.index("\n    show ")
 

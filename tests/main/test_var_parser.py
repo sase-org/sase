@@ -7,6 +7,42 @@ import pytest
 from sase.main.parser import create_parser
 
 
+def test_parser_registers_var_get_aliases() -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(
+        [
+            "var",
+            "get",
+            "status",
+            "build.status",
+            "-f",
+            "raw",
+            "-c",
+            "never",
+            "-p",
+            "sase",
+            "-H",
+            "-n",
+            "0",
+        ]
+    )
+
+    assert args.var_subcommand == "get"
+    assert [selector.raw for selector in args.selectors] == [
+        "status",
+        "build.status",
+    ]
+    assert args.selectors[0].key == "status"
+    assert args.selectors[1].scope.kind == "exact"
+    assert args.selectors[1].scope.name == "build"
+    assert args.format == "raw"
+    assert args.color == "never"
+    assert args.projects == ["sase"]
+    assert args.hidden is True
+    assert args.limit == 0
+
+
 def test_parser_registers_var_show_and_list_aliases() -> None:
     parser = create_parser()
 
@@ -122,6 +158,27 @@ def test_parse_var_value_json_normalizes_typed_values() -> None:
     assert args.value_json == [{"a": True, "z": 1}]
 
 
+def test_parser_rejects_invalid_get_selectors(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "get", "report[summary]"])
+
+    assert exc.value.code == 2
+    assert "invalid selector" in capsys.readouterr().err
+
+
+def test_parser_rejects_invalid_get_limit() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "get", "status", "--limit", "-1"])
+
+    assert exc.value.code == 2
+
+
 def test_var_list_and_show_help_keep_options_alphabetized(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -149,3 +206,14 @@ def test_var_list_and_show_help_keep_options_alphabetized(
     show_help = capsys.readouterr().out
     assert show_help.index(", --color") < show_help.index(", --format")
     assert show_help.index(", --format") < show_help.index(", --project")
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "get", "--help"])
+    assert exc.value.code == 0
+    get_help = capsys.readouterr().out
+    assert get_help.index(", --color") < get_help.index(", --format")
+    assert get_help.index(", --format") < get_help.index(", --hidden")
+    assert get_help.index(", --hidden") < get_help.index(", --limit")
+    assert get_help.index(", --limit") < get_help.index(", --project")
+    assert "sase var get status" in get_help
+    assert "sase var get build.status --format raw" in get_help
