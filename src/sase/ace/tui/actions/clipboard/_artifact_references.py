@@ -9,6 +9,12 @@ from ._base import ClipboardBase
 from ._representations import ArtifactReferenceItem, ArtifactReferenceSelection
 
 
+def _is_document_pane_key(subtab: str) -> bool:
+    from ...artifact_tabs import is_document_artifacts_pane
+
+    return is_document_artifacts_pane(subtab)
+
+
 class ClipboardArtifactReferencesMixin(ClipboardBase):
     """Capture the visible Artifacts entries used by reference actions."""
 
@@ -22,7 +28,7 @@ class ClipboardArtifactReferencesMixin(ClipboardBase):
             resolver_name = "_beads_pane"
         elif subtab == "files":
             resolver_name = "_files_pane"
-        elif str(subtab).startswith("ref:"):
+        elif _is_document_pane_key(str(subtab)):
             resolver_name = "_active_documents_pane"
         else:
             self.notify(f"No {subtab} entry selected", severity="warning")  # type: ignore[attr-defined]

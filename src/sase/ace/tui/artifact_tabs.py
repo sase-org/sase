@@ -25,6 +25,11 @@ from ._artifact_tab_discovery import (
     load_project_provider_records,
     provider_source_token,
 )
+from ._artifact_tab_contract import (
+    GENERIC_DOCUMENT_COPY_KEYMAP_GROUP,
+    GENERIC_DOCUMENT_COPY_TARGETS,
+    PLAN_COPY_TARGETS,
+)
 from ._artifact_tab_model import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_ICONS,
@@ -33,11 +38,15 @@ from ._artifact_tab_model import (
     FIXED_ARTIFACTS_PANE_IDS,
     FIXED_ARTIFACTS_SUBTAB_ORDER,
     LEGACY_ARTIFACTS_SUBTABS,
+    ArtifactsPaneContract,
     ArtifactsPaneKey,
     ArtifactsSubTab,
     ArtifactsTabDescriptor,
+    CapabilityVerdict,
     DocumentProviderProjectRoot,
     FilesSubTab,
+    PaneCapability,
+    PaneDeclaredFacts,
 )
 
 
@@ -99,6 +108,77 @@ def descriptor_for_artifacts_subtab(
         ),
         None,
     )
+
+
+def descriptor_for_artifacts_pane_id(pane_id: str) -> ArtifactsTabDescriptor | None:
+    """Return the descriptor whose id matches *pane_id* exactly.
+
+    Unlike :func:`descriptor_for_artifacts_subtab`, this does not normalize
+    an unknown id to Stitches.
+    """
+
+    return next(
+        (
+            descriptor
+            for descriptor in resolve_artifacts_subtabs()
+            if descriptor.id == pane_id
+        ),
+        None,
+    )
+
+
+def artifacts_pane_contract(pane_id: str) -> ArtifactsPaneContract | None:
+    """Exact contract lookup for diagnostics and CLI use."""
+
+    descriptor = descriptor_for_artifacts_pane_id(pane_id)
+    return None if descriptor is None else descriptor.contract
+
+
+def configured_artifacts_pane_ids() -> tuple[str, ...]:
+    """Return configured pane ids in visual order."""
+
+    return tuple(descriptor.id for descriptor in resolve_artifacts_subtabs())
+
+
+def is_document_artifacts_pane(pane_id: str) -> bool:
+    """Return whether *pane_id* is a compiled document-provider pane."""
+
+    contract = artifacts_pane_contract(pane_id)
+    if contract is not None:
+        return contract.is_document_provider()
+    return pane_id in {"ref:plan", "plans"}
+
+
+def copy_group_for_artifacts_pane(pane_id: str) -> str:
+    """Return the contract copy group, with static fallbacks for tests."""
+
+    contract = artifacts_pane_contract(pane_id)
+    if contract is not None:
+        return contract.copy_group
+    if pane_id == "files":
+        return "artifacts_other"
+    if pane_id == "patches":
+        return "patches"
+    if pane_id == "ref:plan":
+        return "artifacts_plans"
+    return f"artifacts_{pane_id}"
+
+
+def copy_keymap_group_for_artifacts_pane(pane_id: str) -> str:
+    """Return the keymap group used for copy-mode keys."""
+
+    contract = artifacts_pane_contract(pane_id)
+    if contract is not None:
+        return contract.copy_keymap_group or contract.copy_group
+    group = copy_group_for_artifacts_pane(pane_id)
+    if group.startswith("artifacts_") and group not in {
+        "artifacts_stitches",
+        "artifacts_plans",
+        "artifacts_beads",
+        "artifacts_other",
+    }:
+        return GENERIC_DOCUMENT_COPY_KEYMAP_GROUP
+    return group
 
 
 def document_provider_roots(
@@ -188,16 +268,29 @@ __all__ = [
     "FILES_SUBTAB_ORDER",
     "FIXED_ARTIFACTS_PANE_IDS",
     "FIXED_ARTIFACTS_SUBTAB_ORDER",
+    "GENERIC_DOCUMENT_COPY_KEYMAP_GROUP",
+    "GENERIC_DOCUMENT_COPY_TARGETS",
     "LEGACY_ARTIFACTS_SUBTABS",
+    "PLAN_COPY_TARGETS",
+    "ArtifactsPaneContract",
     "ArtifactsPaneKey",
     "ArtifactsSubTab",
     "ArtifactsTabDescriptor",
+    "CapabilityVerdict",
     "DocumentProviderProjectRoot",
     "FilesSubTab",
+    "PaneCapability",
+    "PaneDeclaredFacts",
+    "artifacts_pane_contract",
     "artifacts_pane_key",
     "artifacts_subtab_order",
+    "configured_artifacts_pane_ids",
+    "copy_group_for_artifacts_pane",
+    "copy_keymap_group_for_artifacts_pane",
+    "descriptor_for_artifacts_pane_id",
     "descriptor_for_artifacts_subtab",
     "document_provider_roots",
+    "is_document_artifacts_pane",
     "normalize_artifacts_subtab",
     "reset_artifacts_subtabs_cache",
     "resolve_artifacts_subtabs",

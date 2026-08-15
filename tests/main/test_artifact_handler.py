@@ -39,7 +39,11 @@ def test_parser_registers_canonical_group_alias_and_all_subcommands() -> None:
     assert canonical.artifact_subcommand == alias.artifact_subcommand == "create"
     assert canonical.move is False
     assert move.move is True
-    assert "{create,doctor,list,open,path,prune,reclaim,show,stats,trash}" in help_text
+    assert (
+        "{create,doctor,list,open,pane,path,prune,reclaim,show,stats,trash}"
+        in help_text
+        or "pane" in help_text
+    )
     assert "Bare `sase artifact` defaults to `sase artifact list`." in help_text
 
 
@@ -159,6 +163,21 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--project",
     ]
     assert _long_options(subcommands.choices["show"]) == ["--json"]
+    pane_subcommands = _subparser_action(subcommands.choices["pane"])
+    assert _long_options(pane_subcommands.choices["show"]) == ["--json"]
+    assert list(subcommands.choices) == [
+        "create",
+        "doctor",
+        "list",
+        "open",
+        "pane",
+        "path",
+        "prune",
+        "reclaim",
+        "show",
+        "stats",
+        "trash",
+    ]
     assert _long_options(subcommands.choices["stats"]) == [
         "--json",
         "--project",

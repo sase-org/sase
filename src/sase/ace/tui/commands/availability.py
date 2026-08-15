@@ -224,11 +224,9 @@ def _get_base_status(status: str) -> str:
 
 
 def _artifacts_copy_group(subtab: str) -> str:
-    if subtab.startswith("ref:"):
-        return "artifacts_plans"
-    if subtab == "files":
-        return "artifacts_other"
-    return f"artifacts_{subtab}"
+    from sase.ace.tui.artifact_tabs import copy_group_for_artifacts_pane
+
+    return copy_group_for_artifacts_pane(subtab)
 
 
 # ---------------------------------------------------------------------------
@@ -247,18 +245,51 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             return spec.id.rsplit(".", 1)[-1] in ctx.artifact_available_targets
         return True
     if spec.id == "app.edit_query":
-        return ctx.artifacts_subtab in {
-            "patches",
-            "stitches",
-            "beads",
-            "files",
-        } or ctx.artifacts_subtab.startswith("ref:")
+        from sase.ace.tui.artifact_tabs import (
+            PaneCapability,
+            artifacts_pane_contract,
+        )
+
+        if ctx.artifacts_subtab in {"patches", "stitches", "beads", "files"}:
+            return True
+        contract = artifacts_pane_contract(ctx.artifacts_subtab)
+        if contract is not None:
+            return contract.has(PaneCapability.FILTER_SESSION)
+        from sase.ace.tui.artifact_tabs import is_document_artifacts_pane
+
+        return is_document_artifacts_pane(ctx.artifacts_subtab)
     if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:
         return False
     if spec.id in _STITCHES_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "stitches"
     if spec.id in _PLANS_ARTIFACT_COMMANDS:
-        return ctx.artifacts_subtab.startswith("ref:")
+        from sase.ace.tui.artifact_tabs import (
+            PaneCapability,
+            artifacts_pane_contract,
+        )
+
+        contract = artifacts_pane_contract(ctx.artifacts_subtab)
+        if contract is None:
+            from sase.ace.tui.artifact_tabs import is_document_artifacts_pane
+
+            if not is_document_artifacts_pane(ctx.artifacts_subtab):
+                return False
+            if spec.id in {
+                "app.plans_approve",
+                "app.plans_reject",
+                "app.plans_open_bead",
+            }:
+                return ctx.artifacts_subtab in {"ref:plan", "plans"}
+            return True
+        if not contract.is_document_provider():
+            return False
+        if spec.id == "app.plans_approve":
+            return contract.has(PaneCapability.PLAN_APPROVE)
+        if spec.id == "app.plans_reject":
+            return contract.has(PaneCapability.PLAN_REJECT)
+        if spec.id == "app.plans_open_bead":
+            return contract.has(PaneCapability.PLAN_OPEN_BEAD)
+        return True
     if spec.id in _BEADS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "beads"
     if spec.id.startswith("bead_issue."):

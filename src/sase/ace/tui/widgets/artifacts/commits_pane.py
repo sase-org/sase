@@ -54,10 +54,12 @@ class CommitsPane(
         collector: CommitCollector,
         diff_loader: CommitDiffLoader,
         initial_filters: CommitLogFilterValues | None = None,
+        contract: Any | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
+        self.contract = contract
         self._init_commits_collection(collector, initial_filters=initial_filters)
         self._init_commits_filtering()
         self._init_commits_detail(diff_loader)

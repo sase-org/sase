@@ -60,10 +60,12 @@ def artifact_target_state(
         }
         if not plan and not marked:
             available.discard("plan")
-    elif subtab == "plans" or subtab.startswith("ref:"):
+    elif _is_document_subtab(subtab):
         values = _plan_values(first)
         for target in ("design", "path", "title", "body"):
-            if not values.get(target) and not marked:
+            if target not in _declared_copy_targets(subtab):
+                available.discard(target)
+            elif not values.get(target) and not marked:
                 available.discard(target)
     elif subtab == "beads":
         values = _bead_values(first)
@@ -216,6 +218,21 @@ def _file_target_counts(pane: Any, entries: tuple[Any, ...]) -> dict[str, int]:
         "json": len(entries),
         "handoff": reference_count,
     }
+
+
+def _is_document_subtab(subtab: str) -> bool:
+    from ...artifact_tabs import is_document_artifacts_pane
+
+    return is_document_artifacts_pane(subtab)
+
+
+def _declared_copy_targets(subtab: str) -> frozenset[str]:
+    from ...artifact_tabs import artifacts_pane_contract
+
+    contract = artifacts_pane_contract(subtab)
+    if contract is None:
+        return frozenset()
+    return frozenset(contract.copy_targets)
 
 
 def _warm_file_view_mode(

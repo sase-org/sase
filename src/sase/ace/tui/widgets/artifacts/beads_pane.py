@@ -8,11 +8,11 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Markdown, OptionList, Static
-from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
+from ..._artifact_tab_model import ArtifactsPaneContract
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot, load_beads_snapshot
 from .beads_data_models import ExternalIssueLink, ExternalIssueProjectCache
@@ -20,7 +20,7 @@ from .beads_filter_session import BeadsFilterSessionMixin
 from .beads_list import BeadRow
 from .beads_navigation import BeadsNavigationMixin, BeadsOptionList
 from .beads_options import BeadsOptionsMixin
-from .lifecycle import ArtifactsPaneLifecycle
+from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 if TYPE_CHECKING:
     from ...app import AceApp
@@ -30,25 +30,24 @@ class ArtifactsBeadsPane(
     BeadsFilterSessionMixin,
     BeadsNavigationMixin,
     BeadsOptionsMixin,
-    ArtifactsPaneLifecycle,
-    Vertical,
+    ArtifactsSnapshotPane,
 ):
     """Browse task beads and expandable epic phase trees."""
 
     can_focus = False
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        contract: ArtifactsPaneContract | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self._init_artifacts_lifecycle()
+        self._init_snapshot_lifecycle()
+        self.contract = contract
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
-        self._snapshot: BeadsSnapshot | None = None
-        self._loading = False
-        self._reload_pending = False
-        self._force_pending = False
-        self._load_error: str | None = None
-        self._worker: Worker[Any] | None = None
         self._init_beads_navigation()
         self._init_beads_filter_session()
         self._init_beads_options()
@@ -77,8 +76,7 @@ class ArtifactsBeadsPane(
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
-        if self._worker is not None and not self._worker.is_finished:
-            self._worker.cancel()
+        self._cancel_snapshot_worker()
 
     def on_first_activate(self) -> None:
         self._request_load(force=False)
@@ -141,71 +139,42 @@ class ArtifactsBeadsPane(
         return self._snapshot.external_projects.get(project)
 
     def _request_load(self, *, force: bool) -> None:
-        project = self.project_scope
-        if self._loading:
-            self._reload_pending = True
-            self._force_pending = self._force_pending or force
-            return
-        self._loading = True
-        self._load_error = None
+        self._request_snapshot(force=force)
+
+    def _on_snapshot_started(self, request: SnapshotRequest) -> None:
+        del request
         self._update_static("#beads-status", self._status_text())
-        previous = self._snapshot
-        patches = tuple(getattr(self.app, "patches", ()))
 
-        def task() -> BeadsSnapshot:
-            return load_beads_snapshot(
-                project,
-                previous=previous,
-                force=force,
-                patches=patches,
-            )
-
-        self._worker = self.run_worker(
-            task,
-            thread=True,
-            exclusive=False,
-            exit_on_error=False,
+    def _build_snapshot(self, request: SnapshotRequest) -> BeadsSnapshot:
+        return load_beads_snapshot(
+            request.project,
+            previous=self._snapshot,
+            force=request.force,
+            patches=tuple(getattr(self.app, "patches", ())),
         )
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        if event.worker is not self._worker:
-            return
-        terminal = event.state in {
-            WorkerState.SUCCESS,
-            WorkerState.ERROR,
-            WorkerState.CANCELLED,
-        }
-        if event.state == WorkerState.SUCCESS:
-            result = event.worker.result
-            self._loading = False
-            if (
-                isinstance(result, BeadsSnapshot)
-                and result.project == self.project_scope
-            ):
-                preferred = self._selected_option_id()
-                cancel_jump = getattr(
-                    self.app, "_cancel_artifacts_jump_mode_for_model_change", None
-                )
-                if callable(cancel_jump):
-                    cancel_jump("beads")
-                self._snapshot = result
-                self._load_error = None
-                if self._filter_session_open:
-                    self._set_filter_completion_sources()
-                self._refresh_options(preferred_id=preferred)
-        elif event.state == WorkerState.ERROR:
-            self._loading = False
-            self._load_error = str(event.worker.error or "Beads load failed")
-            self._update_static("#beads-status", self._status_text())
-            self._update_detail()
-        elif event.state == WorkerState.CANCELLED:
-            self._loading = False
+    def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
+        return isinstance(result, BeadsSnapshot) and result.project == request.project
 
-        if terminal and self._reload_pending:
-            force = self._force_pending
-            self._reload_pending = False
-            self._force_pending = False
-            self.call_later(lambda: self._request_load(force=force))
+    def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
+        del request
+        preferred = self._selected_option_id()
+        cancel_jump = getattr(
+            self.app, "_cancel_artifacts_jump_mode_for_model_change", None
+        )
+        if callable(cancel_jump):
+            cancel_jump("beads")
+        self._snapshot = result
+        self._load_error = None
+        if self._filter_session_open:
+            self._set_filter_completion_sources()
+        self._refresh_options(preferred_id=preferred)
+
+    def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
+        del request
+        self._load_error = error
+        self._update_static("#beads-status", self._status_text())
+        self._update_detail()
 
     @on(OptionList.OptionHighlighted, "#beads-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

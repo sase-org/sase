@@ -19,6 +19,13 @@ from rich.cells import cell_len
 from sase.notification_gates.model_validation import GateError, validate_icon
 from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON, REF_ICON_CONFIG_KEY
 
+from ._artifact_tab_contract import (
+    ContractCompileResult,
+    attach_contract,
+    compile_builtin_contract,
+    compile_provider_contract,
+    contract_with_digit,
+)
 from ._artifact_tab_model import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_ICONS,
@@ -51,12 +58,24 @@ def fixed_descriptor(subtab: ArtifactsSubTab) -> ArtifactsTabDescriptor:
         "beads": "Bead",
         "files": "File",
     }
-    return ArtifactsTabDescriptor(
-        id=subtab,
-        label=labels[subtab],
-        accent=ARTIFACTS_ACCENTS[subtab],
-        pane_id=FIXED_ARTIFACTS_PANE_IDS[subtab],
-        icon=ARTIFACTS_ICONS[subtab],
+    label = labels[subtab]
+    icon = ARTIFACTS_ICONS[subtab]
+    accent = ARTIFACTS_ACCENTS[subtab]
+    contract = compile_builtin_contract(
+        subtab,
+        label=label,
+        icon=icon,
+        accent=accent,
+    )
+    return attach_contract(
+        ArtifactsTabDescriptor(
+            id=subtab,
+            label=label,
+            accent=accent,
+            pane_id=FIXED_ARTIFACTS_PANE_IDS[subtab],
+            icon=icon,
+        ),
+        contract,
     )
 
 
@@ -112,13 +131,14 @@ def assign_artifacts_digit_shortcuts(
     )
     if files_index is None:
         return tuple(
-            replace(
+            _with_digit(
                 descriptor,
-                digit_shortcut=(
+                (
                     _ARTIFACTS_DIGIT_KEYS[index]
                     if index < len(_ARTIFACTS_DIGIT_KEYS)
                     else None
                 ),
+                order=index,
             )
             for index, descriptor in enumerate(descriptors)
         )
@@ -132,8 +152,23 @@ def assign_artifacts_digit_shortcuts(
             digit = _ARTIFACTS_DIGIT_KEYS[index]
         else:
             digit = None
-        result.append(replace(descriptor, digit_shortcut=digit))
+        result.append(_with_digit(descriptor, digit, order=index))
     return tuple(result)
+
+
+def _with_digit(
+    descriptor: ArtifactsTabDescriptor,
+    digit: str | None,
+    *,
+    order: int,
+) -> ArtifactsTabDescriptor:
+    contract = descriptor.contract
+    if contract is None:
+        return replace(descriptor, digit_shortcut=digit)
+    return attach_contract(
+        replace(descriptor, digit_shortcut=digit),
+        contract_with_digit(contract, digit=digit, order=order),
+    )
 
 
 def _descriptor_for_provider_kind(
@@ -169,22 +204,39 @@ def _descriptor_for_provider_kind(
         error = issue.message
         error_code = issue.code
         error_source = issue.source
-    return ArtifactsTabDescriptor(
-        id=f"ref:{kind}",
+    compiled: ContractCompileResult = compile_provider_contract(
+        kind=kind,
         label=_provider_label(kind, spec or {}),
-        accent=_provider_accent_for_kind(kind),
-        pane_id=(
-            "artifacts-plans-pane"
-            if kind == "plan"
-            else f"artifacts-ref-{_slug(kind)}-pane"
-        ),
         icon=icon,
-        provider_kind=kind,
+        accent=_provider_accent_for_kind(kind),
+        spec=spec,
         provider_spec_digest=digest or (policy.digest if policy is not None else None),
-        provider_spec=spec,
-        error=error,
-        error_code=error_code,
-        error_source=error_source,
+        is_degraded=error is not None,
+    )
+    if compiled.error is not None:
+        error = compiled.error
+        error_code = compiled.error_code
+        error_source = error_source or "artifacts_pane_contract"
+    return attach_contract(
+        ArtifactsTabDescriptor(
+            id=f"ref:{kind}",
+            label=compiled.contract.label,
+            accent=compiled.contract.accent,
+            pane_id=(
+                "artifacts-plans-pane"
+                if kind == "plan"
+                else f"artifacts-ref-{_slug(kind)}-pane"
+            ),
+            icon=compiled.contract.icon,
+            provider_kind=kind,
+            provider_spec_digest=digest
+            or (policy.digest if policy is not None else None),
+            provider_spec=spec,
+            error=error,
+            error_code=error_code,
+            error_source=error_source,
+        ),
+        compiled.contract,
     )
 
 

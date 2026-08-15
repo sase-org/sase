@@ -35,10 +35,22 @@ _PANE_ID_TO_LEGACY_KIND: dict[str, str] = {
 
 
 def _legacy_target_tuple(target: ArtifactEntryTarget) -> tuple[str, ...]:
-    kind = _PANE_ID_TO_LEGACY_KIND.get(
-        target.pane_id,
-        target.pane_id.removeprefix("ref:"),
-    )
+    kind = _PANE_ID_TO_LEGACY_KIND.get(target.pane_id)
+    if kind is None:
+        from ...artifact_tabs import artifacts_pane_contract
+
+        contract = artifacts_pane_contract(target.pane_id)
+        if contract is not None:
+            kind = contract.target_prefix
+        else:
+            # Pane-id encoding for document providers is ``ref:<kind>``.
+            # This is identity parsing for the artifact-ref renderer, not
+            # behavioral pane dispatch.
+            kind = (
+                target.pane_id[4:]
+                if target.pane_id.startswith("ref:")
+                else target.pane_id
+            )
     return (kind, *target.parts)
 
 
@@ -103,12 +115,13 @@ def reference_items_for_targets(
                     kind_label="bead",
                 )
             )
-    elif subtab.startswith("ref:") or subtab == "plans":
+    elif _is_document_pane_key(subtab) or subtab == "plans":
         plans_by_target: dict[ArtifactEntryTarget, Any] = {
             plan_row_target(row): row for row in getattr(pane, "_rows", {}).values()
         }
         snapshot = getattr(pane, "_snapshot", None)
         workspace_dirs = getattr(snapshot, "workspace_dirs", {})
+        kind_label = _document_kind_label(subtab)
         for target in targets:
             row = plans_by_target.get(target)
             if row is None:
@@ -123,7 +136,7 @@ def reference_items_for_targets(
                     project,
                     workspace_dir,
                     markdown_label=_plan_markdown_label(row),
-                    kind_label=subtab[4:] if subtab.startswith("ref:") else "plan",
+                    kind_label=kind_label,
                 )
             )
     elif subtab in {"other", "files"}:
@@ -256,8 +269,23 @@ def _workspace_num(workspace_dir: str) -> int:
     return workspace_num if isinstance(workspace_num, int) and workspace_num > 0 else 1
 
 
+def _is_document_pane_key(subtab: str) -> bool:
+    from ...artifact_tabs import is_document_artifacts_pane
+
+    return subtab == "plans" or is_document_artifacts_pane(subtab)
+
+
+def _document_kind_label(subtab: str) -> str:
+    from ...artifact_tabs import artifacts_pane_contract
+
+    contract = artifacts_pane_contract(subtab)
+    if contract is not None and contract.ref_kind:
+        return contract.ref_kind
+    return "plan"
+
+
 def _missing_reference_message(subtab: str, label: str) -> str:
-    if subtab == "plans" or subtab.startswith("ref:"):
+    if subtab == "plans" or _is_document_pane_key(subtab):
         reason = "it has no canonical document reference"
     elif subtab in {"other", "files"}:
         reason = "it has no durable file id"

@@ -494,18 +494,15 @@ class KeybindingModesMixin:
             }
             else tab
         )
-        key_group = (
-            f"artifacts_{artifacts_pane_key}"
-            if tab == "artifacts"
-            and (
-                artifacts_pane_key in {"stitches", "beads", "files"}
-                or str(artifacts_pane_key or "").startswith("ref:")
-            )
-            else tab
-        )
-        if key_group.startswith("artifacts_ref:"):
-            key_group = "artifacts_plans"
-        elif key_group == "artifacts_files":
+        if tab == "artifacts" and artifacts_pane_key in {"stitches", "beads", "files"}:
+            key_group = f"artifacts_{artifacts_pane_key}"
+        elif tab == "artifacts" and artifacts_pane_key not in {None, "patches"}:
+            from sase.ace.tui.artifact_tabs import copy_keymap_group_for_artifacts_pane
+
+            key_group = copy_keymap_group_for_artifacts_pane(str(artifacts_pane_key))
+        else:
+            key_group = tab
+        if key_group == "artifacts_files":
             key_group = "artifacts_other"
         tab_keys = self._kr().copy_mode.keys.get(key_group, {})
         assert isinstance(tab_keys, dict)

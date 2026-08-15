@@ -28,6 +28,7 @@ from .panes import ArtifactPlaceholderPane, ArtifactsDegradedPane, ArtifactsPatc
 from .plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 from .split_badge import ArtifactsSplitBadge
 from .types import (
+    ArtifactsPaneContract,
     ArtifactsPaneKey,
     ArtifactsSubTab,
     ArtifactsTabDescriptor,
@@ -104,6 +105,11 @@ class ArtifactsView(Vertical):
         return self._descriptors
 
     @property
+    def active_contract(self) -> ArtifactsPaneContract | None:
+        descriptor = self._descriptor_by_id.get(self._current_subtab)
+        return None if descriptor is None else descriptor.contract
+
+    @property
     def split_mode(self) -> ArtifactsSplitMode:
         return self._split_mode
 
@@ -148,18 +154,29 @@ class ArtifactsView(Vertical):
             )
             return
         if descriptor.id == "patches":
-            yield ArtifactsPatchesPane(id=descriptor.pane_id)
+            yield ArtifactsPatchesPane(
+                contract=descriptor.contract,
+                id=descriptor.pane_id,
+            )
         elif descriptor.id == "stitches":
             yield CommitsPane(
                 initial_filters=self._commits_default_filter,
+                contract=descriptor.contract,
                 id=descriptor.pane_id,
             )
         elif descriptor.id == "beads":
-            yield ArtifactsBeadsPane(id=descriptor.pane_id)
+            yield ArtifactsBeadsPane(
+                contract=descriptor.contract,
+                id=descriptor.pane_id,
+            )
         elif descriptor.id == "files":
-            yield ArtifactsFilesPane(id=descriptor.pane_id)
+            yield ArtifactsFilesPane(
+                contract=descriptor.contract,
+                id=descriptor.pane_id,
+            )
         elif descriptor.provider_kind == "plan":
             yield ArtifactsPlansPane(
+                contract=descriptor.contract,
                 provider_kind=descriptor.provider_kind,
                 provider_label=descriptor.label,
                 pane_key=descriptor.id,
@@ -173,6 +190,7 @@ class ArtifactsView(Vertical):
             )
         elif descriptor.provider_kind is not None:
             yield ArtifactsDocumentsPane(
+                contract=descriptor.contract,
                 provider_kind=descriptor.provider_kind,
                 provider_label=descriptor.label,
                 pane_key=descriptor.id,
@@ -208,9 +226,11 @@ class ArtifactsView(Vertical):
 
         normalized = normalize_artifacts_subtab(pane_key)
         pane = cast(Any, self._pane(normalized))
-        scroll_id = _DETAIL_SCROLL_IDS.get(normalized)
-        if scroll_id is None and normalized.startswith("ref:"):
-            scroll_id = "plans-detail-scroll"
+        descriptor = self._descriptor_by_id.get(normalized)
+        contract = None if descriptor is None else descriptor.contract
+        scroll_id = None if contract is None else contract.detail_scroll_id
+        if scroll_id is None:
+            scroll_id = _DETAIL_SCROLL_IDS.get(normalized)
         if scroll_id is None:
             raise ValueError("This pane has no Artifacts detail viewport")
         return pane.query_one(f"#{scroll_id}", VerticalScroll)

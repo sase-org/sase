@@ -162,6 +162,7 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         "artifacts": "artifacts",
         "artifacts_stitches": "artifacts",
         "artifacts_plans": "artifacts",
+        "artifacts_documents": "artifacts",
         "artifacts_beads": "artifacts",
         "artifacts_other": "artifacts",
         "patches": "artifacts",

@@ -135,13 +135,24 @@ def check_app_action(
     if action == "start_saved_query_mode" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action in PLANS_ARTIFACT_ACTIONS:
-        pane_key = app.current_artifacts_pane_key
-        if app.current_tab != ARTIFACTS_TAB or not str(pane_key).startswith("ref:"):
+        from .artifact_tabs import PaneCapability, artifacts_pane_contract
+
+        contract = getattr(app, "active_artifacts_contract", None) or (
+            artifacts_pane_contract(str(app.current_artifacts_pane_key))
+        )
+        if (
+            app.current_tab != ARTIFACTS_TAB
+            or contract is None
+            or not contract.is_document_provider()
+        ):
             return False
-        if action in {"plans_approve", "plans_reject", "plans_open_bead"}:
-            pane = getattr(app, "_active_documents_pane", lambda: None)()
-            if pane is None or getattr(pane, "provider_kind", None) != "plan":
-                return False
+        required = {
+            "plans_approve": PaneCapability.PLAN_APPROVE,
+            "plans_reject": PaneCapability.PLAN_REJECT,
+            "plans_open_bead": PaneCapability.PLAN_OPEN_BEAD,
+        }.get(action)
+        if required is not None and not contract.has(required):
+            return False
     if action in BEADS_ARTIFACT_ACTIONS:
         if (
             app.current_tab != ARTIFACTS_TAB
@@ -155,9 +166,15 @@ def check_app_action(
         ):
             return False
     if action == "pick_artifacts_project":
+        from .artifact_tabs import PaneCapability, artifacts_pane_contract
+
+        contract = getattr(app, "active_artifacts_contract", None) or (
+            artifacts_pane_contract(str(app.current_artifacts_pane_key))
+        )
         if (
             app.current_tab != ARTIFACTS_TAB
-            or app.current_artifacts_pane_key == "patches"
+            or contract is None
+            or not contract.has(PaneCapability.PROJECT_SCOPE)
         ):
             return False
     if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:

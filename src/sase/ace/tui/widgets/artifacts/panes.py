@@ -11,6 +11,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..._artifact_tab_model import ArtifactsPaneContract
 from ..ancestors_children_panel import AncestorsChildrenPanel
 from ..patch_detail import PatchDetail, SearchQueryPanel
 from ..patch_info_panel import PatchInfoPanel
@@ -25,9 +26,15 @@ from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 class ArtifactsPatchesPane(ArtifactEntryNavigator, ArtifactsPaneLifecycle, Horizontal):
     """The existing Patch surface, hosted unchanged inside Artifacts."""
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        contract: ArtifactsPaneContract | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
+        self.contract = contract
 
     def compose(self) -> ComposeResult:
         with Vertical(id="list-container"):

@@ -42,6 +42,19 @@ class ArtifactsNavigationActionsMixin:
 
         return artifacts_pane_key(cast(ArtifactsSubTab, self.current_artifacts_subtab))
 
+    @property
+    def active_artifacts_contract(self) -> Any | None:
+        """Return the compiled contract for the visible Artifacts pane."""
+
+        view = self._artifacts_view()
+        if view is not None:
+            contract = getattr(view, "active_contract", None)
+            if contract is not None:
+                return contract
+        from ..artifact_tabs import ArtifactsPaneContract, artifacts_pane_contract
+
+        return artifacts_pane_contract(self.current_artifacts_pane_key)
+
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
             return self.query_one(  # type: ignore[attr-defined]

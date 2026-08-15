@@ -94,7 +94,7 @@ def _artifact_pane(app: Any, subtab: str) -> Any | None:
         resolver_name = "_files_pane"
     elif subtab == "stitches":
         resolver_name = "_commits_pane"
-    elif subtab.startswith("ref:"):
+    elif _is_document_subtab(subtab):
         resolver_name = "_active_documents_pane"
     else:
         resolver_name = f"_{subtab}_pane"
@@ -131,7 +131,7 @@ def _selected_artifact_object(pane: Any, subtab: str) -> Any | None:
     if subtab == "stitches":
         resolver = getattr(pane, "_selected_entry", None)
         return resolver() if callable(resolver) else None
-    if subtab.startswith("ref:"):
+    if _is_document_subtab(subtab):
         resolver = getattr(pane, "selected_row", None)
         return resolver() if callable(resolver) else None
     if subtab == "files":
@@ -161,7 +161,7 @@ def _artifact_objects(
             for target in ordered_targets
             if target in commit_by_target
         )
-    if subtab == "beads" or subtab.startswith("ref:") or subtab == "files":
+    if subtab == "beads" or _is_document_subtab(subtab) or subtab == "files":
         rows = getattr(pane, "_rows", {}).values()
         row_by_target: dict[ArtifactEntryTarget, Any] = {}
         for row in rows:
@@ -170,7 +170,7 @@ def _artifact_objects(
 
                 target = bead_row_target(row)
                 value = row
-            elif subtab.startswith("ref:"):
+            elif _is_document_subtab(subtab):
                 from ...widgets.artifacts.plans_list import plan_row_target
 
                 target = plan_row_target(row)
@@ -227,7 +227,7 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
     if subtab == "stitches":
         commit = getattr(value, "commit", None)
         return f"{getattr(value, 'repo', '')}@{getattr(commit, 'short_id', '')}"
-    if subtab.startswith("ref:"):
+    if _is_document_subtab(subtab):
         if getattr(value, "proposal", None) is not None:
             return str(value.proposal.title)
         if getattr(value, "active", None) is not None:
@@ -248,11 +248,9 @@ def _artifact_identity(subtab: str, value: Any | None) -> str:
 
 
 def _copy_mode_group(subtab: str) -> str:
-    if subtab.startswith("ref:"):
-        return "artifacts_plans"
-    if subtab == "files":
-        return "artifacts_other"
-    return f"artifacts_{subtab}"
+    from ...artifact_tabs import copy_keymap_group_for_artifacts_pane
+
+    return copy_keymap_group_for_artifacts_pane(subtab)
 
 
 def _canonical_artifact_subtab(subtab: str) -> str:
@@ -264,6 +262,19 @@ def _canonical_artifact_subtab(subtab: str) -> str:
 
 
 def _artifact_context_label(subtab: str) -> str:
-    if subtab.startswith("ref:"):
+    from ...artifact_tabs import artifacts_pane_contract, is_document_artifacts_pane
+
+    contract = artifacts_pane_contract(subtab)
+    if contract is not None:
+        if contract.is_document_provider():
+            return f"{contract.label.lower()}s"
+        return subtab
+    if is_document_artifacts_pane(subtab):
         return "plans" if subtab == "ref:plan" else "documents"
     return subtab
+
+
+def _is_document_subtab(subtab: str) -> bool:
+    from ...artifact_tabs import is_document_artifacts_pane
+
+    return is_document_artifacts_pane(subtab)

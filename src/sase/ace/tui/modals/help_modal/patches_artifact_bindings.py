@@ -1,5 +1,10 @@
 """Artifact-pane keybinding sections for the Patches help tab."""
 
+from ..._artifact_tab_actions import (
+    host_actions_for_capability,
+    registered_host_actions,
+)
+from ...artifact_tabs import PaneCapability, resolve_artifacts_subtabs
 from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import Sections
 
@@ -136,26 +141,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 *artifact_list_navigation,
             ],
         ),
-        (
-            "Document Panes",
-            [
-                (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
-                (d(a.plans_view_selected), "Open selected document"),
-                (
-                    f"{d(a.edit_query)} / {d(a.plans_filters)}",
-                    "Open inline document filter bar",
-                ),
-                ("kind: / status: / tier:", "Filter kind, status, or tier"),
-                ("kind:<sidecar role>", "Filter archived document kind"),
-                ("project: / since: / until:", "Filter project or creation date"),
-                ("bare text", "Title/body/id/metadata (AND)"),
-                (d(a.plans_approve), "Approve selected proposal"),
-                (d(a.plans_reject), "Reject selected proposal"),
-                (d(a.plans_open_bead), "Go to linked bead"),
-                (d(a.plans_refresh), "Refresh documents"),
-                *artifact_list_navigation,
-            ],
-        ),
+        *_document_contract_sections(km, artifact_list_navigation),
         (
             "File Pane",
             [
@@ -190,3 +176,83 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
             ],
         ),
     ]
+
+
+def _document_contract_sections(
+    km: KeymapRegistry,
+    artifact_list_navigation: list[tuple[str, str]],
+) -> Sections:
+    """Build one help section per compiled document-provider contract."""
+
+    d = key_display_name
+    a = km.app
+    sections: Sections = []
+    for descriptor in resolve_artifacts_subtabs():
+        contract = descriptor.contract
+        if contract is None or not contract.is_document_provider():
+            continue
+        rows: list[tuple[str, str]] = [
+            (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
+            (d(a.plans_view_selected), f"Open selected {contract.label.lower()}"),
+            (
+                f"{d(a.edit_query)} / {d(a.plans_filters)}",
+                f"Open inline {contract.label.lower()} filter bar",
+            ),
+        ]
+        if contract.has(PaneCapability.FILTER_SESSION):
+            rows.extend(
+                (
+                    ("kind: / status: / tier:", "Filter kind, status, or tier"),
+                    ("kind:<sidecar role>", "Filter archived document kind"),
+                    (
+                        "project: / since: / until:",
+                        "Filter project or creation date",
+                    ),
+                    ("bare text", "Title/body/id/metadata (AND)"),
+                )
+            )
+        if (
+            contract.has(PaneCapability.PLAN_APPROVE)
+            and "plans_approve" in registered_host_actions()
+            and "plans_approve"
+            in host_actions_for_capability(PaneCapability.PLAN_APPROVE)
+        ):
+            rows.append((d(a.plans_approve), "Approve selected proposal"))
+        if contract.has(
+            PaneCapability.PLAN_REJECT
+        ) and "plans_reject" in host_actions_for_capability(PaneCapability.PLAN_REJECT):
+            rows.append((d(a.plans_reject), "Reject selected proposal"))
+        if contract.has(
+            PaneCapability.PLAN_OPEN_BEAD
+        ) and "plans_open_bead" in host_actions_for_capability(
+            PaneCapability.PLAN_OPEN_BEAD
+        ):
+            rows.append((d(a.plans_open_bead), "Go to linked bead"))
+        rows.append((d(a.plans_refresh), f"Refresh {contract.label.lower()}s"))
+        rows.extend(artifact_list_navigation)
+        title = (
+            f"{contract.label} Pane"
+            if contract.is_plan_adapter()
+            else f"{contract.label} Documents"
+        )
+        sections.append((title, rows))
+    if not sections:
+        sections.append(
+            (
+                "Document Panes",
+                [
+                    (
+                        f"{d(a.plans_next)} / {d(a.plans_prev)}",
+                        "Next / previous row",
+                    ),
+                    ("kind: / status: / tier:", "Filter kind, status, or tier"),
+                    (
+                        "project: / since: / until:",
+                        "Filter project or creation date",
+                    ),
+                    ("bare text", "Title/body/id/metadata (AND)"),
+                    *artifact_list_navigation,
+                ],
+            )
+        )
+    return sections

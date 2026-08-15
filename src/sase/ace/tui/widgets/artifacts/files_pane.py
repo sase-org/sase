@@ -53,38 +53,33 @@ from .files_rendering import (
     build_files_info,
     build_files_status,
 )
-from .lifecycle import ArtifactsPaneLifecycle
+from ..._artifact_tab_model import ArtifactsPaneContract
+from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 
 class ArtifactsFilesPane(
     FilesFilterSessionMixin,
     FilesNavigationMixin,
-    ArtifactsPaneLifecycle,
-    Vertical,
+    ArtifactsSnapshotPane,
 ):
     """Browse date-grouped artifact files without blocking the event loop."""
 
     can_focus = False
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        contract: ArtifactsPaneContract | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self._init_artifacts_lifecycle()
+        self._init_snapshot_lifecycle()
+        self.contract = contract
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._project_ref_display = ProjectRefDisplaySnapshot()
         self._registry = load_keymap_registry({})
-        self._snapshot: FilesSnapshot | None = None
         self._filtered_count: int | None = None
-        self._loading = False
-        self._loading_full = False
-        self._reload_pending = False
-        self._pending_force = False
-        self._pending_full = False
-        self._load_error: str | None = None
-        self._worker: Worker[Any] | None = None
-        self._worker_generation = -1
-        self._worker_full = False
-        self._load_generation = 0
         self._extension_generation = 0
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._detail_worker: Worker[Any] | None = None
@@ -126,8 +121,7 @@ class ArtifactsFilesPane(
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
         cancel_pump_free_tasks(self)
-        if self._worker is not None and not self._worker.is_finished:
-            self._worker.cancel()
+        self._cancel_snapshot_worker()
         if self._detail_worker is not None and not self._detail_worker.is_finished:
             self._detail_worker.cancel()
 
@@ -265,111 +259,69 @@ class ArtifactsFilesPane(
     def _request_load(self, *, force: bool, full: bool) -> None:
         """Coalesce one off-thread load with last-request-wins semantics."""
 
-        if self._loading:
-            self._reload_pending = True
-            self._pending_force = self._pending_force or force
-            self._pending_full = self._pending_full or full
-            return
+        self._request_snapshot(force=force, full=full)
 
-        project = self.project_scope
-        generation = self._load_generation
-        requested_limit = None if full else FILES_FIRST_PAGE_LIMIT
-        self._loading = True
-        self._loading_full = full
-        self._load_error = None
-        if self._snapshot is None or self._snapshot.project != project:
+    def _on_snapshot_started(self, request: SnapshotRequest) -> None:
+        if self._snapshot is None or self._snapshot.project != request.project:
             self._refresh_options()
         else:
             self._update_status()
 
-        def task() -> FilesSnapshot:
-            return load_files_snapshot(project, requested_limit)
-
-        worker = self.run_worker(
-            task,
-            thread=True,
-            exclusive=False,
-            exit_on_error=False,
+    def _build_snapshot(self, request: SnapshotRequest) -> FilesSnapshot:
+        return load_files_snapshot(
+            request.project,
+            None if request.full else FILES_FIRST_PAGE_LIMIT,
         )
-        self._worker = worker
-        self._worker_generation = generation
-        self._worker_full = full
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+    def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
+        return (
+            isinstance(result, FilesSnapshot)
+            and request.generation == self._load_generation
+            and result.project == self.project_scope
+        )
+
+    def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
+        preferred = self.selected_entry_target()
+        cancel_jump = getattr(
+            self.app,
+            "_cancel_artifacts_jump_mode_for_model_change",
+            None,
+        )
+        if callable(cancel_jump):
+            cancel_jump("files")
+        self._snapshot = result
+        self._load_error = result.load_error
+        self._detail_generation += 1
+        if self._detail_worker is not None and not self._detail_worker.is_finished:
+            self._detail_worker.cancel()
+        self._detail_cache.clear()
+        self._detail_keys_by_id.clear()
+        self._selected_version_indices = {
+            row.logical_id: min(
+                self._selected_version_indices.get(
+                    row.logical_id,
+                    len(row.versions) - 1,
+                ),
+                len(row.versions) - 1,
+            )
+            for row in result.rows
+        }
+        if self._filter_session_open:
+            self._set_filter_completion_sources()
+        self._refresh_options(preferred_target=preferred)
+        if not request.full and not result.complete and result.load_error is None:
+            self._schedule_full_extension(request.generation)
+
+    def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
+        del request
+        self._load_error = error
+        self._update_status()
+
+    def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
         if event.worker is self._detail_worker:
             self._on_detail_worker_changed(event)
-            return
-        if event.worker is not self._worker:
-            return
-        terminal = event.state in {
-            WorkerState.SUCCESS,
-            WorkerState.ERROR,
-            WorkerState.CANCELLED,
-        }
-        full_request = self._worker_full
-        generation = self._worker_generation
-        if event.state == WorkerState.SUCCESS:
-            self._loading = False
-            self._loading_full = False
-            result = event.worker.result
-            if (
-                isinstance(result, FilesSnapshot)
-                and generation == self._load_generation
-                and result.project == self.project_scope
-            ):
-                preferred = self.selected_entry_target()
-                cancel_jump = getattr(
-                    self.app,
-                    "_cancel_artifacts_jump_mode_for_model_change",
-                    None,
-                )
-                if callable(cancel_jump):
-                    cancel_jump("files")
-                self._snapshot = result
-                self._load_error = result.load_error
-                self._detail_generation += 1
-                if (
-                    self._detail_worker is not None
-                    and not self._detail_worker.is_finished
-                ):
-                    self._detail_worker.cancel()
-                self._detail_cache.clear()
-                self._detail_keys_by_id.clear()
-                self._selected_version_indices = {
-                    row.logical_id: min(
-                        self._selected_version_indices.get(
-                            row.logical_id,
-                            len(row.versions) - 1,
-                        ),
-                        len(row.versions) - 1,
-                    )
-                    for row in result.rows
-                }
-                if self._filter_session_open:
-                    self._set_filter_completion_sources()
-                self._refresh_options(preferred_target=preferred)
-                if (
-                    not full_request
-                    and not result.complete
-                    and result.load_error is None
-                ):
-                    self._schedule_full_extension(generation)
-        elif event.state == WorkerState.ERROR:
-            self._loading = False
-            self._loading_full = False
-            self._load_error = str(event.worker.error or "Artifact files load failed")
-            self._update_status()
-        elif event.state == WorkerState.CANCELLED:
-            self._loading = False
-            self._loading_full = False
-
-        if terminal and self._reload_pending:
-            force = self._pending_force
-            full = self._pending_full
-            self._reload_pending = False
-            self._pending_force = False
-            self._pending_full = False
-            self.call_later(lambda: self._request_load(force=force, full=full))
+            return True
+        return False
 
     @on(OptionList.OptionHighlighted, "#files-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

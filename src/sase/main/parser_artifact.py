@@ -36,6 +36,8 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase artifact list --kind image --project sase\n"
             "  sase artifact prune --keep-generations 3\n"
             "  sase artifact reclaim\n"
+            "  sase artifact pane show stitches\n"
+            "  sase artifact pane show ref:plan --json\n"
             "  sase artifact show file:explicit:0123456789abcdef01234567\n"
             "  sase artifact trash\n"
             "  sase artifact path plan:202607/example.md\n"
@@ -194,6 +196,41 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
     open_parser.add_argument(
         "reference",
         help="Artifact reference or a bare default:/explicit: file id",
+    )
+
+    pane_parser = artifact_subparsers.add_parser(
+        "pane",
+        help="Inspect compiled Artifacts pane contracts and capabilities",
+        description=(
+            "Inspect compiled Artifacts pane contracts. Capabilities are "
+            "derived from declared facts by named host rules.\n\n"
+            "Unknown pane ids fail and list the configured ids. They never "
+            "fall back to another pane."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pane_subparsers = pane_parser.add_subparsers(
+        dest="pane_subcommand",
+        help="Pane subcommands",
+    )
+    pane_show_parser = pane_subparsers.add_parser(
+        "show",
+        help="Explain one pane's compiled contract and capability verdicts",
+        description=(
+            "Show the compiled Artifacts pane contract and every closed "
+            "capability as ON or OFF with its named rule, declared fact, "
+            "and suppression reason."
+        ),
+    )
+    pane_show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable contract explanation",
+    )
+    pane_show_parser.add_argument(
+        "pane_id",
+        help="Configured Artifacts pane id (for example stitches or ref:plan)",
     )
 
     path_parser = artifact_subparsers.add_parser(

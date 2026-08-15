@@ -287,6 +287,77 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "Artifacts snapshots",
     ),
     _target(
+        "artifacts_documents",
+        "reference",
+        "@ref",
+        "Copy artifact reference",
+        "Identity",
+        "artifact references",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "link",
+        "link",
+        "Copy Markdown link",
+        "Location",
+        "Markdown links",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "path",
+        "path",
+        "Copy document path",
+        "Location",
+        "document paths",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "title",
+        "title",
+        "Copy document title",
+        "Identity",
+        "document titles",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "body",
+        "body",
+        "Copy document body",
+        "Content",
+        "document bodies",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "json",
+        "JSON",
+        "Copy metadata JSON",
+        "Data",
+        "metadata JSON records",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "handoff",
+        "agent + @ref",
+        "Reference in new agent prompt",
+        "Actions",
+        "references in a new agent prompt",
+        accepts_marks=True,
+    ),
+    _target(
+        "artifacts_documents",
+        "snapshot",
+        "snap",
+        "Copy Artifacts snapshot",
+        "Actions",
+        "Artifacts snapshots",
+    ),
+    _target(
         "artifacts_beads",
         "id",
         "id",
@@ -529,7 +600,30 @@ def copy_targets_for(group: str) -> tuple[_CopyTarget, ...]:
     """Return the registry entries for *group* in presentation order."""
 
     group = _normalize_copy_group(group)
-    return tuple(item for item in COPY_TARGETS if item.group == group)
+    exact = tuple(item for item in COPY_TARGETS if item.group == group)
+    if exact:
+        return exact
+    if group.startswith("artifacts_") and group not in {
+        "artifacts_stitches",
+        "artifacts_plans",
+        "artifacts_beads",
+        "artifacts_other",
+        "artifacts_documents",
+    }:
+        return tuple(
+            _target(
+                group,
+                item.target,
+                item.footer_label,
+                item.palette_label,
+                item.category,
+                item.plural_label,
+                accepts_marks=item.accepts_marks,
+            )
+            for item in COPY_TARGETS
+            if item.group == "artifacts_documents"
+        )
+    return ()
 
 
 def copy_target_for(group: str, target: str) -> _CopyTarget | None:
@@ -538,7 +632,22 @@ def copy_target_for(group: str, target: str) -> _CopyTarget | None:
     group = _normalize_copy_group(group)
     if group == "patches" and target == "cl_number":
         target = "pr_number"
-    return _TARGETS_BY_KEY.get((group, target))
+    found = _TARGETS_BY_KEY.get((group, target))
+    if found is not None:
+        return found
+    if group.startswith("artifacts_") and (group, target) not in _TARGETS_BY_KEY:
+        template = _TARGETS_BY_KEY.get(("artifacts_documents", target))
+        if template is not None:
+            return _target(
+                group,
+                template.target,
+                template.footer_label,
+                template.palette_label,
+                template.category,
+                template.plural_label,
+                accepts_marks=template.accepts_marks,
+            )
+    return None
 
 
 __all__ = [

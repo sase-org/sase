@@ -9,12 +9,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 
+from sase.ace.tui._artifact_tab_actions import (
+    CAPABILITY_HOST_ACTIONS,
+    registered_host_actions,
+)
 from sase.ace.tui._artifact_tab_descriptors import _provider_accent_for_kind
 from sase.ace.tui.artifact_tabs import (
     ARTIFACTS_ACCENTS,
     ArtifactsTabDescriptor,
+    PaneCapability,
     resolve_artifacts_subtabs,
 )
+from sase.ace.tui.copy_targets import copy_target_for
 
 ConformanceCheck = Callable[[ArtifactsTabDescriptor], None]
 
@@ -49,10 +55,71 @@ def check_degraded_tab_carries_error(descriptor: ArtifactsTabDescriptor) -> None
     assert descriptor.label
 
 
+def check_descriptor_owns_contract(descriptor: ArtifactsTabDescriptor) -> None:
+    """Every resolved pane owns one compiled contract with a full verdict set."""
+    contract = descriptor.contract
+    assert contract is not None
+    assert contract.id == descriptor.id
+    assert contract.label == descriptor.label
+    assert contract.digit == descriptor.digit_shortcut
+    assert [verdict.capability for verdict in contract.verdicts] == list(PaneCapability)
+
+
+def check_declared_actions_are_registered(descriptor: ArtifactsTabDescriptor) -> None:
+    """Every ON capability maps to a registered host action or later-phase empty."""
+    contract = descriptor.resolved_contract
+    registered = registered_host_actions()
+    for capability in contract.capabilities:
+        actions = CAPABILITY_HOST_ACTIONS[capability]
+        if capability in {
+            PaneCapability.RELATIONS,
+            PaneCapability.GROUPING,
+            PaneCapability.STATUS_COUNTERS,
+            PaneCapability.SHELL,
+        }:
+            assert actions == ()
+            continue
+        assert actions
+        assert all(action in registered for action in actions)
+
+
+def check_declared_copy_targets_are_registered(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Every contract-declared copy target has a host implementation."""
+    contract = descriptor.resolved_contract
+    for target in contract.copy_targets:
+        assert copy_target_for(contract.copy_group, target) is not None
+
+
+def check_unavailable_actions_have_off_verdicts(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Every OFF capability is explained by a named verdict."""
+    contract = descriptor.resolved_contract
+    for capability in PaneCapability:
+        if capability in contract.capabilities:
+            continue
+        verdict = contract.verdict_for(capability)
+        assert verdict is not None
+        assert verdict.enabled is False
+        assert verdict.rule
+
+
 PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     ("descriptor_identity", check_descriptor_identity),
     ("provider_accent_is_declared", check_provider_accent_is_declared),
     ("degraded_tab_carries_error", check_degraded_tab_carries_error),
+    ("descriptor_owns_contract", check_descriptor_owns_contract),
+    ("declared_actions_are_registered", check_declared_actions_are_registered),
+    (
+        "declared_copy_targets_are_registered",
+        check_declared_copy_targets_are_registered,
+    ),
+    (
+        "unavailable_actions_have_off_verdicts",
+        check_unavailable_actions_have_off_verdicts,
+    ),
 )
 
 

@@ -1,0 +1,24 @@
+schema_version: 1
+provider: notes
+ref:
+  kind: notes
+  icon: "¶"
+  expansion_format: "@{checkout_path}"
+  properties:
+    title:
+      type: string
+      source: markdown_frontmatter
+    status:
+      type: string
+      source: markdown_frontmatter
+  detail:
+    fields:
+      - title
+      - status
+  identity: {}
+  inventory:
+    globs:
+      - "**/*.md"
+  publication:
+    link: vcs_permalink
+    referenced_by: markdown_table

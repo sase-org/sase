@@ -28,6 +28,12 @@ if TYPE_CHECKING:
 _ARTIFACT_SUBTABS = frozenset({"stitches", "beads", "files"})
 
 
+def _is_document_copy_subtab(subtab: str) -> bool:
+    from ...artifact_tabs import is_document_artifacts_pane
+
+    return is_document_artifacts_pane(subtab)
+
+
 def build_copy_as_context(app: Any) -> CopyAsContext | None:
     """Capture a palette context without filesystem or subprocess work."""
 
@@ -37,7 +43,7 @@ def build_copy_as_context(app: Any) -> CopyAsContext | None:
         "artifacts",
         "patches",
         "changespecs",  # legacy compatibility alias
-    } and (subtab in _ARTIFACT_SUBTABS or str(subtab).startswith("ref:")):
+    } and (subtab in _ARTIFACT_SUBTABS or _is_document_copy_subtab(str(subtab))):
         return build_artifacts_context(app, subtab)
     if tab in {
         "artifacts",

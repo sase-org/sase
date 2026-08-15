@@ -13,7 +13,7 @@ from textual.worker import Worker, WorkerState
 from sase.ace.tui.keymaps import KeymapRegistry, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
-from .panes import ArtifactsPaneLifecycle
+from ..._artifact_tab_model import ArtifactsPaneContract
 from .plan_filter_bar import PlanFilterBar
 from .plans_data import PlansSnapshot, load_plans_snapshot
 from .plans_deep_archive import DEEP_ARCHIVE_DEBOUNCE_S
@@ -27,6 +27,7 @@ from .plans_rendering import (
     project_badge,
     proposal_text,
 )
+from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 if TYPE_CHECKING:
     from ...app import AceApp
@@ -43,8 +44,7 @@ class ArtifactsDocumentsPane(
     PlansFilterSessionMixin,
     PlansNavigationMixin,
     PlansOptionsMixin,
-    ArtifactsPaneLifecycle,
-    Vertical,
+    ArtifactsSnapshotPane,
 ):
     """Browse provider-backed markdown documents."""
 
@@ -53,6 +53,7 @@ class ArtifactsDocumentsPane(
     def __init__(
         self,
         *,
+        contract: ArtifactsPaneContract | None = None,
         provider_kind: str = "plan",
         provider_label: str = "Plan",
         pane_key: str = "ref:plan",
@@ -60,7 +61,14 @@ class ArtifactsDocumentsPane(
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
-        self._init_artifacts_lifecycle()
+        self._init_snapshot_lifecycle()
+        self.contract = contract
+        if contract is not None:
+            provider_kind = contract.ref_kind or provider_kind
+            provider_label = contract.label
+            pane_key = contract.id
+            if contract.facts.source == "provider":
+                provider_spec = provider_spec
         self.provider_kind = provider_kind
         self.provider_label = provider_label
         self.pane_key = pane_key
@@ -68,12 +76,6 @@ class ArtifactsDocumentsPane(
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
-        self._snapshot: PlansSnapshot | None = None
-        self._loading = False
-        self._reload_pending = False
-        self._force_pending = False
-        self._load_error: str | None = None
-        self._worker: Worker[Any] | None = None
         self._init_plans_navigation()
         self._init_plans_filter_session()
         self._init_plans_options()
@@ -110,8 +112,7 @@ class ArtifactsDocumentsPane(
             self._detail_debouncer.cancel()
         if self._deep_archive_debouncer is not None:
             self._deep_archive_debouncer.cancel()
-        if self._worker is not None and not self._worker.is_finished:
-            self._worker.cancel()
+        self._cancel_snapshot_worker()
         if (
             self._deep_archive_worker is not None
             and not self._deep_archive_worker.is_finished
@@ -166,83 +167,59 @@ class ArtifactsDocumentsPane(
         return self._snapshot
 
     def _request_load(self, *, force: bool) -> None:
-        project = self.project_scope
-        if self._loading:
-            self._reload_pending = True
-            self._force_pending = self._force_pending or force
-            return
-        self._loading = True
-        self._load_error = None
+        self._request_snapshot(force=force)
+
+    def _on_snapshot_started(self, request: SnapshotRequest) -> None:
+        del request
         self._update_status()
+
+    def _build_snapshot(self, request: SnapshotRequest) -> PlansSnapshot:
         previous = (
             self._snapshot
-            if self._snapshot is not None and self._snapshot.project == project
+            if self._snapshot is not None and self._snapshot.project == request.project
             else None
         )
-
-        def task() -> PlansSnapshot:
-            return load_plans_snapshot(
-                project,
-                provider_kind=self.provider_kind,
-                provider_label=self.provider_label,
-                previous=previous,
-                force=force,
-            )
-
-        self._worker = self.run_worker(
-            task,
-            thread=True,
-            exclusive=False,
-            exit_on_error=False,
+        return load_plans_snapshot(
+            request.project,
+            provider_kind=self.provider_kind,
+            provider_label=self.provider_label,
+            previous=previous,
+            force=request.force,
         )
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+    def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
+        return isinstance(result, PlansSnapshot) and result.project == request.project
+
+    def _apply_snapshot(self, result: Any, request: SnapshotRequest) -> None:
+        del request
+        preferred = self._selected_option_id()
+        cancel_jump = getattr(
+            self.app, "_cancel_artifacts_jump_mode_for_model_change", None
+        )
+        if callable(cancel_jump):
+            cancel_jump(self.pane_key)
+        snapshot_changed = result is not self._snapshot
+        self._snapshot = result
+        self._filter_index = None
+        self._filter_index_snapshot = None
+        if snapshot_changed:
+            self._reset_deep_archive_state()
+        self._load_error = None
+        if self._filter_session_open:
+            self._set_filter_completion_sources()
+        self._refresh_options(preferred_id=preferred)
+        self._schedule_deep_archive(self._display_filter_values())
+
+    def _on_snapshot_error(self, error: str, request: SnapshotRequest) -> None:
+        del request
+        self._load_error = error
+        self._update_status()
+
+    def _handle_auxiliary_worker(self, event: Worker.StateChanged) -> bool:
         if event.worker is self._deep_archive_worker:
             self._on_deep_archive_worker_changed(event)
-            return
-        if event.worker is not self._worker:
-            return
-        terminal = event.state in {
-            WorkerState.SUCCESS,
-            WorkerState.ERROR,
-            WorkerState.CANCELLED,
-        }
-        if event.state == WorkerState.SUCCESS:
-            result = event.worker.result
-            self._loading = False
-            if (
-                isinstance(result, PlansSnapshot)
-                and result.project == self.project_scope
-            ):
-                preferred = self._selected_option_id()
-                cancel_jump = getattr(
-                    self.app, "_cancel_artifacts_jump_mode_for_model_change", None
-                )
-                if callable(cancel_jump):
-                    cancel_jump(self.pane_key)
-                snapshot_changed = result is not self._snapshot
-                self._snapshot = result
-                self._filter_index = None
-                self._filter_index_snapshot = None
-                if snapshot_changed:
-                    self._reset_deep_archive_state()
-                self._load_error = None
-                if self._filter_session_open:
-                    self._set_filter_completion_sources()
-                self._refresh_options(preferred_id=preferred)
-                self._schedule_deep_archive(self._display_filter_values())
-        elif event.state == WorkerState.ERROR:
-            self._loading = False
-            self._load_error = str(event.worker.error or "Plans load failed")
-            self._update_status()
-        elif event.state == WorkerState.CANCELLED:
-            self._loading = False
-
-        if terminal and self._reload_pending:
-            force = self._force_pending
-            self._reload_pending = False
-            self._force_pending = False
-            self.call_later(lambda: self._request_load(force=force))
+            return True
+        return False
 
     @on(OptionList.OptionHighlighted, "#plans-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

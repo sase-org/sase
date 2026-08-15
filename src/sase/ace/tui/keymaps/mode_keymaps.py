@@ -88,6 +88,16 @@ class CopyModeKeymaps(ModeKeymaps):
                 "json": "J",
                 "snapshot": "s",
             },
+            "artifacts_documents": {
+                "reference": "at",
+                "handoff": "exclamation_mark",
+                "path": "p",
+                "title": "t",
+                "body": "b",
+                "link": "l",
+                "json": "J",
+                "snapshot": "s",
+            },
             "artifacts_beads": {
                 "id": "percent_sign",
                 "reference": "at",

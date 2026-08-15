@@ -40,11 +40,13 @@ class CommitsPane(_CommitsPane):
         *,
         collector: CommitCollector | None = None,
         diff_loader: CommitDiffLoader | None = None,
+        contract: Any | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
             collector=collector or _default_collector,
             diff_loader=diff_loader or _default_diff_loader,
+            contract=contract,
             **kwargs,
         )
 

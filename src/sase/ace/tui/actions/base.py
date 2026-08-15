@@ -460,13 +460,22 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             if pane is not None:
                 pane.show_filters()
             return
-        if self.current_tab == "artifacts" and str(
-            getattr(self, "current_artifacts_pane_key", "patches")
-        ).startswith("ref:"):
-            pane = self._active_documents_pane()  # type: ignore[attr-defined]
-            if pane is not None:
-                pane.show_filters()
-            return
+        if self.current_tab == "artifacts":
+            from ..artifact_tabs import PaneCapability, artifacts_pane_contract
+
+            pane_key = str(getattr(self, "current_artifacts_pane_key", "patches"))
+            contract = getattr(self, "active_artifacts_contract", None) or (
+                artifacts_pane_contract(pane_key)
+            )
+            if (
+                contract is not None
+                and contract.is_document_provider()
+                and contract.has(PaneCapability.FILTER_SESSION)
+            ):
+                pane = self._active_documents_pane()  # type: ignore[attr-defined]
+                if pane is not None:
+                    pane.show_filters()
+                return
         if (
             self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "patches") == "beads"

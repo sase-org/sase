@@ -37,9 +37,35 @@ _ORIGINAL_COLLECT_WORKSPACE_INVENTORY = (
 )
 
 
+def _plan_test_descriptor() -> Any:
+    """Return a compiled Plan descriptor for fast TUI tests."""
+
+    from sase.ace.tui._artifact_tab_descriptors import provider_descriptors
+    from sase.ace.tui._artifact_tab_model import ProjectProviderRecord
+    from sase.artifact_providers import builtin_plan_ref_provider_spec
+    from sase.sidecar_ref_config import SidecarRefPolicy
+
+    spec = builtin_plan_ref_provider_spec()
+    records = (
+        ProjectProviderRecord(
+            project="sase",
+            display_name="sase",
+            workspace_dir=None,
+            role="plans",
+            root=__import__("pathlib").Path("."),
+            policy=SidecarRefPolicy(
+                role="plans",
+                ref_kind="plan",
+                is_document=True,
+                spec=spec,
+            ),
+        ),
+    )
+    return provider_descriptors(records)[0]
+
+
 def _fast_artifacts_subtabs() -> tuple[Any, ...]:
     """Expose a deterministic plan document provider in fast TUI tests."""
-    from sase.ace.tui import artifact_tabs
     from sase.ace.tui._artifact_tab_descriptors import (
         assign_artifacts_digit_shortcuts,
         fixed_descriptor,
@@ -50,15 +76,7 @@ def _fast_artifacts_subtabs() -> tuple[Any, ...]:
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
-            artifact_tabs.ArtifactsTabDescriptor(
-                id="ref:plan",
-                label="Plan",
-                accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
-                pane_id="artifacts-plans-pane",
-                icon="✎",
-                provider_kind="plan",
-                provider_spec={},
-            ),
+            _plan_test_descriptor(),
             fixed_descriptor("files"),
         )
     )

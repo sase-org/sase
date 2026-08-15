@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal
 
 from ...keymaps import key_display_name
 from ...tab_order import ARTIFACTS_TAB
@@ -28,11 +28,9 @@ from ._representations import (
 
 
 def _copy_group_for_artifacts_subtab(subtab: str) -> str:
-    if subtab.startswith("ref:"):
-        return "artifacts_plans"
-    if subtab == "files":
-        return "artifacts_other"
-    return f"artifacts_{subtab}"
+    from ...artifact_tabs import copy_keymap_group_for_artifacts_pane
+
+    return copy_keymap_group_for_artifacts_pane(subtab)
 
 
 _ARTIFACTS_COPY_LABELS = {
@@ -43,11 +41,50 @@ _ARTIFACTS_COPY_LABELS = {
 
 
 def _copy_label_for_artifacts_subtab(subtab: str) -> str:
-    if subtab.startswith("ref:"):
-        return "Plan"
+    from ...artifact_tabs import artifacts_pane_contract
+
+    contract = artifacts_pane_contract(subtab)
+    if contract is not None:
+        return contract.label
     if subtab == "files":
         return "File"
+    if subtab == "ref:plan":
+        return "Plan"
     return _ARTIFACTS_COPY_LABELS.get(subtab, subtab.title())
+
+
+def _document_copy_handlers_enabled(subtab: str) -> bool:
+    from ...artifact_tabs import is_document_artifacts_pane
+
+    return is_document_artifacts_pane(subtab)
+
+
+def _document_copy_handlers(
+    owner: Any,
+    subtab_keys: dict[str, Any],
+    subtab: str,
+) -> dict[str, Callable[[], None]]:
+    from ...artifact_tabs import artifacts_pane_contract
+
+    contract = artifacts_pane_contract(subtab)
+    if contract is None and subtab == "ref:plan":
+        from ...artifact_tabs import PLAN_COPY_TARGETS
+
+        declared = set(PLAN_COPY_TARGETS)
+    else:
+        declared = set(() if contract is None else contract.copy_targets)
+    handlers: dict[str, Callable[[], None]] = {}
+    target_map = {
+        "bead_id": lambda: owner._copy_plan_target("bead_id"),
+        "design": lambda: owner._copy_plan_target("design"),
+        "path": lambda: owner._copy_plan_target("path"),
+        "title": lambda: owner._copy_plan_target("title"),
+        "body": lambda: owner._copy_plan_target("body"),
+    }
+    for target, handler in target_map.items():
+        if target in declared and target in subtab_keys:
+            handlers[str(subtab_keys[target])] = handler
+    return handlers
 
 
 class ClipboardArtifactsMixin(
@@ -101,14 +138,8 @@ class ClipboardArtifactsMixin(
                 ),
                 str(subtab_keys["plan"]): lambda: self._copy_commit_target("plan"),
             }
-        elif str(subtab).startswith("ref:"):
-            handlers = {
-                str(subtab_keys["bead_id"]): lambda: self._copy_plan_target("bead_id"),
-                str(subtab_keys["design"]): lambda: self._copy_plan_target("design"),
-                str(subtab_keys["path"]): lambda: self._copy_plan_target("path"),
-                str(subtab_keys["title"]): lambda: self._copy_plan_target("title"),
-                str(subtab_keys["body"]): lambda: self._copy_plan_target("body"),
-            }
+        elif _document_copy_handlers_enabled(str(subtab)):
+            handlers = _document_copy_handlers(self, subtab_keys, str(subtab))
         elif subtab == "beads":
             handlers = {
                 str(subtab_keys["id"]): lambda: self._copy_bead_target("id"),

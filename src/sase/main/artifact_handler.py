@@ -16,6 +16,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
         handle_doctor,
         handle_list,
         handle_open,
+        handle_pane,
         handle_path,
         handle_prune,
         handle_reclaim,
@@ -29,6 +30,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
         "doctor": handle_doctor,
         "list": handle_list,
         "open": handle_open,
+        "pane": handle_pane,
         "path": handle_path,
         "prune": handle_prune,
         "reclaim": handle_reclaim,
@@ -41,7 +43,7 @@ def handle_artifact_command(args: argparse.Namespace) -> NoReturn:
     if handler is None:
         print(
             "Usage: sase artifact "
-            "{create,doctor,list,open,path,prune,reclaim,show,stats,trash}",
+            "{create,doctor,list,open,pane,path,prune,reclaim,show,stats,trash}",
             file=sys.stderr,
         )
         sys.exit(2)

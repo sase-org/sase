@@ -12,6 +12,7 @@ from .plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .files_pane import ArtifactsFilesPane as ArtifactsFilesPane
 from .types import ArtifactsPaneKey as ArtifactsPaneKey
 from .lifecycle import ArtifactsPaneLifecycle as ArtifactsPaneLifecycle
+from .snapshot_pane import ArtifactsSnapshotPane as ArtifactsSnapshotPane
 from .plans_pane import ArtifactsPlansPane as ArtifactsPlansPane
 from .panes import ArtifactsPatchesPane as ArtifactsPatchesPane
 from .types import ArtifactsSubTab as ArtifactsSubTab

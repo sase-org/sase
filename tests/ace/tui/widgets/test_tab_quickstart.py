@@ -32,20 +32,41 @@ def _fixed_only_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...
     )
 
 
+def _compiled_plan_descriptor() -> artifact_tabs.ArtifactsTabDescriptor:
+    from pathlib import Path
+
+    from sase.ace.tui._artifact_tab_descriptors import provider_descriptors
+    from sase.ace.tui._artifact_tab_model import ProjectProviderRecord
+    from sase.artifact_providers import builtin_plan_ref_provider_spec
+    from sase.sidecar_ref_config import SidecarRefPolicy
+
+    spec = builtin_plan_ref_provider_spec()
+    return provider_descriptors(
+        (
+            ProjectProviderRecord(
+                project="sase",
+                display_name="sase",
+                workspace_dir=None,
+                role="plans",
+                root=Path("."),
+                policy=SidecarRefPolicy(
+                    role="plans",
+                    ref_kind="plan",
+                    is_document=True,
+                    spec=spec,
+                ),
+            ),
+        )
+    )[0]
+
+
 def _one_provider_descriptors() -> tuple[artifact_tabs.ArtifactsTabDescriptor, ...]:
     return assign_artifacts_digit_shortcuts(
         (
             fixed_descriptor("stitches"),
             fixed_descriptor("patches"),
             fixed_descriptor("beads"),
-            artifact_tabs.ArtifactsTabDescriptor(
-                id="ref:plan",
-                label="Plan",
-                accent=artifact_tabs.ARTIFACTS_ACCENTS["ref:plan"],
-                pane_id="artifacts-plans-pane",
-                provider_kind="plan",
-                provider_spec={},
-            ),
+            _compiled_plan_descriptor(),
             fixed_descriptor("files"),
         )
     )
