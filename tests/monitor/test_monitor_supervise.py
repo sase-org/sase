@@ -24,6 +24,8 @@ from ._fixtures import make_starter_agent, write_project_file
 
 _STOP_POLL_TIMEOUT = 60.0
 _STOP_POLL_INTERVAL = 0.1
+# Must stay independent of BoundedLogPipe's join timeout. close() is bounded
+# by close_drain_seconds (0.5s here) plus a short scheduling allowance.
 _NO_HANG_TIMEOUT = 5.0
 
 
@@ -366,7 +368,9 @@ def test_run_supervisor_times_out_after_partial_line(tmp_path: Path) -> None:
     artifacts_dir, _ = _make_member(
         tmp_path,
         command="sh -c 'printf partial; sleep 30'",
-        timeout_seconds=0.2,
+        # Long enough for spawn+printf under load; the child still sleeps 30s
+        # so this remains a timeout, not a completion.
+        timeout_seconds=1.0,
     )
 
     started = time.monotonic()
