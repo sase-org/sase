@@ -50,6 +50,7 @@ pytestmark = pytest.mark.slow
 _KEYS_PER_DIRECTION = 20
 _P95_BUDGET_MS = 16.0
 _COMMIT_COUNT = 200
+_BURST_SETTLE_S = 0.30
 
 
 def _expanded_beads_snapshot(tmp_path: Path, count: int = 200) -> BeadsSnapshot:
@@ -106,6 +107,7 @@ async def _press_burst(page: AcePage, key: str) -> None:
     finally:
         if was_enabled:
             gc.enable()
+    await page.pause(_BURST_SETTLE_S)
 
 
 async def _press_fast_navigation_bursts(page: AcePage) -> None:
