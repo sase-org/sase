@@ -41,8 +41,8 @@ boolean, null, list, or map, nested within the reliability limits below.
    JSON
    ```
 
-3. Inspect the current agent's stored values with `sase var list`, or use
-   `sase var list --json` for compact machine-readable JSON.
+3. Inspect the current agent's stored values with `sase var show`, or use
+   `sase var show --format json` for compact machine-readable JSON.
 4. In later prompts, wait for the producer before referencing its variables. Every
    producer's variables live under a single `agents` dictionary keyed by agent name. For
    example, `%id:build-@` can produce:
