@@ -4985,6 +4985,15 @@ supervisor died without reporting is reconciled to `error` rather than left runn
 forever. `sase proc list` reuses the icons above and adds `◌` for pending and `⊘` for
 killed.
 
+A proc may also carry a **named proc shell**: `sase proc run -N/--shell NAME` (bare
+names resolve beneath the calling sase-agent; `agent/name` is fully qualified) names the
+proc so `sase proc show`, `sase proc list -N`, and `sase proc kill` can address it by
+name instead of id. Resolution tries an exact fully qualified name, then an exact proc
+id, then a unique id prefix. Active uniqueness is scoped per project — starting a proc
+under a name already held by an active proc in the same project is a conflict — and a
+name is only reusable once the proc holding it settles. A monitor's member agent name
+(for example `acme--mon`) is its own named proc shell.
+
 **Kinds and ownership.**
 
 | Kind       | Typical producer                                                  | Owner and scope                                                     |

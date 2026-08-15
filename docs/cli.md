@@ -81,6 +81,13 @@ every pending or running proc plus the newest
 [`procs.history_limit`](configuration.md#procs) finished ones. See the
 [ACE Procs tab](ace.md#durable-procs) for the full model and the in-TUI equivalents.
 
+`sase proc run -N/--shell NAME` and `sase proc list -N/--shell NAME` address a proc by a
+**named proc shell** instead of its id: a bare name is derived beneath the calling
+sase-agent, while a fully qualified name (`agent/name`) is resolved exactly before
+falling back to an exact proc id, then a unique id prefix. Active uniqueness is scoped
+per project, and a name may be reused only after the proc holding it settles.
+`sase proc show REF` accepts the same named proc shell, id, or id-prefix forms.
+
 Command groups with an exact `list` child default to that list view when invoked bare,
 including `sase agent-cli`, `sase bead`, `sase chat`, `sase file`, `sase file-history`,
 `sase file-hook`, `sase memory`, `sase notify`, `sase plugin`, `sase project`,
