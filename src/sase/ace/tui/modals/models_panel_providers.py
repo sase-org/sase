@@ -812,6 +812,10 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
         def _replace_display(self, *, keep: str | None = None) -> None: ...
 
+        def _highlighted_row_id(self) -> str | None: ...
+
+        def _moved_highlight_row_id(self) -> str | None: ...
+
         def _update_context(self) -> None: ...
 
         def _emit_custom_builtin_shadow_warning(self) -> None: ...
@@ -897,7 +901,11 @@ class ModelsPanelProvidersMixin(_MixinBase):
             self._views = list(snapshot.alias_views)
             self._top_rows = self._load_models_panel_rows(self._views)  # type: ignore[attr-defined]
         if self.is_mounted and update_rows:  # type: ignore[attr-defined]
-            self._replace_display(keep=keep)
+            # Implicit snapshot completions omit keep. Preserve a user-moved
+            # cursor; leave keep unset when the first-paint default is still
+            # selected so launch-setting rows can become the new first row.
+            preferred = keep if keep is not None else self._moved_highlight_row_id()
+            self._replace_display(keep=preferred)
             self._emit_custom_builtin_shadow_warning()
         elif self.is_mounted:  # type: ignore[attr-defined]
             self._update_context()

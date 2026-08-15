@@ -36,9 +36,17 @@ from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
 )
+from sase.ace.tui.modals.models_panel_rows import LaunchModelSettingRow
+from sase.llm_provider.config import (
+    BIG_EPIC_LANDER_MODEL_FIELD,
+    DEFAULT_MODEL_FIELD,
+    EPIC_LANDER_MODEL_FIELD,
+    LaunchModelSettingSnapshot,
+)
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     make_alias_view,
+    make_bucketed_views,
     patch_alias_views,
     wait_for,
 )
@@ -77,10 +85,37 @@ def _status(
     )
 
 
+def _launch_setting_rows() -> tuple[LaunchModelSettingRow, ...]:
+    return tuple(
+        LaunchModelSettingRow(
+            field=field,
+            label=label,
+            detail="Used when a launch has no explicit %model directive.",
+            snapshot=LaunchModelSettingSnapshot(
+                field=field,
+                config_path=f"llm_provider.{field}",
+                raw_value="@large",
+                provider="claude",
+                model="opus",
+                effort=None,
+                provenance="shipped",
+                referenced_alias="large",
+                override_key=f"setting:{field}",
+            ),
+        )
+        for field, label in (
+            (DEFAULT_MODEL_FIELD, "launch model"),
+            (EPIC_LANDER_MODEL_FIELD, "epic lander"),
+            (BIG_EPIC_LANDER_MODEL_FIELD, "big epic lander"),
+        )
+    )
+
+
 def _snapshot(
     *statuses: ProviderRoutingStatus,
     disables: dict[str, TemporaryProviderDisable] | None = None,
     alias_views=None,
+    launch_model_rows: tuple[LaunchModelSettingRow, ...] = (),
 ) -> _ProviderRoutingSnapshot:
     return _ProviderRoutingSnapshot(
         statuses=tuple(statuses),
@@ -88,6 +123,7 @@ def _snapshot(
         alias_views=tuple(alias_views or (make_alias_view("default", "default"),)),
         provider_colors={"claude": "#D97757", "codex": "#10A37F"},
         captured_at=100.0,
+        launch_model_rows=launch_model_rows,
     )
 
 
@@ -777,3 +813,76 @@ async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> N
 
         title = panel.query_one("#models-panel-title", Static).content.plain
         assert "disabled providers: CLAUDE until cleared" in title
+
+
+def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    panel._update_context()
+
+
+async def test_provider_snapshot_explicit_keep_overrides_current_row(
+    monkeypatch,
+) -> None:
+    views = make_bucketed_views()
+    patch_alias_views(monkeypatch, views)
+    snapshot = _snapshot(
+        _status("codex"),
+        alias_views=views,
+        launch_model_rows=_launch_setting_rows(),
+    )
+    monkeypatch.setattr(
+        ModelsPanel,
+        "_load_provider_routing_snapshot",
+        lambda self: snapshot,
+    )
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await wait_for(pilot, lambda: panel._provider_snapshot is snapshot)
+        await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
+        _highlight_row(panel, "bucket:research")
+        assert panel._highlighted_row_id() == "bucket:research"
+
+        panel._apply_provider_snapshot(snapshot, keep="plain", update_rows=True)
+        await pilot.pause()
+
+        assert panel._highlighted_row_id() == "plain"
+
+
+async def test_provider_snapshot_missing_row_falls_back_to_first_launch_row(
+    monkeypatch,
+) -> None:
+    views = make_bucketed_views()
+    remaining = [view for view in views if view.bucket != "research"]
+    patch_alias_views(monkeypatch, views)
+    before = _snapshot(
+        _status("codex"),
+        alias_views=views,
+        launch_model_rows=_launch_setting_rows(),
+    )
+    after = _snapshot(
+        _status("codex"),
+        alias_views=remaining,
+        launch_model_rows=_launch_setting_rows(),
+    )
+    monkeypatch.setattr(
+        ModelsPanel,
+        "_load_provider_routing_snapshot",
+        lambda self: before,
+    )
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await wait_for(pilot, lambda: panel._provider_snapshot is before)
+        await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
+        _highlight_row(panel, "bucket:research")
+        assert panel._highlighted_row_id() == "bucket:research"
+
+        panel._apply_provider_snapshot(after, update_rows=True)
+        await pilot.pause()
+
+        assert "bucket:research" not in panel._row_by_id
+        assert panel._highlighted_row_id() == "launch:default_model"

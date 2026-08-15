@@ -1,5 +1,6 @@
 """Mounted Models panel navigation and layout tests."""
 
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -9,6 +10,15 @@ from textual.widgets import OptionList, Static
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
 from sase.ace.tui.modals.models_panel import ModelsPanel, ModelsPanelResult
+from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
+from sase.ace.tui.modals.models_panel_rows import LaunchModelSettingRow
+from sase.llm_provider.config import (
+    BIG_EPIC_LANDER_MODEL_FIELD,
+    DEFAULT_MODEL_FIELD,
+    EPIC_LANDER_MODEL_FIELD,
+    LaunchModelSettingSnapshot,
+)
+from sase.llm_provider.model_launch_settings import LaunchModelField
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     StyledModelsPanelTestApp,
@@ -17,6 +27,7 @@ from tests._models_panel_helpers import (
     make_worker_bucket_views,
     make_override,
     patch_alias_views,
+    wait_for,
 )
 
 
@@ -24,6 +35,36 @@ def highlight_row(panel: ModelsPanel, row_id: str) -> None:
     option_list = panel.query_one("#models-panel-list", OptionList)
     panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
     panel._update_context()
+
+
+def _launch_setting_row(
+    field: LaunchModelField,
+    label: str,
+) -> LaunchModelSettingRow:
+    return LaunchModelSettingRow(
+        field=field,
+        label=label,
+        detail="Used when a launch has no explicit %model directive.",
+        snapshot=LaunchModelSettingSnapshot(
+            field=field,
+            config_path=f"llm_provider.{field}",
+            raw_value="@large",
+            provider="claude",
+            model="opus",
+            effort=None,
+            provenance="shipped",
+            referenced_alias="large",
+            override_key=f"setting:{field}",
+        ),
+    )
+
+
+def _launch_setting_rows() -> tuple[LaunchModelSettingRow, ...]:
+    return (
+        _launch_setting_row(DEFAULT_MODEL_FIELD, "launch model"),
+        _launch_setting_row(EPIC_LANDER_MODEL_FIELD, "epic lander"),
+        _launch_setting_row(BIG_EPIC_LANDER_MODEL_FIELD, "big epic lander"),
+    )
 
 
 async def test_panel_escape_closes_unchanged(monkeypatch) -> None:
@@ -333,6 +374,58 @@ async def test_alias_actions_on_bucket_are_guarded(monkeypatch, key: str) -> Non
 
         assert pilot.app.screen is panel
         panel.notify.assert_called_once_with("Press `l`/`enter` to open this bucket")
+
+
+async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
+    monkeypatch,
+) -> None:
+    """A late initial snapshot must not steal a bucket selection before `e`."""
+    views = make_bucketed_views()
+    patch_alias_views(monkeypatch, views)
+    snapshot = _ProviderRoutingSnapshot(
+        statuses=(),
+        provider_disables={},
+        alias_views=tuple(views),
+        provider_colors={},
+        captured_at=0.0,
+        launch_model_rows=_launch_setting_rows(),
+    )
+    started = threading.Event()
+    release = threading.Event()
+
+    def load_snapshot(self: ModelsPanel) -> _ProviderRoutingSnapshot:
+        started.set()
+        assert release.wait(timeout=5)
+        return snapshot
+
+    monkeypatch.setattr(ModelsPanel, "_load_provider_routing_snapshot", load_snapshot)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel._views = list(views)
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        try:
+            pilot.app.push_screen(panel)
+            await wait_for(pilot, started.is_set)
+            await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
+            assert "launch:default_model" not in panel._row_by_id
+            highlight_row(panel, "bucket:research")
+            assert panel._highlighted_row_id() == "bucket:research"
+
+            release.set()
+            await wait_for(pilot, lambda: panel._provider_snapshot_worker is None)
+            assert panel._highlighted_row_id() == "bucket:research"
+            assert "launch:default_model" in panel._row_by_id
+
+            await pilot.press("e")
+            await pilot.pause()
+
+            assert pilot.app.screen is panel
+            panel.notify.assert_called_once_with(
+                "Press `l`/`enter` to open this bucket"
+            )
+        finally:
+            release.set()
 
 
 async def test_refresh_auto_leaves_bucket_when_last_member_disappears(

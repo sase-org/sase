@@ -388,6 +388,27 @@ class ModelsPanelDisplayMixin(_MixinBase):
             option_list, self._first_enabled_option_index(option_list)
         )
 
+    def _moved_highlight_row_id(self) -> str | None:
+        """Return the current row only when the user has left the first row.
+
+        First paint has no launch-setting rows, so the implicit cursor sits on
+        ``setting:default_effort``. A later snapshot should then land on the
+        new first launch row. A user-moved cursor must stay put.
+        """
+        option_list = self.query_one("#models-panel-list", OptionList)
+        current = self._highlighted_row_id()
+        if current is None:
+            return None
+        first_index = self._first_enabled_option_index(option_list)
+        if first_index is None:
+            return current
+        try:
+            first_option = option_list.get_option_at_index(first_index)
+        except Exception:
+            return current
+        first_id = str(first_option.id) if first_option.id is not None else None
+        return current if current != first_id else None
+
     def _refresh_rows(self, *, keep: str | None = None) -> None:
         """Reload and rebuild rows, preserving the highlighted row when possible."""
         preferred = keep or self._highlighted_row_id()
