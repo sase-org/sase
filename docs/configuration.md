@@ -4115,23 +4115,28 @@ load that producer's stored values when they start and can render them through t
 
 With no subcommand, `sase var` prints a delegation notice and runs `sase var list`.
 
-| Form                                 | Flags / arguments                    | Description                                                               |
-| ------------------------------------ | ------------------------------------ | ------------------------------------------------------------------------- |
-| `sase var show [AGENT_NAME]`         | `-c`, `-f pretty\|json`, `-p`        | Show one current or named agent output-variable snapshot.                 |
-| `sase var list`                      | `-a`, `-k`, `-p`, dates, value flags | Discover keys and distinct typed values across indexed agent history.     |
-| `sase var get SELECTOR [...]`        | `-c`, `-f pretty\|raw\|json\|jsonl`  | Resolve precise values by exact, wildcard, hood, and JSON-path selectors. |
-| `sase var set KEY=VALUE [...]`       | positional assignments               | Store one or more strings, splitting each assignment at the first `=`.    |
-| `sase var set KEY --value TEXT`      | `-v, --value TEXT`                   | Store one string verbatim, including spaces or newlines.                  |
-| `sase var set KEY --value-file PATH` | `-f, --value-file PATH`              | Read one string as UTF-8 text; use `-` to read standard input.            |
-| `sase var set ... --json`            | `-j, --json` plus a form above       | Decode supplied values as JSON strings, scalars, lists, maps, or `null`.  |
+| Form                                 | Flags / arguments                    | Description                                                                  |
+| ------------------------------------ | ------------------------------------ | ---------------------------------------------------------------------------- |
+| `sase var get`                       | `-c`, `-f pretty\|json`              | Show the current agent's output-variable snapshot from `SASE_ARTIFACTS_DIR`. |
+| `sase var get '<AGENT_NAME>'`        | `-c`, `-f pretty\|json`, `-p`, `-H`  | Show the newest exact-name historical snapshot. Quote the wrappers.          |
+| `sase var get SELECTOR [...]`        | `-c`, `-f pretty\|raw\|json\|jsonl`  | Resolve precise values by exact, wildcard, hood, and JSON-path selectors.    |
+| `sase var list`                      | `-a`, `-k`, `-p`, dates, value flags | Discover keys and distinct typed values across indexed agent history.        |
+| `sase var set KEY=VALUE [...]`       | positional assignments               | Store one or more strings, splitting each assignment at the first `=`.       |
+| `sase var set KEY --value TEXT`      | `-v, --value TEXT`                   | Store one string verbatim, including spaces or newlines.                     |
+| `sase var set KEY --value-file PATH` | `-f, --value-file PATH`              | Read one string as UTF-8 text; use `-` to read standard input.               |
+| `sase var set ... --json`            | `-j, --json` plus a form above       | Decode supplied values as JSON strings, scalars, lists, maps, or `null`.     |
 
-`sase var show` displays one stored variable map. With no `AGENT_NAME`, it reads the
-current agent's artifact directory directly so recent writes are visible before the
-agent completes; this form requires `SASE_ARTIFACTS_DIR`. With `AGENT_NAME`, it searches
-indexed history and returns the newest visible exact-name artifact. Use
+`sase var get` has three modes. With no target, it reads the current agent's artifact
+directory directly so recent writes are visible before the agent completes; this form
+requires `SASE_ARTIFACTS_DIR`. With exactly one quoted `<AGENT_NAME>`, it searches
+indexed history and returns the newest exact-name artifact. Quote the wrappers so the
+shell keeps them intact, for example `sase var get '<build>' --format json`. Use
 `--project PROJECT` to disambiguate repeated names across projects, where `PROJECT` may
-be a display name or alias. `--format pretty` renders the same readable block form used
-in ACE, while `--format json` emits the variable map as compact machine-readable JSON.
+be a display name or alias and may be repeated. `--hidden` includes hidden indexed
+agents. An agent with no variables is an empty success; an unknown name is an error.
+`--format pretty` renders the same readable block form used in ACE, while
+`--format json` emits the variable map as compact machine-readable JSON. Snapshot mode
+rejects selector-only `--format raw` / `jsonl` and an explicit `--limit`.
 
 `sase var list` is historical discovery. It groups indexed output variables by key,
 orders keys by most-recent occurrence, and shows each key's distinct typed values plus
@@ -4157,7 +4162,8 @@ dimensions are ANDed. Major filters are:
 stable envelope with `schema_version`, the normalized query, limit metadata, and grouped
 values. `--format jsonl` emits one compact JSON object per returned distinct value.
 
-`sase var get` retrieves exact values from indexed history with selectors:
+With one or more ordinary targets, `sase var get` retrieves exact values from indexed
+history with selectors:
 
 ```text
 [SCOPE.]KEY[PATH ...]
@@ -4168,11 +4174,15 @@ agent, or `HOOD.*` for a hood. Unscoped keys choose the newest matching occurren
 Exact-agent selectors choose that name's newest artifact. Global and hood wildcard
 selectors collapse repeated runs to the newest value per agent name. JSON paths follow
 the selected value with `[INDEX]` for lists or `["KEY"]` for map keys; dotted map
-traversal is not accepted.
+traversal is not accepted. `sase var get build.*` remains selector mode and is distinct
+from snapshot-mode `sase var get '<build>'`.
 
 Examples:
 
 ```bash
+sase var get
+sase var get --format json
+sase var get '<build>' --format json
 sase var get status
 sase var get build.status --format raw
 sase var get '*.status' --format json
@@ -4180,13 +4190,13 @@ sase var get 'research.*.report["summary"]'
 sase var get results[0]
 ```
 
-`sase var get --format pretty` prints each match with attribution. `--format raw` prints
-one value only and fails unless the selector resolves to exactly one untruncated match;
+Selector `--format pretty` prints each match with attribution. `--format raw` prints one
+value only and fails unless the selector resolves to exactly one untruncated match;
 strings print as text, and structured values print as compact JSON. `--format json`
 emits a stable envelope with `schema_version`, query, limit metadata, and matches.
 `--format jsonl` emits one compact JSON object per match. Wildcard expansion defaults to
 20 matches; `--limit 0` is unlimited. `--project` is repeatable, and `--hidden` includes
-hidden indexed agents.
+hidden indexed agents. `--limit` applies only to selector wildcard expansion.
 
 `sase var set` is the mutation command. It is agent-scoped and requires `SASE_AGENT=1`
 and `SASE_ARTIFACTS_DIR`. Successful writes print the current agent name when known, the

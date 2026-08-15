@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 import json
 import os
 import sys
@@ -13,6 +14,7 @@ from sase.core.agent_output_variable_history_wire import (
     AgentOutputVariableHistoryQueryWire,
 )
 from sase.core.agent_output_variable_selector_wire import (
+    DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
     AgentOutputVariableSelectorQueryWire,
     OutputVariableSelectorWire,
 )
@@ -26,6 +28,7 @@ from sase.core.agent_scan_facade import (
     query_agent_output_variable_selectors,
 )
 from sase.core.output_variable_values import VarValue, normalize_var_value
+from sase.main.parser_var import WrappedAgentTarget
 from sase.main.var_cli import (
     artifact_timestamp_from_date,
     display_project_name,
@@ -51,53 +54,77 @@ def handle_var_command(args: argparse.Namespace) -> NoReturn:
         _handle_var_list(args)
     if subcommand == "set":
         _handle_var_set(args)
-    if subcommand == "show":
-        _handle_var_show(args)
 
-    print("Usage: sase var {get,list,set,show}", file=sys.stderr)
+    print("Usage: sase var {get,list,set}", file=sys.stderr)
     sys.exit(1)
 
 
-def _handle_var_show(args: argparse.Namespace) -> NoReturn:
-    """Display one agent's stored output-variable snapshot."""
-    agent_name = getattr(args, "agent_name", None)
-    output_format = str(getattr(args, "format", "pretty") or "pretty")
-    color = str(getattr(args, "color", "auto") or "auto")
-    if agent_name:
-        record = resolve_named_var_artifact(
-            agent_name,
-            project=getattr(args, "project", None),
-        )
-        if record is None:
-            project = getattr(args, "project", None)
-            suffix = f" (project {project})" if project else ""
-            print(f"Error: unknown agent: {agent_name}{suffix}", file=sys.stderr)
-            sys.exit(1)
-        try:
-            variables = read_agent_output_variables(record.artifact_dir)
-        except Exception as exc:
-            print(f"Error: failed to show output variables: {exc}", file=sys.stderr)
-            sys.exit(1)
-        render_var_snapshot(variables, output_format=output_format, color=color)
-        sys.exit(0)
-
-    agent_artifacts_dir = _require_show_artifacts_dir()
-    try:
-        variables = read_agent_output_variables(agent_artifacts_dir)
-    except Exception as exc:
-        print(f"Error: failed to show output variables: {exc}", file=sys.stderr)
-        sys.exit(1)
-    render_var_snapshot(variables, output_format=output_format, color=color)
-    sys.exit(0)
-
-
 def _handle_var_get(args: argparse.Namespace) -> NoReturn:
+    """Read a snapshot or retrieve output-variable values by selector."""
+    targets = list(getattr(args, "targets", None) or [])
+    wrapped = [target for target in targets if isinstance(target, WrappedAgentTarget)]
+    selectors = [
+        target for target in targets if isinstance(target, OutputVariableSelectorWire)
+    ]
+    if wrapped and selectors:
+        print(
+            "Error: cannot mix a wrapped <agent_name> with selectors; "
+            "use sase var get '<build>' for a snapshot or a selector such as "
+            "build.*",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if len(wrapped) > 1:
+        print(
+            "Error: only one wrapped <agent_name> is allowed; "
+            "use sase var get '<build>' for a single snapshot",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if not targets:
+        _validate_snapshot_options(args)
+        _render_snapshot_from_dir(
+            _require_get_artifacts_dir(),
+            output_format=str(getattr(args, "format", "pretty") or "pretty"),
+            color=str(getattr(args, "color", "auto") or "auto"),
+        )
+    if wrapped:
+        _validate_snapshot_options(args)
+        _handle_named_snapshot(args, wrapped[0].agent_name)
+    _handle_selector_get(args, selectors)
+
+
+def _handle_named_snapshot(args: argparse.Namespace, agent_name: str) -> NoReturn:
+    """Render the newest exact-name historical snapshot."""
+    project_refs = list(getattr(args, "projects", None) or [])
+    record = resolve_named_var_artifact(
+        agent_name,
+        projects=project_refs,
+        include_hidden=bool(getattr(args, "hidden", False)),
+    )
+    if record is None:
+        print(
+            f"Error: unknown agent: {agent_name}{_project_error_suffix(project_refs)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    _render_snapshot_from_dir(
+        record.artifact_dir,
+        output_format=str(getattr(args, "format", "pretty") or "pretty"),
+        color=str(getattr(args, "color", "auto") or "auto"),
+    )
+
+
+def _handle_selector_get(
+    args: argparse.Namespace,
+    selectors: list[OutputVariableSelectorWire],
+) -> NoReturn:
     """Retrieve output-variable values by selector."""
     output_format = str(getattr(args, "format", "pretty") or "pretty")
     color = str(getattr(args, "color", "auto") or "auto")
     display: ProjectRefDisplaySnapshot | None = None
     try:
-        query, display = _selector_query_from_args(args)
+        query, display = _selector_query_from_args(args, selectors)
         index, _root = prepare_output_variable_index()
         result = query_agent_output_variable_selectors(index, query)
     except ValueError as exc:
@@ -129,24 +156,68 @@ def _handle_var_get(args: argparse.Namespace) -> NoReturn:
     sys.exit(0)
 
 
+def _validate_snapshot_options(args: argparse.Namespace) -> None:
+    """Reject selector-only options on snapshot invocations."""
+    output_format = str(getattr(args, "format", "pretty") or "pretty")
+    if output_format in {"raw", "jsonl"}:
+        print(
+            f"Error: --format {output_format} is only valid with a selector; "
+            "use pretty or json for a snapshot, or pass a selector such as "
+            "build.*",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if bool(getattr(args, "limit_explicit", False)):
+        print(
+            "Error: --limit applies only to selector wildcard expansion; "
+            "omit --limit for a snapshot, or pass a selector such as build.*",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
+def _render_snapshot_from_dir(
+    artifact_dir: str | Path,
+    *,
+    output_format: str,
+    color: str,
+) -> NoReturn:
+    """Read and render one artifact directory's stored variable map."""
+    try:
+        variables = read_agent_output_variables(artifact_dir)
+    except Exception as exc:
+        print(f"Error: failed to get output variables: {exc}", file=sys.stderr)
+        sys.exit(1)
+    render_var_snapshot(variables, output_format=output_format, color=color)
+    sys.exit(0)
+
+
+def _project_error_suffix(project_refs: list[str]) -> str:
+    if not project_refs:
+        return ""
+    if len(project_refs) == 1:
+        return f" (project {project_refs[0]})"
+    return f" (projects {', '.join(project_refs)})"
+
+
 def _selector_query_from_args(
     args: argparse.Namespace,
+    selectors: list[OutputVariableSelectorWire],
 ) -> tuple[AgentOutputVariableSelectorQueryWire, ProjectRefDisplaySnapshot]:
     project_keys, display = resolve_var_projects(getattr(args, "projects", None))
-    selectors = list(getattr(args, "selectors", None) or [])
     return (
         AgentOutputVariableSelectorQueryWire(
             selectors=_selectors_from_args(selectors),
             projects=project_keys,
             include_hidden=bool(getattr(args, "hidden", False)),
-            limit=int(getattr(args, "limit", 20)),
+            limit=int(getattr(args, "limit", DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT)),
         ),
         display,
     )
 
 
 def _selectors_from_args(
-    selectors: list[object],
+    selectors: Sequence[object],
 ) -> list[OutputVariableSelectorWire]:
     parsed: list[OutputVariableSelectorWire] = []
     for selector in selectors:
@@ -290,12 +361,12 @@ def _handle_var_set(args: argparse.Namespace) -> NoReturn:
     sys.exit(0)
 
 
-def _require_show_artifacts_dir() -> str:
-    """Return the current artifact directory for no-argument ``show``."""
+def _require_get_artifacts_dir() -> str:
+    """Return the current artifact directory for no-target ``get``."""
     agent_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not agent_artifacts_dir:
         print(
-            "Error: sase var show requires SASE_ARTIFACTS_DIR or an AGENT_NAME",
+            "Error: sase var get requires SASE_ARTIFACTS_DIR or a quoted <agent_name>",
             file=sys.stderr,
         )
         sys.exit(1)

@@ -18,6 +18,7 @@ from sase.core.agent_output_variables import (
 )
 from sase.core.output_variable_values import VarValue
 from sase.main.parser import create_parser, default_list_delegation_notice
+from sase.main.var_cli import resolve_current_var_agent_name
 from sase.main.var_handler import handle_var_command
 
 
@@ -75,7 +76,7 @@ def test_var_help_keeps_subcommands_and_set_options_alphabetized(
     group_help = capsys.readouterr().out
     assert group_help.index("\n    get ") < group_help.index("\n    list ")
     assert group_help.index("\n    list ") < group_help.index("\n    set ")
-    assert group_help.index("\n    set ") < group_help.index("\n    show ")
+    assert "\n    show " not in group_help
 
     with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "set", "--help"])
@@ -551,7 +552,7 @@ def test_var_set_json_validation_errors_are_visible(
     assert "signed 64-bit range" in capsys.readouterr().err
 
 
-def test_var_show_renders_canonical_block_form(
+def test_var_get_renders_canonical_block_form(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -570,7 +571,7 @@ def test_var_show_renders_canonical_block_form(
     )
 
     with pytest.raises(SystemExit) as exc:
-        handle_var_command(_args(var_subcommand="show", format="pretty", color="never"))
+        handle_var_command(_args(var_subcommand="get", format="pretty", color="never"))
 
     assert exc.value.code == 0
     assert capsys.readouterr().out == (
@@ -578,7 +579,7 @@ def test_var_show_renders_canonical_block_form(
     )
 
 
-def test_var_show_json_is_compact_and_sorted(
+def test_var_get_json_is_compact_and_sorted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -590,7 +591,7 @@ def test_var_show_json_is_compact_and_sorted(
     )
 
     with pytest.raises(SystemExit) as exc:
-        handle_var_command(_args(var_subcommand="show", format="json", color="never"))
+        handle_var_command(_args(var_subcommand="get", format="json", color="never"))
 
     assert exc.value.code == 0
     assert capsys.readouterr().out == '{"a":[2,true],"z":null}\n'
@@ -632,6 +633,60 @@ def test_var_set_missing_value_file_fails_cleanly(
 
     assert exc.value.code == 1
     assert f"value file not found: {missing}" in capsys.readouterr().err
+
+
+def test_current_identity_prefers_meta_then_name_then_nonsentinel_agent(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "from-meta"}),
+        encoding="utf-8",
+    )
+
+    assert (
+        resolve_current_var_agent_name(
+            str(artifacts),
+            {"SASE_ARTIFACTS_DIR": str(artifacts), "SASE_AGENT": "1"},
+        )
+        == "from-meta"
+    )
+    assert (
+        resolve_current_var_agent_name(
+            str(artifacts),
+            {
+                "SASE_ARTIFACTS_DIR": str(artifacts),
+                "SASE_AGENT_NAME": "from-env",
+                "SASE_AGENT": "1",
+            },
+        )
+        == "from-meta"
+    )
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "agent_meta.json").write_text("{}", encoding="utf-8")
+    assert (
+        resolve_current_var_agent_name(
+            str(empty),
+            {"SASE_ARTIFACTS_DIR": str(empty), "SASE_AGENT_NAME": "from-env"},
+        )
+        == "from-env"
+    )
+    assert (
+        resolve_current_var_agent_name(
+            str(empty),
+            {"SASE_ARTIFACTS_DIR": str(empty), "SASE_AGENT": "legacy-name"},
+        )
+        == "legacy-name"
+    )
+    assert (
+        resolve_current_var_agent_name(
+            str(empty),
+            {"SASE_ARTIFACTS_DIR": str(empty), "SASE_AGENT": "1"},
+        )
+        is None
+    )
 
 
 def _prepare_agent_artifacts(

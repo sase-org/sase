@@ -1,10 +1,15 @@
-"""Parser tests for ``sase var show`` and historical ``sase var list``."""
+"""Parser tests for ``sase var get`` and historical ``sase var list``."""
 
 from __future__ import annotations
 
 import pytest
 
+from sase.core.agent_output_variable_selector_wire import (
+    DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
+    OutputVariableSelectorWire,
+)
 from sase.main.parser import create_parser
+from sase.main.parser_var import WrappedAgentTarget
 
 
 def test_parser_registers_var_get_aliases() -> None:
@@ -29,26 +34,52 @@ def test_parser_registers_var_get_aliases() -> None:
     )
 
     assert args.var_subcommand == "get"
-    assert [selector.raw for selector in args.selectors] == [
+    assert [target.raw for target in args.targets] == [
         "status",
         "build.status",
     ]
-    assert args.selectors[0].key == "status"
-    assert args.selectors[1].scope.kind == "exact"
-    assert args.selectors[1].scope.name == "build"
+    assert isinstance(args.targets[0], OutputVariableSelectorWire)
+    assert args.targets[0].key == "status"
+    assert args.targets[1].scope.kind == "exact"
+    assert args.targets[1].scope.name == "build"
     assert args.format == "raw"
     assert args.color == "never"
     assert args.projects == ["sase"]
     assert args.hidden is True
     assert args.limit == 0
+    assert args.limit_explicit is True
 
 
-def test_parser_registers_var_show_and_list_aliases() -> None:
+def test_parser_accepts_zero_target_and_wrapped_agent_get() -> None:
     parser = create_parser()
 
-    show = parser.parse_args(
-        ["var", "show", "build", "-f", "json", "-c", "never", "-p", "sase"]
+    empty = parser.parse_args(["var", "get", "--format", "json"])
+    wrapped = parser.parse_args(
+        ["var", "get", "<build>", "-f", "json", "-c", "never", "-p", "sase", "-H"]
     )
+    dotted = parser.parse_args(["var", "get", "<research.final>"])
+    hyphenated = parser.parse_args(["var", "get", "<foo-bar>"])
+    digit = parser.parse_args(["var", "get", "<2review>"])
+
+    assert empty.var_subcommand == "get"
+    assert empty.targets == []
+    assert empty.format == "json"
+    assert empty.limit == DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT
+    assert empty.limit_explicit is False
+    assert wrapped.targets[0] == WrappedAgentTarget(raw="<build>", agent_name="build")
+    assert wrapped.format == "json"
+    assert wrapped.color == "never"
+    assert wrapped.projects == ["sase"]
+    assert wrapped.hidden is True
+    assert wrapped.limit_explicit is False
+    assert dotted.targets[0].agent_name == "research.final"
+    assert hyphenated.targets[0].agent_name == "foo-bar"
+    assert digit.targets[0].agent_name == "2review"
+
+
+def test_parser_registers_var_list_aliases() -> None:
+    parser = create_parser()
+
     listing = parser.parse_args(
         [
             "var",
@@ -72,11 +103,6 @@ def test_parser_registers_var_show_and_list_aliases() -> None:
         ]
     )
 
-    assert show.var_subcommand == "show"
-    assert show.agent_name == "build"
-    assert show.format == "json"
-    assert show.color == "never"
-    assert show.project == "sase"
     assert listing.var_subcommand == "list"
     assert listing.agents == ["build.*"]
     assert listing.keys == ["status*"]
@@ -88,6 +114,18 @@ def test_parser_registers_var_show_and_list_aliases() -> None:
     assert listing.until == "today"
     assert listing.values == ["ok"]
     assert listing.value_json is None
+
+
+def test_parser_rejects_removed_var_show(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "show"])
+
+    assert exc.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
 
 
 def test_parser_single_limit_keeps_default_value_limit() -> None:
@@ -170,6 +208,36 @@ def test_parser_rejects_invalid_get_selectors(
     assert "invalid selector" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("raw", ["<>", "<   >", "<build", "build>"])
+def test_parser_rejects_malformed_wrapped_agents(
+    raw: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "get", raw])
+
+    assert exc.value.code == 2
+    assert "wrapped agent name" in capsys.readouterr().err
+
+
+def test_parser_rejects_mixed_and_multiple_wrapped_targets(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "get", "<build>", "status"])
+    assert exc.value.code == 2
+    assert "cannot mix" in capsys.readouterr().err
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "get", "<build>", "<review>"])
+    assert exc.value.code == 2
+    assert "only one wrapped" in capsys.readouterr().err
+
+
 def test_parser_rejects_invalid_get_limit() -> None:
     parser = create_parser()
 
@@ -179,7 +247,7 @@ def test_parser_rejects_invalid_get_limit() -> None:
     assert exc.value.code == 2
 
 
-def test_var_list_and_show_help_keep_options_alphabetized(
+def test_var_list_and_get_help_keep_options_alphabetized(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     parser = create_parser()
@@ -201,13 +269,6 @@ def test_var_list_and_show_help_keep_options_alphabetized(
     assert list_help.index(", --value ") < list_help.index(", --value-json")
 
     with pytest.raises(SystemExit) as exc:
-        parser.parse_args(["var", "show", "--help"])
-    assert exc.value.code == 0
-    show_help = capsys.readouterr().out
-    assert show_help.index(", --color") < show_help.index(", --format")
-    assert show_help.index(", --format") < show_help.index(", --project")
-
-    with pytest.raises(SystemExit) as exc:
         parser.parse_args(["var", "get", "--help"])
     assert exc.value.code == 0
     get_help = capsys.readouterr().out
@@ -215,5 +276,9 @@ def test_var_list_and_show_help_keep_options_alphabetized(
     assert get_help.index(", --format") < get_help.index(", --hidden")
     assert get_help.index(", --hidden") < get_help.index(", --limit")
     assert get_help.index(", --limit") < get_help.index(", --project")
+    assert "sase var get" in get_help
+    assert "sase var get '<build>' --format json" in get_help
     assert "sase var get status" in get_help
     assert "sase var get build.status --format raw" in get_help
+    assert "sase var get build.*" in get_help
+    assert "quote" in get_help.lower() or "quoted" in get_help.lower()

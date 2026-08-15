@@ -1,4 +1,4 @@
-"""Shared resolution helpers for ``sase var show`` and ``sase var list``."""
+"""Shared resolution helpers for ``sase var get`` and ``sase var list``."""
 
 from __future__ import annotations
 
@@ -107,19 +107,19 @@ def artifact_timestamp_from_date(value: str, *, boundary: str) -> str:
 def resolve_named_var_artifact(
     agent_name: str,
     *,
-    project: str | None = None,
+    projects: Sequence[str] | None = None,
     include_hidden: bool = False,
     index_path: Path | str | None = None,
     projects_root: Path | str | None = None,
     display: ProjectRefDisplaySnapshot | None = None,
 ) -> AgentArtifactRecordWire | None:
-    """Return the newest visible exact-name artifact, or ``None`` if unknown."""
+    """Return the newest exact-name artifact, or ``None`` if unknown."""
     index, root = prepare_output_variable_index(
         index_path=index_path,
         projects_root=projects_root,
     )
     project_keys, _snapshot = resolve_var_projects(
-        [project] if project else None,
+        projects,
         snapshot=display,
     )
     snapshot = query_agent_artifact_index(

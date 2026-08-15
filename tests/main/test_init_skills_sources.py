@@ -369,7 +369,9 @@ def test_skill_source_integrity_reports_commits_missing_from_canonical_branch(
             "sase_var",
             (
                 "sase var set KEY=VALUE",
-                "sase var show --format json",
+                "sase var get --format json",
+                "sase var get '<build>'",
+                "sase var list",
                 "1,024 total nodes",
                 "Map keys are stored and displayed in sorted order",
                 "%id:build-@",

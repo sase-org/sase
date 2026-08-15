@@ -91,7 +91,7 @@ def test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs(
     )
     assert "keys: cfg, status" in capsys.readouterr().out
 
-    assert _run_var(["show", "--format", "json"]) == 0
+    assert _run_var(["get", "--format", "json"]) == 0
     assert json.loads(capsys.readouterr().out) == {
         "cfg": {"hosts": ["a", "b"], "retries": 3},
         "status": "ok",

@@ -2561,8 +2561,10 @@ Build passed: {{ agents["build"].report.passed }}
 Rendering a whole container with `{{ agents["build"].report }}` produces compact JSON
 instead of a Python representation. Jinja's `| tojson` filter remains available for
 explicit formatting. Map keys are sorted for stable storage and display, while list
-order is preserved. Run `sase var show` to inspect the current agent's canonical block
-display or `sase var show --format json` for compact JSON.
+order is preserved. Run `sase var get` to inspect the current agent's canonical block
+display or `sase var get --format json` for compact JSON. Quote a wrapped name such as
+`sase var get '<build>' --format json` for another agent's newest snapshot;
+`sase var get build.*` remains selector mode.
 
 The review prompt is rendered after the `build-@` dependency completes, so
 `{{ agents["build"].report_path }}` and `{{ agents["build"].status }}` come from the

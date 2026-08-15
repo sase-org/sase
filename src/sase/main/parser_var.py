@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import json
 from typing import NoReturn
 
@@ -18,6 +19,14 @@ from sase.core.agent_scan_facade import parse_output_variable_selector
 from sase.core.output_variable_values import VarValue, normalize_var_value
 from sase.main.parser_bead_common import bead_date_arg
 from sase.vcs_log.dates import DATE_HELP
+
+
+@dataclass(frozen=True)
+class WrappedAgentTarget:
+    """One fully wrapped ``<agent_name>`` snapshot target."""
+
+    raw: str
+    agent_name: str
 
 
 class _VarSetArgumentParser(argparse.ArgumentParser):
@@ -69,6 +78,75 @@ def _parse_var_selector(value: str) -> OutputVariableSelectorWire:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
+def _parse_var_get_target(
+    value: str,
+) -> WrappedAgentTarget | OutputVariableSelectorWire:
+    """Parse one ``get`` target as a wrapped agent snapshot or a selector."""
+    if value.startswith("<") and value.endswith(">"):
+        name = value[1:-1]
+        if not name.strip():
+            raise argparse.ArgumentTypeError(
+                "wrapped agent name cannot be empty; quote a name such as "
+                "sase var get '<build>'"
+            )
+        return WrappedAgentTarget(raw=value, agent_name=name)
+    if value.startswith("<") or value.endswith(">"):
+        raise argparse.ArgumentTypeError(
+            "wrapped agent name must be exactly '<agent_name>'; quote it so "
+            "the shell keeps the brackets, for example sase var get '<build>'"
+        )
+    return _parse_var_selector(value)
+
+
+class _ValidateVarGetTargets(argparse.Action):
+    """Reject mixed or repeated wrapped-agent snapshot targets at parse time."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del option_string
+        targets = list(values) if isinstance(values, list) else [values]
+        wrapped = [
+            target for target in targets if isinstance(target, WrappedAgentTarget)
+        ]
+        selectors = [
+            target
+            for target in targets
+            if isinstance(target, OutputVariableSelectorWire)
+        ]
+        if wrapped and selectors:
+            parser.error(
+                "cannot mix a wrapped <agent_name> with selectors; "
+                "use sase var get '<build>' for a snapshot or a selector "
+                "such as build.*"
+            )
+        if len(wrapped) > 1:
+            parser.error(
+                "only one wrapped <agent_name> is allowed; "
+                "use sase var get '<build>' for a single snapshot"
+            )
+        setattr(namespace, self.dest, targets)
+
+
+class _StoreExplicitLimit(argparse.Action):
+    """Store ``--limit`` and record that the user supplied it."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: object,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, option_string
+        setattr(namespace, self.dest, values)
+        namespace.limit_explicit = True
+
+
 def _parse_var_get_limit(value: str) -> int:
     """Parse a nonnegative wildcard-expansion limit. Zero means unlimited."""
     return _nonnegative_limit(value, "match")
@@ -94,16 +172,16 @@ def register_var_parser(subparsers: argparse._SubParsersAction) -> None:
         "var",
         help="Inspect and set SASE agent output variables",
         description=(
-            "Inspect historical output variables, retrieve values by selector, "
-            "show one agent's stored snapshot, or set variables on the current "
-            "SASE agent run.\n\n"
+            "Inspect historical output variables, retrieve a snapshot or "
+            "selector values, or set variables on the current SASE agent "
+            "run.\n\n"
             "With no subcommand, `sase var` defaults to `sase var list`."
         ),
         epilog=(
             "examples:\n"
             "  sase var\n"
-            "  sase var show\n"
-            "  sase var show build --format json\n"
+            "  sase var get\n"
+            "  sase var get '<build>' --format json\n"
             "  sase var list --key status --limit 10:3\n"
             "  sase var get status\n"
             "  sase var get build.status --format raw\n"
@@ -124,24 +202,41 @@ def register_var_parser(subparsers: argparse._SubParsersAction) -> None:
     _register_var_get_parser(var_subparsers)
     _register_var_list_parser(var_subparsers)
     _register_var_set_parser(var_subparsers)
-    _register_var_show_parser(var_subparsers)
 
 
 def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         "get",
-        help="Get output-variable values by selector",
+        help="Get a snapshot or selector values",
         description=(
-            "Retrieve precise output-variable values with a compact selector "
+            "Read one output-variable snapshot or retrieve precise values by "
+            "selector.\n\n"
+            "With no target, read the current agent's artifact directory "
+            "directly so the newest writes are visible. This form requires "
+            "SASE_ARTIFACTS_DIR.\n\n"
+            "With exactly one quoted <agent_name>, show the newest "
+            "exact-name historical snapshot. Quote the wrapper so the shell "
+            "keeps it intact, for example `sase var get '<build>' --format "
+            "json`. Project filters narrow the candidate history; --hidden "
+            "includes hidden agents. Exact names are preserved, including "
+            "dotted, hyphenated, and digit-leading names.\n\n"
+            "With one or more ordinary selectors, use the compact selector "
             "language. Unscoped keys choose the newest matching occurrence. "
             "Exact-agent selectors choose that name's newest artifact. "
             "Global (`*.KEY`) and hood (`HOOD.*.KEY`) selectors collapse "
             "repeated runs to the newest value per agent name. JSON paths "
             'use [INDEX] or ["KEY"] after the selected value; dotted map '
-            "traversal is not accepted."
+            "traversal is not accepted.\n\n"
+            "Snapshot mode supports --format pretty|json. Selector mode also "
+            "supports raw and jsonl. --limit applies only to selector "
+            "wildcard expansion."
         ),
         epilog=(
             "examples:\n"
+            "  sase var get\n"
+            "  sase var get --format json\n"
+            "  sase var get '<build>' --format json\n"
+            "  sase var get '<research.final>' --project sase --hidden\n"
             "  sase var get status\n"
             "  sase var get results[0]\n"
             "  sase var get build.status --format raw\n"
@@ -149,6 +244,9 @@ def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase var get 'research.*.status'\n"
             "  sase var get '*.status' --format json\n"
             "  sase var get build.* --limit 0\n\n"
+            "A quoted <agent_name> is a snapshot, not a selector. "
+            "`sase var get build.*` remains selector mode and is distinct "
+            "from `sase var get '<build>'`.\n\n"
             "Grammar: [SCOPE.]KEY[PATH ...]\n"
             "SCOPE is an exact agent name, *, or HOOD.*; KEY is a variable "
             'name or *; PATH is [INDEX] or ["JSON map key"]. Wildcard '
@@ -157,12 +255,19 @@ def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.set_defaults(limit_explicit=False)
     parser.add_argument(
-        "selectors",
-        nargs="+",
-        metavar="SELECTOR",
-        type=_parse_var_selector,
-        help="Selector such as status, build.status, *.status, or results[0]",
+        "targets",
+        nargs="*",
+        default=[],
+        metavar="TARGET",
+        type=_parse_var_get_target,
+        action=_ValidateVarGetTargets,
+        help=(
+            "Omit for the current snapshot, quote '<agent_name>' for a named "
+            "snapshot, or pass a selector such as status, build.status, "
+            "*.status, or results[0]"
+        ),
     )
     parser.add_argument(
         "-c",
@@ -176,23 +281,32 @@ def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
         "--format",
         choices=["pretty", "raw", "json", "jsonl"],
         default="pretty",
-        help="Output format: pretty, raw, json, or jsonl (default: pretty)",
+        help=(
+            "Output format: pretty or json for snapshots; pretty, raw, json, "
+            "or jsonl for selectors (default: pretty)"
+        ),
     )
     parser.add_argument(
         "-H",
         "--hidden",
         action="store_true",
-        help="Include hidden indexed agents (visible history is the default)",
+        help=(
+            "Include hidden indexed agents for named snapshots and selectors "
+            "(visible history is the default)"
+        ),
     )
     parser.add_argument(
         "-n",
         "--limit",
         type=_parse_var_get_limit,
         default=DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
+        action=_StoreExplicitLimit,
         metavar="N",
         help=(
-            "Maximum matches from wildcard expansion; 0 means unlimited "
-            f"(default: {DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT})"
+            "Maximum matches from selector wildcard expansion; 0 means "
+            "unlimited "
+            f"(default: {DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT}). Not valid "
+            "with a snapshot"
         ),
     )
     parser.add_argument(
@@ -201,7 +315,10 @@ def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
         action="append",
         dest="projects",
         metavar="PROJECT",
-        help="Filter by project display name or alias (repeatable)",
+        help=(
+            "Filter named snapshots and selectors by project display name or "
+            "alias (repeatable)"
+        ),
     )
 
 
@@ -330,52 +447,6 @@ def _register_var_list_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="JSON",
         type=_parse_var_value_json,
         help="Exact typed JSON value match after output-variable normalization (repeatable)",
-    )
-
-
-def _register_var_show_parser(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser(
-        "show",
-        help="Show output variables for the current or a named agent",
-        description=(
-            "Display one agent's stored output-variable snapshot. With no "
-            "name, read the current agent's artifact directory directly so "
-            "the newest writes are visible. With AGENT_NAME, show the newest "
-            "visible exact-name artifact; --project narrows repeated names."
-        ),
-        epilog=(
-            "examples:\n"
-            "  sase var show\n"
-            "  sase var show build\n"
-            "  sase var show build --project sase --format json"
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "agent_name",
-        nargs="?",
-        metavar="AGENT_NAME",
-        help="Exact agent name; omit to show the current agent's snapshot",
-    )
-    parser.add_argument(
-        "-c",
-        "--color",
-        choices=["auto", "always", "never"],
-        default="auto",
-        help="Color output: auto, always, or never (default: auto)",
-    )
-    parser.add_argument(
-        "-f",
-        "--format",
-        choices=["pretty", "json"],
-        default="pretty",
-        help="Output format: pretty or json (default: pretty)",
-    )
-    parser.add_argument(
-        "-p",
-        "--project",
-        metavar="PROJECT",
-        help="Narrow a repeated historical name by project display name or alias",
     )
 
 

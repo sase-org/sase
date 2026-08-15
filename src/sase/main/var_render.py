@@ -1,4 +1,10 @@
-"""Pretty, JSON, and JSONL renderers for ``sase var show`` and ``sase var list``."""
+"""Pretty, JSON, and JSONL renderers for ``sase var get`` and ``sase var list``.
+
+``render_var_snapshot`` paints one current or named-agent snapshot for
+``sase var get`` with no target or a quoted ``<agent_name>``.
+``render_var_get`` paints selector matches. ``render_var_history`` paints
+``sase var list`` groups. Selector JSON and JSONL envelopes are unchanged.
+"""
 
 from __future__ import annotations
 

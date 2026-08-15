@@ -1,4 +1,4 @@
-"""Shared fixtures for ``sase var`` show/list CLI tests."""
+"""Shared fixtures for ``sase var`` get/list CLI tests."""
 
 from __future__ import annotations
 
