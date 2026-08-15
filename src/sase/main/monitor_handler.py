@@ -303,19 +303,32 @@ def _handle_monitor_stop(args: argparse.Namespace) -> int:
     was_active = record.monitor_state == "running"
     result = stop_monitor(record)
     changed = was_active and result.monitor_state != "running"
+    short_id = short_monitor_id(result.monitor_id)
+    message = (
+        f"Stopped monitor {short_id}."
+        if changed
+        else f"Monitor {short_id} is already {result.monitor_state}; nothing to do."
+    )
+    from sase.ops.commands.monitor import emit_monitor_stop_result
+
+    emit_monitor_stop_result(
+        success=True,
+        message=message,
+        payload={
+            "changed": changed,
+            "monitor_id": result.monitor_id,
+            "state": result.monitor_state,
+        },
+    )
 
     if bool(getattr(args, "json", False)):
         json.dump(monitor_stop_json(result, changed=changed), sys.stdout, indent=2)
         sys.stdout.write("\n")
         return 0
 
-    short_id = short_monitor_id(result.monitor_id)
-    if changed:
-        print(f"Stopped monitor {short_id}.")
-        if result.next_action:
-            print("No follow-up agent was launched (stopped, not finished).")
-    else:
-        print(f"Monitor {short_id} is already {result.monitor_state}; nothing to do.")
+    print(message)
+    if changed and result.next_action:
+        print("No follow-up agent was launched (stopped, not finished).")
     return 0
 
 

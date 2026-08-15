@@ -237,6 +237,23 @@ def handle_patch_command(args: argparse.Namespace) -> None:
     sub = getattr(args, "patch_subcommand", None) or getattr(
         args, "changespec_subcommand", None
     )
+    if sub in {
+        "accept",
+        "archive",
+        "mail",
+        "rebase",
+        "restore",
+        "revert",
+        "rewind",
+        "reword",
+        "status",
+        "submit",
+        "sync",
+        "tag",
+    }:
+        from sase.ops.commands.patch import handle_patch_operation
+
+        sys.exit(handle_patch_operation(args))
     if sub == "current":
         sys.exit(_handle_current(args))
     if sub == "search":
@@ -256,7 +273,9 @@ def handle_patch_command(args: argparse.Namespace) -> None:
         sys.exit(_handle_migrate_extension(args))
     print(
         f"Usage: sase {_command_name(args)} "
-        "{current,migrate-extension,ref,search,set-origin,sync-deltas,sync-external} [-h]",
+        "{accept,archive,current,mail,migrate-extension,rebase,ref,restore,"
+        "revert,rewind,reword,search,set-origin,status,submit,sync,sync-deltas,"
+        "sync-external,tag} [-h]",
         file=sys.stderr,
     )
     sys.exit(1)

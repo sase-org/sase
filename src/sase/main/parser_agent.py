@@ -77,6 +77,10 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Only show agents for the given project name",
     )
 
+    from sase.ops.commands.agent import add_agent_operation_parsers
+
+    add_agent_operation_parsers(agents_sub)
+
     # sase agent kill -n NAME
     kill_parser = agents_sub.add_parser(
         "kill",

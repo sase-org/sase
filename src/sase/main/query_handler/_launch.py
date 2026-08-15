@@ -20,14 +20,16 @@ def launch_query(query: str) -> None:
     missing_inputs = missing_required_input_names(query)
     if missing_inputs:
         from sase.output import print_status
+        from sase.ops.commands.run import emit_run_launch_result
 
         names = ", ".join(missing_inputs)
-        print_status(
+        message = (
             f"Prompt declares required input(s) without defaults: {names}. "
             "Interactive input collection is only available in `sase ace`; "
-            "add a default to each input or launch from the TUI.",
-            "error",
+            "add a default to each input or launch from the TUI."
         )
+        print_status(message, "error")
+        emit_run_launch_result(success=False, message=message)
         sys.exit(1)
 
     from sase.output import print_status
@@ -91,9 +93,21 @@ def launch_query(query: str) -> None:
         sys.exit(1)
 
     if not results:
+        from sase.ops.commands.run import emit_run_launch_result
+
         print("Error: agent launch produced no results", file=sys.stderr)
+        emit_run_launch_result(
+            success=False, message="agent launch produced no results"
+        )
         sys.exit(1)
+
+    from sase.ops.commands.run import emit_run_launch_result
 
     for result in results:
         print(f"Agent started (PID {result.pid})")
+    emit_run_launch_result(
+        success=True,
+        message=f"Started {len(results)} agent(s)",
+        payload={"count": len(results), "pids": [result.pid for result in results]},
+    )
     sys.exit(0)

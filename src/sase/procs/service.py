@@ -31,7 +31,12 @@ from .request import (
     proc_request_fingerprint,
     request_sidecar_payload,
 )
-from .runtime import proc_request_sidecar_path, write_json_atomic
+from .runtime import (
+    proc_operation_request_path,
+    proc_operation_result_path,
+    proc_request_sidecar_path,
+    write_json_atomic,
+)
 from .settlement import is_proc_shell_row, settle_proc_shell
 from .spawn import (
     DetachedSupervisor,
@@ -115,6 +120,10 @@ def submit_proc_request(
 
     if outcome.replayed:
         return outcome.proc
+
+    if request.operation:
+        request = _with_operation_paths(request, proc_id=outcome.proc.proc_id)
+        _write_operation_request(request)
 
     write_json_atomic(
         proc_request_sidecar_path(outcome.proc.proc_id),
@@ -344,6 +353,39 @@ def _qualified_shell_name(shell_name: str | None) -> str | None:
         return qualify_proc_shell_name(raw)
     except ProcShellNameError as exc:
         raise ProcSubmitError(str(exc)) from exc
+
+
+def _with_operation_paths(
+    request: ProcSubmitRequest, *, proc_id: str
+) -> ProcSubmitRequest:
+    from sase.ops.models import OPERATION_ENV, REQUEST_ENV, RESULT_ENV
+
+    request_path = str(request.request_path or proc_operation_request_path(proc_id))
+    result_path = str(request.result_path or proc_operation_result_path(proc_id))
+    env = dict(request.env) if request.env is not None else {}
+    env.setdefault(REQUEST_ENV, request_path)
+    env.setdefault(RESULT_ENV, result_path)
+    env.setdefault(OPERATION_ENV, request.operation or "")
+    return replace(
+        request,
+        request_path=request_path,
+        result_path=result_path,
+        env=env,
+    )
+
+
+def _write_operation_request(request: ProcSubmitRequest) -> None:
+    from sase.ops import DurableOperationRequest, write_operation_request
+
+    assert request.operation is not None
+    assert request.request_path is not None
+    write_operation_request(
+        request.request_path,
+        DurableOperationRequest(
+            operation=request.operation,
+            payload=dict(request.operation_payload or {}),
+        ),
+    )
 
 
 def _validated_argv(argv: Sequence[str]) -> list[str]:

@@ -44,7 +44,10 @@ class ProcSubmitRequest:
     log_path: str | Path | None = None
     log_owner: str = STORE_LOG_OWNER
     artifacts_dir: str | Path | None = None
+    request_path: str | Path | None = None
     result_path: str | Path | None = None
+    operation: str | None = None
+    operation_payload: Mapping[str, Any] | None = None
     workspace_claim: Mapping[str, Any] | None = None
     followup: Mapping[str, Any] | None = None
 
@@ -102,8 +105,12 @@ def request_sidecar_payload(
         "env": dict(request.env) if request.env is not None else None,
         "followup": dict(request.followup) if request.followup is not None else None,
         "log_path": log_path,
+        "operation": request.operation,
         "proc_id": proc_id,
         "request_fingerprint": fingerprint,
+        "request_path": (
+            str(request.request_path) if request.request_path is not None else None
+        ),
         "result_path": (
             str(request.result_path) if request.result_path is not None else None
         ),

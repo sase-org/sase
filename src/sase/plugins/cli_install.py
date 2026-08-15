@@ -141,6 +141,14 @@ def handle_plugin_install_command(
 
     if as_json:
         print(json.dumps(_result_json(outcome, restart), indent=2, sort_keys=True))
+        from sase.ops.commands.plugin import emit_plugin_install_result
+
+        emit_plugin_install_result(
+            success=True,
+            message=f"Installed {outcome.plan.spec.display_name}",
+            payload={"plugin": outcome.plan.spec.display_name},
+            args=args,
+        )
         return 0
 
     render_install_result(
@@ -152,6 +160,14 @@ def handle_plugin_install_command(
         console=out,
     )
     render_restart_info(restart, console=out, quiet=False)
+    from sase.ops.commands.plugin import emit_plugin_install_result
+
+    emit_plugin_install_result(
+        success=True,
+        message=f"Installed {outcome.plan.spec.display_name}",
+        payload={"plugin": outcome.plan.spec.display_name},
+        args=args,
+    )
     return 0
 
 

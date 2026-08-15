@@ -104,8 +104,15 @@ def main() -> NoReturn:
         )
 
         bead_sub = getattr(args, "bead_subcommand", None)
+
+        def _handle_bead_apply_status(bead_args: object) -> None:
+            from sase.ops.commands.bead import handle_bead_operation
+
+            sys.exit(handle_bead_operation(bead_args))  # type: ignore[arg-type]
+
         _BEAD_HANDLERS = {
             "+1": handle_bead_plus_one,
+            "apply-status": _handle_bead_apply_status,
             "blocked": handle_bead_blocked,
             "close": handle_bead_close,
             "create": handle_bead_create,
@@ -135,7 +142,7 @@ def main() -> NoReturn:
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {+1,blocked,close,create,dep,doctor,history,init,list,note,onboard,open,pages,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,update,work}"
+                " {+1,apply-status,blocked,close,create,dep,doctor,history,init,list,note,onboard,open,pages,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,update,work}"
             )
             sys.exit(1)
         try:

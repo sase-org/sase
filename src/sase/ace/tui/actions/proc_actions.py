@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import logging
+import os
 from inspect import Parameter, signature
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
+from sase.procs import ProcSubmitError
 from sase.project_display_names import humanize_cl_name, humanize_cl_names_in_text
 
 from ..proc_mirror import ProcMirror
@@ -147,6 +150,117 @@ class ProcActionsMixin:
             on_complete=_on_complete if on_success is not None else None,
         )
         return proc_info is not None
+
+    def _submit_durable_proc(
+        self,
+        argv: Sequence[str],
+        *,
+        operation: str,
+        request: Any,
+        result_path: str | Path | None = None,
+        request_fingerprint: str,
+        concurrency_keys: Sequence[str] = (),
+        label: str | None = None,
+        display_name: str | None = None,
+        cl_name: str = "",
+        project_file: str = "",
+        cwd: str | Path | None = None,
+        on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
+        reload_on_complete: bool = True,
+        notify_on_complete: bool = True,
+    ) -> ProcInfo | None:
+        """Submit argv through the detached proc service off the event loop.
+
+        Completion is decoded only from the typed result envelope. The optional
+        callback is a live-session convenience and is not authoritative after
+        ACE restarts. Callable argv and request values are rejected here so
+        this adapter never serializes or executes a Python callable.
+        """
+        from ..durable_submit import (
+            DurableSubmitHandle,
+            coerce_operation_request,
+            decode_durable_completion,
+            reject_callable_submission,
+            submit_durable_proc_request,
+        )
+        from sase.ops import DurableSubmitError
+
+        reject_callable_submission(argv, request)
+        typed_request = coerce_operation_request(operation, request)
+        work_cwd = str(cwd or os.getcwd())
+        submit_label = label or display_name or operation
+
+        if not hasattr(self, "_proc_completion_callbacks"):
+            self._proc_completion_callbacks = {}
+        if not hasattr(self, "_proc_workers"):
+            self._proc_workers = {}
+
+        existing = self._proc_queue.get_running_for_scopes(concurrency_keys)
+        if existing is not None:
+            self.notify(  # type: ignore[attr-defined]
+                f"A {existing.proc_type} proc is already running for "
+                f"{humanize_cl_name(cl_name or existing.cl_name)}",
+                severity="warning",
+            )
+            return None
+
+        presentation = self._proc_queue.submit(
+            operation,
+            cl_name,
+            project_file,
+            display_name=display_name or submit_label,
+            exclusive_scopes=concurrency_keys,
+        )
+
+        def _off_loop() -> TrackedProcResult[Any]:
+            handle: DurableSubmitHandle = submit_durable_proc_request(
+                argv=argv,
+                operation=operation,
+                request=typed_request,
+                cwd=work_cwd,
+                label=submit_label,
+                result_path=result_path,
+                request_fingerprint=request_fingerprint,
+                concurrency_keys=concurrency_keys,
+                origin="ace",
+                project=None,
+                cl_name=cl_name or None,
+            )
+            presentation.durable_proc_id = handle.proc_id
+            presentation.store_backed = True
+            decoded = decode_durable_completion(handle)
+            return TrackedProcResult(
+                success=decoded.success,
+                message=decoded.message,
+                payload=None if decoded.payload is None else dict(decoded.payload),
+                error=decoded.error,
+            )
+
+        def _wrapped() -> _ProcWorkerResult[Any]:
+            try:
+                result = _off_loop()
+            except (DurableSubmitError, ProcSubmitError, Exception) as exc:
+                log.exception("Durable proc %s failed to submit", operation)
+                result = TrackedProcResult(
+                    success=False,
+                    message=str(exc),
+                    error=str(exc),
+                )
+            return _ProcWorkerResult(
+                presentation.proc_id, result, presentation.get_live_output()
+            )
+
+        self._proc_completion_callbacks[presentation.proc_id] = _ProcCallbackConfig(
+            on_complete=on_complete,  # type: ignore[arg-type]
+            reload_on_complete=reload_on_complete,
+            notify_on_complete=notify_on_complete,
+        )
+        worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
+            _wrapped, thread=True
+        )
+        self._proc_workers[presentation.proc_id] = worker
+        self._update_proc_indicator()
+        return presentation
 
     def _submit_tracked_proc[T](
         self,

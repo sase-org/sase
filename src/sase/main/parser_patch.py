@@ -52,6 +52,10 @@ def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     cs_parser.set_defaults(changespec_subcommand=None)
 
+    from sase.ops.commands.patch import add_patch_operation_parsers
+
+    add_patch_operation_parsers(cs_subparsers)
+
     # sase patch current [-f FORMAT] [-p <project_file>]
     current_parser = cs_subparsers.add_parser(
         "current",

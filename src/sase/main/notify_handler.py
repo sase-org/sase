@@ -23,6 +23,10 @@ from sase.notifications.store import append_notification
 def handle_notify_command(args: argparse.Namespace) -> NoReturn:
     """Dispatch notification subcommands."""
     subcommand = getattr(args, "notify_subcommand", None)
+    if subcommand == "apply-state":
+        from sase.ops.commands.notify import handle_notify_operation
+
+        sys.exit(handle_notify_operation(args))
     if subcommand == "create":
         _handle_notify_create(args)
     if subcommand in (None, "list"):
@@ -35,7 +39,7 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
 
         handle_notify_show(args)
         sys.exit(0)
-    print("Usage: sase notify {create,list,show}", file=sys.stderr)
+    print("Usage: sase notify {apply-state,create,list,show}", file=sys.stderr)
     sys.exit(1)
 
 

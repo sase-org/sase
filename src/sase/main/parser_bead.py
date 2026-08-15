@@ -49,7 +49,10 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
     # Keep subcommands sorted so the public help remains easy to scan.
+    from sase.ops.commands.bead import add_bead_operation_parsers
+
     register_bead_plus_one_parser(bead_subparsers)
+    add_bead_operation_parsers(bead_subparsers)
     register_bead_blocked_parser(bead_subparsers)
     register_bead_close_parser(bead_subparsers)
     register_bead_create_parser(bead_subparsers)

@@ -103,8 +103,21 @@ def settle_proc_shell(
     maybe_crash("followup_settled")
     _mark(state, "followup_settled")
 
+    status, message, termination_reason = _finalize_operation_result(
+        current,
+        state,
+        status=status,
+        message=message,
+        termination_reason=termination_reason,
+    )
+    state["status"] = status
+    state["message"] = message
+    state["termination_reason"] = termination_reason
+    _save_settlement_state(proc_id, state)
+
     envelope = _result_envelope(current, state)
-    _write_result_envelope(current, state, envelope)
+    if not state.get("operation"):
+        _write_result_envelope(current, state, envelope)
     maybe_crash("result_written")
     _mark(state, "result_written")
 
@@ -162,7 +175,9 @@ def _load_settlement_state(proc: Proc, *, supervisor_id: str) -> dict[str, Any]:
             "cwd": proc.cwd,
             "followup": request.get("followup"),
             "log_path": proc.log_path,
+            "operation": request.get("operation"),
             "proc_id": proc.proc_id,
+            "request_path": request.get("request_path"),
             "result_path": request.get("result_path"),
             "supervisor_id": supervisor_id,
             "workspace_claim": request.get("workspace_claim"),
@@ -172,6 +187,8 @@ def _load_settlement_state(proc: Proc, *, supervisor_id: str) -> dict[str, Any]:
         checkpoints.setdefault(name, False)
     state.setdefault("artifacts_dir", request.get("artifacts_dir"))
     state.setdefault("followup", request.get("followup"))
+    state.setdefault("operation", request.get("operation"))
+    state.setdefault("request_path", request.get("request_path"))
     state.setdefault("result_path", request.get("result_path"))
     state.setdefault("workspace_claim", request.get("workspace_claim"))
     state["log_path"] = proc.log_path
@@ -227,6 +244,97 @@ def _result_envelope(proc: Proc, state: dict[str, Any]) -> dict[str, Any]:
         }
     )
     return envelope
+
+
+def _finalize_operation_result(
+    proc: Proc,
+    state: dict[str, Any],
+    *,
+    status: str,
+    message: str,
+    termination_reason: str,
+) -> tuple[str, str, str]:
+    """Validate or publish the typed command result before terminalizing.
+
+    A successful command without a required valid result settles as an explicit
+    durable error. Failure, kill, and timeout still produce a valid error
+    envelope and never infer payload data from logs.
+    """
+    operation = state.get("operation")
+    result_path = state.get("result_path")
+    if not isinstance(operation, str) or not operation:
+        return status, message, termination_reason
+    if not isinstance(result_path, str) or not result_path:
+        if status == "success":
+            return (
+                "error",
+                "operation succeeded without a configured result path",
+                "missing-result",
+            )
+        return status, message, termination_reason
+
+    from sase.ops import (
+        DurableOperationResult,
+        OperationIOError,
+        read_operation_result,
+        write_operation_result,
+    )
+
+    parsed: DurableOperationResult | None
+    read_error: OperationIOError | None
+    try:
+        parsed = read_operation_result(
+            result_path,
+            expected_operation=operation,
+            expected_proc_id=proc.proc_id,
+        )
+    except OperationIOError as exc:
+        parsed = None
+        read_error = exc
+    else:
+        read_error = None
+
+    if (
+        parsed is not None
+        and parsed.success
+        and termination_reason
+        in {
+            "supervisor-loss",
+            "reboot",
+        }
+    ):
+        return "success", parsed.message or message, "success"
+
+    if status == "success":
+        if parsed is None:
+            assert read_error is not None
+            error = DurableOperationResult(
+                operation=operation,
+                proc_id=proc.proc_id,
+                success=False,
+                message=str(read_error),
+                error=str(read_error),
+            )
+            write_operation_result(result_path, error)
+            return "error", str(read_error), "missing-result"
+        if not parsed.success:
+            return (
+                "error",
+                parsed.message or parsed.error or "operation reported failure",
+                "operation-error",
+            )
+        return status, parsed.message or message, termination_reason
+
+    if parsed is None:
+        error = DurableOperationResult(
+            operation=operation,
+            proc_id=proc.proc_id,
+            success=False,
+            message=message,
+            error=message,
+        )
+        write_operation_result(result_path, error)
+    return status, message, termination_reason
 
 
 def _write_result_envelope(

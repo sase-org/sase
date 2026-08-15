@@ -14,6 +14,8 @@ _PROC_GO_MARKER = ".proc_go"
 _PROC_STARTED_MARKER = ".proc_started"
 _REQUEST_SIDECAR_NAME = "request.json"
 _SETTLEMENT_SIDECAR_NAME = "settlement.json"
+_OPERATION_REQUEST_NAME = "operation-request.json"
+_OPERATION_RESULT_NAME = "operation-result.json"
 
 _LAUNCH_BARRIER_TIMEOUT_SECONDS = 30.0
 _START_ACK_TIMEOUT_SECONDS = 20.0
@@ -40,6 +42,14 @@ def proc_request_sidecar_path(proc_id: str) -> Path:
 
 def proc_settlement_sidecar_path(proc_id: str) -> Path:
     return proc_runtime_dir(proc_id) / _SETTLEMENT_SIDECAR_NAME
+
+
+def proc_operation_request_path(proc_id: str) -> Path:
+    return proc_runtime_dir(proc_id) / _OPERATION_REQUEST_NAME
+
+
+def proc_operation_result_path(proc_id: str) -> Path:
+    return proc_runtime_dir(proc_id) / _OPERATION_RESULT_NAME
 
 
 def launch_barrier_timeout_seconds() -> float:
@@ -90,6 +100,8 @@ def _env_seconds(name: str, default: float) -> float:
 __all__ = [
     "launch_barrier_timeout_seconds",
     "proc_go_path",
+    "proc_operation_request_path",
+    "proc_operation_result_path",
     "proc_request_sidecar_path",
     "proc_runtime_dir",
     "proc_settlement_sidecar_path",

@@ -235,6 +235,10 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="notify_subcommand", help="Notification subcommands"
     )
 
+    from sase.ops.commands.notify import add_notify_operation_parsers
+
+    add_notify_operation_parsers(notify_sub)
+
     create_parser = notify_sub.add_parser(
         "create",
         help="Create a notification (reads JSON from stdin or uses flags)",
