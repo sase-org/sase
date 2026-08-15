@@ -41,17 +41,20 @@ def test_bare_monitor_defaults_to_list_and_records_delegation() -> None:
     assert getattr(explicit, _DEFAULT_LIST_GROUP_DEST) is None
 
 
-def test_monitor_start_help_documents_required_flags_and_examples() -> None:
-    """``sase monitor start --help`` documents every option and an example."""
+def test_monitor_start_help_documents_positional_command_and_optional_policy() -> None:
+    """``sase monitor start --help`` documents the remainder and optional policy."""
     start_help = flat_help(parser_for(("sase", "monitor", "start")).format_help())
 
     assert "usage: sase monitor start" in start_help
-    assert_metavar_option_documented(start_help, "-c", "--command", "CMD")
+    assert "-- COMMAND" in start_help
+    assert "--command" not in start_help
     assert_metavar_option_documented(start_help, "-i", "--idle-timeout", "DURATION")
     assert_metavar_option_documented(start_help, "-r", "--reason", "TEXT")
     assert_metavar_option_documented(start_help, "-t", "--timeout", "DURATION")
     assert_metavar_option_documented(start_help, "-n", "--next", "TEXT")
-    assert "sase monitor start -c 'just check-full'" in start_help
+    assert "(default: 1h)" in start_help
+    assert "(default: 'run command')" in start_help
+    assert "sase monitor start -- just check-full" in start_help
 
 
 def test_monitor_start_command_flag_does_not_shadow_the_top_level_command_dest() -> (
@@ -72,14 +75,31 @@ def test_monitor_start_command_flag_does_not_shadow_the_top_level_command_dest()
     assert args.monitor_command == "true"
 
 
-def test_monitor_start_command_reason_and_timeout_are_required() -> None:
-    """``sase monitor start`` refuses to parse without its required flags."""
+def test_monitor_start_accepts_a_command_remainder() -> None:
+    """The documented start form is a command remainder after options."""
+    args = create_parser().parse_args(
+        ["monitor", "start", "-r", "verify", "-t", "30s", "--", "just", "check-full"]
+    )
+
+    assert args.command == "monitor"
+    assert (
+        args.monitor_command_words[:1] == ["--"]
+        or args.monitor_command_words[0] == "just"
+    )
+    assert "just" in args.monitor_command_words
+    assert "check-full" in args.monitor_command_words
+
+
+def test_monitor_start_parses_without_optional_policy_flags() -> None:
+    """Reason and timeout are optional; an omitted command is a handler error."""
     parser = create_parser()
+    args = parser.parse_args(["monitor", "start"])
 
-    with pytest.raises(SystemExit) as exit_info:
-        parser.parse_args(["monitor", "start"])
-
-    assert exit_info.value.code == 2
+    assert args.command == "monitor"
+    assert args.monitor_subcommand == "start"
+    assert args.reason is None
+    assert args.timeout is None
+    assert args.monitor_command is None
 
 
 def test_monitor_stop_id_is_optional() -> None:

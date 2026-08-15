@@ -109,10 +109,10 @@ def undo_monitor_claim(
         )
         if result.success:
             return
-    release_monitor_claim(project_file, workspace_num, cl_name=cl_name)
+    _release_monitor_claim(project_file, workspace_num, cl_name=cl_name)
 
 
-def release_monitor_claim(
+def _release_monitor_claim(
     project_file: str,
     workspace_num: int,
     *,
@@ -146,6 +146,5 @@ def _find_claim(
 
 __all__ = [
     "claim_monitor_workspace",
-    "release_monitor_claim",
     "undo_monitor_claim",
 ]

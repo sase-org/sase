@@ -53,6 +53,14 @@ def test_start_reaches_the_handler_through_the_real_entry_point(
     assert "SASE_AGENT_NAME is unset" in err
 
 
+def test_start_requires_a_command(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An omitted command remainder is a usage error."""
+    assert dispatch(["monitor", "start", "-a", "acme"]) == 2
+    assert "command is required" in capsys.readouterr().err
+
+
 def test_start_requires_agent_when_none_is_given_or_inferable(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

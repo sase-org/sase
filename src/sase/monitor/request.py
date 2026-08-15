@@ -19,6 +19,8 @@ from .models import MonitorRecord
 DEFAULT_START_STATUS = "MONITORING"
 DEFAULT_STOP_STATUS = DEFAULT_MONITOR_STOP_STATUS
 DEFAULT_TAIL_LINES = 200
+DEFAULT_TIMEOUT_SECONDS = 3600.0
+DEFAULT_REASON = "run command"
 
 
 @dataclass(frozen=True)
@@ -114,9 +116,11 @@ def active_monitor_message(
 
 
 __all__ = [
+    "DEFAULT_REASON",
     "DEFAULT_START_STATUS",
     "DEFAULT_STOP_STATUS",
     "DEFAULT_TAIL_LINES",
+    "DEFAULT_TIMEOUT_SECONDS",
     "StartMonitorRequest",
     "active_monitor_message",
     "default_label",

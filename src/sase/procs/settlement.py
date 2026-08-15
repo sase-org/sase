@@ -256,6 +256,8 @@ def _write_result_envelope(
 def _settle_workspace_claim(state: dict[str, Any]) -> None:
     if _already(state, "claim_settled"):
         return
+    if _looks_like_monitor_settlement(state):
+        return
     policy = state.get("workspace_claim")
     if not isinstance(policy, dict) or not policy:
         return
@@ -279,6 +281,10 @@ def _settle_artifacts(state: dict[str, Any]) -> None:
     artifacts_dir = state.get("artifacts_dir")
     if not isinstance(artifacts_dir, str) or not artifacts_dir:
         return
+    if _looks_like_monitor_settlement(state):
+        from sase.monitor.proc_adapter import settle_monitor_artifacts
+
+        settle_monitor_artifacts(state)
     path = Path(artifacts_dir) / ".proc_settled.json"
     write_json_atomic(
         path,
@@ -294,6 +300,11 @@ def _settle_artifacts(state: dict[str, Any]) -> None:
 def _settle_followup(state: dict[str, Any]) -> None:
     if _already(state, "followup_settled"):
         return
+    if _looks_like_monitor_settlement(state):
+        from sase.monitor.proc_adapter import settle_monitor_followup
+
+        settle_monitor_followup(state)
+        return
     policy = state.get("followup")
     if not isinstance(policy, dict) or not policy:
         state["followup_outcome"] = None
@@ -304,6 +315,24 @@ def _settle_followup(state: dict[str, Any]) -> None:
     if state.get("followup_outcome") == "launched":
         return
     state["followup_outcome"] = "pending"
+
+
+def _looks_like_monitor_settlement(state: dict[str, Any]) -> bool:
+    """Detect monitor settlement without importing the monitor package."""
+    followup = state.get("followup")
+    if isinstance(followup, dict) and followup.get("kind") == "monitor":
+        return True
+    artifacts_dir = state.get("artifacts_dir")
+    if not isinstance(artifacts_dir, str) or not artifacts_dir:
+        return False
+    try:
+        with open(
+            os.path.join(artifacts_dir, "agent_meta.json"), encoding="utf-8"
+        ) as handle:
+            meta = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return False
+    return isinstance(meta, dict) and bool(meta.get("monitor_id"))
 
 
 def _utc_timestamp() -> str:

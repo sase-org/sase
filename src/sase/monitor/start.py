@@ -4,16 +4,16 @@ This module owns the start *flow* -- lane resolution, the ordered launch
 transaction, and the teardown each failure point owes -- and re-exports the
 names its callers have always imported from here. The pieces it drives live
 next door: :mod:`sase.monitor.request` (the request and its identity),
-:mod:`sase.monitor.spawn` (the supervisor process), :mod:`sase.monitor
-.start_claim` (RUNNING-field claim moves), and :mod:`sase.monitor.handoff`
-(giving the lane to the monitor from inside an agent).
+:mod:`sase.monitor.proc_adapter` (the proc-service facade),
+:mod:`sase.monitor.start_claim` (RUNNING-field claim moves), and
+:mod:`sase.monitor.handoff` (giving the lane to the monitor from inside an
+agent).
 """
 
 from __future__ import annotations
 
 import json
 import os
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -26,6 +26,11 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.logs._bounded import log_file_lock
 from sase.plan_chain import agent_family_base
+from sase.procs.models import ARTIFACTS_LOG_OWNER, DETACHED_PROC_KIND
+from sase.procs.request import ProcSubmitRequest
+from sase.procs.runtime import proc_started_path, read_json_object
+from sase.procs.service import ProcSubmitError, submit_proc_request
+from sase.procs.spawn import SUPERVISOR_LOG_NAME
 from sase.running_field import get_claimed_workspaces
 from sase.workspace_provider import resolve_workspace_num_for_dir
 from sase.workspace_provider.utils import parse_workspace_dir
@@ -40,7 +45,7 @@ from .handoff import (
     will_handoff_monitor_to_agent_runner,
     write_monitor_pending_marker,
 )
-from .identity import process_identity
+from .logs import monitor_log_path
 from .member import create_monitor_member
 from .models import (
     MonitorAlreadyRunningError,
@@ -48,34 +53,30 @@ from .models import (
     MonitorLaneError,
     MonitorRecord,
 )
+from .proc_adapter import (
+    MONITOR_FOLLOWUP_KIND,
+    MONITOR_PROC_ORIGIN,
+    compile_monitor_argv,
+)
 from .request import (
+    DEFAULT_REASON,
     DEFAULT_START_STATUS,
     DEFAULT_STOP_STATUS,
     DEFAULT_TAIL_LINES,
+    DEFAULT_TIMEOUT_SECONDS,
     StartMonitorRequest,
     active_monitor_message,
     default_label,
     monitor_request_fingerprint,
 )
 from .settlement import finalize_monitor_workflow_state, project_name_from_artifacts_dir
-from .spawn import (
-    SUPERVISOR_LOG_NAME,
-    DetachedSupervisor,
-    SupervisorSpawnError,
-    spawn_detached_supervisor,
-    terminate_supervisor,
-    wait_for_start_acknowledgement,
-)
 from .start_claim import (
     claim_monitor_workspace,
-    release_monitor_claim,
     undo_monitor_claim,
 )
 from .transaction import (
     MONITOR_GO_MARKER,
-    monitor_go_path,
     monitor_lane_lock_path,
-    write_json_marker_atomic,
 )
 
 
@@ -153,64 +154,100 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
         request_fingerprint=request_fingerprint,
         starter_agent=lane_start.starter_agent,
     )
-
-    supervisor = _launch_supervisor(artifacts_dir)
+    log_path = monitor_log_path(artifacts_dir)
+    update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
+    member_name = f"{durable_lane}{suffix}"
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
+    claim_holder: dict[str, Any] = {}
 
-    claim = claim_monitor_workspace(
-        lane_start.project_file,
-        lane_start.workspace_num,
-        supervisor_pid=supervisor.pid,
-        transfer_from_pid=lane_start.transfer_from_pid,
-        artifacts_timestamp=member_timestamp,
-        cl_name=lane_start.cl_name,
-    )
-    if not claim.result.success:
-        claim_error = _monitor_claim_error(
+    def after_ack(proc: Any) -> None:
+        supervisor_pid = _supervisor_pid(proc)
+        if supervisor_pid is None:
+            raise ProcSubmitError("supervisor did not report a pid")
+        update_meta_field(artifacts_dir, "pid", supervisor_pid)
+        if proc.supervisor_id:
+            update_meta_field(
+                artifacts_dir, "monitor_supervisor_identity", proc.supervisor_id
+            )
+        claim = claim_monitor_workspace(
             lane_start.project_file,
             lane_start.workspace_num,
-            claim.result.error,
+            supervisor_pid=supervisor_pid,
+            transfer_from_pid=lane_start.transfer_from_pid,
+            artifacts_timestamp=member_timestamp,
+            cl_name=lane_start.cl_name,
         )
-        terminate_supervisor(supervisor)
-        _teardown_failed_member(
-            artifacts_dir, f"could not claim workspace: {claim_error}"
-        )
-        raise MonitorError(f"could not claim workspace for monitor: {claim_error}")
+        claim_holder["claim"] = claim
+        claim_holder["pid"] = supervisor_pid
+        if not claim.result.success:
+            claim_error = _monitor_claim_error(
+                lane_start.project_file,
+                lane_start.workspace_num,
+                claim.result.error,
+            )
+            raise ProcSubmitError(
+                f"could not claim workspace for monitor: {claim_error}"
+            )
 
     try:
-        _write_monitor_go_marker(
-            artifacts_dir,
-            monitor_id=monitor_id,
-            request_fingerprint=request_fingerprint,
+        proc = submit_proc_request(
+            ProcSubmitRequest(
+                argv=compile_monitor_argv(request.command),
+                label=label,
+                cwd=request.cwd,
+                origin=MONITOR_PROC_ORIGIN,
+                proc_id=monitor_id,
+                kind=DETACHED_PROC_KIND,
+                project=request.project_name,
+                workspace_num=lane_start.workspace_num,
+                cl_name=lane_start.cl_name,
+                shell_name=member_name,
+                shell_kind="proc",
+                request_fingerprint=request_fingerprint,
+                reserved_by=lane_start.starter_agent,
+                timeout_seconds=_proc_timeout_seconds(request.timeout_seconds),
+                idle_timeout_seconds=_proc_timeout_seconds(
+                    request.idle_timeout_seconds
+                ),
+                log_path=log_path,
+                log_owner=ARTIFACTS_LOG_OWNER,
+                artifacts_dir=artifacts_dir,
+                workspace_claim={
+                    "project_file": lane_start.project_file,
+                    "workspace_num": lane_start.workspace_num,
+                    "workflow": MONITOR_WORKSPACE_CLAIM_WORKFLOW,
+                    "cl_name": lane_start.cl_name,
+                },
+                followup={
+                    "kind": MONITOR_FOLLOWUP_KIND,
+                    "next_action": request.next_action,
+                    "next_output": request.next_output,
+                    "tail_lines": request.tail_lines,
+                },
+            ),
+            after_ack=after_ack,
         )
-    except OSError as exc:
-        terminate_supervisor(supervisor)
-        release_monitor_claim(
-            lane_start.project_file,
-            lane_start.workspace_num,
-            cl_name=lane_start.cl_name,
-        )
-        _teardown_failed_member(
-            artifacts_dir, f"could not release monitor launch barrier: {exc}"
-        )
-        raise MonitorError(f"could not release monitor launch barrier: {exc}") from exc
-
-    ack_error = wait_for_start_acknowledgement(artifacts_dir, supervisor)
-    if ack_error is not None:
-        terminate_supervisor(supervisor)
-        undo_monitor_claim(
-            lane_start.project_file,
-            lane_start.workspace_num,
-            supervisor_pid=supervisor.pid,
-            starter_claim=claim.starter_claim,
-            cl_name=lane_start.cl_name,
-        )
-        _teardown_failed_member(artifacts_dir, ack_error)
-        raise MonitorError(ack_error)
+    except ProcSubmitError as exc:
+        claim = claim_holder.get("claim")
+        supervisor_pid = claim_holder.get("pid")
+        if (
+            claim is not None
+            and claim.result.success
+            and isinstance(supervisor_pid, int)
+        ):
+            undo_monitor_claim(
+                lane_start.project_file,
+                lane_start.workspace_num,
+                supervisor_pid=supervisor_pid,
+                starter_claim=claim.starter_claim,
+                cl_name=lane_start.cl_name,
+            )
+        _teardown_failed_member(artifacts_dir, str(exc))
+        raise MonitorError(str(exc)) from exc
 
     return MonitorRecord(
         monitor_id=monitor_id,
-        member_agent_name=f"{durable_lane}{suffix}",
+        member_agent_name=member_name,
         lane=durable_lane,
         project_name=request.project_name,
         artifacts_dir=artifacts_dir,
@@ -227,9 +264,10 @@ def _start_monitor_locked(request: StartMonitorRequest, lane: str) -> MonitorRec
         next_output=request.next_output,
         monitor_state="running",
         next_action=request.next_action or None,
-        pid=supervisor.pid,
-        supervisor_identity=supervisor.identity,
+        pid=proc.pid or claim_holder.get("pid"),
+        supervisor_identity=proc.supervisor_id,
         request_fingerprint=request_fingerprint,
+        output_path=str(log_path),
     )
 
 
@@ -358,40 +396,20 @@ def _lookup_workspace_num_for_dir(project_file: str, directory: str) -> int | No
     return resolve_workspace_num_for_dir(primary_workspace_dir, directory)
 
 
-def _launch_supervisor(artifacts_dir: str) -> DetachedSupervisor:
-    """Spawn the detached supervisor and record how to identify it."""
-    try:
-        supervisor = spawn_detached_supervisor(artifacts_dir)
-    except (OSError, ValueError, SupervisorSpawnError) as exc:
-        _teardown_failed_member(
-            artifacts_dir, f"could not start monitor supervisor: {exc}"
-        )
-        raise MonitorError(f"could not start monitor supervisor: {exc}") from exc
-
-    # Write the pid before its identity: a crash between these two calls
-    # still leaves a pid a caller can signal, and the identity is the
-    # stronger of the two, not a substitute. The launch barrier below holds
-    # the command behind the claim without reordering this pair.
-    update_meta_field(artifacts_dir, "pid", supervisor.pid)
-    supervisor_identity = process_identity(supervisor.pid)
-    update_meta_field(artifacts_dir, "monitor_supervisor_identity", supervisor_identity)
-    return DetachedSupervisor(supervisor.pid, supervisor_identity)
+def _supervisor_pid(proc: Any) -> int | None:
+    """Return the supervisor pid from the proc row or its start acknowledgement."""
+    if isinstance(proc.pid, int):
+        return proc.pid
+    started = read_json_object(proc_started_path(proc.proc_id))
+    raw = started.get("pid")
+    return raw if isinstance(raw, int) else None
 
 
-def _write_monitor_go_marker(
-    artifacts_dir: str,
-    *,
-    monitor_id: str,
-    request_fingerprint: str,
-) -> None:
-    write_json_marker_atomic(
-        monitor_go_path(artifacts_dir),
-        {
-            "monitor_id": monitor_id,
-            "request_fingerprint": request_fingerprint,
-            "timestamp": time.time(),
-        },
-    )
+def _proc_timeout_seconds(value: float) -> int | None:
+    """Convert a monitor timeout to the integer seconds the proc wire stores."""
+    if value <= 0:
+        return None
+    return max(1, int(round(value)))
 
 
 def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
@@ -471,9 +489,11 @@ def _read_meta(artifacts_dir: str) -> dict[str, Any]:
 
 __all__ = [
     "DEFAULT_NEXT_OUTPUT",
+    "DEFAULT_REASON",
     "DEFAULT_START_STATUS",
     "DEFAULT_STOP_STATUS",
     "DEFAULT_TAIL_LINES",
+    "DEFAULT_TIMEOUT_SECONDS",
     "MONITOR_GO_MARKER",
     "MONITOR_PENDING_MARKER",
     "MONITOR_WORKSPACE_CLAIM_WORKFLOW",

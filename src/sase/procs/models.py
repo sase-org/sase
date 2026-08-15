@@ -24,6 +24,7 @@ PROC_KINDS: Final = frozenset({COMMAND_PROC_KIND, TUI_PROC_KIND, DETACHED_PROC_K
 PROC_LIFECYCLE_LEGACY: Final = "legacy"
 PROC_LIFECYCLE_PROC_SHELL: Final = "proc-shell"
 STORE_LOG_OWNER: Final = "proc-store"
+ARTIFACTS_LOG_OWNER: Final = "artifacts"
 
 
 @dataclass(frozen=True)

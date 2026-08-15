@@ -13,8 +13,6 @@ import shlex
 import signal
 import sys
 from pathlib import Path
-from types import SimpleNamespace
-
 import pytest
 
 from sase.monitor.start import (
@@ -22,7 +20,7 @@ from sase.monitor.start import (
     StartMonitorRequest,
     start_monitor,
 )
-from sase.monitor.transaction import monitor_started_path, write_json_marker_atomic
+from sase.procs.runtime import proc_runtime_dir
 from sase.running_field import WorkspaceClaim
 
 from ._fixtures import (
@@ -125,7 +123,7 @@ def test_start_monitor_scrubs_agent_identity_from_the_supervisor_env(
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.spawn as spawn_module
+    import sase.procs.spawn as spawn_module
 
     real_popen = spawn_module.subprocess.Popen
     captured_env: dict[str, str] = {}
@@ -173,37 +171,16 @@ def test_start_monitor_captures_supervisor_diagnostics(
     )
     patch_project_records(monkeypatch, [starter_dir])
 
-    import sase.monitor.spawn as spawn_module
+    import sase.procs.spawn as spawn_module
 
+    real_popen = spawn_module.subprocess.Popen
     captured: dict[str, object] = {}
 
-    def fake_popen(*args: object, **kwargs: object) -> object:
-        argv = args[0]
-        assert isinstance(argv, list)
-        artifacts_dir = argv[argv.index("--artifacts-dir") + 1]
-        output = kwargs["stdout"]
-        assert hasattr(output, "write")
-        output.write(b"supervisor traceback\n")
-        output.flush()
-        pass_fds = kwargs["pass_fds"]
-        assert isinstance(pass_fds, tuple)
-        pid_fd = pass_fds[0]
-        assert isinstance(pid_fd, int)
-        os.write(pid_fd, json.dumps({"pid": os.getpid()}).encode() + b"\n")
-        # A real supervisor acknowledges startup almost immediately; simulate
-        # that here so the ack wait does not poll this fixture's stand-in pid
-        # (the test process itself) for the full timeout budget.
-        write_json_marker_atomic(
-            monitor_started_path(artifacts_dir), {"pid": os.getpid()}
-        )
+    def wrapping_popen(*args: object, **kwargs: object) -> object:
         captured.update(kwargs)
-        return SimpleNamespace(
-            pid=os.getpid(),
-            poll=lambda: 0,
-            wait=lambda timeout=None: 0,
-        )
+        return real_popen(*args, **kwargs)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(spawn_module.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(spawn_module.subprocess, "Popen", wrapping_popen)
 
     record = start_monitor(
         StartMonitorRequest(
@@ -216,9 +193,10 @@ def test_start_monitor_captures_supervisor_diagnostics(
             inherit_lane_workspace_claim=False,
         )
     )
+    wait_for_done(record.artifacts_dir)
 
-    log_path = Path(record.artifacts_dir) / SUPERVISOR_LOG_NAME
-    assert log_path.read_bytes() == b"supervisor traceback\n"
+    log_path = proc_runtime_dir(record.monitor_id) / SUPERVISOR_LOG_NAME
+    assert log_path.exists()
     assert captured["stderr"] == spawn_module.subprocess.STDOUT
     assert captured["stdin"] == spawn_module.subprocess.DEVNULL
     assert captured["start_new_session"] is True

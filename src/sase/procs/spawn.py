@@ -24,7 +24,8 @@ from .runtime import (
     write_json_atomic,
 )
 
-_SUPERVISOR_LOG_NAME = "supervisor.log"
+SUPERVISOR_LOG_NAME = "supervisor.log"
+_SUPERVISOR_LOG_NAME = SUPERVISOR_LOG_NAME
 _SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS = 5.0
 _SUPERVISOR_STOP_POLL_SECONDS = 0.05
 _SUPERVISOR_ACK_POLL_SECONDS = 0.05
@@ -253,6 +254,7 @@ def _open_supervisor_log(proc_id: str) -> BinaryIO | None:
 
 __all__ = [
     "DetachedSupervisor",
+    "SUPERVISOR_LOG_NAME",
     "SupervisorSpawnError",
     "spawn_detached_supervisor",
     "terminate_supervisor",

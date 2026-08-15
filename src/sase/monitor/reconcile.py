@@ -46,6 +46,10 @@ GetMonitor = Callable[[str, str], MonitorRecord | None]
 
 def should_reconcile_dead_supervisor(record: MonitorRecord) -> bool:
     """Return whether a running monitor's supervisor needs reconciliation."""
+    from .proc_adapter import proc_shell_owns
+
+    if proc_shell_owns(record.monitor_id):
+        return False
     if record.monitor_state != "running":
         return False
     if record.pid is None:

@@ -33,9 +33,11 @@ from sase.monitor import (
 )
 from sase.monitor.start import (
     DEFAULT_NEXT_OUTPUT,
+    DEFAULT_REASON,
     DEFAULT_START_STATUS,
     DEFAULT_STOP_STATUS,
     DEFAULT_TAIL_LINES,
+    DEFAULT_TIMEOUT_SECONDS,
 )
 
 from .monitor_render import (
@@ -175,17 +177,24 @@ def _handle_monitor_show(args: argparse.Namespace) -> int:
 
 def _handle_monitor_start(args: argparse.Namespace) -> int:
     """Start a command as a monitor family member."""
-    command = (getattr(args, "monitor_command", None) or "").strip()
+    command = _start_command(args)
     if not command:
-        print("sase monitor start: -c/--command must not be empty", file=sys.stderr)
+        print(
+            "sase monitor start: command is required "
+            "(pass `-- COMMAND` or the hidden `-c/--command` alias)",
+            file=sys.stderr,
+        )
         return 2
-    reason = (getattr(args, "reason", None) or "").strip()
+    reason = (getattr(args, "reason", None) or DEFAULT_REASON).strip()
     if not reason:
         print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
         return 2
 
     try:
-        timeout_seconds, timeout_label = _parse_timeout(getattr(args, "timeout", ""))
+        raw_timeout = (
+            getattr(args, "timeout", None) or f"{int(DEFAULT_TIMEOUT_SECONDS)}s"
+        )
+        timeout_seconds, timeout_label = _parse_timeout(raw_timeout)
         idle_timeout_seconds = 0.0
         idle_timeout_label: str | None = None
         raw_idle_timeout = getattr(args, "idle_timeout", None)
@@ -459,6 +468,17 @@ def _format_seconds(seconds: float) -> str:
     if seconds == int(seconds):
         return f"{int(seconds)}s"
     return f"{seconds}s"
+
+
+def _start_command(args: argparse.Namespace) -> str:
+    """Resolve the command remainder, falling back to the hidden `-c` alias."""
+    words = [str(part) for part in (getattr(args, "monitor_command_words", None) or [])]
+    if words and words[0] == "--":
+        words = words[1:]
+    remainder = " ".join(words).strip()
+    if remainder:
+        return remainder
+    return (getattr(args, "monitor_command", None) or "").strip()
 
 
 def _validate_status_label(value: str, *, flag: str) -> str:

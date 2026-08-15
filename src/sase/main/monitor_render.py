@@ -32,7 +32,7 @@ _BORDER_STYLE = "#5FAFFF"
 _TERMINAL_ROW_STYLE = "dim"
 _EMPTY_HINT = (
     "Nothing here yet. Start one with:\n\n"
-    "  sase monitor start -c '<command>' -r '<reason>' -t <timeout>\n\n"
+    "  sase monitor start -- <command>\n\n"
     "Then follow it with `sase monitor show <id> --follow`."
 )
 

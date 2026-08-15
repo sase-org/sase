@@ -25,6 +25,7 @@ class ProcSubmitRequest:
     label: str
     cwd: str | Path
     origin: str
+    proc_id: str | None = None
     kind: str = COMMAND_PROC_KIND
     session_id: str | None = None
     session_label: str | None = None

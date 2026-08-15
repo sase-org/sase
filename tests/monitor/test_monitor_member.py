@@ -69,6 +69,8 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
 
     # Monitor-specific fields.
     assert meta["monitor_id"] == "abc123def456"
+    assert meta["proc_id"] == "abc123def456"
+    assert meta["shell_kind"] == "proc"
     assert meta["monitor_command"] == "just check-full"
     assert meta["monitor_cwd"] == "/work/acme"
     assert meta["monitor_label"] == "just check-full"

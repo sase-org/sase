@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import signal
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,14 +62,23 @@ class ProcControlError(RuntimeError):
     """A durable proc could not be found or controlled."""
 
 
-def submit_proc_request(request: ProcSubmitRequest) -> Proc:
-    """Reserve a proc-shell and launch its detached supervisor."""
+def submit_proc_request(
+    request: ProcSubmitRequest,
+    *,
+    after_ack: Callable[[Proc], None] | None = None,
+) -> Proc:
+    """Reserve a proc-shell and launch its detached supervisor.
+
+    *after_ack* runs after the supervisor proves it is alive and before the
+    launch barrier is released, so callers can take a workspace claim (or
+    other start-side work) without letting the command start first.
+    """
     argv = _validated_argv(request.argv)
     cwd = str(_validated_cwd(request.cwd))
     shell_name = _qualified_shell_name(request.shell_name)
     if shell_name != request.shell_name:
         request = replace(request, shell_name=shell_name)
-    proc_id = new_proc_id()
+    proc_id = request.proc_id or new_proc_id()
     log_path = str(request.log_path or proc_log_path(proc_id))
     fingerprint = proc_request_fingerprint(request, proc_id=proc_id, cwd=cwd, argv=argv)
     reserved_by = request.reserved_by or _default_reserved_by()
@@ -118,7 +127,7 @@ def submit_proc_request(request: ProcSubmitRequest) -> Proc:
             fingerprint=fingerprint,
         ),
     )
-    return _launch_reserved(outcome.proc, fingerprint=fingerprint)
+    return _launch_reserved(outcome.proc, fingerprint=fingerprint, after_ack=after_ack)
 
 
 def stop_proc_shell(proc: Proc, *, requested_by: str | None = None) -> Proc:
@@ -206,7 +215,12 @@ def _reconcile_proc_shell(proc: Proc) -> Proc:
     )
 
 
-def _launch_reserved(proc: Proc, *, fingerprint: str) -> Proc:
+def _launch_reserved(
+    proc: Proc,
+    *,
+    fingerprint: str,
+    after_ack: Callable[[Proc], None] | None = None,
+) -> Proc:
     try:
         supervisor = spawn_detached_supervisor(proc.proc_id)
     except SupervisorSpawnError as exc:
@@ -234,6 +248,29 @@ def _launch_reserved(proc: Proc, *, fingerprint: str) -> Proc:
                 termination_reason="launch-failure",
             )
         raise ProcSubmitError(ack_error)
+
+    current = get_proc(proc.proc_id) or proc
+    if after_ack is not None:
+        try:
+            after_ack(current)
+        except Exception as exc:
+            terminate_supervisor(supervisor)
+            message = (
+                str(exc)
+                if isinstance(exc, ProcSubmitError)
+                else f"could not finish proc start: {_one_line(exc)}"
+            )
+            if current.status not in TERMINAL_PROC_STATUSES:
+                settle_proc_shell(
+                    proc.proc_id,
+                    supervisor_id=current.supervisor_id or _starter_supervisor_id(),
+                    status="error",
+                    message=message,
+                    termination_reason="launch-failure",
+                )
+            if isinstance(exc, ProcSubmitError):
+                raise
+            raise ProcSubmitError(message) from exc
 
     try:
         write_launch_barrier(proc.proc_id, request_fingerprint=fingerprint)

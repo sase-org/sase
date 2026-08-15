@@ -191,12 +191,12 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "examples:\n"
-            "  sase monitor start -c 'just check-full' -r 'verify the fix' "
-            "-t 20m\n"
-            "  sase monitor start -c './deploy.sh' -r 'ship it' -t 10m "
-            "-n 'confirm the deploy succeeded'\n"
-            "  sase monitor start -c 'just check-full' -r 'verify' -t 20m "
-            "--json"
+            "  sase monitor start -- just check-full\n"
+            "  sase monitor start -r 'verify the fix' -t 20m -- just "
+            "check-full\n"
+            "  sase monitor start -n 'confirm the deploy succeeded' -- "
+            "./deploy.sh\n"
+            "  sase monitor start --json -- just check-full"
         ),
     )
     start_parser.add_argument(
@@ -217,13 +217,13 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     start_parser.add_argument(
         "-c",
         "--command",
-        # ``dest="monitor_command"`` rather than the default ``command``: the
-        # top-level subparsers own the ``command`` destination for command
-        # routing, and this flag would silently overwrite it.
+        # Hidden compatibility alias for the command remainder. ``dest`` is
+        # ``monitor_command`` so it cannot overwrite the root parser's
+        # ``command`` routing field.
         dest="monitor_command",
-        required=True,
+        default=None,
         metavar="CMD",
-        help="The full command to run and monitor",
+        help=argparse.SUPPRESS,
     )
     start_parser.add_argument(
         "-C",
@@ -277,9 +277,9 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     start_parser.add_argument(
         "-r",
         "--reason",
-        required=True,
+        default=None,
         metavar="TEXT",
-        help="Why this command is being monitored",
+        help="Why this command is being monitored (default: 'run command')",
     )
     start_parser.add_argument(
         "-s",
@@ -306,9 +306,17 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     start_parser.add_argument(
         "-t",
         "--timeout",
-        required=True,
+        default=None,
         metavar="DURATION",
-        help="Timeout: bare seconds or a duration like 90s / 45m / 2h",
+        help=("Timeout: bare seconds or a duration like 90s / 45m / 2h (default: 1h)"),
+    )
+    # ``monitor_command_words`` rather than ``command``: the top-level
+    # subparsers own the ``command`` destination for command routing.
+    start_parser.add_argument(
+        "monitor_command_words",
+        nargs=argparse.REMAINDER,
+        metavar="-- COMMAND",
+        help="The command to run and monitor, introduced by --",
     )
 
     stop_parser = monitor_sub.add_parser(

@@ -34,6 +34,7 @@ from sase.plan_chain import agent_family_base
 from .identity import supervisor_is_alive
 from .models import MonitorLaneError, MonitorRecord, MonitorRefError
 from .naming import short_monitor_id
+from .proc_adapter import overlay_proc_on_monitor, proc_shell_owns
 from .reconcile import (
     reconcile_dead_supervisor,
     reconcile_dead_supervisors_for_records,
@@ -146,9 +147,20 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
 
     A dead supervisor pid is reconciled in place rather than treated as an
     error, mirroring the durable-proc store's dead-supervisor handling.
+    Proc-backed monitors stop through the shared proc service; live legacy
+    monitors keep the historical supervisor path and are never copied into
+    a new proc row.
     """
     if record.monitor_state != "running":
         return record
+    from sase.procs.service import stop_proc_shell
+    from sase.procs.store import get_proc
+
+    proc = get_proc(record.monitor_id)
+    if proc is not None and proc_shell_owns(record.monitor_id):
+        stop_proc_shell(proc)
+        current = read_monitor_marker(record.project_name, record.artifacts_dir)
+        return current if current is not None else record
     pid = record.pid
     if pid is None or not supervisor_is_alive(pid, record.supervisor_identity):
         return reconcile_dead_supervisor(record, get_monitor=get_monitor)
@@ -177,7 +189,7 @@ def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
     """Return the current record for one monitor member's artifacts dir."""
     for record in _monitor_records(project_name):
         if record.artifact_dir == artifacts_dir:
-            return MonitorRecord.from_record(record)
+            return _with_proc_projection(MonitorRecord.from_record(record))
     return None
 
 
@@ -212,9 +224,10 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
         ),
     )
     try:
-        return MonitorRecord.from_record(record)
+        projected = MonitorRecord.from_record(record)
     except ValueError:
         return None
+    return _with_proc_projection(projected)
 
 
 def _read_json_object(path: str) -> dict[str, Any] | None:
@@ -233,9 +246,13 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     every project, mirroring how ``sase agent list`` scans across projects
     when no ``--project`` filter is given.
     """
+    from sase.procs.service import reconcile_proc_shells
+
+    reconcile_proc_shells()
     reconcile_dead_supervisors(project=project)
     records = [
-        MonitorRecord.from_record(record) for record in _monitor_records(project)
+        _with_proc_projection(MonitorRecord.from_record(record))
+        for record in _monitor_records(project)
     ]
     records.sort(key=lambda record: record.timestamp, reverse=True)
     return records
@@ -247,6 +264,18 @@ def reconcile_dead_supervisors(*, project: str | None = None) -> list[MonitorRec
         _monitor_records(project),
         get_monitor=get_monitor,
     )
+
+
+def _with_proc_projection(record: MonitorRecord) -> MonitorRecord:
+    """Overlay proc-shell execution state; never invent a proc for a legacy row."""
+    from sase.procs.store import get_proc
+
+    if not proc_shell_owns(record.monitor_id):
+        return record
+    proc = get_proc(record.monitor_id)
+    if proc is None:
+        return record
+    return overlay_proc_on_monitor(record, proc)
 
 
 def resolve_monitor_ref(ref: str, records: Sequence[MonitorRecord]) -> MonitorRecord:

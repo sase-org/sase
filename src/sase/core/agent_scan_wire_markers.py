@@ -231,6 +231,8 @@ class AgentMetaWire:
     monitor_followup_error: str | None = None
     monitor_followup_degraded_reason: str | None = None
     monitor_followup_prompt_path: str | None = None
+    shell_kind: str | None = None
+    proc_id: str | None = None
 
 
 @dataclass(frozen=True)

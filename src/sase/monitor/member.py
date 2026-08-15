@@ -60,6 +60,8 @@ def create_monitor_member(
     meta.update(
         {
             "monitor_id": monitor_id,
+            "proc_id": monitor_id,
+            "shell_kind": "proc",
             "monitor_command": command,
             "monitor_cwd": cwd,
             "monitor_label": label,
