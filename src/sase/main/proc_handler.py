@@ -25,9 +25,11 @@ from sase.procs import (
     Proc,
     ProcControlError,
     ProcRefError,
+    ProcShellNameError,
     ProcSubmitError,
     get_proc,
     kill_proc,
+    proc_shell_name_keys,
     read_proc_log_tail,
     read_procs,
     reconcile_running_procs,
@@ -130,6 +132,7 @@ def _handle_proc_list(args: argparse.Namespace) -> int:
             project=getattr(args, "project", None),
             tag=getattr(args, "tag", None),
             query=getattr(args, "query", None),
+            shell_name=_requested_shell_names(args),
         )
     except Exception as exc:
         print(f"sase proc list: cannot read procs: {exc}", file=sys.stderr)
@@ -191,10 +194,16 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
         }
         if not detached:
             submit_kwargs["session_id"] = session_id
+        shell_name = getattr(args, "shell", None)
+        if shell_name:
+            submit_kwargs["shell_name"] = shell_name
         proc = submit(command, **submit_kwargs)
+    except ProcShellNameError as exc:
+        print(f"sase proc run: {exc}", file=sys.stderr)
+        return 2
     except ProcSubmitError as exc:
         print(f"sase proc run: {exc}", file=sys.stderr)
-        return 1
+        return 1 if _is_runtime_submit_error(exc) else 2
 
     as_json = bool(getattr(args, "json", False))
     wait = bool(getattr(args, "wait", False))
@@ -208,7 +217,8 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
     elif not wait:
         # Waiting prints the proc's own output instead: keep stdout clean.
         print(proc.proc_id)
-        print(f"monitor with: sase proc show {short_proc_id(proc.proc_id)} --follow")
+        follow_ref = proc.shell_name or short_proc_id(proc.proc_id)
+        print(f"monitor with: sase proc show {follow_ref} --follow")
 
     if not wait:
         return 0
@@ -410,6 +420,18 @@ def _requested_statuses(args: argparse.Namespace) -> set[str] | None:
     if bool(getattr(args, "running", False)):
         statuses |= set(ACTIVE_PROC_STATUSES)
     return statuses or None
+
+
+def _requested_shell_names(args: argparse.Namespace) -> set[str] | None:
+    raw = getattr(args, "shell", None)
+    if not raw:
+        return None
+    return set(proc_shell_name_keys(raw))
+
+
+def _is_runtime_submit_error(exc: ProcSubmitError) -> bool:
+    message = str(exc)
+    return "named proc shell" not in message
 
 
 def _requested_kinds(args: argparse.Namespace) -> set[str] | None:

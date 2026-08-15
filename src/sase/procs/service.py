@@ -6,6 +6,7 @@ import os
 import signal
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from .models import (
     ProcReserve,
     ProcStopRequest,
 )
+from .names import ProcShellNameError, qualify_proc_shell_name
 from .request import (
     ProcSubmitRequest,
     proc_request_fingerprint,
@@ -64,6 +66,9 @@ def submit_proc_request(request: ProcSubmitRequest) -> Proc:
     """Reserve a proc-shell and launch its detached supervisor."""
     argv = _validated_argv(request.argv)
     cwd = str(_validated_cwd(request.cwd))
+    shell_name = _qualified_shell_name(request.shell_name)
+    if shell_name != request.shell_name:
+        request = replace(request, shell_name=shell_name)
     proc_id = new_proc_id()
     log_path = str(request.log_path or proc_log_path(proc_id))
     fingerprint = proc_request_fingerprint(request, proc_id=proc_id, cwd=cwd, argv=argv)
@@ -87,7 +92,7 @@ def submit_proc_request(request: ProcSubmitRequest) -> Proc:
                 created_at=created_at,
                 log_path=log_path,
                 log_owner=request.log_owner,
-                shell_name=request.shell_name,
+                shell_name=shell_name,
                 shell_kind=request.shell_kind,
                 concurrency_keys=list(request.concurrency_keys),
                 request_fingerprint=fingerprint,
@@ -292,6 +297,16 @@ def _signal_leftover_group(pgid: int) -> None:
         os.killpg(pgid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
         pass
+
+
+def _qualified_shell_name(shell_name: str | None) -> str | None:
+    raw = None if shell_name is None else shell_name.strip()
+    if not raw:
+        return None
+    try:
+        return qualify_proc_shell_name(raw)
+    except ProcShellNameError as exc:
+        raise ProcSubmitError(str(exc)) from exc
 
 
 def _validated_argv(argv: Sequence[str]) -> list[str]:

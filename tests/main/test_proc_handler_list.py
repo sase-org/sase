@@ -270,6 +270,35 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     assert proc["detached"] is False
     assert proc["duration_seconds"] == 5.0
     assert proc["session_handle"] is None
+    assert proc["named_proc_shell"] is None
+
+
+def test_list_filters_by_named_proc_shell_and_shows_historical_names(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``-N`` matches derived names and still shows historical spellings."""
+    monkeypatch.setenv("COLUMNS", "160")
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo")
+    stored("aaaaaaaaaaaa", label="Current", shell_name="foo--build")
+    stored(
+        "bbbbbbbbbbbb",
+        label="Legacy",
+        shell_name="old/name",
+        created_at="2026-07-25T12:01:00Z",
+    )
+
+    assert dispatch(["proc", "list", "-N", "build"]) == 0
+    named = capsys.readouterr().out
+    assert "foo--build" in named
+    assert "Current" in named
+    assert "Legacy" not in named
+
+    assert dispatch(["proc", "list", "-N", "old/name"]) == 0
+    historical = capsys.readouterr().out
+    assert "old/name" in historical
+    assert "Legacy" in historical
+    assert "Current" not in historical
 
 
 def test_list_reconciles_a_supervisor_that_never_reported(

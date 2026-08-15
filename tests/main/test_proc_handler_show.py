@@ -126,3 +126,27 @@ def test_show_follow_json_waits_for_the_finished_proc(
     payload = json.loads(capsys.readouterr().out)
     assert payload["proc"]["status"] == "success"
     assert payload["proc"]["finished_at"] is not None
+
+
+def test_show_resolves_named_proc_shell_before_id(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An exact named proc shell wins over an id prefix of the same text."""
+    stored("aaaaaaaaaaaa", label="By id")
+    stored(
+        "bbbbbbbbbbbb",
+        label="By name",
+        shell_name="agent--build",
+        created_at="2026-07-25T12:01:00Z",
+    )
+
+    assert dispatch(["proc", "show", "agent--build", "-f", "json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["proc"]["proc_id"] == "bbbbbbbbbbbb"
+    assert payload["proc"]["named_proc_shell"] == "agent--build"
+
+    assert dispatch(["proc", "show", "agent--build"]) == 0
+    rendered = capsys.readouterr().out
+    assert "Named proc shell" in rendered
+    assert "agent--build" in rendered

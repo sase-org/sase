@@ -48,6 +48,7 @@ def read_procs(
     project: str | None = None,
     tag: str | None = None,
     query: str | None = None,
+    shell_name: str | Collection[str] | None = None,
 ) -> list[Proc]:
     """Read newest-first procs, applying the shared CLI/TUI filters."""
     payload: Mapping[str, Any] = _call_binding(
@@ -62,6 +63,7 @@ def read_procs(
         project=project,
         tag=tag,
         query=query,
+        shell_name=shell_name,
     )
 
 
@@ -223,10 +225,12 @@ def filter_procs(
     project: str | None = None,
     tag: str | None = None,
     query: str | None = None,
+    shell_name: str | Collection[str] | None = None,
 ) -> list[Proc]:
     """Apply the canonical exact-match fields and free-text proc query."""
     statuses = _value_set(status)
     kinds = _value_set(kind)
+    shells = _value_set(shell_name)
     needle = query.casefold() if query else None
     result: list[Proc] = []
     for proc in procs:
@@ -239,6 +243,8 @@ def filter_procs(
         if project is not None and proc.project != project:
             continue
         if tag is not None and tag not in proc.tags:
+            continue
+        if shells is not None and proc.shell_name not in shells:
             continue
         if needle is not None and needle not in _search_text(proc).casefold():
             continue
@@ -262,6 +268,7 @@ def _search_text(proc: Proc) -> str:
             proc.label,
             " ".join(proc.command),
             proc.cl_name or "",
+            proc.shell_name or "",
         )
     )
 

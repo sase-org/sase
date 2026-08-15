@@ -91,6 +91,7 @@ def _proc_json(
     """Return the stable JSON shape for one proc."""
     payload: dict[str, Any] = dict(proc.to_dict())
     payload["short_id"] = short_proc_id(proc.proc_id)
+    payload["named_proc_shell"] = proc.shell_name
     payload["is_terminal"] = proc.status in TERMINAL_PROC_STATUSES
     payload["detached"] = proc.kind == DETACHED_PROC_KIND
     payload["duration_seconds"] = _proc_duration_seconds(proc)
@@ -165,6 +166,7 @@ def proc_table(
     )
     table.add_column("", no_wrap=True)
     table.add_column("ID", no_wrap=True)
+    table.add_column("SHELL", overflow="ellipsis", no_wrap=True)
     table.add_column("LABEL", overflow="ellipsis", no_wrap=True, ratio=1)
     table.add_column("SESSION", no_wrap=True)
     table.add_column("PROJECT", no_wrap=True)
@@ -183,6 +185,7 @@ def proc_table(
         table.add_row(
             status_and_kind,
             Text(short_proc_id(proc.proc_id), style=row_style or "bold"),
+            Text(proc.shell_name or "—", style=row_style or "dim"),
             Text(proc.label, style=row_style),
             session_chip(proc.to_dict(), live_session_ids=live_session_ids),
             Text(proc.project or "—", style=row_style or "dim"),
@@ -227,6 +230,7 @@ def proc_detail(
     rows: list[tuple[str, RenderableType]] = [
         ("Status", status_text(proc.status)),
         ("Id", Text(f"{proc.proc_id}  ({short_proc_id(proc.proc_id)})")),
+        ("Named proc shell", Text(proc.shell_name or "—")),
         ("Kind", _kind_text(proc.kind, verbose=True)),
         ("Origin", Text(proc.origin)),
         ("Session", session_chip(proc.to_dict(), live_session_ids=live_session_ids)),

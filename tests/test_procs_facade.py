@@ -64,6 +64,7 @@ def _proc(
     tags: list[str] | None = None,
     command: list[str] | None = None,
     cl_name: str | None = "docs_refresh",
+    shell_name: str | None = None,
 ) -> Proc:
     return Proc(
         proc_id=proc_id,
@@ -79,6 +80,7 @@ def _proc(
         tags=tags or ["docs"],
         created_at=created_at,
         log_path=f"/tmp/{proc_id}.log",
+        shell_name=shell_name,
     )
 
 
@@ -223,6 +225,15 @@ def test_resolve_proc_ref_handles_unique_short_unknown_and_ambiguous() -> None:
         resolve_proc_ref("abc", procs)
 
 
+def test_resolve_proc_ref_prefers_exact_named_proc_shell() -> None:
+    named = _proc("zzz012345678", label="Named", shell_name="agent--build")
+    prefixed = _proc("abc012345678", label="Prefix")
+    procs = [named, prefixed]
+
+    assert resolve_proc_ref("agent--build", procs) is named
+    assert resolve_proc_ref("abc012345678", procs) is prefixed
+
+
 def test_proc_log_pipe_bounds_subprocess_output(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
@@ -357,6 +368,25 @@ def test_filter_procs_applies_every_supported_filter() -> None:
     assert filter_procs(procs, tag="docs") == [wanted]
     assert filter_procs(procs, query="MKDOCS BUILD") == [wanted]
     assert filter_procs(procs, query="test_suite") == [other]
+
+
+def test_filter_procs_matches_named_proc_shell_and_query() -> None:
+    named = _proc("named-proc01", shell_name="agent--build")
+    historical = _proc(
+        "hist-proc001",
+        label="Legacy",
+        project="other",
+        session_id=None,
+        tags=["ci"],
+        command=["true"],
+        cl_name=None,
+        shell_name="old/name",
+    )
+
+    assert filter_procs([named, historical], shell_name="agent--build") == [named]
+    assert filter_procs([named, historical], shell_name={"old/name"}) == [historical]
+    assert filter_procs([named, historical], query="agent--build") == [named]
+    assert filter_procs([named, historical], query="old/name") == [historical]
 
 
 def test_kind_filter_selects_one_or_many_proc_kinds(tmp_path: Path) -> None:

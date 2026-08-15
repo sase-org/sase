@@ -273,3 +273,45 @@ def test_run_detached_creates_a_global_detached_kind(
     assert proc["detached"] is True
     assert proc["session_id"] is None
     assert proc["session_label"] is None
+
+
+def test_run_named_proc_shell_derives_and_does_not_conflate_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """``-N`` stores a FQ named proc shell without stuffing it into keys."""
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
+
+    assert (
+        dispatch(
+            [
+                "proc",
+                "run",
+                "-N",
+                "build",
+                "-j",
+                "-c",
+                str(tmp_path),
+                "--",
+                *NOOP,
+            ]
+        )
+        == 0
+    )
+
+    proc = json.loads(capsys.readouterr().out)["proc"]
+    assert proc["shell_name"] == "foo--build"
+    assert proc["named_proc_shell"] == "foo--build"
+    assert proc["concurrency_keys"] == []
+
+
+def test_run_rejects_invalid_named_proc_shell(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Slash and malformed qualification are usage errors."""
+    assert (
+        dispatch(["proc", "run", "-N", "agent/build", "-c", str(tmp_path), "--", *NOOP])
+        == 2
+    )
+    assert "slash" in capsys.readouterr().err

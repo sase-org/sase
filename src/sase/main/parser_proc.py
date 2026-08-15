@@ -37,16 +37,22 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Kill one running proc",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Kill one proc by id or unique id prefix (at least three "
-            "characters). A proc that is already finished is reported as an "
-            "unchanged no-op."
+            "Kill one proc by exact fully qualified named proc shell, exact "
+            "id, or unique id prefix (at least three characters). A bare "
+            "name is derived beneath the calling sase agent. A proc that is "
+            "already finished is reported as an unchanged no-op."
         ),
-        epilog=("examples:\n  sase proc kill k7m2\n  sase proc kill k7m2 --json"),
+        epilog=(
+            "examples:\n"
+            "  sase proc kill k7m2\n"
+            "  sase proc kill agent--build\n"
+            "  sase proc kill k7m2 --json"
+        ),
     )
     kill_parser.add_argument(
         "proc_id",
-        metavar="ID",
-        help="Proc id or unique id prefix",
+        metavar="REF",
+        help="Named proc shell, proc id, or unique id prefix",
     )
     kill_parser.add_argument(
         "-j",
@@ -63,9 +69,11 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
             "List durable procs, newest first. By default this "
             "shows procs for the current session — the ACE session of this "
             "process, else the newest live one — plus procs that belong to no "
-            "session; pass --all to see every session's work. Procs whose "
-            "supervisor died without reporting are reconciled to `error` "
-            "before the list is rendered."
+            "session; pass --all to see every session's work. Filter by "
+            "named proc shell with -N/--shell; a bare name is derived "
+            "beneath the calling sase agent, and historical names stay "
+            "visible. Procs whose supervisor died without reporting are "
+            "reconciled to `error` before the list is rendered."
         ),
         epilog=(
             "examples:\n"
@@ -74,6 +82,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase proc list --all --limit 10\n"
             "  sase proc list --tag epic --json\n"
             "  sase proc list --detached\n"
+            "  sase proc list -N build\n"
             "  sase proc list --session latest --status error"
         ),
     )
@@ -116,6 +125,16 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show at most N procs (default: the configured procs.history_limit)",
     )
     list_parser.add_argument(
+        "-N",
+        "--shell",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Only the named proc shell; a bare name is derived beneath the "
+            "calling sase agent"
+        ),
+    )
+    list_parser.add_argument(
         "-p",
         "--project",
         default=None,
@@ -127,7 +146,10 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         "--query",
         default=None,
         metavar="TEXT",
-        help="Case-insensitive substring filter over label, command, and Patch name",
+        help=(
+            "Case-insensitive substring filter over label, command, Patch "
+            "name, and named proc shell"
+        ),
     )
     list_parser.add_argument(
         "-r",
@@ -178,6 +200,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase proc run -- just check\n"
+            "  sase proc run -N build -- just check\n"
             "  sase proc run --detached -- ./overnight.sh\n"
             "  sase proc run --wait -- pytest -x\n"
             "  sase proc run --label 'Nightly docs' --tag docs -- just docs\n"
@@ -203,6 +226,16 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TEXT",
         help="Human-facing proc label (default: derived from the command)",
+    )
+    run_parser.add_argument(
+        "-N",
+        "--shell",
+        default=None,
+        metavar="NAME",
+        help=(
+            "named proc shell; a bare name is derived beneath the calling "
+            "sase agent, and the name may be reused only after settlement"
+        ),
     )
     run_parser.add_argument(
         "-p",
@@ -262,15 +295,18 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Show one proc and its captured output",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Show one proc by id or unique id prefix (at least three "
-            "characters), followed by the tail of its captured output. "
-            "`--follow` streams new output until the proc finishes and returns "
-            "immediately for a proc that already has; with `--format json` it "
-            "waits and then emits the finished proc."
+            "Show one proc by exact fully qualified named proc shell, exact "
+            "id, or unique id prefix (at least three characters), followed "
+            "by the tail of its captured output. A bare name is derived "
+            "beneath the calling sase agent. `--follow` streams new output "
+            "until the proc finishes and returns immediately for a proc that "
+            "already has; with `--format json` it waits and then emits the "
+            "finished proc."
         ),
         epilog=(
             "examples:\n"
             "  sase proc show k7m2\n"
+            "  sase proc show agent--build --follow\n"
             "  sase proc show k7m2 --follow\n"
             "  sase proc show k7m2 --all-lines --output-only\n"
             "  sase proc show k7m2 --format json"
@@ -278,8 +314,8 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     show_parser.add_argument(
         "proc_id",
-        metavar="ID",
-        help="Proc id or unique id prefix",
+        metavar="REF",
+        help="Named proc shell, proc id, or unique id prefix",
     )
     show_parser.add_argument(
         "-A",

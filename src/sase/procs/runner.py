@@ -55,6 +55,8 @@ def submit_proc(
     origin: str = "api",
     cl_name: str | None = None,
     env: Mapping[str, str] | None = None,
+    shell_name: str | None = None,
+    concurrency_keys: Sequence[str] = (),
     timeout_seconds: int | None = None,
     idle_timeout_seconds: int | None = None,
 ) -> Proc:
@@ -73,6 +75,8 @@ def submit_proc(
             origin=origin,
             cl_name=cl_name,
             env=env,
+            shell_name=shell_name,
+            concurrency_keys=concurrency_keys,
             timeout_seconds=timeout_seconds,
             idle_timeout_seconds=idle_timeout_seconds,
         )
@@ -90,6 +94,8 @@ def submit_detached_proc(
     tags: Sequence[str] = (),
     cl_name: str | None = None,
     env: Mapping[str, str] | None = None,
+    shell_name: str | None = None,
+    concurrency_keys: Sequence[str] = (),
     timeout_seconds: int | None = None,
     idle_timeout_seconds: int | None = None,
 ) -> Proc:
@@ -112,6 +118,8 @@ def submit_detached_proc(
             origin=origin,
             cl_name=cl_name,
             env=env,
+            shell_name=shell_name,
+            concurrency_keys=concurrency_keys,
             timeout_seconds=timeout_seconds,
             idle_timeout_seconds=idle_timeout_seconds,
         )

@@ -19,6 +19,7 @@ def proc_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("SASE_HOME", str(home))
+    monkeypatch.setenv("COLUMNS", "160")
     use_sessions(monkeypatch, [])
     return home
 
@@ -59,6 +60,7 @@ def stored(
     pid: int | None = None,
     command: list[str] | None = None,
     kind: str = "command",
+    shell_name: str | None = None,
 ) -> Proc:
     """Append and return a proc with concise test-friendly defaults."""
     proc = Proc(
@@ -74,6 +76,7 @@ def stored(
         origin="cli",
         tags=tags or [],
         pid=pid,
+        shell_name=shell_name,
         exit_code=exit_code,
         created_at=created_at,
         started_at=started_at,

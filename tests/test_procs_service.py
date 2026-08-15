@@ -74,6 +74,88 @@ def test_submit_request_replay_returns_the_active_row(
     wait_for_proc(first.proc_id, timeout=15)
 
 
+def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    argv = [sys.executable, "-c", "print('done', flush=True)"]
+    first = submit_proc(
+        argv,
+        label="First",
+        cwd=tmp_path,
+        origin="test",
+        project="sase",
+        shell_name="agent--build",
+        concurrency_keys=["docs"],
+    )
+    finished = wait_for_proc(first.proc_id, timeout=15)
+
+    assert finished.status == "success"
+    assert finished.shell_name == "agent--build"
+    assert finished.concurrency_keys == ["docs"]
+    assert "agent--build" not in finished.concurrency_keys
+
+    other_project = submit_proc(
+        argv,
+        label="Other project",
+        cwd=tmp_path,
+        origin="test",
+        project="other",
+        shell_name="agent--build",
+    )
+    wait_for_proc(other_project.proc_id, timeout=15)
+    assert other_project.proc_id != first.proc_id
+
+    reused = submit_proc(
+        argv,
+        label="Reuse",
+        cwd=tmp_path,
+        origin="test",
+        project="sase",
+        shell_name="agent--build",
+        concurrency_keys=["docs"],
+    )
+    wait_for_proc(reused.proc_id, timeout=15)
+    assert reused.proc_id != first.proc_id
+
+    active = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(20)"],
+        label="Active",
+        cwd=tmp_path,
+        origin="test",
+        project="sase",
+        shell_name="agent--docs",
+    )
+    with pytest.raises(ProcSubmitError, match="shell_name"):
+        submit_proc(
+            argv,
+            label="Conflict",
+            cwd=tmp_path,
+            origin="test",
+            project="sase",
+            shell_name="agent--docs",
+        )
+    kill_proc(active.proc_id)
+    wait_for_proc(active.proc_id, timeout=15)
+
+
+def test_submit_derives_bare_named_proc_shell(monkeypatch: Any, tmp_path: Path) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("SASE_AGENT_NAME", "foo--code")
+    proc = submit_proc(
+        [sys.executable, "-c", "print('ok', flush=True)"],
+        label="Bare",
+        cwd=tmp_path,
+        origin="test",
+        project="sase",
+        shell_name="build",
+    )
+    wait_for_proc(proc.proc_id, timeout=15)
+
+    assert proc.shell_name == "foo--build"
+    assert proc.concurrency_keys == []
+
+
 def test_total_and_idle_timeouts_settle_as_errors(
     monkeypatch: Any, tmp_path: Path
 ) -> None:

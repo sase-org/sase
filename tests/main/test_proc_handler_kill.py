@@ -55,3 +55,24 @@ def test_kill_reports_bad_proc_references(
     """Unknown kill targets are usage errors, just like ``proc show``."""
     assert dispatch(["proc", "kill", "zzz"]) == 2
     assert "no proc matches reference" in capsys.readouterr().err
+
+
+def test_kill_resolves_named_proc_shell(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``proc kill`` accepts a fully qualified named proc shell."""
+    monkeypatch.setattr("sase.main.proc_handler._reconcile_quietly", lambda: None)
+    stored(
+        "aaaaaaaaaaaa",
+        label="Named launch",
+        kind="detached",
+        status="running",
+        finished_at=None,
+        exit_code=None,
+        shell_name="agent--build",
+    )
+
+    assert dispatch(["proc", "kill", "agent--build"]) == 0
+
+    assert "Killed proc aaaaaa." in capsys.readouterr().out
