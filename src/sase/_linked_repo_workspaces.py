@@ -165,6 +165,9 @@ def materialize_linked_repo_workspace(
     from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
 
     ensure_sase_git_info_excludes(checkout_dir)
+    refreshed = refresh_clean_linked_checkout(checkout_dir)
+    if refreshed:
+        print(f"[linked-repos] {refreshed}", file=sys.stderr)
     try:
         from sase.sdd.store import ensure_workspace_sdd_clone
 
@@ -172,6 +175,63 @@ def materialize_linked_repo_workspace(
     except Exception:
         pass
     return normalize_path(checkout_dir)
+
+
+def refresh_clean_linked_checkout(checkout_dir: str) -> str | None:
+    """Fetch origin and fast-forward a clean checkout that is strictly behind.
+
+    Existing auto-clone workspaces and ``sase repo open`` reuse a valid clone
+    without updating HEAD, so a clean ``master``/``main`` can sit behind
+    ``origin`` while ``just install`` rebuilds from that stale source. This
+    only fast-forwards; dirty, detached, diverged, or fetch/merge failures
+    leave the tree unchanged.
+    """
+
+    from sase.version._git import (
+        classify_git_upstream,
+        fetch_git_upstream,
+        merge_git_ff_only,
+    )
+
+    path = Path(checkout_dir).expanduser()
+    try:
+        status = classify_git_upstream(path)
+    except (
+        FileNotFoundError,
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ):
+        return None
+    if status.dirty or status.detached or not status.has_upstream:
+        return None
+    try:
+        fetch_git_upstream(status)
+        status = classify_git_upstream(path)
+    except (
+        FileNotFoundError,
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ):
+        return None
+    if (
+        status.dirty
+        or status.detached
+        or not status.strictly_behind
+        or status.upstream is None
+    ):
+        return None
+    try:
+        merge_git_ff_only(path, status.upstream)
+    except (
+        FileNotFoundError,
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ):
+        return None
+    return f"fast-forwarded {path} to {status.upstream}"
 
 
 def _materialize_remote_identified_sidecar(

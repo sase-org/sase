@@ -9,6 +9,7 @@ import pytest
 from sase.linked_repos import (
     clear_workspace_repos,
     materialize_linked_repo_workspace,
+    refresh_clean_linked_checkout,
 )
 from tests.sdd_store._helpers import (
     clone,
@@ -219,3 +220,84 @@ def test_sidecar_materialization_uses_remote_not_divergent_primary(
     assert not (target / ".git" / "rebase-merge").exists()
     assert not (target / ".git" / "rebase-apply").exists()
     assert git(["remote", "get-url", "origin"], target).stdout.strip() == str(remote)
+
+
+def _behind_linked_core_checkout(tmp_path: Path) -> tuple[Path, Path, str, str]:
+    """Return ``(primary, workspace_clone, old_head, new_head)``.
+
+    The workspace clone is on ``main``, clean, and strictly behind origin.
+    """
+
+    remote = tmp_path / "core.git"
+    primary = tmp_path / "core-primary"
+    host = tmp_path / "main_10"
+    target = host / "sase" / "repos" / "linked" / "core"
+    init_bare_repo(remote)
+    clone(remote, primary)
+    (primary / "README.md").write_text("v1\n", encoding="utf-8")
+    commit_all(primary, "core v1")
+    git(["push", "-u", "origin", "main"], primary)
+    clone(remote, target)
+    old_head = git(["rev-parse", "HEAD"], target).stdout.strip()
+    (primary / "README.md").write_text("v2\n", encoding="utf-8")
+    commit_all(primary, "core v2")
+    git(["push"], primary)
+    new_head = git(["rev-parse", "HEAD"], primary).stdout.strip()
+    return primary, target, old_head, new_head
+
+
+def test_materialize_fast_forwards_clean_clone_behind_origin(tmp_path: Path) -> None:
+    primary, target, old_head, new_head = _behind_linked_core_checkout(tmp_path)
+    assert git(["rev-parse", "HEAD"], target).stdout.strip() == old_head
+
+    result = materialize_linked_repo_workspace(
+        primary_dir=str(primary),
+        workspace_dir=str(target),
+        workspace_num=10,
+    )
+
+    assert result == str(target.resolve())
+    assert git(["rev-parse", "HEAD"], target).stdout.strip() == new_head
+    assert git(["status", "--porcelain"], target).stdout == ""
+
+
+def test_materialize_leaves_dirty_behind_checkout_alone(tmp_path: Path) -> None:
+    primary, target, old_head, _new_head = _behind_linked_core_checkout(tmp_path)
+    (target / "README.md").write_text("local edit\n", encoding="utf-8")
+
+    result = materialize_linked_repo_workspace(
+        primary_dir=str(primary),
+        workspace_dir=str(target),
+        workspace_num=10,
+    )
+
+    assert result == str(target.resolve())
+    assert git(["rev-parse", "HEAD"], target).stdout.strip() == old_head
+    assert (target / "README.md").read_text(encoding="utf-8") == "local edit\n"
+
+
+def test_materialize_does_not_reset_diverged_checkout(tmp_path: Path) -> None:
+    primary, target, old_head, new_head = _behind_linked_core_checkout(tmp_path)
+    (target / "NOTES.md").write_text("local-only\n", encoding="utf-8")
+    commit_all(target, "local-only commit")
+    local_head = git(["rev-parse", "HEAD"], target).stdout.strip()
+    assert local_head not in {old_head, new_head}
+
+    result = materialize_linked_repo_workspace(
+        primary_dir=str(primary),
+        workspace_dir=str(target),
+        workspace_num=10,
+    )
+
+    assert result == str(target.resolve())
+    assert git(["rev-parse", "HEAD"], target).stdout.strip() == local_head
+    assert (target / "NOTES.md").read_text(encoding="utf-8") == "local-only\n"
+
+
+def test_refresh_clean_linked_checkout_is_noop_for_non_git_path(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "not-a-repo"
+    missing.mkdir()
+    assert refresh_clean_linked_checkout(str(missing)) is None
+    assert refresh_clean_linked_checkout(str(tmp_path / "absent")) is None

@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Fast-forward a clean linked-repo checkout that is strictly behind origin."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Fetch origin and fast-forward CHECKOUT when the worktree is "
+            "clean and strictly behind its upstream."
+        )
+    )
+    parser.add_argument("checkout", type=Path, help="Path to the git checkout")
+    args = parser.parse_args(argv)
+
+    from sase._linked_repo_workspaces import refresh_clean_linked_checkout
+
+    message = refresh_clean_linked_checkout(str(args.checkout))
+    if message:
+        print(f"[setup] {message}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

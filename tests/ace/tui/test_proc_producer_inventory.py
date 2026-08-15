@@ -73,9 +73,7 @@ def _proc_type_from_arg(node: ast.AST | None) -> str:
     return "dynamic"
 
 
-def _proc_type_from_keyword(
-    node: ast.Call, name: str, *, name_fallback: bool
-) -> str:
+def _proc_type_from_keyword(node: ast.Call, name: str, *, name_fallback: bool) -> str:
     for keyword in node.keywords:
         if keyword.arg != name:
             continue

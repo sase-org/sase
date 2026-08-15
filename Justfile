@@ -88,6 +88,7 @@ _setup: _venv
     elif [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
         printf "[setup] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
     elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
+        just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout; \
         check_core="--check-core"; \
     fi; \
     {{ venv_bin }}/python tools/validate_test_environment \
@@ -772,6 +773,19 @@ dev-shell:
     @echo "Entering dev shell... (exit to return)"
     @VIRTUAL_ENV="$(pwd)/.venv" PATH="$(pwd)/.venv/bin:$$PATH" $SHELL
 
+# Fast-forward a clean sase-core checkout that is strictly behind origin.
+# Used by `_setup` and `rust-install` so a stale auto-cloned workspace
+# checkout does not rebuild missing bindings from outdated source.
+# No-op when SASE_ALLOW_STALE_CORE=1 (intentional bisects).
+_refresh-sase-core-checkout:
+    @if [ "${SASE_ALLOW_STALE_CORE:-}" = "1" ]; then \
+        exit 0; \
+    fi
+    @if [ ! -x "{{ venv_bin }}/python" ]; then \
+        exit 0; \
+    fi
+    @"{{ venv_bin }}/python" "{{ justfile_directory() }}/tools/refresh_linked_checkout" "{{ sase_core_dir }}" || true
+
 # --- Optional Rust backend (../sase-core) ---
 # Rust-only helper targets are no-ops when the configured sase-core
 # checkout is absent.
@@ -794,6 +808,7 @@ rust-install VENV=venv_dir_abs: _venv
         printf "[rust-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
+    @just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout
     @status=0; \
     "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
     if [ "$status" -eq 3 ]; then \
@@ -854,6 +869,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
         printf "[rust-dev-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
+    @just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" _refresh-sase-core-checkout
     @status=0; \
     "{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || status=$?; \
     if [ "$status" -eq 3 ]; then \

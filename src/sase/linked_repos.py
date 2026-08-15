@@ -77,6 +77,7 @@ from sase._linked_repo_paths import (
 from sase._linked_repo_workspaces import (
     clear_workspace_repos,
     materialize_linked_repo_workspace,
+    refresh_clean_linked_checkout,
 )
 
 # Preserve the historical class identity for introspection and pickling even
@@ -117,6 +118,7 @@ __all__ = [
     "linked_repo_clone_dir",
     "linked_repo_metadata_from_env",
     "materialize_linked_repo_workspace",
+    "refresh_clean_linked_checkout",
     "opened_external_repo_records",
     "opened_linked_repo_names",
     "opened_linked_repo_records",
