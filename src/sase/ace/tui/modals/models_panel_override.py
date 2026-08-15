@@ -10,6 +10,7 @@ from sase.llm_provider import (
     AliasView,
     EffectiveDefaultEffortSnapshot,
     TemporaryLLMOverride,
+    TemporaryProviderDisable,
 )
 from sase.llm_provider.registry import format_provider_model_label
 from sase.xprompt.effort import split_model_effort
@@ -34,6 +35,7 @@ from .models_panel_effort_cards import (
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
+from .models_panel_providers import disabled_explicit_provider_message
 from .models_panel_selector import parse_selector_for_display
 from .models_panel_time import (
     OverrideUntilBack,
@@ -65,6 +67,7 @@ class ModelsPanelOverrideMixin(_MixinBase):
         _pending_alias: str
         _pending_alias_selection: AliasSelectionContext | None
         _pending_raw_model: str
+        _provider_disables: dict[str, TemporaryProviderDisable]
         _views: list[AliasView]
         _effort_snapshot: EffectiveDefaultEffortSnapshot
 
@@ -102,6 +105,7 @@ class ModelsPanelOverrideMixin(_MixinBase):
                 title=f"Override Model — @{view.name}",
                 include_default_option=False,
                 alias_context=self._pending_alias_selection,
+                provider_disables=self._provider_disables,
             ),
             callback=self._on_model_picked,
         )
@@ -176,6 +180,17 @@ class ModelsPanelOverrideMixin(_MixinBase):
             )
             return
         raw_model = result.strip()
+        disabled = disabled_explicit_provider_message(
+            raw_model,
+            self._provider_disables,
+            now=self._models_panel_now(),
+        )
+        if disabled is not None:
+            self.notify(
+                f"Cannot use {raw_model}: {disabled}.",
+                severity="warning",
+            )
+            return
         _, effort = split_model_effort(raw_model)
         if effort is None:
             self._open_override_model_effort_picker(raw_model)

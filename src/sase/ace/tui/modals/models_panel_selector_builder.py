@@ -10,6 +10,7 @@ here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 
 from rich.text import Text
@@ -22,7 +23,11 @@ from textual.widgets._option_list import Option
 
 from sase.ace.tui.model_alias_styles import append_effort_suffix
 from sase.ace.tui.provider_styles import provider_model_badge_markup
-from sase.llm_provider import AliasView, EffectiveDefaultEffortSnapshot
+from sase.llm_provider import (
+    AliasView,
+    EffectiveDefaultEffortSnapshot,
+    TemporaryProviderDisable,
+)
 from sase.llm_provider.config import (
     normalize_model_alias_reference,
     validate_model_alias_selector_value,
@@ -39,6 +44,7 @@ from .base import OptionListNavigationMixin
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import CUSTOM_SENTINEL, AliasSelectionContext, ModelPickerModal
 from .models_panel_effort_cards import DefaultEffortLevelChoice, DefaultEffortLevelModal
+from .models_panel_providers import disabled_explicit_provider_message
 from .models_panel_selector import (
     compose_selector,
     member_rejection,
@@ -87,7 +93,10 @@ def _resolved_target_text(
 
 
 def _member_option(
-    index: int, member: str, views_by_name: dict[str, AliasView]
+    index: int,
+    member: str,
+    views_by_name: dict[str, AliasView],
+    provider_disables: Mapping[str, TemporaryProviderDisable],
 ) -> Option:
     """Render one member row: position, provider/model badge, effort, availability."""
     raw_target, effort = split_model_effort(member)
@@ -98,7 +107,10 @@ def _member_option(
         text.append_text(
             Text.from_markup(provider_model_badge_markup(None, resolved_target))
         )
-        available = resolved_target_is_available(resolved_target)
+        available = resolved_target_is_available(
+            resolved_target,
+            provider_disables=provider_disables,
+        )
         text.append("  ")
         text.append(
             "✓" if available else "×",
@@ -134,6 +146,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         alias_context: AliasSelectionContext,
         effort_snapshot: EffectiveDefaultEffortSnapshot,
         now: float,
+        provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
     ) -> None:
         super().__init__()
         self._alias = alias
@@ -141,6 +154,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._member_context = replace(alias_context, operation="member")
         self._effort_snapshot = effort_snapshot
         self._now = now
+        self._provider_disables = dict(provider_disables or {})
         self._views_by_name = {view.name: view for view in alias_context.views}
         mode, members = _seed_selector(current_value)
         self._mode: ModelAliasSelectorMode = mode
@@ -183,7 +197,12 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 )
             ]
         return [
-            _member_option(index, member, self._views_by_name)
+            _member_option(
+                index,
+                member,
+                self._views_by_name,
+                self._provider_disables,
+            )
             for index, member in enumerate(self._members)
         ]
 
@@ -235,6 +254,7 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
                 title=f"Add Member — @{self._alias}",
                 include_default_option=False,
                 alias_context=self._member_context,
+                provider_disables=self._provider_disables,
             ),
             callback=self._on_member_picked,
         )
@@ -281,6 +301,14 @@ class SelectorBuilderModal(OptionListNavigationMixin, ModalScreen[str | None]):
         rejection = member_rejection(self._member_context, raw)
         if rejection is not None:
             self.notify(f"Cannot add {raw}: {rejection}.", severity="warning")
+            return
+        disabled = disabled_explicit_provider_message(
+            raw,
+            self._provider_disables,
+            now=self._now,
+        )
+        if disabled is not None:
+            self.notify(f"Cannot add {raw}: {disabled}.", severity="warning")
             return
         _, effort = split_model_effort(raw)
         if effort is not None:

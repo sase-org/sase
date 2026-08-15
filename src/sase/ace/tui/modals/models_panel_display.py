@@ -77,6 +77,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
             *,
             keep: str | None = None,
             update_rows: bool = False,
+            signal_changes: bool = False,
         ) -> None: ...
 
         def _refresh_provider_clock(self) -> None: ...
@@ -115,7 +116,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         self._emit_custom_builtin_shadow_warning()
         self._start_effort_snapshot_load()
         self._start_runner_limit_snapshot_load()
-        self._start_provider_snapshot_load()
+        self._start_provider_snapshot_load(update_rows=True)
         self.set_interval(5.0, self._refresh_models_clock)
 
     def _refresh_models_clock(self) -> None:

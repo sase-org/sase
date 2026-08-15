@@ -17,6 +17,7 @@ from textual.widgets._option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.core.time import get_timezone
+from sase.xprompt.effort import split_model_effort
 from sase.llm_provider import (
     AliasView,
     ProviderRoutingStatus,
@@ -151,6 +152,38 @@ def _active_disable(
     if disable.expires_at is not None and now >= disable.expires_at:
         return None
     return disable
+
+
+def _provider_disable_route_key(
+    disables: Mapping[str, TemporaryProviderDisable],
+) -> tuple[tuple[str, float | None], ...]:
+    """Return the routing-relevant shape of a provider-disable snapshot."""
+    return tuple(
+        sorted((provider, disable.expires_at) for provider, disable in disables.items())
+    )
+
+
+def disabled_explicit_provider_message(
+    value: str,
+    disables: Mapping[str, TemporaryProviderDisable],
+    *,
+    now: float,
+) -> str | None:
+    """Return feedback for a free-form explicit target using a disabled provider."""
+    target, _effort = split_model_effort(value.strip())
+    if target.startswith("@") or "/" not in target:
+        return None
+    provider, _model = target.split("/", 1)
+    if not provider:
+        return None
+    disable = _active_disable(disables.get(provider), now=now)
+    if disable is None:
+        return None
+    return (
+        f"{provider.upper()} is temporarily disabled "
+        f"{_remaining_label(disable, now=now)}; choose another provider "
+        "or enable it in Provider Routing"
+    )
 
 
 def _render_provider_row(
@@ -435,6 +468,7 @@ class _ProviderRoutingModal(
         if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
             self._snapshot_worker.cancel()
         provider = self._pending_provider
+        before = _provider_disable_route_key(self._snapshot.provider_disables)
 
         def task() -> _ProviderWriteOutcome:
             try:
@@ -452,11 +486,13 @@ class _ProviderRoutingModal(
                         else None
                     )
                     disable_provider(provider, seconds, source="ace", now=_now())
+                snapshot = self._load_snapshot()
                 return _ProviderWriteOutcome(
                     action="disable",
                     provider=provider,
-                    changed=True,
-                    snapshot=self._load_snapshot(),
+                    changed=before
+                    != _provider_disable_route_key(snapshot.provider_disables),
+                    snapshot=snapshot,
                 )
             except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
                 return _ProviderWriteOutcome(
@@ -523,7 +559,11 @@ class _ProviderRoutingModal(
         self._snapshot_worker = None
         self._snapshot_keep_provider = None
         if event.state == WorkerState.SUCCESS and event.worker.result is not None:
-            self._apply_snapshot(event.worker.result, keep_provider=keep)
+            self._apply_snapshot(
+                event.worker.result,
+                keep_provider=keep,
+                emit_snapshot=False,
+            )
         elif event.state == WorkerState.ERROR:
             self.notify(
                 f"Could not load provider routing: {event.worker.error}",
@@ -554,13 +594,24 @@ class _ProviderRoutingModal(
                 severity="error",
             )
             return
-        self._apply_snapshot(outcome.snapshot, keep_provider=outcome.provider)
+        self._apply_snapshot(
+            outcome.snapshot,
+            keep_provider=outcome.provider,
+            emit_snapshot=outcome.changed,
+        )
         if outcome.action == "disable":
-            suffix = _duration_suffix(duration)
-            self.notify(
-                f"{outcome.provider.upper()} disabled {suffix}; alias routing refreshed."
-            )
-            self._changed = True
+            if outcome.changed:
+                suffix = _duration_suffix(duration)
+                self.notify(
+                    f"{outcome.provider.upper()} disabled {suffix}; "
+                    "alias routing refreshed."
+                )
+                self._changed = True
+            else:
+                self.notify(
+                    f"{outcome.provider.upper()} already has that provider disable.",
+                    severity="warning",
+                )
         elif outcome.changed:
             self.notify(f"{outcome.provider.upper()} enabled for new launches.")
             self._changed = True
@@ -575,6 +626,7 @@ class _ProviderRoutingModal(
         snapshot: _ProviderRoutingSnapshot,
         *,
         keep_provider: str | None,
+        emit_snapshot: bool,
     ) -> None:
         self._snapshot = snapshot
         option_list = self.query_one("#provider-routing-list", OptionList)
@@ -582,7 +634,7 @@ class _ProviderRoutingModal(
         option_list.add_options(self._build_options())
         self._restore_highlight(option_list, keep_provider)
         self._update_description()
-        if self._on_snapshot is not None:
+        if emit_snapshot and self._on_snapshot is not None:
             self._on_snapshot(snapshot, self._highlighted_provider())
 
     def _build_options(self) -> list[Option]:
@@ -732,6 +784,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
         _provider_snapshot: _ProviderRoutingSnapshot
         _provider_snapshot_worker: Worker[_ProviderRoutingSnapshot] | None
         _provider_snapshot_keep: str | None
+        _provider_snapshot_signal_changes: bool
         _provider_snapshot_update_rows: bool
         _provider_statuses: tuple[ProviderRoutingStatus, ...]
         _views: list[AliasView]
@@ -761,6 +814,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
         *,
         keep: str | None = None,
         update_rows: bool = False,
+        signal_changes: bool = False,
     ) -> None:
         worker = self._provider_snapshot_worker
         if worker is not None and not worker.is_finished:
@@ -770,6 +824,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
             return self._load_provider_routing_snapshot()
 
         self._provider_snapshot_keep = keep
+        self._provider_snapshot_signal_changes = signal_changes
         self._provider_snapshot_update_rows = update_rows
         self._provider_snapshot_worker = self.run_worker(  # type: ignore[attr-defined]
             task,
@@ -797,7 +852,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
             return
         worker = self._provider_snapshot_worker
         if worker is None or worker.is_finished:
-            self._start_provider_snapshot_load(update_rows=True)
+            self._start_provider_snapshot_load(update_rows=True, signal_changes=True)
 
     def _provider_title_text(self) -> Text | None:
         return _provider_title_line(
@@ -810,7 +865,11 @@ class ModelsPanelProvidersMixin(_MixinBase):
         *,
         keep: str | None = None,
         update_rows: bool = True,
+        signal_changes: bool = False,
     ) -> None:
+        routing_changed = _provider_disable_route_key(
+            self._provider_disables
+        ) != _provider_disable_route_key(snapshot.provider_disables)
         self._provider_snapshot = snapshot
         self._provider_disables = dict(snapshot.provider_disables)
         self._provider_statuses = snapshot.visible_statuses
@@ -821,6 +880,9 @@ class ModelsPanelProvidersMixin(_MixinBase):
             self._replace_display(keep=keep)
         elif self.is_mounted:  # type: ignore[attr-defined]
             self._update_context()
+        if signal_changes and routing_changed:
+            self._changed = True
+            self._provider_routing_changed = True
 
     def _on_provider_snapshot_worker_state(self, event: Worker.StateChanged) -> bool:
         if event.worker is not self._provider_snapshot_worker:
@@ -833,14 +895,17 @@ class ModelsPanelProvidersMixin(_MixinBase):
             return True
         keep = self._provider_snapshot_keep
         update_rows = self._provider_snapshot_update_rows
+        signal_changes = self._provider_snapshot_signal_changes
         self._provider_snapshot_worker = None
         self._provider_snapshot_keep = None
         self._provider_snapshot_update_rows = False
+        self._provider_snapshot_signal_changes = False
         if event.state == WorkerState.SUCCESS and event.worker.result is not None:
             self._apply_provider_snapshot(
                 event.worker.result,
                 keep=keep,
                 update_rows=update_rows,
+                signal_changes=signal_changes,
             )
         elif event.state == WorkerState.ERROR and self.is_mounted:  # type: ignore[attr-defined]
             self.notify(  # type: ignore[attr-defined]

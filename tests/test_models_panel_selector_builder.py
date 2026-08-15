@@ -13,7 +13,12 @@ from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortLevelModal,
 )
 from sase.ace.tui.modals.models_panel_selector_builder import SelectorBuilderModal
-from sase.llm_provider import AliasView, EffectiveDefaultEffortSnapshot
+from sase.llm_provider import (
+    AliasView,
+    EffectiveDefaultEffortSnapshot,
+    TemporaryProviderDisable,
+)
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from tests._model_picker_modal_helpers import ModelPickerTestApp, make_alias_context
 from tests._models_panel_helpers import make_alias_view
 
@@ -27,7 +32,9 @@ def _snapshot(configured_effort: str | None = "high") -> EffectiveDefaultEffortS
 
 
 def _modal(
-    current_value: str, views: list[AliasView] | None = None
+    current_value: str,
+    views: list[AliasView] | None = None,
+    provider_disables: dict[str, TemporaryProviderDisable] | None = None,
 ) -> SelectorBuilderModal:
     return SelectorBuilderModal(
         alias="blogger",
@@ -35,6 +42,17 @@ def _modal(
         alias_context=make_alias_context(target="blogger", views=views),
         effort_snapshot=_snapshot(),
         now=0.0,
+        provider_disables=provider_disables,
+    )
+
+
+def _disable(provider: str) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=None,
+        source="test",
     )
 
 
@@ -142,6 +160,23 @@ async def test_custom_member_with_explicit_effort_skips_effort_picker() -> None:
         await pilot.pause()
         assert modal._members == ["claude/sonnet@xhigh"]
         assert isinstance(pilot.app.screen, SelectorBuilderModal)
+
+
+async def test_custom_member_rejects_disabled_explicit_provider() -> None:
+    async with ModelPickerTestApp().run_test() as pilot:
+        modal = _modal("", provider_disables={"claude": _disable("claude")})
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        modal._on_member_custom_picked("claude/sonnet@xhigh")
+        await pilot.pause()
+
+        assert modal._members == []
+        assert isinstance(pilot.app.screen, SelectorBuilderModal)
+        modal.notify.assert_called_once()
+        message = modal.notify.call_args.args[0]
+        assert "Cannot add claude/sonnet@xhigh" in message
+        assert "CLAUDE is temporarily disabled until cleared" in message
 
 
 async def test_custom_member_rejects_unknown_alias() -> None:

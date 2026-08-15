@@ -141,6 +141,7 @@ class ModelsPanel(
         self._provider_statuses = ()
         self._provider_snapshot_worker = None
         self._provider_snapshot_keep = None
+        self._provider_snapshot_signal_changes = False
         self._provider_snapshot_update_rows = False
         self._provider_routing_changed = False
         self._views: list[AliasView] = []
@@ -208,7 +209,10 @@ class ModelsPanel(
     # points for downstream callers that imported the former monolithic module.
 
     def _load_alias_views(self) -> list[AliasView]:
-        return build_alias_views()
+        return build_alias_views(
+            now=self._models_panel_now(),
+            provider_disables=self._provider_disables,
+        )
 
     def _load_default_reasoning_effort(self) -> str | None:
         return default_reasoning_effort()

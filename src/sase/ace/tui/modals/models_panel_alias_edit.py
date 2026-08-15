@@ -7,7 +7,11 @@ from typing import TYPE_CHECKING
 from textual.worker import Worker, WorkerState
 
 from sase.config import ConfigEditOp
-from sase.llm_provider import AliasView, EffectiveDefaultEffortSnapshot
+from sase.llm_provider import (
+    AliasView,
+    EffectiveDefaultEffortSnapshot,
+    TemporaryProviderDisable,
+)
 from sase.llm_provider.config import validate_model_alias_selector_value
 from sase.xprompt.effort import split_model_effort
 
@@ -31,6 +35,7 @@ from .models_panel_effort_cards import (
     DefaultEffortLevelChoice,
     DefaultEffortLevelModal,
 )
+from .models_panel_providers import disabled_explicit_provider_message
 from .models_panel_selector import member_rejection, parse_selector_for_display
 from .models_panel_selector_builder import SelectorBuilderModal
 
@@ -50,6 +55,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         _config_commit_offer_worker: Worker[AliasCommitOffer | None] | None
         _views: list[AliasView]
         _effort_snapshot: EffectiveDefaultEffortSnapshot
+        _provider_disables: dict[str, TemporaryProviderDisable]
 
         def _selected_alias(self) -> AliasView | None: ...
 
@@ -78,6 +84,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                 include_default_option=False,
                 alias_context=self._pending_alias_selection,
                 include_selector_option=True,
+                provider_disables=self._provider_disables,
             ),
             callback=self._on_edit_model_picked,
         )
@@ -122,6 +129,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
                     alias_context=selection,
                     effort_snapshot=self._effort_snapshot,
                     now=self._models_panel_now(),
+                    provider_disables=self._provider_disables,
                 ),
                 callback=self._on_selector_built,
             )
@@ -162,6 +170,17 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return
         if parsed.selector is not None:
             for member in parsed.selector.members:
+                disabled = disabled_explicit_provider_message(
+                    member,
+                    self._provider_disables,
+                    now=self._models_panel_now(),
+                )
+                if disabled is not None:
+                    self.notify(
+                        f"Cannot set @{view.name} to {member}: {disabled}.",
+                        severity="warning",
+                    )
+                    return
                 rejection = member_rejection(self._pending_alias_selection, member)
                 if rejection is not None:
                     self.notify(
@@ -176,6 +195,17 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         if rejection is not None:
             self.notify(
                 f"Cannot set @{view.name} to {raw_model}: {rejection}.",
+                severity="warning",
+            )
+            return
+        disabled = disabled_explicit_provider_message(
+            raw_model,
+            self._provider_disables,
+            now=self._models_panel_now(),
+        )
+        if disabled is not None:
+            self.notify(
+                f"Cannot set @{view.name} to {raw_model}: {disabled}.",
                 severity="warning",
             )
             return

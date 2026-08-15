@@ -24,6 +24,8 @@ from sase.ace.tui.modals.models_panel_effort_cards import (
     DefaultEffortLevelModal,
 )
 from sase.ace.tui.modals.models_panel_selector_builder import SelectorBuilderModal
+from sase.llm_provider import TemporaryProviderDisable
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from tests._models_panel_helpers import (
     ModelsPanelTestApp as _TestApp,
@@ -31,6 +33,16 @@ from tests._models_panel_helpers import (
     make_edit_plan as _make_plan,
     patch_alias_views as _patch_views,
 )
+
+
+def _disable(provider: str) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +89,8 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        disable = _disable("codex")
+        panel._provider_disables = {"codex": disable}
         await pilot.press("l", "e")
         await pilot.pause()
 
@@ -84,6 +98,7 @@ async def test_action_edit_picker_uses_flat_alias_snapshot(monkeypatch: Any) -> 
         assert isinstance(picker, ModelPickerModal)
         assert picker._alias_context is not None
         assert picker._alias_context.views == tuple(views)
+        assert picker._provider_disables == {"codex": disable}
         ids = {row.option_id for row in picker._all_rows}
         assert {"@bucketed_a", "@bucketed_b"} <= ids
 
@@ -124,6 +139,7 @@ async def test_on_edit_model_picked_selector_sentinel_opens_builder(
         screen = pilot.app.screen
         assert isinstance(screen, SelectorBuilderModal)
         assert screen._alias == "medium_worker"
+        assert screen._provider_disables == panel._provider_disables
 
 
 async def test_on_selector_built_routes_to_preview(monkeypatch: Any) -> None:
@@ -267,6 +283,34 @@ async def test_on_edit_custom_rejects_unknown_and_cyclic_aliases(
         assert "would create a cycle" in messages[1]
 
 
+async def test_on_edit_custom_rejects_disabled_explicit_provider_before_preview(
+    monkeypatch: Any,
+) -> None:
+    view = _view("medium_worker", "role")
+    _patch_views(monkeypatch, [view])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_view = view
+        panel._provider_disables = {"claude": _disable("claude")}
+
+        panel._on_edit_custom_picked("claude/opus@medium")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        assert panel._pending_edit_raw_model == ""
+        panel.notify.assert_called_once()
+        message = panel.notify.call_args.args[0]
+        assert "Cannot set @medium_worker to claude/opus@medium" in message
+        assert "CLAUDE is temporarily disabled until cleared" in message
+
+
 async def test_on_edit_custom_accepts_fallback_and_rejects_mixed_selector(
     monkeypatch: Any,
 ) -> None:
@@ -356,6 +400,34 @@ async def test_on_edit_custom_rejects_pool_member_unknown_alias_before_preview(
         assert isinstance(pilot.app.screen, ModelsPanel)
         panel.notify.assert_called_once()
         assert "unknown alias" in panel.notify.call_args.args[0]
+
+
+async def test_on_edit_custom_rejects_disabled_selector_member_before_preview(
+    monkeypatch: Any,
+) -> None:
+    target = _view("medium_worker", "role")
+    _patch_views(monkeypatch, [target])
+    monkeypatch.setattr(
+        models_panel_edit, "plan_alias_edit", lambda *a, **k: _make_plan()
+    )
+
+    async with _TestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        panel._pending_edit_view = target
+        panel._provider_disables = {"codex": _disable("codex")}
+
+        panel._on_edit_custom_picked("claude/opus | codex/o3")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        assert panel._pending_edit_raw_model == ""
+        panel.notify.assert_called_once()
+        message = panel.notify.call_args.args[0]
+        assert "Cannot set @medium_worker to codex/o3" in message
+        assert "CODEX is temporarily disabled until cleared" in message
 
 
 async def test_on_edit_custom_rejects_pool_member_cycle_before_preview(

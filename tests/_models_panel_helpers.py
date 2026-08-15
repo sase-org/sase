@@ -7,6 +7,7 @@ from typing import Any
 from textual.app import App, ComposeResult
 
 import sase.ace.tui.modals.models_panel as models_panel
+import sase.ace.tui.modals.models_panel_providers as models_panel_providers
 from sase.ace.testing import wait_for as wait_for_pilot
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
@@ -112,6 +113,9 @@ def patch_alias_views(
     bucket_descriptions: dict[str, str] | None = None,
 ) -> None:
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
+    monkeypatch.setattr(
+        models_panel_providers, "build_alias_views", lambda *a, **k: views
+    )
     monkeypatch.setattr(
         "sase.llm_provider.alias_view.model_alias_bucket_description",
         lambda name: (bucket_descriptions or {}).get(name),

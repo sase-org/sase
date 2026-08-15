@@ -28,13 +28,24 @@ from sase.ace.tui.modals.models_panel_time import (
     OverrideUntilModal,
     ResolvedOverrideUntil,
 )
-from sase.llm_provider import TemporaryLLMOverride
+from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
+from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from tests._models_panel_helpers import (
     ModelsPanelTestApp,
     make_alias_view,
     make_pool_members,
     patch_alias_views,
 )
+
+
+def _disable(provider: str) -> TemporaryProviderDisable:
+    return TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+    )
 
 
 def test_action_close_dismisses_unchanged() -> None:
@@ -73,6 +84,8 @@ async def test_action_override_opens_alias_enabled_picker(monkeypatch) -> None:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        disable = _disable("codex")
+        panel._provider_disables = {"codex": disable}
         await pilot.press("l", "o")
         await pilot.pause()
 
@@ -81,6 +94,7 @@ async def test_action_override_opens_alias_enabled_picker(monkeypatch) -> None:
         assert picker._alias_context is not None
         assert picker._alias_context.operation == "temporary"
         assert picker._alias_context.views == tuple(views)
+        assert picker._provider_disables == {"codex": disable}
         assert "@bucketed" in {row.option_id for row in picker._all_rows}
 
 
@@ -224,6 +238,30 @@ async def test_custom_override_rejects_round_robin_selector(monkeypatch) -> None
         assert "@medium_worker" in message
         assert "Press e" in message
         assert kwargs["severity"] == "warning"
+
+
+async def test_custom_override_rejects_disabled_explicit_provider(
+    monkeypatch,
+) -> None:
+    patch_alias_views(monkeypatch, [make_alias_view("medium_worker", "role")])
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        panel = ModelsPanel()
+        panel.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(panel)
+        await pilot.pause()
+        panel._pending_alias = "medium_worker"
+        panel._provider_disables = {"codex": _disable("codex")}
+        panel._on_custom_picked("codex/o3@medium")
+        await pilot.pause()
+
+        assert isinstance(pilot.app.screen, ModelsPanel)
+        assert panel._pending_raw_model == ""
+        panel.notify.assert_called_once()
+        message = panel.notify.call_args.args[0]
+        assert "Cannot use codex/o3@medium" in message
+        assert "CODEX is temporarily disabled until cleared" in message
+        assert panel.notify.call_args.kwargs["severity"] == "warning"
 
 
 async def test_custom_override_rejects_fallback_selector(monkeypatch) -> None:

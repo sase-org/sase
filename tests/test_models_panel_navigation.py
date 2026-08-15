@@ -323,12 +323,7 @@ async def test_refresh_auto_leaves_bucket_when_last_member_disappears(
     monkeypatch,
 ) -> None:
     views = make_bucketed_views()
-    monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
-    monkeypatch.setattr(
-        "sase.llm_provider.alias_view.model_alias_bucket_description",
-        lambda name: None,
-    )
-    monkeypatch.setattr(models_panel, "_now", lambda: 0.0)
+    patch_alias_views(monkeypatch, views)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()

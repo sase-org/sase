@@ -6,9 +6,13 @@ from unittest.mock import MagicMock
 
 from textual.widgets import OptionList, Static
 
+import sase.ace.tui.modals.models_panel as models_panel_module
 import sase.ace.tui.modals.models_panel_providers as providers
 from sase.ace.tui.modals.models_panel import ModelsPanel
-from sase.ace.tui.modals.models_panel_duration import DurationPickerModal
+from sase.ace.tui.modals.models_panel_duration import (
+    DurationPickerModal,
+    OverrideUntilCleared,
+)
 from sase.ace.tui.modals.models_panel_providers import (
     _ProviderRoutingModal,
     _ProviderRoutingSnapshot,
@@ -111,6 +115,26 @@ def test_provider_description_lists_disabled_effect_and_aliases() -> None:
     assert "Affected aliases: @large, @medium, @xlarge." in description.plain
 
 
+def test_panel_sync_row_build_uses_in_memory_provider_snapshot(monkeypatch) -> None:
+    disable = _disable("codex", expires_at=None)
+    panel = ModelsPanel()
+    panel._provider_disables = {"codex": disable}
+    captured: list[dict[str, TemporaryProviderDisable] | None] = []
+    provider_read = MagicMock(side_effect=AssertionError("synchronous provider read"))
+    monkeypatch.setattr(providers, "get_active_provider_disables", provider_read)
+
+    def build_alias_views(**kwargs):
+        captured.append(kwargs.get("provider_disables"))
+        return [make_alias_view("default", "default")]
+
+    monkeypatch.setattr(models_panel_module, "build_alias_views", build_alias_views)
+
+    panel._build_options()
+
+    assert captured == [{"codex": disable}]
+    provider_read.assert_not_called()
+
+
 async def test_panel_p_opens_provider_routing_modal(monkeypatch) -> None:
     patch_alias_views(monkeypatch, [make_alias_view("large", "role")])
     snapshot = _snapshot(_status("claude"), _status("codex"))
@@ -128,6 +152,24 @@ async def test_panel_p_opens_provider_routing_modal(monkeypatch) -> None:
         await pilot.pause()
 
         assert isinstance(pilot.app.screen, _ProviderRoutingModal)
+
+
+async def test_provider_modal_initial_snapshot_does_not_emit_change() -> None:
+    before = _snapshot(_status("claude"))
+    after = _snapshot(_status("claude"), disables={})
+    on_snapshot = MagicMock()
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = _ProviderRoutingModal(
+            before,
+            load_snapshot=lambda: after,
+            on_snapshot=on_snapshot,
+        )
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._snapshot is after)
+
+    assert modal._changed is False
+    on_snapshot.assert_not_called()
 
 
 async def test_provider_modal_omits_hidden_provider_and_opens_duration() -> None:
@@ -163,8 +205,12 @@ async def test_provider_modal_disable_writes_and_refreshes_snapshot(
         _status("claude", active_disable=disable),
         disables={"claude": disable},
     )
-    load_snapshot = MagicMock(side_effect=[after, after])
     disable_mock = MagicMock(return_value=disable)
+
+    def load_snapshot() -> _ProviderRoutingSnapshot:
+        return after if disable_mock.called else before
+
+    load_snapshot_mock = MagicMock(side_effect=load_snapshot)
     monkeypatch.setattr(providers, "disable_provider", disable_mock)
     monkeypatch.setattr(providers, "_now", lambda: 100.0)
     snapshots: list[_ProviderRoutingSnapshot] = []
@@ -172,7 +218,7 @@ async def test_provider_modal_disable_writes_and_refreshes_snapshot(
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = _ProviderRoutingModal(
             before,
-            load_snapshot=load_snapshot,
+            load_snapshot=load_snapshot_mock,
             on_snapshot=lambda snapshot, _provider: snapshots.append(snapshot),
         )
         modal.notify = MagicMock()  # type: ignore[method-assign]
@@ -195,6 +241,53 @@ async def test_provider_modal_disable_writes_and_refreshes_snapshot(
         modal.notify.assert_any_call(
             "CLAUDE disabled for 15m; alias routing refreshed."
         )
+
+
+async def test_provider_modal_idempotent_disable_does_not_emit_change(
+    monkeypatch,
+) -> None:
+    before_disable = _disable("claude", expires_at=None)
+    after_disable = TemporaryProviderDisable(
+        version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
+        provider="claude",
+        created_at=200.0,
+        expires_at=None,
+        source="test",
+    )
+    before = _snapshot(
+        _status("claude", active_disable=before_disable),
+        disables={"claude": before_disable},
+    )
+    after = _snapshot(
+        _status("claude", active_disable=after_disable),
+        disables={"claude": after_disable},
+    )
+    disable_mock = MagicMock(return_value=after_disable)
+    on_snapshot = MagicMock()
+    monkeypatch.setattr(providers, "disable_provider", disable_mock)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = _ProviderRoutingModal(
+            before,
+            load_snapshot=lambda: after,
+            on_snapshot=on_snapshot,
+        )
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal._pending_provider = "claude"
+        modal._submit_disable(OverrideUntilCleared())
+        await wait_for(
+            pilot,
+            lambda: modal._write_worker is None and disable_mock.called,
+        )
+
+    assert modal._changed is False
+    on_snapshot.assert_not_called()
+    modal.notify.assert_any_call(
+        "CLAUDE already has that provider disable.",
+        severity="warning",
+    )
 
 
 async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> None:
