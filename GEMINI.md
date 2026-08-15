@@ -194,6 +194,7 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Agent Family
 - Agent Hood (aka hood, agent neighborhood)
 - Agent Instruction File (aka agents.md file)
+- Agent Lane
 - Agent Neighbor
 - Agent Shell
 - Agent Tribe

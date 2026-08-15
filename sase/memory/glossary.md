@@ -8,6 +8,7 @@ description: |-
   - Agent Family
   - Agent Hood (aka hood, agent neighborhood)
   - Agent Instruction File (aka agents.md file)
+  - Agent Lane
   - Agent Neighbor
   - Agent Shell
   - Agent Tribe
@@ -67,6 +68,12 @@ antigravity, etc...). The `sase init` command, which is run automatically as a s
 post-commit hook, initializes the top-level agent instruction files using memories in
 the sase/memory/ directory and ensures that all agent instruction files in the same
 directory contain the same contents.
+
+## Agent Lane
+
+An agent lane is the display container for a non-dismissed sase agent: its agent family,
+or its agent shell when it has no family. Dismissal removes the lane, not the sase
+agent's identity.
 
 ## Agent Neighbor
 
