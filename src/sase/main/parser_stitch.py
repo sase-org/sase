@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.main.parser_bead import nonnegative_int
 from sase.main.parser_commit import add_commit_create_options
+from sase.ops.cli import add_operation_io_flags
 from sase.vcs_log.dates import DATE_HELP
 
 #: Default number of commits in the merged timeline.
@@ -222,6 +223,23 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_list_options(list_parser)
+
+    post_write_parser = stitch_sub.add_parser(
+        "post-write",
+        help=argparse.SUPPRESS,
+    )
+    post_write_parser.add_argument(
+        "kind",
+        choices=("chezmoi-apply", "command", "commit-push"),
+    )
+    post_write_parser.add_argument("subject")
+    post_write_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    add_operation_io_flags(post_write_parser)
 
 
 register_vcs_parser = register_stitch_parser  # legacy parser alias

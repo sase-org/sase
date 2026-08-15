@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -40,10 +40,6 @@ from .commits_timeline import CommitsTimeline
 from .panes import ArtifactsPaneLifecycle
 from .query_session import ArtifactQuerySession
 from .types import ARTIFACTS_ACCENTS
-
-if TYPE_CHECKING:
-    from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
-
 
 STITCHES_DETAIL_DEBOUNCE_S = 0.25
 
@@ -324,61 +320,7 @@ class CommitsPane(
         self._schedule_collection()
 
     def fetch_commits(self) -> None:
-        from sase.ace.tui.actions.proc_actions import TrackedProcResult
-
-        spec = self._collection_spec()
-        submit = getattr(self.app, "_submit_tracked_proc", None)
-        if not callable(submit):
-            self._schedule_collection()
-            return
-
-        def _proc() -> TrackedProcResult[CommitCollectionPayload]:
-            try:
-                result = self._collect_payload(spec, force_fetch=True)
-            except Exception as exc:
-                return TrackedProcResult(
-                    success=False,
-                    message=f"Commit fetch failed: {exc}",
-                    error=str(exc),
-                )
-            return TrackedProcResult(
-                success=True,
-                message="Commit refs fetched",
-                payload=result,
-            )
-
-        def _complete(
-            completion: TrackedProcCompletion[CommitCollectionPayload],
-        ) -> None:
-            if not completion.success or completion.payload is None:
-                return
-            if spec.generation == self._generation:
-                self._apply_result(
-                    completion.payload.result,
-                    spec=spec,
-                    query_index=completion.payload.query_index,
-                    initial_query_result=completion.payload.initial_query_result,
-                )
-            elif self.artifacts_active:
-                self._schedule_collection()
-
-        scope = spec.project_scope or "all"
-        project_file = (
-            self._project_files.get(spec.project_scope, "")
-            if spec.project_scope is not None
-            else ""
-        )
-        submit(
-            "commit-fetch",
-            f"commits:{scope}",
-            project_file,
-            _proc,
-            display_name=f"Fetch commits ({scope})",
-            dedup_key=f"commit-fetch:{scope}",
-            duplicate_message="A commit fetch is already running for this scope",
-            on_complete=_complete,
-            reload_on_complete=False,
-        )
+        self._schedule_collection(force_fetch=True)
 
     @staticmethod
     def _cancel_worker(worker: Worker[Any] | None) -> None:

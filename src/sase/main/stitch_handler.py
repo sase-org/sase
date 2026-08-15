@@ -65,8 +65,79 @@ def _handle_list(args: argparse.Namespace) -> int:
     return 0 if result.repos else 1
 
 
+def _handle_post_write(args: argparse.Namespace) -> int:
+    """Handle the internal durable post-write action command."""
+    from collections.abc import Sequence
+
+    from sase.ops.cli import load_request
+    from sase.ops.commands.common import run_and_finish
+    from sase.ops.names import GIT_POST_WRITE
+    from sase.post_write_operations import (
+        GitCommitPushResult,
+        run_chezmoi_apply_sync,
+        run_git_commit_push_sync,
+        run_post_write_command_sync,
+    )
+
+    def _body() -> tuple[bool, str, dict[str, object]]:
+        request = load_request(GIT_POST_WRITE, args, required=True)
+        kind = str(args.kind)
+        result: GitCommitPushResult
+        if kind == "commit-push":
+            git_root = request.payload.get("git_root")
+            file_path = request.payload.get("file_path")
+            commit_message = request.payload.get("commit_message")
+            if not isinstance(git_root, str) or not git_root:
+                return False, "post-write commit request must include git_root", {}
+            if not isinstance(file_path, str) or not file_path:
+                return False, "post-write commit request must include file_path", {}
+            if not isinstance(commit_message, str) or not commit_message:
+                return (
+                    False,
+                    "post-write commit request must include commit_message",
+                    {},
+                )
+            result = run_git_commit_push_sync(
+                git_root=git_root,
+                file_path=file_path,
+                commit_message=commit_message,
+            )
+        elif kind == "chezmoi-apply":
+            target = request.payload.get("apply_target")
+            if not isinstance(target, str) or not target:
+                return False, "post-write chezmoi request must include apply_target", {}
+            result = run_chezmoi_apply_sync(target)
+        else:
+            command = request.payload.get("command")
+            cwd = request.payload.get("cwd")
+            if not isinstance(command, Sequence) or isinstance(command, (str, bytes)):
+                return False, "post-write command request must include command list", {}
+            command_words = [str(word) for word in command]
+            if not command_words:
+                return False, "post-write command request must include command list", {}
+            if cwd is not None and not isinstance(cwd, str):
+                return (
+                    False,
+                    "post-write command request cwd must be a string or null",
+                    {},
+                )
+            result = run_post_write_command_sync(command_words, cwd=cwd)
+        return (
+            result.success,
+            result.message,
+            {
+                "index_lock_removed": result.index_lock_removed,
+                "kind": kind,
+                "subject": str(args.subject),
+            },
+        )
+
+    return run_and_finish(operation=GIT_POST_WRITE, body=_body, args=args)
+
+
 _HANDLERS = {
     "list": _handle_list,
+    "post-write": _handle_post_write,
 }
 
 

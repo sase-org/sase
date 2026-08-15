@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.metadata as importlib_metadata
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from sase.ace.tui.proc_subprocess import ProcReporter
@@ -116,6 +117,10 @@ def sase_update_success_message(summary: UpdateSummary, elapsed: float) -> str:
 
 def managed_update_changed(outcome: Any) -> bool:
     """Whether a managed update result changed any installed package."""
+    if isinstance(outcome, Mapping):
+        changed = outcome.get("changed")
+        if isinstance(changed, bool):
+            return changed
     changed = getattr(outcome, "changed", None)
     if isinstance(changed, bool):
         return changed

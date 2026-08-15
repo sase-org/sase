@@ -42,6 +42,26 @@ def _config_offer() -> ConfigCommitOffer:
     )
 
 
+def _capture_config_commit_submission(
+    monkeypatch: pytest.MonkeyPatch,
+    app: object,
+    *,
+    completion: object | None = None,
+) -> list[tuple[tuple[object, ...], dict[str, object]]]:
+    submissions: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def submit(*args: object, **kwargs: object) -> object:
+        submissions.append((args, kwargs))
+        if completion is not None:
+            on_complete = kwargs["on_complete"]
+            assert callable(on_complete)
+            on_complete(completion)
+        return object()
+
+    monkeypatch.setattr(app, "_submit_durable_proc", submit)
+    return submissions
+
+
 async def test_config_pane_successful_write_toast(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -109,7 +129,7 @@ async def test_config_pane_declining_or_dismissing_commit_submits_no_task(
     async with AcePage() as page:
         pane = await _open_config_pane(page)
         submit = MagicMock()
-        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
+        monkeypatch.setattr(page.app, "_submit_durable_proc", submit)
 
         for key in ("n", "escape"):
             pane._on_edit_dismissed(_config_applied(offer.file_path))
@@ -126,39 +146,36 @@ async def test_config_pane_confirm_submits_actual_written_source(
     _patch_loaders(monkeypatch)
     offer = _config_offer()
     monkeypatch.setattr(cp, "_build_config_commit_offer", lambda *_a, **_kw: offer)
-    run = MagicMock(
-        return_value=GitCommitPushResult(True, "Committed and pushed to remote")
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git.run_git_commit_push_sync",
-        run,
-    )
-
     async with AcePage() as page:
         pane = await _open_config_pane(page)
-        submit = MagicMock()
-        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
+        submissions = _capture_config_commit_submission(monkeypatch, page.app)
         pane._on_edit_dismissed(_config_applied(offer.file_path))
         await page.expect_modal("ConfirmActionModal")
         await page.press("y")
-        await page.wait_for(lambda _s: submit.call_count == 1)
+        await page.wait_for(lambda _s: len(submissions) == 1)
 
-        args, kwargs = submit.call_args
-        assert args[:3] == ("config-commit", offer.rel_path, offer.git_root)
+        args, kwargs = submissions[0]
+        assert args == (
+            [
+                "sase",
+                "stitch",
+                "post-write",
+                "commit-push",
+                offer.rel_path,
+                "--json",
+            ],
+        )
         assert kwargs["display_name"] == f"commit config {offer.rel_path}"
-        assert kwargs["dedup_key"] == (
-            f"config-commit:{offer.git_root}:{offer.rel_path}"
+        assert kwargs["concurrency_keys"] == (
+            f"config-commit:{offer.git_root}:{offer.rel_path}",
         )
         assert kwargs["reload_on_complete"] is False
         assert kwargs["notify_on_complete"] is False
-
-        task_result = args[3]()
-        assert task_result.success is True
-        run.assert_called_once_with(
-            git_root=offer.git_root,
-            file_path=offer.file_path,
-            commit_message=offer.message,
-        )
+        assert kwargs["request"] == {
+            "commit_message": offer.message,
+            "file_path": offer.file_path,
+            "git_root": offer.git_root,
+        }
 
 
 async def test_config_pane_cancelled_failed_clean_and_non_git_skip_prompt(
@@ -210,16 +227,9 @@ async def test_config_pane_commit_task_reports_established_outcomes(
 ) -> None:
     _patch_loaders(monkeypatch)
     offer = _config_offer()
-    monkeypatch.setattr(
-        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git.run_git_commit_push_sync",
-        lambda **_kw: result,
-    )
-
     async with AcePage() as page:
         pane = await _open_config_pane(page)
-        submit = MagicMock()
         notifications: list[tuple[str, str]] = []
-        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
         monkeypatch.setattr(
             page.app,
             "notify",
@@ -227,17 +237,17 @@ async def test_config_pane_commit_task_reports_established_outcomes(
                 (message, severity)
             ),
         )
+        _capture_config_commit_submission(
+            monkeypatch,
+            page.app,
+            completion=SimpleNamespace(
+                success=result.success,
+                message=result.message,
+                payload={"index_lock_removed": result.index_lock_removed},
+            ),
+        )
 
         pane._submit_commit_task(offer)
-        args, kwargs = submit.call_args
-        task_result = args[3]()
-        kwargs["on_complete"](
-            SimpleNamespace(
-                success=task_result.success,
-                message=task_result.message,
-                payload=task_result.payload,
-            )
-        )
 
         assert notifications == expected
 

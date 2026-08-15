@@ -14,7 +14,6 @@ from sase.ace.tui.actions.agents._notification_custom_gate import (
 )
 from sase.ace.tui.actions.agents._notification_gate_execution import (
     GateSubmission,
-    _execute_gate_submission,
     submit_gate_execution_task,
 )
 from sase.ace.tui.modals import CustomGateModalResult
@@ -33,6 +32,7 @@ from sase.ace.tui.modals.notification_modal_constants import (
     notification_icon,
 )
 from sase.notification_gates.service import create_gate
+from sase.ops.names import GATE_ANSWER
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
@@ -149,43 +149,11 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
     }
 
 
-class _ProcInfo:
-    def __init__(self) -> None:
-        self.running: set[Any] = set()
-
-    def register_process(self, process: Any) -> None:
-        self.running.add(process)
-
-    def unregister_process(self, process: Any) -> None:
-        self.running.discard(process)
-
-
-class _Reporter:
-    def __init__(self) -> None:
-        self.proc_info = _ProcInfo()
-        self.phases: list[str] = []
-        self.lines: list[tuple[str, str]] = []
-        self.commands: list[tuple[str, ...]] = []
-
-    def phase(self, value: str) -> None:
-        self.phases.append(value)
-
-    def section(self, value: str) -> None:
-        self.lines.append(("header", value))
-
-    def set_command(self, argv: tuple[str, ...]) -> None:
-        self.commands.append(argv)
-
-    def log(self, value: str, *, stream: str = "stdout") -> None:
-        self.lines.append((stream, value))
-
-
 class _TrackedSubmissionApp:
     def __init__(self) -> None:
-        self.reporter = _Reporter()
         self.notifications: list[tuple[str, str]] = []
         self.refresh_count = 0
-        self.task_types: list[str] = []
+        self.submitted: list[tuple[tuple[object, ...], dict[str, Any]]] = []
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -193,9 +161,13 @@ class _TrackedSubmissionApp:
     def _refresh_notification_count(self) -> None:
         self.refresh_count += 1
 
-    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
-        self.task_types.append(str(args[0]))
-        completion = args[3](self.reporter)
+    def _submit_durable_proc(self, *args: object, **kwargs: Any) -> object:
+        self.submitted.append((args, kwargs))
+        completion = SimpleNamespace(
+            success=True,
+            message="Gate answered with approve",
+            payload={"selected_option_ids": ["approve"]},
+        )
         kwargs["on_complete"](completion)
         return SimpleNamespace(proc_id="gate-task")
 
@@ -349,35 +321,7 @@ def test_task_triage_opening_reuses_pump_free_generic_gate_path(
     }
 
 
-def test_tracked_executor_reports_terminal_and_extra_commands_live(
-    gate_home: Path,
-) -> None:
-    del gate_home
-    created = create_gate(_spec())
-    reporter = _Reporter()
-
-    outcome = _execute_gate_submission(
-        created.bundle_path,
-        GateSubmission(
-            selected_option_ids=("approve", "audit"),
-            feedback="Reviewed",
-            input_data={},
-        ),
-        reporter=reporter,  # type: ignore[arg-type]
-    )
-
-    assert outcome.success is True
-    assert reporter.phases == [
-        "Running option: Approve",
-        "Running option: Write audit record",
-    ]
-    assert reporter.proc_info.running == set()
-    assert any('"approved": true' in line for _stream, line in reporter.lines)
-    assert any('"audited": true' in line for _stream, line in reporter.lines)
-    assert (created.bundle_path / "response.json").is_file()
-
-
-def test_custom_gate_submission_uses_tracked_task_toast_and_refresh(
+def test_custom_gate_submission_uses_durable_task_toast_and_refresh(
     gate_home: Path,
 ) -> None:
     del gate_home
@@ -396,10 +340,27 @@ def test_custom_gate_submission_uses_tracked_task_toast_and_refresh(
     )
 
     assert submitted is True
-    assert app.task_types == ["notification-gate"]
+    [(args, kwargs)] = app.submitted
+    assert args == (
+        [
+            "sase",
+            "gate",
+            "answer",
+            "--id",
+            notification.action_data["request_id"],
+            "--kind",
+            notification.action_data["request_kind"],
+            "--json",
+        ],
+    )
+    assert kwargs["operation"] == GATE_ANSWER
+    request = kwargs["request"]
+    assert isinstance(request, dict)
+    assert request["option_ids"] == ["approve"]
+    assert request["feedback"] == "Reviewed"
+    assert request["input_data"] == {}
     assert app.notifications == [("Gate answered with approve", "information")]
     assert app.refresh_count == 1
-    assert any('"approved": true' in line for _stream, line in app.reporter.lines)
 
 
 async def test_custom_gate_dismissal_forwards_collected_option_inputs(

@@ -1,7 +1,7 @@
 """Tests for the non-blocking bgcmd launch path.
 
 Covers:
-- ``_bgcmd_launch_task`` standalone behavior: success, checkout failure,
+- ``run_bgcmd_launch`` standalone behavior: success, checkout failure,
   sase_hg_clean warning captured to stdout, subprocess-spawn failure, and
   pending-marker cleanup in every exit path.
 - ``AxeBgCmdMixin._start_bgcmd`` dispatcher: submits a task and returns
@@ -18,18 +18,20 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from sase.ace.tui.actions.axe_bgcmd import AxeBgCmdMixin, _bgcmd_launch_task
+from sase.ace.tui.actions.axe_bgcmd import AxeBgCmdMixin
 from sase.ace.tui import bgcmd as bgcmd_module
+from sase.axe.bgcmd_operations import run_bgcmd_launch
+from sase.ops.names import AXE_BGCMD
 
 
 # ---------------------------------------------------------------------------
-# _bgcmd_launch_task
+# run_bgcmd_launch
 # ---------------------------------------------------------------------------
 
 
-_PATCH_CLEAN = "sase.ace.tui.actions.axe_bgcmd.run_sase_hg_clean"
-_PATCH_VCS = "sase.ace.tui.actions.axe_bgcmd.get_vcs_provider"
-_PATCH_START = "sase.ace.tui.actions.axe_bgcmd.start_background_command"
+_PATCH_CLEAN = "sase.axe.bgcmd_operations.run_sase_hg_clean"
+_PATCH_VCS = "sase.axe.bgcmd_operations.get_vcs_provider"
+_PATCH_START = "sase.axe.bgcmd_operations.start_background_command"
 
 
 class _TmpBgcmdDir:
@@ -61,7 +63,7 @@ def test_launch_task_success_with_cl_returns_success_and_clears_pending() -> Non
             patch(_PATCH_VCS, return_value=provider),
             patch(_PATCH_START, return_value=4242),
         ):
-            ok, msg = _bgcmd_launch_task(
+            ok, msg, _payload = run_bgcmd_launch(
                 slot=3,
                 command="make test",
                 project="proj",
@@ -85,7 +87,7 @@ def test_launch_task_success_without_cl_skips_checkout() -> None:
             patch(_PATCH_VCS) as vcs,
             patch(_PATCH_START, return_value=99),
         ):
-            ok, msg = _bgcmd_launch_task(
+            ok, msg, _payload = run_bgcmd_launch(
                 slot=2,
                 command="echo hi",
                 project="proj",
@@ -113,7 +115,7 @@ def test_launch_task_checkout_failure_returns_failure_and_clears_pending() -> No
             patch(_PATCH_VCS, return_value=provider),
             patch(_PATCH_START) as start,
         ):
-            ok, msg = _bgcmd_launch_task(
+            ok, msg, _payload = run_bgcmd_launch(
                 slot=1,
                 command="make",
                 project="proj",
@@ -137,7 +139,7 @@ def test_launch_task_spawn_failure_returns_failure_and_clears_pending() -> None:
             patch(_PATCH_VCS),
             patch(_PATCH_START, return_value=None),
         ):
-            ok, msg = _bgcmd_launch_task(
+            ok, msg, _payload = run_bgcmd_launch(
                 slot=5,
                 command="make",
                 project="proj",
@@ -163,7 +165,7 @@ def test_launch_task_clean_warning_does_not_abort_and_is_printed(capsys) -> None
             patch(_PATCH_VCS, return_value=provider),
             patch(_PATCH_START, return_value=123),
         ):
-            ok, _ = _bgcmd_launch_task(
+            ok, _, _payload = run_bgcmd_launch(
                 slot=4,
                 command="make",
                 project="proj",
@@ -215,24 +217,9 @@ class _FakeApp(AxeBgCmdMixin):
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
 
-    def _submit_proc(
-        self,
-        proc_type: str,
-        cl_name: str,
-        project_file: str,
-        proc_callable: Any,
-        on_success: Any = None,
-    ) -> bool:
-        self.submit_calls.append(
-            {
-                "proc_type": proc_type,
-                "cl_name": cl_name,
-                "project_file": project_file,
-                "proc_callable": proc_callable,
-                "on_success": on_success,
-            }
-        )
-        return self.submit_return
+    def _submit_durable_proc(self, *args: object, **kwargs: Any) -> object:
+        self.submit_calls.append({"args": args, "kwargs": kwargs})
+        return object() if self.submit_return else False
 
     def _load_bgcmd_state(self) -> None:
         self.load_count += 1
@@ -266,11 +253,19 @@ def test_start_bgcmd_submits_task_and_returns_without_running_vcs() -> None:
 
     assert len(app.submit_calls) == 1
     call = app.submit_calls[0]
-    assert call["proc_type"] == "bgcmd-launch"
-    assert call["cl_name"] == "CL-1"
-    assert call["project_file"].endswith("/projects/proj/proj.sase")
-    assert callable(call["proc_callable"])
-    assert callable(call["on_success"])
+    assert call["args"] == (
+        ["sase", "axe", "bgcmd-launch", "2", "proj", "1", "--json"],
+    )
+    kwargs = call["kwargs"]
+    assert kwargs["operation"] == AXE_BGCMD
+    assert kwargs["cl_name"] == "CL-1"
+    assert kwargs["project_file"].endswith("/projects/proj/proj.sase")
+    assert kwargs["request"] == {
+        "cl_name": "CL-1",
+        "command": "make",
+        "workspace_dir": "/ws/1",
+    }
+    assert callable(kwargs["on_complete"])
 
     # "Starting:" toast only — no success/failure toast yet.
     assert app.notifications == [("Starting: make", "information")]
@@ -289,11 +284,11 @@ def test_start_bgcmd_on_success_writes_history_and_switches_view() -> None:
     ):
         AxeBgCmdMixin._start_bgcmd(app, 7, "make", "proj", 1, cl_name="CL-X")
 
-    on_success = app.submit_calls[0]["on_success"]
-    assert on_success is not None
+    on_complete = app.submit_calls[0]["kwargs"]["on_complete"]
+    assert callable(on_complete)
 
     with patch("sase.history.command.add_or_update_command") as add:
-        on_success()
+        on_complete(MagicMock(success=True))
 
     add.assert_called_once_with("make", "proj", "CL-X")
     assert app.load_count == 1
@@ -327,7 +322,7 @@ def test_start_bgcmd_no_cl_uses_slot_scoped_dedup_key() -> None:
     ):
         AxeBgCmdMixin._start_bgcmd(app, 4, "make", "proj", 1, cl_name=None)
 
-    assert app.submit_calls[0]["cl_name"] == "bgcmd-slot-4"
+    assert app.submit_calls[0]["kwargs"]["cl_name"] == "bgcmd-slot-4"
 
 
 def test_start_bgcmd_dedup_rejection_clears_pending_and_warns_synthetic() -> None:

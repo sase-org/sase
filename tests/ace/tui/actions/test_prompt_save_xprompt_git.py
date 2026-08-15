@@ -7,7 +7,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from sase.ace.tui.actions.agent_workflow import _prompt_bar_save_xprompt_git
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
     submit_post_write_action_sequence,
 )
@@ -15,6 +14,8 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt import (
     _run_git_commit_push_sync,
 )
 from sase.ace.tui.modals.post_write_actions_modal import PostWriteActionsModal
+from sase.ops.names import GIT_POST_WRITE
+from sase.post_write_operations import run_post_write_command_sync
 from sase.xprompt.write_targets import PostWriteActionKind, PostWriteActionOffer
 
 from ._prompt_save_xprompt_helpers import _CommitHarness
@@ -42,8 +43,24 @@ def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:
         callback((PostWriteActionKind.COMMIT_PUSH,))
     assert len(harness.submitted) == 1
     args, kwargs = harness.submitted[0]
-    assert args[:3] == ("xprompt-commit", "xprompts/review.md", str(tmp_path))
-    assert kwargs["dedup_key"] == f"xprompt-commit:{tmp_path}:xprompts/review.md"
+    assert args == (
+        [
+            "sase",
+            "stitch",
+            "post-write",
+            "commit-push",
+            "xprompts/review.md",
+            "--json",
+        ],
+    )
+    assert kwargs["operation"] == GIT_POST_WRITE
+    assert kwargs["concurrency_keys"] == (
+        f"xprompt-commit:{tmp_path}:xprompts/review.md",
+    )
+    request = kwargs["request"]
+    assert isinstance(request, dict)
+    assert request["file_path"] == str(path)
+    assert request["git_root"] == str(tmp_path)
 
 
 def test_successful_snippet_commit_refreshes_config_catalog(tmp_path: Path) -> None:
@@ -247,7 +264,14 @@ def test_post_write_sequence_waits_for_success_before_next_task() -> None:
     on_complete(SimpleNamespace(success=True, message="committed", payload=False))
 
     assert len(harness.submitted) == 2
-    assert harness.submitted[1][0][0] == "xprompt-chezmoi-apply"
+    assert harness.submitted[1][0][0] == [
+        "sase",
+        "stitch",
+        "post-write",
+        "chezmoi-apply",
+        "review.md",
+        "--json",
+    ]
 
 
 def test_post_write_sequence_stops_after_failed_task() -> None:
@@ -306,17 +330,16 @@ def test_generic_post_write_action_uses_noninteractive_runner_with_cwd() -> None
     )
 
     with patch(
-        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git.run_noninteractive",
+        "sase.post_write_operations.run_noninteractive",
         return_value=completed,
     ) as run_noninteractive:
-        result = _prompt_bar_save_xprompt_git._run_post_write_action_sync(offer)
+        result = run_post_write_command_sync(offer.command, cwd=offer.cwd)
 
     assert result.success is True
     run_noninteractive.assert_called_once_with(offer.command, cwd="/repo")
 
 
 def test_timed_out_post_write_action_returns_failed_task_result() -> None:
-    harness = _CommitHarness()
     offer = PostWriteActionOffer(
         kind=PostWriteActionKind.MEMORY_INIT,
         key="m",
@@ -330,13 +353,10 @@ def test_timed_out_post_write_action_returns_failed_task_result() -> None:
     )
 
     with patch(
-        "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git.run_noninteractive",
+        "sase.post_write_operations.run_noninteractive",
         side_effect=subprocess.TimeoutExpired(list(offer.command), 0.5),
     ):
-        submit_post_write_action_sequence(harness, harness, (offer,))
-        task = harness.submitted[0][0][3]
-        assert callable(task)
-        result = task()
+        result = run_post_write_command_sync(offer.command, cwd=offer.cwd)
 
     assert result.success is False
-    assert result.error == "sase memory init timed out after 0.5s"
+    assert result.message == "sase memory init timed out after 0.5s"

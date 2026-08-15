@@ -4,6 +4,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.widgets import Static
 
@@ -533,23 +534,31 @@ class AgentDetail(AgentDetailPanelMixin, Static):
     @property
     def tools_detail_level(self) -> ToolDetailLevel:
         """Current detail level for the tools panel."""
-        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
-        return tools_panel.detail_level
+        tools_panel = self._tools_panel_or_none()
+        return (
+            ToolDetailLevel.COMPACT if tools_panel is None else tools_panel.detail_level
+        )
 
     def expand_tools_detail(self) -> bool:
         """Expand the visible tools panel by one detail level."""
-        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
-        return tools_panel.expand_detail()
+        tools_panel = self._tools_panel_or_none()
+        return False if tools_panel is None else tools_panel.expand_detail()
 
     def collapse_tools_detail(self) -> bool:
         """Collapse the visible tools panel by one detail level."""
-        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
-        return tools_panel.collapse_detail()
+        tools_panel = self._tools_panel_or_none()
+        return False if tools_panel is None else tools_panel.collapse_detail()
 
     def set_tools_detail_level(self, level: ToolDetailLevel | int) -> bool:
         """Set the visible tools panel detail level."""
-        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
-        return tools_panel.set_detail_level(level)
+        tools_panel = self._tools_panel_or_none()
+        return False if tools_panel is None else tools_panel.set_detail_level(level)
+
+    def _tools_panel_or_none(self) -> AgentToolsPanel | None:
+        try:
+            return self.query_one("#agent-tools-panel", AgentToolsPanel)
+        except NoMatches:
+            return None
 
     def is_info_mode(self) -> bool:
         """Check if the panel is in info-only mode.

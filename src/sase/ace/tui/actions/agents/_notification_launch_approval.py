@@ -7,6 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
+from sase.ops.names import LAUNCH_APPROVAL
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -99,38 +106,30 @@ def _submit_launch_approval_task(
     action: str,
     feedback: str | None,
 ) -> None:
-    """Submit launch approval work through the task queue when available."""
-    from sase.ace.tui.actions.proc_actions import TrackedProcResult
-
+    """Submit launch approval work through the durable task queue when available."""
     request_id = str(notification.action_data.get("request_id") or notification.id)
     response_dir = str(notification.action_data.get("response_dir") or "")
     display_name = f"{action} launch {request_id}"
     cl_name = f"launch approval {request_id}"
     dedup_key = f"launch-approval:{request_id}"
 
-    def task_body() -> _LaunchApprovalTaskOutcome:
-        return _run_launch_approval_task(notification, action, feedback)
-
-    def tracked_body() -> TrackedProcResult[_LaunchApprovalTaskOutcome]:
-        outcome = task_body()
-        return TrackedProcResult(
-            success=outcome.success,
-            message=outcome.message,
-            payload=outcome,
-            error=outcome.message if not outcome.success else None,
-        )
-
-    submit = getattr(app, "_submit_tracked_proc", None)
+    submit = getattr(app, "_submit_durable_proc", None)
     if callable(submit):
         try:
             proc_info = submit(
-                "launch",
-                cl_name,
-                response_dir,
-                tracked_body,
+                _launch_approval_argv(action, request_id),
+                operation=LAUNCH_APPROVAL,
+                request=durable_request_payload(feedback=feedback),
+                request_fingerprint=durable_fingerprint(
+                    LAUNCH_APPROVAL,
+                    action,
+                    request_id,
+                ),
+                concurrency_keys=(dedup_key,),
+                label=display_name,
                 display_name=display_name,
-                dedup_key=dedup_key,
-                duplicate_message="Launch approval is already being processed",
+                cl_name=cl_name,
+                project_file=response_dir,
                 on_complete=lambda completion: _finish_launch_approval_task(
                     app, completion
                 ),
@@ -143,7 +142,13 @@ def _submit_launch_approval_task(
         except Exception:
             log.debug("Falling back to synchronous launch approval", exc_info=True)
 
-    _finish_launch_approval_outcome(app, task_body())
+    _finish_launch_approval_outcome(
+        app, _run_launch_approval_task(notification, action, feedback)
+    )
+
+
+def _launch_approval_argv(action: str, request_id: str) -> list[str]:
+    return sase_argv("launch", action, request_id)
 
 
 def _run_launch_approval_task(
@@ -255,8 +260,26 @@ def _first_launch_workspace(data: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _finish_launch_approval_task(app: object, completion: object) -> None:
-    """Apply launch approval completion effects from the tracked task."""
+    """Apply launch approval completion effects from the durable task."""
     outcome = getattr(completion, "payload", None)
+    if isinstance(outcome, dict):
+        action = str(outcome.get("choice") or "")
+        _finish_launch_approval_outcome(
+            app,
+            _LaunchApprovalTaskOutcome(
+                message=str(
+                    getattr(completion, "message", "")
+                    or outcome.get("message")
+                    or "Launch approval completed"
+                ),
+                action=action,
+                severity=None
+                if bool(getattr(completion, "success", False))
+                else "error",
+                request_agents_refresh=action == "approve",
+            ),
+        )
+        return
     if not isinstance(outcome, _LaunchApprovalTaskOutcome):
         success = bool(getattr(completion, "success", False))
         if not success:

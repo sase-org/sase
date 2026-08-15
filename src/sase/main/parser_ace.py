@@ -98,6 +98,8 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'axe' subcommand parser."""
+    from sase.ops.cli import add_operation_io_flags
+
     axe_parser = subparsers.add_parser(
         "axe",
         help="Schedule-based daemon for continuous Patch status updates",
@@ -113,8 +115,25 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # Nested subparsers for axe
     axe_subparsers = axe_parser.add_subparsers(
-        dest="axe_subcommand", help="Axe subcommands"
+        dest="axe_subcommand",
+        help="Axe subcommands",
+        metavar="{chop,ensure,lumberjack,maintenance,start,status,stop}",
     )
+
+    axe_bgcmd_parser = axe_subparsers.add_parser(
+        "bgcmd-launch",
+        help=argparse.SUPPRESS,
+    )
+    axe_bgcmd_parser.add_argument("slot", type=int)
+    axe_bgcmd_parser.add_argument("project")
+    axe_bgcmd_parser.add_argument("workspace_num", type=int)
+    axe_bgcmd_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    add_operation_io_flags(axe_bgcmd_parser)
 
     # --- axe chop ---
     axe_chop_parser = axe_subparsers.add_parser(

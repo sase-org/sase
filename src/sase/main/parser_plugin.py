@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.ops.cli import add_operation_io_flags
+
 
 def _add_load_flags(parser: argparse.ArgumentParser) -> None:
     """Add the cache/refresh and JSON flags shared by plugin subcommands."""
@@ -190,6 +192,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Bypass the cache and refetch the catalog from GitHub",
     )
+    add_operation_io_flags(install_parser)
 
     uninstall_parser = plugin_sub.add_parser(
         "uninstall",
@@ -247,6 +250,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Bypass the cache and refetch the catalog from GitHub",
     )
+    add_operation_io_flags(uninstall_parser)
 
     update_parser = plugin_sub.add_parser(
         "update",
@@ -307,3 +311,4 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Bypass the cache and refetch the catalog from GitHub",
     )
+    add_operation_io_flags(update_parser)

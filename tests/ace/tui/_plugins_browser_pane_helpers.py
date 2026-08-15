@@ -6,6 +6,7 @@ import io
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
@@ -21,6 +22,8 @@ from sase.agent_clis.models import (
 )
 from sase.agents_sync.models import SyncStatusSnapshot
 from sase.ace.testing import AcePage
+from sase.ace._update_receipt_builders import build_update_receipt
+from sase.ace._update_receipt_codec import receipt_to_json
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals import statistics_pane as sp
@@ -477,6 +480,40 @@ def _spy_notify(
 
     monkeypatch.setattr(pane, "_notify", _record)
     return messages
+
+
+def _complete_durable_update(
+    monkeypatch: pytest.MonkeyPatch,
+    app: object,
+    *,
+    outcome: object,
+    message: str,
+) -> list[tuple[tuple[object, ...], dict[str, object]]]:
+    """Record durable plugin submissions and complete them with CLI-shaped payload."""
+    submissions: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    change_set = getattr(outcome, "change_set", None)
+    changed = bool(getattr(change_set, "changes", ()))
+    receipt = build_update_receipt(outcome)
+    payload: dict[str, object] = {"changed": changed}
+    if receipt is not None:
+        payload["update_receipt"] = receipt_to_json(receipt)
+
+    def submit(*args: object, **kwargs: object) -> object:
+        submissions.append((args, kwargs))
+        on_complete = kwargs["on_complete"]
+        assert callable(on_complete)
+        on_complete(
+            SimpleNamespace(
+                success=True,
+                message=message,
+                payload=payload,
+                error=None,
+            )
+        )
+        return object()
+
+    monkeypatch.setattr(app, "_submit_durable_proc", submit)
+    return submissions
 
 
 def _update_ready(

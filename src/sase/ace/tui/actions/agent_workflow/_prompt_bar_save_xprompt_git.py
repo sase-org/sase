@@ -5,16 +5,22 @@ from __future__ import annotations
 import os
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
 from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
-    TrackedProcResult,
 )
-from sase.git_lock_retry import run_with_git_lock_retry
-from sase.noninteractive_subprocess import run_noninteractive
-from sase.workspace_provider.utils import non_interactive_git_env
+from sase.ops.names import GIT_POST_WRITE
+from sase.post_write_operations import (
+    GitCommitPushResult,
+    process_error_text,
+    run_git_commit_push_sync,
+)
 from sase.xprompt.write_targets import (
     PostWriteActionKind,
     PostWriteActionOffer,
@@ -24,15 +30,6 @@ from sase.xprompt.write_targets import (
     classify_written_file,
     write_target_for_written_path,
 )
-
-
-@dataclass(frozen=True)
-class GitCommitPushResult:
-    """Result from the synchronous git commit/push helper."""
-
-    success: bool
-    message: str
-    index_lock_removed: bool = False
 
 
 class PromptBarSaveXpromptGitMixin:
@@ -141,22 +138,9 @@ class PromptBarSaveXpromptGitMixin:
         noun: str = "xprompt",
         refresh_config_on_success: bool = False,
     ) -> None:
-        """Run the git commit/push flow through the tracked task queue."""
+        """Run the git commit/push flow through the durable proc queue."""
 
-        def _task() -> TrackedProcResult[bool]:
-            result = run_git_commit_push_sync(
-                git_root=git_root,
-                file_path=file_path,
-                commit_message=message,
-            )
-            return TrackedProcResult(
-                success=result.success,
-                message=result.message,
-                payload=result.index_lock_removed,
-                error=None if result.success else result.message,
-            )
-
-        def _on_complete(completion: TrackedProcCompletion[bool]) -> None:
+        def _on_complete(completion: TrackedProcCompletion[dict[str, object]]) -> None:
             if completion.success:
                 self.notify(completion.message)  # type: ignore[attr-defined]
                 if refresh_config_on_success:
@@ -172,14 +156,15 @@ class PromptBarSaveXpromptGitMixin:
                     completion.message,
                     severity="error",
                 )
-            if completion.payload:
+            payload = completion.payload if isinstance(completion.payload, dict) else {}
+            if payload.get("index_lock_removed"):
                 self.notify(  # type: ignore[attr-defined]
                     git_index_lock_retry_message(git_root),
                     severity="warning",
                 )
 
-        submit = getattr(self, "_submit_tracked_proc", None)
-        if submit is None:
+        submit = getattr(self, "_submit_durable_proc", None)
+        if not callable(submit):
             self.notify(  # type: ignore[attr-defined]
                 f"Could not commit {noun}: proc queue unavailable.",
                 severity="error",
@@ -187,83 +172,29 @@ class PromptBarSaveXpromptGitMixin:
             return
 
         submit(
-            f"{noun}-commit",
-            rel_path,
-            git_root,
-            _task,
+            sase_argv("stitch", "post-write", "commit-push", rel_path, "--json"),
+            operation=GIT_POST_WRITE,
+            request=durable_request_payload(
+                commit_message=message,
+                file_path=file_path,
+                git_root=git_root,
+            ),
+            request_fingerprint=durable_fingerprint(
+                GIT_POST_WRITE,
+                "commit-push",
+                git_root,
+                rel_path,
+            ),
+            concurrency_keys=(f"{noun}-commit:{git_root}:{rel_path}",),
+            label=f"commit {noun} {rel_path}",
             display_name=f"commit {noun} {rel_path}",
-            dedup_key=f"{noun}-commit:{git_root}:{rel_path}",
-            duplicate_message=f"Another {noun} commit is already running for {rel_path}.",
+            cl_name=rel_path,
+            project_file=git_root,
+            cwd=git_root,
             on_complete=_on_complete,
             reload_on_complete=False,
             notify_on_complete=False,
         )
-
-
-def run_git_commit_push_sync(
-    *,
-    git_root: str,
-    file_path: str,
-    commit_message: str,
-) -> GitCommitPushResult:
-    """Synchronously stage, commit, pull, and push one file."""
-    index_lock_removed = False
-
-    def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
-        nonlocal index_lock_removed
-        argv = ["git", "-C", git_root, *args]
-        result, outcome = run_with_git_lock_retry(
-            lambda: subprocess.run(
-                argv,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                check=False,
-                start_new_session=True,
-                env=non_interactive_git_env(),
-            ),
-            cwd=git_root,
-        )
-        index_lock_removed = index_lock_removed or outcome.lock_removed
-        return result
-
-    add_result = _run_git(["add", "--", file_path])
-    if add_result.returncode != 0:
-        return GitCommitPushResult(
-            False,
-            f"Git add failed: {process_error_text(add_result)}",
-            index_lock_removed,
-        )
-
-    commit_result = _run_git(["commit", "-m", commit_message])
-    if commit_result.returncode != 0:
-        return GitCommitPushResult(
-            False,
-            f"Commit failed: {process_error_text(commit_result)}",
-            index_lock_removed,
-        )
-
-    pull_result = _run_git(["pull", "--rebase"])
-    if pull_result.returncode != 0:
-        return GitCommitPushResult(
-            False,
-            f"Pull failed: {process_error_text(pull_result)}",
-            index_lock_removed,
-        )
-
-    push_result = _run_git(["push"])
-    if push_result.returncode != 0:
-        return GitCommitPushResult(
-            False,
-            f"Push failed: {process_error_text(push_result)}",
-            index_lock_removed,
-        )
-
-    return GitCommitPushResult(
-        True,
-        "Committed and pushed to remote",
-        index_lock_removed,
-    )
 
 
 def submit_post_write_action_sequence(
@@ -312,7 +243,7 @@ def _submit_post_write_action(
     noun: str,
     on_success: Callable[[], None],
 ) -> None:
-    submit = getattr(submit_owner, "_submit_tracked_proc", None)
+    submit = getattr(submit_owner, "_submit_durable_proc", None)
     if not callable(submit):
         notifier.notify(
             f"Could not run {offer.label}: proc queue unavailable.",
@@ -320,21 +251,13 @@ def _submit_post_write_action(
         )
         return
 
-    def _task() -> TrackedProcResult[bool]:
-        result = _run_post_write_action_sync(offer)
-        return TrackedProcResult(
-            success=result.success,
-            message=result.message,
-            payload=result.index_lock_removed,
-            error=None if result.success else result.message,
-        )
-
-    def _on_complete(completion: TrackedProcCompletion[bool]) -> None:
+    def _on_complete(completion: TrackedProcCompletion[dict[str, object]]) -> None:
         notifier.notify(
             completion.message,
             severity="information" if completion.success else "error",
         )
-        if completion.payload and offer.git_root:
+        payload = completion.payload if isinstance(completion.payload, dict) else {}
+        if payload.get("index_lock_removed") and offer.git_root:
             notifier.notify(
                 git_index_lock_retry_message(offer.git_root),
                 severity="warning",
@@ -343,76 +266,42 @@ def _submit_post_write_action(
             on_success()
 
     metadata = _post_write_task_metadata(offer, noun=noun)
+    kind = _post_write_cli_kind(offer)
+    request = _post_write_request_payload(offer)
+    cl_name = str(metadata["cl_name"] or "")
+    dedup_key = str(metadata["dedup_key"] or "")
+    display_name = str(metadata["display_name"] or "")
+    project_file = str(metadata["project_file"] or "")
     submit(
-        metadata["proc_type"],
-        metadata["cl_name"],
-        metadata["project_file"],
-        _task,
-        display_name=metadata["display_name"],
-        dedup_key=metadata["dedup_key"],
-        duplicate_message=metadata["duplicate_message"],
+        sase_argv("stitch", "post-write", kind, cl_name, "--json"),
+        operation=GIT_POST_WRITE,
+        request=request,
+        request_fingerprint=durable_fingerprint(
+            GIT_POST_WRITE,
+            kind,
+            dedup_key,
+        ),
+        concurrency_keys=(dedup_key,),
+        label=display_name,
+        display_name=display_name,
+        cl_name=cl_name,
+        project_file=project_file,
+        cwd=metadata["cwd"] or None,
         on_complete=_on_complete,
         reload_on_complete=False,
         notify_on_complete=False,
     )
 
 
-def _run_post_write_action_sync(offer: PostWriteActionOffer) -> GitCommitPushResult:
-    if offer.kind is PostWriteActionKind.COMMIT_PUSH:
-        if offer.git_root is None or offer.commit_message is None:
-            return GitCommitPushResult(False, "Commit action is missing git metadata")
-        return run_git_commit_push_sync(
-            git_root=offer.git_root,
-            file_path=offer.file_path,
-            commit_message=offer.commit_message,
-        )
-
-    if offer.kind is PostWriteActionKind.APPLY_CHEZMOI:
-        if offer.apply_target is None:
-            return GitCommitPushResult(False, "chezmoi apply target is missing")
-        from sase.config import apply_chezmoi
-
-        try:
-            result = apply_chezmoi(offer.apply_target)
-        except FileNotFoundError:
-            return GitCommitPushResult(False, "chezmoi not found on PATH")
-        if result.returncode != 0:
-            return GitCommitPushResult(
-                False,
-                f"chezmoi apply failed: {process_error_text(result)}",
-            )
-        return GitCommitPushResult(
-            True,
-            f"Applied chezmoi changes to {offer.apply_target}",
-        )
-
-    if offer.command:
-        label = " ".join(offer.command)
-        try:
-            result = run_noninteractive(offer.command, cwd=offer.cwd)
-        except FileNotFoundError:
-            return GitCommitPushResult(False, f"{offer.command[0]} not found on PATH")
-        except subprocess.TimeoutExpired as exc:
-            timeout = "unknown" if exc.timeout is None else f"{exc.timeout:g}"
-            return GitCommitPushResult(False, f"{label} timed out after {timeout}s")
-        if result.returncode != 0:
-            return GitCommitPushResult(
-                False,
-                f"{label} failed: {process_error_text(result)}",
-            )
-        return GitCommitPushResult(True, f"Ran {label}")
-
-    return GitCommitPushResult(False, f"Unsupported post-write action: {offer.kind}")
-
-
 def _post_write_task_metadata(
     offer: PostWriteActionOffer,
     *,
     noun: str,
-) -> dict[str, str]:
+) -> dict[str, str | None]:
     if offer.kind is PostWriteActionKind.COMMIT_PUSH:
         git_root = offer.git_root or ""
         return {
+            "cwd": git_root,
             "proc_type": f"{noun}-commit",
             "cl_name": offer.rel_path,
             "project_file": git_root,
@@ -425,6 +314,7 @@ def _post_write_task_metadata(
     if offer.kind is PostWriteActionKind.APPLY_CHEZMOI:
         target = offer.apply_target or offer.file_path
         return {
+            "cwd": offer.cwd,
             "proc_type": f"{noun}-chezmoi-apply",
             "cl_name": offer.rel_path,
             "project_file": target,
@@ -434,6 +324,7 @@ def _post_write_task_metadata(
         }
     if offer.kind is PostWriteActionKind.MEMORY_INIT:
         return {
+            "cwd": offer.cwd,
             "proc_type": "xprompt-memory-init",
             "cl_name": offer.rel_path,
             "project_file": offer.file_path,
@@ -442,6 +333,7 @@ def _post_write_task_metadata(
             "duplicate_message": "Another sase memory init is already running.",
         }
     return {
+        "cwd": offer.cwd,
         "proc_type": "xprompt-skill-init",
         "cl_name": offer.rel_path,
         "project_file": offer.file_path,
@@ -449,6 +341,33 @@ def _post_write_task_metadata(
         "dedup_key": "xprompt-skill-init",
         "duplicate_message": "Another sase skill init is already running.",
     }
+
+
+def _post_write_cli_kind(offer: PostWriteActionOffer) -> str:
+    if offer.kind is PostWriteActionKind.COMMIT_PUSH:
+        return "commit-push"
+    if offer.kind is PostWriteActionKind.APPLY_CHEZMOI:
+        return "chezmoi-apply"
+    return "command"
+
+
+def _post_write_request_payload(offer: PostWriteActionOffer) -> dict[str, object]:
+    if offer.kind is PostWriteActionKind.COMMIT_PUSH:
+        return dict(
+            durable_request_payload(
+                commit_message=offer.commit_message,
+                file_path=offer.file_path,
+                git_root=offer.git_root,
+            )
+        )
+    if offer.kind is PostWriteActionKind.APPLY_CHEZMOI:
+        return dict(durable_request_payload(apply_target=offer.apply_target))
+    return dict(
+        durable_request_payload(
+            command=list(offer.command or ()),
+            cwd=offer.cwd,
+        )
+    )
 
 
 def _post_write_subject(
@@ -464,10 +383,6 @@ def _post_write_subject(
 def git_index_lock_retry_message(git_root: str) -> str:
     repo_name = os.path.basename(os.path.normpath(git_root)) or git_root
     return f"Removed a stale git index.lock in {repo_name} and retried the commit."
-
-
-def process_error_text(result: subprocess.CompletedProcess[str]) -> str:
-    return (result.stderr or result.stdout or "command failed").strip()
 
 
 __all__ = [

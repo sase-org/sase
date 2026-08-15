@@ -11,6 +11,7 @@ from sase.ace.tui.modals.notification_modal_action_types import (
     NotificationMutationResult,
 )
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
+from sase.ops.names import NOTIFY_APPLY_STATE
 from sase.notification_gates.presentation import GATE_PANEL_ACTION_DATA_KEY
 
 from tests._notification_modal_helpers import _make_notification
@@ -25,12 +26,15 @@ def _pushed_confirm(
     return modal, callback
 
 
-def _tracked_task(mock_app: MagicMock) -> Callable[[], Any]:
-    mock_app._submit_tracked_proc.assert_called_once()
-    kwargs = mock_app._submit_tracked_proc.call_args.kwargs
-    assert kwargs["dedup_key"] == "notification-state"
-    assert kwargs["exclusive_scopes"] == ("notification-state",)
-    return mock_app._submit_tracked_proc.call_args.args[3]
+def _durable_submission(
+    mock_app: MagicMock,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    mock_app._submit_durable_proc.assert_called_once()
+    args = mock_app._submit_durable_proc.call_args.args
+    kwargs = mock_app._submit_durable_proc.call_args.kwargs
+    assert kwargs["operation"] == NOTIFY_APPLY_STATE
+    assert kwargs["concurrency_keys"] == ("notification-state",)
+    return args, kwargs
 
 
 def test_read_tab_prompts_before_any_dispatch_or_store_write() -> None:
@@ -47,7 +51,7 @@ def test_read_tab_prompts_before_any_dispatch_or_store_write() -> None:
         modal.action_read_tab()
 
     confirm, _callback = _pushed_confirm(mock_app)
-    mock_app._submit_tracked_proc.assert_not_called()
+    mock_app._submit_durable_proc.assert_not_called()
     mock_mark.assert_not_called()
     assert confirm._kind is ConfirmKind.DANGER
     assert confirm._confirm_label == "Mark read"
@@ -84,18 +88,17 @@ def test_read_tab_general_prompt_uses_general_label_and_core_general_key() -> No
 
     with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
         mock_app.screen = modal
-        mock_app._submit_tracked_proc.return_value = object()
+        mock_app._submit_durable_proc.return_value = object()
         modal.action_read_tab()
         confirm, callback = _pushed_confirm(mock_app)
         callback(True)
 
     assert confirm._subject == "Tab: General"
-    task_fn = _tracked_task(mock_app)
-    with patch.object(modal, "_mark_tab_read", return_value=1) as mock_mark:
-        task_result = task_fn()
-
-    mock_mark.assert_called_once_with("general")
-    assert task_result.payload.ids == ("n1",)
+    args, kwargs = _durable_submission(mock_app)
+    assert args == (["sase", "notify", "apply-state", "n1", "read", "--json"],)
+    request = kwargs["request"]
+    assert request["tab_key"] == "general"
+    assert request["ids"] == ["n1"]
 
 
 def test_read_tab_panel_tab_prompt_and_dispatch_are_not_special_cased() -> None:
@@ -109,18 +112,17 @@ def test_read_tab_panel_tab_prompt_and_dispatch_are_not_special_cased() -> None:
 
     with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
         mock_app.screen = modal
-        mock_app._submit_tracked_proc.return_value = object()
+        mock_app._submit_durable_proc.return_value = object()
         modal.action_read_tab()
         confirm, callback = _pushed_confirm(mock_app)
         callback(True)
 
     assert confirm._subject == "Tab: Beads"
-    task_fn = _tracked_task(mock_app)
-    with patch.object(modal, "_mark_tab_read", return_value=1) as mock_mark:
-        task_result = task_fn()
-
-    mock_mark.assert_called_once_with("beads")
-    assert task_result.payload.ids == ("p1",)
+    args, kwargs = _durable_submission(mock_app)
+    assert args == (["sase", "notify", "apply-state", "p1", "read", "--json"],)
+    request = kwargs["request"]
+    assert request["tab_key"] == "beads"
+    assert request["ids"] == ["p1"]
 
 
 def test_read_tab_false_cancellation_has_no_side_effects() -> None:
@@ -139,7 +141,7 @@ def test_read_tab_false_cancellation_has_no_side_effects() -> None:
         callback(False)
 
     assert n1.read is False
-    mock_app._submit_tracked_proc.assert_not_called()
+    mock_app._submit_durable_proc.assert_not_called()
     mock_app._schedule_notification_poll.assert_not_called()
     mock_mark.assert_not_called()
 
@@ -160,7 +162,7 @@ def test_read_tab_none_cancellation_has_no_side_effects() -> None:
         callback(None)
 
     assert n1.read is False
-    mock_app._submit_tracked_proc.assert_not_called()
+    mock_app._submit_durable_proc.assert_not_called()
     mock_app._schedule_notification_poll.assert_not_called()
     mock_mark.assert_not_called()
 
@@ -175,20 +177,19 @@ def test_read_tab_confirmation_dispatches_captured_core_key_and_ids() -> None:
 
     with patch.object(NotificationModal, "app", new_callable=MagicMock) as mock_app:
         mock_app.screen = modal
-        mock_app._submit_tracked_proc.return_value = object()
+        mock_app._submit_durable_proc.return_value = object()
         modal.action_read_tab()
         _confirm, callback = _pushed_confirm(mock_app)
         modal._active_notification_tag = "beta"
         modal._notification_tab_keys = {"a1": "beta", "a2": "beta", "b1": "beta"}
         callback(True)
 
-    task_fn = _tracked_task(mock_app)
-    with patch.object(modal, "_mark_tab_read", return_value=2) as mock_mark:
-        task_result = task_fn()
-
-    mock_mark.assert_called_once_with("alpha")
-    assert set(task_result.payload.ids) == {"a1", "a2"}
-    assert "b1" not in task_result.payload.ids
+    args, kwargs = _durable_submission(mock_app)
+    assert args == (["sase", "notify", "apply-state-many", "read", "--json"],)
+    request = kwargs["request"]
+    assert request["tab_key"] == "alpha"
+    assert set(request["ids"]) == {"a1", "a2"}
+    assert "b1" not in request["ids"]
 
 
 def test_read_tab_does_not_persist_synchronously_after_confirmation() -> None:
@@ -202,12 +203,12 @@ def test_read_tab_does_not_persist_synchronously_after_confirmation() -> None:
         patch.object(modal, "_mark_tab_read") as mock_mark,
     ):
         mock_app.screen = modal
-        mock_app._submit_tracked_proc.return_value = object()
+        mock_app._submit_durable_proc.return_value = object()
         modal.action_read_tab()
         _confirm, callback = _pushed_confirm(mock_app)
         callback(True)
 
-    mock_app._submit_tracked_proc.assert_called_once()
+    mock_app._submit_durable_proc.assert_called_once()
     mock_mark.assert_not_called()
 
 
@@ -224,7 +225,7 @@ def test_read_tab_confirmation_ignored_when_modal_no_longer_active() -> None:
         mock_app.screen = object()
         callback(True)
 
-    mock_app._submit_tracked_proc.assert_not_called()
+    mock_app._submit_durable_proc.assert_not_called()
 
 
 def test_read_tab_no_prompt_for_missing_or_empty_target() -> None:

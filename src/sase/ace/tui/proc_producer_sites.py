@@ -8,10 +8,11 @@ from typing import Literal
 Classification = Literal["durable", "ui_only", "adapter", "infrastructure"]
 CallKind = Literal[
     "direct_submit_proc",
-    "direct_submit_tracked",
     "direct_submit_durable",
+    "direct_submit_tracked",
     "session_worker",
     "duck_submit",
+    "duck_submit_durable",
     "adapter_forward",
 ]
 
@@ -23,7 +24,7 @@ class _ProcProducerSite:
     site_id: str
     source_path: str
     function: str
-    kind: CallKind | Literal["definition", "test_double"]
+    kind: CallKind | Literal["definition", "test_double", "ui_worker"]
     proc_type: str
     classification: Classification
     owning_action: str
@@ -36,32 +37,11 @@ class _ProcProducerSite:
     restart_recovery: str
 
 
-@dataclass(frozen=True, slots=True)
-class FoundProducerCall:
-    """One production submit call discovered by the AST scanner."""
-
-    source_path: str
-    function: str
-    kind: CallKind
-    proc_type: str
-    index: int
-
-    @property
-    def site_key(self) -> tuple[str, str, str, str, int]:
-        return (
-            self.source_path,
-            self.function,
-            self.kind,
-            self.proc_type,
-            self.index,
-        )
-
-
 def _site(
     site_id: str,
     source_path: str,
     function: str,
-    kind: CallKind | Literal["definition", "test_double"],
+    kind: CallKind | Literal["definition", "test_double", "ui_worker"],
     proc_type: str,
     classification: Classification,
     owning_action: str,
@@ -122,8 +102,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "axe.bgcmd",
         "src/sase/ace/tui/actions/axe_bgcmd.py",
         "_start_bgcmd",
-        "direct_submit_proc",
-        "bgcmd-launch",
+        "direct_submit_durable",
+        "AXE_BGCMD",
         "durable",
         "AxeBgCmdMixin",
         "sase run",
@@ -136,8 +116,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "monitor.stop",
         "src/sase/ace/tui/actions/agents/_monitor_stop_flow.py",
         "_do_stop_monitor",
-        "direct_submit_proc",
-        "monitor-stop",
+        "direct_submit_durable",
+        "MONITOR_STOP",
         "durable",
         "MonitorStopActionFlowMixin._do_stop_monitor",
         "sase monitor stop",
@@ -257,8 +237,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "bead.issue_open",
         "src/sase/ace/tui/actions/_artifacts_beads_issue_actions.py",
         "_submit_beads_issue_open",
-        "direct_submit_tracked",
-        "bead-issue-open",
+        "ui_worker",
+        "browser-open",
         "ui_only",
         "ArtifactsBeadsIssueActionsMixin._submit_beads_issue_open",
         "",
@@ -270,8 +250,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "notify.state",
         "src/sase/ace/tui/modals/notification_modal_action_support.py",
         "_submit_notification_state_task",
-        "duck_submit",
-        "notification",
+        "duck_submit_durable",
+        "NOTIFY_APPLY_STATE",
         "durable",
         "NotificationActionSupportMixin._submit_notification_state_task",
         "sase notify apply-state",
@@ -283,8 +263,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "notify.gate",
         "src/sase/ace/tui/actions/agents/_notification_gate_execution.py",
         "submit_gate_execution_task",
-        "duck_submit",
-        "notification-gate",
+        "duck_submit_durable",
+        "GATE_ANSWER",
         "durable",
         "submit_gate_execution_task",
         "sase gate answer",
@@ -296,8 +276,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "notify.gate_action",
         "src/sase/ace/tui/actions/agents/_notification_gate_actions.py",
         "run_command",
-        "duck_submit",
-        "gate-action",
+        "duck_submit_durable",
+        "GATE_ACT",
         "durable",
         "NotificationGateActionRunner.run_command",
         "sase gate act",
@@ -335,8 +315,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "notify.launch_approval",
         "src/sase/ace/tui/actions/agents/_notification_launch_approval.py",
         "_submit_launch_approval_task",
-        "duck_submit",
-        "launch",
+        "duck_submit_durable",
+        "LAUNCH_APPROVAL",
         "durable",
         "_submit_launch_approval_task",
         "sase launch approve",
@@ -387,8 +367,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "plugin.update",
         "src/sase/ace/tui/modals/plugins_browser_update.py",
         "_submit_update_task",
-        "duck_submit",
-        "plugin-update",
+        "duck_submit_durable",
+        "PLUGIN_UPDATE",
         "durable",
         "PluginsBrowserUpdateMixin._submit_update_task",
         "sase plugin update",
@@ -400,8 +380,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "plugin.install",
         "src/sase/ace/tui/modals/plugins_browser_install.py",
         "_submit_install_task",
-        "duck_submit",
-        "plugin-install",
+        "duck_submit_durable",
+        "PLUGIN_INSTALL",
         "durable",
         "PluginsBrowserInstallMixin._submit_install_task",
         "sase plugin install",
@@ -426,8 +406,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "plugin.uninstall",
         "src/sase/ace/tui/modals/plugins_browser_uninstall.py",
         "_submit_uninstall_task",
-        "duck_submit",
-        "plugin-uninstall",
+        "duck_submit_durable",
+        "PLUGIN_UNINSTALL",
         "durable",
         "PluginsBrowserUninstallMixin._submit_uninstall_task",
         "sase plugin uninstall",
@@ -517,8 +497,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "xprompt.commit",
         "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py",
         "_submit_xprompt_commit_task",
-        "duck_submit",
-        "dynamic",
+        "duck_submit_durable",
+        "GIT_POST_WRITE",
         "durable",
         "_submit_xprompt_commit_task",
         "sase stitch create",
@@ -530,8 +510,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "xprompt.post_write",
         "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py",
         "_submit_post_write_action",
-        "duck_submit",
-        "dynamic",
+        "duck_submit_durable",
+        "GIT_POST_WRITE",
         "durable",
         "_submit_post_write_action",
         "sase stitch create",
@@ -542,8 +522,8 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "config.commit",
         "src/sase/ace/tui/modals/config_commit.py",
         "submit_config_commit_task",
-        "duck_submit",
-        "config-commit",
+        "duck_submit_durable",
+        "GIT_POST_WRITE",
         "durable",
         "submit_config_commit_task",
         "sase stitch create",
@@ -555,7 +535,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "prompt.stash",
         "src/sase/ace/tui/actions/agent_workflow/_prompt_bar_stash.py",
         "_submit_prompt_stash_persist_task",
-        "duck_submit",
+        "ui_worker",
         "prompt-stash",
         "ui_only",
         "_submit_prompt_stash_persist_task",
@@ -568,7 +548,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "commits.fetch",
         "src/sase/ace/tui/widgets/artifacts/commits_pane.py",
         "fetch_commits",
-        "duck_submit",
+        "ui_worker",
         "commit-fetch",
         "ui_only",
         "CommitsPane.fetch_commits",
@@ -663,7 +643,6 @@ INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
 
 __all__ = [
     "CallKind",
-    "FoundProducerCall",
     "INFRASTRUCTURE",
     "PRODUCTION_PRODUCERS",
 ]

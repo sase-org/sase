@@ -16,7 +16,9 @@ def handle_axe_command(args: argparse.Namespace) -> None:
 
     axe_sub = getattr(args, "axe_subcommand", None)
 
-    if axe_sub == "chop":
+    if axe_sub == "bgcmd-launch":
+        _handle_bgcmd_launch(args)
+    elif axe_sub == "chop":
         _handle_chop(args)
     elif axe_sub == "ensure":
         _handle_ensure(args)
@@ -33,6 +35,37 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     else:
         print("Usage: sase axe {chop,ensure,lumberjack,maintenance,start,status,stop}")
         sys.exit(1)
+
+
+def _handle_bgcmd_launch(args: argparse.Namespace) -> None:
+    """Handle the internal durable ``sase axe bgcmd-launch`` command."""
+    from sase.axe.bgcmd_operations import run_bgcmd_launch
+    from sase.ops.cli import load_request
+    from sase.ops.commands.common import run_and_finish
+    from sase.ops.names import AXE_BGCMD
+
+    def _body() -> tuple[bool, str, dict[str, object]]:
+        request = load_request(AXE_BGCMD, args, required=True)
+        command = request.payload.get("command")
+        workspace_dir = request.payload.get("workspace_dir")
+        cl_name = request.payload.get("cl_name")
+        if not isinstance(command, str) or not command:
+            return False, "bgcmd request payload must include command", {}
+        if not isinstance(workspace_dir, str) or not workspace_dir:
+            return False, "bgcmd request payload must include workspace_dir", {}
+        if cl_name is not None and not isinstance(cl_name, str):
+            return False, "bgcmd request payload cl_name must be a string or null", {}
+        success, message, payload = run_bgcmd_launch(
+            slot=int(args.slot),
+            command=command,
+            project=str(args.project),
+            workspace_num=int(args.workspace_num),
+            workspace_dir=workspace_dir,
+            cl_name=cl_name,
+        )
+        return success, message, dict(payload)
+
+    sys.exit(run_and_finish(operation=AXE_BGCMD, body=_body, args=args))
 
 
 def _handle_chop(args: argparse.Namespace) -> None:

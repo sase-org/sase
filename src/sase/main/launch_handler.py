@@ -18,6 +18,8 @@ from sase.launch_approval_actions import (
 from sase.notifications.models import Notification
 from sase.notifications.pending_actions import action_state_for_notification
 from sase.notifications.store import load_notifications
+from sase.ops.cli import emit_operation_result, load_request
+from sase.ops.names import LAUNCH_APPROVAL
 
 
 def handle_launch_command(args: argparse.Namespace) -> None:
@@ -27,19 +29,29 @@ def handle_launch_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "launch_subcommand", None)
     try:
         if subcommand == "approve":
-            _print_result(_resolve_launch_from_cli(args.selector, "approve"))
+            result = _resolve_launch_from_cli(args.selector, "approve", args=args)
+            _emit_launch_approval_result(result, "approve", args)
+            _print_result(result)
             sys.exit(0)
         if subcommand == "reject":
+            operation_request = load_request(LAUNCH_APPROVAL, args)
+            feedback = operation_request.payload.get("feedback")
             _print_result(
-                _resolve_launch_from_cli(
+                result := _resolve_launch_from_cli(
                     args.selector,
                     "reject",
-                    feedback=getattr(args, "feedback", None),
+                    feedback=(
+                        feedback
+                        if isinstance(feedback, str)
+                        else getattr(args, "feedback", None)
+                    ),
+                    args=args,
                 )
             )
+            _emit_launch_approval_result(result, "reject", args)
             sys.exit(0)
         if subcommand == "request":
-            request = _create_request_from_cli(args)
+            launch_request = _create_request_from_cli(args)
             from sase.agent.launch_request import (
                 cancel_launch_approval_request,
                 running_agent_context_requires_launch_approval,
@@ -48,10 +60,10 @@ def handle_launch_command(args: argparse.Namespace) -> None:
 
             if running_agent_context_requires_launch_approval():
                 try:
-                    outcome = wait_for_launch_approval(request)
+                    outcome = wait_for_launch_approval(launch_request)
                 except KeyboardInterrupt:
                     try:
-                        cancel_launch_approval_request(request)
+                        cancel_launch_approval_request(launch_request)
                     except LaunchRequestError:
                         pass
                     Console(stderr=True).print(
@@ -60,9 +72,17 @@ def handle_launch_command(args: argparse.Namespace) -> None:
                     sys.exit(130)
                 _print_wait_result(outcome.to_dict(), args.output)
             else:
-                _print_request_result(request, args.output)
+                _print_request_result(launch_request, args.output)
             sys.exit(0)
     except LaunchApprovalActionError as exc:
+        emit_operation_result(
+            operation=LAUNCH_APPROVAL,
+            success=False,
+            message=str(exc),
+            error=str(exc),
+            payload={"code": exc.code, "target": exc.target},
+            args=args,
+        )
         Console(stderr=True).print(f"[red]Error:[/red] {exc}")
         sys.exit(2)
     except LaunchRequestError as exc:
@@ -138,13 +158,33 @@ def _resolve_launch_from_cli(
     choice: str,
     *,
     feedback: str | None = None,
+    args: argparse.Namespace | None = None,
 ) -> LaunchApprovalActionResult:
+    del args
     notification = _resolve_launch_notification(selector)
     _ensure_launch_notification_available(notification)
     return execute_launch_approval_response(
         launch_context_from_notification(notification),
         choice,
         feedback=feedback,
+    )
+
+
+def _emit_launch_approval_result(
+    result: LaunchApprovalActionResult,
+    choice: str,
+    args: argparse.Namespace,
+) -> None:
+    emit_operation_result(
+        operation=LAUNCH_APPROVAL,
+        success=True,
+        message=result.message,
+        payload={
+            "choice": choice,
+            "message": result.message,
+            "response_path": str(result.response_path),
+        },
+        args=args,
     )
 
 

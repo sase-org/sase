@@ -88,58 +88,59 @@ def submit_config_commit_task(
     *,
     display_name: str,
 ) -> None:
-    """Submit the established config commit/pull/push tracked task."""
+    """Submit the established config commit/pull/push durable task."""
+    from sase.ace.tui.actions._durable_ops import (
+        durable_fingerprint,
+        durable_request_payload,
+        sase_argv,
+    )
     from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
-        GitCommitPushResult,
         git_index_lock_retry_message,
-        run_git_commit_push_sync,
     )
     from sase.ace.tui.actions.proc_actions import (
         TrackedProcCompletion,
-        TrackedProcResult,
     )
+    from sase.ops.names import GIT_POST_WRITE
 
-    def _task() -> TrackedProcResult[bool]:
-        result: GitCommitPushResult = run_git_commit_push_sync(
-            git_root=offer.git_root,
-            file_path=offer.file_path,
-            commit_message=offer.message,
-        )
-        return TrackedProcResult(
-            success=result.success,
-            message=result.message,
-            payload=result.index_lock_removed,
-            error=None if result.success else result.message,
-        )
-
-    def _on_complete(completion: TrackedProcCompletion[bool]) -> None:
+    def _on_complete(completion: TrackedProcCompletion[dict[str, object]]) -> None:
         app.notify(
             completion.message,
             severity="information" if completion.success else "error",
         )
-        if completion.payload:
+        payload = completion.payload if isinstance(completion.payload, dict) else {}
+        if payload.get("index_lock_removed"):
             app.notify(
                 git_index_lock_retry_message(offer.git_root),
                 severity="warning",
             )
 
-    submit = getattr(app, "_submit_tracked_proc", None)
-    if submit is None:
+    submit = getattr(app, "_submit_durable_proc", None)
+    if not callable(submit):
         app.notify(
             "Could not commit: proc queue unavailable.",
             severity="error",
         )
         return
     submit(
-        "config-commit",
-        offer.rel_path,
-        offer.git_root,
-        _task,
-        display_name=display_name,
-        dedup_key=f"config-commit:{offer.git_root}:{offer.rel_path}",
-        duplicate_message=(
-            f"Another config commit is already running for {offer.rel_path}."
+        sase_argv("stitch", "post-write", "commit-push", offer.rel_path, "--json"),
+        operation=GIT_POST_WRITE,
+        request=durable_request_payload(
+            commit_message=offer.message,
+            file_path=offer.file_path,
+            git_root=offer.git_root,
         ),
+        request_fingerprint=durable_fingerprint(
+            GIT_POST_WRITE,
+            "commit-push",
+            offer.git_root,
+            offer.rel_path,
+        ),
+        concurrency_keys=(f"config-commit:{offer.git_root}:{offer.rel_path}",),
+        label=display_name,
+        display_name=display_name,
+        cl_name=offer.rel_path,
+        project_file=offer.git_root,
+        cwd=offer.git_root,
         on_complete=_on_complete,
         reload_on_complete=False,
         notify_on_complete=False,

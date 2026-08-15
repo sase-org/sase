@@ -74,7 +74,7 @@ class _CommitHarness(PromptBarSaveXpromptMixin):
     def push_screen(self, screen: object, callback: object = None) -> None:
         self.pushed.append((screen, callback))
 
-    def _submit_tracked_proc(self, *args: object, **kwargs: object) -> object:
+    def _submit_durable_proc(self, *args: object, **kwargs: object) -> object:
         self.submitted.append((args, kwargs))
         return object()
 

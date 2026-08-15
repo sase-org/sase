@@ -5,10 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
 from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
+from sase.ops.names import PLUGIN_INSTALL
 from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
@@ -413,35 +419,27 @@ class PluginInstallActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_install_task(self, name: str, plan: InstallReady) -> None:
-        """Run ``execute_install`` in a tracked proc (never blocks)."""
-
-        def task(reporter: ProcReporter) -> TrackedProcResult[InstallOutcome]:
-            try:
-                reporter.phase(f"Installing {name}")
-                outcome = self._execute_install(plan, run_fn=reporter.uv_runner())
-            except UvToolError as exc:
-                return TrackedProcResult(
-                    success=False, message=str(exc), error=str(exc)
-                )
-            message = install_success_message(outcome)
-            reporter.log(message, stream="result")
-            return TrackedProcResult(
-                success=True,
-                message=message,
-                payload=outcome,
-            )
-
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        """Run ``sase plugin install`` in a durable proc (never blocks)."""
+        submit = getattr(self.app, "_submit_durable_proc", None)
         if submit is None:
             return
+        argv = ["plugin", "install", name, "--json"]
+        if plan.spec.source == "git":
+            argv.append("--git")
         submit(
-            "plugin-install",
-            name,
-            "",
-            task,
+            sase_argv(*argv),
+            operation=PLUGIN_INSTALL,
+            request=durable_request_payload(plugin=name, source=plan.spec.source),
+            request_fingerprint=durable_fingerprint(
+                PLUGIN_INSTALL,
+                name,
+                plan.spec.source,
+            ),
+            concurrency_keys=(f"plugin-install:{name}",),
+            label=f"install {name}",
             display_name=f"install {name}",
-            dedup_key=f"plugin-install:{name}",
-            duplicate_message=f"An install is already running for {name}.",
+            cl_name=name,
+            project_file="",
             on_complete=self._on_install_complete,
             reload_on_complete=False,
             notify_on_complete=False,

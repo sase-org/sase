@@ -38,9 +38,9 @@ _TAG_HELPER_CALL_NAMES = frozenset(
 #: before extending this allowlist.
 _ALLOWED_UNTAGGED_COMMIT_SITES = {
     # The commit message is built (and SASE_TYPE stamped) by
-    # sase.xprompt.write_targets._commit_push_offer before it ever reaches
-    # this file; this only executes the already-tagged message.
-    "ace/tui/actions/agent_workflow/_prompt_bar_save_xprompt_git.py:run_git_commit_push_sync",
+    # sase.xprompt.write_targets._commit_push_offer or config-pane callers before
+    # it ever reaches this file; this only executes the already-tagged message.
+    "post_write_operations.py:run_git_commit_push_sync",
     # Generic hookspec wrapper with no current callers; any future caller is
     # responsible for tagging the message it supplies.
     "vcs_provider/plugins/_git_core_ops.py:vcs_commit",

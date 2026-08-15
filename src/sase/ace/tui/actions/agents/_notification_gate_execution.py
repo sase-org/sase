@@ -5,15 +5,17 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
+
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
+from sase.ops.names import GATE_ANSWER
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
-
-    from ...proc_subprocess import ProcReporter
-
-
-_GateTaskSeverity = Literal["warning", "error"]
 
 
 @dataclass(frozen=True)
@@ -36,53 +38,41 @@ class _PartialAttempt:
     failed_option_ids: tuple[str, ...]
 
 
-@dataclass(frozen=True)
-class _GateTaskOutcome:
-    message: str
-    success: bool
-    severity: _GateTaskSeverity | None = None
-    partial_attempt: _PartialAttempt | None = None
-
-
 def submit_gate_execution_task(
     app: object,
     notification: Notification,
     submission: GateSubmission,
 ) -> bool:
-    """Execute a neutral gate through ACE's tracked proc queue."""
+    """Execute a neutral gate through ACE's durable proc queue."""
     bundle_value = notification.action_data.get("bundle_path")
     if not bundle_value:
         app.notify("No neutral gate bundle in notification", severity="error")  # type: ignore[attr-defined]
         return False
-    submit = getattr(app, "_submit_tracked_proc", None)
+    submit = getattr(app, "_submit_durable_proc", None)
     if not callable(submit):
-        app.notify("Tracked gate execution is unavailable", severity="error")  # type: ignore[attr-defined]
+        app.notify("Durable gate execution is unavailable", severity="error")  # type: ignore[attr-defined]
         return False
 
-    from ...actions.proc_actions import TrackedProcResult
-
     request_id = str(notification.action_data.get("request_id") or notification.id)
+    request_kind = str(notification.action_data.get("request_kind") or "custom")
     bundle_path = Path(bundle_value)
 
-    def work(reporter: ProcReporter) -> TrackedProcResult[_GateTaskOutcome]:
-        outcome = _execute_gate_submission(
-            bundle_path,
-            submission,
-            reporter=reporter,
-        )
-        return TrackedProcResult(
-            success=outcome.success,
-            message=outcome.message,
-            payload=outcome,
-            error=None if outcome.success else outcome.message,
-        )
-
     def on_complete(completion: object) -> None:
-        outcome = getattr(completion, "payload", None)
-        if isinstance(outcome, _GateTaskOutcome):
-            _finish_gate_task(app, notification, submission, outcome)
-            return
-        if not bool(getattr(completion, "success", False)):
+        success = bool(getattr(completion, "success", False))
+        payload = getattr(completion, "payload", None)
+        if (
+            not success
+            and isinstance(payload, dict)
+            and payload.get("code") == "partial_attempt"
+            and submission.retry is None
+        ):
+            partial = _describe_partial_attempt(bundle_path)
+            if partial is not None:
+                _ask_retry_choice(app, notification, submission, partial)
+                return
+        if success:
+            app.notify(str(getattr(completion, "message", "Gate answered")))  # type: ignore[attr-defined]
+        else:
             app.notify(  # type: ignore[attr-defined]
                 str(getattr(completion, "message", "Gate execution failed")),
                 severity="error",
@@ -90,85 +80,38 @@ def submit_gate_execution_task(
         _refresh_notifications(app)
 
     task = submit(
-        "notification-gate",
-        f"gate {request_id}",
-        str(bundle_path),
-        work,
+        sase_argv(
+            "gate", "answer", "--id", request_id, "--kind", request_kind, "--json"
+        ),
+        operation=GATE_ANSWER,
+        request=durable_request_payload(
+            feedback=submission.feedback,
+            input_data=submission.input_data,
+            option_ids=list(submission.selected_option_ids),
+            option_inputs=(
+                None
+                if submission.option_inputs is None
+                else dict(submission.option_inputs)
+            ),
+            retry=submission.retry,
+        ),
+        request_fingerprint=durable_fingerprint(
+            GATE_ANSWER,
+            request_kind,
+            request_id,
+            ",".join(submission.selected_option_ids),
+            submission.retry or "",
+        ),
+        concurrency_keys=(f"notification-gate:{notification.id}",),
+        label=f"Gate response: {', '.join(submission.selected_option_ids)}",
         display_name=f"Gate response: {', '.join(submission.selected_option_ids)}",
-        dedup_key=f"notification-gate:{notification.id}",
-        duplicate_message="This gate response is already being processed",
+        cl_name=f"gate {request_id}",
+        project_file=str(bundle_path),
         on_complete=on_complete,
         reload_on_complete=False,
         notify_on_complete=False,
     )
     return task is not None
-
-
-def _execute_gate_submission(
-    bundle_path: Path,
-    submission: GateSubmission,
-    *,
-    reporter: ProcReporter,
-) -> _GateTaskOutcome:
-    from sase.notification_gates.executor import execute_gate_selection
-    from sase.notification_gates.models import GateError
-
-    def command_start(
-        command_kind: str,
-        command_id: str,
-        label: str,
-        argv: tuple[str, ...],
-    ) -> None:
-        del command_kind
-        reporter.phase(f"Running option: {label}")
-        reporter.section(f"Option {command_id}")
-        reporter.set_command(argv)
-
-    def output_line(
-        _command_kind: str,
-        _command_id: str,
-        stream: str,
-        line: str,
-    ) -> None:
-        reporter.log(line, stream="stderr" if stream == "stderr" else "stdout")
-
-    def process_state(process: Any, running: bool) -> None:
-        if running:
-            reporter.proc_info.register_process(process)
-        else:
-            reporter.proc_info.unregister_process(process)
-
-    try:
-        result = execute_gate_selection(
-            bundle_path,
-            submission.selected_option_ids,
-            submission.input_data,
-            feedback=submission.feedback,
-            source="tui",
-            retry=submission.retry,
-            option_inputs=submission.option_inputs,
-            on_command_start=command_start,
-            on_output_line=output_line,
-            on_process_state=process_state,
-        )
-    except GateError as exc:
-        if exc.code == "partial_attempt":
-            return _GateTaskOutcome(
-                str(exc),
-                False,
-                "warning",
-                partial_attempt=_describe_partial_attempt(bundle_path),
-            )
-        return _GateTaskOutcome(str(exc), False, "error")
-    except Exception as exc:
-        return _GateTaskOutcome(str(exc), False, "error")
-
-    if result.already_completed:
-        return _GateTaskOutcome("Gate was already answered", True, "warning")
-    return _GateTaskOutcome(
-        f"Gate answered with {', '.join(submission.selected_option_ids)}",
-        True,
-    )
 
 
 def _describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
@@ -186,22 +129,6 @@ def _describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
         completed_option_ids=pending.completed_option_ids,
         failed_option_ids=pending.failed_option_ids,
     )
-
-
-def _finish_gate_task(
-    app: object,
-    notification: Notification,
-    submission: GateSubmission,
-    outcome: _GateTaskOutcome,
-) -> None:
-    if outcome.partial_attempt is not None and submission.retry is None:
-        _ask_retry_choice(app, notification, submission, outcome.partial_attempt)
-        return
-    if outcome.severity is None:
-        app.notify(outcome.message)  # type: ignore[attr-defined]
-    else:
-        app.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
-    _refresh_notifications(app)
 
 
 def _ask_retry_choice(
@@ -245,4 +172,7 @@ def _refresh_notifications(app: object) -> None:
         refresh()
 
 
-__all__ = ["GateSubmission", "submit_gate_execution_task"]
+__all__ = [
+    "GateSubmission",
+    "submit_gate_execution_task",
+]

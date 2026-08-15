@@ -11,12 +11,12 @@ from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmM
 from sase.plugins.operations import (
     AlreadyAbsent,
     UninstallOutcome,
-    UninstallReady,
     UninstallUnknown,
 )
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
+    _complete_durable_update,
     _highlight,
     _not_uv_tool,
     _open_plugins_pane,
@@ -175,27 +175,27 @@ async def test_plugins_pane_uninstall_confirm_executes_and_restarts(
         "_plan_uninstall_preview",
         lambda query, *, offline: pbp._UninstallPreview(plan=plan),
     )
-    executed: list[UninstallReady] = []
-
-    def _fake_execute(plan_arg: UninstallReady, **_kw: object) -> UninstallOutcome:
-        executed.append(plan_arg)
-        return UninstallOutcome(
-            plan=plan_arg,
-            change_set=UvChangeSet(
-                changes=(
-                    UvPackageChange(
-                        name="sase-github",
-                        kind=ChangeKind.REMOVED,
-                        old_version="1.2.0",
-                    ),
-                )
-            ),
-            elapsed=1.0,
-        )
-
-    monkeypatch.setattr(pbp, "execute_uninstall", _fake_execute)
+    outcome = UninstallOutcome(
+        plan=plan,
+        change_set=UvChangeSet(
+            changes=(
+                UvPackageChange(
+                    name="sase-github",
+                    kind=ChangeKind.REMOVED,
+                    old_version="1.2.0",
+                ),
+            )
+        ),
+        elapsed=1.0,
+    )
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        submissions = _complete_durable_update(
+            monkeypatch,
+            page.app,
+            outcome=outcome,
+            message="Uninstalled github in 1s",
+        )
         initial = len(calls)
         messages = _spy_notify(monkeypatch, pane)
         restart_calls: list[bool] = []
@@ -211,10 +211,10 @@ async def test_plugins_pane_uninstall_confirm_executes_and_restarts(
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
-        # The tracked task runs execute_uninstall, then restarts ACE + axe.
-        await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
-        assert executed[0].display_name == "github"
-        assert executed[0].dist_name == "sase-github"
+        await page.wait_for(lambda _s: bool(restart_calls))
+        [(args, kwargs)] = submissions
+        assert args == (["sase", "plugin", "uninstall", "github", "--json"],)
+        assert kwargs["request"] == {"plugin": "github"}
         assert restart_calls == [True]
         assert len(calls) == initial
         assert any("restarting ACE" in message for message, _severity in messages)
@@ -237,19 +237,19 @@ async def test_plugins_pane_uninstall_no_change_refreshes_without_restart(
         "_plan_uninstall_preview",
         lambda query, *, offline: pbp._UninstallPreview(plan=plan),
     )
-    executed: list[UninstallReady] = []
-
-    def _fake_execute(plan_arg: UninstallReady, **_kw: object) -> UninstallOutcome:
-        executed.append(plan_arg)
-        return UninstallOutcome(
-            plan=plan_arg,
-            change_set=UvChangeSet(),
-            elapsed=0.1,
-        )
-
-    monkeypatch.setattr(pbp, "execute_uninstall", _fake_execute)
+    outcome = UninstallOutcome(
+        plan=plan,
+        change_set=UvChangeSet(),
+        elapsed=0.1,
+    )
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        _complete_durable_update(
+            monkeypatch,
+            page.app,
+            outcome=outcome,
+            message="Plugins already up to date.",
+        )
         initial = len(calls)
         restart_calls: list[bool] = []
         monkeypatch.setattr(
@@ -265,5 +265,5 @@ async def test_plugins_pane_uninstall_no_change_refreshes_without_restart(
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        await page.wait_for(lambda _s: bool(executed) and len(calls) > initial)
+        await page.wait_for(lambda _s: len(calls) > initial)
         assert restart_calls == []

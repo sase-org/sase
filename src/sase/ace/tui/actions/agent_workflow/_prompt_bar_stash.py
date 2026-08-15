@@ -103,59 +103,12 @@ class PromptBarStashMixin(PromptBarStashRestoreMixin):
         entry: PromptStashEntryWire,
         previous_counts: tuple[int, int],
     ) -> None:
-        """Append one entry in the tracked task queue and reconcile the badge."""
-        from ..proc_actions import (
-            TrackedProcCompletion,
-            TrackedProcResult,
-        )
-
-        def _persist() -> TrackedProcResult[PromptStashSnapshotWire]:
-            try:
-                snapshot = self._append_prompt_stash_entry(entry)
-            except Exception as exc:
-                return TrackedProcResult(
-                    success=False,
-                    message=str(exc),
-                    error=str(exc),
-                )
-            return TrackedProcResult(
-                success=True,
-                message="Prompt stashed",
-                payload=snapshot,
+        """Append one entry in a UI-only worker and reconcile the badge."""
+        self._spawn_prompt_stash_task(
+            self._persist_prompt_stash_entry_async(
+                entry,
+                previous_counts,
             )
-
-        def _completed(
-            completion: TrackedProcCompletion[PromptStashSnapshotWire],
-        ) -> None:
-            if completion.success and completion.payload is not None:
-                self._reconcile_prompt_stash_snapshot_counts(completion.payload)
-                return
-            self._apply_prompt_stash_counts(*previous_counts)
-            error = RuntimeError(completion.error or completion.message)
-            self.notify(  # type: ignore[attr-defined]
-                self._prompt_stash_error_message("Failed to stash prompt", error),
-                severity="error",
-            )
-
-        submit = getattr(self, "_submit_tracked_proc", None)
-        if not callable(submit):
-            self._spawn_prompt_stash_task(
-                self._persist_prompt_stash_entry_async(
-                    entry,
-                    previous_counts,
-                )
-            )
-            return
-        submit(
-            "prompt-stash",
-            "",
-            "",
-            _persist,
-            display_name="Stash prompt",
-            dedup_key=f"prompt-stash:{entry.id}",
-            on_complete=_completed,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
 
     async def _persist_prompt_stash_entry_async(

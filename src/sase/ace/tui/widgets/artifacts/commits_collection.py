@@ -75,6 +75,7 @@ class CommitsCollectionMixin(_MixinBase):
     _collection_generation: int | None
     _collection_spec_in_flight: CommitCollectionSpec | None
     _collection_pending: bool
+    _collection_pending_force_fetch: bool
     _authoritative_results: dict[
         tuple[CommitScopeKey, CommitLogFilterValues], VcsLogResult
     ]
@@ -138,6 +139,7 @@ class CommitsCollectionMixin(_MixinBase):
         self._collection_generation = None
         self._collection_spec_in_flight = None
         self._collection_pending = False
+        self._collection_pending_force_fetch = False
         self._authoritative_results = {}
         self._authoritative_query_indexes: dict[int, ArtifactQueryIndex] = {}
         self._preview_base = None
@@ -207,19 +209,25 @@ class CommitsCollectionMixin(_MixinBase):
             initial_query_result=query_result,
         )
 
-    def _schedule_collection(self) -> None:
+    def _schedule_collection(self, *, force_fetch: bool = False) -> None:
         if not self.artifacts_active or not self.is_mounted:
             return
         worker = self._collection_worker
         if worker is not None and worker.is_running:
             self._collection_pending = True
+            self._collection_pending_force_fetch = (
+                self._collection_pending_force_fetch or force_fetch
+            )
             self._refresh_info()
             return
         spec = self._collection_spec()
         self._collection_generation = spec.generation
         self._collection_spec_in_flight = spec
         self._collection_worker = self.run_worker(
-            lambda spec=spec: self._collect_payload(spec, force_fetch=False),
+            lambda spec=spec, force_fetch=force_fetch: self._collect_payload(
+                spec,
+                force_fetch=force_fetch,
+            ),
             thread=True,
             group="artifacts-commits-collection",
             exclusive=True,
@@ -241,6 +249,7 @@ class CommitsCollectionMixin(_MixinBase):
         self._collection_spec_in_flight = None
         stale = generation != self._generation
         pending = self._collection_pending or stale
+        pending_force_fetch = self._collection_pending_force_fetch
         if event.state == WorkerState.SUCCESS and not pending and spec is not None:
             payload = event.worker.result
             if isinstance(payload, CommitCollectionPayload):
@@ -256,13 +265,14 @@ class CommitsCollectionMixin(_MixinBase):
             self._show_collection_error(event.worker.error)
 
         self._collection_pending = False
+        self._collection_pending_force_fetch = False
         self._refresh_info()
         if (
             pending
             and self.artifacts_active
             and not self._filter_reconciliation_blocked()
         ):
-            self._schedule_collection()
+            self._schedule_collection(force_fetch=pending_force_fetch)
 
     def _apply_result(
         self,

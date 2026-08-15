@@ -151,6 +151,7 @@ def handle_plugin_update_command(
                 sort_keys=True,
             )
         )
+        _emit_plugin_update_result(args, outcome, version_fn, restart)
         return 0
 
     render_plugin_update_result(
@@ -162,7 +163,35 @@ def handle_plugin_update_command(
         console=out,
     )
     render_restart_info(restart, console=out, quiet=False)
+    _emit_plugin_update_result(args, outcome, version_fn, restart)
     return 0
+
+
+def _emit_plugin_update_result(
+    args: argparse.Namespace,
+    outcome: UpdateOutcome,
+    version_fn: VersionFn,
+    restart: RestartInfo,
+) -> None:
+    from sase.ace._update_receipt_codec import receipt_to_json
+    from sase.ace.update_receipt import build_update_receipt
+    from sase.ops.commands.plugin import emit_plugin_operation_result
+    from sase.ops.names import PLUGIN_UPDATE
+
+    receipt = build_update_receipt(outcome)
+    payload: dict[str, object] = _result_json(outcome, version_fn, restart)
+    payload["changed"] = any(
+        change.kind is not ChangeKind.UNCHANGED for change in outcome.change_set.changes
+    )
+    if receipt is not None:
+        payload["update_receipt"] = receipt_to_json(receipt)
+    emit_plugin_operation_result(
+        operation=PLUGIN_UPDATE,
+        success=True,
+        message=f"Updated {', '.join(outcome.plan.targets)}",
+        payload=payload,
+        args=args,
+    )
 
 
 # --------------------------------------------------------------------------- #

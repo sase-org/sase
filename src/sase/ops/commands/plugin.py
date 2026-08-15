@@ -27,4 +27,23 @@ def emit_plugin_install_result(
     )
 
 
-__all__ = ["emit_plugin_install_result"]
+def emit_plugin_operation_result(
+    *,
+    operation: str,
+    success: bool,
+    message: str,
+    payload: Mapping[str, object] | None = None,
+    args: argparse.Namespace | None = None,
+) -> None:
+    """Write a typed plugin operation result when a result path is configured."""
+    emit_operation_result(
+        operation=operation,
+        success=success,
+        message=message,
+        error=None if success else message,
+        payload=payload,
+        args=args,
+    )
+
+
+__all__ = ["emit_plugin_install_result", "emit_plugin_operation_result"]

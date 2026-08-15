@@ -277,8 +277,13 @@ async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result = _result()
-    submissions: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
-    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    calls: list[dict[str, Any]] = []
+
+    def collect(**kwargs: Any) -> VcsLogResult:
+        calls.append(kwargs)
+        return result
+
+    monkeypatch.setattr(commits_module, "run_vcs_log", collect)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
 
     async with AcePage(initial_tab="patches") as page:
@@ -290,24 +295,22 @@ async def test_commit_fetch_task_uses_visible_project_name_and_matching_file(
             project_file="/tmp/widgets.sase",
         )
         await page.wait_for(lambda _state: pane.filters.project == "widgets")
-        monkeypatch.setattr(
-            page.app,
-            "_submit_tracked_proc",
-            lambda *args, **kwargs: submissions.append((args, kwargs)),
-        )
 
+        initial_call_count = len(calls)
         pane.fetch_commits()
-
-        assert len(submissions) == 1
-        args, kwargs = submissions[0]
-        assert args[:3] == (
-            "commit-fetch",
-            "commits:widgets",
-            "/tmp/widgets.sase",
+        await page.wait_for(
+            lambda _state: any(
+                call["force_fetch"] is True for call in calls[initial_call_count:]
+            )
         )
-        assert kwargs["display_name"] == "Fetch commits (widgets)"
-        assert kwargs["dedup_key"] == "commit-fetch:widgets"
-        assert "gh_acme__widgets" not in kwargs["duplicate_message"]
+
+        call = next(
+            call for call in calls[initial_call_count:] if call["force_fetch"] is True
+        )
+        assert call["project_scope"] == "widgets"
+        assert call["all_projects"] is False
+        assert call["force_fetch"] is True
+        assert call["no_fetch"] is False
 
 
 async def test_commits_cycle_merges_updates_query_and_recollects(

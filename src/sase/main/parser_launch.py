@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.ops.cli import add_operation_io_flags
+
 
 def register_launch_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase launch`` command group."""
@@ -28,6 +30,7 @@ def register_launch_parser(subparsers: argparse._SubParsersAction) -> None:
         "selector",
         help="Launch request id, notification id, or unique notification prefix",
     )
+    add_operation_io_flags(approve_parser)
 
     reject_parser = launch_subparsers.add_parser(
         "reject",
@@ -43,6 +46,7 @@ def register_launch_parser(subparsers: argparse._SubParsersAction) -> None:
         "--feedback",
         help="Optional feedback to return with the launch rejection",
     )
+    add_operation_io_flags(reject_parser)
 
     request_parser = launch_subparsers.add_parser(
         "request",

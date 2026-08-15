@@ -15,9 +15,8 @@ from textual.widgets import Static
 
 from sase.ace.tui.actions.agents._notification_gate_execution import (
     GateSubmission,
-    _GateTaskOutcome,
     _PartialAttempt,
-    _finish_gate_task,
+    submit_gate_execution_task,
 )
 from sase.ace.tui.modals.gate_retry_modal import GateRetryModal
 
@@ -33,6 +32,8 @@ class _RecordingApp:
         self.pushed: list[tuple[object, Any]] = []
         self.notifications: list[tuple[str, str]] = []
         self.refreshes = 0
+        self.completions: list[object] = []
+        self.submitted: list[tuple[tuple[object, ...], dict[str, Any]]] = []
 
     def push_screen(self, screen: object, callback: Any = None) -> None:
         self.pushed.append((screen, callback))
@@ -43,9 +44,24 @@ class _RecordingApp:
     def _refresh_notification_count(self) -> None:
         self.refreshes += 1
 
+    def _submit_durable_proc(self, *args: object, **kwargs: Any) -> object:
+        self.submitted.append((args, kwargs))
+        if self.completions:
+            on_complete = kwargs["on_complete"]
+            assert callable(on_complete)
+            on_complete(self.completions.pop(0))
+        return SimpleNamespace(proc_id=f"gate-{len(self.submitted)}")
+
 
 def _notification() -> Any:
-    return SimpleNamespace(id="notification-1", action_data={})
+    return SimpleNamespace(
+        id="notification-1",
+        action_data={
+            "bundle_path": "/tmp/gate-bundle",
+            "request_id": "request-1",
+            "request_kind": "custom",
+        },
+    )
 
 
 def _partial() -> _PartialAttempt:
@@ -56,17 +72,25 @@ def _partial() -> _PartialAttempt:
     )
 
 
-def _outcome() -> _GateTaskOutcome:
-    return _GateTaskOutcome(
-        "gate attempt is incomplete", False, "warning", partial_attempt=_partial()
+def _partial_completion(message: str = "gate attempt is incomplete") -> object:
+    return SimpleNamespace(
+        success=False,
+        message=message,
+        payload={"code": "partial_attempt"},
     )
 
 
-def test_partial_attempt_asks_instead_of_notifying() -> None:
+def test_partial_attempt_asks_instead_of_notifying(monkeypatch: Any) -> None:
     app = _RecordingApp()
+    app.completions.append(_partial_completion())
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_gate_execution"
+        "._describe_partial_attempt",
+        lambda _bundle_path: _partial(),
+    )
 
-    _finish_gate_task(
-        app, _notification(), GateSubmission(("approve", "commit")), _outcome()
+    submit_gate_execution_task(
+        app, _notification(), GateSubmission(("approve", "commit"))
     )
 
     [(screen, _callback)] = app.pushed
@@ -76,54 +100,56 @@ def test_partial_attempt_asks_instead_of_notifying() -> None:
 
 def test_choosing_resume_resubmits_with_that_retry(monkeypatch: Any) -> None:
     app = _RecordingApp()
-    submissions: list[GateSubmission] = []
+    app.completions.append(_partial_completion())
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._notification_gate_execution"
-        ".submit_gate_execution_task",
-        lambda _app, _target, submission: submissions.append(submission) or True,
+        "._describe_partial_attempt",
+        lambda _bundle_path: _partial(),
     )
 
-    _finish_gate_task(
-        app, _notification(), GateSubmission(("approve", "commit")), _outcome()
+    submit_gate_execution_task(
+        app, _notification(), GateSubmission(("approve", "commit"))
     )
     [(_screen, callback)] = app.pushed
     callback("resume")
 
-    assert [submission.retry for submission in submissions] == ["resume"]
-    assert submissions[0].selected_option_ids == ("approve", "commit")
+    assert len(app.submitted) == 2
+    retry_request = app.submitted[1][1]["request"]
+    assert retry_request["retry"] == "resume"
+    assert retry_request["option_ids"] == ["approve", "commit"]
 
 
 def test_declining_the_choice_leaves_the_gate_alone(monkeypatch: Any) -> None:
     app = _RecordingApp()
-    submissions: list[GateSubmission] = []
+    app.completions.append(_partial_completion())
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._notification_gate_execution"
-        ".submit_gate_execution_task",
-        lambda _app, _target, submission: submissions.append(submission) or True,
+        "._describe_partial_attempt",
+        lambda _bundle_path: _partial(),
     )
 
-    _finish_gate_task(
-        app, _notification(), GateSubmission(("approve", "commit")), _outcome()
+    submit_gate_execution_task(
+        app, _notification(), GateSubmission(("approve", "commit"))
     )
     [(_screen, callback)] = app.pushed
     callback(None)
 
-    assert submissions == []
+    assert len(app.submitted) == 1
     assert app.notifications and "incomplete" in app.notifications[0][0]
 
 
 def test_a_retried_submission_reports_its_failure_rather_than_asking_again() -> None:
     app = _RecordingApp()
+    app.completions.append(_partial_completion())
 
-    _finish_gate_task(
+    submit_gate_execution_task(
         app,
         _notification(),
         GateSubmission(("approve", "commit"), retry="resume"),
-        _outcome(),
     )
 
     assert app.pushed == []
-    assert app.notifications == [("gate attempt is incomplete", "warning")]
+    assert app.notifications == [("gate attempt is incomplete", "error")]
 
 
 async def test_retry_modal_reports_both_option_sets_and_returns_a_choice() -> None:

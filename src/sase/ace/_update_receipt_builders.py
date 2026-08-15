@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 
 from sase.ace._update_receipt_models import (
@@ -32,6 +32,7 @@ from sase.uv_tool.render import UpdateOutcome as ManagedUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from sase.version._utils import normalize_distribution_name
+from ._update_receipt_codec import receipt_from_json
 
 _PRIMARY_DIST_KEY = normalize_distribution_name("sase")
 
@@ -41,6 +42,10 @@ def build_update_receipt(
 ) -> UpdateToastReceipt | None:
     """Normalize a managed or dev update payload into a toast receipt."""
     timestamp = time.time() if created_at is None else float(created_at)
+    if isinstance(payload, Mapping):
+        receipt = receipt_from_json(payload.get("update_receipt"))
+        if receipt is not None:
+            return replace(receipt, created_at=timestamp)
     if isinstance(payload, UpdateSummary):
         return _build_managed_receipt(payload, created_at=timestamp)
     if isinstance(payload, DevUpdateResult):

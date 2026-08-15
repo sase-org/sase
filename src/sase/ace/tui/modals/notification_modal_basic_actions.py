@@ -251,26 +251,11 @@ class NotificationBasicActionsMixin:
         if not captured_ids:
             return
 
-        def _task() -> NotificationMutationResult:
-            try:
-                self._mark_tab_read(core_tab_key)
-            except Exception as exc:
-                return NotificationMutationResult(
-                    action="read",
-                    ids=captured_ids,
-                    success=False,
-                    message=str(exc),
-                )
-            return NotificationMutationResult(
-                action="read",
-                ids=captured_ids,
-                success=True,
-                message="Tab marked read",
-            )
-
         self._submit_notification_state_task(
             label="Read tab",
-            task=_task,
+            action="read",
+            ids=captured_ids,
+            tab_key=core_tab_key,
             on_complete=self._complete_read_tab,
         )
 

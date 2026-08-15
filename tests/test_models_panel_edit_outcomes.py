@@ -112,10 +112,17 @@ async def test_submit_commit_task_uses_app_queue(monkeypatch: Any) -> None:
         pilot.app.push_screen(panel)
         await pilot.pause()
         submit = MagicMock()
-        pilot.app._submit_tracked_proc = submit  # type: ignore[attr-defined]
+        pilot.app._submit_durable_proc = submit  # type: ignore[attr-defined]
         panel._submit_commit_task(offer)
         await pilot.pause()
         submit.assert_called_once()
         args, kwargs = submit.call_args
-        assert args[0] == "config-commit"
-        assert kwargs["dedup_key"] == "config-commit:/repo:sase.yml"
+        assert args == (
+            ["sase", "stitch", "post-write", "commit-push", "sase.yml", "--json"],
+        )
+        assert kwargs["concurrency_keys"] == ("config-commit:/repo:sase.yml",)
+        assert kwargs["request"] == {
+            "commit_message": offer.message,
+            "file_path": offer.file_path,
+            "git_root": offer.git_root,
+        }

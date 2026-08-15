@@ -9,10 +9,11 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
-from sase.plugins.operations import UpdateOutcome, UpdateReady, UpdateUnknown
+from sase.plugins.operations import UpdateOutcome, UpdateUnknown
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
+    _complete_durable_update,
     _highlight,
     _not_uv_tool,
     _open_plugins_pane,
@@ -179,28 +180,28 @@ async def test_plugins_pane_update_confirm_executes_and_writes_receipt(
         "_plan_update_preview",
         lambda query, *, all_plugins, offline: pbp._UpdatePreview(plan=plan),
     )
-    executed: list[UpdateReady] = []
-
-    def _fake_execute(plan_arg: UpdateReady, **_kw: object) -> UpdateOutcome:
-        executed.append(plan_arg)
-        return UpdateOutcome(
-            plan=plan_arg,
-            change_set=UvChangeSet(
-                changes=(
-                    UvPackageChange(
-                        name="sase-github",
-                        kind=ChangeKind.UPGRADED,
-                        old_version="1.2.0",
-                        new_version="1.3.0",
-                    ),
-                )
-            ),
-            elapsed=1.0,
-        )
-
-    monkeypatch.setattr(pbp, "execute_update", _fake_execute)
+    outcome = UpdateOutcome(
+        plan=plan,
+        change_set=UvChangeSet(
+            changes=(
+                UvPackageChange(
+                    name="sase-github",
+                    kind=ChangeKind.UPGRADED,
+                    old_version="1.2.0",
+                    new_version="1.3.0",
+                ),
+            )
+        ),
+        elapsed=1.0,
+    )
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        submissions = _complete_durable_update(
+            monkeypatch,
+            page.app,
+            outcome=outcome,
+            message="Updated 1 plugin in 1s",
+        )
         restart_calls: list[bool] = []
         monkeypatch.setattr(
             page.app,
@@ -214,10 +215,10 @@ async def test_plugins_pane_update_confirm_executes_and_writes_receipt(
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
-        # The tracked task runs execute_update, then restarts ACE + axe.
-        await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
-        assert executed[0].targets == ("sase-github",)
-        assert not executed[0].all_plugins
+        await page.wait_for(lambda _s: bool(restart_calls))
+        [(args, kwargs)] = submissions
+        assert args == (["sase", "plugin", "update", "sase-github", "--json"],)
+        assert kwargs["request"] == {"plugin": "sase-github"}
         assert restart_calls == [True]
         assert calls  # initial load happened
         receipt = update_receipt.read_and_clear_pending_update_toast()

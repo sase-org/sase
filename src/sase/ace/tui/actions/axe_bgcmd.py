@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Literal
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
 from sase.core.paths import sase_projects_dir
+from sase.ops.names import AXE_BGCMD
 from sase.running_field import get_workspace_directory
-from sase.vcs_provider import get_vcs_provider
-from sase.workflows.commit_utils import run_sase_hg_clean
 
 from ..bgcmd import (
     BackgroundCommandInfo,
@@ -33,48 +36,6 @@ TabName = Literal["artifacts", "agents", "axe"]
 def _bgcmd_description(info: BackgroundCommandInfo) -> str:
     """Return display-only bgcmd confirmation text."""
     return f"{info.command}\n({info.display_project}, workspace {info.workspace_num})"
-
-
-def _bgcmd_launch_task(
-    slot: int,
-    command: str,
-    project: str,
-    workspace_num: int,
-    workspace_dir: str,
-    cl_name: str | None,
-) -> tuple[bool, str]:
-    """Run sase_hg_clean + checkout + start_background_command off the UI thread.
-
-    The caller must have reserved the slot via ``mark_slot_pending`` before
-    submitting this task. The marker is always cleared before returning so the
-    slot doesn't leak on failure.
-    """
-    try:
-        if cl_name is not None:
-            clean_ok, clean_err = run_sase_hg_clean(workspace_dir, f"{cl_name}-bgcmd")
-            if not clean_ok:
-                print(f"Warning: sase_hg_clean failed: {clean_err}")
-
-            provider = get_vcs_provider(workspace_dir)
-            resolved = provider.resolve_revision(cl_name, project, workspace_dir)
-            checkout_ok, checkout_err = provider.checkout(resolved, workspace_dir)
-            if not checkout_ok:
-                return (False, f"checkout failed: {checkout_err}")
-
-        pid = start_background_command(
-            slot=slot,
-            command=command,
-            project=project,
-            workspace_num=workspace_num,
-            workspace_dir=workspace_dir,
-        )
-        if pid is None:
-            return (False, "Failed to start background command")
-
-        cmd_notify = command[:30] + "..." if len(command) > 30 else command
-        return (True, f"Started bgcmd in slot {slot}: {cmd_notify}")
-    finally:
-        clear_slot_pending(slot)
 
 
 class AxeBgCmdMixin:
@@ -208,9 +169,8 @@ class AxeBgCmdMixin:
     ) -> None:
         """Start a background command.
 
-        Workspace clean + VCS checkout + subprocess spawn run on a worker
-        thread via ``_submit_proc`` so the TUI event loop stays
-        responsive during potentially slow VCS operations.
+        Workspace clean + VCS checkout + subprocess spawn are delegated to a
+        durable CLI operation so the supervisor owns the long-running work.
 
         Args:
             slot: Slot number (1-9).
@@ -236,12 +196,9 @@ class AxeBgCmdMixin:
         is_synthetic_key = cl_name is None
         dedup_key = cl_name if cl_name is not None else f"bgcmd-slot-{slot}"
 
-        def proc_callable() -> tuple[bool, str]:
-            return _bgcmd_launch_task(
-                slot, command, project, workspace_num, workspace_dir, cl_name
-            )
-
-        def on_success() -> None:
+        def on_complete(completion: object) -> None:
+            if not getattr(completion, "success", False):
+                return
             from sase.history.command import add_or_update_command
 
             add_or_update_command(command, project, cl_name)
@@ -252,12 +209,28 @@ class AxeBgCmdMixin:
         # window before the subprocess spawns can't pick the same slot.
         mark_slot_pending(slot)
 
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "bgcmd-launch",
-            dedup_key,
-            project_file,
-            proc_callable,
-            on_success=on_success,
+        submitted = self._submit_durable_proc(  # type: ignore[attr-defined]
+            sase_argv("axe", "bgcmd-launch", slot, project, workspace_num, "--json"),
+            operation=AXE_BGCMD,
+            request=durable_request_payload(
+                cl_name=cl_name,
+                command=command,
+                workspace_dir=workspace_dir,
+            ),
+            request_fingerprint=durable_fingerprint(
+                AXE_BGCMD,
+                slot,
+                project,
+                workspace_num,
+                dedup_key,
+            ),
+            concurrency_keys=(f"bgcmd-launch:{dedup_key}", f"bgcmd-slot:{slot}"),
+            label=f"launch bgcmd slot {slot}",
+            display_name=f"launch bgcmd slot {slot}",
+            cl_name=dedup_key,
+            project_file=project_file,
+            cwd=workspace_dir,
+            on_complete=on_complete,
         )
         if not submitted:
             # Dedup rejected the submission — clear the marker we just wrote,

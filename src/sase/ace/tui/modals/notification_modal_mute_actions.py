@@ -65,36 +65,12 @@ class NotificationMuteActionsMixin:
         new_muted = any(not n.muted for n in targets)
         cancelled_snoozes = not new_muted and any(n.snooze_until for n in targets)
 
-        def _task() -> NotificationMutationResult:
-            try:
-                matched = self._mark_many_muted(list(ids), new_muted)
-            except Exception as exc:
-                return NotificationMutationResult(
-                    action="mute",
-                    ids=ids,
-                    success=False,
-                    message=str(exc),
-                    muted=new_muted,
-                    cancelled_snoozes=cancelled_snoozes,
-                )
-            success = matched == len(ids)
-            return NotificationMutationResult(
-                action="mute",
-                ids=ids,
-                success=success,
-                message=(
-                    "Notifications updated"
-                    if success
-                    else "one or more notifications are stale or no longer exist"
-                ),
-                matched_count=matched,
-                muted=new_muted,
-                cancelled_snoozes=cancelled_snoozes,
-            )
-
         self._submit_notification_state_task(
             label="Update notifications",
-            task=_task,
+            action="mute" if new_muted else "unmute",
+            ids=ids,
+            cancelled_snoozes=cancelled_snoozes,
+            muted=new_muted,
             on_complete=self._complete_bulk_toggle_mute,
         )
 

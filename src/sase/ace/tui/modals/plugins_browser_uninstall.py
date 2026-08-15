@@ -5,11 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
 from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
-    TrackedProcResult,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
+from sase.ops.names import PLUGIN_UNINSTALL
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyAbsent,
@@ -22,7 +26,7 @@ from sase.plugins.operations import (
 )
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.detect import NotUvToolInstall
-from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
+from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError
 
 from .confirm_dialog import ConfirmKind
 from .plugin_action_confirm_modal import (
@@ -205,36 +209,21 @@ class PluginUninstallActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_uninstall_task(self, plan: UninstallReady) -> None:
-        """Run ``execute_uninstall`` in a tracked proc (never blocks)."""
-
-        def task(reporter: ProcReporter) -> TrackedProcResult[UninstallOutcome]:
-            try:
-                reporter.phase(f"Uninstalling {plan.display_name}")
-                outcome = self._execute_uninstall(plan, run_fn=reporter.uv_runner())
-            except UvToolError as exc:
-                return TrackedProcResult(
-                    success=False, message=str(exc), error=str(exc)
-                )
-            message = uninstall_success_message(outcome)
-            reporter.log(message, stream="result")
-            return TrackedProcResult(
-                success=True,
-                message=message,
-                payload=outcome,
-            )
-
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        """Run ``sase plugin uninstall`` in a durable proc (never blocks)."""
+        submit = getattr(self.app, "_submit_durable_proc", None)
         if submit is None:
             return
         name = plan.display_name
         submit(
-            "plugin-uninstall",
-            name,
-            "",
-            task,
+            sase_argv("plugin", "uninstall", name, "--json"),
+            operation=PLUGIN_UNINSTALL,
+            request=durable_request_payload(plugin=name),
+            request_fingerprint=durable_fingerprint(PLUGIN_UNINSTALL, name),
+            concurrency_keys=(f"plugin-uninstall:{name}",),
+            label=f"uninstall {name}",
             display_name=f"uninstall {name}",
-            dedup_key=f"plugin-uninstall:{name}",
-            duplicate_message=f"An uninstall is already running for {name}.",
+            cl_name=name,
+            project_file="",
             on_complete=self._on_uninstall_complete,
             reload_on_complete=False,
             notify_on_complete=False,

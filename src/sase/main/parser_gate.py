@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.ops.cli import add_operation_io_flags
+
 
 def register_gate_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``gate`` subcommand parser."""
@@ -89,6 +91,7 @@ def _register_act_parser(gate_subparsers: argparse._SubParsersAction) -> None:
         metavar="ACTION_ID",
         help="Id of the declared action to run; see `sase gate show`",
     )
+    add_operation_io_flags(act_parser)
 
 
 def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None:

@@ -39,6 +39,8 @@ from sase.notification_gates.model_operations import (
 )
 from sase.notification_gates.models import GateError
 from sase.notification_gates.operations import execute_gate_operation
+from sase.ops.cli import emit_operation_result, load_request
+from sase.ops.names import GATE_ACT
 
 
 def handle_gate_act(args: argparse.Namespace) -> NoReturn:
@@ -46,14 +48,50 @@ def handle_gate_act(args: argparse.Namespace) -> NoReturn:
     try:
         payload = _act(args)
     except GateCliError as exc:
-        print(f"sase gate act: {exc}", file=sys.stderr)
+        message = f"sase gate act: {exc}"
+        emit_operation_result(
+            operation=GATE_ACT,
+            success=False,
+            message=message,
+            error=message,
+            payload={},
+            args=args,
+        )
+        print(message, file=sys.stderr)
         sys.exit(EXIT_ERROR)
     except GateError as exc:
+        message = f"gate act failed [{exc.code}] {exc.target}: {exc}"
+        emit_operation_result(
+            operation=GATE_ACT,
+            success=False,
+            message=message,
+            error=message,
+            payload={"code": exc.code, "target": exc.target},
+            args=args,
+        )
         sys.exit(report_gate_error("act", exc))
     except OSError as exc:
-        print(f"sase gate act: cannot run action: {exc}", file=sys.stderr)
+        message = f"sase gate act: cannot run action: {exc}"
+        emit_operation_result(
+            operation=GATE_ACT,
+            success=False,
+            message=message,
+            error=message,
+            payload={},
+            args=args,
+        )
+        print(message, file=sys.stderr)
         sys.exit(EXIT_ERROR)
 
+    emit_operation_result(
+        operation=GATE_ACT,
+        success=True,
+        message=str(
+            payload.get("summary") or payload.get("message") or "Gate action ran"
+        ),
+        payload=payload,
+        args=args,
+    )
     if bool(getattr(args, "json", False)):
         emit_json(payload)
     else:
@@ -122,11 +160,16 @@ def _run_command_action(
     operation: GateOperation,
     args: argparse.Namespace,
 ) -> dict[str, Any]:
+    request = load_request(GATE_ACT, args)
     raw_input = getattr(args, "input", None)
     input_data = (
-        None
-        if raw_input is None
-        else JsonArgumentReader().read(str(raw_input), target="--input")
+        request.payload.get("input_data")
+        if "input_data" in request.payload
+        else (
+            None
+            if raw_input is None
+            else JsonArgumentReader().read(str(raw_input), target="--input")
+        )
     )
     result = execute_gate_operation(
         bundle.root,

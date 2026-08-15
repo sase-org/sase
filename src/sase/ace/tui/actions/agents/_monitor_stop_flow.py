@@ -7,8 +7,14 @@ instead of the ordinary agent kill/dismiss machinery.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
+from sase.ops.names import MONITOR_STOP
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -40,7 +46,7 @@ class MonitorStopActionFlowMixin:
         )
 
     def _do_stop_monitor(self, agent: Agent) -> None:
-        """Submit the blocking monitor stop as a tracked proc."""
+        """Submit the blocking monitor stop as a durable proc."""
         artifacts_dir = agent.get_artifacts_dir()
         monitor_label = agent.monitor_label or agent.monitor_command or "monitor"
         if artifacts_dir is None or not agent.project_file:
@@ -49,25 +55,21 @@ class MonitorStopActionFlowMixin:
             )
             return
 
-        project_name = Path(agent.project_file).parent.name
-
-        def proc_callable() -> tuple[bool, str]:
-            from sase.monitor.store import get_monitor, stop_monitor
-
-            record = get_monitor(project_name, artifacts_dir)
-            if record is None:
-                return False, f"Monitor {monitor_label} not found"
-            updated = stop_monitor(record)
-            if updated.monitor_state == "running":
-                return False, f"Timed out waiting for {monitor_label} to stop"
-            return True, f"Stopped {monitor_label} ({updated.monitor_state})"
-
         dedup_key = agent.agent_name or agent.monitor_id or artifacts_dir
-        self._submit_proc(  # type: ignore[attr-defined]
-            "monitor-stop",
-            dedup_key,
-            agent.project_file,
-            proc_callable,
+        monitor_ref = agent.monitor_id or agent.agent_name or dedup_key
+        self._submit_durable_proc(  # type: ignore[attr-defined]
+            sase_argv("monitor", "stop", monitor_ref, "--json"),
+            operation=MONITOR_STOP,
+            request=durable_request_payload(
+                artifacts_dir=artifacts_dir,
+                monitor_label=monitor_label,
+            ),
+            request_fingerprint=durable_fingerprint(MONITOR_STOP, monitor_ref),
+            concurrency_keys=(f"monitor-stop:{dedup_key}",),
+            label=f"stop monitor {monitor_label}",
+            display_name=f"stop monitor {monitor_label}",
+            cl_name=dedup_key,
+            project_file=agent.project_file,
         )
 
 

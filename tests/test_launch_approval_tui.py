@@ -3,23 +3,23 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 from sase.ace.tui.actions.agents._notification_modals import handle_launch_approval
-from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+from sase.ace.tui.actions.agents._notification_launch_approval import (
+    _read_launch_approval_task_metadata,
+)
 from sase.ace.tui.modals import LaunchApprovalResult
-from sase.ace.tui.proc_queue import ProcInfo
 from sase.agent.launch_preview import LAUNCH_REQUEST_FILE
 from sase.agent.launch_request import create_launch_approval_request
 from sase.agent.launch_types import AgentLaunchResult
 from sase.integrations.mobile_notifications import execute_mobile_gate_action
 from sase.notifications import pending_actions
 from sase.notifications.models import Notification
+from sase.ops.names import LAUNCH_APPROVAL
 from tests._project_display_case import ProjectDisplayCase
 
 
@@ -29,7 +29,7 @@ class _TuiLaunchApprovalApp:
         self.pushed_screens: list[tuple[object, object]] = []
         self.refresh_count = 0
         self.agent_refresh_sources: list[str] = []
-        self.tracked_procs: list[dict[str, Any]] = []
+        self.durable_procs: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def notify(self, message: str, *, severity: str | None = None) -> None:
         self.notifications.append((message, severity))
@@ -43,58 +43,11 @@ class _TuiLaunchApprovalApp:
     def request_agents_refresh(self, source: str) -> None:
         self.agent_refresh_sources.append(source)
 
-    def _submit_tracked_proc(
-        self,
-        proc_type: str,
-        cl_name: str,
-        project_file: str,
-        proc_callable: Any,
-        *,
-        display_name: str | None = None,
-        dedup_key: str | None = None,
-        duplicate_message: str | None = None,
-        on_complete: Any = None,
-        reload_on_complete: bool = True,
-        notify_on_complete: bool = True,
-    ) -> ProcInfo:
-        del duplicate_message, reload_on_complete, notify_on_complete
-        proc_info = ProcInfo(
-            proc_id=f"task-{len(self.tracked_procs)}",
-            proc_type=proc_type,
-            cl_name=cl_name,
-            project_file=project_file,
-            status="running",
-            message="running",
-            started_at=datetime.now(),
-            display_name=display_name,
-            dedup_key=dedup_key,
-        )
-        self.tracked_procs.append(
-            {
-                "proc_type": proc_type,
-                "cl_name": cl_name,
-                "project_file": project_file,
-                "display_name": display_name,
-                "dedup_key": dedup_key,
-                "proc_info": proc_info,
-            }
-        )
-        result = proc_callable()
-        proc_info.status = "success" if result.success else "error"
-        proc_info.message = result.message
-        proc_info.error = result.error
-        if on_complete is not None:
-            on_complete(
-                TrackedProcCompletion(
-                    proc_info=proc_info,
-                    success=result.success,
-                    message=result.message,
-                    output="",
-                    payload=result.payload,
-                    error=result.error,
-                )
-            )
-        return proc_info
+
+class _DurableTuiLaunchApprovalApp(_TuiLaunchApprovalApp):
+    def _submit_durable_proc(self, *args: object, **kwargs: object) -> object:
+        self.durable_procs.append((args, kwargs))
+        return object()
 
 
 def _write_tui_launch_request(
@@ -228,6 +181,29 @@ def test_mobile_and_tui_resolve_neutral_launch_bundles(
     ]
 
 
+def test_tui_launch_approval_submits_durable_request(tmp_path: Path) -> None:
+    response_dir = tmp_path / "launch"
+    launch_cwd = tmp_path / "workspace"
+    _write_tui_launch_request(response_dir, launch_cwd)
+    notification = _launch_notification(response_dir)
+    app = _DurableTuiLaunchApprovalApp()
+
+    _drive_tui_launch_approval(
+        app,
+        notification,
+        LaunchApprovalResult(action="reject", feedback="Too broad"),
+    )
+
+    [(args, kwargs)] = app.durable_procs
+    assert args == (["sase", "launch", "reject", "launch-dispatch"],)
+    assert kwargs["operation"] == LAUNCH_APPROVAL
+    assert kwargs["request"] == {"feedback": "Too broad"}
+    assert kwargs["concurrency_keys"] == ("launch-approval:launch-dispatch",)
+    assert kwargs["cl_name"] == "launch approval launch-dispatch"
+    assert kwargs["project_file"] == str(response_dir)
+    assert app.notifications == [("Rejecting launch...", None)]
+
+
 def test_tui_launch_approval_approve_dispatches_stored_request(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -275,9 +251,6 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
         "dispatch_status": "launched",
         "launched_count": 1,
     }
-    assert app.tracked_procs[0]["proc_type"] == "launch"
-    assert app.tracked_procs[0]["dedup_key"] == "launch-approval:launch-dispatch"
-    assert app.tracked_procs[0]["proc_info"].cl_name == "demo"
     assert app.notifications == [
         ("Approving launch...", None),
         ("Launch approved and dispatched 1 agent", None),
@@ -309,6 +282,11 @@ def test_tui_launch_approval_projects_completed_task_label_only(
     notification = _launch_notification(response_dir)
     app = _TuiLaunchApprovalApp()
     notifications_path, pending_path = _isolated_notification_paths(tmp_path)
+    metadata = _read_launch_approval_task_metadata(notification, "approve")
+
+    assert metadata.display_name == f"approve launch {project_display_case.patch_label}"
+    assert metadata.cl_name == canonical_cl
+    assert metadata.project_file == str(launch_cwd / f"{canonical}.sase")
 
     from sase.notifications import store as notification_store
 
@@ -333,12 +311,6 @@ def test_tui_launch_approval_projects_completed_task_label_only(
             LaunchApprovalResult(action="approve"),
         )
 
-    proc_info = app.tracked_procs[0]["proc_info"]
-    assert (
-        proc_info.display_name == f"approve launch {project_display_case.patch_label}"
-    )
-    assert proc_info.cl_name == canonical_cl
-    assert proc_info.project_file == str(launch_cwd / f"{canonical}.sase")
     stored_request = json.loads(
         (response_dir / LAUNCH_REQUEST_FILE).read_text(encoding="utf-8")
     )

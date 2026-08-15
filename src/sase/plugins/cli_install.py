@@ -146,7 +146,7 @@ def handle_plugin_install_command(
         emit_plugin_install_result(
             success=True,
             message=f"Installed {outcome.plan.spec.display_name}",
-            payload={"plugin": outcome.plan.spec.display_name},
+            payload=_operation_result_payload(outcome, restart),
             args=args,
         )
         return 0
@@ -165,10 +165,26 @@ def handle_plugin_install_command(
     emit_plugin_install_result(
         success=True,
         message=f"Installed {outcome.plan.spec.display_name}",
-        payload={"plugin": outcome.plan.spec.display_name},
+        payload=_operation_result_payload(outcome, restart),
         args=args,
     )
     return 0
+
+
+def _operation_result_payload(
+    outcome: InstallOutcome, restart: RestartInfo
+) -> dict[str, object]:
+    from sase.ace._update_receipt_codec import receipt_to_json
+    from sase.ace.update_receipt import build_update_receipt
+
+    payload: dict[str, object] = _result_json(outcome, restart)
+    payload["changed"] = any(
+        change.kind is not ChangeKind.UNCHANGED for change in outcome.change_set.changes
+    )
+    receipt = build_update_receipt(outcome)
+    if receipt is not None:
+        payload["update_receipt"] = receipt_to_json(receipt)
+    return payload
 
 
 def _already_installed(spec: ResolvedSpec, *, as_json: bool, out: Console) -> int:

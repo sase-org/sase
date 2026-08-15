@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ops.names import MONITOR_STOP
 from tests._agent_kill_single_helpers import cleanup_plan
 
 
@@ -21,7 +22,7 @@ class _ActionApp(AgentsMixin):
         self._current_group_key = None
         self._notifications: list[tuple[str, str]] = []
         self.pushed: list[tuple[object, Callable[[bool], None]]] = []
-        self.submitted: list[tuple[object, ...]] = []
+        self.submitted: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def notify(self, msg: str, severity: str = "information") -> None:
         self._notifications.append((msg, severity))
@@ -32,8 +33,8 @@ class _ActionApp(AgentsMixin):
     def _get_selected_agent(self) -> Agent | None:
         return self._agents[self.current_idx] if self._agents else None
 
-    def _submit_proc(self, *args: object, **kwargs: object) -> bool:
-        self.submitted.append(args)
+    def _submit_durable_proc(self, *args: object, **kwargs: object) -> bool:
+        self.submitted.append((args, kwargs))
         return True
 
 
@@ -135,10 +136,12 @@ def test_confirming_stop_submits_background_task(tmp_path: Path) -> None:
     callback(True)
 
     assert len(app.submitted) == 1
-    proc_type, dedup_key, project_file, _task_callable = app.submitted[0]
-    assert proc_type == "monitor-stop"
-    assert dedup_key == "alpha--mon"
-    assert project_file == "/tmp/project/monitor.sase"
+    args, kwargs = app.submitted[0]
+    assert args == (["sase", "monitor", "stop", "m123", "--json"],)
+    assert kwargs["operation"] == MONITOR_STOP
+    assert kwargs["concurrency_keys"] == ("monitor-stop:alpha--mon",)
+    assert kwargs["cl_name"] == "alpha--mon"
+    assert kwargs["project_file"] == "/tmp/project/monitor.sase"
 
 
 def test_declining_confirm_does_not_submit(tmp_path: Path) -> None:
@@ -152,7 +155,7 @@ def test_declining_confirm_does_not_submit(tmp_path: Path) -> None:
     assert app.submitted == []
 
 
-def test_stop_monitor_task_callable_stops_and_reports_success(
+def test_stop_monitor_submission_includes_artifacts_context(
     tmp_path: Path,
 ) -> None:
     agent = _monitor_agent(artifacts_dir=str(tmp_path), monitor_state="running")
@@ -161,38 +164,25 @@ def test_stop_monitor_task_callable_stops_and_reports_success(
     app.action_kill_agent()
     _modal, callback = app.pushed[0]
     callback(True)
-    _task_type, _dedup_key, _project_file, proc_callable = app.submitted[0]
-    assert callable(proc_callable)
-
-    fake_record = object()
-    fake_updated = type("Rec", (), {"monitor_state": "stopped"})()
-    with (
-        patch("sase.monitor.store.get_monitor", return_value=fake_record) as mock_get,
-        patch(
-            "sase.monitor.store.stop_monitor", return_value=fake_updated
-        ) as mock_stop,
-    ):
-        success, message = proc_callable()  # type: ignore[operator]
-
-    mock_get.assert_called_once_with("project", str(tmp_path))
-    mock_stop.assert_called_once_with(fake_record)
-    assert success is True
-    assert "Stopped" in message
-    assert "stopped" in message
+    _args, kwargs = app.submitted[0]
+    request = kwargs["request"]
+    assert isinstance(request, dict)
+    assert request == {
+        "artifacts_dir": str(tmp_path),
+        "monitor_label": "just check",
+    }
 
 
-def test_stop_monitor_task_callable_reports_missing_record(tmp_path: Path) -> None:
+def test_stop_monitor_submission_uses_agent_name_when_monitor_id_missing(
+    tmp_path: Path,
+) -> None:
     agent = _monitor_agent(artifacts_dir=str(tmp_path), monitor_state="running")
+    agent.monitor_id = None
     app = _ActionApp(agent)
 
     app.action_kill_agent()
     _modal, callback = app.pushed[0]
     callback(True)
-    _task_type, _dedup_key, _project_file, proc_callable = app.submitted[0]
-    assert callable(proc_callable)
-
-    with patch("sase.monitor.store.get_monitor", return_value=None):
-        success, message = proc_callable()  # type: ignore[operator]
-
-    assert success is False
-    assert "not found" in message
+    args, kwargs = app.submitted[0]
+    assert args == (["sase", "monitor", "stop", "alpha--mon", "--json"],)
+    assert kwargs["concurrency_keys"] == ("monitor-stop:alpha--mon",)

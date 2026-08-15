@@ -74,21 +74,19 @@ class _StashHarness(PromptBarStashMixin):
         self.applied_counts.append(count)
         self.applied_pinned_counts.append(pinned_count)
 
-    def _submit_tracked_proc(self, *args: object, **kwargs: object) -> object:
-        proc_callable = args[3]
-        assert callable(proc_callable)
-        result = proc_callable()
-        on_complete = kwargs["on_complete"]
-        assert callable(on_complete)
-        on_complete(
-            SimpleNamespace(
-                success=result.success,
-                payload=result.payload,
-                error=result.error,
-                message=result.message,
-            )
-        )
-        return object()
+    def _spawn_prompt_stash_task(self, coro: object) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(coro)
+            return
+        task = loop.create_task(coro)
+        tasks = getattr(self, "_prompt_stash_async_tasks", None)
+        if tasks is None:
+            tasks = set()
+            self._prompt_stash_async_tasks = tasks
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
 
 
 def _point_store_at(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
@@ -126,11 +124,11 @@ def test_capture_handler_submits_store_write_without_running_it_inline() -> None
     class _DeferredHarness(_StashHarness):
         def __init__(self) -> None:
             super().__init__()
-            self.submissions: list[tuple[tuple[object, ...], dict[str, object]]] = []
+            self.spawned: list[object] = []
 
-        def _submit_tracked_proc(self, *args: object, **kwargs: object) -> object:
-            self.submissions.append((args, kwargs))
-            return object()
+        def _spawn_prompt_stash_task(self, coro: object) -> None:
+            self.spawned.append(coro)
+            coro.close()
 
     harness = _DeferredHarness()
     harness.on_prompt_input_bar_stashed(
@@ -141,7 +139,7 @@ def test_capture_handler_submits_store_write_without_running_it_inline() -> None
         )
     )
 
-    assert len(harness.submissions) == 1
+    assert len(harness.spawned) == 1
     assert harness.notifications == [("Stashed prompt", None)]
     assert harness.applied_counts == [1]
 

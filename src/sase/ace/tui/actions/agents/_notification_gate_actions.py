@@ -14,14 +14,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
+from sase.ops.names import GATE_ACT
+
 from ...modals.gate_action_controls import GateActionsData
 from ...modals.gate_action_runner import GateCommandOutcome, GateEditOutcome
 
 if TYPE_CHECKING:
     from sase.notification_gates.model_operations import GateOperation
     from sase.notifications import Notification
-
-    from ...proc_subprocess import ProcReporter
 
 
 def load_gate_actions(bundle_path: Path, envelope: dict[str, Any]) -> GateActionsData:
@@ -135,27 +140,32 @@ class NotificationGateActionRunner:
     def run_command(
         self, operation_id: str, on_done: Callable[[GateCommandOutcome], None]
     ) -> bool:
-        """Run one ``run_command`` action through ACE's tracked task queue."""
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        """Run one ``run_command`` action through ACE's durable task queue."""
+        submit = getattr(self.app, "_submit_durable_proc", None)
         if not callable(submit):
             return False
-        from ...actions.proc_actions import TrackedProcResult
 
         operation = self._operation(operation_id)
         label = operation_id if operation is None else operation.label
-
-        def work(reporter: ProcReporter) -> TrackedProcResult[GateCommandOutcome]:
-            outcome = self._execute_action(operation_id, reporter)
-            return TrackedProcResult(
-                success=outcome.success,
-                message=outcome.summary or outcome.message or label,
-                payload=outcome,
-                error=None if outcome.success else outcome.message,
-            )
+        request_id = str(
+            self.notification.action_data.get("request_id") or self.notification.id
+        )
+        request_kind = str(
+            self.notification.action_data.get("request_kind") or "custom"
+        )
 
         def on_complete(completion: object) -> None:
             outcome = getattr(completion, "payload", None)
-            if not isinstance(outcome, GateCommandOutcome):
+            if isinstance(outcome, dict):
+                outcome = GateCommandOutcome(
+                    success=bool(getattr(completion, "success", False)),
+                    summary=_optional_str(outcome.get("summary")),
+                    body=_optional_str(outcome.get("body")),
+                    display_format=str(outcome.get("display_format") or "text"),
+                    refresh=bool(outcome.get("refresh")),
+                    message=_optional_str(outcome.get("message")),
+                )
+            else:
                 outcome = GateCommandOutcome(
                     success=False,
                     message=str(getattr(completion, "message", "Action failed")),
@@ -163,13 +173,30 @@ class NotificationGateActionRunner:
             on_done(outcome)
 
         task = submit(
-            "gate-action",
-            f"action {operation_id}",
-            str(self.bundle_path),
-            work,
+            sase_argv(
+                "gate",
+                "act",
+                "--id",
+                request_id,
+                "--kind",
+                request_kind,
+                "--operation",
+                operation_id,
+                "--json",
+            ),
+            operation=GATE_ACT,
+            request=durable_request_payload(input_data=None),
+            request_fingerprint=durable_fingerprint(
+                GATE_ACT,
+                request_kind,
+                request_id,
+                operation_id,
+            ),
+            concurrency_keys=(f"gate-action:{self.notification.id}:{operation_id}",),
+            label=f"Gate action: {label}",
             display_name=f"Gate action: {label}",
-            dedup_key=f"gate-action:{self.notification.id}:{operation_id}",
-            duplicate_message="This gate action is already running",
+            cl_name=f"action {operation_id}",
+            project_file=str(self.bundle_path),
             on_complete=on_complete,
             reload_on_complete=False,
             notify_on_complete=False,
@@ -199,49 +226,6 @@ class NotificationGateActionRunner:
         except (GateError, OSError, UnicodeDecodeError):
             return None
 
-    def _execute_action(
-        self, operation_id: str, reporter: ProcReporter
-    ) -> GateCommandOutcome:
-        from sase.notification_gates.models import GateError
-        from sase.notification_gates.operations import execute_gate_operation
-
-        def command_start(
-            _kind: str, command_id: str, label: str, argv: tuple[str, ...]
-        ) -> None:
-            reporter.phase(f"Running action: {label}")
-            reporter.section(f"Action {command_id}")
-            reporter.set_command(argv)
-
-        def output_line(_kind: str, _id: str, stream: str, line: str) -> None:
-            reporter.log(line, stream="stderr" if stream == "stderr" else "stdout")
-
-        def process_state(process: Any, running: bool) -> None:
-            if running:
-                reporter.proc_info.register_process(process)
-            else:
-                reporter.proc_info.unregister_process(process)
-
-        try:
-            result = execute_gate_operation(
-                self.bundle_path,
-                operation_id,
-                source="tui",
-                on_command_start=command_start,
-                on_output_line=output_line,
-                on_process_state=process_state,
-            )
-        except GateError as exc:
-            return GateCommandOutcome(success=False, message=str(exc))
-        except Exception as exc:
-            return GateCommandOutcome(success=False, message=str(exc))
-        return GateCommandOutcome(
-            success=True,
-            summary=result.display.summary,
-            body=result.display.body,
-            display_format=result.display_format,
-            refresh=result.display.refresh,
-        )
-
     def _is_draft(self, operation_id: str) -> bool:
         from sase.notification_gates.edits import origin_draft_state
         from sase.notification_gates.models import GateError
@@ -256,6 +240,10 @@ class NotificationGateActionRunner:
             if operation.id == operation_id:
                 return operation
         return None
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def legacy_plan_edit_actions() -> GateActionsData:

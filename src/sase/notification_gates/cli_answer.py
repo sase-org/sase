@@ -34,6 +34,8 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
+from sase.ops.cli import emit_operation_result, load_request
+from sase.ops.names import GATE_ANSWER
 from sase.xprompt.models import InputType
 
 _TRUE_WORDS = frozenset({"1", "on", "true", "yes", "y"})
@@ -45,14 +47,48 @@ def handle_gate_answer(args: argparse.Namespace) -> NoReturn:
     try:
         payload = _answer(args)
     except GateCliError as exc:
-        print(f"sase gate answer: {exc}", file=sys.stderr)
+        message = f"sase gate answer: {exc}"
+        emit_operation_result(
+            operation=GATE_ANSWER,
+            success=False,
+            message=message,
+            error=message,
+            payload={},
+            args=args,
+        )
+        print(message, file=sys.stderr)
         sys.exit(EXIT_ERROR)
     except GateError as exc:
+        message = f"gate answer failed [{exc.code}] {exc.target}: {exc}"
+        emit_operation_result(
+            operation=GATE_ANSWER,
+            success=False,
+            message=message,
+            error=message,
+            payload={"code": exc.code, "target": exc.target},
+            args=args,
+        )
         sys.exit(report_gate_error("answer", exc))
     except OSError as exc:
-        print(f"sase gate answer: cannot answer gate: {exc}", file=sys.stderr)
+        message = f"sase gate answer: cannot answer gate: {exc}"
+        emit_operation_result(
+            operation=GATE_ANSWER,
+            success=False,
+            message=message,
+            error=message,
+            payload={},
+            args=args,
+        )
+        print(message, file=sys.stderr)
         sys.exit(EXIT_ERROR)
 
+    emit_operation_result(
+        operation=GATE_ANSWER,
+        success=True,
+        message=str(payload.get("message") or "Gate answered"),
+        payload=payload,
+        args=args,
+    )
     if bool(getattr(args, "json", False)):
         emit_json(payload)
     else:
@@ -66,26 +102,58 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     gate = GateBranchData.from_envelope(
         bundle.envelope, default_feedback=bundle.adapter.default_feedback
     )
-    selected = _resolve_selection(gate.options, getattr(args, "option", None) or [])
+    request = load_request(GATE_ANSWER, args)
+    request_options = _request_option_ids(request.payload)
+    selected = _resolve_selection(
+        gate.options, request_options or getattr(args, "option", None) or []
+    )
     reader = JsonArgumentReader()
-    input_data = _shared_input(args, reader)
-    option_inputs = _per_option_inputs(args, selected, reader)
+    input_data = (
+        request.payload.get("input_data")
+        if "input_data" in request.payload
+        else _shared_input(args, reader)
+    )
+    option_inputs = (
+        _request_option_inputs(request.payload)
+        if "option_inputs" in request.payload
+        else _per_option_inputs(args, selected, reader)
+    )
     if input_data is not None and option_inputs is not None:
         raise GateCliError(
             "--input submits one shared value and --set/--option-input submit "
             "per-option values; use one or the other"
         )
+    feedback = request.payload.get("feedback")
+    retry = request.payload.get("retry")
 
     execution = execute_gate_selection(
         bundle.root,
         [option.id for option in selected],
         input_data,
-        feedback=getattr(args, "feedback", None),
+        feedback=feedback
+        if isinstance(feedback, str)
+        else getattr(args, "feedback", None),
         source="cli",
-        retry=_retry_choice(args),
+        retry=retry if retry in {"resume", "restart"} else _retry_choice(args),
         option_inputs=option_inputs,
     )
     return _answered_payload(bundle, execution.response, execution.already_completed)
+
+
+def _request_option_ids(payload: Mapping[str, Any]) -> list[str]:
+    raw = payload.get("option_ids")
+    if not isinstance(raw, list):
+        return []
+    return [str(item) for item in raw]
+
+
+def _request_option_inputs(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+    raw = payload.get("option_inputs")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise GateCliError("operation request option_inputs must be an object")
+    return {str(key): value for key, value in raw.items()}
 
 
 def _resolve_selection(

@@ -5,11 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.ace.tui.actions._durable_ops import (
+    durable_fingerprint,
+    durable_request_payload,
+    sase_argv,
+)
 from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
-    TrackedProcResult,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
+from sase.ops.names import PLUGIN_UPDATE
 from sase.dev_update.models import DevUpdatePlan
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
@@ -23,7 +27,7 @@ from sase.plugins.operations import (
 )
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.detect import NotUvToolInstall
-from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
+from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError
 from sase.uv_tool.runner import ChangeKind
 
 from .plugin_action_confirm_modal import (
@@ -329,37 +333,21 @@ class PluginUpdateActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_update_task(self, plan: UpdateReady) -> None:
-        """Run ``execute_update`` in a tracked proc (never blocks)."""
-
-        def task(reporter: ProcReporter) -> TrackedProcResult[UpdateOutcome]:
-            try:
-                label = plan.targets[0]
-                reporter.phase(f"Updating {label}")
-                outcome = self._execute_update(plan, run_fn=reporter.uv_runner())
-            except UvToolError as exc:
-                return TrackedProcResult(
-                    success=False, message=str(exc), error=str(exc)
-                )
-            message = update_success_message(outcome)
-            reporter.log(message, stream="result")
-            return TrackedProcResult(
-                success=True,
-                message=message,
-                payload=outcome,
-            )
-
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        """Run ``sase plugin update`` in a durable proc (never blocks)."""
+        submit = getattr(self.app, "_submit_durable_proc", None)
         if submit is None:
             return
         label = plan.targets[0]
         submit(
-            "plugin-update",
-            label,
-            "",
-            task,
+            sase_argv("plugin", "update", label, "--json"),
+            operation=PLUGIN_UPDATE,
+            request=durable_request_payload(plugin=label),
+            request_fingerprint=durable_fingerprint(PLUGIN_UPDATE, label),
+            concurrency_keys=(f"plugin-update:{label}",),
+            label=f"update {label}",
             display_name=f"update {label}",
-            dedup_key=f"plugin-update:{label}",
-            duplicate_message=f"An update is already running for {label}.",
+            cl_name=label,
+            project_file="",
             on_complete=self._on_update_complete,
             reload_on_complete=False,
             notify_on_complete=False,

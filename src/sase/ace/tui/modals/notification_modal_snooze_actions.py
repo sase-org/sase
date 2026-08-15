@@ -82,36 +82,13 @@ class NotificationSnoozeActionsMixin:
         description: str,
     ) -> None:
         """Persist one snooze off the message pump and apply only on a match."""
-
-        def _task() -> NotificationMutationResult:
-            try:
-                matched = bool(self._mark_snoozed(notification_id, snooze_until))
-            except Exception as exc:
-                return NotificationMutationResult(
-                    action="snooze",
-                    ids=(notification_id,),
-                    success=False,
-                    message=str(exc),
-                    snooze_until=snooze_until.isoformat(),
-                    description=description,
-                )
-            return NotificationMutationResult(
-                action="snooze",
-                ids=(notification_id,),
-                success=matched,
-                message=(
-                    "Notification snoozed"
-                    if matched
-                    else "notification is stale, dismissed, or no longer exists"
-                ),
-                matched_count=int(matched),
-                snooze_until=snooze_until.isoformat(),
-                description=description,
-            )
-
         self._submit_notification_state_task(
             label="Snooze notification",
-            task=_task,
+            action="snooze",
+            ids=(notification_id,),
+            description=description,
+            muted=True,
+            snooze_until=snooze_until.isoformat(),
             on_complete=self._complete_single_snooze,
         )
 
@@ -162,36 +139,13 @@ class NotificationSnoozeActionsMixin:
             return
         ids = tuple(n.id for n in targets)
 
-        def _task() -> NotificationMutationResult:
-            try:
-                matched = self._mark_many_snoozed(list(ids), snooze_until)
-            except Exception as exc:
-                return NotificationMutationResult(
-                    action="snooze",
-                    ids=ids,
-                    success=False,
-                    message=str(exc),
-                    snooze_until=snooze_until.isoformat(),
-                    description=description,
-                )
-            success = matched == len(ids)
-            return NotificationMutationResult(
-                action="snooze",
-                ids=ids,
-                success=success,
-                message=(
-                    "Notifications snoozed"
-                    if success
-                    else "one or more notifications are stale or cannot be snoozed"
-                ),
-                matched_count=matched,
-                snooze_until=snooze_until.isoformat(),
-                description=description,
-            )
-
         self._submit_notification_state_task(
             label="Snooze notifications",
-            task=_task,
+            action="snooze",
+            ids=ids,
+            description=description,
+            muted=True,
+            snooze_until=snooze_until.isoformat(),
             on_complete=self._complete_bulk_snooze,
         )
 

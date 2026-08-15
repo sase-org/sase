@@ -294,10 +294,18 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
 
 def _handle_monitor_stop(args: argparse.Namespace) -> int:
     """Stop one running monitor, resolving the same refs as ``monitor show``."""
+    from sase.ops.commands.monitor import emit_monitor_stop_result
+
     try:
         record = _resolve_ref_or_active(getattr(args, "monitor_id", None))
     except MonitorRefError as exc:
-        print(f"sase monitor stop: {exc}", file=sys.stderr)
+        message = f"sase monitor stop: {exc}"
+        emit_monitor_stop_result(
+            success=False,
+            message=message,
+            payload={},
+        )
+        print(message, file=sys.stderr)
         return 2
 
     was_active = record.monitor_state == "running"
@@ -309,8 +317,6 @@ def _handle_monitor_stop(args: argparse.Namespace) -> int:
         if changed
         else f"Monitor {short_id} is already {result.monitor_state}; nothing to do."
     )
-    from sase.ops.commands.monitor import emit_monitor_stop_result
-
     emit_monitor_stop_result(
         success=True,
         message=message,

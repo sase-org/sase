@@ -125,24 +125,8 @@ def _submit_via_cli(target: SurfaceTarget, submission: Submission) -> SurfaceOut
 
 
 def _submit_via_ace(target: SurfaceTarget, submission: Submission) -> SurfaceOutcome:
-    """Answer through ACE's tracked-submission worker body."""
-    from sase.ace.tui.actions.agents._notification_gate_execution import (
-        GateSubmission,
-        _execute_gate_submission,
-    )
-
-    outcome = _execute_gate_submission(
-        target.bundle_path,
-        GateSubmission(
-            selected_option_ids=tuple(submission.selected),
-            feedback=submission.feedback,
-            input_data=submission.input_data,
-            retry=submission.retry,  # type: ignore[arg-type]
-            option_inputs=submission.option_inputs,
-        ),
-        reporter=_StubReporter(),  # type: ignore[arg-type]
-    )
-    return SurfaceOutcome(answered=outcome.success, message=outcome.message)
+    """Answer through the command ACE's durable proc now executes."""
+    return _submit_via_cli(target, submission)
 
 
 def _submit_via_mobile(target: SurfaceTarget, submission: Submission) -> SurfaceOutcome:
@@ -185,27 +169,6 @@ def _submit_via_mobile(target: SurfaceTarget, submission: Submission) -> Surface
         except MobileGateActionError as exc:
             return SurfaceOutcome(answered=False, message=f"{exc.code}: {exc}")
     return SurfaceOutcome(answered=True, message="")
-
-
-class _StubReporter:
-    """The slice of ``ProcReporter`` the gate worker body actually calls."""
-
-    def __init__(self) -> None:
-        self.proc_info = _StubProcInfo()
-
-    def phase(self, _text: str) -> None: ...
-
-    def section(self, _text: str) -> None: ...
-
-    def set_command(self, _argv: Any) -> None: ...
-
-    def log(self, _line: str, *, stream: str = "stdout") -> None: ...
-
-
-class _StubProcInfo:
-    def register_process(self, _process: Any) -> None: ...
-
-    def unregister_process(self, _process: Any) -> None: ...
 
 
 SURFACES: tuple[Surface, ...] = (

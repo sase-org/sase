@@ -15,25 +15,48 @@ PATCH_REBASE = "patch.rebase"
 PATCH_SYNC = "patch.sync"
 PATCH_REWIND = "patch.rewind"
 
+AGENT_CLI_UPDATE = "agent-cli.update"
 AGENT_PERSIST_DIRECTIVE = "agent.persist-directive"
 AGENT_REVERT = "agent.revert"
 AGENT_CLEANUP = "agent.cleanup"
 
+AXE_BGCMD = "axe.bgcmd"
+
+BEAD_ISSUE = "bead.issue"
+BEAD_MUTATE = "bead.mutate"
 BEAD_STATUS = "bead.status"
+
+GATE_ACT = "gate.act"
+GATE_ANSWER = "gate.answer"
+
+GIT_POST_WRITE = "git.post-write"
+
+LAUNCH_APPROVAL = "launch.approval"
 
 NOTIFY_APPLY_STATE = "notify.apply-state"
 
 PLUGIN_INSTALL = "plugin.install"
+PLUGIN_UNINSTALL = "plugin.uninstall"
+PLUGIN_UPDATE = "plugin.update"
 
 MONITOR_STOP = "monitor.stop"
 RUN_LAUNCH = "run.launch"
+SASE_UPDATE = "sase.update"
 
 
 __all__ = [
     "AGENT_CLEANUP",
+    "AGENT_CLI_UPDATE",
     "AGENT_PERSIST_DIRECTIVE",
     "AGENT_REVERT",
+    "AXE_BGCMD",
+    "BEAD_ISSUE",
+    "BEAD_MUTATE",
     "BEAD_STATUS",
+    "GATE_ACT",
+    "GATE_ANSWER",
+    "GIT_POST_WRITE",
+    "LAUNCH_APPROVAL",
     "MONITOR_STOP",
     "NOTIFY_APPLY_STATE",
     "PATCH_ACCEPT",
@@ -49,5 +72,8 @@ __all__ = [
     "PATCH_SYNC",
     "PATCH_TAG",
     "PLUGIN_INSTALL",
+    "PLUGIN_UNINSTALL",
+    "PLUGIN_UPDATE",
     "RUN_LAUNCH",
+    "SASE_UPDATE",
 ]

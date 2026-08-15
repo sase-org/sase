@@ -120,6 +120,7 @@ def handle_plugin_uninstall_command(
 
     if as_json:
         print(json.dumps(_result_json(outcome, restart), indent=2, sort_keys=True))
+        _emit_plugin_uninstall_result(args, outcome, restart)
         return 0
 
     render_plugin_uninstall_result(
@@ -130,7 +131,34 @@ def handle_plugin_uninstall_command(
         console=out,
     )
     render_restart_info(restart, console=out, quiet=False)
+    _emit_plugin_uninstall_result(args, outcome, restart)
     return 0
+
+
+def _emit_plugin_uninstall_result(
+    args: argparse.Namespace,
+    outcome: UninstallOutcome,
+    restart: RestartInfo,
+) -> None:
+    from sase.ace._update_receipt_codec import receipt_to_json
+    from sase.ace.update_receipt import build_update_receipt
+    from sase.ops.commands.plugin import emit_plugin_operation_result
+    from sase.ops.names import PLUGIN_UNINSTALL
+
+    receipt = build_update_receipt(outcome)
+    payload: dict[str, object] = _result_json(outcome, restart)
+    payload["changed"] = any(
+        change.kind is not ChangeKind.UNCHANGED for change in outcome.change_set.changes
+    )
+    if receipt is not None:
+        payload["update_receipt"] = receipt_to_json(receipt)
+    emit_plugin_operation_result(
+        operation=PLUGIN_UNINSTALL,
+        success=True,
+        message=f"Uninstalled {outcome.plan.display_name}",
+        payload=payload,
+        args=args,
+    )
 
 
 # --------------------------------------------------------------------------- #

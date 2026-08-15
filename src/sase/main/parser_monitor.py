@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.ops.cli import add_operation_io_flags
+
 # Mirrors ``sase.monitor.models.MONITOR_STATES``, spelled out here so
 # building the parser never imports the monitor engine package.
 MONITOR_STATE_CHOICES = (
@@ -349,6 +351,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Emit a machine-readable JSON result",
     )
+    add_operation_io_flags(stop_parser)
 
     supervise_parser = monitor_sub.add_parser(
         "_supervise",

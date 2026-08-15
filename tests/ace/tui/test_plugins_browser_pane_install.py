@@ -13,11 +13,11 @@ from sase.plugins.operations import (
     InstallManyReady,
     InstallNotFound,
     InstallOutcome,
-    InstallReady,
 )
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, UvPackageChange
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
+    _complete_durable_update,
     _highlight,
     _not_uv_tool,
     _open_plugins_pane,
@@ -300,29 +300,28 @@ async def test_plugins_pane_install_confirm_executes_and_restarts(
     calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
     receipt_file = tmp_path / "pending_update_toast.json"
     monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
-    monkeypatch.setattr(
-        pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
+    preview = _ready_preview("nvim")
+    monkeypatch.setattr(pbp, "_plan_install_preview", lambda name, *, offline: preview)
+    outcome = InstallOutcome(
+        plan=preview.index_plan,
+        change_set=UvChangeSet(
+            changes=(
+                UvPackageChange(
+                    name="sase-nvim", kind=ChangeKind.ADDED, new_version="2.0.0"
+                ),
+            )
+        ),
+        groups=(),
+        elapsed=1.5,
     )
-    executed: list[InstallReady] = []
-
-    def _fake_execute(plan: InstallReady, **_kw: object) -> InstallOutcome:
-        executed.append(plan)
-        return InstallOutcome(
-            plan=plan,
-            change_set=UvChangeSet(
-                changes=(
-                    UvPackageChange(
-                        name="sase-nvim", kind=ChangeKind.ADDED, new_version="2.0.0"
-                    ),
-                )
-            ),
-            groups=(),
-            elapsed=1.5,
-        )
-
-    monkeypatch.setattr(pbp, "execute_install", _fake_execute)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        submissions = _complete_durable_update(
+            monkeypatch,
+            page.app,
+            outcome=outcome,
+            message="Installed nvim v2.0.0 in 1.5s",
+        )
         initial = len(calls)
         messages = _spy_notify(monkeypatch, pane)
         restart_calls: list[bool] = []
@@ -338,10 +337,10 @@ async def test_plugins_pane_install_confirm_executes_and_restarts(
         modal = page.app.screen
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()  # accept the default index variant
-        # The tracked task runs execute_install, then restarts ACE + axe.
-        await page.wait_for(lambda _s: bool(executed) and bool(restart_calls))
-        assert executed[0].spec.display_name == "nvim"
-        assert executed[0].spec.source == "catalog"
+        await page.wait_for(lambda _s: bool(restart_calls))
+        [(args, kwargs)] = submissions
+        assert args == (["sase", "plugin", "install", "nvim", "--json"],)
+        assert kwargs["request"] == {"plugin": "nvim", "source": "catalog"}
         assert restart_calls == [True]
         assert len(calls) == initial
         assert any("restarting ACE" in message for message, _severity in messages)
@@ -358,23 +357,22 @@ async def test_plugins_pane_install_no_change_refreshes_without_restart(
 ) -> None:
     _patch_other_panes(monkeypatch)
     calls = _patch_catalog_recording(monkeypatch, catalog=_catalog())
-    monkeypatch.setattr(
-        pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
+    preview = _ready_preview("nvim")
+    monkeypatch.setattr(pbp, "_plan_install_preview", lambda name, *, offline: preview)
+    outcome = InstallOutcome(
+        plan=preview.index_plan,
+        change_set=UvChangeSet(),
+        groups=(),
+        elapsed=0.1,
     )
-    executed: list[InstallReady] = []
-
-    def _fake_execute(plan: InstallReady, **_kw: object) -> InstallOutcome:
-        executed.append(plan)
-        return InstallOutcome(
-            plan=plan,
-            change_set=UvChangeSet(),
-            groups=(),
-            elapsed=0.1,
-        )
-
-    monkeypatch.setattr(pbp, "execute_install", _fake_execute)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        _complete_durable_update(
+            monkeypatch,
+            page.app,
+            outcome=outcome,
+            message="Plugins already up to date.",
+        )
         initial = len(calls)
         restart_calls: list[bool] = []
         monkeypatch.setattr(
@@ -390,7 +388,7 @@ async def test_plugins_pane_install_no_change_refreshes_without_restart(
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_confirm()
 
-        await page.wait_for(lambda _s: bool(executed) and len(calls) > initial)
+        await page.wait_for(lambda _s: len(calls) > initial)
         assert restart_calls == []
 
 
@@ -399,20 +397,23 @@ async def test_plugins_pane_install_git_variant_executed(
 ) -> None:
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_catalog())
-    monkeypatch.setattr(
-        pbp, "_plan_install_preview", lambda name, *, offline: _ready_preview(name)
+    preview = _ready_preview("nvim")
+    assert preview.git_plan is not None
+    monkeypatch.setattr(pbp, "_plan_install_preview", lambda name, *, offline: preview)
+    outcome = InstallOutcome(
+        plan=preview.git_plan,
+        change_set=UvChangeSet(),
+        groups=(),
+        elapsed=0.2,
     )
-    executed: list[InstallReady] = []
-
-    def _fake_execute(plan: InstallReady, **_kw: object) -> InstallOutcome:
-        executed.append(plan)
-        return InstallOutcome(
-            plan=plan, change_set=UvChangeSet(), groups=(), elapsed=0.2
-        )
-
-    monkeypatch.setattr(pbp, "execute_install", _fake_execute)
     async with AcePage() as page:
         pane = await _open_plugins_pane(page)
+        submissions = _complete_durable_update(
+            monkeypatch,
+            page.app,
+            outcome=outcome,
+            message="Plugins already up to date.",
+        )
         _highlight(pane, "nvim")
         await page.wait_for(lambda _s: pane._highlighted_name() == "nvim")
         pane.action_install()
@@ -421,5 +422,7 @@ async def test_plugins_pane_install_git_variant_executed(
         assert isinstance(modal, PluginActionConfirmModal)
         modal.action_toggle_source()  # index -> git
         modal.action_confirm()
-        await page.wait_for(lambda _s: bool(executed))
-        assert executed[0].spec.source == "git"
+        await page.wait_for(lambda _s: bool(submissions))
+        [(args, kwargs)] = submissions
+        assert args == (["sase", "plugin", "install", "nvim", "--json", "--git"],)
+        assert kwargs["request"] == {"plugin": "nvim", "source": "git"}

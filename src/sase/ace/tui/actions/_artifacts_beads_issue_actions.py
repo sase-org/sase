@@ -216,36 +216,31 @@ class ArtifactsBeadsIssueActionsMixin(ArtifactsBeadsIssueMutationActionsMixin):
                 severity="warning",
             )
             return
-        from .proc_actions import TrackedProcResult
 
-        def task() -> TrackedProcResult[str]:
+        def task() -> None:
             import webbrowser
 
             url = _resolved_issue_url(link)
             opened = webbrowser.open(url)
-            return TrackedProcResult(
-                opened,
-                (
-                    f"Opened issue #{link.issue_id}"
-                    if opened
-                    else "Browser did not accept the issue URL"
-                ),
-                url,
-                None if opened else "browser rejected URL",
+            message = (
+                f"Opened issue #{link.issue_id}"
+                if opened
+                else "Browser did not accept the issue URL"
+            )
+            severity = "information" if opened else "warning"
+            notify = getattr(self, "notify", None)
+            if not callable(notify):
+                return
+            self.call_from_thread(  # type: ignore[attr-defined]
+                notify, message, severity=severity
             )
 
-        def completed(_completion: Any) -> None:
-            return
-
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "bead-issue-open",
-            row.issue.id,
-            workspace,
+        self.run_worker(  # type: ignore[attr-defined]
             task,
-            display_name=f"Open issue #{link.issue_id}",
-            dedup_key=f"beads:issue-open:{link.project}:{link.issue_id}",
-            on_complete=completed,
-            reload_on_complete=False,
+            thread=True,
+            group=f"beads-issue-open:{link.project}:{link.issue_id}",
+            exclusive=True,
+            exit_on_error=False,
         )
 
     def _copy_issue_ref(self, link: ExternalIssueLink) -> None:
