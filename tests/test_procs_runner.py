@@ -134,7 +134,7 @@ def test_submit_validation_and_supervisor_spawn_failure_stay_visible(
     def fail_spawn(*_args: Any, **_kwargs: Any) -> None:
         raise OSError("detachment failed")
 
-    monkeypatch.setattr(proc_runner.subprocess, "Popen", fail_spawn)
+    monkeypatch.setattr("sase.procs.spawn.subprocess.Popen", fail_spawn)
     with pytest.raises(ProcSubmitError, match="detachment failed"):
         submit_proc(["true"], label="Visible failure", cwd=tmp_path)
 

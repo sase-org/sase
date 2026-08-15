@@ -35,6 +35,7 @@ from .models import (
     ProcUpdateOutcome,
 )
 from .paths import proc_logs_dir, proc_store_path, procs_dir
+from .request import ProcSubmitRequest
 from .runner import (
     ProcControlError,
     ProcSubmitError,
@@ -42,8 +43,10 @@ from .runner import (
     reconcile_running_procs,
     submit_detached_proc,
     submit_proc,
+    submit_proc_request,
     wait_for_proc,
 )
+from .settlement import is_proc_shell_row
 from .store import (
     ProcStoreLockTimeoutError,
     append_proc,
@@ -85,6 +88,7 @@ __all__ = [
     "ProcStoreSnapshot",
     "ProcStoreStats",
     "ProcSubmitError",
+    "ProcSubmitRequest",
     "ProcSupervisorClaim",
     "ProcUpdate",
     "ProcUpdateOutcome",
@@ -96,6 +100,7 @@ __all__ = [
     "filter_procs",
     "finish_proc",
     "get_proc",
+    "is_proc_shell_row",
     "kill_proc",
     "new_proc_id",
     "open_proc_log",
@@ -113,6 +118,7 @@ __all__ = [
     "short_proc_id",
     "submit_detached_proc",
     "submit_proc",
+    "submit_proc_request",
     "update_proc",
     "wait_for_proc",
 ]

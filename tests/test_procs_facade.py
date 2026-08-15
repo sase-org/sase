@@ -568,3 +568,24 @@ def test_retention_and_pruning_delete_corresponding_logs(
     assert proc_log_path(artifact_owned.proc_id).exists()
     assert proc_log_path(second.proc_id).exists()
     assert proc_log_path(running.proc_id).exists()
+
+
+def test_delete_proc_logs_skips_paths_outside_the_proc_log_root(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    outside = tmp_path / "artifacts" / "owned.log"
+    outside.parent.mkdir(parents=True)
+    outside.write_text("keep", encoding="utf-8")
+
+    delete_proc_logs(["escape-proc"], log_paths={"escape-proc": str(outside)})
+
+    assert outside.read_text(encoding="utf-8") == "keep"
+
+
+def test_read_proc_log_tail_follows_an_explicit_log_path(tmp_path: Path) -> None:
+    custom = tmp_path / "custom" / "out.log"
+    custom.parent.mkdir(parents=True)
+    custom.write_text("alpha\nbeta\n", encoding="utf-8")
+
+    assert read_proc_log_tail("ignored-id", 1, log_path=custom) == "beta\n"

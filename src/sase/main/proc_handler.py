@@ -328,7 +328,9 @@ def _handle_proc_kill(args: argparse.Namespace) -> int:
 
 def _follow_log(proc: Proc, args: argparse.Namespace) -> int:
     """Print the retained log, then stream new lines until the proc ends."""
-    retained = read_proc_log_tail(proc.proc_id, _ALL_LOG_LINES).splitlines()
+    retained = read_proc_log_tail(
+        proc.proc_id, _ALL_LOG_LINES, log_path=proc.log_path
+    ).splitlines()
     lines = _log_lines(args)
     for line in retained[-lines:] if lines > 0 else []:
         print(line)
@@ -441,7 +443,9 @@ def _log_lines(args: argparse.Namespace) -> int:
 
 def _log_text(proc: Proc, args: argparse.Namespace) -> str:
     try:
-        return read_proc_log_tail(proc.proc_id, _log_lines(args))
+        return read_proc_log_tail(
+            proc.proc_id, _log_lines(args), log_path=proc.log_path
+        )
     except (OSError, ValueError):
         return ""
 
