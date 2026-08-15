@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 from uuid import uuid4
 
-from ..proc_actions import TrackedProcCompletion, TrackedProcResult
+from ..proc_actions import TrackedProcCompletion
 
 CleanupSeverity = Literal["warning", "error"]
 
@@ -38,40 +38,64 @@ class CleanupProcMixin:
         display_name: str,
         cl_name: str,
         project_file: str,
-        proc_callable: Callable[[], CleanupProcOutcome],
+        payload: dict[str, object] | None = None,
+        proc_callable: Callable[[], CleanupProcOutcome] | None = None,
+        on_settled: Callable[[], None] | None = None,
     ) -> bool:
-        """Submit a tracked cleanup proc and return whether it was accepted."""
+        """Submit a durable cleanup persist proc and return whether it was accepted."""
+        from ..agent_durable import submit_agent_cleanup
+        from ..cleanup_payload import json_identities
 
-        def _callable() -> TrackedProcResult[CleanupProcOutcome]:
+        request_payload = dict(payload or {})
+        if proc_callable is not None and not request_payload:
+            # Compatibility for tests that still pass a persist body. Production
+            # callers send a JSON-shaped payload so persist runs in the command.
             outcome = proc_callable()
-            return TrackedProcResult(
-                success=outcome.success,
-                message=outcome.message,
-                payload=outcome,
-                error=outcome.message if not outcome.success else None,
-            )
-
-        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-            proc_type,
-            cl_name,
-            project_file,
-            _callable,
+            request_payload = {
+                "action": proc_type,
+                "message": outcome.message,
+                "notify": outcome.notify,
+                "refresh_notifications": outcome.refresh_notifications,
+                "schedule_agents_refresh_source": outcome.schedule_agents_refresh_source,
+                "severity": outcome.severity,
+                "success": outcome.success,
+            }
+        request_payload.setdefault("action", proc_type)
+        dismissed = request_payload.get("dismissed_identities")
+        if isinstance(dismissed, (set, list, tuple)) and dismissed:
+            first = next(iter(dismissed))
+            if isinstance(first, tuple):
+                request_payload["dismissed_identities"] = json_identities(dismissed)
+            elif isinstance(first, list) and first and not isinstance(first[0], str):
+                request_payload["dismissed_identities"] = json_identities(
+                    tuple(item) for item in dismissed if isinstance(item, list)
+                )
+        added = request_payload.get("added_identities")
+        if isinstance(added, (set, list, tuple)) and added:
+            first = next(iter(added))
+            if isinstance(first, tuple):
+                request_payload["added_identities"] = json_identities(added)
+        identity = str(request_payload.get("identity") or f"{proc_type}:{uuid4().hex}")
+        submitted = submit_agent_cleanup(
+            self,
+            proc_type=proc_type,
+            identity=identity,
+            payload=request_payload,
+            cl_name=cl_name,
+            project_file=project_file,
             display_name=display_name,
-            # Cleanup procs must never collide with Patch per-Patch dedup
-            # (get_running_for_cl) for the same Patch name.
-            dedup_key=f"{proc_type}:{uuid4().hex}",
             on_complete=self._on_cleanup_proc_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
+            live_body=proc_callable,
+            on_settled=on_settled,
         )
-        return proc_info is not None
+        return submitted
 
     def _on_cleanup_proc_complete(
         self,
         completion: TrackedProcCompletion[CleanupProcOutcome],
     ) -> None:
         """Apply cleanup-specific completion effects on the UI thread."""
-        outcome = completion.payload
+        outcome = _cleanup_outcome_from_completion(completion)
         if outcome is None:
             if not completion.success:
                 self.notify(  # type: ignore[attr-defined]
@@ -113,6 +137,28 @@ class CleanupProcMixin:
                     name="sase-cleanup-notification-count-refresh",
                     registry_attr="_pump_free_async_tasks",
                 )
+
+
+def _cleanup_outcome_from_completion(
+    completion: TrackedProcCompletion[CleanupProcOutcome],
+) -> CleanupProcOutcome | None:
+    payload = completion.payload
+    if isinstance(payload, CleanupProcOutcome):
+        return payload
+    if not isinstance(payload, dict):
+        return None
+    severity = payload.get("severity")
+    return CleanupProcOutcome(
+        message=str(payload.get("message") or completion.message),
+        severity=severity if severity in {"warning", "error"} else None,
+        notify=bool(payload.get("notify", False)),
+        refresh_notifications=bool(payload.get("refresh_notifications", False)),
+        schedule_agents_refresh_source=(
+            str(payload["schedule_agents_refresh_source"])
+            if payload.get("schedule_agents_refresh_source")
+            else None
+        ),
+    )
 
 
 __all__ = [

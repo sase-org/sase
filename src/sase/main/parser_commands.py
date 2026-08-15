@@ -392,3 +392,6 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="PROMPT",
         help="Prompt, xprompt reference, workflow reference, or '.' for prompt history.",
     )
+    from sase.ops.cli import add_operation_io_flags
+
+    add_operation_io_flags(run_parser)

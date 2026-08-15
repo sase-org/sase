@@ -7,24 +7,12 @@ marked agent — same precedence rule used elsewhere on the Agents tab).
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
-from sase.xprompt.directive_edit import (
-    prompt_declares_clan,
-    set_prompt_clan_tribe,
-    set_prompt_tribe,
-)
+from sase.xprompt.directive_edit import prompt_declares_clan
 
 from ...models.agent_pin import DEFAULT_PINNED_TRIBE
-from ..proc_actions import TrackedProcCompletion, TrackedProcResult
-from ._directive_persistence import (
-    AgentDirectivePersistenceResult,
-    AgentDirectivePersistenceSpec,
-    AgentMetaPatch,
-    AgentTribeStorePatch,
-    persist_agent_directive_update,
-)
+from ..proc_actions import TrackedProcCompletion
 
 TabName = Literal["artifacts", "agents", "axe"]
 
@@ -34,20 +22,6 @@ if TYPE_CHECKING:
     from ...modals.agent_tribe_modal import AgentTribeModalResult
     from ...models import Agent
     from ...models.agent import AgentType
-
-
-def _prompt_tribe_mutator(tribe: str | None) -> Callable[[str], str]:
-    def _mutate(prompt: str) -> str:
-        return set_prompt_tribe(prompt, tribe)
-
-    return _mutate
-
-
-def _prompt_clan_tribe_mutator(tribe: str | None) -> Callable[[str], str]:
-    def _mutate(prompt: str) -> str:
-        return set_prompt_clan_tribe(prompt, tribe)
-
-    return _mutate
 
 
 class AgentTribeAssignmentMixin:
@@ -142,7 +116,7 @@ class AgentTribeAssignmentMixin:
         affected_identities = {agent.identity for agent in affected}
         prior_tribes = {agent.identity: agent.tribe for agent in affected}
         prior_clan_tribes = {agent.identity: agent.clan_tribe for agent in affected}
-        specs: list[AgentDirectivePersistenceSpec] = []
+        updates: list[dict[str, object]] = []
         for agent in affected:
             clan_bound = bool(agent.agent_clan)
             visible_before = agent.clan_tribe if clan_bound else agent.tribe
@@ -169,52 +143,38 @@ class AgentTribeAssignmentMixin:
                 clan_prompt_declares = bool(
                     raw_prompt is not None and prompt_declares_clan(raw_prompt)
                 )
-            specs.append(
-                AgentDirectivePersistenceSpec(
-                    artifacts_dir=artifacts_dir,
-                    prompt_mutator=(
-                        (
-                            _prompt_clan_tribe_mutator(after)
-                            if clan_prompt_declares
-                            else _prompt_tribe_mutator(after)
-                            if not clan_bound
-                            else None
-                        )
-                        if artifacts_dir
-                        else None
-                    ),
-                    meta_patch=(
-                        AgentMetaPatch(
-                            set_values=(
-                                {"clan_tribe": after}
-                                if clan_bound and after
-                                else {"tribe": after}
-                                if after
-                                else {}
-                            ),
-                            remove_keys=(
-                                ("clan_tribe",)
-                                if clan_bound and after is None
-                                # Unset also strips the legacy metadata alias so
-                                # a later read cannot resurrect the assignment.
-                                else ("tribe", "tag")
-                                if after is None
-                                else ()
-                            ),
-                        )
-                        if artifacts_dir
-                        else None
-                    ),
-                    tribe_patch=(
-                        None
-                        if clan_bound
-                        else AgentTribeStorePatch(
-                            identity=agent.identity,
-                            tribe=after,
-                        )
-                    ),
+            prompt_kind = None
+            if artifacts_dir:
+                if clan_prompt_declares:
+                    prompt_kind = "set_clan_tribe"
+                elif not clan_bound:
+                    prompt_kind = "set_tribe"
+            update: dict[str, object] = {
+                "artifacts_dir": artifacts_dir,
+            }
+            if prompt_kind is not None:
+                update["prompt"] = {"kind": prompt_kind, "tribe": after}
+            if artifacts_dir:
+                update["meta_set"] = (
+                    {"clan_tribe": after}
+                    if clan_bound and after
+                    else {"tribe": after}
+                    if after
+                    else {}
                 )
-            )
+                update["meta_remove"] = (
+                    ["clan_tribe"]
+                    if clan_bound and after is None
+                    else ["tribe", "tag"]
+                    if after is None
+                    else []
+                )
+            if not clan_bound:
+                update["tribe"] = {
+                    "identity": list(agent.identity),
+                    "tribe": after,
+                }
+            updates.append(update)
 
         if changed == 0:
             verb = "set" if result.action == "set" else "unset"
@@ -224,27 +184,27 @@ class AgentTribeAssignmentMixin:
             )
             return
 
-        def _task() -> TrackedProcResult[list[AgentDirectivePersistenceResult]]:
-            payload = [persist_agent_directive_update(spec) for spec in specs]
-            suffix = "agent" if changed == 1 else "agents"
-            if result.action == "set":
-                assert result.tribe is not None
-                message = f"Set @{result.tribe} on {changed} {suffix}"
-            else:
-                message = f"Cleared tribe on {changed} {suffix}"
-            return TrackedProcResult(success=True, message=message, payload=payload)
+        generation = object()
+        for agent in affected:
+            agent._directive_generation = generation  # type: ignore[attr-defined]
+        from ..agent_durable import submit_agent_directive
 
         def _rollback_visible_tribes() -> None:
             for candidates in (self._agents, self._agents_with_children):
                 for candidate in candidates:
                     if candidate.identity in prior_tribes:
+                        if (
+                            getattr(candidate, "_directive_generation", None)
+                            is not generation
+                        ):
+                            continue
                         candidate.tribe = prior_tribes[candidate.identity]
                         candidate.clan_tribe = prior_clan_tribes[candidate.identity]
 
         def _on_complete(
-            completion: TrackedProcCompletion[list[AgentDirectivePersistenceResult]],
+            completion: TrackedProcCompletion[object],
         ) -> None:
-            if completion.success:
+            if completion.collision or completion.success:
                 return
             _rollback_visible_tribes()
             self.notify(  # type: ignore[attr-defined]
@@ -255,19 +215,18 @@ class AgentTribeAssignmentMixin:
             if callable(refresh):
                 refresh(source="agent-tribe-persist-failed")
 
-        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "agent-directive",
-            "agent-tribes",
-            "agent-tribes",
-            _task,
+        first_dir = str(updates[0].get("artifacts_dir") or "agent-tribes")
+        submitted = submit_agent_directive(
+            self,
+            artifacts_dir=first_dir,
+            payload={"updates": updates},
+            cl_name="agent-tribes",
             display_name=f"Persist tribes: {changed}",
-            dedup_key="agent-directive-persist:tribes",
-            duplicate_message="A tribe persistence proc is already running",
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
+            tribe_store=True,
+            duplicate_message="A tribe persistence proc is already running",
         )
-        if proc_info is None:
+        if not submitted:
             return
 
         for agent in affected:

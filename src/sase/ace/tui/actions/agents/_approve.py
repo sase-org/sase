@@ -5,15 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
-from sase.xprompt.directive_edit import set_prompt_auto_mode
 
-from ..proc_actions import TrackedProcCompletion, TrackedProcResult
-from ._directive_persistence import (
-    AgentDirectivePersistenceResult,
-    AgentDirectivePersistenceSpec,
-    AgentMetaPatch,
-    persist_agent_directive_update,
-)
+from ..proc_actions import TrackedProcCompletion
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -136,37 +129,22 @@ class AgentApproveMixin:
             meta_set["approve"] = True
         elif choice in {"tale", "epic"}:
             meta_set["auto_approve_plan_action"] = choice
-        spec = AgentDirectivePersistenceSpec(
-            artifacts_dir=artifacts_dir,
-            prompt_mutator=lambda prompt: set_prompt_auto_mode(prompt, auto_mode),
-            meta_patch=AgentMetaPatch(
-                set_values=meta_set,
-                remove_keys=(
-                    "approve",
-                    "auto_approve_plan_action",
-                    "auto_approve_argument",
-                ),
-            ),
-        )
-
-        def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
-            result = persist_agent_directive_update(spec)
-            return TrackedProcResult(
-                success=True,
-                message="Auto-approve persisted",
-                payload=result,
-            )
+        generation = object()
+        agent._directive_generation = generation  # type: ignore[attr-defined]
+        from ..agent_durable import submit_agent_directive
 
         def _rollback() -> None:
+            if getattr(agent, "_directive_generation", None) is not generation:
+                return
             agent.approve = prior_approve
             agent.auto_approve_plan_action = prior_auto_action
             if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
                 self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
         def _on_complete(
-            completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
+            completion: TrackedProcCompletion[object],
         ) -> None:
-            if completion.success:
+            if completion.collision or completion.success:
                 return
             _rollback()
             self.notify(  # type: ignore[attr-defined]
@@ -174,19 +152,23 @@ class AgentApproveMixin:
                 severity="error",
             )
 
-        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "agent-directive",
-            agent.cl_name or agent.display_name or "agent",
-            artifacts_dir,
-            _task,
+        submitted = submit_agent_directive(
+            self,
+            artifacts_dir=artifacts_dir,
+            payload={
+                "meta_remove": [
+                    "approve",
+                    "auto_approve_plan_action",
+                    "auto_approve_argument",
+                ],
+                "meta_set": meta_set,
+                "prompt": {"kind": "set_auto_mode", "mode": auto_mode},
+            },
+            cl_name=agent.cl_name or agent.display_name or "agent",
             display_name=f"Persist auto: {agent.display_name}",
-            dedup_key=f"agent-directive-persist:{artifacts_dir}",
-            duplicate_message="A directive update is already running for this agent",
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
-        if proc_info is None:
+        if not submitted:
             return
 
         agent.approve = new_approve

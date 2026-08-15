@@ -70,8 +70,10 @@ class BulkLaunchMixin:
             display_name=f"launch bulk {n} Patches",
             cl_name=f"bulk {n} Patches",
             project_file="",
-            proc_callable=lambda: self._run_bulk_launch(prompt, patches),
+            prompt=prompt,
+            extra_payload={"kind": "bulk", "count": n},
             submitted_prompt=prompt,
+            proc_callable=lambda: self._run_bulk_launch(prompt, patches),
         )
 
     def _run_bulk_launch(self, prompt: str, patches: list[Patch]) -> LaunchProcOutcome:

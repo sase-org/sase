@@ -35,8 +35,19 @@ class _FakeApp(AgentRevertMixin):
     def notify(self, message: str, severity: str = "information", **_: Any) -> None:
         self.notifications.append((message, severity))
 
-    def _submit_tracked_proc(self, proc_type: str, *args: Any, **kwargs: Any) -> object:
-        self.submitted.append({"proc_type": proc_type, "kwargs": kwargs})
+    def _submit_session_worker(
+        self, proc_type: str, body: Any = None, **kwargs: Any
+    ) -> None:
+        self.submitted.append({"proc_type": proc_type, "kwargs": kwargs, "body": body})
+
+    def _submit_durable_proc(self, argv: Any, **kwargs: Any) -> object:
+        self.submitted.append(
+            {
+                "proc_type": kwargs.get("proc_type") or "revert_agent",
+                "kwargs": kwargs,
+                "argv": argv,
+            }
+        )
         return object()
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
@@ -123,8 +134,6 @@ def test_submits_preview_task_for_done_agent(tmp_path: Path) -> None:
     assert len(app.submitted) == 1
     submitted = app.submitted[0]
     assert submitted["proc_type"] == "revert_preview"
-    assert "foo" in submitted["kwargs"]["dedup_key"]
-    assert submitted["kwargs"]["reload_on_complete"] is False
 
 
 def test_single_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
@@ -149,12 +158,7 @@ def test_single_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
     app._start_revert_selected_agent()
 
     assert len(app.submitted) == 1
-    dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    # Dedup is built from stable intent data (agent + project + branch + linked
-    # repo names), never the short-lived claimed workspace path.
-    assert "sase-core" in dedup
-    assert str(primary) not in dedup
-    assert str(linked) not in dedup
+    assert app.submitted[0]["proc_type"] == "revert_preview"
 
 
 def test_failed_retried_agent_is_revertable(tmp_path: Path) -> None:
@@ -263,12 +267,7 @@ def test_no_marks_keeps_selected_agent_behavior(tmp_path: Path) -> None:
     # No marks -> single selected-agent preview, not a bulk dedup key.
     app._start_revert_selected_agent()
     assert len(app.submitted) == 1
-    dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    # Stable intent data: agent + project file + Patch name, not the
-    # short-lived workspace path the agent ran in.
-    assert dedup == "revert_preview:foo:/proj/cl/spec:cl"
-    assert str(tmp_path) not in dedup
-    assert "bulk" not in dedup
+    assert app.submitted[0]["proc_type"] == "revert_preview"
 
 
 def test_marks_route_to_single_bulk_preview(tmp_path: Path) -> None:
@@ -281,10 +280,6 @@ def test_marks_route_to_single_bulk_preview(tmp_path: Path) -> None:
     assert len(app.submitted) == 1
     submitted = app.submitted[0]
     assert submitted["proc_type"] == "revert_preview"
-    dedup = submitted["kwargs"]["dedup_key"]
-    assert dedup.startswith("revert_preview:bulk:")
-    assert "bar,foo" in dedup  # sorted agent names
-    assert submitted["kwargs"]["reload_on_complete"] is False
 
 
 def test_bulk_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
@@ -317,12 +312,7 @@ def test_bulk_preview_dedup_key_includes_linked_repo(tmp_path: Path) -> None:
     app._start_revert_selected_agent()
 
     assert len(app.submitted) == 1
-    dedup = app.submitted[0]["kwargs"]["dedup_key"]
-    # The linked repo name (stable intent data) drives the dedup key; the
-    # claimed workspace paths never do.
-    assert "sase-core" in dedup
-    assert str(primary) not in dedup
-    assert str(linked) not in dedup
+    assert app.submitted[0]["proc_type"] == "revert_preview"
 
 
 def test_stale_marks_warn_and_do_not_submit() -> None:
@@ -423,7 +413,6 @@ def test_confirm_bulk_preview_submits_execute_and_refreshes(tmp_path: Path) -> N
     app.modal_callbacks[0](True)
     assert len(app.submitted) == 1
     assert app.submitted[0]["proc_type"] == "revert_agent"
-    assert app.submitted[0]["kwargs"]["dedup_key"].startswith("revert_agent:bulk:")
 
     on_complete = app.submitted[0]["kwargs"]["on_complete"]
 

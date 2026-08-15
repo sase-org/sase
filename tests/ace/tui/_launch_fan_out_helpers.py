@@ -126,10 +126,13 @@ class _FanOutHarness:
         display_name: str,
         cl_name: str,
         project_file: str,
-        proc_callable: Callable[[], LaunchProcOutcome],
+        prompt: str = "",
+        proc_callable: Callable[[], LaunchProcOutcome] | None = None,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
+        extra_payload: object = None,
     ) -> bool:
+        del prompt, extra_payload
         self.launch_tasks.append(
             {
                 "display_name": display_name,

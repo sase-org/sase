@@ -127,3 +127,57 @@ def test_mixin_submits_argv_off_the_event_loop(
 def test_coerce_request_rejects_payload_callable() -> None:
     with pytest.raises(DurableSubmitError, match="callable"):
         coerce_operation_request("patch.status", {"payload": print})
+
+
+def test_mixin_surfaces_collision_without_failure_rollback(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    from sase.ace.tui.actions.proc_actions import (
+        ProcActionsMixin,
+        TrackedProcCompletion,
+    )
+    from sase.ace.tui.proc_queue import ProcQueue
+    from sase.procs.service import ProcSubmitError
+
+    def boom(**kwargs: Any) -> Any:
+        raise ProcSubmitError("concurrency key already reserved")
+
+    monkeypatch.setattr("sase.ace.tui.durable_submit.submit_durable_proc_request", boom)
+    completions: list[TrackedProcCompletion[Any]] = []
+
+    class Host(ProcActionsMixin):
+        def __init__(self) -> None:
+            self._proc_queue = ProcQueue()
+            self._proc_workers = {}
+            self._proc_completion_callbacks = {}
+            self._proc_mirror = SimpleNamespace(finish=lambda *a, **k: None)
+            self.notices: list[tuple[str, str]] = []
+
+        def notify(self, message: str, severity: str = "information") -> None:
+            self.notices.append((message, severity))
+
+        def run_worker(self, fn: Any, thread: bool = False) -> SimpleNamespace:
+            result = fn()
+            worker = SimpleNamespace(result=result, thread=thread)
+            self._on_proc_worker_completed(worker)
+            return worker
+
+        def _update_proc_indicator(self) -> None:
+            return None
+
+        def _reload_and_reposition(self) -> None:
+            return None
+
+    host = Host()
+    info = host._submit_durable_proc(
+        ["sase", "patch", "status", "demo", "Ready"],
+        operation="patch.status",
+        request={"payload": {"name": "demo"}},
+        request_fingerprint="sha256:demo",
+        concurrency_keys=["ace:patch:demo:demo"],
+        cwd=tmp_path,
+        on_complete=completions.append,
+    )
+    assert info is not None
+    assert completions and completions[0].collision is True
+    assert any(severity == "warning" for _, severity in host.notices)

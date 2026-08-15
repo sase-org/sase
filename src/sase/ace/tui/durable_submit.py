@@ -76,6 +76,7 @@ def submit_durable_proc_request(
     project: str | None = None,
     cl_name: str | None = None,
     session_id: str | None = None,
+    workspace_claim: Mapping[str, Any] | None = None,
 ) -> DurableSubmitHandle:
     """Submit argv through the detached proc service. Never executes a callable."""
     reject_callable_submission(argv, request)
@@ -92,6 +93,7 @@ def submit_durable_proc_request(
         project=project,
         cl_name=cl_name,
         session_id=session_id,
+        workspace_claim=workspace_claim,
     )
     proc = submit_proc_request(submit_request)
     from sase.procs.runtime import proc_operation_result_path

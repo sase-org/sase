@@ -15,6 +15,13 @@ def launch_query(query: str) -> None:
     For multi-prompt queries (containing ``---`` separators), all segments
     are launched sequentially before this function returns.
     """
+    from sase.ops.cli import load_request
+    from sase.ops.names import RUN_LAUNCH
+
+    request = load_request(RUN_LAUNCH)
+    payload = dict(request.payload)
+    if isinstance(payload.get("prompt"), str) and payload["prompt"]:
+        query = payload["prompt"]
     from sase.agent.prompt_inputs import missing_required_input_names
 
     missing_inputs = missing_required_input_names(query)
@@ -51,7 +58,7 @@ def launch_query(query: str) -> None:
 
     if running_agent_context_requires_launch_approval():
         try:
-            request = create_launch_approval_request_from_prompt(
+            approval_request = create_launch_approval_request_from_prompt(
                 query,
                 reason="Running agent requested a detached launch.",
                 source_surface="agent_skill",
@@ -60,10 +67,10 @@ def launch_query(query: str) -> None:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
         try:
-            outcome = wait_for_launch_approval(request)
+            outcome = wait_for_launch_approval(approval_request)
         except KeyboardInterrupt:
             try:
-                cancel_launch_approval_request(request)
+                cancel_launch_approval_request(approval_request)
             except LaunchRequestError:
                 pass
             print("Launch request cancelled", file=sys.stderr)
@@ -108,6 +115,28 @@ def launch_query(query: str) -> None:
     emit_run_launch_result(
         success=True,
         message=f"Started {len(results)} agent(s)",
-        payload={"count": len(results), "pids": [result.pid for result in results]},
+        payload={
+            "count": len(results),
+            "pids": [result.pid for result in results],
+            "results": [_serialize_launch_result(item) for item in results],
+            "request_agents_refresh": True,
+            "schedule_agents_refresh": True,
+        },
     )
     sys.exit(0)
+
+
+def _serialize_launch_result(result: object) -> dict[str, object]:
+    return {
+        "agent_name": getattr(result, "agent_name", None),
+        "artifacts_dir": getattr(result, "artifacts_dir", ""),
+        "cl_name": getattr(result, "cl_name", ""),
+        "output_path": getattr(result, "output_path", ""),
+        "pid": getattr(result, "pid", 0),
+        "project_file": getattr(result, "project_file", ""),
+        "project_name": getattr(result, "project_name", ""),
+        "timestamp": getattr(result, "timestamp", ""),
+        "workflow_name": getattr(result, "workflow_name", ""),
+        "workspace_dir": getattr(result, "workspace_dir", ""),
+        "workspace_num": getattr(result, "workspace_num", 0),
+    }

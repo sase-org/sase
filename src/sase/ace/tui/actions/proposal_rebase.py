@@ -30,6 +30,10 @@ def _rebase_task(
     project_basename: str,
     new_parent_name: str,
     old_parent_name: str | None,
+    *,
+    workspace_num: int | None = None,
+    workspace_dir: str | None = None,
+    release: bool = True,
 ) -> tuple[bool, str]:
     """Execute rebase as a proc.
 
@@ -48,25 +52,29 @@ def _rebase_task(
     from sase.status_state_machine import update_patch_parent_atomic
     from sase.vcs_provider import get_vcs_provider
 
-    workspace_num = get_first_available_axe_workspace(patch_file_path)
+    if workspace_num is None:
+        workspace_num = get_first_available_axe_workspace(patch_file_path)
+    workspace_num = int(workspace_num)
     workflow_name = f"rebase-{patch_name}"
 
-    try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
-    except RuntimeError as e:
-        return (False, f"Failed to get workspace directory: {e}")
+    if not workspace_dir:
+        try:
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_basename
+            )
+        except RuntimeError as e:
+            return (False, f"Failed to get workspace directory: {e}")
 
-    pid = os.getpid()
-    claim_result = claim_workspace(
-        patch_file_path, workspace_num, workflow_name, pid, patch_name
-    )
-    if not claim_result.success:
-        return (
-            False,
-            f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+    if release:
+        pid = os.getpid()
+        claim_result = claim_workspace(
+            patch_file_path, workspace_num, workflow_name, pid, patch_name
         )
+        if not claim_result.success:
+            return (
+                False,
+                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+            )
 
     try:
         # Clean workspace before switching branches
@@ -125,12 +133,13 @@ def _rebase_task(
         return (True, f"Rebased onto {new_parent_display}")
 
     finally:
-        release_workspace(
-            patch_file_path,
-            workspace_num,
-            workflow_name,
-            patch_name,
-        )
+        if release:
+            release_workspace(
+                patch_file_path,
+                workspace_num,
+                workflow_name,
+                patch_name,
+            )
 
 
 def _accept_task(
@@ -392,6 +401,8 @@ class ProposalRebaseMixin:
         """
         cl_name = patch.name
         project_file = patch.file_path
+        from .patch_durable import submit_patch_operation
+        from .proc_actions import TrackedProcCompletion
 
         # Build display message
         suffix = ""
@@ -410,22 +421,23 @@ class ProposalRebaseMixin:
             else:
                 msg = f"Accepting proposals {ids}{suffix}..."
 
-        def proc_callable() -> tuple[bool, str]:
-            return _accept_task(
-                entries, cl_name, project_file, mark_ready_to_mail, skip_amend
-            )
-
-        # If mark_ready_to_mail, trigger mail after accept succeeds
-        on_success = None
-        if mark_ready_to_mail:
-
-            def on_accept_success() -> None:
+        def on_complete(completion: TrackedProcCompletion[object]) -> None:
+            if completion.collision or not completion.success:
+                return
+            if mark_ready_to_mail:
                 self.action_mail()  # type: ignore[attr-defined]
 
-            on_success = on_accept_success
-
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "accept", cl_name, project_file, proc_callable, on_success=on_success
+        submitted = submit_patch_operation(
+            self,
+            verb="accept",
+            name=cl_name,
+            project_file=project_file,
+            payload={
+                "entries": [[item[0], item[1]] for item in entries],
+                "mark_ready_to_mail": mark_ready_to_mail,
+                "skip_amend": skip_amend,
+            },
+            on_complete=on_complete if mark_ready_to_mail else None,
         )
 
         if submitted:
@@ -485,18 +497,35 @@ class ProposalRebaseMixin:
         project_file = patch.file_path
         old_parent_name = patch.parent
         new_parent_display = _format_parent_for_timestamp(new_parent_name)
+        from .patch_durable import claim_patch_workspace, submit_patch_operation
 
-        def proc_callable() -> tuple[bool, str]:
-            return _rebase_task(
-                cl_name,
-                project_file,
-                project_basename,
-                new_parent_name,
-                old_parent_name,
+        workflow_name = f"rebase-{cl_name}"
+        claimed = claim_patch_workspace(
+            project_file, cl_name, workflow_name, project_basename
+        )
+        if claimed[0] is None:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to claim workspace: {claimed[1]}",
+                severity="error",
             )
+            return
+        workspace_num, workspace_dir = claimed
 
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "rebase", cl_name, project_file, proc_callable
+        submitted = submit_patch_operation(
+            self,
+            verb="rebase",
+            name=cl_name,
+            project_file=project_file,
+            extra_argv=(new_parent_name,),
+            payload={
+                "old_parent": old_parent_name,
+                "parent": new_parent_name,
+                "settlement_owns_release": True,
+                "workspace_dir": workspace_dir,
+                "workspace_num": workspace_num,
+            },
+            workspace_num=workspace_num,
+            workspace_workflow=workflow_name,
         )
 
         if submitted:
@@ -504,3 +533,21 @@ class ProposalRebaseMixin:
                 f"Rebase onto {new_parent_display} started for "
                 f"{humanize_cl_name(cl_name)}"
             )
+        else:
+            from sase.ace.tui.durable_ops import (
+                release_workspace_claim,
+                workspace_claim_policy,
+            )
+
+            release_workspace_claim(
+                workspace_claim_policy(
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    workflow=workflow_name,
+                    cl_name=cl_name,
+                )
+            )
+
+
+accept_task = _accept_task
+rebase_task = _rebase_task

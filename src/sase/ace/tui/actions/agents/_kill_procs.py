@@ -44,6 +44,13 @@ class AgentKillPersistenceProcMixin:
         killed_count = len(kill_items)
         dismissed_count = len(dismissable)
 
+        from sase.core.agent_cleanup_wire import agent_cleanup_wire_to_json_dict
+        from sase.core.agent_group_archive_wire import (
+            saved_agent_group_wire_to_json_dict,
+        )
+
+        from ..cleanup_payload import json_identities, serialize_agents
+
         def _worker() -> CleanupProcOutcome:
             started = time.perf_counter()
             register_expected_deletion = None
@@ -52,25 +59,15 @@ class AgentKillPersistenceProcMixin:
                     self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
                 )
             try:
-                if register_expected_deletion is None:
-                    killing_compat._persist_bulk_kill_transaction(
-                        kill_items,
-                        dismissable,
-                        dismissed_snapshot,
-                        agents_with_children_snapshot,
-                        cleanup_plan,
-                        recent_group,
-                    )
-                else:
-                    killing_compat._persist_bulk_kill_transaction(
-                        kill_items,
-                        dismissable,
-                        dismissed_snapshot,
-                        agents_with_children_snapshot,
-                        cleanup_plan,
-                        recent_group,
-                        register_expected_deletion=register_expected_deletion,
-                    )
+                killing_compat._persist_bulk_kill_transaction(
+                    kill_items,
+                    dismissable,
+                    dismissed_snapshot,
+                    agents_with_children_snapshot,
+                    cleanup_plan,
+                    recent_group,
+                    register_expected_deletion=register_expected_deletion,
+                )
             except Exception as exc:
                 return CleanupProcOutcome(
                     message=f"Bulk kill cleanup failed: {exc}",
@@ -93,6 +90,38 @@ class AgentKillPersistenceProcMixin:
                 refresh_notifications=True,
             )
 
+        payload = {
+            "action": "kill",
+            "agents_with_children": serialize_agents(agents_with_children_snapshot),
+            "cleanup_plan": (
+                agent_cleanup_wire_to_json_dict(cleanup_plan)
+                if cleanup_plan is not None
+                else None
+            ),
+            "dismissable": serialize_agents(dismissable),
+            "dismissed_identities": json_identities(dismissed_snapshot),
+            "identity": ",".join(sorted(str(item) for item in inflight)),
+            "kill_items": [
+                {
+                    "agent": serialize_agents([item.agent])[0],
+                    "identities": json_identities(item.identities),
+                    "kind": item.kind,
+                }
+                for item in kill_items
+            ],
+            "message": killing_compat._bulk_kill_summary(killed_count, dismissed_count),
+            "recent_group": (
+                saved_agent_group_wire_to_json_dict(recent_group)
+                if recent_group is not None
+                else None
+            ),
+            "refresh_notifications": True,
+            "transaction": "bulk_kill",
+        }
+
+        def _release() -> None:
+            self._kill_persistence_inflight.difference_update(inflight)
+
         if not self._submit_cleanup_proc(  # type: ignore[attr-defined]
             proc_type="kill",
             display_name=killing_compat._bulk_kill_task_display_name(
@@ -100,9 +129,11 @@ class AgentKillPersistenceProcMixin:
             ),
             cl_name="",
             project_file="",
+            payload=payload,
             proc_callable=_worker,
+            on_settled=_release,
         ):
-            self._kill_persistence_inflight.difference_update(inflight)
+            _release()
 
     def _submit_kill_persistence_proc(
         self,
@@ -128,6 +159,10 @@ class AgentKillPersistenceProcMixin:
             agent, agents_with_children_snapshot
         )
 
+        from sase.core.agent_cleanup_wire import agent_cleanup_wire_to_json_dict
+
+        from ..cleanup_payload import json_identities, serialize_agent, serialize_agents
+
         def _worker() -> CleanupProcOutcome:
             from . import _killing as killing_compat
 
@@ -138,25 +173,15 @@ class AgentKillPersistenceProcMixin:
                     self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
                 )
             try:
-                if register_expected_deletion is None:
-                    killing_compat._persist_single_kill_transaction(
-                        agent,
-                        kind,
-                        agents_with_children_snapshot,
-                        dismissed_snapshot,
-                        cleanup_plan,
-                        related_agents,
-                    )
-                else:
-                    killing_compat._persist_single_kill_transaction(
-                        agent,
-                        kind,
-                        agents_with_children_snapshot,
-                        dismissed_snapshot,
-                        cleanup_plan,
-                        related_agents,
-                        register_expected_deletion=register_expected_deletion,
-                    )
+                killing_compat._persist_single_kill_transaction(
+                    agent,
+                    kind,
+                    agents_with_children_snapshot,
+                    dismissed_snapshot,
+                    cleanup_plan,
+                    related_agents,
+                    register_expected_deletion=register_expected_deletion,
+                )
             except Exception as exc:
                 return CleanupProcOutcome(
                     message=f"Kill cleanup failed for {agent.display_name}: {exc}",
@@ -177,11 +202,34 @@ class AgentKillPersistenceProcMixin:
                 refresh_notifications=True,
             )
 
+        payload = {
+            "action": "kill",
+            "agent": serialize_agent(agent),
+            "agents_with_children": serialize_agents(agents_with_children_snapshot),
+            "cleanup_plan": (
+                agent_cleanup_wire_to_json_dict(cleanup_plan)
+                if cleanup_plan is not None
+                else None
+            ),
+            "dismissed_identities": json_identities(dismissed_snapshot),
+            "identity": str(identity),
+            "kind": kind,
+            "message": f"Killed {agent.display_name}",
+            "refresh_notifications": True,
+            "related_agents": serialize_agents(related_agents),
+            "transaction": "single_kill",
+        }
+
+        def _release() -> None:
+            self._kill_persistence_inflight.discard(identity)
+
         if not self._submit_cleanup_proc(  # type: ignore[attr-defined]
             proc_type="kill",
             display_name=f"kill {agent.display_name}",
             cl_name=agent.cl_name,
             project_file=agent.project_file,
+            payload=payload,
             proc_callable=_worker,
+            on_settled=_release,
         ):
-            self._kill_persistence_inflight.discard(identity)
+            _release()

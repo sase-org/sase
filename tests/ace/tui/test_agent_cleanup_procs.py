@@ -89,6 +89,57 @@ class _CleanupProcApp(AgentsMixin, ProcActionsMixin):
     def _reload_and_reposition(self) -> None:
         self.reloads += 1
 
+    def _submit_durable_proc(
+        self,
+        argv: Any,
+        *,
+        operation: str = "",
+        request: Any = None,
+        request_fingerprint: str = "",
+        concurrency_keys: Any = (),
+        proc_type: str | None = None,
+        display_name: str | None = None,
+        cl_name: str = "",
+        project_file: str = "",
+        on_complete: Any = None,
+        reload_on_complete: bool = False,
+        notify_on_complete: bool = False,
+        live_body: Any = None,
+        on_settled: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        del argv, operation, request, request_fingerprint, concurrency_keys, kwargs
+        from sase.ace.tui.actions.agents._cleanup_procs import CleanupProcOutcome
+        from sase.ace.tui.actions.proc_actions import TrackedProcResult
+
+        def _callable() -> TrackedProcResult[Any]:
+            try:
+                if live_body is not None:
+                    outcome = live_body()
+                    if isinstance(outcome, CleanupProcOutcome):
+                        return TrackedProcResult(
+                            success=outcome.success,
+                            message=outcome.message,
+                            payload=outcome,
+                            error=outcome.message if not outcome.success else None,
+                        )
+                    return outcome
+                return TrackedProcResult(success=True, message="ok")
+            finally:
+                if on_settled is not None:
+                    on_settled()
+
+        return self._submit_tracked_proc(
+            proc_type or "cleanup",
+            cl_name,
+            project_file,
+            _callable,
+            display_name=display_name,
+            on_complete=on_complete,
+            reload_on_complete=reload_on_complete,
+            notify_on_complete=notify_on_complete,
+        )
+
     def run_worker(self, fn: Any, *, thread: bool = False) -> Any:
         """Defer the worker body so tests can observe the running proc."""
         assert thread is True

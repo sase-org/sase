@@ -73,6 +73,11 @@ def handle_agent_command(args: argparse.Namespace) -> None:
         handle_agents_names(args)
         sys.exit(0)
 
+    if sub == "persist-cleanup":
+        from sase.ops.commands.agent import handle_agent_operation
+
+        sys.exit(handle_agent_operation(args))
+
     if sub == "persist-directive":
         from sase.ops.commands.agent import handle_agent_operation
 
@@ -90,7 +95,8 @@ def handle_agent_command(args: argparse.Namespace) -> None:
 
     print(
         "Usage: sase agent "
-        "{archive,artifacts,index,kill,list,names,persist-directive,prompts,"
+        "{archive,artifacts,index,kill,list,names,persist-cleanup,"
+        "persist-directive,prompts,"
         "retire-v1,revert,show,sync,tribe}"
     )
     sys.exit(1)

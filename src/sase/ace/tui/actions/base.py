@@ -200,8 +200,9 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
 
         from ...handlers import handle_reword_prepare
-        from ...handlers.reword import reword_execute_task
         from .._workflow_context import WorkflowContext
+        from .patch_durable import submit_patch_operation
+        from .proc_actions import TrackedProcCompletion
 
         # Interactive phase: fetch description and open editor in suspend()
         edited_description = None
@@ -218,21 +219,20 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         display_cl_name = humanize_cl_name(cl_name)
         project_file = patch.file_path
 
-        def proc_callable() -> tuple[bool, str]:
-            return reword_execute_task(
-                cl_name,
-                project_file,
-                patch.project_basename,
-                edited_description,
-            )
-
-        def on_success() -> None:
+        def on_complete(completion: TrackedProcCompletion[object]) -> None:
+            if completion.collision or not completion.success:
+                return
             from ...hooks import reset_dollar_hooks
 
             reset_dollar_hooks(project_file, cl_name)
 
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "reword", cl_name, project_file, proc_callable, on_success=on_success
+        submitted = submit_patch_operation(
+            self,
+            verb="reword",
+            name=cl_name,
+            project_file=project_file,
+            payload={"description": edited_description},
+            on_complete=on_complete,
         )
 
         if submitted:
@@ -284,28 +284,32 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             tag_name, tag_value = result
             save_tag(tag_name, tag_value)
 
-            from ...handlers.reword import add_tag_task
+            from .patch_durable import submit_patch_operation
+            from .proc_actions import TrackedProcCompletion
 
             cl_name = patch.name
             display_cl_name = humanize_cl_name(cl_name)
             project_file = patch.file_path
 
-            def proc_callable() -> tuple[bool, str]:
-                return add_tag_task(
-                    cl_name,
-                    project_file,
-                    patch.project_basename,
-                    tag_name,
-                    tag_value,
-                )
-
-            def on_success() -> None:
+            def on_complete(completion: TrackedProcCompletion[object]) -> None:
+                if completion.collision or not completion.success:
+                    return
                 from ...hooks import reset_dollar_hooks
 
                 reset_dollar_hooks(project_file, cl_name)
 
-            submitted = self._submit_proc(  # type: ignore[attr-defined]
-                "add_tag", cl_name, project_file, proc_callable, on_success=on_success
+            extra = [tag_name]
+            if tag_value:
+                extra.append(tag_value)
+            submitted = submit_patch_operation(
+                self,
+                verb="tag",
+                name=cl_name,
+                project_file=project_file,
+                extra_argv=tuple(extra),
+                payload={"tag": tag_name, "value": tag_value},
+                proc_type="add_tag",
+                on_complete=on_complete,
             )
 
             if submitted:
@@ -346,8 +350,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         )
 
         from ...handlers import handle_mail_prepare
-        from ...handlers.mail import mail_execute_task
         from .._workflow_context import WorkflowContext
+        from .patch_durable import submit_patch_operation
 
         cl_name = patch.name
         project_file = patch.file_path
@@ -385,19 +389,25 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             release_workspace(project_file, workspace_num, "mail", cl_name)
             return
 
-        # Non-interactive phase: submit execute_mail as a proc
-        # The proc owns the workspace from here and releases in finally
-        def proc_callable() -> tuple[bool, str]:
-            return mail_execute_task(patch, workspace_dir, workspace_num)
-
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "mail", cl_name, project_file, proc_callable
+        submitted = submit_patch_operation(
+            self,
+            verb="mail",
+            name=cl_name,
+            project_file=project_file,
+            payload={
+                "settlement_owns_release": True,
+                "workspace_dir": workspace_dir,
+                "workspace_num": workspace_num,
+            },
+            workspace_num=workspace_num,
+            workspace_workflow="mail",
         )
 
         if submitted:
             self.notify(f"Mailing {humanize_cl_name(cl_name)}...")  # type: ignore[attr-defined]
         else:
-            # Dedup rejected — release workspace since task won't run
+            # Dedup rejected — release workspace since the durable proc
+            # was never reserved.
             release_workspace(project_file, workspace_num, "mail", cl_name)
 
     # --- Refresh & Query Actions ---

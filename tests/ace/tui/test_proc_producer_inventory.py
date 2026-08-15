@@ -47,4 +47,4 @@ def test_inventory_records_infrastructure_and_classifications() -> None:
         site for site in PRODUCTION_PRODUCERS if site.classification == "durable"
     ]
     assert durable
-    assert len(PRODUCTION_PRODUCERS) == 54
+    assert len(PRODUCTION_PRODUCERS) == 37

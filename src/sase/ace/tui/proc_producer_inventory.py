@@ -52,6 +52,13 @@ def _proc_type_from_arg(node: ast.AST | None) -> str:
     return "dynamic"
 
 
+def _kw_str(node: ast.Call, name: str) -> str | None:
+    for keyword in node.keywords:
+        if keyword.arg == name:
+            return _const_str(keyword.value)
+    return None
+
+
 def _getattr_target(node: ast.AST) -> str | None:
     if not isinstance(node, ast.Call):
         return None
@@ -121,6 +128,8 @@ class _SubmitCallVisitor(ast.NodeVisitor):
         if isinstance(node.func, ast.Attribute) and node.func.attr in {
             "_submit_proc",
             "_submit_tracked_proc",
+            "_submit_durable_proc",
+            "_submit_session_worker",
         }:
             proc_type = _proc_type_from_arg(node.args[0] if node.args else None)
             if function == "_submit_proc" and node.func.attr == "_submit_tracked_proc":
@@ -128,6 +137,15 @@ class _SubmitCallVisitor(ast.NodeVisitor):
                 proc_type = "passthrough"
             elif node.func.attr == "_submit_proc":
                 kind = "direct_submit_proc"
+            elif node.func.attr == "_submit_durable_proc":
+                kind = "direct_submit_durable"
+                proc_type = (
+                    _kw_str(node, "proc_type")
+                    or _kw_str(node, "operation")
+                    or ("dynamic")
+                )
+            elif node.func.attr == "_submit_session_worker":
+                kind = "session_worker"
             else:
                 kind = "direct_submit_tracked"
         elif isinstance(node.func, ast.Name) and node.func.id in self.bound:

@@ -227,11 +227,38 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
                 refresh_notifications=True,
             )
 
+        from sase.core.agent_group_archive_wire import (
+            saved_agent_group_wire_to_json_dict,
+        )
+
+        from ..cleanup_payload import json_identities, serialize_agents
+
+        payload = {
+            "action": "save",
+            "added_identities": json_identities(added),
+            "agents": serialize_agents(agents),
+            "dismissed_identities": json_identities(dismissed_snapshot),
+            "group": saved_agent_group_wire_to_json_dict(group),
+            "group_name": group_name,
+            "identity": ",".join(sorted(str(item) for item in identities)),
+            "message": f"Saved {count} {plural_agent(count)}",
+            "refresh_notifications": True,
+            "transaction": "save",
+        }
+
+        def _release() -> None:
+            self._dismiss_persistence_inflight.difference_update(identities)
+
         if not self._submit_cleanup_proc(  # type: ignore[attr-defined]
             proc_type="save",
             display_name=f"save {count} {plural_agent(count)}",
             cl_name="",
             project_file="",
+            payload=payload,
             proc_callable=_worker,
+            on_settled=_release,
         ):
-            self._dismiss_persistence_inflight.difference_update(identities)
+            _release()
+
+
+persist_marked_agent_group_save = _persist_marked_agent_group_save

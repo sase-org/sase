@@ -14,15 +14,7 @@ from sase.ace.tui.agent_completion import (
 from sase.project_display_names import humanize_cl_name
 from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
 
-from ..proc_actions import TrackedProcCompletion, TrackedProcResult
-from ._directive_persistence import (
-    AgentDirectivePersistenceResult,
-    AgentDirectivePersistenceSpec,
-    ReadyMarkerPatch,
-    persist_agent_directive_update,
-    wait_meta_patch_for_token,
-    waiting_marker_patch_for_token,
-)
+from ..proc_actions import TrackedProcCompletion
 from ._wait_helpers import (
     TabName,
     prompt_wait_spec,
@@ -165,41 +157,22 @@ class AgentWaitActionsMixin:
                 priority=effective_priority,
                 beads=tuple(wait_beads),
             )
-            spec = AgentDirectivePersistenceSpec(
-                artifacts_dir=artifacts_dir,
-                prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
-                meta_patch=wait_meta_patch_for_token(
-                    wait_names=tuple(wait_names),
-                    wait_beads=tuple(wait_beads),
-                    update_wait_priority=update_wait_priority,
-                    wait_priority=result.priority,
-                ),
-                waiting_marker=waiting_marker_patch_for_token(
-                    wait_names=tuple(wait_names),
-                    wait_beads=tuple(wait_beads),
-                    update_wait_priority=update_wait_priority,
-                    wait_priority=result.priority,
-                ),
-            )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
             prior_priority = agent.wait_priority
             prior_priority_explicit = agent.wait_priority_explicit
-
-            def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
-                payload = persist_agent_directive_update(spec)
-                return TrackedProcResult(
-                    success=True,
-                    message="Wait persisted",
-                    payload=payload,
-                )
+            generation = object()
+            agent._directive_generation = generation  # type: ignore[attr-defined]
+            from ..agent_durable import submit_agent_directive
 
             def _on_complete(
-                completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
+                completion: TrackedProcCompletion[object],
             ) -> None:
-                if completion.success:
+                if completion.collision or completion.success:
+                    return
+                if getattr(agent, "_directive_generation", None) is not generation:
                     return
                 agent.waiting_for = prior_waiting_for
                 agent.waiting_for_beads = prior_waiting_for_beads
@@ -215,19 +188,36 @@ class AgentWaitActionsMixin:
                 if callable(refresh):
                     refresh(source="agent-wait-persist-failed")
 
-            proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-                "agent-directive",
-                agent.cl_name or agent.display_name or "agent",
-                artifacts_dir,
-                _task,
+            submitted = submit_agent_directive(
+                self,
+                artifacts_dir=artifacts_dir,
+                payload={
+                    "prompt": {
+                        "kind": "set_wait",
+                        "wait": {
+                            "agents": list(wait_spec.agents),
+                            "beads": list(wait_spec.beads),
+                            "priority": wait_spec.priority,
+                        },
+                    },
+                    "wait": {
+                        "beads": wait_beads,
+                        "names": wait_names,
+                        "update_wait_priority": update_wait_priority,
+                        "wait_priority": result.priority,
+                    },
+                    "waiting": {
+                        "beads": wait_beads,
+                        "names": wait_names,
+                        "update_wait_priority": update_wait_priority,
+                        "wait_priority": result.priority,
+                    },
+                },
+                cl_name=agent.cl_name or agent.display_name or "agent",
                 display_name=f"Persist wait: {agent.display_name}",
-                dedup_key=f"agent-directive-persist:{artifacts_dir}",
-                duplicate_message="A directive update is already running for this agent",
                 on_complete=_on_complete,
-                reload_on_complete=False,
-                notify_on_complete=False,
             )
-            if proc_info is None:
+            if not submitted:
                 return
             agent.waiting_for = wait_names
             agent.waiting_for_beads = wait_beads
@@ -245,31 +235,16 @@ class AgentWaitActionsMixin:
             self.notify(f"Now waiting for: {wait_label}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
         else:
-            spec = AgentDirectivePersistenceSpec(
-                artifacts_dir=artifacts_dir,
-                prompt_mutator=lambda prompt: set_prompt_wait(prompt, None),
-                meta_patch=wait_meta_patch_for_token(
-                    update_wait_runners=True,
-                    update_wait_priority=True,
-                ),
-                ready_marker=ReadyMarkerPatch(
-                    resolved_deps=tuple(agent.waiting_for),
-                    unwait=True,
-                ),
-            )
-
-            def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
-                payload = persist_agent_directive_update(spec)
-                return TrackedProcResult(
-                    success=True,
-                    message="Run-now persisted",
-                    payload=payload,
-                )
+            generation = object()
+            agent._directive_generation = generation  # type: ignore[attr-defined]
+            from ..agent_durable import submit_agent_directive
 
             def _on_complete(
-                completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
+                completion: TrackedProcCompletion[object],
             ) -> None:
-                if completion.success:
+                if completion.collision or completion.success:
+                    return
+                if getattr(agent, "_directive_generation", None) is not generation:
                     return
                 self.notify(  # type: ignore[attr-defined]
                     f"Run-now persist failed: {completion.message}",
@@ -282,19 +257,25 @@ class AgentWaitActionsMixin:
             display_name = humanize_cl_name(
                 agent.display_name or agent.cl_name or "agent"
             )
-            proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-                "agent-directive",
-                agent.cl_name or agent.display_name or "agent",
-                artifacts_dir,
-                _task,
+            submitted = submit_agent_directive(
+                self,
+                artifacts_dir=artifacts_dir,
+                payload={
+                    "prompt": {"kind": "set_wait", "wait": None},
+                    "ready": {
+                        "resolved_deps": list(agent.waiting_for),
+                        "unwait": True,
+                    },
+                    "wait": {
+                        "update_wait_priority": True,
+                        "update_wait_runners": True,
+                    },
+                },
+                cl_name=agent.cl_name or agent.display_name or "agent",
                 display_name=f"Persist run-now: {display_name}",
-                dedup_key=f"agent-directive-persist:{artifacts_dir}",
-                duplicate_message="A directive update is already running for this agent",
                 on_complete=_on_complete,
-                reload_on_complete=False,
-                notify_on_complete=False,
             )
-            if proc_info is None:
+            if not submitted:
                 return
             agent.waiting_for = []
             agent.waiting_for_beads = []
@@ -328,24 +309,6 @@ class AgentWaitActionsMixin:
         wait_spec = prompt_wait_spec(result)
         if wait_spec is not None and effective_priority is not None:
             wait_spec = replace(wait_spec, priority=effective_priority)
-        spec = AgentDirectivePersistenceSpec(
-            artifacts_dir=artifacts_dir,
-            prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
-            meta_patch=wait_meta_patch_for_token(
-                wait_beads=tuple(result.beads),
-                update_wait_runners=True,
-                wait_runners=result.runners,
-                update_wait_priority=update_wait_priority,
-                wait_priority=result.priority,
-            ),
-            waiting_marker=waiting_marker_patch_for_token(
-                wait_beads=tuple(result.beads),
-                update_wait_runners=True,
-                wait_runners=result.runners,
-                update_wait_priority=update_wait_priority,
-                wait_priority=result.priority,
-            ),
-        )
         prior_runners = agent.wait_runners
         prior_explicit = agent.wait_runners_explicit
         prior_waiting_for = list(agent.waiting_for)
@@ -354,19 +317,16 @@ class AgentWaitActionsMixin:
         prior_wait_until = agent.wait_until
         prior_priority = agent.wait_priority
         prior_priority_explicit = agent.wait_priority_explicit
-
-        def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
-            payload = persist_agent_directive_update(spec)
-            return TrackedProcResult(
-                success=True,
-                message="Runner wait persisted",
-                payload=payload,
-            )
+        generation = object()
+        agent._directive_generation = generation  # type: ignore[attr-defined]
+        from ..agent_durable import submit_agent_directive
 
         def _on_complete(
-            completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
+            completion: TrackedProcCompletion[object],
         ) -> None:
-            if completion.success:
+            if completion.collision or completion.success:
+                return
+            if getattr(agent, "_directive_generation", None) is not generation:
                 return
             agent.wait_runners = prior_runners
             agent.wait_runners_explicit = prior_explicit
@@ -384,19 +344,40 @@ class AgentWaitActionsMixin:
             if callable(refresh):
                 refresh(source="agent-runner-wait-persist-failed")
 
-        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "agent-directive",
-            agent.cl_name or agent.display_name or "agent",
-            artifacts_dir,
-            _task,
+        wait_payload = None
+        if wait_spec is not None:
+            wait_payload = {
+                "agents": list(wait_spec.agents),
+                "beads": list(wait_spec.beads),
+                "priority": wait_spec.priority,
+                "runners": wait_spec.runners,
+                "time_token": wait_spec.time_token,
+            }
+        submitted = submit_agent_directive(
+            self,
+            artifacts_dir=artifacts_dir,
+            payload={
+                "prompt": {"kind": "set_wait", "wait": wait_payload},
+                "wait": {
+                    "beads": list(result.beads),
+                    "update_wait_priority": update_wait_priority,
+                    "update_wait_runners": True,
+                    "wait_priority": result.priority,
+                    "wait_runners": result.runners,
+                },
+                "waiting": {
+                    "beads": list(result.beads),
+                    "update_wait_priority": update_wait_priority,
+                    "update_wait_runners": True,
+                    "wait_priority": result.priority,
+                    "wait_runners": result.runners,
+                },
+            },
+            cl_name=agent.cl_name or agent.display_name or "agent",
             display_name=f"Persist runner wait: {agent.display_name}",
-            dedup_key=f"agent-directive-persist:{artifacts_dir}",
-            duplicate_message="A directive update is already running for this agent",
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
-        if proc_info is None:
+        if not submitted:
             return
         agent.waiting_for = list(result.agents)
         agent.waiting_for_beads = list(result.beads)

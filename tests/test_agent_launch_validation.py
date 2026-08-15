@@ -452,6 +452,45 @@ def test_tui_agent_rename_refreshes_artifact_index(tmp_path: Path) -> None:
         def _refresh_agents_display(self, *, list_changed: bool) -> None:
             self.refresh_calls += 1
 
+        def _submit_durable_proc(
+            self,
+            argv: Any,
+            *,
+            operation: str = "",
+            request: Any = None,
+            request_fingerprint: str = "",
+            concurrency_keys: Any = (),
+            proc_type: str | None = None,
+            display_name: str | None = None,
+            cl_name: str = "",
+            project_file: str = "",
+            on_complete: Any = None,
+            reload_on_complete: bool = True,
+            notify_on_complete: bool = True,
+            **kwargs: Any,
+        ) -> ProcInfo:
+            del argv, operation, request_fingerprint, concurrency_keys
+            del reload_on_complete, notify_on_complete, kwargs
+            payload = dict(request or {})
+
+            def _callable() -> TrackedProcResult[Any]:
+                from sase.ops.commands.agent import _persist_directive_from_payload
+
+                _persist_directive_from_payload(
+                    payload,
+                    artifacts_dir=str(payload.get("artifacts_dir") or project_file),
+                )
+                return TrackedProcResult(success=True, message="ok", payload=payload)
+
+            return self._submit_tracked_proc(
+                proc_type or "agent-directive",
+                cl_name,
+                project_file,
+                _callable,
+                display_name=display_name,
+                on_complete=on_complete,
+            )
+
         def _submit_tracked_proc(
             self,
             proc_type: str,

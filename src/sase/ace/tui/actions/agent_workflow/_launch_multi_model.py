@@ -62,6 +62,9 @@ class MultiModelLaunchMixin:
             display_name=f"launch fanout {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
+            prompt=submitted_xprompt or "\n---\n".join(model_prompts),
+            extra_payload={"kind": "fanout", "display_name": snap.display_name},
+            submitted_prompt=submitted_xprompt,
             proc_callable=lambda: self._run_multi_model_launch(
                 model_prompts,
                 snap,
@@ -73,7 +76,6 @@ class MultiModelLaunchMixin:
                 fanout_plan,
                 extra_env,
             ),
-            submitted_prompt=submitted_xprompt,
         )
 
     def _run_multi_model_launch(

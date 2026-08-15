@@ -52,10 +52,12 @@ class RepeatLaunchMixin:
             display_name=f"launch repeat {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
+            prompt=prompt,
+            extra_payload={"kind": "repeat", "display_name": snap.display_name},
+            submitted_prompt=prompt,
             proc_callable=lambda: self._run_repeat_launch(
                 prompt, snap, vcs_ref, has_wait, extra_env
             ),
-            submitted_prompt=prompt,
         )
 
     def _run_repeat_launch(

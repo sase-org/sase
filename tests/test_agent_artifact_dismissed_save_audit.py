@@ -35,6 +35,7 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
     "src/sase/ace/tui/actions/agents/_marking.py:_persist_marked_agent_group_save": (
         _SYNC_DISMISSED_INDEX,
     ),
+    "src/sase/ops/commands/agent.py:_apply_cleanup_payload": (_SYNC_DISMISSED_INDEX,),
     "src/sase/ace/tui/actions/agents/_revive_execution.py:_do_revive_agent": (
         _SYNC_DISMISSED_INDEX,
     ),

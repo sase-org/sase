@@ -30,6 +30,8 @@ _TAG_IDENTIFIER_ALLOWLIST = {
     Path("src/sase/ace/revert_agent_execute.py"),
     Path("src/sase/ace/revert_agent_models.py"),
     Path("src/sase/axe/image_attachments.py"),
+    # Serializes RevertCommit.agent_tag (commit-provenance, not tribe).
+    Path("src/sase/ops/commands/agent.py"),
 }
 
 _CURRENT_DOCUMENTATION = (

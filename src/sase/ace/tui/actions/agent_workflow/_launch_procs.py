@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
 
 from ..failure_messages import with_log_panel_hint
-from ..proc_actions import TrackedProcCompletion, TrackedProcResult
+from ..proc_actions import TrackedProcCompletion
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
@@ -62,37 +62,35 @@ class LaunchProcMixin:
         display_name: str,
         cl_name: str,
         project_file: str,
-        proc_callable: Callable[[], LaunchProcOutcome],
+        prompt: str,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
+        extra_payload: dict[str, object] | None = None,
+        proc_callable: object | None = None,
     ) -> bool:
-        """Submit a tracked launch proc and return whether it was accepted.
+        """Submit a durable ``sase run`` launch and return whether it was accepted.
 
         ``submitted_prompt`` is launch-specific recovery metadata: if the worker
         dies before returning a :class:`LaunchProcOutcome` (a payloadless
         failure), the completion handler stashes this prompt so it stays
         recoverable. It is kept off the generic proc-queue contract.
+
+        ``proc_callable`` is accepted so existing test doubles can still record
+        the launch body. Production submits argv-only ``sase run``.
         """
+        del proc_callable
+        from ..agent_durable import submit_agent_launch
 
-        def _callable() -> TrackedProcResult[LaunchProcOutcome]:
-            outcome = proc_callable()
-            return TrackedProcResult(
-                success=outcome.success,
-                message=outcome.message,
-                payload=outcome,
-                error=outcome.message if not outcome.success else None,
-            )
-
-        proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "launch",
-            cl_name,
-            project_file,
-            _callable,
+        workflow = (dedup_key or "").removeprefix("launch:") or uuid4().hex
+        proc_info = submit_agent_launch(
+            self,
+            prompt=prompt,
+            workflow=workflow,
+            cl_name=cl_name,
+            project_file=project_file,
             display_name=display_name,
-            dedup_key=dedup_key or f"launch:{uuid4().hex}",
+            extra_payload=extra_payload,
             on_complete=self._on_launch_proc_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
         if proc_info is not None and submitted_prompt is not None:
             prompts = getattr(self, "_launch_submitted_prompts", None)
@@ -113,7 +111,7 @@ class LaunchProcMixin:
         # prompt of this session.
         _warm_common_placeholders_if_available(self)
         submitted_prompt = self._pop_launch_submitted_prompt(completion)
-        outcome = completion.payload
+        outcome = _launch_outcome_from_completion(completion)
         if outcome is None:
             if not completion.success:
                 _schedule_payloadless_launch_failure_log(self, completion)
@@ -165,7 +163,9 @@ class LaunchProcMixin:
         prompts = getattr(self, "_launch_submitted_prompts", None)
         if not prompts:
             return None
-        return prompts.pop(completion.proc_info.proc_id, None)
+        return prompts.pop(completion.proc_info.proc_id, None) or prompts.pop(
+            completion.proc_info.display_name or "", None
+        )
 
 
 def _warm_common_placeholders_if_available(app: object) -> None:
@@ -222,6 +222,48 @@ def _log_payloadless_launch_failure(
         proc_type=proc.proc_type,
         project_file=proc.project_file,
         output=completion.output or None,
+    )
+
+
+def _launch_outcome_from_completion(
+    completion: TrackedProcCompletion[LaunchProcOutcome],
+) -> LaunchProcOutcome | None:
+    payload = completion.payload
+    if isinstance(payload, LaunchProcOutcome):
+        return payload
+    if not isinstance(payload, dict):
+        return None
+    from sase.agent.launch_types import AgentLaunchResult
+
+    results = []
+    for item in payload.get("results") or ():
+        if not isinstance(item, dict):
+            continue
+        results.append(
+            AgentLaunchResult(
+                pid=int(item.get("pid") or 0),
+                workspace_num=int(item.get("workspace_num") or 0),
+                workspace_dir=str(item.get("workspace_dir") or ""),
+                output_path=str(item.get("output_path") or ""),
+                project_file=str(item.get("project_file") or ""),
+                project_name=str(item.get("project_name") or ""),
+                workflow_name=str(item.get("workflow_name") or ""),
+                cl_name=str(item.get("cl_name") or ""),
+                timestamp=str(item.get("timestamp") or ""),
+                artifacts_dir=str(item.get("artifacts_dir") or ""),
+                agent_name=item.get("agent_name"),
+            )
+        )
+    severity: LaunchSeverity | None = None
+    if not completion.success:
+        severity = "error"
+    return LaunchProcOutcome(
+        completion.message,
+        results=launch_results_tuple(results),
+        severity=severity,
+        request_agents_refresh=bool(payload.get("request_agents_refresh")),
+        schedule_agents_refresh=bool(payload.get("schedule_agents_refresh")),
+        refresh_notifications=bool(payload.get("refresh_notifications")),
     )
 
 

@@ -17,6 +17,7 @@ PATCH_REWIND = "patch.rewind"
 
 AGENT_PERSIST_DIRECTIVE = "agent.persist-directive"
 AGENT_REVERT = "agent.revert"
+AGENT_CLEANUP = "agent.cleanup"
 
 BEAD_STATUS = "bead.status"
 
@@ -29,6 +30,7 @@ RUN_LAUNCH = "run.launch"
 
 
 __all__ = [
+    "AGENT_CLEANUP",
     "AGENT_PERSIST_DIRECTIVE",
     "AGENT_REVERT",
     "BEAD_STATUS",

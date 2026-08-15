@@ -11,28 +11,6 @@ if TYPE_CHECKING:
     from ....patch import Patch
 
 
-def _rewind_task(
-    cl_name: str,
-    project_file: str,
-    selected_entry_num: int,
-    skip_vcs: bool = False,
-) -> tuple[bool, str]:
-    """Execute rewind workflow as a proc.
-
-    Returns:
-        Tuple of (success, message).
-    """
-    from sase.workflows.rewind import RewindWorkflow
-
-    workflow = RewindWorkflow(
-        cl_name=cl_name,
-        project_file=project_file,
-        selected_entry_num=selected_entry_num,
-        skip_vcs=skip_vcs,
-    )
-    return workflow.run()
-
-
 class RewindMixin(HintMixinBase):
     """Mixin providing rewind workflow actions."""
 
@@ -159,14 +137,15 @@ class RewindMixin(HintMixinBase):
         """
         cl_name = patch.name
         project_file = patch.file_path
+        from ..patch_durable import submit_patch_operation
 
-        def proc_callable() -> tuple[bool, str]:
-            return _rewind_task(
-                cl_name, project_file, selected_entry_num, skip_vcs=skip_vcs
-            )
-
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "rewind", cl_name, project_file, proc_callable
+        submitted = submit_patch_operation(
+            self,
+            verb="rewind",
+            name=cl_name,
+            project_file=project_file,
+            extra_argv=(str(selected_entry_num),),
+            payload={"entry": selected_entry_num, "skip_vcs": skip_vcs},
         )
 
         if submitted:

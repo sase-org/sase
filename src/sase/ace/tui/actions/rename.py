@@ -8,15 +8,7 @@ from typing import TYPE_CHECKING
 from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.vcs_provider import get_vcs_provider
-from sase.xprompt.directive_edit import set_prompt_name
-
-from .agents._directive_persistence import (
-    AgentDirectivePersistenceResult,
-    AgentDirectivePersistenceSpec,
-    AgentMetaPatch,
-    persist_agent_directive_update,
-)
-from .proc_actions import TrackedProcCompletion, TrackedProcResult
+from .proc_actions import TrackedProcCompletion
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -304,21 +296,13 @@ class RenameMixin:
             machine_identity = AgentIdentitySnapshot.current()
             durable_name = normalize_owned_agent_name(new_name, machine_identity)
 
-            spec = AgentDirectivePersistenceSpec(
-                artifacts_dir=artifacts_dir,
-                prompt_mutator=lambda prompt: set_prompt_name(prompt, new_name),
-                meta_patch=AgentMetaPatch(set_values={"name": durable_name}),
-            )
-
-            def _task() -> TrackedProcResult[AgentDirectivePersistenceResult]:
-                result = persist_agent_directive_update(spec)
-                return TrackedProcResult(
-                    success=True,
-                    message=f"Agent name persisted: {new_name}",
-                    payload=result,
-                )
+            generation = object()
+            agent._directive_generation = generation  # type: ignore[attr-defined]
+            from .agent_durable import submit_agent_directive
 
             def _refresh_from_disk() -> None:
+                if getattr(agent, "_directive_generation", None) is not generation:
+                    return
                 refresh = getattr(self, "_schedule_agents_async_refresh", None)
                 if callable(refresh):
                     refresh(source="agent-name-persist-failed")
@@ -326,9 +310,9 @@ class RenameMixin:
                     self._reload_and_reposition()  # type: ignore[attr-defined]
 
             def _on_complete(
-                completion: TrackedProcCompletion[AgentDirectivePersistenceResult],
+                completion: TrackedProcCompletion[object],
             ) -> None:
-                if completion.success:
+                if completion.collision or completion.success:
                     return
                 self.notify(  # type: ignore[attr-defined]
                     f"Agent name persist failed: {completion.message}",
@@ -336,19 +320,18 @@ class RenameMixin:
                 )
                 _refresh_from_disk()
 
-            proc_info = self._submit_tracked_proc(  # type: ignore[attr-defined]
-                "agent-directive",
-                agent.cl_name or agent.display_name or "agent",
-                artifacts_dir,
-                _task,
+            submitted = submit_agent_directive(
+                self,
+                artifacts_dir=artifacts_dir,
+                payload={
+                    "meta_set": {"name": durable_name},
+                    "prompt": {"kind": "set_name", "name": new_name},
+                },
+                cl_name=agent.cl_name or agent.display_name or "agent",
                 display_name=f"Persist name: {new_name}",
-                dedup_key=f"agent-directive-persist:{artifacts_dir}",
-                duplicate_message="A directive update is already running for this agent",
                 on_complete=_on_complete,
-                reload_on_complete=False,
-                notify_on_complete=False,
             )
-            if proc_info is None:
+            if not submitted:
                 return
 
             # Find the current agent by identity (may have been replaced by

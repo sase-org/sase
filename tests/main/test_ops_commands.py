@@ -68,6 +68,8 @@ def test_notify_and_agent_operation_help() -> None:
     agent_help = parser_for(("sase", "agent", "persist-directive")).format_help()
     assert "artifacts directory" in agent_help.lower() or "artifacts_dir" in agent_help
     assert "-Q" in agent_help and "--request-path" in agent_help
+    cleanup_help = parser_for(("sase", "agent", "persist-cleanup")).format_help()
+    assert "-Q" in cleanup_help and "--request-path" in cleanup_help
 
 
 def test_bead_apply_status_help_is_documented() -> None:
@@ -200,6 +202,107 @@ def test_agent_persist_directive_uses_request_sidecar(
         expected_proc_id="proc-agent",
     )
     assert loaded.success is True
+
+
+def test_agent_persist_directive_applies_prompt_mutation(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    request_path = tmp_path / "req-prompt.json"
+    result_path = tmp_path / "res-prompt.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="agent.persist-directive",
+            payload={
+                "meta_set": {"name": "renamed"},
+                "prompt": {"kind": "set_name", "name": "renamed"},
+            },
+        ),
+    )
+    captured: dict[str, Any] = {}
+
+    def fake_persist(spec: Any) -> Any:
+        captured["prompt"] = spec.prompt_mutator
+        return SimpleNamespace(
+            meta_updated=True,
+            ready_updated=False,
+            tribe_updated=False,
+            waiting_updated=False,
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._directive_persistence.persist_agent_directive_update",
+        fake_persist,
+    )
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "persist-directive",
+            str(tmp_path / "artifacts"),
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-agent-prompt")
+    assert handle_agent_operation(args) == 0
+    assert captured["prompt"] is not None
+    assert captured["prompt"]("%id(old)") != "%id(old)"
+
+
+def test_agent_persist_cleanup_applies_json_identities(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    request_path = tmp_path / "cleanup-req.json"
+    result_path = tmp_path / "cleanup-res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="agent.cleanup",
+            payload={
+                "action": "dismiss",
+                "dismissed_identities": [["run", "feature", "20240101120000"]],
+                "message": "Dismissed feature",
+                "refresh_notifications": True,
+            },
+        ),
+    )
+    saved: list[Any] = []
+
+    def fake_save(snapshot: Any) -> bool:
+        saved.append(snapshot)
+        return True
+
+    monkeypatch.setattr("sase.ace.dismissed_agents.save_dismissed_agents", fake_save)
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.sync_dismissed_agent_artifact_index",
+        lambda *_a, **_k: None,
+    )
+    args = create_parser().parse_args(
+        [
+            "agent",
+            "persist-cleanup",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-cleanup")
+    assert handle_agent_operation(args) == 0
+    assert saved
+    identity = next(iter(saved[0]))
+    assert identity[0].value == "run"
+    assert identity[1] == "feature"
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="agent.cleanup",
+        expected_proc_id="proc-cleanup",
+    )
+    assert loaded.success is True
+    assert loaded.payload is not None
+    assert loaded.payload["action"] == "dismiss"
 
 
 def test_bead_apply_status_success_and_failure(

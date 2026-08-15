@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.patch.project_spec_path import project_spec_basename
 from sase.project_display_names import humanize_cl_name
@@ -34,12 +34,16 @@ def _sync_task(
     patch_name: str,
     patch_file_path: str,
     project_basename: str,
+    *,
+    workspace_num: int | None = None,
+    workspace_dir: str | None = None,
+    release: bool = True,
 ) -> tuple[bool, str]:
     """Execute sync as a proc.
 
     This standalone function contains the body of the former run_handler().
     It claims a workspace, syncs via the VCS provider, and releases the
-    workspace in a finally block.
+    workspace in a finally block unless settlement owns that release.
 
     Returns:
         Tuple of (success, message).
@@ -53,25 +57,29 @@ def _sync_task(
 
     display_name = humanize_cl_name(patch_name)
 
-    workspace_num = get_first_available_axe_workspace(patch_file_path)
+    if workspace_num is None:
+        workspace_num = get_first_available_axe_workspace(patch_file_path)
+    workspace_num = int(workspace_num)
     workflow_name = f"sync-{patch_name}"
 
-    try:
-        workspace_dir, _ = get_workspace_directory_for_num(
-            workspace_num, project_basename
-        )
-    except RuntimeError as e:
-        return (False, f"Failed to get workspace directory: {e}")
+    if not workspace_dir:
+        try:
+            workspace_dir, _ = get_workspace_directory_for_num(
+                workspace_num, project_basename
+            )
+        except RuntimeError as e:
+            return (False, f"Failed to get workspace directory: {e}")
 
-    pid = os.getpid()
-    claim_result = claim_workspace(
-        patch_file_path, workspace_num, workflow_name, pid, patch_name
-    )
-    if not claim_result.success:
-        return (
-            False,
-            f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+    if release:
+        pid = os.getpid()
+        claim_result = claim_workspace(
+            patch_file_path, workspace_num, workflow_name, pid, patch_name
         )
+        if not claim_result.success:
+            return (
+                False,
+                f"Failed to claim workspace: {claim_result.error or 'unknown reason'}",
+            )
 
     try:
         # Clean workspace before switching branches
@@ -167,13 +175,13 @@ def _sync_task(
                     os.environ.pop("SASE_SYNC_CWD", None)
 
     finally:
-        # Always release workspace
-        release_workspace(
-            patch_file_path,
-            workspace_num,
-            workflow_name,
-            patch_name,
-        )
+        if release:
+            release_workspace(
+                patch_file_path,
+                workspace_num,
+                workflow_name,
+                patch_name,
+            )
 
 
 class SyncMixin:
@@ -211,21 +219,56 @@ class SyncMixin:
         project_basename = project_spec_basename(patch.file_path)
         cl_name = patch.name
         project_file = patch.file_path
+        from .patch_durable import claim_patch_workspace, submit_patch_operation
+        from .proc_actions import TrackedProcCompletion
 
-        # Build the task callable (closure capturing all needed data)
-        def proc_callable() -> tuple[bool, str]:
-            return _sync_task(cl_name, project_file, project_basename)
+        workflow_name = f"sync-{cl_name}"
+        claimed = claim_patch_workspace(
+            project_file, cl_name, workflow_name, project_basename
+        )
+        if claimed[0] is None:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to claim workspace: {claimed[1]}",
+                severity="error",
+            )
+            return
+        workspace_num, workspace_dir = claimed
 
-        # Build on_success callback
-        def on_sync_success() -> None:
+        def on_complete(completion: TrackedProcCompletion[Any]) -> None:
+            if completion.collision or not completion.success:
+                return
             from ...hooks import reset_dollar_hooks
 
             reset_dollar_hooks(project_file, cl_name)
 
-        # Submit a proc (handles dedup automatically)
-        submitted = self._submit_proc(  # type: ignore[attr-defined]
-            "sync", cl_name, project_file, proc_callable, on_success=on_sync_success
+        submitted = submit_patch_operation(
+            self,
+            verb="sync",
+            name=cl_name,
+            project_file=project_file,
+            payload={
+                "settlement_owns_release": True,
+                "workspace_dir": workspace_dir,
+                "workspace_num": workspace_num,
+            },
+            workspace_num=workspace_num,
+            workspace_workflow=workflow_name,
+            on_complete=on_complete,
         )
-
         if submitted:
             self.notify(f"Sync started for {humanize_cl_name(cl_name)}")  # type: ignore[attr-defined]
+        else:
+            from sase.ace.tui.durable_ops import release_workspace_claim
+            from sase.ace.tui.durable_ops import workspace_claim_policy
+
+            release_workspace_claim(
+                workspace_claim_policy(
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    workflow=workflow_name,
+                    cl_name=cl_name,
+                )
+            )
+
+
+sync_task = _sync_task

@@ -65,36 +65,47 @@ class FakeApproveApp(AgentApproveMixin):
     def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
         self.scheduled.append((callback, args, kwargs))
 
-    def _submit_tracked_proc(
+    def _submit_durable_proc(
         self,
-        proc_type: str,
-        cl_name: str,
-        project_file: str,
-        proc_callable: Any,
+        argv: Any,
         *,
+        operation: str = "",
+        request: Any = None,
+        request_fingerprint: str = "",
+        concurrency_keys: Any = (),
+        proc_type: str | None = None,
         display_name: str | None = None,
-        dedup_key: str | None = None,
+        cl_name: str = "",
+        project_file: str = "",
         duplicate_message: str | None = None,
         on_complete: Any = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
+        **kwargs: Any,
     ) -> ProcInfo:
-        del duplicate_message, reload_on_complete, notify_on_complete
+        del argv, operation, request_fingerprint, concurrency_keys
+        del duplicate_message, reload_on_complete, notify_on_complete, kwargs
         proc_info = ProcInfo(
             proc_id=f"task-{len(self.scheduled)}",
-            proc_type=proc_type,
+            proc_type=proc_type or "agent-directive",
             cl_name=cl_name,
             project_file=project_file,
             status="running",
             message="running",
             started_at=datetime.now(),
             display_name=display_name,
-            dedup_key=dedup_key,
         )
 
         async def _run() -> None:
+            from sase.ops.commands.agent import _persist_directive_from_payload
+
             try:
-                result = proc_callable()
+                payload = dict(request or {})
+                _persist_directive_from_payload(
+                    payload,
+                    artifacts_dir=str(payload.get("artifacts_dir") or project_file),
+                )
+                result = TrackedProcResult(success=True, message="ok")
             except Exception as exc:
                 result = TrackedProcResult(
                     success=False,
@@ -374,7 +385,7 @@ def test_apply_rolls_back_on_persist_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._approve.persist_agent_directive_update",
+        "sase.ace.tui.actions.agents._directive_persistence.persist_agent_directive_update",
         _boom,
     )
 

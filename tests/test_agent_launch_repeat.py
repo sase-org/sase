@@ -46,11 +46,14 @@ class _FakeApp(AgentLaunchMixin):
         display_name: str,
         cl_name: str,
         project_file: str,
-        proc_callable: object,
+        prompt: str = "",
+        proc_callable: object = None,
         dedup_key: str | None = None,
         submitted_prompt: str | None = None,
+        extra_payload: object = None,
     ) -> bool:
         del display_name, cl_name, project_file, dedup_key, submitted_prompt
+        del prompt, extra_payload
         if not callable(proc_callable):
             return False
         outcome = proc_callable()

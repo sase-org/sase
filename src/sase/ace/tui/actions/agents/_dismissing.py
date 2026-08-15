@@ -208,6 +208,13 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
         count = len(agents)
         s = "s" if count != 1 else ""
 
+        from sase.core.agent_cleanup_wire import agent_cleanup_wire_to_json_dict
+        from sase.core.agent_group_archive_wire import (
+            saved_agent_group_wire_to_json_dict,
+        )
+
+        from ..cleanup_payload import json_identities, serialize_agents
+
         def _worker() -> CleanupProcOutcome:
             started = time.perf_counter()
             register_expected_deletion = None
@@ -247,14 +254,41 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                 refresh_notifications=True,
             )
 
+        payload = {
+            "action": "dismiss",
+            "added_identities": json_identities(added or ()),
+            "agents": serialize_agents(agents),
+            "agents_with_children": serialize_agents(agents_with_children_snapshot),
+            "cleanup_plan": (
+                agent_cleanup_wire_to_json_dict(cleanup_plan)
+                if cleanup_plan is not None
+                else None
+            ),
+            "dismissed_identities": json_identities(dismissed_snapshot),
+            "identity": ",".join(sorted(str(item) for item in identities)),
+            "message": f"Dismissed {count} agent{s}",
+            "recent_group": (
+                saved_agent_group_wire_to_json_dict(recent_group)
+                if recent_group is not None
+                else None
+            ),
+            "refresh_notifications": True,
+            "transaction": "bulk_dismiss",
+        }
+
+        def _release() -> None:
+            self._dismiss_persistence_inflight.difference_update(identities)
+
         if not self._submit_cleanup_proc(
             proc_type="dismiss",
             display_name=f"dismiss {count} agent{s}",
             cl_name="",
             project_file="",
+            payload=payload,
             proc_callable=_worker,
+            on_settled=_release,
         ):
-            self._dismiss_persistence_inflight.difference_update(identities)
+            _release()
 
     def _dismiss_done_agent(self, agent: Agent) -> None:
         """Dismiss a DONE or completed workflow agent."""
@@ -335,6 +369,13 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             return
         self._dismiss_persistence_inflight.add(identity)
 
+        from sase.core.agent_cleanup_wire import agent_cleanup_wire_to_json_dict
+        from sase.core.agent_group_archive_wire import (
+            saved_agent_group_wire_to_json_dict,
+        )
+
+        from ..cleanup_payload import json_identities, serialize_agent, serialize_agents
+
         def _worker() -> CleanupProcOutcome:
             started = time.perf_counter()
             register_expected_deletion = None
@@ -375,14 +416,41 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
                 refresh_notifications=True,
             )
 
+        payload = {
+            "action": "dismiss",
+            "added_identities": json_identities(added or ()),
+            "agent": serialize_agent(agent),
+            "agents_with_children": serialize_agents(agents_with_children_snapshot),
+            "cleanup_plan": (
+                agent_cleanup_wire_to_json_dict(cleanup_plan)
+                if cleanup_plan is not None
+                else None
+            ),
+            "dismissed_identities": json_identities(dismissed_snapshot),
+            "identity": str(identity),
+            "message": f"Dismissed {agent.display_name}",
+            "recent_group": (
+                saved_agent_group_wire_to_json_dict(recent_group)
+                if recent_group is not None
+                else None
+            ),
+            "refresh_notifications": True,
+            "transaction": "single_dismiss",
+        }
+
+        def _release() -> None:
+            self._dismiss_persistence_inflight.discard(identity)
+
         if not self._submit_cleanup_proc(
             proc_type="dismiss",
             display_name=f"dismiss {agent.display_name}",
             cl_name=agent.cl_name,
             project_file=agent.project_file,
+            payload=payload,
             proc_callable=_worker,
+            on_settled=_release,
         ):
-            self._dismiss_persistence_inflight.discard(identity)
+            _release()
 
 
 def _persist_single_dismiss_transaction(
@@ -490,3 +558,7 @@ def _persist_bulk_dismiss_transaction(
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
         except Exception:
             pass
+
+
+persist_bulk_dismiss_transaction = _persist_bulk_dismiss_transaction
+persist_single_dismiss_transaction = _persist_single_dismiss_transaction

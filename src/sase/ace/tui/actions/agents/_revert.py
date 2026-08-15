@@ -99,6 +99,8 @@ class AgentRevertMixin:
         from ....revert_agent import preview_agent_revert_intent
         from ..proc_actions import TrackedProcResult
 
+        selected_identity = agent.identity
+
         def _callable() -> TrackedProcResult[RevertPreview]:
             preview = preview_agent_revert_intent(intent)
             return TrackedProcResult(
@@ -109,6 +111,9 @@ class AgentRevertMixin:
             )
 
         def _on_complete(completion: TrackedProcCompletion[RevertPreview]) -> None:
+            current = self._get_selected_agent()  # type: ignore[attr-defined]
+            if current is None or current.identity != selected_identity:
+                return
             preview = completion.payload
             if preview is None:
                 self.notify(  # type: ignore[attr-defined]
@@ -124,16 +129,13 @@ class AgentRevertMixin:
                 return
             self._open_confirm_revert_modal(preview, agent, intent.artifacts_dir)
 
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
+        self._submit_session_worker(  # type: ignore[attr-defined]
             "revert_preview",
-            agent.cl_name,
-            agent.project_file,
             _callable,
-            display_name=f"Revert preview: {intent.agent_name}",
-            dedup_key=_revert_dedup_key("revert_preview", intent),
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
+            display_name=f"Revert preview: {intent.agent_name}",
+            cl_name=agent.cl_name,
+            project_file=agent.project_file,
         )
 
     def _open_confirm_revert_modal(
@@ -167,33 +169,36 @@ class AgentRevertMixin:
 
         intent = build_revert_execute_intent(agent, preview, artifacts_dir)
         agent_name = preview.agent_name
+        from sase.ace.tui.durable_ops import revert_concurrency_key
+        from sase.ops.commands.agent import serialize_revert_preview
 
-        def _callable() -> TrackedProcResult[RevertResult]:
-            result = execute_agent_revert_intent(preview, intent)
-            return TrackedProcResult(
-                success=result.success,
-                message=result.message,
-                payload=result,
-                error=result.error,
-            )
+        from ..agent_durable import submit_agent_revert
 
-        def _on_complete(completion: TrackedProcCompletion[RevertResult]) -> None:
-            # Refresh on success or when a local revert commit was created even
-            # though the post-commit push failed (the worktree state changed).
+        def _on_complete(completion: TrackedProcCompletion[object]) -> None:
             payload = completion.payload
-            if completion.success or (payload is not None and payload.reverted_shas):
+            reverted = ()
+            if isinstance(payload, dict):
+                reverted = tuple(payload.get("reverted_shas") or ())
+            elif payload is not None:
+                reverted = getattr(payload, "reverted_shas", ()) or ()
+            if completion.success or reverted:
                 self._schedule_agents_async_refresh(source="revert_agent")  # type: ignore[attr-defined]
 
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "revert_agent",
-            agent.cl_name,
-            agent.project_file,
-            _callable,
+        submit_agent_revert(
+            self,
+            name=agent_name,
+            payload={
+                **serialize_revert_preview(preview),
+                "artifacts_dir": artifacts_dir,
+                "preview": serialize_revert_preview(preview),
+            },
+            cl_name=agent.cl_name,
+            project_file=agent.project_file,
             display_name=f"Revert agent: {agent_name}",
-            dedup_key=_revert_dedup_key("revert_agent", intent),
+            concurrency_key=revert_concurrency_key(
+                "execute", _revert_dedup_key("revert_agent", intent)
+            ),
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=True,
         )
 
     # ------------------------------------------------------------------
@@ -307,6 +312,8 @@ class AgentRevertMixin:
         from ....revert_agent import preview_agents_revert_intent
         from ..proc_actions import TrackedProcResult
 
+        marked = set(self._marked_agents)
+
         def _callable() -> TrackedProcResult[BulkRevertPreview]:
             preview = preview_agents_revert_intent(intent)
             return TrackedProcResult(
@@ -319,6 +326,8 @@ class AgentRevertMixin:
         def _on_complete(
             completion: TrackedProcCompletion[BulkRevertPreview],
         ) -> None:
+            if set(self._marked_agents) != marked:
+                return
             preview = completion.payload
             if preview is None:
                 self.notify(  # type: ignore[attr-defined]
@@ -334,16 +343,13 @@ class AgentRevertMixin:
                 return
             self._open_confirm_bulk_revert_modal(preview, representative)
 
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
+        self._submit_session_worker(  # type: ignore[attr-defined]
             "revert_preview",
-            representative.cl_name,
-            representative.project_file,
             _callable,
-            display_name=f"Revert preview: {len(intent.targets)} marked agents",
-            dedup_key=_bulk_revert_dedup_key("revert_preview", intent),
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
+            display_name=f"Revert preview: {len(intent.targets)} marked agents",
+            cl_name=representative.cl_name,
+            project_file=representative.project_file,
         )
 
     def _open_confirm_bulk_revert_modal(
@@ -374,35 +380,34 @@ class AgentRevertMixin:
         from ..proc_actions import TrackedProcResult
 
         intent = build_bulk_revert_execute_intent(representative, preview)
+        from sase.ace.tui.durable_ops import revert_concurrency_key
+        from sase.ops.commands.agent import serialize_bulk_revert_preview
 
-        def _callable() -> TrackedProcResult[BulkRevertResult]:
-            result = execute_agents_revert_intent(preview, intent)
-            return TrackedProcResult(
-                success=result.success,
-                message=result.message,
-                payload=result,
-                error=result.error,
-            )
+        from ..agent_durable import submit_agent_revert
 
         def _on_complete(
-            completion: TrackedProcCompletion[BulkRevertResult],
+            completion: TrackedProcCompletion[object],
         ) -> None:
-            # Refresh on success or when a local revert commit was created even
-            # though the post-commit push failed (the worktree state changed).
             payload = completion.payload
-            if completion.success or (payload is not None and payload.reverted_shas):
+            reverted = ()
+            if isinstance(payload, dict):
+                reverted = tuple(payload.get("reverted_shas") or ())
+            elif payload is not None:
+                reverted = getattr(payload, "reverted_shas", ()) or ()
+            if completion.success or reverted:
                 self._schedule_agents_async_refresh(source="revert_agent")  # type: ignore[attr-defined]
 
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
-            "revert_agent",
-            representative.cl_name,
-            representative.project_file,
-            _callable,
+        submit_agent_revert(
+            self,
+            name=representative.display_name or representative.cl_name or "bulk",
+            payload=serialize_bulk_revert_preview(preview),
+            cl_name=representative.cl_name,
+            project_file=representative.project_file,
             display_name=f"Revert {preview.target_count} marked agents",
-            dedup_key=_bulk_revert_dedup_key("revert_agent", intent),
+            concurrency_key=revert_concurrency_key(
+                "execute", _bulk_revert_dedup_key("revert_agent", intent)
+            ),
             on_complete=_on_complete,
-            reload_on_complete=False,
-            notify_on_complete=True,
         )
 
 

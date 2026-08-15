@@ -192,10 +192,13 @@ class AgentLaunchStartMixin:
             display_name=f"launch {ctx.display_name}",
             cl_name=ctx.display_name,
             project_file=ctx.project_file,
+            prompt=prompt,
             dedup_key=f"launch:{ctx.workflow_name}",
-            proc_callable=lambda: self._run_agent_launch_body(prompt, launch_ctx),  # type: ignore[attr-defined]
-            # Recovery metadata: if the body raises before an inner failed-launch
-            # branch runs (e.g. a project-alias canonicalization conflict), the
-            # completion handler stashes this prompt so it stays recoverable.
+            extra_payload={
+                "display_name": ctx.display_name,
+                "project_name": ctx.project_name,
+                "workflow_name": ctx.workflow_name,
+            },
             submitted_prompt=prompt,
+            proc_callable=lambda: self._run_agent_launch_body(prompt, launch_ctx),  # type: ignore[attr-defined]
         )

@@ -51,10 +51,12 @@ class MultiPromptLaunchMixin:
             display_name=f"launch multi-prompt {snap.display_name}",
             cl_name=snap.display_name,
             project_file=snap.project_file,
+            prompt=submitted_prompt or "\n---\n".join(multi.segments),
+            extra_payload={"kind": "multi_prompt", "display_name": snap.display_name},
+            submitted_prompt=submitted_prompt,
             proc_callable=lambda: self._run_multi_prompt_launch(
                 multi, snap, vcs_ref, submitted_prompt, segment_extra_env
             ),
-            submitted_prompt=submitted_prompt,
         )
 
     def _run_multi_prompt_launch(

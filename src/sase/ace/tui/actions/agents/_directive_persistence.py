@@ -72,7 +72,7 @@ class AgentDirectivePersistenceSpec:
 
 
 @dataclass(frozen=True)
-class AgentDirectivePersistenceResult:
+class _AgentDirectivePersistenceResult:
     """Summary of worker-side persistence effects."""
 
     raw_prompt_updated: bool = False
@@ -87,7 +87,7 @@ class AgentDirectivePersistenceResult:
 
 def persist_agent_directive_update(
     spec: AgentDirectivePersistenceSpec,
-) -> AgentDirectivePersistenceResult:
+) -> _AgentDirectivePersistenceResult:
     """Persist one agent directive update from a worker thread."""
     artifacts_path = (
         Path(spec.artifacts_dir).expanduser()
@@ -100,7 +100,7 @@ def persist_agent_directive_update(
         else nullcontext()
     )
     with lock:
-        result = AgentDirectivePersistenceResult()
+        result = _AgentDirectivePersistenceResult()
         if spec.prompt_mutator is not None:
             if artifacts_path is None:
                 raise ValueError("artifacts_dir is required for prompt rewrites")
@@ -208,16 +208,16 @@ def _durable_wait_names(wait_names: tuple[str, ...]) -> tuple[str, ...]:
 def _persist_prompt_artifacts(
     artifacts_path: Path,
     prompt_mutator: Callable[[str], str],
-) -> AgentDirectivePersistenceResult:
+) -> _AgentDirectivePersistenceResult:
     raw_path = artifacts_path / "raw_xprompt.md"
     try:
         old_prompt = raw_path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return AgentDirectivePersistenceResult()
+        return _AgentDirectivePersistenceResult()
 
     new_prompt = prompt_mutator(old_prompt)
     if new_prompt == old_prompt:
-        return AgentDirectivePersistenceResult()
+        return _AgentDirectivePersistenceResult()
 
     _write_text_atomic(raw_path, new_prompt)
 
@@ -236,7 +236,7 @@ def _persist_prompt_artifacts(
     except PromptHistoryLoadError:
         history_rewrites = 0
     stash_rewrites = _rewrite_prompt_stash_exact(old_prompt, new_prompt)
-    return AgentDirectivePersistenceResult(
+    return _AgentDirectivePersistenceResult(
         raw_prompt_updated=True,
         submitted_prompt_updated=submitted_updated,
         history_rewrites=history_rewrites,
@@ -414,7 +414,6 @@ def _runner_slot_marker_lock() -> Iterator[None]:
 
 
 __all__ = [
-    "AgentDirectivePersistenceResult",
     "AgentDirectivePersistenceSpec",
     "AgentMetaPatch",
     "AgentTribeStorePatch",

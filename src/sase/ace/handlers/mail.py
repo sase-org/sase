@@ -53,15 +53,18 @@ def mail_execute_task(
     patch: Patch,
     workspace_dir: str,
     workspace_num: int,
+    *,
+    release: bool = True,
 ) -> tuple[bool, str]:
     """Non-interactive: execute_mail + status transition. Runs as a proc.
 
-    Releases workspace in finally block.
+    Releases workspace in finally block unless settlement owns that release.
 
     Args:
         patch: The Patch to mail
         workspace_dir: The workspace directory
         workspace_num: Workspace number for release
+        release: When False, leave the claim for durable proc settlement.
 
     Returns:
         Tuple of (success, message).
@@ -101,10 +104,10 @@ def mail_execute_task(
             )
 
     finally:
-        # Always release the workspace
-        release_workspace(
-            patch.file_path,
-            workspace_num,
-            "mail",
-            patch.name,
-        )
+        if release:
+            release_workspace(
+                patch.file_path,
+                workspace_num,
+                "mail",
+                patch.name,
+            )

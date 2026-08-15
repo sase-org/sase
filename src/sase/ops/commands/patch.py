@@ -122,17 +122,27 @@ def _project_basename(project_file: str) -> str:
 
 
 def _run_status(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
+    from rich.console import Console
+
     from sase.core.status_facade import transition_patch_status
+    from sase.project_display_names import humanize_cl_name
 
     project_file = _project_file(args)
     success, old_status, error, siblings = transition_patch_status(
-        project_file, args.name, args.status, validate=False
+        project_file, args.name, args.status, validate=False, console=Console()
     )
     if not success:
         return False, error or f"Failed to transition {args.name}", {}
+    msg_parts = [f"Status updated: {old_status} -> {args.status}"]
+    reverted = [humanize_cl_name(item.name) for item in siblings if item.success]
+    failed = [humanize_cl_name(item.name) for item in siblings if not item.success]
+    if reverted:
+        msg_parts.append(f"Auto-reverted siblings: {', '.join(reverted)}")
+    if failed:
+        msg_parts.append(f"Failed to revert: {', '.join(failed)}")
     return (
         True,
-        f"Status updated: {old_status} -> {args.status}",
+        "\n".join(msg_parts),
         {
             "name": args.name,
             "old_status": old_status,
@@ -269,6 +279,7 @@ def _run_mail(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
         workspace_num = get_first_available_axe_workspace(project_file)
     workspace_num = int(workspace_num)
     workspace_dir = request.payload.get("workspace_dir")
+    settlement_owns_release = bool(request.payload.get("settlement_owns_release", True))
     if not isinstance(workspace_dir, str) or not workspace_dir:
         claimed = claim_workspace(
             project_file, workspace_num, "mail", __import__("os").getpid(), args.name
@@ -280,14 +291,20 @@ def _run_mail(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
                 workspace_num, _project_basename(project_file)
             )
         except RuntimeError as exc:
-            release_workspace(project_file, workspace_num, "mail", args.name)
+            if not settlement_owns_release:
+                release_workspace(project_file, workspace_num, "mail", args.name)
             return False, str(exc), {}
-    success, message = mail_execute_task(patch, str(workspace_dir), workspace_num)
+    success, message = mail_execute_task(
+        patch,
+        str(workspace_dir),
+        workspace_num,
+        release=not settlement_owns_release,
+    )
     return success, message, {"name": args.name}
 
 
 def _run_accept(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
-    from sase.workflows.accept import AcceptWorkflow
+    from sase.ace.tui.actions.proposal_rebase import accept_task
 
     request = load_request(PATCH_ACCEPT, args, required=True)
     raw_entries = request.payload.get("entries")
@@ -297,64 +314,57 @@ def _run_accept(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]
         (str(item[0]), item[1] if len(item) > 1 else None) for item in raw_entries
     ]
     project_file = _project_file(args)
-    workflow = AcceptWorkflow(
-        proposals=entries,
-        cl_name=args.name,
-        project_file=project_file,
-        mark_ready_to_mail=bool(request.payload.get("mark_ready_to_mail", False)),
-        skip_amend=bool(request.payload.get("skip_amend", False)),
-    )
-    success = bool(workflow.run())
-    message = (
-        f"Accepted proposals for {args.name}"
-        if success
-        else f"Accept failed for {args.name}"
+    success, message = accept_task(
+        entries,
+        args.name,
+        project_file,
+        bool(request.payload.get("mark_ready_to_mail", False)),
+        bool(request.payload.get("skip_amend", False)),
     )
     return success, message, {"name": args.name}
 
 
 def _run_rebase(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
-    from sase.status_state_machine import update_patch_parent_atomic
-    from sase.vcs_provider import get_vcs_provider
+    from sase.ace.tui.actions.proposal_rebase import rebase_task
 
     request = load_request(PATCH_REBASE, args)
     parent = getattr(args, "parent", None) or request.payload.get("parent")
     if not isinstance(parent, str) or not parent:
         return False, "rebase parent is required", {}
     project_file = _project_file(args)
-    workspace_dir = request.payload.get("workspace_dir")
-    if not isinstance(workspace_dir, str) or not workspace_dir:
-        return False, "rebase request payload must include workspace_dir", {}
-    provider = get_vcs_provider(workspace_dir)
-    ok, error = provider.rebase(args.name, parent, workspace_dir)
-    if not ok:
-        return False, error or f"Failed to rebase {args.name}", {}
-    update_patch_parent_atomic(project_file, args.name, parent)
+    success, message = rebase_task(
+        args.name,
+        project_file,
+        _project_basename(project_file),
+        parent,
+        request.payload.get("old_parent"),
+        workspace_num=request.payload.get("workspace_num"),
+        workspace_dir=request.payload.get("workspace_dir"),
+        release=not bool(request.payload.get("settlement_owns_release", True)),
+    )
     return (
-        True,
-        f"Rebased {args.name} onto {parent}",
-        {
-            "name": args.name,
-            "parent": parent,
-        },
+        success,
+        message,
+        {"name": args.name, "parent": parent},
     )
 
 
 def _run_sync(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
-    from sase.vcs_provider import get_vcs_provider
+    from sase.ace.tui.actions.sync import sync_task
 
     request = load_request(PATCH_SYNC, args)
     project_file = _project_file(args)
-    workspace_dir = request.payload.get("workspace_dir")
-    if not isinstance(workspace_dir, str) or not workspace_dir:
-        return False, "sync request payload must include workspace_dir", {}
-    provider = get_vcs_provider(workspace_dir)
-    ok, error = provider.sync_workspace(workspace_dir)
-    if not ok:
-        return False, error or f"Failed to sync {args.name}", {}
+    success, message = sync_task(
+        args.name,
+        project_file,
+        _project_basename(project_file),
+        workspace_num=request.payload.get("workspace_num"),
+        workspace_dir=request.payload.get("workspace_dir"),
+        release=not bool(request.payload.get("settlement_owns_release", True)),
+    )
     return (
-        True,
-        f"Synced {args.name}",
+        success,
+        message,
         {"name": args.name, "project_file": project_file},
     )
 

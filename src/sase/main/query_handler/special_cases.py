@@ -80,8 +80,16 @@ def handle_run_special_cases(args_after_run: list[str]) -> bool:
         launch_query(prompt)
         sys.exit(0)
 
-    # Handle no arguments - open editor for prompt
+    # Handle no arguments - use a durable request sidecar prompt when
+    # present, otherwise open an editor.
     if not args_after_run:
+        from sase.ops.cli import load_request
+        from sase.ops.names import RUN_LAUNCH
+
+        sidecar_prompt = load_request(RUN_LAUNCH).payload.get("prompt")
+        if isinstance(sidecar_prompt, str) and sidecar_prompt:
+            launch_query(sidecar_prompt)
+            sys.exit(0)
         prompt = open_editor_for_prompt()
         if prompt is None:
             print("No prompt provided. Aborting.")
