@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.bead._store_contention import (
     BeadStoreContentionError,
@@ -14,8 +15,9 @@ from sase.bead._store_contention import (
 from sase.bead.cli_work_cleanup import (
     CleanupPreview,
     ForcedReuseCleanupError,
-    prepare_bead_work_force_reuse,
-    preview_bead_work_force_reuse,
+    prepare_selected_bead_work_force_reuse,
+    preview_bead_work_launch_selection,
+    revalidate_bead_work_launch_selection,
     rollback_work_launch,
 )
 from sase.bead.cli_work_commit import (
@@ -28,10 +30,10 @@ from sase.bead.cli_work_context import (
 )
 from sase.bead.cli_work_launch import launch_bead_work_agents
 from sase.bead.cli_work_plan import (
+    bead_work_slots,
     confirm_cleanup,
     confirm_launch,
     expected_agent_names,
-    legacy_epic_cleanup_names,
     print_work_plan_summary,
     render_cleanup_preview,
 )
@@ -59,6 +61,31 @@ if TYPE_CHECKING:
 
 
 BEAD_WORK_TIMING_ENV = "SASE_BEAD_WORK_TIMING"
+
+type EpicLaunchState = Literal[
+    "already_running",
+    "declined",
+    "dry_run",
+    "launched",
+]
+
+
+@dataclass(frozen=True)
+class _EpicWorkResult:
+    """Outcome of one epic bead-work request."""
+
+    epic_id: str
+    launch_state: EpicLaunchState
+    launched_agent_names: tuple[str, ...] = ()
+    preserved_agent_names: tuple[str, ...] = ()
+    workspace_num: int | None = None
+
+    @property
+    def launched(self) -> bool:
+        return self.launch_state == "launched"
+
+    def __bool__(self) -> bool:
+        return self.launched
 
 
 class BeadWorkError(RuntimeError):
@@ -150,8 +177,8 @@ def launch_epic_bead_work(
     defer_push: bool = False,
     before_agent_launch: Callable[[BeadProject, str], None] | None = None,
     timer: LaunchTimingRecorder | None = None,
-) -> bool:
-    """Run the epic bead-work path, returning whether agents were launched.
+) -> _EpicWorkResult:
+    """Run the epic bead-work path, returning the structured launch outcome.
 
     This is the library entry point used both by the CLI and deterministic
     epic approval. It raises :class:`BeadWorkError` instead of terminating the
@@ -232,20 +259,38 @@ def launch_epic_bead_work(
     print_work_plan_summary(epic_id, issue.title, plan)
 
     preview: CleanupPreview
+    bead_assignees = _epic_bead_assignees(proj, plan)
     try:
-        preview = preview_bead_work_force_reuse(
+        preview = preview_bead_work_launch_selection(
             query,
-            expected_names=expected_agent_names(plan),
-            extra_cleanup_names=legacy_epic_cleanup_names(plan),
+            slots=bead_work_slots(plan),
+            directive_names=expected_agent_names(plan),
+            bead_assignees=bead_assignees,
         )
     except ForcedReuseCleanupError as e:
         raise BeadWorkError(str(e)) from e
+    assert preview.selection is not None
+    selection = preview.selection
 
     if dry_run:
         render_cleanup_preview(epic_id, preview)
+        dry_query = render_multi_prompt(
+            plan,
+            work_phase_xprompt=work_phase_xprompt,
+            land_epic_xprompt=land_epic_xprompt,
+            vcs_context=vcs_context,
+            patch_context=patch_context,
+            declare_clan=plan.epic_id not in get_reserved_clan_names(),
+            launch_names=selection.launch_names,
+        )
         print("\n--- Multi-prompt (dry run) ---")
-        print(query)
-        return False
+        print(dry_query)
+        return _EpicWorkResult(
+            epic_id=epic_id,
+            launch_state="dry_run",
+            launched_agent_names=_ordered_selected_names(plan, selection.launch_names),
+            preserved_agent_names=selection.preserved_names,
+        )
 
     if preview.has_destructive_targets:
         render_cleanup_preview(epic_id, preview)
@@ -258,7 +303,22 @@ def launch_epic_bead_work(
                 )
             if not cleanup_confirmation:
                 print("Aborted.")
-                return False
+                return _EpicWorkResult(
+                    epic_id=epic_id,
+                    launch_state="declined",
+                    preserved_agent_names=selection.preserved_names,
+                )
+
+    if not selection.has_launches:
+        print(
+            f"Epic {epic_id} already has matching active work; no new agents "
+            "were launched."
+        )
+        return _EpicWorkResult(
+            epic_id=epic_id,
+            launch_state="already_running",
+            preserved_agent_names=selection.preserved_names,
+        )
 
     if not (yes or yes_to_all):
         launch_confirmation = confirm_launch()
@@ -269,14 +329,42 @@ def launch_epic_bead_work(
             )
         if not launch_confirmation:
             print("Aborted.")
-            return False
+            return _EpicWorkResult(
+                epic_id=epic_id,
+                launch_state="declined",
+                preserved_agent_names=selection.preserved_names,
+            )
 
     with timer.stage("force_reuse_cleanup"):
         try:
-            query = prepare_bead_work_force_reuse(
+            bead_assignees = _epic_bead_assignees(proj, plan)
+            selection = revalidate_bead_work_launch_selection(
+                selection,
+                bead_assignees=bead_assignees,
+            )
+            if not selection.has_launches:
+                print(
+                    f"Epic {epic_id} already has matching active work; no new "
+                    "agents were launched."
+                )
+                return _EpicWorkResult(
+                    epic_id=epic_id,
+                    launch_state="already_running",
+                    preserved_agent_names=selection.preserved_names,
+                )
+            query = render_multi_prompt(
+                plan,
+                work_phase_xprompt=work_phase_xprompt,
+                land_epic_xprompt=land_epic_xprompt,
+                vcs_context=vcs_context,
+                patch_context=patch_context,
+                declare_clan=plan.epic_id not in get_reserved_clan_names(),
+                launch_names=selection.launch_names,
+            )
+            query = prepare_selected_bead_work_force_reuse(
                 query,
-                expected_names=expected_agent_names(plan),
-                extra_cleanup_names=legacy_epic_cleanup_names(plan),
+                selection=selection,
+                bead_assignees=bead_assignees,
             )
         except ForcedReuseCleanupError as e:
             raise BeadWorkError(str(e)) from e
@@ -293,6 +381,7 @@ def launch_epic_bead_work(
         (assignment.bead_id, assignment.agent_name)
         for wave in plan.waves
         for assignment in wave
+        if assignment.agent_name in selection.launch_names
     ]
     marked_ready_this_run = False
     rollback_preclaims: tuple[EpicPreclaimRollback, ...] = ()
@@ -316,7 +405,11 @@ def launch_epic_bead_work(
                 lambda: proj.preclaim_epic_work(
                     epic_id,
                     phase_assignments,
-                    plan.land_agent_name,
+                    (
+                        plan.land_agent_name
+                        if plan.land_agent_name in selection.launch_names
+                        else None
+                    ),
                 ),
                 beads_dir=proj.beads_dir,
                 what=f"preclaim epic {epic_id}",
@@ -382,8 +475,9 @@ def launch_epic_bead_work(
                     plan,
                     plan_ref=issue.design,
                     plan_snapshot=plan_snapshot,
+                    launch_names=selection.launch_names,
                 ),
-                expected_names=expected_agent_names(plan),
+                expected_names=set(selection.launch_names),
                 launch_context=patch_context or vcs_context,
             )
     except Exception as e:
@@ -405,12 +499,45 @@ def launch_epic_bead_work(
             graph_published=graph_published,
         ) from e
 
-    agent_count = sum(len(w) for w in plan.waves) + 1
+    agent_count = len(selection.launch_names)
+    preserved_count = len(selection.preserved_names)
+    preserved_text = (
+        f"; preserved {preserved_count} existing" if preserved_count else ""
+    )
     print(
         f"✓ Launched {agent_count} agents for epic {epic_id} — {issue.title} "
-        f"(workspace {results[0].workspace_num})"
+        f"(workspace {results[0].workspace_num}{preserved_text})"
     )
-    return True
+    return _EpicWorkResult(
+        epic_id=epic_id,
+        launch_state="launched",
+        launched_agent_names=_ordered_selected_names(plan, selection.launch_names),
+        preserved_agent_names=selection.preserved_names,
+        workspace_num=results[0].workspace_num,
+    )
+
+
+def _epic_bead_assignees(proj: BeadProject, plan: Any) -> dict[str, str]:
+    bead_ids = {plan.epic_id, *plan.phase_bead_ids}
+    assignees: dict[str, str] = {}
+    for bead_id in bead_ids:
+        try:
+            assignees[bead_id] = proj.show(bead_id).assignee
+        except KeyError:
+            assignees[bead_id] = ""
+    return assignees
+
+
+def _ordered_selected_names(plan: Any, launch_names: frozenset[str]) -> tuple[str, ...]:
+    ordered = [
+        assignment.agent_name
+        for wave in plan.waves
+        for assignment in wave
+        if assignment.agent_name in launch_names
+    ]
+    if plan.land_agent_name in launch_names:
+        ordered.append(plan.land_agent_name)
+    return tuple(ordered)
 
 
 def preload_launch_imports(timer: LaunchTimingRecorder) -> None:

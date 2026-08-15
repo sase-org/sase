@@ -6,6 +6,7 @@ import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from sase.bead.cli_work_cleanup import BeadWorkSlot
     from sase.bead.cli_work_cleanup import CleanupPreview
     from sase.bead.work import EpicWorkPlan
 
@@ -16,22 +17,46 @@ def expected_agent_names(plan: EpicWorkPlan) -> set[str]:
     return names
 
 
+def bead_work_slots(plan: EpicWorkPlan) -> tuple[BeadWorkSlot, ...]:
+    from sase.bead.cli_work_cleanup import BeadWorkSlot
+
+    slots: list[BeadWorkSlot] = [
+        BeadWorkSlot(
+            slot_id=assignment.agent_name,
+            owner_name=assignment.agent_name,
+            expected_bead_id=assignment.bead_id,
+            launch_name=assignment.agent_name,
+        )
+        for wave in plan.waves
+        for assignment in wave
+    ]
+    slots.append(
+        BeadWorkSlot(
+            slot_id=f"{plan.epic_id}:land",
+            owner_name=plan.land_agent_name,
+            expected_bead_id=plan.epic_id,
+            launch_name=plan.land_agent_name,
+        )
+    )
+    legacy = _legacy_land_agent_name(plan)
+    if legacy is not None:
+        slots.append(
+            BeadWorkSlot(
+                slot_id=f"{plan.epic_id}:land",
+                owner_name=legacy,
+                expected_bead_id=plan.epic_id,
+                launch_name=plan.land_agent_name,
+                allow_populated_clan_skip=True,
+            )
+        )
+    return tuple(slots)
+
+
 def _legacy_land_agent_name(plan: EpicWorkPlan) -> str | None:
     name = plan.epic_id
     if name == plan.land_agent_name:
         return None
     return name
-
-
-def legacy_epic_cleanup_names(plan: EpicWorkPlan) -> frozenset[str]:
-    """Return legacy deterministic owners to wipe that the prompt no longer names.
-
-    Epic land agents now use ``<epic_id>.land``; older runs used ``<epic_id>``.
-    The legacy name is not rendered in the new prompt, so it is an extra wipe
-    target rather than an expected ``%id:!`` directive.
-    """
-    legacy = _legacy_land_agent_name(plan)
-    return frozenset({legacy}) if legacy else frozenset()
 
 
 def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> None:
@@ -61,40 +86,42 @@ def print_task_work_summary(
 
 def render_cleanup_preview(epic_id: str, preview: CleanupPreview) -> None:
     """Print an itemized destructive-cleanup preview to stderr."""
-    if not preview.has_destructive_targets:
+    if not preview.targets:
         return
     print(
-        f"\nCleaning up existing agents before relaunching epic {epic_id}:",
+        f"\nExisting agents for epic {epic_id}:",
         file=sys.stderr,
     )
-    action_order = {"KILL": 0, "REMOVE": 1, "RELEASE": 2}
+    action_order = {"PRESERVE": 0, "KILL": 1, "REMOVE": 2, "RELEASE": 3}
     for target in sorted(
         preview.targets,
         key=lambda item: (action_order[item.action], item.name),
     ):
+        bead = f" bead={target.expected_bead_id}" if target.expected_bead_id else ""
         print(
-            f"  {target.action:<7} ({target.current_state}) "
-            f"{target.name}  {target.detail}",
+            f"  {target.action:<8} ({target.current_state}) "
+            f"{target.name}{bead}  {target.detail}",
             file=sys.stderr,
         )
 
 
 def render_task_cleanup_preview(task_id: str, preview: CleanupPreview) -> None:
     """Print an itemized task-agent cleanup preview to stderr."""
-    if not preview.has_destructive_targets:
+    if not preview.targets:
         return
     print(
-        f"\nCleaning up the existing agent before relaunching task {task_id}:",
+        f"\nExisting agent for task {task_id}:",
         file=sys.stderr,
     )
-    action_order = {"KILL": 0, "REMOVE": 1, "RELEASE": 2}
+    action_order = {"PRESERVE": 0, "KILL": 1, "REMOVE": 2, "RELEASE": 3}
     for target in sorted(
         preview.targets,
         key=lambda item: (action_order[item.action], item.name),
     ):
+        bead = f" bead={target.expected_bead_id}" if target.expected_bead_id else ""
         print(
-            f"  {target.action:<7} ({target.current_state}) "
-            f"{target.name}  {target.detail}",
+            f"  {target.action:<8} ({target.current_state}) "
+            f"{target.name}{bead}  {target.detail}",
             file=sys.stderr,
         )
 

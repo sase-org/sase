@@ -21,6 +21,7 @@ from .cli_work_helpers import (
     FakeLaunchResult,
     make_args,
     seed_diamond,
+    write_bead_agent_meta,
     write_orphan_meta,
 )
 
@@ -35,7 +36,12 @@ def _seed_live_collision(
     epic_id, phase_ids = seed_diamond(project_dir)
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, phase_ids[0])
+    write_bead_agent_meta(
+        fake_home,
+        phase_ids[0],
+        bead_id=phase_ids[0],
+        waiting=True,
+    )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     wiped: list[str] = []

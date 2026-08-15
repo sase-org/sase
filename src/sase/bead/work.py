@@ -361,6 +361,7 @@ def render_multi_prompt(
     patch_context: PatchLaunchContext | None = None,
     *,
     declare_clan: bool = True,
+    launch_names: frozenset[str] | None = None,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
@@ -399,6 +400,8 @@ def render_multi_prompt(
     is_first_phase = True
     for wave in plan.waves:
         for assignment in wave:
+            if launch_names is not None and assignment.agent_name not in launch_names:
+                continue
             lines = _segment_prefix(launch_context, is_first_phase)
             declares_clan = declare_clan and is_first_phase
             is_first_phase = False
@@ -426,26 +429,27 @@ def render_multi_prompt(
                 lines.append("#plan")
             segments.append("\n".join(lines))
 
-    land_lines = _segment_prefix(launch_context, is_first_phase=False)
-    land_lines.extend(
-        _clan_identity_directives(
-            plan.epic_id,
-            plan.land_agent_name,
-            bead_id=plan.epic_id,
-            declare=declare_clan and is_first_phase,
+    if launch_names is None or plan.land_agent_name in launch_names:
+        land_lines = _segment_prefix(launch_context, is_first_phase=False)
+        land_lines.extend(
+            _clan_identity_directives(
+                plan.epic_id,
+                plan.land_agent_name,
+                bead_id=plan.epic_id,
+                declare=declare_clan and is_first_phase,
+            )
         )
-    )
-    land_model = epic_land_model_directive_value(
-        plan.land_model,
-        total_phase_count=plan.total_phase_count,
-    )
-    land_lines.append(f"%model:{land_model}")
-    land_lines.append("%auto")
-    if plan.land_waits_on:
-        land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
-    land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
-    land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
-    segments.append("\n".join(land_lines))
+        land_model = epic_land_model_directive_value(
+            plan.land_model,
+            total_phase_count=plan.total_phase_count,
+        )
+        land_lines.append(f"%model:{land_model}")
+        land_lines.append("%auto")
+        if plan.land_waits_on:
+            land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
+        land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
+        land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")
+        segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
 
@@ -487,6 +491,7 @@ def epic_work_segment_env(
     *,
     plan_ref: str,
     plan_snapshot: str | None = None,
+    launch_names: frozenset[str] | None = None,
 ) -> tuple[dict[str, str], ...]:
     """Return role metadata for each epic-work launch segment.
 
@@ -498,6 +503,8 @@ def epic_work_segment_env(
     envs: list[dict[str, str]] = []
     for wave in plan.waves:
         for assignment in wave:
+            if launch_names is not None and assignment.agent_name not in launch_names:
+                continue
             env = _bead_env(
                 assignment.bead_id,
                 epic_id=plan.epic_id,
@@ -508,14 +515,16 @@ def epic_work_segment_env(
             if not envs:
                 env[SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] = EPIC_CLAN_SUMMARY_SCRIPT
             envs.append(env)
-    envs.append(
-        _bead_env(
+    if launch_names is None or plan.land_agent_name in launch_names:
+        env = _bead_env(
             plan.epic_id,
             epic_id=plan.epic_id,
             plan_ref=plan_ref,
             plan_snapshot=plan_snapshot,
         )
-    )
+        if not envs:
+            env[SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV] = EPIC_CLAN_SUMMARY_SCRIPT
+        envs.append(env)
     return tuple(envs)
 
 

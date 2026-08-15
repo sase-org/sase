@@ -16,7 +16,11 @@ from sase.bead.cli_work_from_plan_helpers import (
     stale_link_message,
 )
 from sase.bead.cli_work_from_plan_render import render_created_beads, render_final
-from sase.bead.cli_work_from_plan_types import PlanFileWorkError, PlanFileWorkResult
+from sase.bead.cli_work_from_plan_types import (
+    PlanFileWorkError,
+    PlanFileWorkResult,
+    normalize_epic_launch_result,
+)
 from sase.bead.model import BeadTier, IssueType
 from sase.bead.project import BeadProject
 from sase.sdd.store import SddStore
@@ -90,7 +94,6 @@ def resume_linked_epic(
                 if child.issue_type is IssueType.PHASE
             ]
             work_plan = build_work_plan(project, epic_id)
-            launched_names = ordered_agent_names(work_plan)
             if render:
                 Console().print(f"[cyan]↻[/cyan] Epic bead       resuming {epic_id}")
                 render_created_beads(issue, phases, work_plan, archived_path)
@@ -107,7 +110,7 @@ def resume_linked_epic(
                     render=render,
                 )
 
-            launched = launch_epic_bead_work(
+            raw_launch_result = launch_epic_bead_work(
                 project,
                 epic_id,
                 dry_run=False,
@@ -117,6 +120,10 @@ def resume_linked_epic(
                 defer_push=True,
                 before_agent_launch=publish_resumed_graph,
                 timer=timer,
+            )
+            launch_result = normalize_epic_launch_result(
+                raw_launch_result,
+                fallback_launched_agent_names=ordered_agent_names(work_plan),
             )
     except PlanFileWorkError:
         raise
@@ -138,7 +145,7 @@ def resume_linked_epic(
         push_store_after_launch(store, no_push=no_push)
         raise error_with_resume(str(exc), archived_path, no_push=no_push) from exc
 
-    if launched:
+    if launch_result.launched:
         push_store_after_launch(store, no_push=no_push)
     result = PlanFileWorkResult(
         archived_plan_path=archived_path,
@@ -147,8 +154,10 @@ def resume_linked_epic(
         epic_id=epic_id,
         parent_id=issue.parent_id,
         phase_bead_ids=tuple(phase.id for phase in phases),
-        launched_agent_names=launched_names if launched else (),
-        launched=launched,
+        launched_agent_names=launch_result.launched_agent_names,
+        preserved_agent_names=launch_result.preserved_agent_names,
+        launch_state=launch_result.launch_state,
+        launched=launch_result.launched,
         resumed=True,
         waves=waves,
     )

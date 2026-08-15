@@ -6,12 +6,21 @@ import os
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
+
+from sase.bead.cli_work_name_cleanup import (
+    ForcedReuseCleanupError,
+    release_stale_container,
+    wipe_force_reuse_owner,
+)
 
 if TYPE_CHECKING:
     from sase.agent.launch_types import AgentLaunchResult
     from sase.bead.model import Status
     from sase.bead.project import BeadProject, EpicPreclaimRollback
+    from sase.core.agent_identity_facade import AgentIdentitySnapshot
+    from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 
 def _rollback_launched_agents(
@@ -199,8 +208,18 @@ def rollback_task_work_launch(
             )
 
 
-class ForcedReuseCleanupError(RuntimeError):
-    """Raised when forced bead-work name reuse cleanup cannot be completed."""
+type CleanupAction = Literal["PRESERVE", "KILL", "REMOVE", "RELEASE"]
+
+
+@dataclass(frozen=True)
+class BeadWorkSlot:
+    """One logical bead-work owner name that may block a relaunch segment."""
+
+    slot_id: str
+    owner_name: str
+    expected_bead_id: str
+    launch_name: str | None
+    allow_populated_clan_skip: bool = False
 
 
 @dataclass(frozen=True)
@@ -208,9 +227,42 @@ class CleanupTarget:
     """One existing owner or reservation affected by forced name reuse."""
 
     name: str
-    action: Literal["KILL", "REMOVE", "RELEASE"]
+    action: CleanupAction
     current_state: str
     detail: str
+    expected_bead_id: str = ""
+    slot_id: str = ""
+    artifacts_dir: str = ""
+    generation: str = ""
+
+    @property
+    def destructive(self) -> bool:
+        return self.action in {"KILL", "REMOVE", "RELEASE"}
+
+    @property
+    def preserved(self) -> bool:
+        return self.action == "PRESERVE"
+
+
+@dataclass(frozen=True)
+class _BeadWorkLaunchSelection:
+    """Immutable cleanup and replacement decision for one bead-work retry."""
+
+    slots: tuple[BeadWorkSlot, ...]
+    targets: tuple[CleanupTarget, ...]
+    launch_names: frozenset[str]
+
+    @property
+    def destructive_targets(self) -> tuple[CleanupTarget, ...]:
+        return tuple(target for target in self.targets if target.destructive)
+
+    @property
+    def preserved_names(self) -> tuple[str, ...]:
+        return tuple(target.name for target in self.targets if target.preserved)
+
+    @property
+    def has_launches(self) -> bool:
+        return bool(self.launch_names)
 
 
 @dataclass(frozen=True)
@@ -218,10 +270,11 @@ class CleanupPreview:
     """Read-only preview of destructive forced-reuse cleanup."""
 
     targets: tuple[CleanupTarget, ...]
+    selection: _BeadWorkLaunchSelection | None = None
 
     @property
     def has_destructive_targets(self) -> bool:
-        return bool(self.targets)
+        return any(target.destructive for target in self.targets)
 
 
 def preview_bead_work_force_reuse(
@@ -229,356 +282,627 @@ def preview_bead_work_force_reuse(
     *,
     expected_names: set[str],
     extra_cleanup_names: frozenset[str] = frozenset(),
+    expected_bead_ids: dict[str, str] | None = None,
+    bead_assignees: dict[str, str] | None = None,
 ) -> CleanupPreview:
     """Describe every owner or stale reservation a live cleanup will affect."""
-    from sase.agent.launch_validation import force_reuse_owner_names
-    from sase.agent.names import (
-        find_agent_clan,
-        find_agent_family,
-        find_named_agent,
-        get_live_agent_name_subset,
-        lookup_registered_name,
+    if expected_bead_ids is not None:
+        slots = tuple(
+            BeadWorkSlot(
+                slot_id=name,
+                owner_name=name,
+                expected_bead_id=expected_bead_ids[name],
+                launch_name=name,
+            )
+            for name in sorted(expected_names)
+        ) + tuple(
+            BeadWorkSlot(
+                slot_id=name,
+                owner_name=name,
+                expected_bead_id=expected_bead_ids.get(name, name),
+                launch_name=None,
+                allow_populated_clan_skip=True,
+            )
+            for name in sorted(extra_cleanup_names)
+        )
+        return preview_bead_work_launch_selection(
+            query,
+            slots=slots,
+            directive_names=expected_names,
+            bead_assignees=bead_assignees or {},
+        )
+
+    from sase.bead.cli_work_legacy_preview import (
+        preview_legacy_bead_work_force_reuse,
     )
 
-    directive_names = force_reuse_owner_names(query.split("\n---\n"))
-    if set(directive_names) != set(expected_names):
-        raise ForcedReuseCleanupError(
-            "rendered bead-work prompt force-reuse names "
-            f"{sorted(directive_names)} do not match the planned agent names "
-            f"{sorted(expected_names)}; aborting forced reuse preview"
-        )
-
-    target_names = [*directive_names]
-    target_names.extend(
-        name for name in sorted(extra_cleanup_names) if name not in directive_names
+    return preview_legacy_bead_work_force_reuse(
+        query,
+        expected_names=expected_names,
+        extra_cleanup_names=extra_cleanup_names,
     )
-    live_names = get_live_agent_name_subset(set(target_names))
-    targets: list[CleanupTarget] = []
-
-    for name in target_names:
-        owner = lookup_registered_name(name)
-        if owner is None:
-            continue
-        container_kind = owner.get("container_kind")
-        if container_kind == "family":
-            family = find_agent_family(name)
-            members = (
-                tuple(
-                    member
-                    for member in family.members
-                    if isinstance(member.name, str)
-                    and member.name
-                    and member.name != name
-                )
-                if family is not None
-                else ()
-            )
-            if not members:
-                targets.append(
-                    CleanupTarget(
-                        name=name,
-                        action="RELEASE",
-                        current_state="stale",
-                        detail="orphaned family reservation",
-                    )
-                )
-                continue
-            member_names = {member.name for member in members}
-            member_live_names = get_live_agent_name_subset(member_names)
-            for member in members:
-                if not isinstance(member.name, str) or not member.name:
-                    continue
-                if member.name in member_live_names:
-                    targets.append(
-                        CleanupTarget(
-                            name=member.name,
-                            action="KILL",
-                            current_state="running",
-                            detail=f"at {member_live_names[member.name]}",
-                        )
-                    )
-                    continue
-                targets.append(
-                    CleanupTarget(
-                        name=member.name,
-                        action="REMOVE",
-                        current_state=member.outcome or "interrupted",
-                        detail=f"at {member.artifacts_dir}",
-                    )
-                )
-            continue
-        if container_kind == "clan":
-            clan = find_agent_clan(name)
-            if clan is None or not clan.members:
-                targets.append(
-                    CleanupTarget(
-                        name=name,
-                        action="RELEASE",
-                        current_state="stale",
-                        detail="orphaned clan reservation",
-                    )
-                )
-            # A populated legacy epic clan is intentionally kept and joined.
-            # Populated unexpected clans remain a hard cleanup error, but are
-            # not themselves destructive targets.
-            continue
-
-        agent = find_named_agent(name)
-        if name in live_names:
-            targets.append(
-                CleanupTarget(
-                    name=name,
-                    action="KILL",
-                    current_state="running",
-                    detail=f"at {live_names[name]}",
-                )
-            )
-            continue
-        if agent is not None:
-            targets.append(
-                CleanupTarget(
-                    name=name,
-                    action="REMOVE",
-                    current_state=agent.outcome or "completed",
-                    detail=f"at {agent.artifacts_dir}",
-                )
-            )
-            continue
-
-        state = owner.get("state")
-        current_state = (
-            state
-            if isinstance(state, str) and state not in {"active", "done"}
-            else "completed"
-            if state == "done"
-            else "interrupted"
-        )
-        path = owner.get("artifacts_dir") or owner.get("bundle_path")
-        detail = f"at {path}" if isinstance(path, str) and path else "stored owner"
-        targets.append(
-            CleanupTarget(
-                name=name,
-                action="REMOVE",
-                current_state=current_state,
-                detail=detail,
-            )
-        )
-
-    return CleanupPreview(targets=tuple(targets))
 
 
-def prepare_bead_work_force_reuse(
+def preview_bead_work_launch_selection(
     query: str,
     *,
-    expected_names: set[str],
-    extra_cleanup_names: frozenset[str] = frozenset(),
+    slots: Sequence[BeadWorkSlot],
+    directive_names: set[str],
+    bead_assignees: dict[str, str],
+) -> CleanupPreview:
+    """Return the assignment-aware relaunch selection for rendered bead work."""
+    from sase.agent.launch_validation import force_reuse_owner_names
+
+    parsed_directive_names = set(force_reuse_owner_names(query.split("\n---\n")))
+    if parsed_directive_names != set(directive_names):
+        raise ForcedReuseCleanupError(
+            "rendered bead-work prompt force-reuse names "
+            f"{sorted(parsed_directive_names)} do not match the planned agent "
+            f"names {sorted(directive_names)}; aborting forced reuse preview"
+        )
+
+    selection = _select_bead_work_launch(
+        slots=tuple(slots),
+        bead_assignees=bead_assignees,
+    )
+    return CleanupPreview(targets=selection.targets, selection=selection)
+
+
+def _select_bead_work_launch(
+    *,
+    slots: tuple[BeadWorkSlot, ...],
+    bead_assignees: dict[str, str],
+) -> _BeadWorkLaunchSelection:
+    """Classify current owners and compute the relaunch subset."""
+    from sase.agent.names import lookup_registered_name
+
+    view = _load_agent_owner_view()
+    targets: list[CleanupTarget] = []
+    owner_present_by_slot: dict[str, int] = {}
+    preserved_slots: set[str] = set()
+
+    for slot in slots:
+        owner = lookup_registered_name(slot.owner_name)
+        if owner is None:
+            continue
+        classified = _classify_slot_owner(
+            slot,
+            owner,
+            bead_assignees=bead_assignees,
+            view=view,
+        )
+        if classified is None:
+            continue
+        owner_present_by_slot[slot.slot_id] = (
+            owner_present_by_slot.get(slot.slot_id, 0) + 1
+        )
+        targets.extend(classified)
+        if any(target.preserved for target in classified):
+            preserved_slots.add(slot.slot_id)
+
+    collisions = sorted(
+        slot_id for slot_id, count in owner_present_by_slot.items() if count > 1
+    )
+    if collisions:
+        raise ForcedReuseCleanupError(
+            "multiple existing owners match one bead-work logical slot: "
+            + ", ".join(collisions)
+        )
+
+    launch_names: set[str] = set()
+    seen_slot_ids: set[str] = set()
+    for slot in slots:
+        if slot.slot_id in seen_slot_ids:
+            continue
+        seen_slot_ids.add(slot.slot_id)
+        if slot.slot_id in preserved_slots:
+            continue
+        if slot.launch_name is not None:
+            launch_names.add(slot.launch_name)
+
+    return _BeadWorkLaunchSelection(
+        slots=slots,
+        targets=tuple(targets),
+        launch_names=frozenset(launch_names),
+    )
+
+
+@dataclass(frozen=True)
+class _AgentOwnerView:
+    records_by_artifact_dir: dict[str, AgentArtifactRecordWire]
+    family_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
+    clan_members_by_key: dict[str, tuple[AgentArtifactRecordWire, ...]]
+    identity: AgentIdentitySnapshot
+
+
+def _load_agent_owner_view() -> _AgentOwnerView:
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_key,
+    )
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+    from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
+    from sase.core.paths import sase_projects_dir
+
+    identity = AgentIdentitySnapshot.current()
+    snapshot = scan_agent_artifacts(
+        sase_projects_dir(),
+        AgentArtifactScanOptionsWire(
+            include_prompt_step_markers=False,
+            only_workflow_dirs=("ace-run",),
+        ),
+    )
+    records_by_artifact_dir: dict[str, AgentArtifactRecordWire] = {}
+    family_members: dict[str, list[AgentArtifactRecordWire]] = {}
+    clan_members: dict[str, list[AgentArtifactRecordWire]] = {}
+    for record in snapshot.records:
+        records_by_artifact_dir[_normalized_path_key(record.artifact_dir)] = record
+        meta = record.agent_meta
+        if meta is None:
+            continue
+        family_name = meta.agent_family or (
+            meta.workflow_name if meta.agent_family_role else None
+        )
+        if family_name:
+            key = current_owner_agent_name_key(family_name, identity)
+            family_members.setdefault(key, []).append(record)
+        if meta.agent_clan:
+            key = current_owner_agent_name_key(meta.agent_clan, identity)
+            clan_members.setdefault(key, []).append(record)
+
+    return _AgentOwnerView(
+        records_by_artifact_dir=records_by_artifact_dir,
+        family_members_by_key={
+            key: tuple(value) for key, value in family_members.items()
+        },
+        clan_members_by_key={key: tuple(value) for key, value in clan_members.items()},
+        identity=identity,
+    )
+
+
+def _normalized_path_key(value: object) -> str:
+    return str(Path(str(value)).expanduser().resolve(strict=False))
+
+
+def _classify_slot_owner(
+    slot: BeadWorkSlot,
+    owner: dict[str, object],
+    *,
+    bead_assignees: dict[str, str],
+    view: _AgentOwnerView,
+) -> tuple[CleanupTarget, ...] | None:
+    container_kind = owner.get("container_kind")
+    if container_kind == "family":
+        return _classify_family_owner(
+            slot,
+            bead_assignees=bead_assignees,
+            view=view,
+        )
+    if container_kind == "clan":
+        return _classify_clan_owner(
+            slot,
+            bead_assignees=bead_assignees,
+            view=view,
+        )
+
+    record = _record_for_owner(owner, view)
+    if record is None:
+        return (
+            _classify_stale_registry_owner(
+                slot,
+                owner,
+                bead_assignees=bead_assignees,
+            ),
+        )
+    return (
+        _classify_artifact_record(
+            slot,
+            record,
+            owner_name=slot.owner_name,
+            bead_assignees=bead_assignees,
+        ),
+    )
+
+
+def _record_for_owner(
+    owner: dict[str, object],
+    view: _AgentOwnerView,
+) -> AgentArtifactRecordWire | None:
+    artifacts_dir = owner.get("artifacts_dir")
+    if not isinstance(artifacts_dir, str) or not artifacts_dir:
+        return None
+    return view.records_by_artifact_dir.get(_normalized_path_key(artifacts_dir))
+
+
+def _classify_family_owner(
+    slot: BeadWorkSlot,
+    *,
+    bead_assignees: dict[str, str],
+    view: _AgentOwnerView,
+) -> tuple[CleanupTarget, ...]:
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
+
+    key = current_owner_agent_name_key(slot.owner_name, view.identity)
+    members = view.family_members_by_key.get(key, ())
+    if not members:
+        return (
+            CleanupTarget(
+                name=slot.owner_name,
+                action="RELEASE",
+                current_state="stale",
+                detail=f"orphaned family reservation for bead {slot.expected_bead_id}",
+                expected_bead_id=slot.expected_bead_id,
+                slot_id=slot.slot_id,
+            ),
+        )
+
+    member_targets = tuple(
+        _classify_artifact_record(
+            slot,
+            member,
+            owner_name=_record_agent_name(member) or slot.owner_name,
+            bead_assignees=bead_assignees,
+        )
+        for member in members
+    )
+    if any(target.preserved for target in member_targets):
+        preserved = next(target for target in member_targets if target.preserved)
+        return (
+            CleanupTarget(
+                name=slot.owner_name,
+                action="PRESERVE",
+                current_state=preserved.current_state,
+                detail=f"family member {preserved.name} {preserved.detail}",
+                expected_bead_id=slot.expected_bead_id,
+                slot_id=slot.slot_id,
+                artifacts_dir=preserved.artifacts_dir,
+                generation=preserved.generation,
+            ),
+        )
+    return member_targets
+
+
+def _classify_clan_owner(
+    slot: BeadWorkSlot,
+    *,
+    bead_assignees: dict[str, str],
+    view: _AgentOwnerView,
+) -> tuple[CleanupTarget, ...] | None:
+    from sase.core.agent_identity_facade import current_owner_agent_name_key
+
+    key = current_owner_agent_name_key(slot.owner_name, view.identity)
+    members = view.clan_members_by_key.get(key, ())
+    if members and slot.allow_populated_clan_skip:
+        return None
+    if members:
+        raise ForcedReuseCleanupError(
+            f"agent name '{slot.owner_name}' is reserved by a populated clan "
+            "container and cannot be force-reused; retry after the concrete "
+            "member finishes or dismiss the conflicting clan"
+        )
+    return (
+        CleanupTarget(
+            name=slot.owner_name,
+            action="RELEASE",
+            current_state="stale",
+            detail=f"orphaned clan reservation for bead {slot.expected_bead_id}",
+            expected_bead_id=slot.expected_bead_id,
+            slot_id=slot.slot_id,
+        ),
+    )
+
+
+def _classify_artifact_record(
+    slot: BeadWorkSlot,
+    record: AgentArtifactRecordWire,
+    *,
+    owner_name: str,
+    bead_assignees: dict[str, str],
+) -> CleanupTarget:
+    _require_record_bead(slot, record, owner_name=owner_name)
+    _require_compatible_assignee(
+        slot,
+        owner_name=owner_name,
+        bead_assignees=bead_assignees,
+    )
+
+    current_state = _record_current_state(record)
+    detail = f"for bead {slot.expected_bead_id} at {record.artifact_dir}"
+    generation = str(getattr(record, "timestamp", ""))
+    artifacts_dir = str(getattr(record, "artifact_dir", ""))
+    if current_state == "WAITING":
+        action: CleanupAction = "KILL"
+    elif current_state.startswith("FAILED"):
+        action = "REMOVE"
+    elif _record_is_live(record):
+        action = "PRESERVE"
+    else:
+        action = "REMOVE"
+    return CleanupTarget(
+        name=owner_name,
+        action=action,
+        current_state=current_state,
+        detail=detail,
+        expected_bead_id=slot.expected_bead_id,
+        slot_id=slot.slot_id,
+        artifacts_dir=artifacts_dir,
+        generation=generation,
+    )
+
+
+def _classify_stale_registry_owner(
+    slot: BeadWorkSlot,
+    owner: dict[str, object],
+    *,
+    bead_assignees: dict[str, str],
+) -> CleanupTarget:
+    _require_compatible_assignee(
+        slot,
+        owner_name=slot.owner_name,
+        bead_assignees=bead_assignees,
+    )
+    state = owner.get("state")
+    current_state = (
+        state
+        if isinstance(state, str) and state not in {"active", "done"}
+        else "completed"
+        if state == "done"
+        else "interrupted"
+    )
+    path = owner.get("bundle_path") or owner.get("artifacts_dir")
+    detail = (
+        f"for bead {slot.expected_bead_id} at {path}"
+        if isinstance(path, str) and path
+        else f"stored owner for bead {slot.expected_bead_id}"
+    )
+    return CleanupTarget(
+        name=slot.owner_name,
+        action="REMOVE",
+        current_state=current_state,
+        detail=detail,
+        expected_bead_id=slot.expected_bead_id,
+        slot_id=slot.slot_id,
+    )
+
+
+def _record_agent_name(record: AgentArtifactRecordWire) -> str | None:
+    meta = getattr(record, "agent_meta", None)
+    value = getattr(meta, "name", None)
+    return value if isinstance(value, str) and value else None
+
+
+def _record_bead_ids(record: AgentArtifactRecordWire) -> set[str]:
+    meta = getattr(record, "agent_meta", None)
+    if meta is None:
+        return set()
+    return {
+        value
+        for value in (
+            getattr(meta, "bead_id", None),
+            getattr(meta, "phase_bead_id", None),
+            getattr(meta, "epic_bead_id", None),
+        )
+        if isinstance(value, str) and value
+    }
+
+
+def _require_record_bead(
+    slot: BeadWorkSlot,
+    record: AgentArtifactRecordWire,
+    *,
+    owner_name: str,
+) -> None:
+    bead_ids = _record_bead_ids(record)
+    if slot.expected_bead_id in bead_ids:
+        return
+    observed = ", ".join(sorted(bead_ids)) or "none"
+    raise ForcedReuseCleanupError(
+        f"agent owner '{owner_name}' is not associated with expected bead "
+        f"{slot.expected_bead_id}; observed bead association(s): {observed}"
+    )
+
+
+def _require_compatible_assignee(
+    slot: BeadWorkSlot,
+    *,
+    owner_name: str,
+    bead_assignees: dict[str, str],
+) -> None:
+    assignee = bead_assignees.get(slot.expected_bead_id, "")
+    if not assignee:
+        return
+    from sase.core.agent_identity_facade import (
+        AgentIdentitySnapshot,
+        current_owner_agent_name_key,
+    )
+
+    identity = AgentIdentitySnapshot.current()
+    allowed = {owner_name}
+    if slot.launch_name:
+        allowed.add(slot.launch_name)
+    assignee_key = current_owner_agent_name_key(assignee, identity)
+    if assignee_key in {
+        current_owner_agent_name_key(name, identity) for name in allowed
+    }:
+        return
+    raise ForcedReuseCleanupError(
+        f"bead {slot.expected_bead_id} is assigned to {assignee}, which does "
+        f"not match the relaunch owner {owner_name}"
+    )
+
+
+def _record_current_state(record: AgentArtifactRecordWire) -> str:
+    done = getattr(record, "done", None)
+    if getattr(record, "has_done_marker", False):
+        outcome = getattr(done, "outcome", None)
+        if outcome == "failed":
+            return "FAILED"
+        if isinstance(outcome, str) and outcome:
+            return outcome.upper()
+        return "DONE"
+    if _record_is_live(record):
+        from sase.agent.running_listing import active_status_for_record
+
+        status = active_status_for_record(record)
+        if status:
+            return status
+        raise ForcedReuseCleanupError(
+            f"agent owner at {record.artifact_dir} has unknown live state"
+        )
+    return "interrupted"
+
+
+def _record_is_live(record: AgentArtifactRecordWire) -> bool:
+    if getattr(record, "has_done_marker", False):
+        return False
+    meta = getattr(record, "agent_meta", None)
+    if meta is None:
+        return False
+    meta_dict: dict[str, object] = {}
+    pid = getattr(meta, "pid", None)
+    if pid is not None:
+        meta_dict["pid"] = pid
+    stopped_at = getattr(meta, "stopped_at", None)
+    if stopped_at is not None:
+        meta_dict["stopped_at"] = stopped_at
+    from sase.agent.names import is_process_alive
+
+    return is_process_alive(meta_dict, Path(str(record.artifact_dir)))
+
+
+def prepare_selected_bead_work_force_reuse(
+    query: str,
+    *,
+    selection: _BeadWorkLaunchSelection,
+    bead_assignees: dict[str, str],
 ) -> str:
-    """Wipe deterministic bead-work owners and rewrite the prompt for the launcher.
-
-    Bead work is a trusted, confirmed relaunch surface: it deliberately reuses
-    the deterministic phase/land names it just computed. This parses the
-    ``%id:!<n>`` directives out of *query*, verifies they match the plan's
-    *expected_names*, then wipes each owner (plus any *extra_cleanup_names* such
-    as a legacy land owner that the new prompt no longer names). Old owners are
-    replaced regardless of state — completed, dismissed, or still live (the wipe
-    terminates live owners). A family container for an expected name is resolved
-    to its concrete members and wiped member-by-member. A clan container for an
-    extra cleanup name is left intact because it is the epic's joinable clan
-    container. A clan container for an expected phase or land name is an
-    unresolvable conflict.
-
-    Unlike a best-effort wipe, this fails *before* the caller performs any bead
-    mutation: it raises :class:`ForcedReuseCleanupError` when a wipe raises, when
-    an :class:`AgentNameWipeResult` reports errors, or when the registry still
-    reports an owner for a force-reused name after the rebuild. On success it
-    rewrites ``%id:!<n>`` to ordinary ``%id:<n>`` so
-    ``validate_launch_name_requests`` accepts the prompt.
-    """
+    """Guardedly clean only the replacement owners selected for bead work."""
     from sase.agent.launch_validation import (
         force_reuse_owner_names,
         rewrite_force_reuse_name_directives,
     )
 
-    segments = query.split("\n---\n")
-    directive_names = force_reuse_owner_names(segments)
-    if set(directive_names) != set(expected_names):
+    segments = query.split("\n---\n") if query else []
+    directive_names = set(force_reuse_owner_names(segments))
+    if directive_names != set(selection.launch_names):
         raise ForcedReuseCleanupError(
             "rendered bead-work prompt force-reuse names "
-            f"{sorted(directive_names)} do not match the planned agent names "
-            f"{sorted(expected_names)}; aborting forced reuse cleanup"
+            f"{sorted(directive_names)} do not match the selected launch names "
+            f"{sorted(selection.launch_names)}; aborting forced reuse cleanup"
         )
 
-    for name in directive_names:
-        _wipe_force_reuse_owner(name, allow_container_skip=False)
-    for name in sorted(extra_cleanup_names):
-        if name not in directive_names:
-            _wipe_force_reuse_owner(name, allow_container_skip=True)
+    for target in selection.destructive_targets:
+        _verify_cleanup_target_still_selected(
+            target,
+            selection=selection,
+            bead_assignees=bead_assignees,
+        )
+        if target.action == "RELEASE":
+            _release_selected_stale_container(target)
+            continue
+        wipe_force_reuse_owner(target.name, allow_container_skip=False)
     return rewrite_force_reuse_name_directives(query)
 
 
-def _wipe_force_reuse_owner(name: str, *, allow_container_skip: bool) -> None:
-    """Wipe a single deterministic owner, raising on any cleanup failure."""
-    from sase.agent.names import wipe_agent_name_for_reuse
-
-    try:
-        result = wipe_agent_name_for_reuse(name)
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for agent name '{name}' failed: {exc}"
-        ) from exc
-    if result.errors:
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for agent name '{name}' reported errors: "
-            + "; ".join(result.errors)
-        )
-    if result.skipped_container_kind:
-        if result.skipped_container_kind == "family":
-            _wipe_force_reuse_family(name)
-            return
-        if result.skipped_container_kind == "clan":
-            from sase.agent.names import find_agent_clan
-
-            try:
-                clan = find_agent_clan(name)
-            except Exception as exc:  # noqa: BLE001
-                raise ForcedReuseCleanupError(
-                    f"forced reuse cleanup could not resolve agent clan '{name}': {exc}"
-                ) from exc
-            if clan is None or not clan.members:
-                _release_stale_container(name, container_kind="clan")
-                return
-            if allow_container_skip:
-                return
-        raise ForcedReuseCleanupError(
-            f"agent name '{name}' is reserved by a "
-            f"{result.skipped_container_kind} container and cannot be "
-            "force-reused; dismiss or clean up the container's members, then retry"
-        )
-    if result.found and name not in result.registry_names_removed:
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup left agent name '{name}' reserved after "
-            "rebuild; resolve the conflicting owner and retry"
-        )
-
-
-def _wipe_force_reuse_family(name: str) -> None:
-    """Resolve and wipe every concrete member of a deterministic family."""
-    from sase.agent.names import (
-        find_agent_family,
-        rebuild_name_registry,
-        wipe_agent_name_for_reuse,
-    )
-
-    try:
-        family = find_agent_family(name)
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup could not resolve agent family '{name}': {exc}"
-        ) from exc
-
-    member_names = sorted(
-        {
-            member.name
-            for member in family.members
-            if isinstance(member.name, str) and member.name and member.name != name
-        }
-        if family is not None
-        else set()
-    )
-    if not member_names:
-        _release_stale_container(name, container_kind="family")
-        return
-
-    for member_name in member_names:
-        try:
-            result = wipe_agent_name_for_reuse(member_name)
-        except Exception as exc:  # noqa: BLE001
-            raise ForcedReuseCleanupError(
-                f"forced reuse cleanup for agent family '{name}' member "
-                f"'{member_name}' failed: {exc}"
-            ) from exc
-        if result.errors:
-            raise ForcedReuseCleanupError(
-                f"forced reuse cleanup for agent family '{name}' member "
-                f"'{member_name}' reported errors: " + "; ".join(result.errors)
-            )
-        if result.skipped_container_kind:
-            raise ForcedReuseCleanupError(
-                f"forced reuse cleanup for agent family '{name}' member "
-                f"'{member_name}' resolved to a "
-                f"{result.skipped_container_kind} container"
-            )
-        if result.found and member_name not in result.registry_names_removed:
-            raise ForcedReuseCleanupError(
-                f"forced reuse cleanup left agent family '{name}' member "
-                f"'{member_name}' reserved after rebuild"
-            )
-
-    try:
-        registry = rebuild_name_registry()
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for agent family '{name}' could not rebuild "
-            f"the name registry: {exc}"
-        ) from exc
-    entries = registry.get("entries")
-    if not isinstance(entries, dict):
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for agent family '{name}' received an "
-            "invalid name registry after rebuild"
-        )
-    residual_names = sorted({name, *member_names} & set(entries))
-    if residual_names:
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup left agent family '{name}' reservations "
-            f"after rebuild: {', '.join(residual_names)}"
-        )
-
-
-def _release_stale_container(
-    name: str,
+def revalidate_bead_work_launch_selection(
+    previous: _BeadWorkLaunchSelection,
     *,
-    container_kind: Literal["family", "clan"],
-) -> None:
-    """Remove an orphaned container's residual owner and verify its release."""
-    from sase.agent.names import (
-        is_name_reserved,
-        rebuild_name_registry,
-        wipe_agent_name_for_reuse,
+    bead_assignees: dict[str, str],
+) -> _BeadWorkLaunchSelection:
+    """Rescan owners and ensure cleanup does not broaden after confirmation."""
+    current = _select_bead_work_launch(
+        slots=previous.slots,
+        bead_assignees=bead_assignees,
     )
 
-    try:
-        result = wipe_agent_name_for_reuse(name, allow_stale_container=True)
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for stale {container_kind} reservation "
-            f"'{name}' failed: {exc}"
-        ) from exc
-    if result.errors:
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for stale {container_kind} reservation "
-            f"'{name}' reported errors: " + "; ".join(result.errors)
+    previous_targets = {
+        _target_stability_key(target): target for target in previous.targets
+    }
+    for target in current.targets:
+        prior = previous_targets.get(_target_stability_key(target))
+        if prior is None:
+            raise ForcedReuseCleanupError(
+                "bead-work owner changed after cleanup preview; rerun to review "
+                f"the new owner for {target.name}"
+            )
+        if target.destructive and not prior.destructive:
+            raise ForcedReuseCleanupError(
+                "bead-work cleanup would become destructive after preview; "
+                f"rerun to review {target.name}"
+            )
+        if target.destructive and (
+            target.artifacts_dir != prior.artifacts_dir
+            or target.generation != prior.generation
+            or target.expected_bead_id != prior.expected_bead_id
+        ):
+            raise ForcedReuseCleanupError(
+                "bead-work cleanup target changed after preview; rerun to "
+                f"review {target.name}"
+            )
+        if prior.destructive and target.preserved:
+            # A waiting owner started running after preview. This is a safe
+            # shrink: the owner is retained and its replacement segment drops.
+            continue
+        if target.destructive and target.action != prior.action:
+            raise ForcedReuseCleanupError(
+                "bead-work cleanup action changed after preview; rerun to "
+                f"review {target.name}"
+            )
+    return current
+
+
+def _target_stability_key(target: CleanupTarget) -> tuple[str, str, str]:
+    return (target.slot_id, target.name, target.expected_bead_id)
+
+
+def _verify_cleanup_target_still_selected(
+    target: CleanupTarget,
+    *,
+    selection: _BeadWorkLaunchSelection,
+    bead_assignees: dict[str, str],
+) -> None:
+    slot = next(
+        (
+            item
+            for item in selection.slots
+            if item.slot_id == target.slot_id and item.owner_name == target.name
+        ),
+        None,
+    )
+    if slot is None:
+        # Family cleanup targets are concrete members rather than the logical
+        # family slot. In that case, revalidating the full selection below is
+        # the authoritative check.
+        current = revalidate_bead_work_launch_selection(
+            selection,
+            bead_assignees=bead_assignees,
         )
-    if result.skipped_container_kind:
+    else:
+        current = _select_bead_work_launch(
+            slots=(slot,),
+            bead_assignees=bead_assignees,
+        )
+    matching = {
+        _target_stability_key(item): item for item in current.destructive_targets
+    }.get(_target_stability_key(target))
+    if matching is None:
         raise ForcedReuseCleanupError(
-            f"forced reuse cleanup could not release stale {container_kind} "
-            f"reservation '{name}'"
+            f"bead-work cleanup target {target.name} is no longer eligible for "
+            "destructive cleanup"
+        )
+    if (
+        matching.action != target.action
+        or matching.current_state != target.current_state
+        or matching.artifacts_dir != target.artifacts_dir
+        or matching.generation != target.generation
+    ):
+        raise ForcedReuseCleanupError(
+            f"bead-work cleanup target {target.name} changed before wipe; rerun"
         )
 
-    try:
-        registry = rebuild_name_registry()
-    except Exception as exc:  # noqa: BLE001
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for stale {container_kind} reservation "
-            f"'{name}' could not rebuild the name registry: {exc}"
-        ) from exc
-    if not isinstance(registry.get("entries"), dict):
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup for stale {container_kind} reservation "
-            f"'{name}' received an invalid name registry after rebuild"
-        )
-    if is_name_reserved(name):
-        raise ForcedReuseCleanupError(
-            f"forced reuse cleanup left stale {container_kind} reservation "
-            f"'{name}' reserved after rebuild"
-        )
+
+def _release_selected_stale_container(target: CleanupTarget) -> None:
+    container_kind: Literal["family", "clan"] = (
+        "clan" if "clan" in target.detail else "family"
+    )
+    release_stale_container(target.name, container_kind=container_kind)

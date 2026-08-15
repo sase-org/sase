@@ -117,3 +117,57 @@ def write_orphan_meta(home: Path, name: str, *, done: bool = False) -> Path:
     if done:
         (artifact_dir / "done.json").write_text(json.dumps({"outcome": "failed"}))
     return artifact_dir
+
+
+def write_bead_agent_meta(
+    home: Path,
+    name: str,
+    *,
+    bead_id: str,
+    done: bool = False,
+    waiting: bool = False,
+    outcome: str = "failed",
+    agent_family: str | None = None,
+    agent_family_role: str | None = None,
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
+) -> Path:
+    """Write a fake bead-associated agent artifact under ``home``."""
+    artifact_dir = (
+        home
+        / ".sase"
+        / "projects"
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / f"bead-{name.replace('/', '-')}"
+    )
+    artifact_dir.mkdir(parents=True)
+    meta: dict[str, Any] = {
+        "name": name,
+        "pid": os.getpid(),
+        "model": "test",
+        "bead_id": bead_id,
+    }
+    if "." in bead_id:
+        meta["phase_bead_id"] = bead_id
+        meta["epic_bead_id"] = bead_id.rsplit(".", 1)[0]
+    else:
+        meta["epic_bead_id"] = bead_id
+    if agent_family:
+        meta["agent_family"] = agent_family
+    if agent_family_role:
+        meta["agent_family_role"] = agent_family_role
+    if agent_clan:
+        meta["agent_clan"] = agent_clan
+        meta["agent_clan_generation"] = agent_clan_generation or artifact_dir.name
+    (artifact_dir / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    if waiting:
+        (artifact_dir / "waiting.json").write_text(
+            json.dumps({"waiting_for": ["upstream"]}), encoding="utf-8"
+        )
+    if done:
+        (artifact_dir / "done.json").write_text(
+            json.dumps({"outcome": outcome}), encoding="utf-8"
+        )
+    return artifact_dir

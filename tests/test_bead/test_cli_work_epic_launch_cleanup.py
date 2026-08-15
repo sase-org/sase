@@ -10,7 +10,12 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
 
-from .cli_work_helpers import FakeLaunchResult, make_args, seed_diamond
+from .cli_work_helpers import (
+    FakeLaunchResult,
+    make_args,
+    seed_diamond,
+    write_bead_agent_meta,
+)
 
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 
@@ -29,29 +34,17 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
     conflict_target: str,
     container_kind: str,
 ) -> None:
-    from sase.agent.names import AgentNameWipeResult
-
     epic_id, phase_ids = seed_diamond(project_dir)
     conflict_name = phase_ids[0] if conflict_target == "phase" else f"{epic_id}.land"
-
-    def fake_wipe(name: str) -> AgentNameWipeResult:
-        if name == conflict_name:
-            return AgentNameWipeResult(
-                target_name=name,
-                found=True,
-                skipped_container_kind=container_kind,
-            )
-        return AgentNameWipeResult(target_name=name, found=False)
-
-    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
-    monkeypatch.setattr(
-        "sase.agent.names.find_agent_clan",
-        lambda name: (
-            type("Clan", (), {"members": (object(),)})()
-            if name == conflict_name
-            else None
-        ),
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(
+        fake_home,
+        f"{conflict_name}.member",
+        bead_id=phase_ids[0] if conflict_target == "phase" else epic_id,
+        agent_clan=conflict_name,
     )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
     launched: list[str] = []
     monkeypatch.setattr(
         "sase.agent.launcher.launch_agent_from_cwd",
@@ -70,8 +63,8 @@ def test_work_expected_name_container_conflict_aborts_before_mutation(
 
     err = capsys.readouterr().err
     assert (
-        f"agent name '{conflict_name}' is reserved by a {container_kind} container"
-        in err
+        f"agent name '{conflict_name}' is reserved by a populated {container_kind} "
+        "container" in err
     )
     assert "cannot be force-reused" in err
     assert launched == []
@@ -95,36 +88,35 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
     monkeypatch: pytest.MonkeyPatch,
     failure_mode: str,
 ) -> None:
-    from types import SimpleNamespace
-
     from sase.agent.names import AgentNameWipeResult
 
     epic_id, phase_ids = seed_diamond(project_dir)
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
     family_name = phase_ids[0]
     plan_name = f"{family_name}--plan"
     code_name = f"{family_name}--code"
-
-    monkeypatch.setattr(
-        "sase.agent.names.find_agent_family",
-        lambda name: (
-            SimpleNamespace(
-                members=(
-                    SimpleNamespace(name=plan_name, outcome="completed"),
-                    SimpleNamespace(name=code_name, outcome=None),
-                )
-            )
-            if name == family_name
-            else None
-        ),
+    write_bead_agent_meta(
+        fake_home,
+        plan_name,
+        bead_id=phase_ids[0],
+        done=True,
+        outcome="completed",
+        agent_family=family_name,
+        agent_family_role="plan",
     )
+    write_bead_agent_meta(
+        fake_home,
+        code_name,
+        bead_id=phase_ids[0],
+        done=True,
+        outcome="failed",
+        agent_family=family_name,
+        agent_family_role="code",
+    )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     def fake_wipe(name: str) -> AgentNameWipeResult:
-        if name == family_name:
-            return AgentNameWipeResult(
-                target_name=name,
-                found=True,
-                skipped_container_kind="family",
-            )
         if name == plan_name and failure_mode == "member-errors":
             return AgentNameWipeResult(
                 target_name=name,
@@ -132,6 +124,12 @@ def test_work_family_cleanup_failure_aborts_before_mutation(
                 errors=("kaboom",),
             )
         if name in {plan_name, code_name}:
+            if failure_mode == "residual-family":
+                return AgentNameWipeResult(
+                    target_name=name,
+                    found=True,
+                    registry_names_removed=(),
+                )
             return AgentNameWipeResult(
                 target_name=name,
                 found=True,
@@ -188,6 +186,15 @@ def test_work_force_reuse_cleanup_failure_aborts_before_mutation(
     from sase.agent.names import AgentNameWipeResult
 
     epic_id, phase_ids = seed_diamond(project_dir)
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(
+        fake_home,
+        phase_ids[0],
+        bead_id=phase_ids[0],
+        waiting=True,
+    )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     def fake_wipe(name: str) -> AgentNameWipeResult:
         if failure_mode == "raise":

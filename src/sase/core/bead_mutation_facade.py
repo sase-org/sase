@@ -266,10 +266,10 @@ def preclaim_epic_work(
     epic_id: str,
     assignments: list[tuple[str, str]],
     *,
-    land_agent_name: str,
+    land_agent_name: str | None,
     now: str | None = None,
 ) -> tuple[list[Issue], dict[str, Any]]:
-    """Assign every rendered phase and the epic before agent launch."""
+    """Assign selected rendered phases and optionally the epic before launch."""
     _guard_bead_store_write(beads_dir, "preclaim_epic_work")
     binding = require_rust_binding("bead_preclaim_epic_work")
     payload = _call_issue_operation(

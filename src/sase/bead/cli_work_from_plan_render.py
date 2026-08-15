@@ -111,6 +111,11 @@ def render_final(result: PlanFileWorkResult) -> None:
             f"\nEpic {result.epic_id} is underway — track it on the Agents tab, "
             f"or run:\n  sase bead show {result.epic_id}"
         )
+    elif result.launch_state == "already_running":
+        Console().print(
+            f"\nEpic {result.epic_id} already has matching active work — track it "
+            f"on the Agents tab, or run:\n  sase bead show {result.epic_id}"
+        )
     else:
         Console().print(f"\nEpic {result.epic_id} launch was not started.")
     print(f"Epic: {result.epic_id}")

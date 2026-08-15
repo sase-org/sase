@@ -10,9 +10,11 @@ from sase.bead._store_contention import (
     retry_bead_store_mutation,
 )
 from sase.bead.cli_work_cleanup import (
+    BeadWorkSlot,
     ForcedReuseCleanupError,
-    prepare_bead_work_force_reuse,
-    preview_bead_work_force_reuse,
+    prepare_selected_bead_work_force_reuse,
+    preview_bead_work_launch_selection,
+    revalidate_bead_work_launch_selection,
     rollback_task_work_launch,
 )
 from sase.bead.cli_work_commit import (
@@ -60,6 +62,27 @@ class TaskBeadWorkError(RuntimeError):
     """A recoverable standalone task-bead launch failure."""
 
 
+def _task_work_slots(task_id: str, assignee: str) -> tuple[BeadWorkSlot, ...]:
+    slots = [
+        BeadWorkSlot(
+            slot_id=task_id,
+            owner_name=task_id,
+            expected_bead_id=task_id,
+            launch_name=task_id,
+        )
+    ]
+    if assignee and assignee != task_id:
+        slots.append(
+            BeadWorkSlot(
+                slot_id=task_id,
+                owner_name=assignee,
+                expected_bead_id=task_id,
+                launch_name=task_id,
+            )
+        )
+    return tuple(slots)
+
+
 def launch_task_bead_work(
     proj: BeadProject,
     task_id: str,
@@ -105,21 +128,6 @@ def launch_task_bead_work(
             "expected open, ready, or recoverable in_progress"
         )
 
-    if issue.status is Status.IN_PROGRESS and issue.assignee:
-        from sase.agent.names import get_live_agent_name_subset
-
-        live = get_live_agent_name_subset({issue.assignee})
-        if issue.assignee in live:
-            print(
-                f"Task {task_id} is already assigned to live agent "
-                f"{issue.assignee}; no new agent was launched."
-            )
-            return TaskWorkResult(
-                task_id=task_id,
-                agent_name=issue.assignee,
-                launch_state="already_running",
-            )
-
     from sase.bead.work import (
         render_task_prompt,
         task_model_directive_value,
@@ -155,21 +163,29 @@ def launch_task_bead_work(
 
     model = task_model_directive_value(issue.model, size=issue.size)
     print_task_work_summary(task_id, issue.title, model=model)
+    slots = _task_work_slots(task_id, issue.assignee)
+    bead_assignees = {task_id: issue.assignee}
     try:
-        preview = preview_bead_work_force_reuse(
+        preview = preview_bead_work_launch_selection(
             query,
-            expected_names={task_id},
+            slots=slots,
+            directive_names={task_id},
+            bead_assignees=bead_assignees,
         )
     except ForcedReuseCleanupError as exc:
         raise TaskBeadWorkError(str(exc)) from exc
+    assert preview.selection is not None
+    selection = preview.selection
 
     if dry_run:
         render_task_cleanup_preview(task_id, preview)
         print("\n--- Task prompt (dry run) ---")
-        print(query)
+        print(query if selection.has_launches else "")
         return TaskWorkResult(
             task_id=task_id,
-            agent_name=task_id,
+            agent_name=selection.preserved_names[0]
+            if selection.preserved_names
+            else task_id,
             launch_state="dry_run",
         )
 
@@ -190,6 +206,20 @@ def launch_task_bead_work(
                     launch_state="declined",
                 )
 
+    if not selection.has_launches:
+        agent_name = (
+            selection.preserved_names[0] if selection.preserved_names else task_id
+        )
+        print(
+            f"Task {task_id} is already assigned to live agent "
+            f"{agent_name}; no new agent was launched."
+        )
+        return TaskWorkResult(
+            task_id=task_id,
+            agent_name=agent_name,
+            launch_state="already_running",
+        )
+
     if not (yes or yes_to_all):
         launch_confirmation = confirm_launch()
         if launch_confirmation is None:
@@ -207,9 +237,29 @@ def launch_task_bead_work(
 
     with timer.stage("force_reuse_cleanup"):
         try:
-            query = prepare_bead_work_force_reuse(
+            selection = revalidate_bead_work_launch_selection(
+                selection,
+                bead_assignees={task_id: issue.assignee},
+            )
+            if not selection.has_launches:
+                agent_name = (
+                    selection.preserved_names[0]
+                    if selection.preserved_names
+                    else task_id
+                )
+                print(
+                    f"Task {task_id} is already assigned to live agent "
+                    f"{agent_name}; no new agent was launched."
+                )
+                return TaskWorkResult(
+                    task_id=task_id,
+                    agent_name=agent_name,
+                    launch_state="already_running",
+                )
+            query = prepare_selected_bead_work_force_reuse(
                 query,
-                expected_names={task_id},
+                selection=selection,
+                bead_assignees={task_id: issue.assignee},
             )
         except ForcedReuseCleanupError as exc:
             raise TaskBeadWorkError(str(exc)) from exc

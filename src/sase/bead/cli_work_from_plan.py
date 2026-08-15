@@ -46,6 +46,7 @@ from sase.bead.cli_work_from_plan_store import (
 from sase.bead.cli_work_from_plan_types import (
     PlanFileWorkError,
     PlanFileWorkResult as _PlanFileWorkResult,
+    normalize_epic_launch_result as _normalize_epic_launch_result,
 )
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
@@ -385,6 +386,8 @@ def _work_from_plan_file_locked(
         workspace_dir=workspace_dir,
     )
     launched_names: tuple[str, ...] = ()
+    preserved_names: tuple[str, ...] = ()
+    launch_state = ""
 
     def commit_plan_link(path: Path, content: str, message: str) -> bool:
         return _write_and_commit_plan_file(
@@ -405,7 +408,7 @@ def _work_from_plan_file_locked(
         )
 
     def launch_created_epic(project: BeadProject, epic_id: str) -> bool:
-        nonlocal launched_names
+        nonlocal launched_names, preserved_names, launch_state
         issue = project.show(epic_id)
         phases = [
             child
@@ -416,7 +419,7 @@ def _work_from_plan_file_locked(
         launched_names = _ordered_agent_names(work_plan)
         if render:
             _render_created_beads(issue, phases, work_plan, archived_path)
-        return launch_epic_bead_work(
+        raw_result = launch_epic_bead_work(
             project,
             epic_id,
             dry_run=False,
@@ -427,6 +430,14 @@ def _work_from_plan_file_locked(
             before_agent_launch=publish_created_graph,
             timer=timer,
         )
+        result = _normalize_epic_launch_result(
+            raw_result,
+            fallback_launched_agent_names=_ordered_agent_names(work_plan),
+        )
+        launched_names = result.launched_agent_names
+        preserved_names = result.preserved_agent_names
+        launch_state = result.launch_state
+        return result.launched
 
     try:
         with ExitStack() as stack:
@@ -483,6 +494,8 @@ def _work_from_plan_file_locked(
         parent_id=created.epic.parent_id,
         phase_bead_ids=tuple(phase.id for phase in created.phases),
         launched_agent_names=launched_names,
+        preserved_agent_names=preserved_names,
+        launch_state=launch_state,
         launched=True,
         resumed=False,
         waves=waves,

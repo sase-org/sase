@@ -296,9 +296,9 @@ class BeadProjectMutationMixin:
         self,
         epic_id: str,
         assignments: list[tuple[str, str]],
-        land_agent_name: str,
+        land_agent_name: str | None,
     ) -> tuple[EpicPreclaimRollback, ...]:
-        """Preassign one rendered epic work plan and return rollback state."""
+        """Preassign selected epic work agents and return rollback state."""
         from sase.core import bead_mutation_facade as rust_beads
 
         epic_id = self.resolve_id(epic_id)

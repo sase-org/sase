@@ -215,13 +215,15 @@ def launch_scoped_epic(beads_dir: Path, epic_id: str) -> bool:
 
     with epic_plan_launch_lock(beads_dir.parent):
         with BeadProject(beads_dir.parent, beads_dirname=beads_dir.name) as project:
-            return launch_epic_bead_work(
-                project,
-                epic_id,
-                dry_run=False,
-                yes=True,
-                no_push=False,
-                yes_to_all=True,
+            return bool(
+                launch_epic_bead_work(
+                    project,
+                    epic_id,
+                    dry_run=False,
+                    yes=True,
+                    no_push=False,
+                    yes_to_all=True,
+                )
             )
 
 

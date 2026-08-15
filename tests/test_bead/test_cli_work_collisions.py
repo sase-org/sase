@@ -17,6 +17,7 @@ from .cli_work_helpers import (
     FakeLaunchResult,
     make_args,
     seed_diamond,
+    write_bead_agent_meta,
     write_orphan_meta,
 )
 
@@ -48,7 +49,13 @@ def test_work_retry_allows_terminal_same_name_attempt(
 
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, phase_ids[0], done=True)
+    write_bead_agent_meta(
+        fake_home,
+        phase_ids[0],
+        bead_id=phase_ids[0],
+        done=True,
+        outcome="failed",
+    )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     captured: dict[str, Any] = {}
@@ -77,7 +84,12 @@ def test_work_retry_force_reuses_live_phase_owner_and_launches(
 
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, phase_ids[0])
+    write_bead_agent_meta(
+        fake_home,
+        phase_ids[0],
+        bead_id=phase_ids[0],
+        waiting=True,
+    )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     wiped = _record_wipes(monkeypatch)
@@ -91,7 +103,7 @@ def test_work_retry_force_reuses_live_phase_owner_and_launches(
 
     bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
-    # The live phase-name owner is force-reused instead of blocking launch.
+    # Matching waiting owners are force-reused instead of blocking launch.
     assert phase_ids[0] in wiped
     assert len(launch_calls) == 1
     assert "%id(!" not in launch_calls[0]
@@ -113,7 +125,12 @@ def test_work_force_reuses_live_land_owner_and_launches(
 
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, f"{epic_id}.land")
+    write_bead_agent_meta(
+        fake_home,
+        f"{epic_id}.land",
+        bead_id=epic_id,
+        waiting=True,
+    )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     wiped = _record_wipes(monkeypatch)
@@ -127,7 +144,7 @@ def test_work_force_reuses_live_land_owner_and_launches(
 
     bead_cli.handle_bead_work(make_args(epic_id, yes_to_all=True))
 
-    # The ``<epic_id>.land`` owner is force-reused, not refused.
+    # A matching waiting ``<epic_id>.land`` owner is force-reused, not refused.
     assert f"{epic_id}.land" in wiped
     assert len(launch_calls) == 1
 
@@ -141,7 +158,12 @@ def test_work_force_reuses_legacy_land_owner_and_launches(
 
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, epic_id)
+    write_bead_agent_meta(
+        fake_home,
+        epic_id,
+        bead_id=epic_id,
+        waiting=True,
+    )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     wiped = _record_wipes(monkeypatch)
@@ -171,7 +193,12 @@ def test_work_dry_run_warns_force_reuse_without_mutating(
 
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, phase_ids[0])
+    write_bead_agent_meta(
+        fake_home,
+        phase_ids[0],
+        bead_id=phase_ids[0],
+        waiting=True,
+    )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     launch_calls: list[str] = []
@@ -185,7 +212,7 @@ def test_work_dry_run_warns_force_reuse_without_mutating(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     captured = capsys.readouterr()
-    assert "Cleaning up existing agents before relaunching epic" in captured.err
+    assert "Existing agents for epic" in captured.err
     assert "KILL" in captured.err
     assert phase_ids[0] in captured.err
     assert "Multi-prompt (dry run)" in captured.out
@@ -229,6 +256,8 @@ def test_work_force_reuses_workflow_name_only_owner(
                 "name": f"{epic_id}.land--code",
                 "workflow_name": f"{epic_id}.land",
                 "model": "test",
+                "bead_id": epic_id,
+                "epic_bead_id": epic_id,
             }
         )
     )

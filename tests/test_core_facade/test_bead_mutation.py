@@ -398,6 +398,44 @@ def test_preclaim_epic_work_converts_batch_and_returns_prior_state(
     ]
 
 
+def test_preclaim_epic_work_allows_empty_subset_without_land_mutation(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    epic, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        now="2026-01-01T00:00:00Z",
+    )
+    phase, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Phase",
+        issue_type=IssueType.PHASE,
+        parent_id=epic.id,
+        now="2026-01-01T00:01:00Z",
+    )
+
+    assigned, outcome = rust_beads.preclaim_epic_work(
+        root / "sdd/beads",
+        epic.id,
+        [],
+        land_agent_name=None,
+        now="2026-01-01T00:02:00Z",
+    )
+
+    assert assigned == []
+    assert outcome["operation"] == "preclaim_epic_work"
+    assert outcome["rollback_preclaims"] == []
+    with BeadProject(root) as project:
+        assert project.show(epic.id).status is Status.OPEN
+        assert project.show(epic.id).assignee == ""
+        assert project.show(phase.id).status is Status.OPEN
+        assert project.show(phase.id).assignee == ""
+
+
 def test_claim_for_agent_launch_maps_missing_and_preserves_specific_failures(
     tmp_path: Path,
 ) -> None:

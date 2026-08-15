@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.cli_work_cleanup import CleanupPreview, CleanupTarget
 from sase.bead.cli_work_commit import (
     TaskLaunchCheckpointError,
     checkpoint_task_work_launch,
@@ -20,7 +19,12 @@ from sase.bead.model import PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.bead.work import SASE_BEAD_ID_ENV, VCSLaunchContext
 
-from .cli_work_helpers import FakeLaunchResult, make_args, seed_task
+from .cli_work_helpers import (
+    FakeLaunchResult,
+    make_args,
+    seed_task,
+    write_bead_agent_meta,
+)
 
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 
@@ -333,10 +337,14 @@ def test_in_progress_task_with_live_assignee_is_idempotent_success(
         status=Status.IN_PROGRESS,
         assignee="existing-worker",
     )
-    monkeypatch.setattr(
-        "sase.agent.names.get_live_agent_name_subset",
-        lambda names: {"existing-worker": "/tmp/agent"} if names else {},
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(
+        fake_home,
+        "existing-worker",
+        bead_id=task_id,
     )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
     monkeypatch.setattr(
         "sase.bead.cli_work_task.launch_bead_work_agents",
         lambda *_args, **_kwargs: pytest.fail("live task must not relaunch"),
@@ -362,15 +370,29 @@ def test_stale_in_progress_task_cleans_up_before_mutation(
         status=Status.IN_PROGRESS,
         assignee="dead-worker",
     )
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(
+        fake_home,
+        "dead-worker",
+        bead_id=task_id,
+        done=True,
+        outcome="failed",
+    )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
     events: list[str] = []
-    monkeypatch.setattr(
-        "sase.agent.names.get_live_agent_name_subset",
-        lambda _names: {},
-    )
-    monkeypatch.setattr(
-        "sase.bead.cli_work_task.prepare_bead_work_force_reuse",
-        lambda query, **_kwargs: events.append("cleanup") or query.replace("!", ""),
-    )
+    from sase.agent.names import AgentNameWipeResult
+
+    def fake_wipe(name: str) -> AgentNameWipeResult:
+        events.append("cleanup")
+        assert name == "dead-worker"
+        return AgentNameWipeResult(
+            target_name=name,
+            found=True,
+            registry_names_removed=(name,),
+        )
+
+    monkeypatch.setattr("sase.agent.names.wipe_agent_name_for_reuse", fake_wipe)
 
     def checkpoint(*_args: object, **_kwargs: object) -> bool:
         events.append("checkpoint")
@@ -398,20 +420,15 @@ def test_yes_does_not_skip_destructive_cleanup_confirmation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     task_id = seed_task(project_dir)
-    destructive = CleanupPreview(
-        targets=(
-            CleanupTarget(
-                name=task_id,
-                action="KILL",
-                current_state="running",
-                detail="at /tmp/agent",
-            ),
-        )
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(
+        fake_home,
+        task_id,
+        bead_id=task_id,
+        waiting=True,
     )
-    monkeypatch.setattr(
-        "sase.bead.cli_work_task.preview_bead_work_force_reuse",
-        lambda *_args, **_kwargs: destructive,
-    )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
     monkeypatch.setattr(
         "sase.bead.cli_work_task.confirm_cleanup",
         lambda: False,
@@ -419,6 +436,35 @@ def test_yes_does_not_skip_destructive_cleanup_confirmation(
 
     bead_cli.handle_bead_work(make_args(task_id, yes=True))
 
+    with BeadProject(project_dir) as project:
+        task = project.show(task_id)
+        assert (task.status, task.assignee) == (Status.READY, "")
+
+
+def test_task_work_refuses_mismatched_bead_owner_without_cleanup(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir)
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(fake_home, task_id, bead_id="other-task")
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    monkeypatch.setattr(
+        "sase.agent.names.wipe_agent_name_for_reuse",
+        lambda name: pytest.fail(f"mismatched owner must not be wiped: {name}"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("mismatched owner must not launch"),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(task_id, yes_to_all=True))
+
+    assert excinfo.value.code == 1
+    assert "not associated with expected bead" in capsys.readouterr().err
     with BeadProject(project_dir) as project:
         task = project.show(task_id)
         assert (task.status, task.assignee) == (Status.READY, "")
@@ -435,10 +481,16 @@ def test_zero_spawn_failure_restores_prior_task_state(
         status=Status.IN_PROGRESS,
         assignee="dead-worker",
     )
-    monkeypatch.setattr(
-        "sase.agent.names.get_live_agent_name_subset",
-        lambda _names: {},
+    fake_home = project_dir / "home"
+    fake_home.mkdir()
+    write_bead_agent_meta(
+        fake_home,
+        "dead-worker",
+        bead_id=task_id,
+        done=True,
+        outcome="failed",
     )
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
     if failure_stage == "checkpoint":
         monkeypatch.setattr(
             "sase.bead.cli_work_task.checkpoint_task_work_launch",

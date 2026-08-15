@@ -329,11 +329,22 @@ def _handle_bead_work_locked(
                     print(f"Error: {exc}", file=sys.stderr)
                 raise SystemExit(1) from exc
             if json_output:
+                from sase.bead.cli_work_from_plan_types import (
+                    normalize_epic_launch_result,
+                )
+
                 phase_ids = [
                     phase.id
                     for phase in proj.get_epic_children(target)
                     if phase.issue_type is IssueType.PHASE
                 ]
+                launch_view = normalize_epic_launch_result(
+                    launched,
+                    fallback_launched_agent_names=(
+                        *phase_ids,
+                        f"{target}.land",
+                    ),
+                )
                 print(
                     json.dumps(
                         {
@@ -342,7 +353,15 @@ def _handle_bead_work_locked(
                             "dry_run": dry_run,
                             "epic_id": target,
                             "phase_bead_ids": phase_ids,
-                            "launched": launched,
+                            "launch_state": launch_view.launch_state,
+                            "launched": launch_view.launched,
+                            "launched_agent_names": list(
+                                launch_view.launched_agent_names
+                            ),
+                            "preserved_agent_names": list(
+                                launch_view.preserved_agent_names
+                            ),
+                            "workspace_num": launch_view.workspace_num,
                         },
                         sort_keys=True,
                     )
