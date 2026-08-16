@@ -20,12 +20,13 @@ from sase.monitor import (
     MonitorRefError,
     StartMonitorRequest,
     active_monitor_for_lane,
+    caller_artifacts_dir,
     default_caller,
-    default_lane,
+    durable_lane_for_record,
     list_monitors,
     maybe_handoff_monitor_from_agent,
     read_monitor_marker,
-    resolve_exact_agent,
+    resolve_caller_agent,
     resolve_lane,
     resolve_monitor_ref,
     short_monitor_id,
@@ -390,13 +391,22 @@ def _resolve_ref(raw_ref: str) -> MonitorRecord:
 def _resolve_ref_or_active(raw_ref: str | None) -> MonitorRecord:
     if raw_ref:
         return _resolve_ref(raw_ref)
-    lane = default_lane()
-    if not lane:
+    caller = default_caller()
+    if not caller:
         raise MonitorRefError(
             "no monitor id given and SASE_AGENT_NAME is unset; pass an explicit id"
         )
     project_name = _infer_project_name(str(Path.cwd()))
-    active = active_monitor_for_lane(project_name, lane) if project_name else None
+    if not project_name:
+        raise MonitorRefError(f"agent {caller!r} has no active monitor")
+    try:
+        ctx = resolve_caller_agent(
+            project_name, caller, artifacts_dir=caller_artifacts_dir()
+        )
+    except MonitorLaneError as exc:
+        raise MonitorRefError(str(exc)) from exc
+    lane = durable_lane_for_record(ctx.record, fallback=caller)
+    active = active_monitor_for_lane(project_name, lane)
     if active is None:
         raise MonitorRefError(f"agent {lane!r} has no active monitor")
     return MonitorRecord.from_record(active)
@@ -417,7 +427,9 @@ def _agent_workspace_dir(agent: str, *, exact: bool) -> Path | None:
         return None
     try:
         ctx = (
-            resolve_exact_agent(guess_project, agent)
+            resolve_caller_agent(
+                guess_project, agent, artifacts_dir=caller_artifacts_dir()
+            )
             if exact
             else resolve_lane(guess_project, agent)
         )

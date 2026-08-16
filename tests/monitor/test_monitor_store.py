@@ -11,14 +11,15 @@ import pytest
 from sase.monitor.models import MonitorLaneError
 from sase.monitor.store import (
     active_monitor_for_lane,
+    caller_artifacts_dir,
     default_caller,
-    default_lane,
     durable_lane_for_record,
     get_monitor,
     has_any_monitor,
     list_monitors,
     monitor_blocking_start_for_lane,
     read_monitor_marker,
+    resolve_caller_agent,
     resolve_exact_agent,
     resolve_lane,
 )
@@ -37,10 +38,11 @@ def test_default_caller_returns_exact_sase_agent_name() -> None:
     assert default_caller({}) is None
 
 
-def test_default_lane_still_collapses_family_and_legacy_suffixes() -> None:
-    assert default_lane({"SASE_AGENT_NAME": "sase-m6.6.1.5"}) == "sase-m6.6.1"
-    assert default_lane({"SASE_AGENT_NAME": "02i--code"}) == "02i"
-    assert default_lane({}) is None
+def test_caller_artifacts_dir_returns_the_env_value_when_present() -> None:
+    assert caller_artifacts_dir({"SASE_ARTIFACTS_DIR": "/work/artifacts"}) == (
+        "/work/artifacts"
+    )
+    assert caller_artifacts_dir({}) is None
 
 
 def test_resolve_lane_picks_the_newest_family_member(
@@ -114,6 +116,90 @@ def test_resolve_exact_agent_ignores_newer_sibling_and_family_artifacts(
     assert member.record.artifact_dir == family_member
     assert collapsed_phase.record.artifact_dir == sibling
     assert family_lane.record.artifact_dir == settled_monitor
+
+
+def test_resolve_caller_agent_pins_the_callers_artifacts_dir_over_a_newer_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    older = make_starter_agent(
+        "proj", "20260812120000", "046--plan", agent_family="046"
+    )
+    newer = make_starter_agent(
+        "proj", "20260812130000", "046--code", agent_family="046"
+    )
+    patch_project_records(monkeypatch, [older, newer])
+
+    ctx = resolve_caller_agent("proj", "046", artifacts_dir=older)
+
+    assert ctx.record.artifact_dir == older
+
+
+def test_resolve_caller_agent_family_container_resolves_to_newest_non_monitor_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = make_starter_agent("proj", "20260812110000", "046--plan", agent_family="046")
+    code = make_starter_agent("proj", "20260812120000", "046--code", agent_family="046")
+    settled_monitor = make_starter_agent(
+        "proj",
+        "20260812140000",
+        "046--mon-6",
+        agent_family="046",
+        agent_family_role="monitor",
+        monitor_id="oldmon",
+        monitor_state="completed",
+        monitor_settled=True,
+    )
+    other_family = make_starter_agent(
+        "proj", "20260812150000", "other--code", agent_family="other"
+    )
+    patch_project_records(monkeypatch, [plan, code, settled_monitor, other_family])
+
+    ctx = resolve_caller_agent("proj", "046")
+
+    assert ctx.record.artifact_dir == code
+
+
+def test_resolve_caller_agent_exact_name_wins_over_family_and_sibling_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    phase_caller = make_starter_agent("proj", "20260812120000", "sase-m6.6.1.5")
+    sibling = make_starter_agent("proj", "20260812125000", "sase-m6.6.1")
+    land = make_starter_agent("proj", "20260812130000", "sase-m6.10")
+    family_member = make_starter_agent(
+        "proj", "20260812120500", "02i--code", agent_family="02i"
+    )
+    patch_project_records(monkeypatch, [phase_caller, sibling, land, family_member])
+
+    phase_ctx = resolve_caller_agent("proj", "sase-m6.6.1.5")
+    member_ctx = resolve_caller_agent("proj", "02i--code")
+
+    assert phase_ctx.record.artifact_dir == phase_caller
+    assert member_ctx.record.artifact_dir == family_member
+
+
+def test_resolve_caller_agent_ignores_a_foreign_artifacts_dir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caller_record = make_starter_agent(
+        "proj", "20260812120000", "acme--code", agent_family="acme"
+    )
+    foreign = make_starter_agent(
+        "proj", "20260812130000", "other--code", agent_family="other"
+    )
+    patch_project_records(monkeypatch, [caller_record, foreign])
+
+    ctx = resolve_caller_agent("proj", "acme", artifacts_dir=foreign)
+
+    assert ctx.record.artifact_dir == caller_record
+
+
+def test_resolve_caller_agent_raises_a_usage_error_when_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_project_records(monkeypatch, [])
+
+    with pytest.raises(MonitorLaneError, match=r"-a/--agent"):
+        resolve_caller_agent("proj", "ghost")
 
 
 def test_durable_lane_for_record_prefers_agent_family_metadata(

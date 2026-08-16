@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -15,6 +16,7 @@ from tests.main.monitor_handler_helpers import (
     monitor_home,
     patch_project_records,
 )
+from tests.monitor._fixtures import make_starter_agent
 
 __all__ = ["monitor_home"]
 
@@ -94,6 +96,9 @@ def test_stop_omitted_id_targets_the_calling_agents_active_monitor(
         _set_monitor_state(artifacts_dir, "stopped")
 
     try:
+        caller_dir = make_starter_agent(
+            "proj", "20260812110000", "acme--0", agent_family="acme"
+        )
         artifacts_dir = make_monitor(
             "proj",
             "20260812120000",
@@ -102,9 +107,9 @@ def test_stop_omitted_id_targets_the_calling_agents_active_monitor(
             monitor_id="aaabbbcccddd",
             pid=child.pid,
         )
-        patch_project_records(monkeypatch, [artifacts_dir])
+        patch_project_records(monkeypatch, [caller_dir, artifacts_dir])
         monkeypatch.setattr("os.kill", fake_kill)
-        monkeypatch.setattr("sase.main.monitor_handler.default_lane", lambda: "acme")
+        monkeypatch.setenv("SASE_AGENT_NAME", "acme")
         monkeypatch.setattr(
             "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
         )
@@ -131,14 +136,71 @@ def test_stop_omitted_id_with_no_active_monitor_names_the_agent(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A resolvable agent with no active monitor is reported by agent name."""
-    patch_project_records(monkeypatch, [])
-    monkeypatch.setattr("sase.main.monitor_handler.default_lane", lambda: "acme")
+    caller_dir = make_starter_agent("proj", "20260812120000", "acme")
+    patch_project_records(monkeypatch, [caller_dir])
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     monkeypatch.setattr(
         "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
     )
 
     assert dispatch(["monitor", "stop"]) == 2
     assert "agent 'acme' has no active monitor" in capsys.readouterr().err
+
+
+def test_stop_omitted_id_resolves_the_callers_own_family_not_a_sibling(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A caller's durable family stops its own monitor, not a sibling's."""
+    child = subprocess.Popen(["sleep", "30"])
+    real_kill = os.kill
+
+    def fake_kill(pid: int, sig: int) -> None:
+        if sig == 0:
+            real_kill(pid, sig)
+            return
+        _set_monitor_state(own_monitor_dir, "stopped")
+
+    try:
+        caller_dir = make_starter_agent(
+            "proj", "20260812110000", "sase-m6.6.1.5", pid=os.getpid()
+        )
+        own_monitor_dir = make_monitor(
+            "proj",
+            "20260812120000",
+            "sase-m6.6.1.5--mon",
+            lane="sase-m6.6.1.5",
+            monitor_id="ownmon123456",
+            pid=child.pid,
+        )
+        sibling_monitor_dir = make_monitor(
+            "proj",
+            "20260812130000",
+            "sase-m6.6.1--mon",
+            lane="sase-m6.6.1",
+            monitor_id="siblingmon123",
+            pid=os.getpid(),
+        )
+        patch_project_records(
+            monkeypatch, [caller_dir, own_monitor_dir, sibling_monitor_dir]
+        )
+        monkeypatch.setattr("os.kill", fake_kill)
+        monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
+        monkeypatch.setattr(
+            "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
+        )
+
+        assert dispatch(["monitor", "stop"]) == 0
+
+        out = capsys.readouterr().out
+        assert "Stopped monitor ownmon" in out
+        sibling_meta = json.loads(
+            (Path(sibling_monitor_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        assert sibling_meta["monitor_state"] == "running"
+    finally:
+        if child.poll() is None:
+            real_kill(child.pid, signal.SIGKILL)
+        child.wait()
 
 
 def test_stop_json_envelope_is_stable(

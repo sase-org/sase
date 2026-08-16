@@ -14,6 +14,7 @@ import signal
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sase.core.agent_scan_facade import (
@@ -68,10 +69,11 @@ class LaneContext:
 def default_caller(env: Mapping[str, str] | None = None) -> str | None:
     """Return the calling agent's exact name from its environment, if any.
 
-    Unlike :func:`default_lane`, this does not collapse the name through
-    :func:`~sase.plan_chain.agent_family_base`. Implicit monitor starts use
-    this exact identity so a phase name such as ``sase-m6.6.1.5`` is not
-    rewritten into a broader family lane.
+    This does not collapse the name through
+    :func:`~sase.plan_chain.agent_family_base`: :func:`resolve_caller_agent`
+    resolves a durable family from the caller's own artifacts instead, so a
+    phase name such as ``sase-m6.6.1.5`` is never rewritten into a broader
+    family lane.
     """
     current_env = env if env is not None else os.environ
     name = current_env.get("SASE_AGENT_NAME")
@@ -81,17 +83,70 @@ def default_caller(env: Mapping[str, str] | None = None) -> str | None:
     return name or None
 
 
-def default_lane(env: Mapping[str, str] | None = None) -> str | None:
-    """Return the calling agent's family-oriented lane from its environment.
+def caller_artifacts_dir(env: Mapping[str, str] | None = None) -> str | None:
+    """Return the calling agent shell's own artifacts dir, if the env names one.
 
-    Used by monitor inspection and stop when no explicit target is given.
-    Implicit monitor start reads :func:`default_caller` instead and then
-    derives the durable lane from the selected artifact.
+    ``SASE_ARTIFACTS_DIR`` is set for every agent shell and points at exactly
+    the artifact record that is running -- the most precise identity
+    available, and one that needs no name reasoning at all.
     """
-    name = default_caller(env)
-    if not name:
+    current_env = env if env is not None else os.environ
+    value = current_env.get("SASE_ARTIFACTS_DIR")
+    if not value:
         return None
-    return agent_family_base(name) or name
+    value = value.strip()
+    return value or None
+
+
+def resolve_caller_agent(
+    project_name: str,
+    caller: str,
+    *,
+    artifacts_dir: str | None = None,
+) -> LaneContext:
+    """Resolve the artifact record of the agent shell calling right now.
+
+    Mirrors :func:`sase.agent.identity.resolve_local_agent_name`'s
+    metadata-first resolution: family members can replace one another
+    inside a single process, leaving ``SASE_AGENT_NAME`` set to the
+    family/container while this run's own artifacts carry the concrete
+    agent shell. Tried in order:
+
+    1. *artifacts_dir* (the caller's own ``SASE_ARTIFACTS_DIR``), when the
+       record it names belongs to *caller* -- a stale or foreign value
+       falls through to the next step instead of hijacking resolution.
+    2. An exact ``agent_meta.name`` match for *caller* (bare agents, and
+       callers whose env already carries the member name, e.g.
+       ``02i--code``).
+    3. The newest non-monitor member of *caller*'s own family -- records
+       whose ``agent_meta.agent_family`` equals *caller* exactly. Monitor
+       members are excluded so a settled ``--mon`` row, usually the newest
+       member of the family, is never selected as the parent.
+
+    Raises :class:`MonitorLaneError` naming ``-a/--agent`` when none of the
+    above resolves.
+    """
+    records = _project_records(project_name)
+
+    pinned = _pinned_caller_record(records, caller, artifacts_dir)
+    if pinned is not None:
+        return LaneContext(lane=caller, project_name=project_name, record=pinned)
+
+    exact = [record for record in records if _record_has_name(record, caller)]
+    if exact:
+        newest = max(exact, key=lambda record: record.timestamp)
+        return LaneContext(lane=caller, project_name=project_name, record=newest)
+
+    family_members = [
+        record
+        for record in records
+        if _record_family_is(record, caller) and not is_monitor_member_record(record)
+    ]
+    if family_members:
+        newest = max(family_members, key=lambda record: record.timestamp)
+        return LaneContext(lane=caller, project_name=project_name, record=newest)
+
+    raise MonitorLaneError(_no_caller_artifacts_message(project_name, caller, records))
 
 
 def resolve_lane(project_name: str, lane: str) -> LaneContext:
@@ -436,6 +491,85 @@ def _record_has_name(record: AgentArtifactRecordWire, agent_name: str) -> bool:
     return meta is not None and meta.name == agent_name
 
 
+def _record_family_is(record: AgentArtifactRecordWire, family: str) -> bool:
+    meta = record.agent_meta
+    return meta is not None and meta.agent_family == family
+
+
+def _pinned_caller_record(
+    records: Sequence[AgentArtifactRecordWire],
+    caller: str,
+    artifacts_dir: str | None,
+) -> AgentArtifactRecordWire | None:
+    """Return the record at *artifacts_dir* if it belongs to *caller*.
+
+    A record only counts as pinned when its own name, family, or family
+    base matches the caller -- a stale or foreign ``SASE_ARTIFACTS_DIR``
+    must fall through to the name/family steps instead of hijacking start.
+    """
+    if not artifacts_dir:
+        return None
+    for record in records:
+        if not _same_artifact_dir(record.artifact_dir, artifacts_dir):
+            continue
+        meta = record.agent_meta
+        if meta is None:
+            return None
+        if (
+            meta.name == caller
+            or meta.agent_family == caller
+            or agent_family_base(meta.name) == caller
+        ):
+            return record
+        return None
+    return None
+
+
+def _same_artifact_dir(left: str, right: str) -> bool:
+    try:
+        return Path(left).expanduser().resolve(strict=False) == Path(
+            right
+        ).expanduser().resolve(strict=False)
+    except OSError:
+        return left.rstrip("/") == right.rstrip("/")
+
+
+def _no_caller_artifacts_message(
+    project_name: str, caller: str, records: Sequence[AgentArtifactRecordWire]
+) -> str:
+    base = (
+        f"no artifacts found for the calling agent {caller!r} in project "
+        f"{project_name!r}; pass -a/--agent explicitly"
+    )
+    nearest = _nearest_caller_artifact_names(records, caller)
+    if not nearest:
+        return base
+    return f"{base} (nearest artifacts: {', '.join(nearest)})"
+
+
+def _nearest_caller_artifact_names(
+    records: Sequence[AgentArtifactRecordWire], caller: str
+) -> list[str]:
+    """Return up to five near-miss names for *caller*, newest first."""
+    candidates = [
+        record
+        for record in records
+        if record.agent_meta is not None
+        and record.agent_meta.name
+        and (
+            record.agent_meta.name.startswith(caller)
+            or record.agent_meta.agent_family == caller
+        )
+    ]
+    candidates.sort(key=lambda record: record.timestamp, reverse=True)
+    names: list[str] = []
+    for record in candidates[:5]:
+        meta = record.agent_meta
+        if meta is not None and meta.name:
+            names.append(meta.name)
+    return names
+
+
 def _monitor_record_from_wire(
     record: AgentArtifactRecordWire,
 ) -> MonitorRecord | None:
@@ -538,8 +672,8 @@ __all__ = [
     "MIN_MONITOR_REF_LENGTH",
     "LaneContext",
     "active_monitor_for_lane",
+    "caller_artifacts_dir",
     "default_caller",
-    "default_lane",
     "durable_lane_for_record",
     "get_monitor",
     "has_any_monitor",
@@ -547,6 +681,7 @@ __all__ = [
     "monitor_blocking_start_for_lane",
     "read_monitor_marker",
     "reconcile_dead_supervisors",
+    "resolve_caller_agent",
     "resolve_exact_agent",
     "resolve_lane",
     "resolve_monitor_ref",

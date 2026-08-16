@@ -103,25 +103,28 @@ class _LaneStart:
 class _StartIdentity:
     """How a start chose its parent artifact and durable family lane.
 
-    ``target`` is the exact caller name for an implicit start, or the
-    explicit ``--agent`` / lane string. ``exact`` is true only for implicit
-    starts, so the parent artifact is the caller itself rather than the
-    lane's newest member. ``lock_lane`` is the durable family used for the
-    start lock, replay, conflict detection, and request fingerprint.
+    ``target`` is the resolved parent's own agent name for an implicit
+    start, or the explicit ``--agent`` / lane string. ``context`` is the
+    already-resolved artifact for an implicit start, reused by
+    ``_resolve_lane_start()`` instead of re-resolving; it is ``None`` for
+    an explicit start, which still resolves via ``store.resolve_lane()``.
+    ``lock_lane`` is the durable family used for the start lock, replay,
+    conflict detection, and request fingerprint.
     """
 
     target: str
-    exact: bool
+    context: store.LaneContext | None
     lock_lane: str
 
 
 def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     """Start (or return the existing) monitor for *request*'s lane.
 
-    An omitted ``request.lane`` is an implicit start: the exact
-    ``SASE_AGENT_NAME`` caller is selected first, and the durable family
-    is taken from that artifact. An explicit lane still resolves to the
-    newest matching family member.
+    An omitted ``request.lane`` is an implicit start: the calling agent
+    shell is resolved metadata-first -- its own artifacts dir, then an
+    exact ``SASE_AGENT_NAME`` match, then the newest non-monitor member of
+    its own family -- and the durable family is taken from that artifact.
+    An explicit lane still resolves to the newest matching family member.
     """
     identity = _resolve_start_identity(request)
     with log_file_lock(
@@ -133,15 +136,19 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
 def _resolve_start_identity(request: StartMonitorRequest) -> _StartIdentity:
     """Return the parent identity and durable lock lane for *request*."""
     if request.lane:
-        return _StartIdentity(target=request.lane, exact=False, lock_lane=request.lane)
+        return _StartIdentity(target=request.lane, context=None, lock_lane=request.lane)
     caller = store.default_caller()
     if not caller:
         raise MonitorLaneError(
             "no lane given and SASE_AGENT_NAME is unset; pass an explicit lane"
         )
-    ctx = store.resolve_exact_agent(request.project_name, caller)
-    lock_lane = store.durable_lane_for_record(ctx.record, fallback=caller)
-    return _StartIdentity(target=caller, exact=True, lock_lane=lock_lane)
+    ctx = store.resolve_caller_agent(
+        request.project_name, caller, artifacts_dir=store.caller_artifacts_dir()
+    )
+    meta = ctx.record.agent_meta
+    target = meta.name if meta is not None and meta.name else caller
+    lock_lane = store.durable_lane_for_record(ctx.record, fallback=target)
+    return _StartIdentity(target=target, context=ctx, lock_lane=lock_lane)
 
 
 def _start_monitor_locked(
@@ -356,10 +363,11 @@ def _resolve_lane_start(
     request: StartMonitorRequest, identity: _StartIdentity
 ) -> _LaneStart:
     """Read the selected parent artifact and decide what the monitor inherits."""
-    if identity.exact:
-        lane_ctx = store.resolve_exact_agent(request.project_name, identity.target)
-    else:
-        lane_ctx = store.resolve_lane(request.project_name, identity.target)
+    lane_ctx = (
+        identity.context
+        if identity.context is not None
+        else store.resolve_lane(request.project_name, identity.target)
+    )
     selected = lane_ctx.record
     raw_meta = _read_meta(selected.artifact_dir)
 

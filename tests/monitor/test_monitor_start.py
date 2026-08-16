@@ -613,6 +613,140 @@ def test_implicit_start_pins_family_member_not_newer_settled_monitor(
     wait_for_done(record.artifacts_dir)
 
 
+def test_implicit_start_from_a_promoted_family_container_pins_the_live_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``SASE_AGENT_NAME`` naming the family container pins the live member."""
+    caller_ws = tmp_path / "ws12"
+    caller_ws.mkdir()
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(12, "ace-run", "046", pid=os.getpid())],
+    )
+    plan_dir = make_starter_agent(
+        "proj",
+        "20260812110000",
+        "046--plan",
+        agent_family="046",
+        model="plan-model",
+        workspace_dir=str(primary),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="046",
+    )
+    (Path(plan_dir) / "done.json").write_text(
+        json.dumps({"outcome": "done"}), encoding="utf-8"
+    )
+    code_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "046--code",
+        agent_family="046",
+        model="caller-model",
+        workspace_dir=str(caller_ws),
+        workspace_num=12,
+        pid=os.getpid(),
+        cl_name="046",
+    )
+    settled_dir = make_starter_agent(
+        "proj",
+        "20260812140000",
+        "046--mon-6",
+        agent_family="046",
+        agent_family_role="monitor",
+        monitor_id="oldmon123456",
+        monitor_state="completed",
+        monitor_settled=True,
+        monitor_command="just check-full",
+        model="monitor-model",
+        workspace_dir=str(primary),
+        workspace_num=0,
+        cl_name="046",
+    )
+    patch_project_records(monkeypatch, [plan_dir, code_dir, settled_dir])
+    monkeypatch.setenv("SASE_AGENT_NAME", "046")
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="true",
+            reason="verify implicit family-container identity",
+            timeout_seconds=30.0,
+            cwd=str(caller_ws),
+            project_name="proj",
+        )
+    )
+
+    assert record.lane == "046"
+    assert record.member_agent_name.startswith("046--mon")
+    meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["parent_timestamp"] == "20260812120000"
+    assert meta["workspace_num"] == 12
+    assert meta["workspace_dir"] == str(caller_ws)
+    assert meta["model"] == "caller-model"
+    assert meta["agent_family"] == "046"
+
+    code_meta = json.loads((Path(code_dir) / "agent_meta.json").read_text())
+    settled_meta = json.loads((Path(settled_dir) / "agent_meta.json").read_text())
+    assert code_meta["name"] == "046--code"
+    assert code_meta["agent_family"] == "046"
+    assert settled_meta["name"] == "046--mon-6"
+    assert settled_meta["workspace_num"] == 0
+
+    wait_for_done(record.artifacts_dir)
+
+
+def test_implicit_start_pins_the_callers_artifacts_dir_over_a_newer_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A caller's own ``SASE_ARTIFACTS_DIR`` outranks a newer family member."""
+    write_project_file("proj")
+    plan_dir = make_starter_agent(
+        "proj",
+        "20260812110000",
+        "046--plan",
+        agent_family="046",
+        model="plan-model",
+        workspace_dir=str(tmp_path),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="046",
+    )
+    code_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "046--code",
+        agent_family="046",
+        model="caller-model",
+        workspace_dir=str(tmp_path),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="046",
+    )
+    patch_project_records(monkeypatch, [plan_dir, code_dir])
+    monkeypatch.setenv("SASE_AGENT_NAME", "046")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", plan_dir)
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="true",
+            reason="verify implicit artifacts-dir pin",
+            timeout_seconds=30.0,
+            cwd=str(tmp_path),
+            project_name="proj",
+            inherit_lane_workspace_claim=False,
+        )
+    )
+
+    assert record.lane == "046"
+    meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["parent_timestamp"] == "20260812110000"
+    assert meta["model"] == "plan-model"
+
+    wait_for_done(record.artifacts_dir)
+
+
 def test_explicit_family_target_still_selects_newest_lane_member(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

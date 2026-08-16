@@ -82,6 +82,27 @@ returns the existing running record; changing the command, cwd, timeout, next ac
 status labels, or output policy is rejected until the active monitor settles. A `lost`
 monitor is never implicitly replayed.
 
+### Resolving the implicit agent
+
+`--agent` / `-a` is only needed to start a monitor outside an agent shell (no
+`SASE_AGENT_NAME` set) or to target a different agent than the caller. From inside an
+agent -- including an epic phase lane and a promoted agent family -- omitting it
+resolves the calling agent shell metadata-first:
+
+1. The caller's own artifacts dir (`SASE_ARTIFACTS_DIR`), when it belongs to the caller.
+2. An exact `SASE_AGENT_NAME` match against an artifact's own name.
+3. The newest non-monitor member of the caller's own family, when `SASE_AGENT_NAME`
+   names a family container rather than a concrete shell -- family members can replace
+   one another inside a single process, leaving `SASE_AGENT_NAME` set to the family
+   while the running shell's own artifacts carry the concrete member name. A settled
+   `--mon` member is never selected here, even when it is the newest member of the
+   family.
+
+An unresolvable caller (no artifacts match any of the above) is a clear error naming
+`-a/--agent`, not a silent fallback to the current working directory or another agent's
+lane. `sase monitor show`/`stop` with no id resolve the same way, against the caller's
+own durable family -- never a parent's or sibling's.
+
 The command is executed through the platform shell (`sh -c` on Unix), so shell quoting,
 redirection, and variable expansion are the caller's responsibility. Monitors are for
 batch commands: do not use them for interactive programs or commands that require a TTY.

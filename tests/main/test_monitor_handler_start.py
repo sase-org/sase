@@ -602,3 +602,62 @@ def test_start_implicit_family_member_uses_caller_workspace_without_agent_flag(
     settled_meta = json.loads(Path(settled_dir, "agent_meta.json").read_text())
     assert settled_meta["name"] == "02i--mon-6"
     assert settled_meta["workspace_num"] == 0
+
+
+def test_start_implicit_family_container_derives_cwd_from_the_live_member(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No ``-C/--cwd``: the cwd comes from the caller's own live member."""
+    caller_ws = tmp_path / "ws12"
+    caller_ws.mkdir()
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(12, "ace-run", "046", pid=os.getpid())],
+    )
+    plan_dir = make_starter_agent(
+        "proj",
+        "20260812110000",
+        "046--plan",
+        agent_family="046",
+        model="plan-model",
+        workspace_dir=str(tmp_path),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="046",
+    )
+    code_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "046--code",
+        agent_family="046",
+        model="caller-model",
+        workspace_dir=str(caller_ws),
+        workspace_num=12,
+        pid=os.getpid(),
+        cl_name="046",
+    )
+    patch_project_records(monkeypatch, [plan_dir, code_dir])
+    _pin_project(monkeypatch)
+    monkeypatch.setenv("SASE_AGENT_NAME", "046")
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify implicit family-container cwd",
+            "-t",
+            "30s",
+            "--json",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    monitor = payload["monitor"]
+    assert monitor["lane"] == "046"
+    assert monitor["cwd"] == str(caller_ws)
