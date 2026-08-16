@@ -7,7 +7,7 @@ from typing import Any
 from textual.app import App, ComposeResult
 
 import sase.ace.tui.modals.models_panel as models_panel
-import sase.ace.tui.modals.models_panel_providers as models_panel_providers
+import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_state
 from sase.ace.testing import wait_for as wait_for_pilot
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
@@ -114,14 +114,14 @@ def patch_alias_views(
 ) -> None:
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
     monkeypatch.setattr(
-        models_panel_providers, "build_alias_views", lambda *a, **k: views
+        models_panel_provider_state, "build_alias_views", lambda *a, **k: views
     )
     monkeypatch.setattr(
         "sase.llm_provider.alias_view.model_alias_bucket_description",
         lambda name: (bucket_descriptions or {}).get(name),
     )
     monkeypatch.setattr(models_panel, "_now", lambda: 0.0)
-    monkeypatch.setattr(models_panel_providers, "_now", lambda: 0.0)
+    monkeypatch.setattr(models_panel_provider_state, "_now", lambda: 0.0)
 
 
 def make_edit_plan(

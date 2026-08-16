@@ -20,6 +20,7 @@ from sase.ace.tui.modals.models_panel_providers import (
     _ProviderRoutingSnapshot,
 )
 import sase.ace.tui.modals.models_panel_providers as models_panel_providers
+import sase.ace.tui.modals.models_panel_provider_modal as models_panel_provider_modal
 from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     EASTERN,
@@ -216,7 +217,7 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_modal, "_now", lambda: FROZEN_NOW)
     disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
     snapshot = _ProviderRoutingSnapshot(
         statuses=(
@@ -263,7 +264,7 @@ async def test_models_panel_provider_routing_until_cleared_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_modal, "_now", lambda: FROZEN_NOW)
     disable = provider_disable("codex", expires_at=None)
     snapshot = _ProviderRoutingSnapshot(
         statuses=(
@@ -304,7 +305,7 @@ async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_modal, "_now", lambda: FROZEN_NOW)
     disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
     snapshot = _ProviderRoutingSnapshot(
         statuses=(

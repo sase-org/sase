@@ -8,6 +8,7 @@ import pytest
 
 import sase.ace.tui.modals.models_panel as models_panel
 import sase.ace.tui.modals.models_panel_providers as models_panel_providers
+import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_state
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
 from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
@@ -44,7 +45,7 @@ def _patch_alias_views(
 ) -> None:
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: factory())
     monkeypatch.setattr(
-        models_panel_providers, "build_alias_views", lambda *a, **k: factory()
+        models_panel_provider_state, "build_alias_views", lambda *a, **k: factory()
     )
 
 
@@ -352,10 +353,10 @@ async def test_models_panel_provider_disabled_png_snapshot(
     )
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: views)
     monkeypatch.setattr(
-        models_panel_providers, "build_alias_views", lambda *a, **k: views
+        models_panel_provider_state, "build_alias_views", lambda *a, **k: views
     )
     monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
-    monkeypatch.setattr(models_panel_providers, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_state, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(
         models_panel_providers,
         "_load_provider_routing_snapshot",

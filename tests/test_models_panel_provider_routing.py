@@ -11,6 +11,8 @@ from textual.widgets import OptionList, Static
 from textual.worker import WorkerState
 
 import sase.ace.tui.modals.models_panel as models_panel_module
+import sase.ace.tui.modals.models_panel_provider_modal as provider_modal
+import sase.ace.tui.modals.models_panel_provider_state as provider_state
 import sase.ace.tui.modals.models_panel_providers as providers
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import (
@@ -183,7 +185,7 @@ def test_panel_sync_row_build_uses_captured_rows_without_provider_read(
     panel._provider_disables = {"codex": disable}
     panel._views = [make_alias_view("default", "default")]
     provider_read = MagicMock(side_effect=AssertionError("synchronous provider read"))
-    monkeypatch.setattr(providers, "get_active_provider_disables", provider_read)
+    monkeypatch.setattr(provider_state, "get_active_provider_disables", provider_read)
     build_alias_views = MagicMock(side_effect=AssertionError("synchronous alias read"))
     monkeypatch.setattr(models_panel_module, "build_alias_views", build_alias_views)
 
@@ -199,10 +201,10 @@ def test_provider_snapshot_worker_path_reads_authoritative_state(monkeypatch) ->
     status_mock = MagicMock(return_value=(_status("codex", active_disable=disable),))
     view_mock = MagicMock(return_value=[make_alias_view("default", "default")])
     color_mock = MagicMock(return_value={"codex": "#10A37F"})
-    monkeypatch.setattr(providers, "get_active_provider_disables", provider_read)
-    monkeypatch.setattr(providers, "build_provider_routing_statuses", status_mock)
-    monkeypatch.setattr(providers, "build_alias_views", view_mock)
-    monkeypatch.setattr(providers, "provider_cli_status_color_map", color_mock)
+    monkeypatch.setattr(provider_state, "get_active_provider_disables", provider_read)
+    monkeypatch.setattr(provider_state, "build_provider_routing_statuses", status_mock)
+    monkeypatch.setattr(provider_state, "build_alias_views", view_mock)
+    monkeypatch.setattr(provider_state, "provider_cli_status_color_map", color_mock)
 
     snapshot = _load_provider_routing_snapshot(100.0)
 
@@ -359,9 +361,9 @@ async def test_provider_modal_disable_accepts_every_duration_result(
     )
     relative_disable = MagicMock(return_value=disable)
     exact_disable = MagicMock(return_value=disable)
-    monkeypatch.setattr(providers, "disable_provider", relative_disable)
-    monkeypatch.setattr(providers, "disable_provider_until", exact_disable)
-    monkeypatch.setattr(providers, "_now", lambda: 100.0)
+    monkeypatch.setattr(provider_modal, "disable_provider", relative_disable)
+    monkeypatch.setattr(provider_modal, "disable_provider_until", exact_disable)
+    monkeypatch.setattr(provider_modal, "_now", lambda: 100.0)
 
     def load_snapshot() -> _ProviderRoutingSnapshot:
         return after if relative_disable.called or exact_disable.called else before
@@ -410,8 +412,8 @@ async def test_provider_modal_disable_writes_and_refreshes_snapshot(
         return after if disable_mock.called else before
 
     load_snapshot_mock = MagicMock(side_effect=load_snapshot)
-    monkeypatch.setattr(providers, "disable_provider", disable_mock)
-    monkeypatch.setattr(providers, "_now", lambda: 100.0)
+    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal, "_now", lambda: 100.0)
     snapshots: list[_ProviderRoutingSnapshot] = []
 
     async with ModelsPanelTestApp().run_test() as pilot:
@@ -463,7 +465,7 @@ async def test_provider_modal_idempotent_disable_does_not_emit_change(
     )
     disable_mock = MagicMock(return_value=after_disable)
     on_snapshot = MagicMock()
-    monkeypatch.setattr(providers, "disable_provider", disable_mock)
+    monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = _ProviderRoutingModal(
@@ -505,7 +507,7 @@ async def test_provider_modal_disable_replacement_with_new_expiry_emits_change(
     on_snapshot = MagicMock()
     disable_mock = MagicMock(return_value=after_disable)
     monkeypatch.setattr(
-        providers,
+        provider_modal,
         "disable_provider",
         disable_mock,
     )
@@ -539,7 +541,7 @@ async def test_provider_modal_enable_writes_and_refreshes_snapshot(monkeypatch) 
     after = _snapshot(_status("claude"), disables={})
     enable_mock = MagicMock(return_value=True)
     on_snapshot = MagicMock()
-    monkeypatch.setattr(providers, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = _ProviderRoutingModal(
@@ -562,7 +564,7 @@ async def test_provider_modal_enable_writes_and_refreshes_snapshot(monkeypatch) 
 async def test_provider_modal_enabled_provider_enable_is_noop(monkeypatch) -> None:
     before = _snapshot(_status("claude"))
     enable_mock = MagicMock()
-    monkeypatch.setattr(providers, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = _ProviderRoutingModal(before, load_snapshot=lambda: before)
@@ -590,7 +592,7 @@ async def test_provider_modal_idempotent_enable_does_not_emit_change(
     )
     enable_mock = MagicMock(return_value=False)
     on_snapshot = MagicMock()
-    monkeypatch.setattr(providers, "enable_provider", enable_mock)
+    monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = _ProviderRoutingModal(
@@ -619,7 +621,7 @@ async def test_provider_modal_write_failure_reports_error(monkeypatch) -> None:
     def fail_disable(*_args, **_kwargs):
         raise RuntimeError("provider store busy")
 
-    monkeypatch.setattr(providers, "disable_provider", fail_disable)
+    monkeypatch.setattr(provider_modal, "disable_provider", fail_disable)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         modal = _ProviderRoutingModal(
@@ -801,7 +803,7 @@ async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> N
         provider_colors={"claude": "#D97757"},
         captured_at=100.0,
     )
-    monkeypatch.setattr(providers, "_now", lambda: 100.0)
+    monkeypatch.setattr(provider_state, "_now", lambda: 100.0)
 
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()

@@ -44,7 +44,7 @@ from .base import OptionListNavigationMixin
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import CUSTOM_SENTINEL, AliasSelectionContext, ModelPickerModal
 from .models_panel_effort_cards import DefaultEffortLevelChoice, DefaultEffortLevelModal
-from .models_panel_providers import disabled_explicit_provider_message
+from .models_panel_provider_state import disabled_explicit_provider_message
 from .models_panel_selector import (
     compose_selector,
     member_rejection,

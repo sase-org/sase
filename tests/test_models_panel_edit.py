@@ -33,6 +33,7 @@ from tests._models_panel_helpers import (
     make_alias_view as _view,
     make_edit_plan as _make_plan,
     patch_alias_views as _patch_views,
+    wait_for,
 )
 
 
@@ -65,7 +66,7 @@ async def test_action_edit_opens_model_picker(monkeypatch: Any) -> None:
     async with _TestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
-        await pilot.pause()
+        await wait_for(pilot, lambda: "medium_worker" in panel._row_by_id)
         _highlight_row(panel, "medium_worker")
         await pilot.press("e")
         await pilot.pause()

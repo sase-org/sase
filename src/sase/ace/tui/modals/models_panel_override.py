@@ -42,7 +42,7 @@ from .models_panel_rows import (
     LaunchModelSettingRow,
     RunnerLimitSettingRow,
 )
-from .models_panel_providers import disabled_explicit_provider_message
+from .models_panel_provider_state import disabled_explicit_provider_message
 from .models_panel_runner_limit_cards import RunnerLimitAction
 from .models_panel_selector import parse_selector_for_display
 from .models_panel_time import (

@@ -306,7 +306,7 @@ async def test_panel_enter_drills_into_bucket(monkeypatch) -> None:
     async with ModelsPanelTestApp().run_test() as pilot:
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
-        await pilot.pause()
+        await wait_for(pilot, lambda: "bucket:research" in panel._row_by_id)
         highlight_row(panel, "bucket:research")
         await pilot.press("enter")
         await pilot.pause()
