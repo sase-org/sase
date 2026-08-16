@@ -16,9 +16,9 @@ from sase.bead.cli_work_from_plan_helpers import (
     neutral_gate_destination_name as _neutral_gate_destination_name,
     ordered_agent_names as _ordered_agent_names,
     preview_waves as _preview_waves,
-    require_linked_epic as _require_linked_epic,
     require_matching_plan_identity as _require_matching_plan_identity,
     require_parent_override_matches_linked as _require_parent_override_matches_linked,
+    resolve_linked_epic as _resolve_linked_epic,
     same_path as _same_path,
 )
 from sase.bead.cli_work_from_plan_render import (
@@ -26,6 +26,7 @@ from sase.bead.cli_work_from_plan_render import (
     render_final as _render_final,
     render_parent_preview as _render_parent_preview,
     render_plan_preview as _render_plan_preview,
+    render_stale_link_replacement as _render_stale_link_replacement,
     render_validation_failure as _render_validation_failure,
 )
 from sase.bead.cli_work_from_plan_resume import (
@@ -188,24 +189,36 @@ def work_from_plan_file(
                     archived_path=archive_destination,
                     no_push=no_push,
                 )
-            existing_epic_id = _linked_bead_id_if_present(archive_destination)
-            if existing_epic_id is not None:
-                linked_issue = _require_linked_epic(
-                    location, existing_epic_id, archive_destination
+            linked_epic_id = _linked_bead_id_if_present(archive_destination)
+            existing_epic_id: str | None = None
+            stale_epic_id: str | None = None
+            if linked_epic_id is not None:
+                linked_issue = _resolve_linked_epic(
+                    location, linked_epic_id, archive_destination
                 )
-                _require_parent_override_matches_linked(
-                    linked_issue,
-                    parent_id,
-                    parent_override=parent,
-                    plan_path=archive_destination,
-                )
-                parent_id = linked_issue.parent_id
-                preview_epic_id = linked_issue.id
+                if linked_issue is None:
+                    stale_epic_id = linked_epic_id
+                else:
+                    existing_epic_id = linked_issue.id
+                    _require_parent_override_matches_linked(
+                        linked_issue,
+                        parent_id,
+                        parent_override=parent,
+                        plan_path=archive_destination,
+                    )
+                    parent_id = linked_issue.parent_id
+                    preview_epic_id = linked_issue.id
             if render:
                 Console().print(
                     "[green]✓[/green] Archived        "
                     f"{archive_destination} (preview; no files written)"
                 )
+                if stale_epic_id is not None:
+                    _render_stale_link_replacement(
+                        stale_epic_id,
+                        archive_destination,
+                        dry_run=True,
+                    )
                 _render_plan_preview(plan, waves)
                 _render_parent_preview(
                     parent_id,
@@ -213,9 +226,17 @@ def work_from_plan_file(
                     overridden=parent is not None,
                 )
                 Console().print("\nDry run complete; no beads or files were changed.")
-                Console().print(
-                    f"Epic: {existing_epic_id or preview_epic_id or 'dry-run'}"
+                preview_label = (
+                    existing_epic_id
+                    or preview_epic_id
+                    or ("new epic" if stale_epic_id is not None else "dry-run")
                 )
+                stale_suffix = (
+                    f" (replaces stale {stale_epic_id})"
+                    if stale_epic_id is not None
+                    else ""
+                )
+                Console().print(f"Epic: {preview_label}{stale_suffix}")
             return _PlanFileWorkResult(
                 archived_plan_path=archive_destination,
                 authored_phase_ids=phase_ids,
@@ -223,6 +244,7 @@ def work_from_plan_file(
                 epic_id=existing_epic_id,
                 parent_id=parent_id,
                 preview_epic_id=preview_epic_id,
+                replaced_stale_epic_id=stale_epic_id,
                 resumed=existing_epic_id is not None,
                 waves=waves,
             )
@@ -333,45 +355,58 @@ def _work_from_plan_file_locked(
             no_push=no_push,
         ) from exc
 
-    existing_epic_id = _linked_bead_id_if_present(archived_path)
-    if existing_epic_id is not None:
+    linked_epic_id = _linked_bead_id_if_present(archived_path)
+    stale_epic_id: str | None = None
+    if linked_epic_id is not None:
         from sase.bead.epic_from_plan import require_epic_parent
 
-        linked_issue = _require_linked_epic(location, existing_epic_id, archived_path)
-        timer.fields["bead_id"] = existing_epic_id
-        if parent_id is not None:
-            with ExitStack() as stack:
-                with timer.stage("bead_project_open"):
-                    project = stack.enter_context(
-                        BeadProject(
-                            location.root,
-                            beads_dirname=location.beads_dirname,
-                        )
-                    )
-                parent_issue = require_epic_parent(
-                    project, parent_id, plan_path=archived_path
-                )
-                if parent_issue is not None:
-                    parent_id = parent_issue.id
-        _require_parent_override_matches_linked(
-            linked_issue,
-            parent_id,
-            parent_override=parent,
-            plan_path=archived_path,
-        )
-        return _resume_linked_epic(
+        linked_issue = _resolve_linked_epic(
             location,
-            store=store,
-            archived_path=archived_path,
-            epic_id=existing_epic_id,
-            authored_phase_ids=phase_ids,
-            yes=yes,
-            yes_to_all=yes_to_all,
-            no_push=no_push,
-            render=render,
-            waves=waves,
-            timer=timer,
+            linked_epic_id,
+            archived_path,
         )
+        if linked_issue is not None:
+            timer.fields["bead_id"] = linked_issue.id
+            if parent_id is not None:
+                with ExitStack() as stack:
+                    with timer.stage("bead_project_open"):
+                        project = stack.enter_context(
+                            BeadProject(
+                                location.root,
+                                beads_dirname=location.beads_dirname,
+                            )
+                        )
+                    parent_issue = require_epic_parent(
+                        project, parent_id, plan_path=archived_path
+                    )
+                    if parent_issue is not None:
+                        parent_id = parent_issue.id
+            _require_parent_override_matches_linked(
+                linked_issue,
+                parent_id,
+                parent_override=parent,
+                plan_path=archived_path,
+            )
+            return _resume_linked_epic(
+                location,
+                store=store,
+                archived_path=archived_path,
+                epic_id=linked_issue.id,
+                authored_phase_ids=phase_ids,
+                yes=yes,
+                yes_to_all=yes_to_all,
+                no_push=no_push,
+                render=render,
+                waves=waves,
+                timer=timer,
+            )
+        stale_epic_id = linked_epic_id
+        if render:
+            _render_stale_link_replacement(
+                stale_epic_id,
+                archived_path,
+                dry_run=False,
+            )
 
     from sase.bead.cli_work_handler import launch_epic_bead_work
     from sase.bead.epic_from_plan import (
@@ -455,6 +490,7 @@ def _work_from_plan_file_locked(
                 commit_plan_update=commit_plan_link,
                 launch_work=launch_created_epic,
                 parent_override=parent,
+                replace_stale_bead_id=stale_epic_id,
                 store=store,
                 primary_root=workspace_dir,
                 expect_prompt_snapshot=expect_prompt_snapshot,
@@ -492,6 +528,7 @@ def _work_from_plan_file_locked(
         dry_run=False,
         epic_id=created.epic.id,
         parent_id=created.epic.parent_id,
+        replaced_stale_epic_id=stale_epic_id,
         phase_bead_ids=tuple(phase.id for phase in created.phases),
         launched_agent_names=launched_names,
         preserved_agent_names=preserved_names,

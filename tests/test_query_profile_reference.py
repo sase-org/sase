@@ -188,7 +188,7 @@ def test_provider_profile_coerces_repeated_string_properties() -> None:
     ]
 
 
-def test_query_facade_exposes_profile_reference_entry_points() -> None:
+def test_query_facade_keeps_profile_batch_compatibility_helper() -> None:
     profile = compile_query_profile(
         ArtifactQuerySchema(
             pane_id="facade",
@@ -198,11 +198,6 @@ def test_query_facade_exposes_profile_reference_entry_points() -> None:
     )
     rows = [{"stable_id": "one", "fields": {"title": "Facade profile"}}]
 
-    expr = query_facade.parse_artifact_query("facade", profile)
-    ctx = query_facade.build_artifact_query_context(profile, rows)
-
-    assert query_facade.evaluate_artifact_query(expr, rows[0], profile) is True
-    assert query_facade.evaluate_artifact_query_with_context(expr, ctx.rows[0], ctx)
     assert query_facade.evaluate_artifact_query_many("facade", rows, profile) == [True]
 
 

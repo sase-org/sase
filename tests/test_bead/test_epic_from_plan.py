@@ -390,6 +390,59 @@ def test_existing_bead_link_refuses_duplicate_creation(project_dir: Path) -> Non
         assert proj.list_issues() == []
 
 
+def test_expected_stale_bead_link_can_be_replaced(project_dir: Path) -> None:
+    plan_path = project_dir / "rollout.md"
+    plan_path.write_text(
+        EPIC_PLAN.replace("tier: epic", "tier: epic\nbead_id: sase-stale"),
+        encoding="utf-8",
+    )
+
+    with BeadProject(project_dir) as proj:
+        result = create_and_launch_epic_from_plan(
+            proj,
+            plan_path=plan_path,
+            plan_ref="rollout.md",
+            commit_plan_update=_write_plan_update,
+            launch_work=lambda _project, _epic_id: True,
+            replace_stale_bead_id="sase-stale",
+        )
+
+        assert result.epic.id != "sase-stale"
+        assert len(proj.list_issues()) == 4
+
+    linked_frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        plan_path.read_text(encoding="utf-8")
+    )
+    assert linked_frontmatter["bead_id"] == result.epic.id
+
+
+def test_stale_bead_link_replacement_requires_exact_existing_value(
+    project_dir: Path,
+) -> None:
+    plan_path = project_dir / "rollout.md"
+    plan_path.write_text(
+        EPIC_PLAN.replace("tier: epic", "tier: epic\nbead_id: sase-other"),
+        encoding="utf-8",
+    )
+
+    with BeadProject(project_dir) as proj:
+        with pytest.raises(RuntimeError, match="expected 'sase-stale'"):
+            create_and_launch_epic_from_plan(
+                proj,
+                plan_path=plan_path,
+                plan_ref="rollout.md",
+                commit_plan_update=_write_plan_update,
+                launch_work=lambda _project, _epic_id: True,
+                replace_stale_bead_id="sase-stale",
+            )
+        assert proj.list_issues() == []
+
+    linked_frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        plan_path.read_text(encoding="utf-8")
+    )
+    assert linked_frontmatter["bead_id"] == "sase-other"
+
+
 def test_invalid_plan_creates_nothing_and_does_not_launch(
     project_dir: Path,
 ) -> None:

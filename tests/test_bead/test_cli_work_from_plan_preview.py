@@ -66,6 +66,45 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     assert "Land    @large" in output
 
 
+def test_plan_file_dry_run_previews_stale_link_replacement_without_writes(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
+    plan.parent.mkdir(parents=True)
+    original = EPIC_PLAN.replace("tier: epic", "tier: epic\nbead_id: sase-999")
+    plan.write_text(original, encoding="utf-8")
+    before = {
+        path.relative_to(project_dir): path.read_bytes()
+        for path in project_dir.rglob("*")
+        if path.is_file()
+    }
+
+    result = work_from_plan_file(
+        str(plan),
+        dry_run=True,
+        yes=False,
+        no_push=False,
+        render=True,
+    )
+
+    after = {
+        path.relative_to(project_dir): path.read_bytes()
+        for path in project_dir.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    assert result.epic_id is None
+    assert result.resumed is False
+    assert result.replaced_stale_epic_id == "sase-999"
+    assert result.archived_plan_path == plan
+    output = capsys.readouterr().out
+    assert "Stale bead link sase-999 missing" in output
+    assert "would create a replacement epic" in output
+    assert "Epic: new epic (replaces stale sase-999)" in output
+    assert "resuming sase-999" not in output
+
+
 def test_plan_file_launch_mode_keeps_legacy_sizeless_epic_resumable(
     project_dir: Path,
     capsys: pytest.CaptureFixture[str],

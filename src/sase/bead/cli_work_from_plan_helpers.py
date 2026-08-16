@@ -86,21 +86,30 @@ def require_matching_plan_identity(
     )
 
 
-def require_linked_epic(
+def resolve_linked_epic(
     location: Any,
     epic_id: str,
     plan_path: Path,
-) -> Issue:
+) -> Issue | None:
+    """Resolve a managed plan link without treating a missing bead as fatal."""
     if not location.beads_dir.is_dir():
-        raise PlanFileWorkError(stale_link_message(epic_id, plan_path))
+        raise PlanFileWorkError(
+            f"plan {plan_path} links bead_id {epic_id}, but the bead store is "
+            "missing; restore the bead store before launching this plan"
+        )
     try:
         with BeadProject(
             location.root,
             beads_dirname=location.beads_dirname,
         ) as project:
             issue = project.show(epic_id)
-    except (FileNotFoundError, KeyError) as exc:
-        raise PlanFileWorkError(stale_link_message(epic_id, plan_path)) from exc
+    except FileNotFoundError as exc:
+        raise PlanFileWorkError(
+            f"plan {plan_path} links bead_id {epic_id}, but the bead store is "
+            "missing; restore the bead store before launching this plan"
+        ) from exc
+    except KeyError:
+        return None
     if issue.issue_type is not IssueType.PLAN or issue.tier is not BeadTier.EPIC:
         raise PlanFileWorkError(
             f"plan {plan_path} links bead_id {epic_id}, but that bead is not an "

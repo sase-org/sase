@@ -137,8 +137,9 @@ def test_retrying_original_file_preserves_archived_bead_link(
         assert len(project.list_issues()) == 4
 
 
-def test_plan_file_rejects_missing_linked_bead(
+def test_plan_file_replaces_missing_linked_bead(
     project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
     plan.parent.mkdir(parents=True)
@@ -146,8 +147,65 @@ def test_plan_file_rejects_missing_linked_bead(
         EPIC_PLAN.replace("tier: epic", "tier: epic\nbead_id: sase-999"),
         encoding="utf-8",
     )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    launches: list[str] = []
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda _project, epic_id, **_kwargs: not launches.append(epic_id),
+    )
 
-    with pytest.raises(PlanFileWorkError, match="remove the stale bead_id"):
+    result = work_from_plan_file(
+        str(plan),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    assert result.epic_id is not None
+    epic_id = result.epic_id
+    assert epic_id != "sase-999"
+    assert result.replaced_stale_epic_id == "sase-999"
+    assert result.resumed is False
+    assert launches == [epic_id]
+    assert result.phase_bead_ids == (
+        f"{epic_id}.1",
+        f"{epic_id}.2",
+        f"{epic_id}.3",
+    )
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        plan.read_text(encoding="utf-8")
+    )
+    assert frontmatter["bead_id"] == epic_id
+    with BeadProject(project_dir) as project:
+        with pytest.raises(KeyError):
+            project.show("sase-999")
+        assert project.show(epic_id).tier is BeadTier.EPIC
+        assert [phase.id for phase in project.get_epic_children(epic_id)] == [
+            *result.phase_bead_ids
+        ]
+
+
+def test_plan_file_rejects_linked_non_epic_bead(
+    project_dir: Path,
+) -> None:
+    with BeadProject(project_dir) as project:
+        task = project.create("Follow-up", IssueType.TASK, size="small")
+    plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        EPIC_PLAN.replace("tier: epic", f"tier: epic\nbead_id: {task.id}"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PlanFileWorkError, match="not an epic plan bead"):
         work_from_plan_file(
             str(plan),
             dry_run=False,
@@ -196,6 +254,47 @@ def test_plan_file_launch_failure_rolls_back_for_resume(
         archived.read_text(encoding="utf-8")
     )
     assert "bead_id" not in frontmatter
+
+
+def test_stale_link_replacement_launch_failure_restores_stale_link(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = project_dir / "sdd" / "plans" / "202607" / "rollout.md"
+    plan.parent.mkdir(parents=True)
+    original = EPIC_PLAN.replace("tier: epic", "tier: epic\nbead_id: sase-999")
+    plan.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            BeadWorkError("agent launch failed")
+        ),
+    )
+
+    with pytest.raises(PlanFileWorkError, match="agent launch failed"):
+        work_from_plan_file(
+            str(plan),
+            dry_run=False,
+            yes=True,
+            no_push=True,
+            render=False,
+        )
+
+    with BeadProject(project_dir) as project:
+        assert project.list_issues() == []
+    assert plan.read_text(encoding="utf-8") == original
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        plan.read_text(encoding="utf-8")
+    )
+    assert frontmatter["bead_id"] == "sase-999"
 
 
 def test_zero_spawn_after_publication_commits_and_publishes_rollback(

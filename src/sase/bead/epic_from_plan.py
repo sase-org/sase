@@ -70,6 +70,7 @@ def create_and_launch_epic_from_plan(
     commit_plan_update: PlanUpdateCommitter,
     launch_work: EpicWorkLauncher,
     parent_override: str | None = None,
+    replace_stale_bead_id: str | None = None,
     store: SddStore | None = None,
     primary_root: Path | None = None,
     expect_prompt_snapshot: bool = False,
@@ -103,7 +104,14 @@ def create_and_launch_epic_from_plan(
 
     frontmatter, _body, _had_frontmatter = parse_frontmatter(original_content)
     existing_bead_id = frontmatter.get("bead_id")
-    if existing_bead_id not in (None, ""):
+    if replace_stale_bead_id is not None:
+        if str(existing_bead_id) != replace_stale_bead_id:
+            raise EpicFromPlanError(
+                "approved epic plan bead_id changed while replacing a stale "
+                f"link: expected {replace_stale_bead_id!r}, found "
+                f"{existing_bead_id!r}; refusing to create a duplicate epic"
+            )
+    elif existing_bead_id not in (None, ""):
         raise EpicFromPlanError(
             f"approved epic plan already links bead_id {existing_bead_id!r}; "
             "refusing to create a duplicate epic"

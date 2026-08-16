@@ -1,10 +1,10 @@
 """Rust-routed corpus facade for profile-driven Artifacts pane queries.
 
 Wraps the generic ``compile_corpus_with_profile`` / ``compile_query_with_profile``
-/ ``evaluate_many`` / ``parse_query_with_profile`` Rust bindings with
-immutable row/index/result records so flat Artifacts panes route production
-filtering through Rust handles. Row coercion is shared with the Python reference
-evaluator via
+/ ``evaluate_many`` / ``parse_query_with_profile`` /
+``canonicalize_query_with_profile`` Rust bindings with immutable row/index/
+result records so flat Artifacts panes route production filtering through
+Rust handles. Row coercion is shared with the Python reference evaluator via
 :func:`sase.ace.query.profile_evaluator.coerce_artifact_query_row`, so the
 two evaluators always agree on what one row means; the reference evaluator in
 :mod:`sase.ace.query.profile_evaluator` stays parity-test-only, not a
@@ -18,7 +18,10 @@ Rust's parser/canonicalizer treat a ``date``-kind value as opaque text, so
 :func:`sase.ace.query.profile_reference.canonical_query_for_profile` (which
 resolves relative dates to epoch seconds) before handing the *already*
 literal canonical text to Rust for the actual batch match. This module's own
-:func:`parse_artifact_query` wrapper stays available for parser parity testing.
+:func:`_parse_artifact_query` / :func:`_canonicalize_artifact_query` wrappers
+stay available for parity testing and non-date profiles, where they agree
+with the Python reference byte-for-byte, but production callers that need a
+date-aware canonical query should go through the reference path directly.
 
 Callers build one :class:`ArtifactQueryIndex` per pane snapshot off the
 Textual event loop, then evaluate many queries against it as the user types.
@@ -164,12 +167,19 @@ def evaluate_artifact_query_many(
     )
 
 
-def parse_artifact_query(query: str, profile: CompiledQueryProfile) -> QueryExpr:
+def _parse_artifact_query(query: str, profile: CompiledQueryProfile) -> QueryExpr:
     """Parse *query* under *profile* through the Rust parser."""
 
     rust_parse = require_rust_binding("parse_query_with_profile")
     record: dict[str, Any] = rust_parse(query, profile.to_wire())
     return query_expr_from_wire(query_expr_wire_from_dict(record))
+
+
+def _canonicalize_artifact_query(query: str, profile: CompiledQueryProfile) -> str:
+    """Canonicalize *query* under *profile* through the Rust parser."""
+
+    rust_canonicalize = require_rust_binding("canonicalize_query_with_profile")
+    return rust_canonicalize(query, profile.to_wire())
 
 
 def _row_wire(row: ArtifactQueryRow) -> dict[str, Any]:
@@ -216,5 +226,4 @@ __all__ = [
     "ArtifactQueryResult",
     "compile_artifact_query_index",
     "evaluate_artifact_query_many",
-    "parse_artifact_query",
 ]

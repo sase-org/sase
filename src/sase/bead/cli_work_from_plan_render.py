@@ -85,6 +85,20 @@ def render_prefix_repair(stored: str, corrected: str) -> None:
     )
 
 
+def render_stale_link_replacement(
+    stale_epic_id: str,
+    archived_path: Path,
+    *,
+    dry_run: bool,
+) -> None:
+    """Render a missing managed ``bead_id`` replacement notice."""
+    action = "would create" if dry_run else "creating"
+    Console().print(
+        f"[yellow]↺[/yellow] Stale bead link {stale_epic_id} missing · "
+        f"{action} a replacement epic for {archived_path}"
+    )
+
+
 def render_created_beads(
     issue: Any,
     phases: list[Any],

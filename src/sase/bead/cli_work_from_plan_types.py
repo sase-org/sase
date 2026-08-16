@@ -77,6 +77,7 @@ class PlanFileWorkResult:
     epic_id: str | None = None
     parent_id: str | None = None
     preview_epic_id: str | None = None
+    replaced_stale_epic_id: str | None = None
     phase_bead_ids: tuple[str, ...] = ()
     launched_agent_names: tuple[str, ...] = ()
     preserved_agent_names: tuple[str, ...] = ()
@@ -93,6 +94,7 @@ class PlanFileWorkResult:
             "epic_id": self.epic_id,
             "parent_id": self.parent_id,
             "preview_epic_id": self.preview_epic_id,
+            "replaced_stale_epic_id": self.replaced_stale_epic_id,
             "phase_bead_ids": list(self.phase_bead_ids),
             "authored_phase_ids": list(self.authored_phase_ids),
             "archived_plan_path": str(self.archived_plan_path),
