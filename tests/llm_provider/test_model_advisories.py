@@ -119,7 +119,7 @@ def test_registry_publishes_the_contributor_advisory() -> None:
 def test_tier_mapping_never_routes_to_an_advisory_model() -> None:
     """SASE must not opt a user into training terms on their behalf.
 
-    ``small`` is what ``@cheap``/``@cheaper`` reach for automatically, so a
+    ``small`` phases route directly to the ``@small`` built-in alias, so a
     future cost optimization pointing a tier at the Contributor model would
     silently ship proprietary source into Meta's training corpus.
     """

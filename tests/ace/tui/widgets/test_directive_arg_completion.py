@@ -385,17 +385,17 @@ def test_qualified_model_at_suffix_routes_to_effort_completion() -> None:
 def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
     catalog = [
         _ModelCompletionEntry(
-            value="@medium_worker",
-            display="@medium_worker",
+            value="@medium",
+            display="@medium",
             description="Medium phase worker model.",
             kind="implicit_alias",
-            aliases=("medium_worker",),
+            aliases=("medium",),
             alias_kind="role",
             target_provider="codex",
             target_model="gpt-5.6-sol",
             target_effort="high",
             provenance="configured",
-            reference="default",
+            reference="large",
             reference_effort="medium",
             pool_available=2,
             pool_total=3,
@@ -408,14 +408,14 @@ def test_model_alias_candidate_carries_resolution_and_provenance() -> None:
 
     metadata = model_metadata(candidates[0])
     assert metadata == ModelCompletionMetadata(
-        value="@medium_worker",
+        value="@medium",
         kind="implicit_alias",
         alias_kind="role",
         target_provider="codex",
         target_model="gpt-5.6-sol",
         target_effort="high",
         provenance="configured",
-        reference="default",
+        reference="large",
         reference_effort="medium",
         pool_available=2,
         pool_total=3,

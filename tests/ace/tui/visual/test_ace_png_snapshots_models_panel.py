@@ -207,13 +207,13 @@ async def test_models_panel_smartest_max_effort_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "smartest")
+        _highlight_row(page, "xlarge")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "models_panel_smartest_max_effort_120x40",
-            title="ACE Launch Control (maximum-effort smartest target)",
+            title="ACE Launch Control (maximum-effort xlarge target)",
         )
 
 
@@ -234,7 +234,7 @@ async def test_models_panel_pool_effort_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "cheaper")
+        _highlight_row(page, "xsmall")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -262,7 +262,7 @@ async def test_models_panel_long_pool_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "cheaper")
+        _highlight_row(page, "xsmall")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -314,7 +314,7 @@ async def test_models_panel_pool_suspended_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "cheaper")
+        _highlight_row(page, "xsmall")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -361,13 +361,13 @@ async def test_models_panel_provider_disabled_png_snapshot(
             provider_status(
                 "claude",
                 model_count=11,
-                affected_aliases=("default", "smarter", "smart"),
+                affected_aliases=("small", "large", "xlarge"),
             ),
             provider_status(
                 "codex",
                 model_count=7,
                 active_disable=disable,
-                affected_aliases=("medium_worker", "cheaper", "legacy_blog"),
+                affected_aliases=("medium", "xsmall", "legacy_blog"),
             ),
             provider_status("gemini", model_count=2, cli_available=False),
         ),
@@ -422,7 +422,7 @@ async def test_models_panel_provider_disabled_png_snapshot(
             provider_line_is_visible,
             description="Launch Control provider disable title line",
         )
-        _highlight_row(page, "medium_worker")
+        _highlight_row(page, "medium")
         await wait_for_state(
             page,
             paused_override_row_is_visible,
@@ -452,7 +452,7 @@ async def test_models_panel_custom_builtin_warning_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "small_worker")
+        _highlight_row(page, "small")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

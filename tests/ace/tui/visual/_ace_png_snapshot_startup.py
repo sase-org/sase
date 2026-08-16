@@ -93,6 +93,10 @@ def patch_startup_loaders(
     from sase.ace.tui.models.patch_groups import PatchGroupingMode
     from sase.ace.tui.widgets import llm_override_indicator, notification_tab_style
     from sase.llm_provider import temporary_override
+    from sase.llm_provider.model_launch_settings import (
+        LaunchModelSettingSnapshot,
+        launch_model_setting_override_key,
+    )
     from sase.updates import IncomingCommits
 
     state = AgentLoadState(
@@ -174,6 +178,24 @@ def patch_startup_loaders(
     def _fake_get_active_temporary_override(*_args: Any, **_kwargs: Any) -> None:
         return None
 
+    def _fake_peek_active_temporary_override(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def _fake_build_launch_model_setting_snapshot(
+        field: Any, *_args: Any, **_kwargs: Any
+    ) -> LaunchModelSettingSnapshot:
+        return LaunchModelSettingSnapshot(
+            field=field,
+            config_path=f"llm_provider.{field}",
+            raw_value="codex/visual-snapshot-model",
+            provider="codex",
+            model="visual-snapshot-model",
+            effort=None,
+            provenance="shipped",
+            referenced_alias=None,
+            override_key=launch_model_setting_override_key(field),
+        )
+
     if not use_real_agent_loader:
         monkeypatch.setattr(
             _loading, "load_agents_from_disk_with_state", _fake_load_agents
@@ -245,6 +267,16 @@ def patch_startup_loaders(
         llm_override_indicator,
         "get_active_temporary_override",
         _fake_get_active_temporary_override,
+    )
+    monkeypatch.setattr(
+        llm_override_indicator,
+        "peek_active_temporary_override",
+        _fake_peek_active_temporary_override,
+    )
+    monkeypatch.setattr(
+        llm_override_indicator,
+        "build_launch_model_setting_snapshot",
+        _fake_build_launch_model_setting_snapshot,
     )
     monkeypatch.setattr(
         update_toast,

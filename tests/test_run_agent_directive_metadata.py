@@ -150,7 +150,7 @@ def test_preserved_agent_metadata_keeps_model_alias(tmp_path: Path) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     (artifacts_dir / "agent_meta.json").write_text(
-        '{"model":"opus","llm_provider":"claude","model_alias":"medium_worker"}',
+        '{"model":"opus","llm_provider":"claude","model_alias":"medium"}',
         encoding="utf-8",
     )
 
@@ -158,7 +158,7 @@ def test_preserved_agent_metadata_keeps_model_alias(tmp_path: Path) -> None:
 
     assert preserved["model"] == "opus"
     assert preserved["llm_provider"] == "claude"
-    assert preserved["model_alias"] == "medium_worker"
+    assert preserved["model_alias"] == "medium"
 
 
 def test_preserved_agent_metadata_keeps_workspace_num(tmp_path: Path) -> None:

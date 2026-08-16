@@ -106,7 +106,7 @@ def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
             model="opus",
             llm_provider="claude",
             reasoning_effort="xhigh",
-            model_alias="large_worker",
+            model_alias="large",
         ),
         _family_member(
             "--code",
@@ -114,7 +114,7 @@ def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
             model="sonnet",
             llm_provider="claude",
             reasoning_effort="high",
-            model_alias="medium_worker",
+            model_alias="medium",
         ),
         _family_member(
             "--reviewer",
@@ -129,8 +129,8 @@ def test_mixed_alias_family_keeps_separator_column_aligned() -> None:
     lines = ResponsiveModelSection(lanes).logical_text.plain.splitlines()
 
     assert lines == [
-        "Model: --plan     · CLAUDE(opus) @ xhigh ← @large_worker",
-        "       --code     · CLAUDE(sonnet) @ high ← @medium_worker",
+        "Model: --plan     · CLAUDE(opus) @ xhigh ← @large",
+        "       --code     · CLAUDE(sonnet) @ high ← @medium",
         "       --reviewer · CODEX(gpt-5.2) @ medium",
     ]
     dot_positions = {line.index("·") for line in lines}

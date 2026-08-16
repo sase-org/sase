@@ -20,7 +20,7 @@ def test_enrich_filesystem_reads_effort(tmp_path: Path) -> None:
                 "model": "opus",
                 "llm_provider": "claude",
                 "reasoning_effort": "xhigh",
-                "model_alias": "medium_worker",
+                "model_alias": "medium",
             }
         ),
         encoding="utf-8",
@@ -30,7 +30,7 @@ def test_enrich_filesystem_reads_effort(tmp_path: Path) -> None:
     enrich_agent_from_meta(agent, str(tmp_path))
 
     assert agent.reasoning_effort == "xhigh"
-    assert agent.model_alias == "medium_worker"
+    assert agent.model_alias == "medium"
 
 
 def test_enrich_wire_reads_effort() -> None:
@@ -39,13 +39,13 @@ def test_enrich_wire_reads_effort() -> None:
         model="opus",
         llm_provider="claude",
         reasoning_effort="xhigh",
-        model_alias="medium_worker",
+        model_alias="medium",
     )
 
     enrich_agent_from_meta_wire(agent, meta, None)
 
     assert agent.reasoning_effort == "xhigh"
-    assert agent.model_alias == "medium_worker"
+    assert agent.model_alias == "medium"
 
 
 def test_enrich_filesystem_without_effort_leaves_none(tmp_path: Path) -> None:
@@ -74,7 +74,7 @@ def test_rust_scan_projects_reasoning_effort(tmp_path: Path) -> None:
                 "model": "opus",
                 "llm_provider": "claude",
                 "reasoning_effort": "xhigh",
-                "model_alias": "medium_worker",
+                "model_alias": "medium",
             }
         ),
         encoding="utf-8",
@@ -110,6 +110,6 @@ def test_rust_scan_projects_reasoning_effort(tmp_path: Path) -> None:
     record = snapshot.records[0]
     assert record.agent_meta is not None
     assert record.agent_meta.reasoning_effort == "xhigh"
-    assert record.agent_meta.model_alias == "medium_worker"
+    assert record.agent_meta.model_alias == "medium"
     assert record.prompt_steps[0].reasoning_effort == "high"
     assert record.prompt_steps[0].model_alias == "workflow_plan"

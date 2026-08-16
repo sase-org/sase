@@ -149,7 +149,7 @@ async def test_default_model_without_plan_file_uses_medium_fallback() -> None:
 
             model_display = modal.query_one("#coder-model-display", Static)
             assert "Follow-up — CLAUDE(opus)" in str(model_display.render())
-    resolve_mock.assert_any_call("@medium_worker")
+    resolve_mock.assert_any_call("@medium")
 
 
 async def test_epic_model_is_configured_by_plan_frontmatter() -> None:

@@ -13,13 +13,11 @@ from sase.llm_provider.model_label import (
 OWNERSHIP_ACCENT = "#D7AF87"
 
 MODEL_ALIAS_KIND_LABELS: dict[str, str] = {
-    "default": "default",
     "role": "role",
     "user": "custom",
 }
 
 MODEL_ALIAS_KIND_STYLES: dict[str, str] = {
-    "default": "bold #87D7FF",
     "role": "bold #87D7AF",
     "user": f"bold {OWNERSHIP_ACCENT}",
 }

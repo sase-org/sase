@@ -23,7 +23,7 @@ from .plan_approval_results import (
 def _tale_followup_lane(plan_file: str | None) -> tuple[str | None, str]:
     """Resolve the default follow-up model for the plan under review."""
     from sase.llm_provider.config import (
-        MEDIUM_WORKER_MODEL_ALIAS_NAME,
+        MEDIUM_MODEL_ALIAS_NAME,
         role_model_directive_value,
     )
     from sase.llm_provider.registry import resolve_model_provider
@@ -36,7 +36,7 @@ def _tale_followup_lane(plan_file: str | None) -> tuple[str | None, str]:
         except Exception:
             return None, "invalid tale plan"
     else:
-        directive = role_model_directive_value(MEDIUM_WORKER_MODEL_ALIAS_NAME)
+        directive = role_model_directive_value(MEDIUM_MODEL_ALIAS_NAME)
     try:
         return resolve_model_provider(directive)
     except Exception:

@@ -1446,8 +1446,8 @@ Directives use the same argument syntax as xprompt references:
 %model:muse/muse-spark-1.2   # Meta Muse Code — explicit-only, never auto-detected
 %model:grok/grok-4.6         # xAI Grok Build — explicit-only, never auto-detected
 %model:@fast                 # Configured/implicit model alias; Model shows ← @fast
-%model(opus, medium_worker=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
-%model(medium_worker=@default) # Leave this agent on the default; route medium follow-ups through @default
+%model(opus, medium=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
+%model(medium=@large) # Leave this agent on its normal launch model; route medium follow-ups through @large
 %effort:xhigh                # Set the reasoning-effort level for this prompt
 %e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
@@ -1557,15 +1557,15 @@ canonical model name, a configured alias, or a qualified `provider/model` value 
 from a provider-scoped menu; provider short aliases are only filter/display hints.
 
 Model aliases are listed beneath the concrete model names. Each alias row shows its kind
-(`default`, `role`, or `custom`), the `PROVIDER(model)` target it currently resolves to
-— with an ` @ <effort>` suffix when the alias carries one — and its provenance
-(`configured`, `implicit → @fallback`, `override`, plus a `· pool 2/3` chip for
-round-robin selectors). Typing `@` right after the colon (`%m:@`) narrows the menu to
-aliases only; a bare partial such as `de` still matches `@default` through its bare
-name, but always after the model rows. The ACE menu reflects active temporary alias
-overrides, while the LSP's catalog is a launch-time snapshot that does not — restart the
-LSP to pick up config changes, and use the ACE [Launch Control](ace.md#launch-control)
-(`,m`) to inspect live override state.
+(`role` or `custom`), the `PROVIDER(model)` target it currently resolves to — with an
+` @ <effort>` suffix when the alias carries one — and its provenance (`configured`,
+`implicit → @fallback`, `override`, plus a `· pool 2/3` chip for round-robin selectors).
+Typing `@` right after the colon (`%m:@`) narrows the menu to aliases only; a bare
+partial such as `me` still matches `@medium` through its bare name, but always after the
+model rows. The ACE menu reflects active temporary alias overrides, while the LSP's
+catalog is a launch-time snapshot that does not — restart the LSP to pick up config
+changes, and use the ACE [Launch Control](ace.md#launch-control) (`,m`) to inspect live
+override state.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in
 the broad `%model:` menu. Accepting one drills into that provider and reopens completion
@@ -1586,34 +1586,36 @@ The parenthesized `%model` form accepts keyword arguments that temporarily repla
 aliases for one launch lineage:
 
 ```text
-%model(opus, medium_worker=codex/gpt-5.6-sol, small_worker=@cheap)
-%model(xsmall_worker=@cheaper, medium_worker=@default@high)
-%model(large_worker=@smart, xlarge_worker=@smartest)
-%model(default=@medium_worker)
+%model(opus, medium=codex/gpt-5.6-sol, small=@xsmall)
+%model(xsmall=@small, medium=@large@high)
+%model(large=@xlarge, xlarge=codex/gpt-5.6-sol@max)
 ```
 
 The optional positional value selects the current agent's model. Each `alias=value`
-entry changes how that bare alias resolves. Without a positional value, the current
-agent still starts from the normal default, but that resolution uses the map:
-`default=...` changes it directly, while a size-specific phase-worker keyword affects
-only that phase or task route. The size-specific worker aliases are:
+entry changes how that bare alias resolves — including for the current agent itself:
+without a positional value, the agent falls through to `llm_provider.default_model`
+(shipped as `@large`), so a `large=...` entry in the map reaches that launch too, on top
+of any phase or task route derived from the `large` size. `%model(...)` keys must be
+alias names; it cannot key on `default_model`, `epic_lander_model`,
+`big_epic_lander_model`, or any other retired role name — set those scalar fields under
+`llm_provider` directly instead. The size-specific worker routes use the five built-in
+size aliases directly:
 
-| Route           | Alias           |
-| --------------- | --------------- |
-| `xsmall` worker | `xsmall_worker` |
-| `small` worker  | `small_worker`  |
-| `medium` worker | `medium_worker` |
-| `large` worker  | `large_worker`  |
-| `xlarge` worker | `xlarge_worker` |
+| Route           | Alias    |
+| --------------- | -------- |
+| `xsmall` worker | `xsmall` |
+| `small` worker  | `small`  |
+| `medium` worker | `medium` |
+| `large` worker  | `large`  |
+| `xlarge` worker | `xlarge` |
 
-Legacy tasks without stored size metadata normalize to the `small_worker` route at
-launch. See [Implicit role aliases](llms.md#implicit-role-aliases) for the current
-shipped defaults.
+Legacy tasks without stored size metadata normalize to the `small` route at launch. See
+[Implicit role aliases](llms.md#implicit-role-aliases) for the current shipped defaults.
 
 Keys must be known builtin or custom alias names without `@`; values may be concrete
 models, `provider/model` targets, quoted targets, xprompt references, or another alias
 with `@`. A trailing reasoning-effort suffix is supported on a single-target value,
-including an alias reference such as `@default@high`.
+including an alias reference such as `@large@high`.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE
 records the map in agent metadata and carries it through its plan/coder follow-up path.
@@ -1623,13 +1625,12 @@ Ordinary nested launches do not inherit the map. This lineage often overlaps an
 [Agent Family](agent_families.md), but the terms are not interchangeable.
 
 At each alias hop a launch-scoped value wins over a machine-wide temporary override and
-the configured or implicit alias value. The `default` key wins over the machine-wide
-default override for this lineage.
+the configured or implicit alias value.
 
 The launch preview shows the resulting map before approval. Invalid alias names, missing
 values, duplicate keys, self-references, and ambiguous bare alias values fail with a
-directive error. Use `@medium_worker`, not `medium_worker`, when the value should
-reference another alias.
+directive error. Use `@medium`, not `medium`, when the value should reference another
+alias.
 
 A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g.
 `%model:opus@xhigh`); the effort is split off the clean model and behaves exactly like a
@@ -2033,13 +2034,12 @@ planner's chat transcript — the plan file is the hand-off artifact. Set
 planner's session. The coder prompt also carries a `%model:` directive. A model chosen
 at approval time (or a `%model:`/`%m` directive inside a custom coder prompt) wins. When
 no model is chosen, the follow-up validates the tale plan it will actually hand off and
-routes by that plan's size: `%model:@xsmall_worker`, `%model:@small_worker`,
-`%model:@medium_worker`, `%model:@large_worker`, or `%model:@xlarge_worker`. Tale
-approvals validate the committed SDD tale path when the commit succeeds, otherwise the
-original archived plan path. Legacy tale plans without size metadata normalize to
-`@medium_worker`. The recorded follow-up metadata resolves the alias to the concrete
-model the coder actually launches with and keeps the size alias as `← @<size>_worker`
-launch provenance in the coder's `Model:` field.
+routes by that plan's size: `%model:@xsmall`, `%model:@small`, `%model:@medium`,
+`%model:@large`, or `%model:@xlarge`. Tale approvals validate the committed SDD tale
+path when the commit succeeds, otherwise the original archived plan path. Legacy tale
+plans without size metadata normalize to `@medium`. The recorded follow-up metadata
+resolves the alias to the concrete model the coder actually launches with and keeps the
+size alias as `← @<size>` launch provenance in the coder's `Model:` field.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus
 recent approved and inferred rejected archived plans. Use the `id_prefix` from a

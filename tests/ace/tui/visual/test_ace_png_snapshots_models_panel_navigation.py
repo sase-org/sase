@@ -81,7 +81,7 @@ async def _open_alias_edit_picker(page: AcePage) -> None:
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
     await _wait_for_models_panel_ready(page)
-    _highlight_row(page, "xsmall_worker")
+    _highlight_row(page, "xsmall")
     await page.press("e")
     await page.expect_modal("ModelPickerModal")
 
@@ -93,7 +93,7 @@ async def _open_override_picker(page: AcePage) -> None:
     page.app.push_screen(ModelsPanel())
     await page.expect_modal("ModelsPanel")
     await _wait_for_models_panel_ready(page)
-    _highlight_row(page, "xsmall_worker")
+    _highlight_row(page, "xsmall")
     await page.press("o")
     await page.expect_modal("ModelPickerModal")
 
@@ -110,16 +110,16 @@ async def test_models_panel_alias_picker_filtered_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_alias_edit_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
-        picker_input.value = "@medium_worker"
+        picker_input.value = "@medium"
         picker_list = page.app.screen.query_one("#model-picker-list", OptionList)
         await wait_for_state(
             page,
             lambda: (
                 picker_list.highlighted is not None
                 and picker_list.get_option_at_index(picker_list.highlighted).id
-                == "@medium_worker"
+                == "@medium"
             ),
-            description="filtered @medium_worker alias highlighted",
+            description="filtered @medium alias highlighted",
         )
         await wait_for_visual_idle(page)
 
@@ -148,7 +148,7 @@ async def test_models_panel_alias_picker_reordered_png_snapshot(
             page,
             lambda: (
                 "__header_claude__" in {option.id for option in picker_list.options}
-                and "@medium_worker" in {option.id for option in picker_list.options}
+                and "@medium" in {option.id for option in picker_list.options}
             ),
             description="claude provider rows and aliases visible",
         )
@@ -230,20 +230,20 @@ async def test_models_panel_alias_selection_effort_step_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_override_picker(page)
         picker_input = page.app.screen.query_one("#model-picker-filter", Input)
-        picker_input.value = "@medium_worker"
+        picker_input.value = "@medium"
         picker_list = page.app.screen.query_one("#model-picker-list", OptionList)
         await wait_for_state(
             page,
             lambda: (
                 picker_list.highlighted is not None
                 and picker_list.get_option_at_index(picker_list.highlighted).id
-                == "@medium_worker"
+                == "@medium"
             ),
-            description="override picker @medium_worker alias highlighted",
+            description="override picker @medium alias highlighted",
         )
         await page.press("enter")
         await page.expect_modal("DefaultEffortLevelModal")
-        await wait_for_svg_contains(page, "Append an effort to @medium_worker")
+        await wait_for_svg_contains(page, "Append an effort to @medium")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -268,7 +268,7 @@ async def test_models_panel_worker_override_drilled_in_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "medium_worker")
+        _highlight_row(page, "medium")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -293,7 +293,7 @@ async def test_models_panel_worker_drilled_in_png_snapshot(
         page.app.push_screen(ModelsPanel())
         await page.expect_modal("ModelsPanel")
         await _wait_for_models_panel_ready(page)
-        _highlight_row(page, "medium_worker")
+        _highlight_row(page, "medium")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

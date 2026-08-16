@@ -590,7 +590,7 @@ with mint, sky, gold, rose, and violet chips whose text remains the primary sign
 Valid older plans and phase beads with an omitted size use the stable `small` fallback,
 while an invalid authored value never produces a confident chip or count. The Plans pane
 also uses that shared display fallback for a legacy standalone task with no stored size;
-launch routing uses the same `@small_worker` fallback.
+launch routing uses the same `@small` fallback.
 
 | Surface                                                                  | Size contract                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -2569,28 +2569,24 @@ one or more providers are temporarily disabled, the title adds a compact
 `until cleared` for a no-expiry disable.
 
 The alias area is split into **Built-in size aliases** and **Your aliases**. Each header
-reports the aliases represented by its rows (including members of collapsed buckets) and
-its bucket count. This sectioning groups the deterministic order without changing it:
-`default`, `epic_lander`, `big_epic_lander`, the built-in `worker` bucket, `smartest`,
-`smarter`, `smart`, `cheap`, `cheaper`, `cheapest`, then custom buckets and ungrouped
-user aliases in alphabetical order. If there are no custom aliases or buckets, **Your
-aliases** remains visible with a non-selectable hint naming
-`llm_provider.model_aliases.custom`.
+reports the aliases represented by its rows (including members of collapsed custom
+buckets) and its bucket count. **Built-in size aliases** always lists exactly five rows
+in size order — `@xsmall`, `@small`, `@medium`, `@large`, `@xlarge` — with no bucket to
+drill into; each row is edited, overridden, reset, or cleared directly like any other
+alias row. **Your aliases** holds only user-owned aliases and custom buckets, in
+alphabetical order. If there are no custom aliases or buckets, **Your aliases** remains
+visible with a non-selectable hint naming `llm_provider.model_aliases.custom`.
 
-One built-in bucket is always present. `worker` groups `xsmall_worker`, `small_worker`,
-`medium_worker`, `large_worker`, and `xlarge_worker`, followed by any custom members
-assigned to that display bucket. Each collapsed row reports the member count and active
-overrides, while the description strip summarizes distinct effective models. Open any
-bucket with `l`, Right, or Enter; return with `h` or Left. Inside the bucket, each alias
-keeps its own configured/implicit state and can be edited, reset, overridden, or cleared
-independently. A configured description under `model_aliases.buckets.worker` replaces
-the default; custom aliases tagged with that bucket name coalesce into the matching row.
-A built-in bucket containing custom members appends a tan `· <n> custom` chip after its
-warning and override chips. A custom bucket renders its bucket state in the ownership
-accent. The drilled-in title ends with `· built-in bucket` or `· custom bucket`, plus
-the ownership glyph for custom buckets. A mixed bucket shows **Built-in** and **Custom**
-headers around its members with one blank row between them; homogeneous buckets omit
-those redundant headers and spacers.
+Custom buckets group your own aliases under a shared display name, either through
+`model_aliases.buckets.<name>` or a custom alias's `bucket:` tag; there is no built-in
+bucket for a custom alias to join, so every bucket that appears is entirely user-owned.
+Each collapsed bucket row reports the member count and active overrides, while the
+description strip summarizes distinct effective models. Open a bucket with `l`, Right,
+or Enter; return with `h` or Left. Inside the bucket, each alias keeps its own
+configured/implicit state and can be edited, reset, overridden, or cleared
+independently. A configured description under `model_aliases.buckets.<name>` replaces
+the default. A custom bucket renders its bucket state in the ownership accent, and the
+drilled-in title ends with `· custom bucket` plus the ownership glyph.
 
 The two-line strip below the list explains the highlighted row. Launch settings show
 their config path, effective value, and boundary/override context. Builtin aliases use
@@ -2610,16 +2606,16 @@ the override is paused, and the description names the disabled provider that mus
 or be re-enabled before the override resumes. An active override whose provider remains
 available still bypasses selector choice for the override's lifetime.
 
-If a builtin alias is mistakenly configured under `llm_provider.model_aliases.custom`,
-opening the panel emits one warning toast listing every affected `@alias`. A gold
-warning glyph remains on each affected alias row even while a temporary override is
-active; a collapsed bucket containing affected members keeps the glyph and reports their
-count. Highlighting either the alias or its bucket replaces the normal description with
-the same actionable advice. Move each entry's `model` value from
+If a builtin size alias is mistakenly configured under
+`llm_provider.model_aliases.custom`, opening the panel emits one warning toast listing
+every affected `@alias`. A gold warning glyph remains on the affected alias row even
+while a temporary override is active, and highlighting it replaces the normal
+description with the same actionable advice. Move the entry's `model` value from
 `llm_provider.model_aliases.custom` to `llm_provider.model_aliases.builtin`; ACE
 identifies the misplaced entry but does not rewrite the configuration automatically.
-Because ownership follows the alias kind, the misplaced alias stays in the **Built-in**
-section and does not receive the ownership gutter.
+Because ownership follows the alias kind rather than where it is configured, the
+misplaced alias stays in the **Built-in size aliases** section — never inside a custom
+bucket — and does not receive the ownership gutter.
 
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted row.
 Navigation, and jump hints, skip headers, spacer rows, and the empty-custom hint.
@@ -2752,14 +2748,14 @@ every active provider and expiry, and clicking the pill opens Launch Control.
 
 `Edit` and `Override` open the shared model picker with an `ALIASES` group before the
 provider-grouped concrete models. Alias rows show the exact `@name` token and its
-current effective provider/model; filter by either `@medium_worker` or `medium_worker`,
-an alias kind or description, or the displayed target. For persistent edits, the current
-alias and any alias that would introduce a direct or transitive cycle remain visible but
-unavailable with a concise reason. `Custom...` accepts a concrete model string,
-`provider/model` path, or bare `@alias` reference in both flows and applies the same
-safety check to free-form `@alias` values. Concrete model rows for temporarily disabled
-providers are omitted; alias rows remain visible and show their current live fallback
-target. Free-form explicit input is validated before submission and reports the same
+current effective provider/model; filter by either `@medium` or `medium`, an alias kind
+or description, or the displayed target. For persistent edits, the current alias and any
+alias that would introduce a direct or transitive cycle remain visible but unavailable
+with a concise reason. `Custom...` accepts a concrete model string, `provider/model`
+path, or bare `@alias` reference in both flows and applies the same safety check to
+free-form `@alias` values. Concrete model rows for temporarily disabled providers are
+omitted; alias rows remain visible and show their current live fallback target.
+Free-form explicit input is validated before submission and reports the same
 disabled-provider diagnostic as a launch. In `Edit`, `Custom...` additionally accepts a
 typed `|` pool or `||` fallback expression and opens prefilled with the alias's current
 value, so changing one member of an existing selector no longer means retyping the whole
@@ -2782,22 +2778,28 @@ IANA timezone, and remaining duration before Enter writes anything. Daylight-sav
 are rejected; repeated fall-back times require an offset-qualified ISO value such as
 `2026-11-01T01:30-04:00`. Invalid input stays focused with an inline explanation. `Esc`
 goes back to the duration picker, where a second `Esc` cancels the override flow.
-Overrides are per-alias and independent:
+Overrides are per-alias and per-launch-setting, and independent:
 
-- An override on **`default`** drives the no-`%model` launch default and every alias
-  that resolves through `@default`. It renders in a gold top-bar pill as
-  `PROVIDER(model)[@<effort>] <time-left>`.
-- An override on **any other alias** takes effect wherever that alias is resolved. A
-  size-specific phase override affects only that alias. An override on `@smartest`
-  suspends its ordered fallback for a single concrete target, just as overrides on
-  `@smart`, `@smarter`, `@cheap`, `@cheaper`, and `@cheapest` suspend their independent
-  load-balanced rotations, until the override expires or is cleared. It is surfaced by a
-  distinct, concise violet top-bar pill: a single active override renders as
-  `@<alias>[@<effort>] <time-left>`, and several render as `@<alias> +N`, naming the
-  alphabetically first alias and counting the rest. In both pills, lane color carries
-  the "override" meaning while the effort suffix and time use a recessive tone; `∞`
-  means until cleared. Hover either pill for full target and expiry details, or click it
-  to open Launch Control.
+- An override on **`launch model`** drives the no-`%model` launch default. It renders in
+  a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
+- An override on **any built-in size alias or custom alias** takes effect wherever that
+  alias is resolved. A size-specific phase or task override affects only that alias. An
+  override on a selector-valued alias — a `|` load-balanced pool or `||` ordered
+  fallback, such as the shipped `@xsmall`, `@small`, `@medium`, `@large` pools or the
+  `@xlarge` ordered fallback — suspends that alias's own rotation/fallback for a single
+  concrete target until the override expires or is cleared.
+- An override on **`epic lander`** or **`big epic lander`** affects only epic land
+  agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
+  `launch model` and of each other.
+
+Every non-default override (an alias, `epic lander`, or `big epic lander`) is surfaced
+by a distinct, concise violet top-bar pill: a single active override renders as
+`@<alias>[@<effort>] <time-left>` or as `epic lander <time-left>` /
+`big epic lander <time-left>`, and several render as `<first> +N`, naming the
+alphabetically first overridden alias or launch-setting label and counting the rest. In
+both pills, lane color carries the "override" meaning while the effort suffix and time
+use a recessive tone; `∞` means until cleared. Hover either pill for full target and
+expiry details, or click it to open Launch Control.
 
 When no override is active, the same top-bar pill instead names the current launch
 default — `PROVIDER(model)`, in a calmer dim-cyan tone — and stays live for the whole
@@ -2824,14 +2826,22 @@ full provider/model path, while the tier override only applies when no concrete 
 is active.
 
 Delegated launches (plan coder follow-ups and `sase bead work` phase, task, and land
-agents) resolve through [role aliases](llms.md#role-aliases-for-delegated-work)
-configured under `llm_provider.model_aliases.builtin`. The size-specific phase/task
-aliases route through `@cheaper`, `@cheap`, `@smart`, `@smarter`, and `@smartest`; a
-task without size metadata uses the small phase/task route. Nested `@default` references
-follow a temporary `default` override. The selector-backed `@smart`, `@smarter`,
-`@cheap`, `@cheaper`, and `@cheapest` pools, and `@smartest`'s ordered fallback, do not
-follow it; override the pool/fallback-owning or size-specific alias itself to move one
-of those lanes.
+agents) route directly through the
+[built-in size aliases](llms.md#role-aliases-for-delegated-work) configured under
+`llm_provider.model_aliases.builtin`, plus the `epic lander`/`big epic lander` launch
+settings — there is no more role-alias indirection through a separate
+`default`/`smart`/`cheap`/etc. lane. A phase or task selects `@xsmall`, `@small`,
+`@medium`, `@large`, or `@xlarge` by its normalized size directly; a phase or task
+without size metadata uses the `@small` fallback. Epic land agents without an explicit
+land model use `epic_lander_model` (shipped `@large`) below
+`bead.big_epic_phase_threshold`, or `big_epic_lander_model` (shipped `@xlarge`) at or
+above it. Because `epic lander` and `big epic lander` are configured as raw alias
+references, a temporary override on the alias they reference (`@large` and `@xlarge` by
+default) cascades into their effective resolution; overriding `epic lander` or
+`big epic lander` directly takes precedence over that nested reference. A temporary
+override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`,
+`@medium`, and `@large` pools, or the `@xlarge` ordered fallback — suspends only that
+alias's own rotation and does not cascade to any other alias or launch setting.
 
 ### Persistent edits
 
@@ -2845,12 +2855,12 @@ the commit offer is skipped and the file is simply written. An active temporary 
 visually "wins" the effective-target column even after a persistent edit; the state tag
 distinguishes the _configured_ value from the _currently effective (overridden)_ one.
 
-Selecting an alias during `Edit` stores the raw reference (for example,
-`@big_epic_lander` → `@smartest`), so it remains a dynamic link and follows future
-changes to `@smartest`. Selecting an alias during `Override` instead resolves it when
-the override is written and stores that concrete provider/model snapshot together with
-the raw token; later changes to the referenced alias do not change the active override.
-A canonical trailing effort is snapshotted with the target and shown in the row, success
+Selecting an alias during `Edit` stores the raw reference (for example, editing
+`epic lander` to `@xlarge`), so it remains a dynamic link and follows future changes to
+`@xlarge`. Selecting an alias during `Override` instead resolves it when the override is
+written and stores that concrete provider/model snapshot together with the raw token;
+later changes to the referenced alias do not change the active override. A canonical
+trailing effort is snapshotted with the target and shown in the row, success
 notification, and single-override top-bar pill. A known suffix on an alias reference is
 ignored for dependency/cycle checks but retained for the written value; unknown trailing
 `@token` text is not treated as effort.
@@ -2879,49 +2889,51 @@ live validation line reports an error.
 
 ### Examples
 
-- Highlight `default`, `o`, pick `codex/o3`, duration `1h` — default launches use Codex
-  `o3` for the next hour, then revert to the configured default.
-- Highlight `medium_worker`, `o`, pick a model, then `t`, enter `5pm` — the preview
-  resolves the next 5:00 PM in the configured timezone and the override expires at that
-  exact instant.
-- Open `worker`, highlight `medium_worker`, then press `o`, pick `claude/opus`, and
-  choose `Until cleared` — medium phases without an explicit model use CLAUDE(opus)
-  until you clear it; the violet non-default pill appears in the top bar.
-- Open `worker`, highlight `large_worker`, press `e`, pick `claude/opus`, and confirm —
-  only large phases without an explicit model use that target; other-sized phase routing
-  is unchanged.
-- Highlight `smartest`, `e`, pick `claude/opus`, and confirm — xlarge phases and
-  threshold-selected epic landers reach that target through `@xlarge_worker` →
-  `@smartest` and `@big_epic_lander` → `@smartest`.
-- Leave `smartest` implicit — xlarge phases and threshold-selected epic landers follow
-  whichever `@smartest` fallback candidate is currently selected.
-- Highlight `cheaper`, `e`, choose `Custom...`, enter
-  `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases
+- Highlight `launch model`, `o`, pick `codex/o3`, duration `1h` — launches with no
+  `%model` directive use Codex `o3` for the next hour, then revert to the configured
+  default.
+- Highlight `@medium`, `o`, pick a model, then `t`, enter `5pm` — the preview resolves
+  the next 5:00 PM in the configured timezone and the override expires at that exact
+  instant.
+- Highlight `@small`, `o`, pick `claude/opus`, and choose `Until cleared` — small phases
+  and tasks without an explicit model use CLAUDE(opus) until you clear it; the violet
+  non-default pill appears in the top bar.
+- Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
+  without an explicit model use that target; other-sized phase/task routing is
+  unchanged.
+- Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
+  use that target directly, and `big epic lander` (left at its shipped `@xlarge`
+  reference) inherits the same change.
+- Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
+  (which reference `@xlarge` by default) all follow whichever candidate in its shipped
+  ordered fallback is currently selected.
+- Highlight `@xsmall`, `e`, choose `Custom...`, enter
+  `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks
   round-robin across installed providers while the panel continues to show the next
   selection without consuming it.
-- Highlight `cheap`, `e`, choose `Custom...`, enter `claude/haiku | codex/gpt-4.1-mini`,
-  and confirm — small phases round-robin across this independent pool without consuming
-  the `cheaper` cursor.
-- Highlight `cheapest`, `e`, choose `Custom...`, enter
-  `claude/haiku@minimal | codex/gpt-4o-mini`, and confirm — explicit `@cheapest`
-  launches round-robin across this independent pool without consuming the `cheap` or
-  `cheaper` cursor.
+- Highlight `@small`, `e`, choose `Custom...`, enter
+  `claude/haiku | codex/gpt-4.1-mini`, and confirm — small phases and tasks round-robin
+  across this independent pool without consuming the `@xsmall` cursor.
+- Highlight `@medium`, `e`, choose `Custom...`, enter
+  `claude/haiku@minimal | codex/gpt-4o-mini`, and confirm — medium phases and tasks
+  round-robin across this independent pool without consuming the `@xsmall` or `@small`
+  cursor.
 - Press `p`, highlight `claude`, `d`, choose `1h` — new alias-backed launches route
   around Claude for the next hour, direct `%model:claude/opus` launches fail explicitly,
   and already-running Claude processes continue.
-- With `claude` disabled, an override on `medium_worker` that targets `claude/opus`
-  pauses; the row shows the live fallback target until Claude is re-enabled or the
-  disable expires.
-- Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected
-  epic landers use that persistent target; leaving it implicit inherits through
-  `@smartest`, independently of `@epic_lander`.
-- Highlight `big_epic_lander`, `e`, filter for `@smartest`, select it, and confirm — the
-  persistent value is the dynamic `@smartest` reference, not a copied concrete model.
-- Open `worker`, highlight `medium_worker`, press `o`, select `@smartest`, then choose
-  `1h` — the override records the concrete provider/model to which `@smartest` resolves
-  at write time while retaining `@smartest` as its raw input.
-- Highlight an alias, `x` — clear its temporary override; `r` — unset its configured
-  value back to its implicit fallback.
+- With `claude` disabled, an override on `@medium` that targets `claude/opus` pauses;
+  the row shows the live fallback target until Claude is re-enabled or the disable
+  expires.
+- Highlight `big epic lander`, `e`, pick a model, and confirm — only threshold-selected
+  epic landers use that persistent target; leaving it implicit inherits through its
+  shipped `@xlarge` reference, independently of `epic lander`.
+- Highlight `big epic lander`, `e`, filter for `@large`, select it, and confirm — the
+  persistent value is the dynamic `@large` reference, not a copied concrete model.
+- Highlight `@medium`, press `o`, select `@xlarge`, then choose `1h` — the override
+  records the concrete provider/model to which `@xlarge` resolves at write time while
+  retaining `@xlarge` as its raw input.
+- Highlight an alias or launch setting, `x` — clear its temporary override; `r` — unset
+  its configured value back to its implicit fallback.
 
 See [docs/llms.md](llms.md#temporary-model-overrides) for the resolution order and
 state-file format.
@@ -3858,8 +3870,8 @@ launches bead work directly, so those controls are hidden for Epic:
   provider, model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter`
   to select, `Esc` to clear the filter or cancel, and `'` for jump hints over the
   visible selectable rows. The displayed default resolves to the model the handoff will
-  actually use: for Approve and Tale, the validated tale size maps to the corresponding
-  `@<size>_worker` alias, with legacy sizeless tales using `@medium_worker`. Selecting a
+  actually use: for Approve and Tale, the validated tale size selects the corresponding
+  `@<size>` alias directly, with legacy sizeless tales using `@medium`. Selecting a
   specific model and then re-opening the picker and choosing "Follow-up default" resets
   the follow-up back to that role default (distinct from pressing `Esc`, which keeps the
   current selection).

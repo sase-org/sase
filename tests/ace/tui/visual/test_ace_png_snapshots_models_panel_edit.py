@@ -51,9 +51,9 @@ _DIFF = (
     " llm_provider:\n"
     "   model_aliases:\n"
     "     builtin:\n"
-    '-      medium_worker: "@default"\n'
-    "+      medium_worker: claude/opus\n"
-    "       small_worker: codex/o3\n"
+    '-      medium: "@large"\n'
+    "+      medium: claude/opus\n"
+    "       small: codex/o3\n"
 )
 
 _EFFORT_TARGET = "/home/user/.local/share/chezmoi/home/dot_config/sase/sase.yml"
@@ -89,7 +89,7 @@ def _edit_plan() -> EditPlanResult:
                 "llm_provider",
                 "model_aliases",
                 "builtin",
-                "medium_worker",
+                "medium",
             ),
             op="set",
             has_value=True,
@@ -97,9 +97,9 @@ def _edit_plan() -> EditPlanResult:
         ),
         candidate_config={},
         effective_preview=ConfigEffectivePreview(
-            path="llm_provider.model_aliases.builtin.medium_worker",
+            path="llm_provider.model_aliases.builtin.medium",
             has_before=True,
-            before="@default",
+            before="@large",
             has_after=True,
             after="claude/opus",
             changed=True,
@@ -188,9 +188,7 @@ async def test_models_panel_edit_preview_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
 
-        modal = AliasEditPreviewModal(
-            "medium_worker", ConfigEditOp.set_value("claude/opus")
-        )
+        modal = AliasEditPreviewModal("medium", ConfigEditOp.set_value("claude/opus"))
         page.app.push_screen(modal)
         await page.expect_modal("AliasEditPreviewModal")
         await page.wait_for(lambda _s: modal._plan is not None)
@@ -278,11 +276,11 @@ async def test_models_panel_selector_builder_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
 
         modal = SelectorBuilderModal(
-            alias="cheapest",
+            alias="xsmall",
             current_value="claude/haiku | codex/gpt-5.3-codex-spark",
             alias_context=AliasSelectionContext(
                 views=tuple(calm_views()),
-                target_alias="cheapest",
+                target_alias="xsmall",
                 operation="persistent",
             ),
             effort_snapshot=effort_snapshot(),

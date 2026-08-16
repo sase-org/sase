@@ -74,16 +74,14 @@ def test_alias_token_is_resolved_eagerly_and_retained_raw(
         "sase.llm_provider.registry.resolve_model_provider_with_effort", resolve
     )
 
-    override = set_alias_override(
-        "worker", "@medium_worker@medium", 3600.0, source="panel"
-    )
+    override = set_alias_override("worker", "@medium@medium", 3600.0, source="panel")
 
-    assert calls == ["@medium_worker@medium"]
-    assert override.raw_model == "@medium_worker@medium"
+    assert calls == ["@medium@medium"]
+    assert override.raw_model == "@medium@medium"
     assert (override.provider, override.model) == ("codex", "gpt-5.6-sol")
     assert override.effort == "medium"
     stored = _read_state()["overrides"]["worker"]
-    assert stored["raw_model"] == "@medium_worker@medium"
+    assert stored["raw_model"] == "@medium@medium"
     assert (stored["provider"], stored["model"]) == ("codex", "gpt-5.6-sol")
     assert stored["effort"] == "medium"
 

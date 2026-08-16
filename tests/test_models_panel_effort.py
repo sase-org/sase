@@ -188,7 +188,7 @@ async def test_model_effort_picker_enter_uses_configured_not_temporary() -> None
                 "model",
                 _snapshot("xhigh", override=_override("medium")),
                 now=_NOW,
-                model="@medium_worker",
+                model="@medium",
             ),
             captured.append,
         )

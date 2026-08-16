@@ -78,7 +78,7 @@ def _status(
     cli_available: bool = True,
     active_disable: TemporaryProviderDisable | None = None,
     hidden: bool = False,
-    affected_aliases: tuple[str, ...] = ("default",),
+    affected_aliases: tuple[str, ...] = ("medium",),
 ) -> ProviderRoutingStatus:
     return ProviderRoutingStatus(
         provider=provider,
@@ -125,7 +125,7 @@ def _snapshot(
     return ProviderRoutingSnapshot(
         statuses=tuple(statuses),
         provider_disables=disables or {},
-        alias_views=tuple(alias_views or (make_alias_view("default", "default"),)),
+        alias_views=tuple(alias_views or (make_alias_view("medium", "role"),)),
         provider_colors={"claude": "#D97757", "codex": "#10A37F"},
         captured_at=100.0,
         launch_model_rows=launch_model_rows,
@@ -186,7 +186,7 @@ def test_panel_sync_row_build_uses_captured_rows_without_provider_read(
     disable = _disable("codex", expires_at=None)
     panel = ModelsPanel()
     panel._provider_disables = {"codex": disable}
-    panel._views = [make_alias_view("default", "default")]
+    panel._views = [make_alias_view("medium", "role")]
     provider_read = MagicMock(side_effect=AssertionError("synchronous provider read"))
     monkeypatch.setattr(provider_state, "get_active_provider_disables", provider_read)
     build_alias_views = MagicMock(side_effect=AssertionError("synchronous alias read"))
@@ -202,7 +202,7 @@ def test_provider_snapshot_worker_path_reads_authoritative_state(monkeypatch) ->
     disable = _disable("codex", expires_at=None)
     provider_read = MagicMock(return_value={"codex": disable})
     status_mock = MagicMock(return_value=(_status("codex", active_disable=disable),))
-    view_mock = MagicMock(return_value=[make_alias_view("default", "default")])
+    view_mock = MagicMock(return_value=[make_alias_view("medium", "role")])
     color_mock = MagicMock(return_value={"codex": "#10A37F"})
     monkeypatch.setattr(provider_state, "get_active_provider_disables", provider_read)
     monkeypatch.setattr(provider_state, "build_provider_routing_statuses", status_mock)
@@ -258,7 +258,7 @@ async def test_provider_modal_initial_snapshot_does_not_emit_change() -> None:
 async def test_panel_initial_provider_snapshot_does_not_mark_routing_changed(
     monkeypatch,
 ) -> None:
-    views = [make_alias_view("default", "default")]
+    views = [make_alias_view("medium", "role")]
     patch_alias_views(monkeypatch, views)
     disable = _disable("codex", expires_at=None)
     snapshot = _snapshot(
@@ -717,7 +717,7 @@ def test_panel_ignores_stale_provider_snapshot_worker_event() -> None:
 async def test_panel_expired_provider_disable_refresh_marks_routing_changed_once(
     monkeypatch,
 ) -> None:
-    views = [make_alias_view("default", "default")]
+    views = [make_alias_view("medium", "role")]
     patch_alias_views(monkeypatch, views)
     disable = _disable("codex", expires_at=100.0)
     before = _snapshot(
@@ -762,12 +762,12 @@ async def test_panel_provider_modal_snapshot_rebuilds_rows_and_keeps_cursor(
     monkeypatch,
 ) -> None:
     before_views = [
-        make_alias_view("large_worker", "role"),
-        make_alias_view("medium_worker", "role"),
+        make_alias_view("large", "role"),
+        make_alias_view("medium", "role"),
     ]
     after_views = [
-        make_alias_view("large_worker", "role", provider="codex", model="o3"),
-        make_alias_view("medium_worker", "role", provider="codex", model="o3"),
+        make_alias_view("large", "role", provider="codex", model="o3"),
+        make_alias_view("medium", "role", provider="codex", model="o3"),
     ]
     patch_alias_views(monkeypatch, before_views)
     initial_snapshot = _snapshot(_status("codex"), alias_views=before_views)
@@ -784,19 +784,19 @@ async def test_panel_provider_modal_snapshot_rebuilds_rows_and_keeps_cursor(
         await pilot.pause()
         await wait_for(pilot, lambda: panel._provider_snapshot_worker is None)
         option_list = panel.query_one("#models-panel-list", OptionList)
-        option_list.highlighted = option_list.get_option_index("medium_worker")
+        option_list.highlighted = option_list.get_option_index("medium")
 
         panel._on_provider_modal_snapshot(snapshot, "codex")
         await pilot.pause()
 
         assert panel._views == after_views
-        assert panel._highlighted_row_id() == "medium_worker"
+        assert panel._highlighted_row_id() == "medium"
         assert panel._changed is True
         assert panel._provider_routing_changed is True
 
 
 async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> None:
-    views = [make_alias_view("default", "default")]
+    views = [make_alias_view("medium", "role")]
     patch_alias_views(monkeypatch, views)
     disable = _disable("claude", expires_at=None)
     snapshot = ProviderRoutingSnapshot(
@@ -813,7 +813,7 @@ async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> N
         pilot.app.push_screen(panel)
         await pilot.pause()
 
-        panel._apply_provider_snapshot(snapshot, keep="default")
+        panel._apply_provider_snapshot(snapshot, keep="medium")
         await pilot.pause()
 
         title = panel.query_one("#models-panel-title", Static).content.plain

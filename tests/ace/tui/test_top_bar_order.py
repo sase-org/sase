@@ -116,8 +116,8 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
     alias_override = _override("claude", "opus", effort="max")
     monkeypatch.setattr(
         llm_override_indicator,
-        "get_active_temporary_override",
-        lambda: default_override,
+        "peek_active_temporary_override",
+        lambda *a, **k: default_override,
     )
     monkeypatch.setattr(
         alias_overrides_indicator,

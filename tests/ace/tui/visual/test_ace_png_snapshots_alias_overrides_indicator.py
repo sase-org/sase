@@ -25,6 +25,10 @@ import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
+from sase.llm_provider.config import (
+    DEFAULT_MODEL_FIELD,
+    launch_model_setting_override_key,
+)
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -82,7 +86,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
     monkeypatch.setattr(
         alias_overrides_indicator,
         "get_active_alias_overrides",
-        lambda *a, **k: {"medium_worker": _override("codex", "o3", effort="max")},
+        lambda *a, **k: {"medium": _override("codex", "o3", effort="max")},
     )
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -95,7 +99,7 @@ async def test_alias_overrides_indicator_single_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "alias_overrides_indicator_single_120x40",
-            title="ACE @medium_worker@max ∞ override pill",
+            title="ACE @medium@max ∞ override pill",
         )
 
 
@@ -111,15 +115,17 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         alias_overrides_indicator,
         "get_active_alias_overrides",
         lambda *a, **k: {
-            "default": _override("codex", "o3"),
-            "small_worker": _override("claude", "opus"),
-            "medium_worker": _override("codex", "o3"),
+            launch_model_setting_override_key(DEFAULT_MODEL_FIELD): _override(
+                "codex", "o3"
+            ),
+            "small": _override("claude", "opus"),
+            "medium": _override("codex", "o3"),
             "fast": _override("claude", "haiku"),
         },
     )
     monkeypatch.setattr(
         llm_override_indicator,
-        "get_active_temporary_override",
+        "peek_active_temporary_override",
         lambda *a, **k: _override("codex", "o3"),
     )
 
@@ -133,7 +139,7 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "alias_overrides_indicator_multi_120x40",
-            title="ACE @medium_worker +2 and default ∞ override pills",
+            title="ACE @fast +2 and default ∞ override pills",
         )
 
 

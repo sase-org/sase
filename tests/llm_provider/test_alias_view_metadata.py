@@ -163,9 +163,9 @@ def test_ownership_partition_preserves_top_and_bucket_order() -> None:
 @pytest.mark.parametrize(
     ("configured_value", "expected"),
     [
-        ("@default", "default"),
-        ("@default@medium", "default"),
-        ("@default@turbo", "default@turbo"),
+        ("@large", "large"),
+        ("@large@medium", "large"),
+        ("@large@turbo", "large@turbo"),
         ("claude/opus", None),
         (None, None),
     ],
@@ -175,7 +175,7 @@ def test_alias_view_references(
     expected: str | None,
 ) -> None:
     view = AliasView(
-        name="medium_worker",
+        name="medium",
         kind="role",
         configured=configured_value is not None,
         configured_value=configured_value,
@@ -190,7 +190,7 @@ def test_alias_view_references(
 @pytest.mark.parametrize(
     ("configured_value", "expected"),
     [
-        ("@default@high", "high"),
+        ("@large@high", "high"),
         ("claude/opus@high", None),
     ],
 )
@@ -199,7 +199,7 @@ def test_alias_view_reference_effort_is_only_for_alias_edges(
     expected: str | None,
 ) -> None:
     view = AliasView(
-        name="medium_worker",
+        name="medium",
         kind="role",
         configured=True,
         configured_value=configured_value,

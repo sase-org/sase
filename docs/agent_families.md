@@ -384,8 +384,8 @@ field in the family root's detail-panel header expands into one lane per member 
 of a single value:
 
 ```text
-Model:  --plan    · CLAUDE(opus) @ high ← @large_worker
-        --code    · CODEX(gpt-5.1-codex) ← @medium_worker
+Model:  --plan    · CLAUDE(opus) @ high ← @large
+        --code    · CODEX(gpt-5.1-codex) ← @medium
         --review  · default
 ```
 

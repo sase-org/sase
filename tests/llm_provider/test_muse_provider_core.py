@@ -120,7 +120,7 @@ def test_muse_provider_has_no_autodetect_priority() -> None:
 
 
 def test_muse_provider_resolve_model_name_never_routes_a_tier_to_contributor() -> None:
-    """Both tiers map to the paid model; `small` is what `@cheap` reaches for."""
+    """Both tiers map to the paid model; `small` phases route to `@small` directly."""
     provider = MuseProvider()
     assert provider.resolve_model_name() == "muse-spark-1.2"
     assert provider.resolve_model_name("large") == "muse-spark-1.2"

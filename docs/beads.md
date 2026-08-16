@@ -333,10 +333,10 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    commit with `-B` so it does not close the bead before the task is actually done.
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size
-   selects the corresponding `@xsmall_worker`, `@small_worker`, `@medium_worker`,
-   `@large_worker`, or `@xlarge_worker` alias; a legacy task without size metadata uses
-   `@small_worker`. As with epic phases, `large` and `xlarge` task prompts add `#plan`,
-   while smaller tasks implement directly.
+   selects the corresponding `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge`
+   alias directly; a legacy task without size metadata uses `@small`. As with epic
+   phases, `large` and `xlarge` task prompts add `#plan`, while smaller tasks implement
+   directly.
 
 ### Snoozing a Task Bead
 
@@ -1384,11 +1384,11 @@ resolves. A human-created bead shows the creator's email without a link.
 creator at all. Closed beads include their resolution, close reason, and close
 timestamp; legacy closures without a resolution show `(unrecorded)`. Phase and task
 detail views always print a size: they use the stored value when present and
-`small (default)` when it is absent. Legacy sizeless task launches use the same
-`@small_worker` fallback. Any bead's children are grouped as phases (with status and
-size) and child epics (with tier and status), including child epics owned by a phase
-bead. Nested beads show their complete lineage back to the root plan. A `claimed` bead
-also prints `Claimed by: <assignee> (agent has not started working yet)`.
+`small (default)` when it is absent. Legacy sizeless task launches use the same `@small`
+fallback. Any bead's children are grouped as phases (with status and size) and child
+epics (with tier and status), including child epics owned by a phase bead. Nested beads
+show their complete lineage back to the root plan. A `claimed` bead also prints
+`Claimed by: <assignee> (agent has not started working yet)`.
 
 Detail resolution — the target issue plus its ancestors, children, dependencies, and
 blockers — comes from a single Rust-side store read instead of the three independent
@@ -1653,23 +1653,20 @@ Once an epic bead exists, the shared launch path:
    land and close the parent phase first. A failed or killed phase keeps dependents and
    the land agent parked until its agent name is retried successfully and its bead
    closes. `xsmall`, `small`, and `medium` phases implement directly with
-   `%model:@xsmall_worker`, `%model:@small_worker`, and `%model:@medium_worker`,
-   respectively. Only `large` and `xlarge` phases append `#plan` after their work
-   reference and use `%model:@large_worker` and `%model:@xlarge_worker`. A stored phase
-   `model` always wins over the size-derived alias without changing whether the phase
-   receives `#plan`, and a missing legacy size behaves as `small`. The land agent emits
-   `%model:<value>` when the epic plan bead has a stored `model`. Without one, it emits
-   `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
-   `%model:@big_epic_lander` at or above the threshold (default `5`), using the total
-   authored phase count even when resumed work has already-closed phases. Normal landers
-   fall through `@epic_lander` to `@default`, while landers selected by the threshold
-   fall through `@big_epic_lander` via `@smartest`. `xsmall` phases fall through
-   `@xsmall_worker` to the load-balanced `@cheaper` pool, `small` phases through
-   `@small_worker` to the `@cheap` pool, `medium` phases through `@medium_worker`, to
-   `@smart`, `large` phases through `@large_worker` to `@smarter`, and `xlarge` phases
-   through `@xlarge_worker` to `@smartest`, inheriting that alias's target. The
-   independent `@cheapest` load-balanced pool is available for explicit use but has no
-   automatic consumer. Builtin aliases can be configured under
+   `%model:@xsmall`, `%model:@small`, and `%model:@medium`, respectively. Only `large`
+   and `xlarge` phases append `#plan` after their work reference and use `%model:@large`
+   and `%model:@xlarge`. Each size alias resolves directly to its configured target —
+   there is no intermediate hop through a second alias. A stored phase `model` always
+   wins over the size-derived alias without changing whether the phase receives `#plan`,
+   and a missing legacy size behaves as `small`. The land agent emits `%model:<value>`
+   when the epic plan bead has a stored `model`. Without one, it emits the configured
+   `llm_provider.epic_lander_model` (shipped default `@large`) below
+   `bead.big_epic_phase_threshold` and the configured
+   `llm_provider.big_epic_lander_model` (shipped default `@xlarge`) at or above the
+   threshold (default `5`), using the total authored phase count even when resumed work
+   has already-closed phases. These two fields are independent, directly-configured
+   scalars with their own shipped defaults; neither chains through the other or through
+   any other alias. Builtin size aliases can be configured under
    `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic
    segment carries bare `%auto`, so submitted implementation and landing plans are
    auto-approved. An agent may author a tale or an epic as needed; the plan's authored

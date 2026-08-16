@@ -128,21 +128,21 @@ def test_provider_completion_row_uses_model_grid_and_provider_style() -> None:
     [
         (
             _candidate(
-                "@medium_worker",
-                reference="default",
+                "@medium",
+                reference="large",
                 reference_effort="high",
             ),
             "role",
-            "implicit → @default @ high",
+            "implicit → @large @ high",
         ),
         (
             _candidate(
-                "@medium_worker",
+                "@medium",
                 provenance="configured",
-                reference="default",
+                reference="large",
             ),
             "role",
-            "configured → @default",
+            "configured → @large",
         ),
         (
             _candidate(
@@ -157,13 +157,12 @@ def test_provider_completion_row_uses_model_grid_and_provider_style() -> None:
         ),
         (
             _candidate(
-                "@default",
-                alias_kind="default",
+                "@medium",
                 target_provider="codex",
                 target_model="gpt-5.6-sol",
                 provenance="override",
             ),
-            "default",
+            "role",
             "override",
         ),
     ],
@@ -193,8 +192,7 @@ def test_model_completion_rows_align_state_across_mixed_window() -> None:
         provenance="",
     )
     alias = _candidate(
-        "@default",
-        alias_kind="default",
+        "@medium",
         target_provider="codex",
         target_model="gpt-5.6-sol",
     )

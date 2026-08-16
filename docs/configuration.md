@@ -1158,11 +1158,9 @@ bounded project-scoped catalogs; commit and bug candidates are projected only fr
 already-loaded Artifacts-pane snapshots.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists
-inline-typable model names, implicit role aliases (`@default`, `@epic_lander`,
-`@big_epic_lander`, `@xsmall_worker`, `@small_worker`, `@medium_worker`,
-`@large_worker`, `@xlarge_worker`, `@smartest`, `@smarter`, `@smart`, `@cheap`,
-`@cheaper`, `@cheapest`), and configured model aliases; provider short aliases are shown
-as filter/display hints but are not inserted.
+inline-typable model names, the five built-in size aliases (`@xsmall`, `@small`,
+`@medium`, `@large`, `@xlarge`), and configured model aliases; provider short aliases
+are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered
 workspace-provider refs and known-project refs such as `#git:<project>` or
@@ -1368,26 +1366,24 @@ llm_provider:
   model_tier_map:
     large: opus
     small: sonnet
-  # Override examples; shipped implicit targets are generated in docs/llms.md.
+  # Scalar launch settings. Same grammar as %model; may reference a built-in
+  # size alias.
+  default_model: "@large" # used when a launch has no %model directive
+  epic_lander_model: "@large" # epic land agents below bead.big_epic_phase_threshold
+  big_epic_lander_model: "@xlarge" # epic land agents at/above that threshold
+  # Override examples; shipped size-alias defaults are generated in docs/llms.md.
   model_aliases:
     builtin:
-      default: "@smarter" # model used when a prompt has no %model directive
-      big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
-      cheap: claude/haiku | codex/gpt-4.1-mini # custom small-phase pool
-      cheaper: claude/haiku@minimal | codex/gpt-4.1-mini@low # custom xsmall pool
-      cheapest: claude/haiku@minimal | codex/gpt-4o-mini # custom explicit-use pool
-      medium_worker: "@smart"
-      large_worker: "@smarter"
-      smart: claude/sonnet@xhigh | codex/gpt-5.5@xhigh
-      smarter: claude/opus@xhigh | codex/gpt-5.6-sol@xhigh
-      smartest: claude/sonnet@max # custom maximum-effort target
+      medium: codex/gpt-5.6-sol # specialize the medium size alias
+      large: claude/opus | codex/gpt-5.6-sol # custom large-phase pool
     custom:
       blogger:
         model: claude/opus
         description: Agents that draft and edit blog posts.
+        bucket: writing # optional Launch Control grouping
     buckets:
-      worker:
-        description: Size-specific phase-agent roles.
+      writing:
+        description: Writing and editing roles.
 ```
 
 | Field                                | Type   | Default     | Description                                                                                                                                                                                                                       |
@@ -1395,67 +1391,64 @@ llm_provider:
 | `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` and `grok` declare no priority and are never auto-detected; name them explicitly. |
 | `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                            |
 | `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                            |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides. Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                                                                                               |
+| `llm_provider.default_model`         | string | `@large`    | Model expression used when a launch has no explicit `%model` directive.                                                                                                                                                           |
+| `llm_provider.epic_lander_model`     | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
+| `llm_provider.big_epic_lander_model` | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                         |
 | `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
 | `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                     |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at
-names such as `%model:@default` or `%model:@blogger` while each user's `sase.yml`
+names such as `%model:@medium` or `%model:@blogger` while each user's `sase.yml`
 controls the concrete provider/model. Alias config keys stay bare; the `@` marker is
 only used in `%model`/`%m` directive values. Alias values may reference another alias
-with `@<alias>`; the reference may carry a trailing effort such as `@default@high`,
-which overrides the referenced alias's effort (chains are followed with cycle/depth
+with `@<alias>`; the reference may carry a trailing effort such as `@medium@high`, which
+overrides the referenced alias's effort (chains are followed with cycle/depth
 protection). Unknown non-alias model values keep the existing fallback behavior and run
-on the default provider. Use `model_aliases.builtin` for builtin role overrides and
-`model_aliases.custom` for user-defined aliases with descriptions. `A | B` round-robins
-across real launches, skips providers whose CLI is unavailable, and stores its
-machine-global cursor in `~/.sase/llm_lb.json`; display and preview surfaces only peek.
-`A || B` always selects the first installed, non-disabled provider CLI and never reads
-or advances that cursor. Ordered fallback is based on CLI installation plus temporary
-provider-disable state, not later model/runtime success, and preserves its first
-candidate for normal diagnostics when none are available. Members may carry a trailing
-effort. The operators cannot be mixed, selectors cannot be nested, and selectors are not
-accepted in `%model` directives or launch-scoped/temporary overrides. In ACE Launch
-Control, the pool row reports the available/total count, selector member lists mark the
-current selection with `→`, and active temporary overrides label selection suspended
-unless their provider is temporarily disabled; then the override is paused and the
-underlying alias resolves.
+on the default provider. Use `model_aliases.builtin` to override one of the five
+built-in size aliases and `model_aliases.custom` for user-defined aliases with
+descriptions. `A | B` round-robins across real launches, skips providers whose CLI is
+unavailable, and stores its machine-global cursor in `~/.sase/llm_lb.json`; display and
+preview surfaces only peek. `A || B` always selects the first installed, non-disabled
+provider CLI and never reads or advances that cursor. Ordered fallback is based on CLI
+installation plus temporary provider-disable state, not later model/runtime success, and
+preserves its first candidate for normal diagnostics when none are available. Members
+may carry a trailing effort. The operators cannot be mixed, selectors cannot be nested,
+and selectors are not accepted in `%model` directives or launch-scoped/temporary
+overrides. In ACE Launch Control, the pool row reports the available/total count,
+selector member lists mark the current selection with `→`, and active temporary
+overrides label selection suspended unless their provider is temporarily disabled; then
+the override is paused and the underlying alias resolves.
 
-ACE automatically supplies one display-only built-in bucket while alias resolution and
-configuration remain flat: `worker` groups `@xsmall_worker`, `@small_worker`,
-`@medium_worker`, `@large_worker`, and `@xlarge_worker`.
-`model_aliases.buckets.worker.description` overrides the built-in description. A custom
-alias tagged with `bucket: worker` joins that row while remaining independently
-addressable and editable.
+On top of any configured aliases, SASE ships a fixed set of **built-in size aliases**
+that resolve even when unset: `@xsmall`, `@small`, `@medium`, `@large`, and `@xlarge`.
+Each is a direct selector with no fallback chain to another alias — override one by
+setting `model_aliases.builtin.<size>` to a concrete model, an `A | B` round-robin pool,
+or an `A || B` ordered fallback. Phase and task launches route directly to the size
+alias matching their size metadata; a legacy phase or task with no size metadata routes
+through `@small`. New tasks require an explicit size after `/sase_new_task` has ruled
+out a semantic duplicate and a causally related in-progress epic. See
+[Built-in size aliases](llms.md#implicit-role-aliases) for the full shipped-defaults
+table and [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for
+how delegated launches pick a model.
 
-On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases**
-that resolve even when unset: `@default` (no-`%model` launches), `@epic_lander`,
-`@big_epic_lander`, the five `<size>_worker` aliases, `@smartest`, `@smarter`, `@smart`,
-`@cheap`, and `@cheaper`, plus explicit-use `@cheapest`. `@default` delegates to
-`@smarter` unless configured. `@epic_lander` falls back to `@default`, while
-`@big_epic_lander` falls back independently to `@smartest`; xsmall phases and tasks fall
-back to `@cheaper`, small ones to `@cheap`, medium ones use `@medium_worker` through
-`@smart`, large ones use `@large_worker` through `@smarter`, and xlarge ones use
-`@xlarge_worker` through `@smartest`. The pool-owning capability aliases (`@smart`,
-`@smarter`) and cost aliases (`@cheap`, `@cheaper`, `@cheapest`) own shipped
-load-balanced pools, while `@smartest` owns a shipped ordered fallback across providers;
-none of them track `@default`, and dependent worker and epic aliases inherit through
-them — resolving to whichever pool member or fallback candidate is selected — unless the
-dependent alias or the owner is overridden. Override only threshold-sized epic landers
-with `model_aliases.builtin.big_epic_lander`; override only large phases and sized tasks
-with `model_aliases.builtin.large_worker`. `@smartest` is selected automatically through
-the threshold-sized epic and xlarge phase/task fallback chains. See
-[Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
-[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how
-delegated launches pick a role. New tasks require an explicit size after
-`/sase_new_task` has ruled out a semantic duplicate and a causally related in-progress
-epic. Legacy tasks without size metadata remain launchable through the small phase/task
-route.
+Three scalar `llm_provider` fields choose the model for launches that aren't driven by
+phase/task/tale size routing: `default_model` (used when a launch has no explicit
+`%model` directive), `epic_lander_model` (used by epic land agents below
+`bead.big_epic_phase_threshold` authored phases), and `big_epic_lander_model` (used by
+epic land agents at or above that threshold). Each accepts the same grammar as an alias
+target — a concrete model, a provider-qualified model, an `@alias` reference (optionally
+with a trailing effort such as `@large@high`), an `A | B` pool, or an `A || B` fallback.
+Precedence is unchanged from before the migration: an explicit
+prompt/plan/phase/task/approval-picker `%model` wins first, then an active temporary
+override of the selected setting, then the config field resolves through the normal
+alias/effort/selector/provider-disable machinery, and a missing or malformed field falls
+back to its shipped default (`@large` / `@large` / `@xlarge`).
 
 Accepted tale follow-ups without an approval-time model validate the actual handoff plan
-and choose the matching size-specific alias. Legacy tale plans without size metadata use
-`@medium_worker`. An approval-time model, a `%model` directive in a custom coder prompt,
-or an outer effort suffix remains authoritative.
+and choose the matching size alias directly. Legacy tale plans without size metadata use
+`@medium`. An approval-time model, a `%model` directive in a custom coder prompt, or an
+outer effort suffix remains authoritative.
 
 `model_aliases.builtin.epic_creator` is retired. SASE no longer launches an epic-creator
 agent, resolves that alias implicitly, or treats it as a builtin override, so a stale
@@ -1463,13 +1456,22 @@ entry should be deleted rather than repointed. `sase doctor` reports a leftover 
 under the `model_aliases.builtin.epic_creator` key.
 
 > The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases
-> were removed in epic sase-5d. Use a size-specific worker alias or an explicit model
-> instead of `@worker`, and `@default` instead of `@other`. `@phase_worker` is also no
-> longer builtin; move a stale builtin override to `medium_worker` or define a custom
-> alias deliberately. The `phase_worker` bucket and its `<size>_phase_worker` aliases
-> were renamed to `worker` and `<size>_worker`. `sase doctor` reports configs that still
-> reference removed keys or aliases, including retired `@coder` and registered
-> `@<provider>_coder` builtin entries.
+> were removed in epic sase-5d. Use a size alias (`@xsmall`, `@small`, `@medium`,
+> `@large`, `@xlarge`) or an explicit model instead of `@worker`, and
+> `llm_provider.default_model` instead of `@other`. The `phase_worker` bucket and its
+> `<size>_phase_worker` aliases from that epic were themselves retired by the later
+> size-alias simplification below. `sase doctor` reports configs that still reference
+> removed keys or aliases, including retired `@coder` and registered `@<provider>_coder`
+> builtin entries.
+
+> The implicit role aliases (`@default`, `@epic_lander`, `@big_epic_lander`), the five
+> `<size>_worker` aliases, the automatic `worker` bucket, and the capability/cost
+> aliases (`@smart`, `@smarter`, `@smartest`, `@cheap`, `@cheaper`, `@cheapest`) were
+> removed in favor of the five direct built-in size aliases above plus the three scalar
+> `default_model` / `epic_lander_model` / `big_epic_lander_model` fields. A custom alias
+> can still opt into a bucket of any name, including `worker` — it just has no special
+> behavior anymore. Run `sase doctor -C config.model_aliases` for the exact destination
+> of any retired name still present in your config or directives.
 
 The TUI also supports **temporary**, per-alias session-level provider/model overrides
 (set from [Launch Control](ace.md#launch-control), `,m`) that do **not** edit this
@@ -2918,18 +2920,18 @@ Configuration for the bead issue tracker.
 
 ```yaml
 bead:
-  big_epic_phase_threshold: 5 # minimum authored phase count for @big_epic_lander
+  big_epic_phase_threshold: 5 # minimum authored phase count for llm_provider.big_epic_lander_model
   push_after_commit: true # compatibility field; current bead-work launches do not consult it
 ```
 
 | Field                           | Type        | Default | Description                                                                                                                                                                                                                                                                              |
 | ------------------------------- | ----------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                              |
+| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `llm_provider.big_epic_lander_model` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                            |
 | `bead.push_after_commit`        | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push. |
 
-Below the threshold, `@epic_lander` inherits `@default`. At or above it,
-`@big_epic_lander` instead inherits through `@smartest`. An explicit land model or a
-direct alias override remains authoritative.
+Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. At or
+above it, it uses `llm_provider.big_epic_lander_model` instead. An explicit land model
+remains authoritative over both.
 
 In Launch Control (`,m`), the `big epic starts at` row shows this effective threshold
 next to the two epic-lander rows. `e` or Enter opens a focused positive-integer editor,
@@ -3196,7 +3198,7 @@ disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 
 Muse's `muse-spark-1.2-contributor` model carries a **model advisory**: Meta uses its
 inputs and outputs to train and improve Meta's AI models. SASE keeps it fully reachable
-by name but never routes a tier map, `@cheap`, or `@cheaper` to it automatically. The
+by name but never routes a tier map or any built-in size alias to it automatically. The
 advisory renders in the ACE model picker, in `%model` completion detail, and in the
 resolved model label, and `sase doctor -C llm.model_advisory` warns when a configured
 default or model alias resolves to any advisory-flagged model. See
@@ -3208,10 +3210,10 @@ and expects users to authenticate with `grok login` or `XAI_API_KEY`. `grok` is 
 generic executable name shared with a stale community CLI (`grok-dev`) and Homebrew's
 deprecated regex tool, so Grok never participates in autodetection like Muse; it is
 reached by explicit selection (see [llm_provider.provider](#llm_provider) above) or
-automatically whenever the `grok` CLI is installed: through the shipped
-`@smart`/`@cheap`/`@cheaper` load-balanced pools, or as the last candidate in
-`@smartest`'s ordered fallback (behind Claude and Codex). Grok's `grok-4.6` model
-accepts only `low`/`medium`/`high`/`xhigh` for `--effort`; see
+automatically whenever the `grok` CLI is installed: through the shipped `@xsmall`,
+`@small`, and `@medium` round-robin pools, or as the last candidate in `@xlarge`'s
+ordered fallback (behind Claude and Codex). Grok's `grok-4.6` model accepts only
+`low`/`medium`/`high`/`xhigh` for `--effort`; see
 [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider

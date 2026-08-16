@@ -40,9 +40,9 @@ def test_append_model_field_alias_chip_is_uniform_across_providers() -> None:
         ("some-model", "agy"),
     ):
         text = Text()
-        append_model_field(text, model, provider, "xhigh", "medium_worker")
+        append_model_field(text, model, provider, "xhigh", "medium")
 
-        assert text.plain.endswith(" @ xhigh ← @medium_worker\n"), (
+        assert text.plain.endswith(" @ xhigh ← @medium\n"), (
             provider,
             text.plain,
         )
@@ -71,27 +71,27 @@ def test_model_alias_chip_follows_advisory_and_effort(
         lambda _severity: "#FFD75F",
     )
 
-    value = model_value_text("opus", "claude", "xhigh", "medium_worker")
+    value = model_value_text("opus", "claude", "xhigh", "medium")
     assert value is not None
 
-    assert value.plain.endswith("! @ xhigh ← @medium_worker")
+    assert value.plain.endswith("! @ xhigh ← @medium")
 
 
 def test_model_alias_reference_style_is_shared() -> None:
-    model_text = model_value_text("opus", "claude", None, "medium_worker")
+    model_text = model_value_text("opus", "claude", None, "medium")
     alias_text = Text("CLAUDE(opus)")
-    append_alias_reference(alias_text, "medium_worker")
+    append_alias_reference(alias_text, "medium")
     assert model_text is not None
 
     model_alias_spans = [
         span
         for span in model_text.spans
-        if model_text.plain[span.start : span.end] == "@medium_worker"
+        if model_text.plain[span.start : span.end] == "@medium"
     ]
     alias_reference_spans = [
         span
         for span in alias_text.spans
-        if alias_text.plain[span.start : span.end] == "@medium_worker"
+        if alias_text.plain[span.start : span.end] == "@medium"
     ]
     assert model_alias_spans
     assert alias_reference_spans
@@ -230,12 +230,12 @@ def test_agent_show_cli_renders_model_alias_chip(
             "model": "opus",
             "llm_provider": "claude",
             "reasoning_effort": "xhigh",
-            "model_alias": "medium_worker",
+            "model_alias": "medium",
         },
     )
 
     assert "CLAUDE" in out
-    assert "← @medium_worker" in out
+    assert "← @medium" in out
 
 
 def test_agent_show_cli_omits_suffix_without_effort(

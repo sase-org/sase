@@ -134,12 +134,12 @@ class TestAgentModelMetadata:
             model="opus",
             llm_provider="claude",
             reasoning_effort="xhigh",
-            model_alias="medium_worker",
+            model_alias="medium",
         )
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Model: CLAUDE(opus) @ xhigh ← @medium_worker\n" in header.plain
+        assert "Model: CLAUDE(opus) @ xhigh ← @medium\n" in header.plain
 
 
 class TestFamilyModelMetadata:
@@ -169,7 +169,7 @@ class TestFamilyModelMetadata:
                 model="opus",
                 llm_provider="claude",
                 reasoning_effort="xhigh",
-                model_alias="large_worker",
+                model_alias="large",
             ),
             _family_member(
                 "--code",
@@ -177,7 +177,7 @@ class TestFamilyModelMetadata:
                 model="sonnet",
                 llm_provider="claude",
                 reasoning_effort="high",
-                model_alias="medium_worker",
+                model_alias="medium",
             ),
             _family_member(
                 "--reviewer", "reviewer", model="gpt-5.2", llm_provider="codex"
@@ -186,13 +186,8 @@ class TestFamilyModelMetadata:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert (
-            "Model: --plan     · CLAUDE(opus) @ xhigh ← @large_worker\n" in header.plain
-        )
-        assert (
-            "       --code     · CLAUDE(sonnet) @ high ← @medium_worker\n"
-            in header.plain
-        )
+        assert "Model: --plan     · CLAUDE(opus) @ xhigh ← @large\n" in header.plain
+        assert "       --code     · CLAUDE(sonnet) @ high ← @medium\n" in header.plain
         assert "       --reviewer · CODEX(gpt-5.2)\n" in header.plain
 
     def test_model_still_sits_between_auto_and_xprompts_for_family_row(self) -> None:

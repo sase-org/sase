@@ -125,115 +125,23 @@ def provider_status(
 
 
 def calm_views() -> list[AliasView]:
+    """The five built-in size aliases plus two custom aliases.
+
+    Each size alias demonstrates a distinct state the Models panel must
+    render: ``xsmall`` a load-balanced pool/selector, ``small`` a plain
+    effort-suffixed target, ``medium`` a plain implicit target, ``large`` an
+    explicit configured-override target, and ``xlarge`` a max-effort target.
+    """
     return [
         _view(
-            "default",
-            "default",
-            provider="claude",
-            model="claude-fable-4-10",
-            description=(
-                "Model used when a prompt has no %model directive; delegates "
-                "to @smarter unless configured."
-            ),
-        ),
-        _view("epic_lander", "role", provider="claude", model="opus"),
-        _view(
-            "big_epic_lander",
-            "role",
-            provider="claude",
-            model="opus",
-            effort="max",
-            description=(
-                "Epic land agents selected for plans at or above the configured "
-                "phase-count threshold."
-            ),
-        ),
-        _view(
-            "xsmall_worker",
-            "role",
-            provider="claude",
-            model="sonnet",
-            effort="medium",
-            description="Extra-small phases that implement the simplest tasks.",
-        ),
-        _view(
-            "small_worker",
-            "role",
-            provider="claude",
-            model="sonnet",
-            effort="xhigh",
-            description="Small phases that implement directly.",
-        ),
-        _view(
-            "medium_worker",
-            "role",
-            provider="claude",
-            model="claude-fable-4-10",
-            effort="high",
-            description="Medium phases that implement directly.",
-        ),
-        _view(
-            "large_worker",
-            "role",
-            configured=True,
-            configured_value="claude/opus",
-            provider="claude",
-            model="opus",
-            description="Large phases that plan before implementation.",
-        ),
-        _view(
-            "xlarge_worker",
-            "role",
-            provider="claude",
-            model="opus",
-            effort="max",
-            description="Extra-large phases that author an epic plan.",
-        ),
-        _view(
-            "smartest",
-            "role",
-            provider="claude",
-            model="opus",
-            effort="max",
-            description="Highest-capability alias for explicit use.",
-        ),
-        _view(
-            "smarter",
-            "role",
-            provider="claude",
-            model="opus",
-            effort="xhigh",
-            description="Higher-capability alias used automatically by large phases.",
-        ),
-        _view(
-            "smart",
-            "role",
-            provider="claude",
-            model="claude-fable-4-10",
-            description="High-capability alias used automatically by large phases.",
-        ),
-        _view(
-            "cheap",
-            "role",
-            provider="claude",
-            model="sonnet",
-            effort="xhigh",
-            description="Load-balanced pool used automatically by small phases.",
-        ),
-        _view(
-            "cheaper",
-            "role",
-            provider="codex",
-            model="gpt-5.5",
-            effort="medium",
-            description="Lower-cost pool used automatically by extra-small phases.",
-        ),
-        _view(
-            "cheapest",
+            "xsmall",
             "role",
             provider="claude",
             model="haiku",
-            description="Lowest-cost load-balanced pool for explicit use.",
+            description=(
+                "Extra-small, lowest-cost alias load-balanced across a "
+                "fallback pool for the simplest direct tasks."
+            ),
             selector_mode="round_robin",
             selector_members=(
                 ModelAliasSelectorMember(
@@ -252,6 +160,38 @@ def calm_views() -> list[AliasView]:
                     available=True,
                 ),
             ),
+        ),
+        _view(
+            "small",
+            "role",
+            provider="claude",
+            model="sonnet",
+            effort="xhigh",
+            description="Small phases that implement directly.",
+        ),
+        _view(
+            "medium",
+            "role",
+            provider="claude",
+            model="claude-fable-4-10",
+            description="Medium phases that implement directly.",
+        ),
+        _view(
+            "large",
+            "role",
+            configured=True,
+            configured_value="claude/opus",
+            provider="claude",
+            model="opus",
+            description="Large phases that plan before implementation.",
+        ),
+        _view(
+            "xlarge",
+            "role",
+            provider="claude",
+            model="opus",
+            effort="max",
+            description="Extra-large phases that author an epic plan.",
         ),
         _view(
             "fast",
@@ -276,14 +216,7 @@ def calm_views() -> list[AliasView]:
 
 
 def override_views() -> list[AliasView]:
-    default_override = TemporaryLLMOverride(
-        provider="codex",
-        model="o3",
-        raw_model="codex/o3",
-        created_at=FROZEN_NOW,
-        expires_at=FROZEN_NOW + 3600.0,
-        source="ace",
-    )
+    """calm_views() with an active temporary override on the "medium" role."""
     worker_override = TemporaryLLMOverride(
         provider="codex",
         model="gpt-5.6-sol",
@@ -294,15 +227,7 @@ def override_views() -> list[AliasView]:
     )
     return [
         _view(
-            "default",
-            "default",
-            provider="codex",
-            model="o3",
-            override=default_override,
-        )
-        if row.name == "default"
-        else _view(
-            "medium_worker",
+            "medium",
             "role",
             configured=True,
             configured_value="codex/o3",
@@ -310,7 +235,7 @@ def override_views() -> list[AliasView]:
             model="gpt-5.6-sol",
             override=worker_override,
         )
-        if row.name == "medium_worker"
+        if row.name == "medium"
         else row
         for row in calm_views()
     ]
@@ -328,10 +253,10 @@ def provider_disabled_views() -> list[AliasView]:
     )
     return [
         _view(
-            "medium_worker",
+            "medium",
             "role",
             configured=True,
-            configured_value="@smart@high",
+            configured_value="@large@high",
             provider="claude",
             model="claude-fable-4-10",
             override=paused_override,
@@ -339,7 +264,7 @@ def provider_disabled_views() -> list[AliasView]:
             description="Medium phases that implement directly.",
             effort="high",
         )
-        if row.name == "medium_worker"
+        if row.name == "medium"
         else row
         for row in calm_views()
     ]
@@ -348,7 +273,7 @@ def provider_disabled_views() -> list[AliasView]:
 def custom_builtin_warning_views() -> list[AliasView]:
     return [
         _view(
-            "small_worker",
+            "small",
             "role",
             configured=True,
             configured_value="codex/o3",
@@ -357,29 +282,18 @@ def custom_builtin_warning_views() -> list[AliasView]:
             configured_source="custom",
             description="Misplaced builtin phase-worker alias.",
         )
-        if row.name == "small_worker"
+        if row.name == "small"
         else row
         for row in calm_views()
     ]
 
 
 def bucket_views() -> list[AliasView]:
+    """The five built-in size aliases plus a research bucket and one lone alias."""
+    base = calm_views()
+    fast = next(view for view in base if view.name == "fast")
     return [
-        _view(
-            "default",
-            "default",
-            provider="claude",
-            model="opus",
-            description=(
-                "Model used when a prompt has no %model directive; delegates "
-                "to @smarter unless configured."
-            ),
-        ),
-        _view("xsmall_worker", "role", provider="claude", model="sonnet"),
-        _view("small_worker", "role", provider="claude", model="sonnet"),
-        _view("medium_worker", "role", provider="claude", model="opus"),
-        _view("large_worker", "role", provider="claude", model="opus"),
-        _view("xlarge_worker", "role", provider="claude", model="opus"),
+        *(view for view in base if view.kind == "role"),
         _view(
             "research_a",
             "user",
@@ -413,16 +327,7 @@ def bucket_views() -> list[AliasView]:
             description="Extra researcher lane.",
             bucket="research",
         ),
-        _view(
-            "fast",
-            "user",
-            configured=True,
-            configured_value="claude/haiku",
-            provider="claude",
-            model="haiku",
-            configured_source="custom",
-            description="Quick low-cost follow-up agents.",
-        ),
+        fast,
     ]
 
 
@@ -483,10 +388,10 @@ LONG_POOL_MEMBERS = (
 
 
 def long_pool_views() -> list[AliasView]:
-    """calm_views() with "cheaper" wired to a 4-member pool that wraps 3+ rows."""
+    """calm_views() with "xsmall" wired to a 4-member pool that wraps 3+ rows."""
     return [
         _view(
-            "cheaper",
+            "xsmall",
             "role",
             configured=True,
             configured_value=(
@@ -500,7 +405,7 @@ def long_pool_views() -> list[AliasView]:
             selector_mode="round_robin",
             selector_members=LONG_POOL_MEMBERS,
         )
-        if row.name == "cheaper"
+        if row.name == "xsmall"
         else row
         for row in calm_views()
     ]
@@ -543,7 +448,7 @@ def pool_effort_views(*, suspended: bool = False) -> list[AliasView]:
     )
     rows = [
         _view(
-            "cheaper",
+            "xsmall",
             "role",
             configured=True,
             configured_value="claude/opus@medium | codex/gpt-5.5@high",
@@ -556,7 +461,7 @@ def pool_effort_views(*, suspended: bool = False) -> list[AliasView]:
             selector_members=pool_members,
             effort=None if suspended else "high",
         )
-        if row.name == "cheaper"
+        if row.name == "xsmall"
         else row
         for row in calm_views()
     ]
