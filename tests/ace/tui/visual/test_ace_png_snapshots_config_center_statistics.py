@@ -11,6 +11,7 @@ from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _patch_plugins_catalog,
     _patch_statistics_empty,
     _patch_statistics_loading,
+    _patch_statistics_perf_degraded,
     _patch_statistics_populated,
     _patch_xprompt_sources,
 )
@@ -206,6 +207,83 @@ async def test_config_center_statistics_runners_narrow_png_snapshot(
             page,
             "config_center_statistics_runners_90x30",
             title="ACE SASE Admin Center — Statistics runners narrow",
+        )
+
+
+async def test_config_center_statistics_perf_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("perf")
+        await wait_for_visual_idle(page)
+
+        assert pane._last_result is not None
+        assert pane._last_result.perf is not None
+        assert pane._perf_stacked is False
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_perf_120x40",
+            title="ACE SASE Admin Center — Statistics performance",
+        )
+
+
+async def test_config_center_statistics_perf_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        size=(90, 30),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("perf")
+        await wait_for_visual_idle(page)
+
+        assert pane._perf_stacked is True
+        assert pane._compact_scope is True
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_perf_90x30",
+            title="ACE SASE Admin Center — Statistics performance narrow",
+        )
+
+
+async def test_config_center_statistics_perf_degraded_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_perf_degraded(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("perf")
+        await wait_for_visual_idle(page)
+
+        assert pane._last_result is not None
+        assert pane._last_result.perf is not None
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_perf_degraded_120x40",
+            title="ACE SASE Admin Center — Statistics performance degraded",
         )
 
 

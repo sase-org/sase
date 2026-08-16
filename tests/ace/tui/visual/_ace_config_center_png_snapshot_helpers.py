@@ -35,6 +35,7 @@ from tests.ace.tui.visual._ace_config_center_projects_helpers import (
 from tests.ace.tui.visual._ace_config_center_statistics_helpers import (
     _patch_statistics_empty,
     _patch_statistics_loading,
+    _patch_statistics_perf_degraded,
     _patch_statistics_populated,
 )
 from tests.ace.tui.visual._ace_config_center_xprompt_helpers import (
@@ -60,6 +61,7 @@ __all__ = [
     "_patch_project_records",
     "_patch_statistics_empty",
     "_patch_statistics_loading",
+    "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",
     "_patch_xprompt_sources",
     "_seed_logs_tab_files",

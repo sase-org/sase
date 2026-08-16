@@ -8,8 +8,14 @@ from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import StatisticsViewData
 from sase.project_display_names import ProjectDisplaySnapshot
+from sase.stats import PerfView, build_perf_view
+from sase.stats.perf_query import PerfGroupBy
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
+from tests.stats._views_payloads import (
+    perf_logs_payload,
+    perf_telemetry_payload,
+)
 
 _STATISTICS_NOW = 1_720_268_400.0
 _STATISTICS_RANGE = StatsRange(
@@ -224,6 +230,7 @@ def _populated_statistics_view(
     selected_range: StatsRange = _STATISTICS_RANGE,
     project_filter: str | None = None,
     xprompt_focus: str | None = None,
+    perf_group_by: PerfGroupBy = "subsystem",
 ) -> StatisticsViewData:
     runtime_group_by = "tribe"
     run_payload = {
@@ -522,6 +529,9 @@ def _populated_statistics_view(
             "mean_questions_per_session": 1.625,
         },
     }
+    perf = None
+    if view == "perf":
+        perf = _perf_populated_view(selected_range, perf_group_by)
     return StatisticsViewData(
         view=view,  # type: ignore[arg-type]
         selected_range=selected_range,
@@ -536,6 +546,150 @@ def _populated_statistics_view(
         project_filter=project_filter,
         xprompt_focus=xprompt_focus,
         project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
+        perf=perf,
+    )
+
+
+def _perf_populated_view(
+    selected_range: StatsRange = _STATISTICS_RANGE,
+    group_by: PerfGroupBy = "subsystem",
+) -> PerfView:
+    previous_logs = perf_logs_payload()
+    previous_logs["startup"]["stages"][2]["summary"]["p50"] = 1.2  # type: ignore[index]
+    previous_telemetry = perf_telemetry_payload()
+    previous_telemetry["histograms"]["sase_agent_run_duration_seconds"]["p95"] = {  # type: ignore[index]
+        "resolution": "raw",
+        "series": [{"labels": {}, "value": 100.0}],
+    }
+    return build_perf_view(
+        perf_logs_payload(),
+        perf_telemetry_payload(),
+        selected_range=selected_range,
+        previous_perf_payload=previous_logs,
+        previous_telemetry_payload=previous_telemetry,
+        group_by=group_by,
+        now=_STATISTICS_NOW,
+    )
+
+
+def _degraded_perf_logs_payload() -> dict[str, object]:
+    payload = perf_logs_payload()
+    payload["coverage"] = [
+        {
+            "source": "startup",
+            "path": "/tmp/tui_startup.jsonl",
+            "present": True,
+            "records_scanned": 3,
+            "records_in_window": 3,
+            "earliest_ts": _STATISTICS_NOW - 5_000.0,
+            "latest_ts": _STATISTICS_NOW - 100.0,
+            "truncated": False,
+            "malformed_skipped": 0,
+        },
+        {
+            "source": "stalls",
+            "path": "/tmp/tui_stalls.jsonl",
+            "present": True,
+            "records_scanned": 4,
+            "records_in_window": 4,
+            "earliest_ts": _STATISTICS_NOW - 4_000.0,
+            "latest_ts": _STATISTICS_NOW - 200.0,
+            "truncated": False,
+            "malformed_skipped": 1,
+        },
+        {
+            "source": "launch_timing",
+            "path": "/tmp/tui_launch_timing.jsonl",
+            "present": True,
+            "records_scanned": 4,
+            "records_in_window": 4,
+            "earliest_ts": _STATISTICS_NOW - 3_000.0,
+            "latest_ts": _STATISTICS_NOW - 300.0,
+            "truncated": True,
+            "malformed_skipped": 0,
+        },
+        {
+            "source": "agent_loads",
+            "path": "/tmp/tui_agent_loads.jsonl",
+            "present": True,
+            "records_scanned": 1,
+            "records_in_window": 1,
+            "earliest_ts": _STATISTICS_NOW - 2_000.0,
+            "latest_ts": _STATISTICS_NOW - 2_000.0,
+            "truncated": False,
+            "malformed_skipped": 0,
+        },
+        {
+            "source": "git_ops",
+            "path": "/tmp/tui_git_ops.jsonl",
+            "present": False,
+            "records_scanned": 0,
+            "records_in_window": 0,
+            "earliest_ts": None,
+            "latest_ts": None,
+            "truncated": False,
+            "malformed_skipped": 0,
+        },
+        {
+            "source": "external_tools",
+            "path": "/tmp/tui_external_tools.jsonl",
+            "present": True,
+            "records_scanned": 2,
+            "records_in_window": 1,
+            "earliest_ts": _STATISTICS_NOW - 1_000.0,
+            "latest_ts": _STATISTICS_NOW - 1_000.0,
+            "truncated": False,
+            "malformed_skipped": 1,
+        },
+    ]
+    return payload
+
+
+def _degraded_perf_statistics_view(
+    view: str = "perf",
+    selected_range: StatsRange = _STATISTICS_RANGE,
+    project_filter: str | None = None,
+    xprompt_focus: str | None = None,
+    perf_group_by: PerfGroupBy = "subsystem",
+) -> StatisticsViewData:
+    perf_view = build_perf_view(
+        _degraded_perf_logs_payload(),
+        {"enabled": False, "group_by": perf_group_by},
+        selected_range=selected_range,
+        group_by=perf_group_by,
+        now=_STATISTICS_NOW,
+    )
+    return StatisticsViewData(
+        view=view,  # type: ignore[arg-type]
+        selected_range=selected_range,
+        generated_at=_STATISTICS_NOW,
+        views=build_statistics_views(
+            {},
+            {},
+            project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
+            current_runner_limit=4,
+        ),
+        project_filter=project_filter,
+        xprompt_focus=xprompt_focus,
+        project_display_snapshot=_PROJECT_DISPLAY_SNAPSHOT,
+        perf=perf_view,
+    )
+
+
+def _patch_statistics_perf_degraded(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sp, "resolve_preset", lambda _key: _STATISTICS_RANGE)
+    monkeypatch.setattr(
+        sp,
+        "load_statistics_view",
+        lambda view, selected_range, project_filter=None, xprompt_focus=None, perf_group_by="subsystem", **_kw: (
+            _degraded_perf_statistics_view(
+                view,
+                selected_range,
+                project_filter,
+                xprompt_focus,
+                perf_group_by=perf_group_by,
+            )
+        ),
     )
 
 
@@ -544,12 +698,13 @@ def _patch_statistics_populated(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, project_filter=None, xprompt_focus=None, **_kw: (
+        lambda view, selected_range, project_filter=None, xprompt_focus=None, perf_group_by="subsystem", **_kw: (
             _populated_statistics_view(
                 view,
                 selected_range,
                 project_filter,
                 xprompt_focus,
+                perf_group_by=perf_group_by,
             )
         ),
     )
@@ -587,5 +742,6 @@ def _patch_statistics_loading(monkeypatch: pytest.MonkeyPatch) -> None:
 __all__ = [
     "_patch_statistics_empty",
     "_patch_statistics_loading",
+    "_patch_statistics_perf_degraded",
     "_patch_statistics_populated",
 ]

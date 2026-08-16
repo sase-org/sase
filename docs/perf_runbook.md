@@ -585,3 +585,70 @@ speeds downstream `jq` slicing.
 When a span boundary forces a refactor (most existing hot paths split into `foo()` →
 `_foo_impl()` so the wrapping context manager doesn't fight indentation rules), keep
 both methods next to each other and let the public name stay the trace span name.
+
+## Reading the Admin Center Perf view
+
+The ACE Admin Center (`2` -> Statistics modal) and CLI (`sase stats --view perf`)
+provide an integrated Performance view that aggregates runtime latency, startup timings,
+event loop responsiveness, and subsystem telemetry over the configured time window.
+
+### Panel Breakdown and Metric Sources
+
+The Perf view organizes performance data into four primary panels backed by dedicated
+log and telemetry sources:
+
+1. **Startup & Lifecycle Stages**  
+   Summarizes stage durations (`app_init`, `mount`, `first_paint`, `idle`, `total`)
+   reporting p50 / p95 / max percentiles and comparison delta against the prior
+   period.  
+   _Source_: `~/.sase/perf/tui_startup.jsonl`
+
+2. **Event Loop Responsiveness & Driver Stalls**  
+   Visualizes event loop stall distribution (buckets: 10–50ms, 50–100ms, 100–250ms,
+   250ms+) alongside key-to-paint latency for navigation bursts.  
+   _Source_: `~/.sase/perf/tui_stalls.jsonl`
+
+3. **Subsystem & Background Task Timing**  
+   Tracks execution duration, concurrency, and throughput across agent loading, git VCS
+   operations, and external tool invocations. Grouping can be cycled between `subsystem`
+   and `tribe` via `g`.  
+   _Sources_:
+   - `~/.sase/perf/tui_launch_timing.jsonl` (proc and runner launch durations)
+   - `~/.sase/perf/tui_agent_loads.jsonl` (agent state and artifact deserialization)
+   - `~/.sase/perf/tui_git_ops.jsonl` (VCS log, diff, and status probes)
+   - `~/.sase/perf/tui_external_tools.jsonl` (linter, compiler, and CLI tool spawns)
+
+4. **Telemetry Histograms & Resource Utilization**  
+   Displays histogram distributions for core SASE metrics (such as agent run durations
+   `sase_agent_run_duration_seconds`), worker process RSS curves, and system memory.  
+   _Source_: SASE local telemetry database / OpenTelemetry collector.
+
+5. **Source Coverage & Diagnostics**  
+   Reports coverage status across each log stream including file presence, records
+   scanned, records in-window, timestamp boundaries, and indicators for truncated files
+   or malformed lines skipped during parsing.
+
+### Retention and Rollup Caveats
+
+Perf analytics combine high-resolution raw samples with downsampled rollups:
+
+- **Raw event logs**: Retained for **48 hours** with individual JSONL files rotating at
+  **2 MB** (keeping one `.1` backup file).
+- **Medium rollups**: Aggregated at 5-minute resolution and retained for **30 days**.
+- **Long-term rollups**: Aggregated at 1-hour resolution and retained for **365 days**.
+
+When inspecting older time windows (e.g. 30d or 1y), fine-grained percentile details
+reflect rollup bucket resolutions rather than sub-millisecond point events. In degraded
+scenarios (such as when telemetry is disabled or a log file is absent), the view
+gracefully renders partial status indicators and fallback badges without crashing.
+
+### Deep Profiling & Probe Flags
+
+For deeper investigation beyond the summary dashboard:
+
+- `SASE_TUI_PERF=1`: Activates detailed timing probes and log file emitters.
+- `SASE_TUI_TRACE=1`: Activates context-manager trace spans emitting to
+  `~/.sase/perf/tui_trace.jsonl` for offline analysis with `jq` or the benchmark suite
+  (see [Trace recorder](#trace-recorder) above).
+- `just view-hints-perf-check`: Runs the automated regression floor for hint-mode
+  scenarios.
