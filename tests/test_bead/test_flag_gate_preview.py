@@ -1,0 +1,104 @@
+"""Rendering coverage for the FlagTriage gate's Markdown preview and note."""
+
+from __future__ import annotations
+
+from sase.bead._flag_gate_preview import (
+    flag_triage_presentation_note,
+    render_flag_triage_preview,
+)
+from sase.bead.model import FlagRecord
+
+_FLAG = FlagRecord(
+    key="prettier_enabled",
+    remove_by_date="2026-08-01",
+    remove_by_release="0.16.0",
+)
+
+
+def _render(**overrides: object) -> str:
+    fields: dict[str, object] = {
+        "bead_id": "sase-flag.1",
+        "title": "Remove the prettier_enabled flag",
+        "description": "Roll out the new formatter by default.",
+        "notes": "",
+        "flag": _FLAG,
+        "due_as_of": "2026-08-01",
+        "release": "0.16.0",
+        "definition": {"kind": "sunset", "description": "Routes prettier formatting."},
+        "created_by": "",
+        "created_at": "",
+        "size": None,
+    }
+    fields.update(overrides)
+    return render_flag_triage_preview(**fields)  # type: ignore[arg-type]
+
+
+def test_registered_definition_renders_kind_and_description() -> None:
+    preview = _render()
+
+    assert "**Kind:** `sunset`" in preview
+    assert "## What this flag does" in preview
+    assert "Routes prettier formatting." in preview
+
+
+def test_unregistered_definition_renders_warning_callout() -> None:
+    preview = _render(definition=None)
+
+    assert "**Kind:**" not in preview
+    assert "## What this flag does" not in preview
+    assert "No registry definition names this key." in preview
+    assert "tools/check_feature_flags" in preview
+
+
+def test_blank_notes_omit_notes_section() -> None:
+    preview = _render(notes="")
+
+    assert "## Notes" not in preview
+
+
+def test_nonblank_notes_render_notes_section() -> None:
+    preview = _render(notes="Extra context for reviewers.")
+
+    assert "## Notes" in preview
+    assert "Extra context for reviewers." in preview
+
+
+def test_backticks_in_definition_kind_are_escaped() -> None:
+    preview = _render(definition={"kind": "sun`set", "description": "…"})
+
+    assert "**Kind:** `sun\\`set`" in preview
+
+
+def test_countdown_text_comes_from_pinned_due_as_of_and_release() -> None:
+    due_today = _render(due_as_of="2026-08-01", release="0.16.0")
+    assert "DUE ⧗ +0d (as of 2026-08-01, release v0.16.0)" in due_today
+
+    overdue = _render(due_as_of="2026-08-16", release="0.16.0")
+    assert "DUE ⧗ +15d (as of 2026-08-16, release v0.16.0)" in overdue
+
+    live = _render(
+        flag=FlagRecord(
+            key="prettier_enabled",
+            remove_by_date="2026-12-01",
+            remove_by_release="0.20.0",
+        ),
+        due_as_of="2026-08-01",
+        release="0.16.0",
+    )
+    assert "as of 2026-08-01, release v0.16.0" in live
+    assert "DUE" not in live.split("**Status:**")[1].splitlines()[0]
+
+
+def test_presentation_note_matches_the_preview_countdown() -> None:
+    note = flag_triage_presentation_note(
+        "sase-flag.1",
+        "Remove the prettier_enabled flag",
+        _FLAG,
+        due_as_of="2026-08-01",
+        release="0.16.0",
+    )
+
+    assert note == (
+        "sase-flag.1 [⚑ prettier_enabled] — Remove the prettier_enabled flag "
+        "· DUE ⧗ +0d"
+    )

@@ -11,7 +11,14 @@ import pytest
 
 import sase.scripts.sase_chop_bead_task_triage as task_triage
 from sase.axe.chop_script_context import ChopScriptContext
-from sase.bead.model import Issue, IssueType, PhaseSize, SnoozeRecord, Status
+from sase.bead.model import (
+    FlagRecord,
+    Issue,
+    IssueType,
+    PhaseSize,
+    SnoozeRecord,
+    Status,
+)
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
 from sase.core.time import get_timezone
@@ -74,6 +81,48 @@ def future_instant(*, days: int) -> str:
     return (datetime.now(get_timezone()) + timedelta(days=days)).isoformat()
 
 
+def make_due_flag(
+    bead_id: str = "sase-flag.1",
+    *,
+    key: str = "prettier_enabled",
+    remove_by_date: str = "2026-01-01",
+    remove_by_release: str = "0.1.0",
+    created_by: str = "claude_coder",
+) -> Issue:
+    """Return an ``open`` flag bead whose thresholds have both passed."""
+    return Issue(
+        id=bead_id,
+        title=f"Remove the {key} flag",
+        status=Status.OPEN,
+        issue_type=IssueType.FLAG,
+        description="Routes prettier formatting.",
+        notes="Discovered while landing sase-bg.",
+        created_at="2026-01-01T00:00:00Z",
+        created_by=created_by,
+        flag=FlagRecord(
+            key=key,
+            remove_by_date=remove_by_date,
+            remove_by_release=remove_by_release,
+        ),
+    )
+
+
+def make_live_flag(
+    bead_id: str = "sase-flag.1",
+    *,
+    key: str = "prettier_enabled",
+    created_by: str = "claude_coder",
+) -> Issue:
+    """Return an ``open`` flag bead whose thresholds have not passed."""
+    return make_due_flag(
+        bead_id,
+        key=key,
+        remove_by_date="2099-01-01",
+        remove_by_release="99.0.0",
+        created_by=created_by,
+    )
+
+
 def patch_project(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -84,7 +133,11 @@ def patch_project(
         "_enabled_project_stores",
         lambda _log: [("sase", tmp_path / "beads")],
     )
-    monkeypatch.setattr(task_triage, "_gateable_tasks", lambda _path: list(ready))
+    monkeypatch.setattr(
+        task_triage,
+        "_gateable_beads",
+        lambda _path, **_kwargs: list(ready),
+    )
     monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
     patch_active_launches(monkeypatch)
 

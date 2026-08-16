@@ -412,6 +412,7 @@ def test_gate_adapter_registry_declares_surface_capabilities() -> None:
     assert {kind for kind, adapter in adapters.items() if adapter.generic_form} == {
         "bead_snooze",
         "custom",
+        "flag_triage",
         "task_triage",
     }
     assert {

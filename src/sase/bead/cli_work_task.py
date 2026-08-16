@@ -117,9 +117,9 @@ def launch_task_bead_work(
             )
 
     issue = proj.show(task_id)
-    if issue.issue_type is not IssueType.TASK:
+    if issue.issue_type not in (IssueType.TASK, IssueType.FLAG):
         raise TaskBeadWorkError(
-            f"sase bead work task launches require a task bead "
+            f"sase bead work task launches require a task or flag bead "
             f"(got {issue.issue_type.value} for {task_id})"
         )
     if issue.status not in {Status.OPEN, Status.READY, Status.IN_PROGRESS}:

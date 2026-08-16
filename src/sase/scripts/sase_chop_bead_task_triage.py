@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Raise and reconcile the one pending gate each live task bead may have.
+"""Raise and reconcile the one pending gate each live bead may have.
 
 A task bead is either ready — awaiting a ``TaskTriage`` decision — or snoozed,
-awaiting a ``BeadSnooze`` wake. Both gate kinds are reconciled here, in one
-lane state and under one lock, because "which gate does this bead have" is a
-single question: a second chop owning the second kind could only race this one
-into giving a bead two pending gates.
+awaiting a ``BeadSnooze`` wake. A flag bead whose removal thresholds have both
+passed awaits a ``FlagTriage`` decision. All three gate kinds are reconciled
+here, in one lane state and under one lock, because "which gate does this bead
+have" is a single question: a second chop owning a second kind could only race
+this one into giving a bead two pending gates.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+import sase
+from sase.bead.flag_gate import FLAG_TRIAGE_KIND, create_flag_triage_gate
 from sase.bead.gate_lookup import find_pending_bead_gates
 from sase.bead.model import Issue, SnoozeRecord
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND, create_bead_snooze_gate
@@ -19,6 +22,7 @@ from sase.bead.task_gate import TASK_TRIAGE_KIND, create_task_triage_gate
 from sase.bead.task_launch import active_task_launch_bead_ids
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopLogger, ChopResultBuilder
+from sase.core import time as core_time
 from sase.notification_gates.durability import file_lock
 from sase.scripts._bead_task_triage_gates import (
     REQUEST_ID_PREFIXES as _REQUEST_ID_PREFIXES,
@@ -39,7 +43,7 @@ from sase.scripts._bead_task_triage_state import (
     ProjectState as _ProjectState,
     coerce_project_inventory as _coerce_project_inventory,
     enabled_project_stores as _enabled_project_stores,
-    gateable_tasks as _gateable_tasks,
+    gateable_beads as _gateable_beads,
     project_display_name as _project_display_name,
     write_state as _write_state_impl,
 )
@@ -52,11 +56,12 @@ _LOCK_FILENAME = "bead_task_triage.lock"
 # the reconciler replaces pending gates still advertising the superseded one.
 _PRESENTATION_FORMAT_VERSION = 2
 
-# Bumped whenever the trusted TaskTriage or BeadSnooze interaction contract
-# changes shape, so pending gates still exposing old option inputs are replaced.
+# Bumped whenever the trusted TaskTriage, BeadSnooze, or FlagTriage interaction
+# contract changes shape, so pending gates still exposing old option inputs are
+# replaced.
 _GATE_CONTRACT_VERSION = 2
 
-_GATE_KINDS = (TASK_TRIAGE_KIND, BEAD_SNOOZE_KIND)
+_GATE_KINDS = (TASK_TRIAGE_KIND, BEAD_SNOOZE_KIND, FLAG_TRIAGE_KIND)
 
 
 def _read_state(path: Path) -> dict[str, _ProjectState]:
@@ -80,6 +85,10 @@ def _presentation_fingerprint(issue: Issue) -> str:
         issue,
         format_version=_PRESENTATION_FORMAT_VERSION,
         gate_contract_version=_GATE_CONTRACT_VERSION,
+        # Gateable flag beads are always due (see `_gateable_beads`), so this
+        # is not a second due-ness comparison -- just threading the one
+        # already-known state into the fingerprint.
+        flag_due_state="due" if issue.flag is not None else None,
     )
 
 
@@ -154,6 +163,7 @@ def _create_gate(
         project_name=project_name,
         issue=issue,
         task_gate_factory=create_task_triage_gate,
+        flag_gate_factory=create_flag_triage_gate,
         snooze_gate_factory=create_bead_snooze_gate,
     )
 
@@ -284,13 +294,18 @@ def _reconcile(runtime: BuiltinChopRuntime, state_path: Path) -> ChopResultBuild
         )
         in_flight_launches = frozenset()
 
+    today = core_time.local_now().date()
+    release = sase.__version__
     for project_name, beads_dir in inventory.stores:
         try:
-            live_tasks = {issue.id: issue for issue in _gateable_tasks(beads_dir)}
+            live_tasks = {
+                issue.id: issue
+                for issue in _gateable_beads(beads_dir, today=today, release=release)
+            }
         except Exception as exc:  # noqa: BLE001 - one store must not stop the chop.
             skipped_projects.add(project_name)
             runtime.log.warning(
-                f"[bead_task_triage] Failed to read gateable tasks for "
+                f"[bead_task_triage] Failed to read gateable beads for "
                 f"{_project_display_name(project_name)}: {exc}"
             )
             continue

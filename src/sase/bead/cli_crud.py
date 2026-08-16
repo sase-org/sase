@@ -684,25 +684,26 @@ def _settle_close_task_gates(
     closed_ids: list[str],
     cascade_closed_ids: list[str],
 ) -> None:
-    """Cancel each just-closed task bead's pending gate, skipping non-tasks.
+    """Cancel each just-closed task or flag bead's pending gate, skipping others.
 
-    Every plan/phase close and every already-closed no-op has no task ids
-    here, so it costs nothing beyond building and checking this set.
+    Every plan/phase close and every already-closed no-op has no candidate
+    ids here, so it costs nothing beyond building and checking this set.
     """
     candidate_ids = set(closed_ids) | set(cascade_closed_ids)
     if not candidate_ids:
         return
-    task_ids = {
+    gateable_ids = {
         issue.id
         for issue in issues
-        if issue.id in candidate_ids and issue.issue_type is IssueType.TASK
+        if issue.id in candidate_ids
+        and issue.issue_type in (IssueType.TASK, IssueType.FLAG)
     }
-    if not task_ids:
+    if not gateable_ids:
         return
     from sase.bead.close_gate_settle import settle_closed_task_bead_gates
     from sase.bead.project_name import infer_project_name_from_cwd
 
-    settle_closed_task_bead_gates(infer_project_name_from_cwd(), task_ids)
+    settle_closed_task_bead_gates(infer_project_name_from_cwd(), gateable_ids)
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:

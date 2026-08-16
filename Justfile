@@ -323,7 +323,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-nb(feature_flags_schema_drift)" \
         --epic-symbol "sase-nb(flag_due_chip)" \
         --epic-symbol "sase-nb(flag_due_cli_cell)" \
-        --epic-symbol "sase-nb(flag_due_presentation)" \
         --epic-symbol "sase-nb(flag_key_chip)" \
         --epic-symbol "sase-nb(flag_key_cli_cell)" \
         --epic-symbol "sase-nb(FlagDuePresentation)" \

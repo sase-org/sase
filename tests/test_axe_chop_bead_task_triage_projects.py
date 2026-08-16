@@ -32,12 +32,12 @@ def test_failed_project_read_does_not_block_other_projects(
         ],
     )
 
-    def read(path: Path) -> list[Issue]:
+    def read(path: Path, **_kwargs: Any) -> list[Issue]:
         if path.name == "broken":
             raise OSError("unavailable")
         return [make_task()]
 
-    monkeypatch.setattr(task_triage, "_gateable_tasks", read)
+    monkeypatch.setattr(task_triage, "_gateable_beads", read)
     monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
     created: list[str] = []
     monkeypatch.setattr(
@@ -80,7 +80,7 @@ def test_state_project_absent_from_inventory_is_swept(
             stores=(("sase", tmp_path / "beads"),)
         ),
     )
-    monkeypatch.setattr(task_triage, "_gateable_tasks", lambda _path: [])
+    monkeypatch.setattr(task_triage, "_gateable_beads", lambda _path, **_kwargs: [])
     monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
     monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
     patch_active_launches(monkeypatch)
@@ -141,7 +141,9 @@ def test_reenabled_project_starts_fresh_gate_generation_after_sweep(
         "_enabled_project_stores",
         lambda _log: task_triage._ProjectInventory(stores=tuple(stores)),
     )
-    monkeypatch.setattr(task_triage, "_gateable_tasks", lambda _path: list(ready))
+    monkeypatch.setattr(
+        task_triage, "_gateable_beads", lambda _path, **_kwargs: list(ready)
+    )
     monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
     monkeypatch.setattr(task_triage, "find_pending_bead_gates", lambda _kinds: [])
     patch_active_launches(monkeypatch)
@@ -237,7 +239,7 @@ def test_removed_project_key_does_not_duplicate_same_live_bead_in_new_project(
             stores=(("sase", tmp_path / "beads"),)
         ),
     )
-    monkeypatch.setattr(task_triage, "_gateable_tasks", lambda _path: [task])
+    monkeypatch.setattr(task_triage, "_gateable_beads", lambda _path, **_kwargs: [task])
     monkeypatch.setattr(task_triage, "_gate_state", lambda _kind, _id: "pending")
     patch_active_launches(monkeypatch)
     canceled: list[tuple[str, str, str]] = []
@@ -316,8 +318,8 @@ def test_unreadable_inventory_project_keeps_state_and_pending_gates(
     )
     monkeypatch.setattr(
         task_triage,
-        "_gateable_tasks",
-        lambda _path: (_ for _ in ()).throw(OSError("store unavailable")),
+        "_gateable_beads",
+        lambda _path, **_kwargs: (_ for _ in ()).throw(OSError("store unavailable")),
     )
     monkeypatch.setattr(
         task_triage,

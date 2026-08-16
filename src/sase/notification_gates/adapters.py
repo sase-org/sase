@@ -121,6 +121,31 @@ class GateAdapter:
             else:
                 resnooze_bead_snooze(snooze_decision)
             return
+        if self.kind == "flag_triage":
+            from sase.bead.flag_gate import (
+                close_flag_triage,
+                extend_flag_triage,
+                keep_flag_triage,
+                remove_flag_triage,
+                translate_flag_triage_response,
+            )
+
+            flag_decision = translate_flag_triage_response(bundle_path, response)
+            proc = None
+            if flag_decision.action == "close":
+                close_flag_triage(flag_decision)
+            elif flag_decision.action == "extend":
+                extend_flag_triage(flag_decision)
+            elif flag_decision.action == "keep":
+                proc = keep_flag_triage(flag_decision, origin=epic_launch_origin)
+            else:
+                proc = remove_flag_triage(flag_decision, origin=epic_launch_origin)
+            if proc is not None and isinstance(response, dict):
+                from sase.notification_gates.durability import atomic_write_json
+
+                response["task_launch_task_id"] = proc.proc_id
+                atomic_write_json(bundle_path / "response.json", response)
+            return
         if self.kind not in {"plan", "epic_plan"}:
             return
         from sase.notification_gates.durability import read_json_object
@@ -343,6 +368,19 @@ _ADAPTERS = (
         request_filename="request.json",
         response_filename="response.json",
         legacy_directory_key="bead_snooze_dir",
+        auto_policy="forbidden",
+        neutral_only=True,
+        generic_form=True,
+    ),
+    GateAdapter(
+        kind="flag_triage",
+        display_title="Flag Triage",
+        action="FlagTriage",
+        pending_action_kind="flag_triage",
+        sender="bead",
+        request_filename="request.json",
+        response_filename="response.json",
+        legacy_directory_key="bundle_path",
         auto_policy="forbidden",
         neutral_only=True,
         generic_form=True,

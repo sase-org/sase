@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.model import BeadTier, IssueType, Status
+from sase.bead.model import BeadTier, FlagRecord, IssueType, Status
 from sase.bead.project import BeadProject
 
 from .cli_work_helpers import make_args, seed_patch_epic, seed_diamond
@@ -48,7 +48,42 @@ def test_work_rejects_non_plan_bead(
     with pytest.raises(SystemExit) as excinfo:
         bead_cli.handle_bead_work(make_args(phase_ids[0], yes=True))
     assert excinfo.value.code == 1
-    assert "only applies to epic plan or task beads" in capsys.readouterr().err
+    assert "only applies to epic plan, task, or flag beads" in capsys.readouterr().err
+
+
+def test_work_accepts_flag_bead(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.bead.work import VCSLaunchContext
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.resolve_task_vcs_launch_context",
+        lambda: VCSLaunchContext(vcs_workflow="git", project_name="sase"),
+    )
+    with BeadProject(project_dir) as proj:
+        flag = proj.create(
+            "Remove the demo flag",
+            IssueType.FLAG,
+            flag=FlagRecord(
+                key="demo_flag",
+                remove_by_date="2026-08-01",
+                remove_by_release="0.1.0",
+            ),
+        )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.checkpoint_task_work_launch",
+        lambda *_args, **_kwargs: pytest.fail("dry-run must not checkpoint"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.launch_bead_work_agents",
+        lambda *_args, **_kwargs: pytest.fail("dry-run must not launch"),
+    )
+
+    bead_cli.handle_bead_work(make_args(flag.id, dry_run=True))
+
+    assert "only applies to epic plan" not in capsys.readouterr().err
 
 
 def test_work_missing_bead_json_error_is_one_envelope(
@@ -86,7 +121,7 @@ def test_work_non_plan_bead_json_error_is_one_envelope(
     assert payload["mode"] == "bead_id"
     assert payload["epic_id"] == phase_ids[0]
     assert payload["error"].startswith(
-        "sase bead work only applies to epic plan or task beads"
+        "sase bead work only applies to epic plan, task, or flag beads"
     )
 
 

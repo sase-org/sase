@@ -88,7 +88,7 @@ def _handle_bead_work_locked(
                             "mode": "plan_file",
                             "error": (
                                 "--launch-feedback only applies when the bead "
-                                "work target is a task bead"
+                                "work target is a task or flag bead"
                             ),
                         },
                         sort_keys=True,
@@ -97,7 +97,7 @@ def _handle_bead_work_locked(
             else:
                 print(
                     "Error: --launch-feedback only applies when the bead work "
-                    "target is a task bead",
+                    "target is a task or flag bead",
                     file=sys.stderr,
                 )
             raise SystemExit(1)
@@ -217,7 +217,7 @@ def _handle_bead_work_locked(
                     json_output=json_output,
                 )
         if issue.issue_type != IssueType.PLAN:
-            if issue.issue_type is IssueType.TASK:
+            if issue.issue_type in (IssueType.TASK, IssueType.FLAG):
                 from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
 
                 captured = io.StringIO()
@@ -277,7 +277,7 @@ def _handle_bead_work_locked(
                     )
                 return
             _exit_bead_id_error(
-                "sase bead work only applies to epic plan or task beads "
+                "sase bead work only applies to epic plan, task, or flag beads "
                 f"(got {issue.issue_type.value} for {target})",
                 target=target,
                 json_output=json_output,
@@ -285,7 +285,7 @@ def _handle_bead_work_locked(
         if launch_feedback:
             _exit_bead_id_error(
                 "--launch-feedback only applies when the bead work target is "
-                "a task bead",
+                "a task or flag bead",
                 target=target,
                 json_output=json_output,
             )

@@ -9,7 +9,9 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from sase.bead.model import Issue, SnoozeRecord, Status
+from sase.bead.flag_due import flag_removal_due
+from sase.bead.flag_gate import FLAG_TRIAGE_KIND
+from sase.bead.model import Issue, IssueType, SnoozeRecord, Status
 from sase.bead.snooze_gate import BEAD_SNOOZE_KIND
 from sase.bead.task_gate import TASK_TRIAGE_KIND
 from sase.core.time import get_timezone
@@ -24,11 +26,14 @@ GateState = Literal["pending", "terminal", "missing"]
 REQUEST_ID_PREFIXES = {
     TASK_TRIAGE_KIND: "bead-task-triage",
     BEAD_SNOOZE_KIND: "bead-snooze",
+    FLAG_TRIAGE_KIND: "bead-flag-triage",
 }
 
 
 def expected_gate_kind(issue: Issue) -> str:
-    """Return the one gate kind a live task bead's status calls for."""
+    """Return the one gate kind a live bead's status and type call for."""
+    if issue.issue_type == IssueType.FLAG:
+        return FLAG_TRIAGE_KIND
     return BEAD_SNOOZE_KIND if issue.status == Status.SNOOZED else TASK_TRIAGE_KIND
 
 
@@ -45,12 +50,18 @@ def presentation_fingerprint(
     *,
     format_version: int,
     gate_contract_version: int,
+    flag_due_state: str | None = None,
 ) -> str:
     """Hash every persisted field and contract version that changes a gate.
 
     The snooze record is part of it because both the wake gate's notification
     note and its preview render the wake conditions: a re-snooze must replace
-    the pending gate rather than leave it advertising the old wake time.
+    the pending gate rather than leave it advertising the old wake time. A
+    flag block -- key, both thresholds, and *flag_due_state* -- is added only
+    when ``issue.flag`` is not ``None``, so no existing task gate's
+    fingerprint changes. ``due_as_of`` and ``release`` are deliberately not
+    part of it: they are presentation pinning, and including them would
+    cancel and recreate every pending flag gate daily.
 
     The supplied versions cover renderer and trusted-interaction changes whose
     outputs cannot be inferred from the bead fields alone.
@@ -99,6 +110,13 @@ def presentation_fingerprint(
             for record in issue.close_history
         ],
     }
+    if issue.flag is not None:
+        payload["flag"] = {
+            "key": issue.flag.key,
+            "remove_by_date": issue.flag.remove_by_date,
+            "remove_by_release": issue.flag.remove_by_release,
+            "due_state": flag_due_state,
+        }
     encoded = json.dumps(
         payload,
         ensure_ascii=False,
@@ -222,8 +240,43 @@ def create_gate(
     issue: Issue,
     task_gate_factory: Callable[..., Any],
     snooze_gate_factory: Callable[..., Any],
+    flag_gate_factory: Callable[..., Any],
 ) -> None:
-    """Create the one gate this bead's status calls for."""
+    """Create the one gate this bead's status and type call for."""
+    if kind == FLAG_TRIAGE_KIND:
+        if issue.flag is None:
+            raise ValueError(f"flag bead {bead_id} has no flag metadata")
+        import sase
+        from sase.core import time as core_time
+        from sase.feature_flags.registry import feature_flag_definitions
+
+        today = core_time.local_now().date()
+        release = sase.__version__
+        due_state = flag_removal_due(issue.flag, today=today, release=release)
+        definition = feature_flag_definitions().get(issue.flag.key)
+        flag_gate_factory(
+            request_id=request_id,
+            bead_id=bead_id,
+            project=project_name,
+            title=issue.title,
+            flag=issue.flag,
+            due_state=due_state,
+            due_as_of=today.isoformat(),
+            release=release,
+            definition=(
+                {"kind": definition.kind, "description": definition.description}
+                if definition is not None
+                else None
+            ),
+            description=issue.description,
+            notes=issue.notes,
+            created_by=issue.created_by,
+            created_at=issue.created_at,
+            size=issue.size.value if issue.size else None,
+            refs=issue.refs,
+            producer={"chop": "bead_task_triage", "project": project_name},
+        )
+        return
     common: dict[str, Any] = {
         "request_id": request_id,
         "bead_id": bead_id,

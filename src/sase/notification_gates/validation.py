@@ -9,6 +9,7 @@ from sase.notification_gates.adapters import GateAdapter
 from sase.notification_gates.kind_validation import (
     validate_bead_snooze_spec,
     validate_custom_spec,
+    validate_flag_triage_spec,
     validate_launch_spec,
     validate_plan_spec,
     validate_question_spec,
@@ -221,6 +222,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         validate_task_triage_spec(spec)
     if adapter.kind == "bead_snooze":
         validate_bead_snooze_spec(spec)
+    if adapter.kind == "flag_triage":
+        validate_flag_triage_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         validate_plan_spec(spec, adapter)
     expected_primary = {
@@ -231,6 +234,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "hitl": ("accept",),
         "task_triage": ("launch",),
         "bead_snooze": ("close",),
+        "flag_triage": ("remove",),
     }.get(adapter.kind)
     if expected_primary is not None and spec.primary_branch != expected_primary:
         raise GateError(
