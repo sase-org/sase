@@ -560,11 +560,19 @@ def test_provider_query_schema_derives_fields_from_the_notes_fixture() -> None:
     assert profile.boolean is False
     assert profile.sigils == () and profile.macros == ()
     _assert_closed_host_predicates(profile)
-    assert {item.key for item in profile.fields} == {"title", "status"}
+    # ``related`` and ``family`` back the fixture's declared relations: a
+    # ``ref.relations[].source`` must name a declared ``ref.properties`` key, so
+    # relation sources are ordinary queryable fields like any other property.
+    assert {item.key for item in profile.fields} == {
+        "title",
+        "status",
+        "related",
+        "family",
+    }
     assert all(item.value_kind == "string" for item in profile.fields)
     assert all(item.searchable for item in profile.fields)
     assert all(item.negatable for item in profile.fields)
-    assert profile.free_text_hint == "status, title (AND)"
+    assert profile.free_text_hint == "family, related, status, title (AND)"
 
 
 def test_provider_query_schema_handles_missing_and_malformed_specs() -> None:
