@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 from sase.sdd._commit import (
     SddGitCommandTimeout,
+    SddStoreCommitResult,
     changed_sdd_files as _changed_sdd_files,
     commit_bare_git_sdd_init_paths as _commit_bare_git_sdd_init_paths,
     commit_sdd_files,
@@ -193,6 +194,7 @@ __all__ = [
     "SddGitCommandTimeout",
     "SddInitAction",
     "SddInitOperation",
+    "SddStoreCommitResult",
     "commit_sdd_files",
     "commit_sdd_store_files",
     "dry_expand_embedded_workflows",

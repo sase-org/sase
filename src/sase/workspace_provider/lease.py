@@ -42,6 +42,7 @@ from sase.workspace_provider.reset_replay import (
     ResetReplayError,
     ResetReplayResult,
     reset_and_replay as run_reset_and_replay,
+    reset_leased_checkout_to_upstream,
 )
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM, WorkspaceStore
@@ -147,6 +148,25 @@ class OperationalLease:
             operation,
             max_attempts=max_attempts,
             clear_paths=clear_paths,
+            clock=clock,
+        )
+
+    def reset_to_upstream(
+        self,
+        *,
+        repo_root: str | Path | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> str | None:
+        """Hard-reset one repository inside this lease to its upstream tip.
+
+        Defaults to the leased checkout. Pass a nested store clone — for
+        example ``<checkout>/sase/repos/plans`` — to reset that repository
+        instead. Authorization is the same as :meth:`reset_and_replay`.
+        """
+
+        return reset_leased_checkout_to_upstream(
+            self.context,
+            self.checkout_dir if repo_root is None else repo_root,
             clock=clock,
         )
 

@@ -1,5 +1,7 @@
 """Commit helpers for SDD storage repositories."""
 
+from __future__ import annotations
+
 import logging
 import os
 import subprocess
@@ -25,6 +27,7 @@ from sase.sdd._store_types import (
 )
 
 if TYPE_CHECKING:
+    from sase.bead._sync_publication import PushOutcome
     from sase.sdd.store import SddStore
     from sase.workspace_provider.ownership import OperationContext
 
@@ -44,7 +47,7 @@ def commit_sdd_files(
     already_locked: bool = False,
     cause: str = "user",
     mutation_origin: str = "user",
-    operation_context: "OperationContext | None" = None,
+    operation_context: OperationContext | None = None,
 ) -> bool:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
@@ -190,8 +193,8 @@ def _emit_sdd_file_hooks(
 
 
 def sdd_commit_targets(
-    store: "SddStore", paths: Iterable[str | Path] | None
-) -> list[tuple["SddStore", list[str | Path] | None]]:
+    store: SddStore, paths: Iterable[str | Path] | None
+) -> list[tuple[SddStore, list[str | Path] | None]]:
     """Partition split-store paths among every configured sidecar repo."""
 
     if not store.is_sidecar_storage:
@@ -357,7 +360,7 @@ def _git_head_sha(repo_dir: Path) -> str | None:
     return sha or None
 
 
-def sdd_store_label(store: "SddStore") -> str | None:
+def sdd_store_label(store: SddStore) -> str | None:
     if store.storage == SDD_STORAGE_SIDECAR_REPOS:
         return store.sidecar_role
     if store.storage != SDD_STORAGE_SEPARATE_REPO:
@@ -373,7 +376,7 @@ def sdd_store_label(store: "SddStore") -> str | None:
     return "sdd"
 
 
-def _sdd_store_record_label(store: "SddStore") -> str | None:
+def _sdd_store_record_label(store: SddStore) -> str | None:
     try:
         from sase.sdd.store import get_primary_workspace_dir, read_sdd_store_record
 
@@ -403,7 +406,7 @@ def _sdd_store_record_label(store: "SddStore") -> str | None:
     return None
 
 
-def _sdd_store_record_workspace_dir(store: "SddStore") -> Path | None:
+def _sdd_store_record_workspace_dir(store: SddStore) -> Path | None:
     sdd_dir = store.sdd_dir.expanduser()
     if store.storage == SDD_STORAGE_SEPARATE_REPO:
         if sdd_dir.name == "sdd" and sdd_dir.parent.name == ".sase":
@@ -452,15 +455,16 @@ def _sdd_push_after_commit_config() -> bool | Literal["async"]:
 
 
 def push_sdd_store_after_commit(
-    store: "SddStore",
+    store: SddStore,
     *,
     push_after_commit: bool | Literal["async"] | None,
-) -> None:
+    worker_lock_wait: float = 0.0,
+) -> PushOutcome | None:
     if store.storage not in {
         SDD_STORAGE_SEPARATE_REPO,
         SDD_STORAGE_SIDECAR_REPOS,
     }:
-        return
+        return None
 
     mode = (
         _sdd_push_after_commit_config()
@@ -468,7 +472,7 @@ def push_sdd_store_after_commit(
         else push_after_commit
     )
     if mode is False:
-        return
+        return None
 
     from sase.bead.sync import push_bead_work_launch, push_bead_work_launch_async
 
@@ -480,11 +484,15 @@ def push_sdd_store_after_commit(
                 handle.pid,
                 handle.log_path,
             )
-        return
+        return None
 
-    outcome = push_bead_work_launch(store.repo_root)
+    outcome = push_bead_work_launch(
+        store.repo_root,
+        worker_lock_wait=worker_lock_wait,
+    )
     if outcome.error:
         _logger.warning("SDD git push failed after local commit: %s", outcome.error)
+    return outcome
 
 
 def normalize_sdd_commit_pathspecs(

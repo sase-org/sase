@@ -61,10 +61,15 @@ class ResetReplayError(RuntimeError):
         *,
         attempts: int,
         last_error: Exception | None = None,
+        recovery_ref: str | None = None,
     ) -> None:
-        super().__init__(f"reset-and-replay exhausted {attempts} attempt(s): {detail}")
+        message = f"reset-and-replay exhausted {attempts} attempt(s): {detail}"
+        if recovery_ref:
+            message = f"{message}; abandoned HEAD preserved at {recovery_ref}"
+        super().__init__(message)
         self.attempts = attempts
         self.last_error = last_error
+        self.recovery_ref = recovery_ref
 
 
 @dataclass(frozen=True)
@@ -138,6 +143,30 @@ def reset_and_replay(
             reset_performed=reset_performed,
             recovery_ref=recovery_ref,
         )
+
+
+def reset_leased_checkout_to_upstream(
+    context: OperationContext,
+    repo_root: str | Path,
+    *,
+    clock: Callable[[], float] | None = None,
+) -> str | None:
+    """Fetch and hard-reset *repo_root* to its verified upstream tip.
+
+    Authorization is the same as :func:`reset_and_replay`. Returns the
+    recovery ref that captured pre-reset HEAD, or ``None`` if HEAD could
+    not be snapshotted.
+    """
+
+    root = _require_leased_checkout(context, repo_root)
+    try:
+        return _reset_leased_checkout(root, clock=clock)
+    except _ResetFailure as exc:
+        raise ResetReplayError(
+            str(exc),
+            attempts=0,
+            last_error=exc,
+        ) from exc
 
 
 def _require_leased_checkout(
@@ -288,4 +317,5 @@ __all__ = [
     "ResetReplayError",
     "ResetReplayResult",
     "reset_and_replay",
+    "reset_leased_checkout_to_upstream",
 ]

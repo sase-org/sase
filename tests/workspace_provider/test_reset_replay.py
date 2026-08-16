@@ -22,6 +22,7 @@ from sase.workspace_provider.reset_replay import (
     ResetReplayError,
     ResetReplayResult,
     reset_and_replay,
+    reset_leased_checkout_to_upstream,
 )
 
 
@@ -110,13 +111,23 @@ def _context(
     )
 
 
+def _assert_reset_entry_points_refused(
+    context: OperationContext,
+    repo_root: Path,
+    match: str,
+) -> None:
+    with pytest.raises(WorkspaceOwnershipError, match=match):
+        reset_and_replay(context, repo_root, lambda: "ok")
+    with pytest.raises(WorkspaceOwnershipError, match=match):
+        reset_leased_checkout_to_upstream(context, repo_root)
+
+
 class TestRefusesUnauthorizedContexts:
     def test_refuses_primary_workspace(self, tmp_path: Path) -> None:
         checkout = tmp_path / "primary"
         checkout.mkdir()
         context = _context(checkout, checkout, workspace_num=0)
-        with pytest.raises(WorkspaceOwnershipError, match="primary workspace #0"):
-            reset_and_replay(context, checkout, lambda: "ok")
+        _assert_reset_entry_points_refused(context, checkout, "primary workspace #0")
 
     def test_refuses_read_only_canonical(self, tmp_path: Path) -> None:
         checkout = tmp_path / "primary"
@@ -124,15 +135,17 @@ class TestRefusesUnauthorizedContexts:
         context = _context(
             checkout, checkout, access_kind=AccessKind.READ_ONLY_CANONICAL
         )
-        with pytest.raises(WorkspaceOwnershipError, match="leased operational context"):
-            reset_and_replay(context, checkout, lambda: "ok")
+        _assert_reset_entry_points_refused(
+            context, checkout, "leased operational context"
+        )
 
     def test_refuses_user_directed(self, tmp_path: Path) -> None:
         checkout = tmp_path / "proj"
         checkout.mkdir()
         context = _context(checkout, checkout, access_kind=AccessKind.USER_DIRECTED)
-        with pytest.raises(WorkspaceOwnershipError, match="leased operational context"):
-            reset_and_replay(context, checkout, lambda: "ok")
+        _assert_reset_entry_points_refused(
+            context, checkout, "leased operational context"
+        )
 
     def test_refuses_primary_sidecar_sync(self, tmp_path: Path) -> None:
         checkout = tmp_path / "primary--beads"
@@ -142,8 +155,9 @@ class TestRefusesUnauthorizedContexts:
         context = _context(
             checkout, primary, access_kind=AccessKind.PRIMARY_SIDECAR_SYNC
         )
-        with pytest.raises(WorkspaceOwnershipError, match="leased operational context"):
-            reset_and_replay(context, checkout, lambda: "ok")
+        _assert_reset_entry_points_refused(
+            context, checkout, "leased operational context"
+        )
 
     def test_refuses_missing_live_claim(self, tmp_path: Path) -> None:
         checkout = tmp_path / "proj_10"
@@ -151,8 +165,7 @@ class TestRefusesUnauthorizedContexts:
         primary = tmp_path / "proj"
         primary.mkdir()
         context = _context(checkout, primary, no_claim=True)
-        with pytest.raises(WorkspaceOwnershipError, match="no live workspace claim"):
-            reset_and_replay(context, checkout, lambda: "ok")
+        _assert_reset_entry_points_refused(context, checkout, "no live workspace claim")
 
     def test_refuses_repo_outside_checkout(self, tmp_path: Path) -> None:
         checkout = tmp_path / "proj_10"
@@ -162,8 +175,7 @@ class TestRefusesUnauthorizedContexts:
         primary = tmp_path / "proj"
         primary.mkdir()
         context = _context(checkout, primary)
-        with pytest.raises(WorkspaceOwnershipError, match="outside leased checkout"):
-            reset_and_replay(context, outside, lambda: "ok")
+        _assert_reset_entry_points_refused(context, outside, "outside leased checkout")
 
     def test_no_git_commands_run_before_authorization_fails(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -183,6 +195,8 @@ class TestRefusesUnauthorizedContexts:
         )
         with pytest.raises(WorkspaceOwnershipError):
             reset_and_replay(context, checkout, lambda: "ok")
+        with pytest.raises(WorkspaceOwnershipError):
+            reset_leased_checkout_to_upstream(context, checkout)
         assert called is False
 
 
@@ -423,6 +437,51 @@ class TestRetryExhaustionAndOtherFailures:
             reset_and_replay(context, checkout, lambda: "ok", max_attempts=0)
 
 
+class TestResetLeasedCheckoutToUpstream:
+    def test_resets_nested_store_without_touching_checkout(
+        self, tmp_path: Path
+    ) -> None:
+        origin = tmp_path / "origin"
+        checkout = tmp_path / "proj_10"
+        _init_origin(origin)
+        _clone(origin, checkout)
+        checkout_head = _head(checkout)
+        nested_origin = tmp_path / "plans-origin"
+        nested = checkout / "sase" / "repos" / "plans"
+        nested.parent.mkdir(parents=True)
+        _init_origin(nested_origin)
+        _clone(nested_origin, nested)
+        _advance_origin(nested_origin, "origin v2\n")
+        (nested / "README.md").write_text("local nested\n", encoding="utf-8")
+        _run(["commit", "-aq", "-m", "local nested"], nested)
+        local_nested = _head(nested)
+        context = _context(checkout, tmp_path / "proj")
+
+        ref = reset_leased_checkout_to_upstream(context, nested)
+
+        assert ref is not None
+        assert _head(nested) == _head(nested_origin)
+        assert _head(checkout) == checkout_head
+        assert (
+            subprocess.run(
+                ["git", "cat-file", "-e", ref],
+                cwd=nested,
+                check=False,
+            ).returncode
+            == 0
+        )
+        assert (
+            subprocess.run(
+                ["git", "rev-parse", ref],
+                cwd=nested,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            == local_nested
+        )
+
+
 class TestOperationalLeaseResetAndReplay:
     def test_lease_method_replays_on_conflict(self, tmp_path: Path) -> None:
         origin = tmp_path / "origin"
@@ -455,3 +514,35 @@ class TestOperationalLeaseResetAndReplay:
         assert result.reset_performed is True
         assert n == 2
         assert _head(checkout) == _head(origin)
+
+    def test_lease_reset_to_upstream_resets_nested_repo(self, tmp_path: Path) -> None:
+        origin = tmp_path / "origin"
+        checkout = tmp_path / "proj_10"
+        _init_origin(origin)
+        _clone(origin, checkout)
+        checkout_head = _head(checkout)
+        nested_origin = tmp_path / "plans-origin"
+        nested = checkout / "sase" / "repos" / "plans"
+        nested.parent.mkdir(parents=True)
+        _init_origin(nested_origin)
+        _clone(nested_origin, nested)
+        _advance_origin(nested_origin, "origin v2\n")
+        (nested / "README.md").write_text("local nested\n", encoding="utf-8")
+        _run(["commit", "-aq", "-m", "local nested"], nested)
+        lease = OperationalLease(
+            project="demo",
+            workflow="chop:demo",
+            holder="holder",
+            workspace_num=10,
+            checkout_dir=checkout,
+            project_file=tmp_path / "demo.sase",
+            claim_pid=os.getpid(),
+            cl_name="holder",
+            context=_context(checkout, tmp_path / "proj"),
+        )
+
+        ref = lease.reset_to_upstream(repo_root=nested)
+
+        assert ref is not None
+        assert _head(nested) == _head(nested_origin)
+        assert _head(checkout) == checkout_head

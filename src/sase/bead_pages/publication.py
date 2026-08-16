@@ -148,14 +148,16 @@ def _publish_bead_lineage(
                 commit_kwargs["mutation_origin"] = mutation_origin
             if operation_context is not None:
                 commit_kwargs["operation_context"] = operation_context
-            committed = commit_sdd_store_files(
-                store,
-                f"chore(beads): sync bead state and pages for {root_id}",
-                paths=[store.kind_root("beads")],
-                auto_commit_type="beads",
-                push_after_commit="async",
-                already_locked=True,
-                **commit_kwargs,
+            committed = bool(
+                commit_sdd_store_files(
+                    store,
+                    f"chore(beads): sync bead state and pages for {root_id}",
+                    paths=[store.kind_root("beads")],
+                    auto_commit_type="beads",
+                    push_after_commit="async",
+                    already_locked=True,
+                    **commit_kwargs,
+                )
             )
         except Exception as exc:  # noqa: BLE001 - preserve changed projection.
             return _error_outcome(exc, changed=bool(changed_paths))

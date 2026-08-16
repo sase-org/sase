@@ -319,6 +319,56 @@ def test_archive_rejects_malformed_header_before_writing_destination(
     assert not (store.sdd_dir / strict_month / "child.md").exists()
 
 
+def test_archive_reuses_existing_destination_create_time(tmp_path: Path) -> None:
+    store = _sidecar_store(tmp_path)
+    destination = store.sdd_dir / _MONTH / "child.md"
+    destination.parent.mkdir(parents=True)
+    destination.write_text(
+        "---\ntier: tale\ncreate_time: 2026-01-02 03:04:05\nstatus: wip\n---\n# Old\n",
+        encoding="utf-8",
+    )
+    source = _write_source(tmp_path, "# Plan\n")
+
+    result = archive_plan_file(
+        source,
+        store,
+        tier="tale",
+        yyyymm=_MONTH,
+        preserve_existing=False,
+        primary_root=tmp_path,
+    )
+
+    assert result.written
+    assert "create_time: 2026-01-02 03:04:05" in result.path.read_text(encoding="utf-8")
+
+
+def test_consecutive_archives_are_byte_identical(tmp_path: Path) -> None:
+    store = _sidecar_store(tmp_path)
+    source = _write_source(tmp_path, "# Plan\n")
+
+    first = archive_plan_file(
+        source,
+        store,
+        tier="tale",
+        yyyymm=_MONTH,
+        preserve_existing=False,
+        primary_root=tmp_path,
+    )
+    first_bytes = first.path.read_text(encoding="utf-8")
+    second = archive_plan_file(
+        source,
+        store,
+        tier="tale",
+        yyyymm=_MONTH,
+        preserve_existing=False,
+        primary_root=tmp_path,
+    )
+
+    assert first.written
+    assert second.written
+    assert second.path.read_text(encoding="utf-8") == first_bytes
+
+
 def test_archive_preserves_both_no_op_contracts(tmp_path: Path) -> None:
     store = _sidecar_store(tmp_path)
     archived = store.sdd_dir / _MONTH / "canonical.md"

@@ -213,13 +213,15 @@ def _refresh_locked(
             markdown_paths = [path for path in changed_paths if path.suffix == ".md"]
             if markdown_paths:
                 format_markdown_files_with_prettier(markdown_paths)
-            committed = commit_sdd_store_files(
-                store,
-                "Update Referenced By projections",
-                paths=changed_paths,
-                push_after_commit="async",
-                already_locked=True,
-                cause="referenced_by",
+            committed = bool(
+                commit_sdd_store_files(
+                    store,
+                    "Update Referenced By projections",
+                    paths=changed_paths,
+                    push_after_commit="async",
+                    already_locked=True,
+                    cause="referenced_by",
+                )
             )
             if not committed:
                 issues.append(

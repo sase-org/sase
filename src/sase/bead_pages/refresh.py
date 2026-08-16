@@ -180,13 +180,15 @@ def _refresh_locked(
         try:
             from sase.sdd.files import commit_sdd_store_files
 
-            committed = commit_sdd_store_files(
-                store,
-                "Refresh bead pages",
-                paths=(*changed, *removed),
-                auto_commit_type="beads",
-                push_after_commit="async",
-                already_locked=True,
+            committed = bool(
+                commit_sdd_store_files(
+                    store,
+                    "Refresh bead pages",
+                    paths=(*changed, *removed),
+                    auto_commit_type="beads",
+                    push_after_commit="async",
+                    already_locked=True,
+                )
             )
             if not committed:
                 issues.append(

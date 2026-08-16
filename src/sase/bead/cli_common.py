@@ -167,12 +167,14 @@ def auto_commit_bead_store(
             commit_kwargs["mutation_origin"] = mutation_origin
         if operation_context is not None:
             commit_kwargs["operation_context"] = operation_context
-        return commit_sdd_store_files(
-            store,
-            message,
-            auto_commit_type="beads",
-            paths=[location.beads_dir],
-            **commit_kwargs,
+        return bool(
+            commit_sdd_store_files(
+                store,
+                message,
+                auto_commit_type="beads",
+                paths=[location.beads_dir],
+                **commit_kwargs,
+            )
         )
     except Exception as exc:
         from sase.sdd._repository_transaction import SddRepositoryHealthError

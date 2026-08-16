@@ -52,7 +52,7 @@ def test_commit_sdd_store_files_push_matrix(
     sync_calls: list[Path] = []
     async_calls: list[Path] = []
 
-    def fake_sync(path: Path) -> SimpleNamespace:
+    def fake_sync(path: Path, **_kwargs: object) -> SimpleNamespace:
         sync_calls.append(path)
         return SimpleNamespace(pushed=sync_error is None, error=sync_error)
 
@@ -65,7 +65,8 @@ def test_commit_sdd_store_files_push_matrix(
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_sync)
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch_async", fake_async)
 
-    assert commit_sdd_store_files(store, "Commit SDD") is True
+    result = commit_sdd_store_files(store, "Commit SDD")
+    assert result.committed is True
     assert sync_calls == [tmp_path] * expected_sync
     assert async_calls == [tmp_path] * expected_async
 
@@ -81,7 +82,9 @@ def test_commit_sdd_store_files_does_not_push_local_store(
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", sync)
     monkeypatch.setattr("sase.bead.sync.push_bead_work_launch_async", async_push)
 
-    assert commit_sdd_store_files(store, "Commit SDD") is True
+    result = commit_sdd_store_files(store, "Commit SDD")
+    assert result.committed is True
+    assert result.push is None
     sync.assert_not_called()
     async_push.assert_not_called()
 
@@ -170,7 +173,7 @@ def test_commit_sdd_store_files_pushes_each_changed_sidecar(
         commit_roots.append(root)
         return True
 
-    def fake_push(root: Path) -> SimpleNamespace:
+    def fake_push(root: Path, **_kwargs: object) -> SimpleNamespace:
         pushed_roots.append(root)
         return SimpleNamespace(pushed=True, error=None)
 
@@ -184,6 +187,47 @@ def test_commit_sdd_store_files_pushes_each_changed_sidecar(
     )
     assert commit_roots == [plans, research, beads]
     assert pushed_roots == [plans, research, beads]
+
+
+def test_commit_sdd_store_files_returns_push_outcome_and_forwards_lock_wait(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead._sync_publication import PushOutcome
+
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=tmp_path,
+        repo_root=tmp_path,
+        remote_url="git@example.com:owner/repo-sdd.git",
+    )
+    seen: list[dict[str, object]] = []
+
+    def fake_commit(*_args: object, **_kwargs: object) -> bool:
+        return True
+
+    def fake_push(root: Path, **kwargs: object) -> PushOutcome:
+        seen.append({"root": root, **kwargs})
+        return PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error=None,
+            skipped_locked=True,
+        )
+
+    monkeypatch.setattr("sase.sdd._commit.commit_sdd_files", fake_commit)
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+
+    result = commit_sdd_store_files(
+        store,
+        "Commit SDD",
+        push_after_commit=True,
+        worker_lock_wait=2.0,
+    )
+    assert result.committed is True
+    assert result.push is not None
+    assert result.push.skipped_locked is True
+    assert seen == [{"root": tmp_path, "worker_lock_wait": 2.0}]
 
 
 def test_beads_lock_and_health_state_do_not_block_plans_commit(

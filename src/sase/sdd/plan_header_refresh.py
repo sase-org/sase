@@ -135,12 +135,14 @@ def _refresh_committed_plan_header(
 
         from sase.sdd.files import commit_sdd_store_files
 
-        committed = commit_sdd_store_files(
-            store,
-            f"Refresh plan provenance for {plan_path.stem}",
-            paths=[plan_path],
-            push_after_commit="async",
-            already_locked=True,
+        committed = bool(
+            commit_sdd_store_files(
+                store,
+                f"Refresh plan provenance for {plan_path.stem}",
+                paths=[plan_path],
+                push_after_commit="async",
+                already_locked=True,
+            )
         )
         return PlanHeaderRefreshOutcome(changed=True, committed=committed)
 

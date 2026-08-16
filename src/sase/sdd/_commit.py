@@ -5,8 +5,11 @@ commits, and bare-git initialization commits. This module retains the original
 import surface for callers and tests.
 """
 
+from __future__ import annotations
+
 import subprocess  # Re-exported for compatibility with existing test patches.
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -43,12 +46,30 @@ from sase.sdd._store_types import (
 )
 
 if TYPE_CHECKING:
+    from sase.bead._sync_publication import PushOutcome
     from sase.sdd.store import SddStore
     from sase.workspace_provider.ownership import OperationContext
 
 
+@dataclass(frozen=True)
+class SddStoreCommitResult:
+    """Outcome of :func:`commit_sdd_store_files`.
+
+    ``committed`` is true only when at least one new commit was created.
+    ``push`` is the last synchronous push outcome, or ``None`` when no
+    commit ran, the store is not remote-backed, or the push was skipped
+    or launched asynchronously. The result is truthy when ``committed``.
+    """
+
+    committed: bool
+    push: PushOutcome | None = None
+
+    def __bool__(self) -> bool:
+        return self.committed
+
+
 def commit_sdd_store_files(
-    store: "SddStore",
+    store: SddStore,
     message: str,
     *,
     auto_commit_type: str = "sdd",
@@ -58,12 +79,13 @@ def commit_sdd_store_files(
     already_locked: bool = False,
     cause: str = "user",
     mutation_origin: str = "user",
-    operation_context: "OperationContext | None" = None,
-) -> bool:
+    operation_context: OperationContext | None = None,
+    worker_lock_wait: float = 0.0,
+) -> SddStoreCommitResult:
     """Commit SDD files in their owning repository and push per config.
 
     Push failure never changes the commit result; the local commit is
-    preserved and failures are logged.
+    preserved and the outcome is returned on :class:`SddStoreCommitResult`.
 
     ``already_locked`` is set by callers committing a worktree mutation from
     inside their own :func:`store_git_write_lock` span. Only the target whose
@@ -73,8 +95,13 @@ def commit_sdd_store_files(
     ``mutation_origin`` and ``operation_context`` are forwarded to each
     per-repo :func:`commit_sdd_files` call so machine mutations cannot
     bypass the ownership contract by importing this helper.
+
+    ``worker_lock_wait`` is forwarded only to a synchronous push. The
+    global default remains ``0.0``; callers that must distinguish lock
+    contention from a rejected push pass a non-zero wait themselves.
     """
     committed_any = False
+    push: PushOutcome | None = None
     for target_store, target_paths in sdd_commit_targets(store, paths):
         committed = commit_sdd_files(
             target_store.repo_root,
@@ -93,15 +120,18 @@ def commit_sdd_store_files(
             operation_context=operation_context,
         )
         if committed:
-            push_sdd_store_after_commit(
-                target_store, push_after_commit=push_after_commit
+            push = push_sdd_store_after_commit(
+                target_store,
+                push_after_commit=push_after_commit,
+                worker_lock_wait=worker_lock_wait,
             )
             committed_any = True
-    return committed_any
+    return SddStoreCommitResult(committed=committed_any, push=push)
 
 
 __all__ = [
     "SddGitCommandTimeout",
+    "SddStoreCommitResult",
     "changed_sdd_files",
     "commit_bare_git_sdd_init_paths",
     "commit_sdd_files",

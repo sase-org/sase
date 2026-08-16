@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -108,7 +109,10 @@ def archive_plan_file(
     from sase.sdd.plan_header_writes import project_plan_header_sections
 
     content = format_with_prettier(source.read_text(encoding="utf-8"))
-    content = add_create_time_frontmatter(content)
+    content = add_create_time_frontmatter(
+        content,
+        create_time=_existing_destination_create_time(destination),
+    )
     authored_tier = read_plan_tier_from_content(content)
     frontmatter, _body, _had_frontmatter = parse_frontmatter(content)
     normalized_fields: dict[str, str] = {"tier": tier}
@@ -142,6 +146,40 @@ def archive_plan_file(
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(content, encoding="utf-8")
     return _PlanArchiveResult(path=destination, written=True)
+
+
+def _existing_destination_create_time(destination: Path) -> datetime | None:
+    """Return the destination's existing ``create_time``, if it has one.
+
+    Re-archiving must not stamp a new clock time: the field is when the plan
+    was created, and a fresh stamp makes two writers (and every replay)
+    diverge on an otherwise identical document.
+    """
+
+    if not destination.is_file():
+        return None
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        destination.read_text(encoding="utf-8")
+    )
+    return _parse_create_time(frontmatter.get("create_time"))
+
+
+def _parse_create_time(raw: Any) -> datetime | None:
+    if isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, date):
+        return datetime(raw.year, raw.month, raw.day)
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 def _resolved_prompt_path(

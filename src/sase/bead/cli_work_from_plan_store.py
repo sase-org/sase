@@ -344,12 +344,14 @@ def commit_plan_file(
     from sase.sdd.files import commit_sdd_store_files
 
     commit_store = _plan_commit_store(store, workspace_dir=workspace_dir)
-    return commit_sdd_store_files(
-        commit_store,
-        message,
-        paths=[plan_path],
-        push_after_commit=False,
-        already_locked=already_locked,
+    return bool(
+        commit_sdd_store_files(
+            commit_store,
+            message,
+            paths=[plan_path],
+            push_after_commit=False,
+            already_locked=already_locked,
+        )
     )
 
 

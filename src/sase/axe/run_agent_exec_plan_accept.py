@@ -306,15 +306,17 @@ def handle_accepted_plan(
                     plan_tier=plan_tier_for_action(plan_result.action),
                 )
             elif sdd_store is not None:
-                required_sdd_commit_succeeded = commit_sdd_store_files(
-                    sdd_store,
-                    (
-                        f"Add SDD prompt for {sdd_plan_name}"
-                        if is_epic
-                        else f"Add SDD files for {sdd_plan_name}"
-                    ),
-                    paths=sdd_commit_paths,
-                    push_after_commit=True,
+                required_sdd_commit_succeeded = bool(
+                    commit_sdd_store_files(
+                        sdd_store,
+                        (
+                            f"Add SDD prompt for {sdd_plan_name}"
+                            if is_epic
+                            else f"Add SDD files for {sdd_plan_name}"
+                        ),
+                        paths=sdd_commit_paths,
+                        push_after_commit=True,
+                    )
                 )
             else:
                 required_sdd_commit_succeeded = False

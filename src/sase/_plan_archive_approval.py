@@ -23,12 +23,19 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from sase.bead._sync_publication import PushOutcome
 
 log = logging.getLogger(__name__)
 
 PLAN_ARCHIVE_SENDER = "plan-archive"
 _PLAN_ARCHIVE_LEASE_WORKFLOW = "plan-archive"
+# Synchronous archive publication waits briefly for a busy sync worker so
+# three back-to-back attempts do not all lose the same lock. The global
+# push default stays at 0.0.
+_PLAN_ARCHIVE_WORKER_LOCK_WAIT_SECONDS = 2.0
 
 
 class _PlanArchiveProjectError(Exception):
@@ -47,7 +54,9 @@ def archive_approved_plan(
     Runs inside a durable operational workspace lease -- never the user-owned
     primary checkout -- and publishes the archive commit using
     reset-and-replay semantics: an unpublished HEAD after commit resets the
-    leased checkout to its verified upstream tip and re-runs the archive.
+    SDD store repository (the sidecar clone for remote-backed storage, or
+    the checkout itself when plans live in-tree) to its verified upstream
+    tip and re-runs the archive.
 
     Raises:
         _PlanArchiveProjectError: If ``action_data`` names no resolvable project.
@@ -57,6 +66,7 @@ def archive_approved_plan(
         resolve_plan_agent_artifacts_dir,
     )
     from sase.bead._sync_publication import has_push_remote, head_is_published
+    from sase.sdd._commit_store import push_sdd_store_after_commit
     from sase.sdd.files import (
         commit_sdd_store_files,
         ensure_bare_git_sdd_initialized,
@@ -65,7 +75,7 @@ def archive_approved_plan(
     from sase.sdd.store import materialize_sdd_store
     from sase.workspace_provider.lease import operational_workspace_lease
     from sase.workspace_provider.ownership import MutationOrigin
-    from sase.workspace_provider.reset_replay import ReplayConflict
+    from sase.workspace_provider.reset_replay import ReplayConflict, ResetReplayError
 
     project_name = resolve_plan_action_project_name(action_data)
     if not project_name:
@@ -80,6 +90,9 @@ def archive_approved_plan(
     # config default, because only a synchronous push can be verified and
     # replayed within this lease's bounded attempts.
     resolved_push_mode = True if push_after_commit is None else push_after_commit
+    lock_wait = (
+        _PLAN_ARCHIVE_WORKER_LOCK_WAIT_SECONDS if resolved_push_mode is True else 0.0
+    )
 
     artifacts_dir = resolve_plan_agent_artifacts_dir(action_data)
     with operational_workspace_lease(
@@ -92,6 +105,10 @@ def archive_approved_plan(
         if sdd_store.is_in_tree:
             ensure_bare_git_sdd_initialized(workspace_dir, commit=True, push=False)
 
+        archive_repo = None if sdd_store.is_in_tree else sdd_store.repo_root
+        if archive_repo is not None and _store_has_unpublished_head(archive_repo):
+            lease.reset_to_upstream(repo_root=archive_repo)
+
         def _archive_and_publish() -> str:
             archived = archive_plan_file(
                 src_plan,
@@ -101,7 +118,7 @@ def archive_approved_plan(
                 expect_prompt_snapshot=(tier == "epic"),
             )
             if not sdd_store.is_in_tree:
-                commit_sdd_store_files(
+                commit_result = commit_sdd_store_files(
                     sdd_store,
                     f"Archive approved plan {src_plan.stem}",
                     paths=[archived.path],
@@ -109,20 +126,69 @@ def archive_approved_plan(
                     artifacts_dir=artifacts_dir,
                     mutation_origin=MutationOrigin.MACHINE,
                     operation_context=lease.operation_context,
+                    worker_lock_wait=lock_wait,
                 )
-                if (
-                    resolved_push_mode is True
-                    and has_push_remote(sdd_store.repo_root)
-                    and not head_is_published(sdd_store.repo_root)
-                ):
-                    raise ReplayConflict(
-                        f"{sdd_store.repo_root} HEAD was not published "
-                        "after the archive commit"
-                    )
+                if resolved_push_mode is True and has_push_remote(sdd_store.repo_root):
+                    outcome = commit_result.push
+                    if outcome is None and not head_is_published(sdd_store.repo_root):
+                        outcome = push_sdd_store_after_commit(
+                            sdd_store,
+                            push_after_commit=True,
+                            worker_lock_wait=lock_wait,
+                        )
+                    _raise_for_archive_push(outcome, sdd_store.repo_root)
+                    if not head_is_published(sdd_store.repo_root):
+                        raise ReplayConflict(
+                            f"{sdd_store.repo_root} HEAD was not published "
+                            "after the archive commit"
+                        )
             return str(archived.path)
 
-        result = lease.reset_and_replay(_archive_and_publish)
+        try:
+            result = lease.reset_and_replay(
+                _archive_and_publish,
+                repo_root=archive_repo,
+            )
+        except ResetReplayError as exc:
+            recovery_ref = None
+            if archive_repo is not None:
+                try:
+                    recovery_ref = lease.reset_to_upstream(repo_root=archive_repo)
+                except Exception:
+                    log.debug(
+                        "failed to reset the SDD store after archive exhaustion",
+                        exc_info=True,
+                    )
+            raise ResetReplayError(
+                str(exc.last_error) if exc.last_error is not None else str(exc),
+                attempts=exc.attempts,
+                last_error=exc.last_error,
+                recovery_ref=recovery_ref,
+            ) from exc
         return result.value
+
+
+def _store_has_unpublished_head(repo_root: Path) -> bool:
+    from sase.bead._sync_publication import has_push_remote, head_is_published
+
+    # Local and not-yet-materialized stores have no clone to inspect.
+    # ``git remote`` raises if *cwd* does not exist.
+    if not repo_root.is_dir():
+        return False
+    return has_push_remote(repo_root) and not head_is_published(repo_root)
+
+
+def _raise_for_archive_push(outcome: PushOutcome | None, repo_root: Path) -> None:
+    from sase.workspace_provider.reset_replay import ReplayConflict, ReplayDeferred
+
+    if outcome is None or outcome.pushed or outcome.skipped_no_remote:
+        return
+    if outcome.skipped_locked:
+        raise ReplayDeferred(
+            f"{repo_root} publication deferred: sync worker lock is held"
+        )
+    detail = outcome.error or "push was rejected"
+    raise ReplayConflict(f"{repo_root} publication failed: {detail}")
 
 
 def report_plan_archive_failure(

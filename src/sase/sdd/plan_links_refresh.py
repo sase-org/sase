@@ -154,12 +154,14 @@ def _refresh_locked(
             from sase.sdd.files import commit_sdd_store_files
 
             format_markdown_files_with_prettier(changed_paths)
-            committed = commit_sdd_store_files(
-                store,
-                "Refresh plan provenance links",
-                paths=changed_paths,
-                push_after_commit="async",
-                already_locked=True,
+            committed = bool(
+                commit_sdd_store_files(
+                    store,
+                    "Refresh plan provenance links",
+                    paths=changed_paths,
+                    push_after_commit="async",
+                    already_locked=True,
+                )
             )
             if not committed:
                 issues.append(
