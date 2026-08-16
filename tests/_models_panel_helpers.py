@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from textual.app import App, ComposeResult
+from textual.widgets import OptionList
 
 import sase.ace.tui.modals.models_panel as models_panel
 import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_state
 from sase.ace.testing import wait_for as wait_for_pilot
+from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.config.edit import ConfigEffectivePreview, ConfigWritePlan, EditPlanResult
 from sase.config.inventory import ConfigDiagnostic
 from sase.llm_provider import (
@@ -239,6 +241,13 @@ async def wait_for(
     pilot: Any, predicate: Callable[[], bool], *, timeout: float = 5.0
 ) -> None:
     await wait_for_pilot(pilot, predicate, timeout=timeout)
+
+
+def highlight_row(panel: ModelsPanel, row_id: str) -> None:
+    """Move the mounted panel's highlight to ``row_id`` and refresh its context."""
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    panel._set_highlighted_index(option_list, option_list.get_option_index(row_id))
+    panel._update_context()
 
 
 def make_bucketed_views() -> list[AliasView]:
