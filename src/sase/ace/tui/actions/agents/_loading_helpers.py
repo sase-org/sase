@@ -428,7 +428,6 @@ def _load_agents_from_disk_impl(
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
-    _reconcile_dead_monitor_supervisors_for_tui()
     all_agents, load_state = load_tiered_agents(
         patch_snapshot=patch_snapshot,
         full_history=full_history,
@@ -441,15 +440,6 @@ def _load_agents_from_disk_impl(
         dismissed_bundle_identities,
         load_state,
     )
-
-
-def _reconcile_dead_monitor_supervisors_for_tui() -> None:
-    try:
-        from sase.monitor import reconcile_dead_supervisors
-
-        reconcile_dead_supervisors()
-    except Exception:
-        log.debug("Failed to reconcile dead monitor supervisors", exc_info=True)
 
 
 def _load_agent_artifact_delta_from_disk_impl(

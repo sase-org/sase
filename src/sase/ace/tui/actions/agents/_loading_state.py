@@ -140,6 +140,13 @@ class AgentLoadingStateMixin:
         | None
     )
     _loader_cleanup_async_tasks: set[asyncio.Task[None]]
+    # Dead-supervisor monitor settlement runs independently after the load
+    # is served. A burst keeps only a trailing pass so one TUI cannot
+    # overlap reconcile writes.
+    _monitor_reconcile_running: bool
+    _monitor_reconcile_pending: bool
+    _monitor_reconcile_pending_source: str
+    _monitor_reconcile_async_tasks: set[asyncio.Task[None]]
     # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
     # the last load reported incomplete history and a full-history pass
     # has not yet been scheduled; ``_armed_mono`` is the monotonic time

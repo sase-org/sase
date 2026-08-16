@@ -23,6 +23,7 @@ from ._loading_state import AgentLoadingStateMixin
 
 _DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = 2.0
 _ENV_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = "SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS"
+MONITOR_RECONCILE_REFRESH_SOURCE = "monitor_reconcile"
 
 
 def _slow_loader_stage_threshold_seconds() -> float:
@@ -102,6 +103,17 @@ def _resolve_loader_cleanup() -> Callable[..., Any]:
     facade = sys.modules.get(f"{__package__}._loading_disk")
     cleanup = getattr(facade, "compute_loader_cleanup", compute_loader_cleanup)
     return cast(Callable[..., Any], cleanup)
+
+
+def _reconcile_dead_monitor_supervisors_for_tui() -> list[object]:
+    """Settle dead-supervisor monitors; return the records that left running."""
+    try:
+        from sase.monitor import reconcile_dead_supervisors
+
+        return list(reconcile_dead_supervisors())
+    except Exception:
+        log.debug("Failed to reconcile dead monitor supervisors", exc_info=True)
+        return []
 
 
 class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
@@ -223,6 +235,76 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         )
         if task is None:
             self._loader_cleanup_running = False
+
+    def _schedule_monitor_reconcile(self, *, source: str) -> None:
+        """Queue one latest-wins dead-supervisor settle pass after a load."""
+        if source == MONITOR_RECONCILE_REFRESH_SOURCE:
+            return
+        # Incomplete test harnesses skip; AceApp always initializes these flags.
+        if not hasattr(self, "_monitor_reconcile_running"):
+            return
+        self._monitor_reconcile_pending_source = source
+        if self._monitor_reconcile_running:
+            self._monitor_reconcile_pending = True
+            return
+        self._monitor_reconcile_running = True
+        self._monitor_reconcile_pending = False
+        self._spawn_monitor_reconcile_task()
+
+    def _spawn_monitor_reconcile_task(self) -> None:
+        """Run monitor reconciliation outside Textual's serial message pump."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_monitor_reconcile(),
+            name="sase-agents-monitor-reconcile",
+            registry_attr="_monitor_reconcile_async_tasks",
+        )
+        if task is None:
+            self._monitor_reconcile_running = False
+
+    async def _run_monitor_reconcile(self) -> None:
+        """Run one reconcile pass and coalesce any burst into one trailing pass."""
+        import asyncio
+
+        nav_gate = getattr(self, "_nav_gate", None)
+        if nav_gate is not None and nav_gate.is_navigating():
+            delay = nav_gate.time_until_idle() + 0.05
+            self.set_timer(delay, self._spawn_monitor_reconcile_task)  # type: ignore[attr-defined]
+            return
+
+        source = getattr(self, "_monitor_reconcile_pending_source", "unknown")
+        self._monitor_reconcile_pending = False
+        reconcile_start = time.perf_counter()
+        try:
+            with tui_trace("agents.monitor_reconcile", source=source):
+                settled = await asyncio.to_thread(
+                    _reconcile_dead_monitor_supervisors_for_tui
+                )
+            reconcile_elapsed = time.perf_counter() - reconcile_start
+            log.debug(
+                "agents monitor reconcile: elapsed=%.3fs settled=%d",
+                reconcile_elapsed,
+                len(settled),
+            )
+            self._record_slow_loader_stages(
+                source=source,
+                load_kind="monitor_reconcile",
+                stages={"monitor_reconcile": reconcile_elapsed},
+                settled=len(settled),
+            )
+            if settled:
+                refresh = getattr(self, "_schedule_agents_async_refresh", None)
+                if callable(refresh):
+                    refresh(source=MONITOR_RECONCILE_REFRESH_SOURCE)
+        except Exception:
+            log.exception("Agents monitor reconcile failed")
+        finally:
+            has_followup = bool(getattr(self, "_monitor_reconcile_pending", False))
+            self._monitor_reconcile_running = False
+            if has_followup:
+                self._monitor_reconcile_pending = False
+                self._monitor_reconcile_running = True
+                self._spawn_monitor_reconcile_task()
 
     async def _run_loader_cleanup(self) -> None:
         """Run one cleanup request and coalesce any burst into one trailing pass."""

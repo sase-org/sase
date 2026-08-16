@@ -146,6 +146,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
         finally:
             if installed_active_source:
                 self._agents_refresh_active_source = previous_active_source
+        self._schedule_monitor_reconcile(source=source)
 
     async def _load_agents_async(
         self,
@@ -312,6 +313,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             source=source,
             load_kind="full",
         )
+        self._schedule_monitor_reconcile(source=source)
         self._record_slow_loader_stages(
             source=source,
             load_kind="full",
@@ -468,6 +470,7 @@ class AgentLoadingDiskMixin(AgentLoadingDiskSupportMixin):
             source=source,
             load_kind="artifact_delta",
         )
+        self._schedule_monitor_reconcile(source=source)
         self._record_slow_loader_stages(
             source=source,
             load_kind="artifact_delta",

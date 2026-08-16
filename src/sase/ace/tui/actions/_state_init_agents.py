@@ -60,6 +60,10 @@ def init_agent_state(self: Any) -> None:
     self._loader_cleanup_pending = False
     self._loader_cleanup_pending_request = None
     self._loader_cleanup_async_tasks = set()
+    self._monitor_reconcile_running = False
+    self._monitor_reconcile_pending = False
+    self._monitor_reconcile_pending_source = "unknown"
+    self._monitor_reconcile_async_tasks = set()
     self._startup_telemetry_async_tasks = set()
     self._agents_refresh_debounce_armed = False
     self._agents_refresh_debounce_source = "unknown"
