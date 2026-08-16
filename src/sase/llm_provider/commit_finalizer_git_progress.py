@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+import logging
 from typing import TYPE_CHECKING
 
 from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
@@ -12,10 +13,13 @@ from .commit_finalizer_git_status import (
     UNKNOWN_HEAD_SENTINEL,
     git_head_commit_id,
     git_log_commit_messages,
+    git_upstream_ahead_count,
 )
 
 if TYPE_CHECKING:
-    from .commit_finalizer_types import DirtyState
+    from .commit_finalizer_types import DirtyRepo, DirtyState
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,8 @@ def discarded_dirty_work_evidence(
             after_head,
             agent_name,
         ):
+            if _published_store_state_is_exempt(repo, before_head, after_head):
+                continue
             evidence.append(
                 _DiscardedDirtyWorkEvidence(
                     repo_name=repo.name,
@@ -102,6 +108,38 @@ def discarded_dirty_work_evidence(
                 )
             )
     return tuple(evidence)
+
+
+def _published_store_state_is_exempt(
+    repo: DirtyRepo,
+    before_head: str,
+    after_head: str,
+) -> bool:
+    """Whether *repo* is machine-managed store state a sync rebase absorbed.
+
+    A sidecar that went clean with no locally-attributed commit is only
+    exempt from the discarded-work guard when it is machine-managed
+    (``kind == "sdd"``) and its clone is not ahead of its configured
+    upstream — i.e. the store's content is already published and the clone
+    matches the canonical remote, rather than a local discard of unpublished
+    work.
+    """
+    if repo.kind != "sdd":
+        return False
+    ahead = git_upstream_ahead_count(repo.path)
+    if ahead != 0:
+        return False
+    _logger.warning(
+        "commit finalizer: treating %s (%s) as published rather than "
+        "discarded — HEAD moved %s -> %s with no locally-attributed commit, "
+        "but the clone is not ahead of its upstream; changed files: %s",
+        repo.name,
+        repo.path,
+        before_head,
+        after_head,
+        ", ".join(repo.changed_files),
+    )
+    return True
 
 
 def discarded_dirty_work_message(

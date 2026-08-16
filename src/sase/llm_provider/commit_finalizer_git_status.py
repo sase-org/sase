@@ -194,6 +194,31 @@ def git_head_commit_id(repo_dir: str) -> str:
     return result.stdout.strip() or UNKNOWN_HEAD_SENTINEL
 
 
+def git_upstream_ahead_count(repo_dir: str) -> int | None:
+    """Return how many commits ``HEAD`` is ahead of its upstream.
+
+    ``None`` means the repo has no configured upstream (or the lookup
+    failed), distinguishing "no upstream to compare against" from "zero
+    commits ahead."
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "rev-list", "--count", "@{upstream}..HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0:
+        return None
+    text = result.stdout.strip()
+    if not text.isdigit():
+        return None
+    return int(text)
+
+
 def git_log_commit_messages(repo_dir: str, revision: str) -> tuple[str, ...]:
     """Return the full messages of *revision*, oldest first."""
 

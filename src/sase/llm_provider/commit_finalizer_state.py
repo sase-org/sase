@@ -37,6 +37,51 @@ _WORKSPACE_NUM_ENV_VARS: tuple[str, ...] = (
     "SASE_GIT_WORKSPACE_NUM",
 )
 
+# Precedence when the same repo path is reached through more than one
+# discovery source (e.g. a configured sibling that is also an SDD sidecar
+# target): the more specific kind wins, since the machine auto-commit and
+# prompt-rendering paths key off ``kind``.
+_DIRTY_REPO_KIND_PRIORITY: dict[str, int] = {
+    "main": 0,
+    "sdd": 1,
+    "external": 2,
+    "sibling": 3,
+}
+
+
+def _dedupe_dirty_repos_by_path(repos: list[DirtyRepo]) -> list[DirtyRepo]:
+    """Collapse ``repos`` sharing a normalized path into a single entry.
+
+    The winning entry keeps the most specific ``kind`` (see
+    ``_DIRTY_REPO_KIND_PRIORITY``) and the union of both entries'
+    ``changed_files``, in first-seen order.
+    """
+    order: list[str] = []
+    by_path: dict[str, DirtyRepo] = {}
+    for repo in repos:
+        key = finalizer_git.normalize_path(repo.path)
+        existing = by_path.get(key)
+        if existing is None:
+            order.append(key)
+            by_path[key] = repo
+            continue
+        merged_files = tuple(
+            dict.fromkeys((*existing.changed_files, *repo.changed_files))
+        )
+        winner = (
+            repo
+            if _DIRTY_REPO_KIND_PRIORITY[repo.kind]
+            < _DIRTY_REPO_KIND_PRIORITY[existing.kind]
+            else existing
+        )
+        by_path[key] = DirtyRepo(
+            name=winner.name,
+            path=winner.path,
+            changed_files=merged_files,
+            kind=winner.kind,
+        )
+    return [by_path[key] for key in order]
+
 
 def collect_dirty_state(
     project_dir: str,
@@ -84,6 +129,7 @@ def collect_dirty_state(
     repos.extend(sibling_repos)
     repos.extend(external_repos)
     repos.extend(sdd_repos)
+    repos = _dedupe_dirty_repos_by_path(repos)
 
     repos, pre_existing_repos = _exclude_pre_existing_baseline(
         repos, load_dirty_baseline(artifact_root)

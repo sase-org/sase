@@ -157,6 +157,28 @@ def test_sync_status_dirty_when_probe_fails_closed(
     assert _sync_status(beads_dir) is False
 
 
+def test_sync_status_dirty_when_staged_only(tmp_path):
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    jsonl = beads_dir / "issues.jsonl"
+    jsonl.write_text('{"id":"test"}\n')
+    subprocess.run(
+        ["git", "add", str(jsonl)], cwd=tmp_path, capture_output=True, check=True
+    )
+
+    # Staged but not committed — both layers must agree this is dirty.
+    assert _sync_status(beads_dir) is False
+    changed = subprocess.run(
+        ["git", "status", "--porcelain=v1"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "sdd/beads/issues.jsonl" in changed
+
+
 def test_git_sync_stages_bead_state(tmp_path):
     _init_git_repo(tmp_path)
     beads_dir = tmp_path / "sdd/beads"
@@ -574,6 +596,112 @@ def test_commit_epic_graph_checkpoint_picks_up_new_nested_subdirectory_files(tmp
         check=True,
     ).stdout.splitlines()
     assert "sdd/beads/events/streams/sase-2.jsonl" in files
+
+
+def test_commit_epic_graph_checkpoint_commits_staged_only_bead_state(tmp_path):
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    jsonl = beads_dir / "issues.jsonl"
+    jsonl.write_text('{"id":"test"}\n')
+    subprocess.run(
+        ["git", "add", str(jsonl)], cwd=tmp_path, capture_output=True, check=True
+    )
+
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
+
+    assert committed is True
+    assert _sync_status(beads_dir) is True
+    files = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert "sdd/beads/issues.jsonl" in files
+
+
+def test_commit_epic_graph_checkpoint_on_unborn_head_does_not_raise(tmp_path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    from .sync_test_helpers import configure_git_identity
+
+    configure_git_identity(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    jsonl = beads_dir / "issues.jsonl"
+    jsonl.write_text('{"id":"test"}\n')
+    subprocess.run(
+        ["git", "add", str(jsonl)], cwd=tmp_path, capture_output=True, check=True
+    )
+
+    assert _sync_status(beads_dir) is False
+
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
+
+    assert committed is True
+    files = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert "sdd/beads/issues.jsonl" in files
+
+
+def test_commit_epic_graph_checkpoint_stamps_agent_provenance(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.core.agent_identity_facade import AgentOwnerIdentity
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-alpha")
+    monkeypatch.setattr(
+        "sase.config.require_agent_owner_identity",
+        lambda: AgentOwnerIdentity("alice", "machine_a"),
+    )
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "issues.jsonl").write_text('{"id":"test"}\n')
+
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
+
+    assert committed is True
+    message = subprocess.run(
+        ["git", "log", "-1", "--format=%B"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert message == (
+        "chore(beads): checkpoint approved epic graph sase-1\n\n"
+        "SASE_TYPE=beads\nSASE_AGENT=alice.machine_a.agent-alpha"
+    )
+
+
+def test_commit_epic_graph_checkpoint_omits_agent_without_identity(tmp_path):
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "issues.jsonl").write_text('{"id":"test"}\n')
+
+    committed = commit_epic_graph_checkpoint(beads_dir, "sase-1")
+
+    assert committed is True
+    message = subprocess.run(
+        ["git", "log", "-1", "--format=%B"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert (
+        message
+        == "chore(beads): checkpoint approved epic graph sase-1\n\nSASE_TYPE=beads"
+    )
 
 
 def test_rebuild_from_jsonl_creates_db(tmp_path):

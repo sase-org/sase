@@ -335,9 +335,11 @@ def _commit_bead_state(
                 )
             )
 
-        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+        from sase.workflows.commit.runtime_tags import (
+            apply_auto_commit_tags_with_runtime,
+        )
 
-        message = apply_auto_commit_type_tag(message, auto_commit_type)
+        message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
         _run_git_write_or_raise(
             ["commit", "-m", message, "--", *files],
             cwd=repo_root,
@@ -413,14 +415,14 @@ def relative_pathspec(path: Path, repo_root: Path) -> str:
 
 def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
     """Return the bead-state files (relative to ``repo_root``) with
-    uncommitted changes — modified, untracked, or deleted — excluding any
-    files matched by ``.gitignore`` (so ``beads.db`` and its SQLite sidecars
-    are never returned).
+    uncommitted changes — modified, untracked, deleted, or staged-but-not-
+    committed — excluding any files matched by ``.gitignore`` (so
+    ``beads.db`` and its SQLite sidecars are never returned).
     """
     from sase.sdd._git import run_sdd_git
 
     rel_beads = relative_pathspec(beads_dir, repo_root)
-    result = run_sdd_git(
+    worktree_result = run_sdd_git(
         [
             "ls-files",
             "--modified",
@@ -436,17 +438,48 @@ def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
         check=False,
         op="bead.changed_files",
     )
-    if result.returncode != 0:
-        detail = result.stderr.decode(errors="replace").strip()
+    if worktree_result.returncode != 0:
+        detail = worktree_result.stderr.decode(errors="replace").strip()
         action = f"enumerate bead-state changes under {rel_beads}"
         if detail:
             message = f"git {action} failed: {detail}"
         else:
-            message = f"git {action} failed with exit code {result.returncode}"
+            message = f"git {action} failed with exit code {worktree_result.returncode}"
         raise BeadWorkLaunchCommitError(message)
+
+    staged_result = run_sdd_git(
+        [
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--",
+            f"{rel_beads}/",
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+        op="bead.changed_files.staged",
+    )
+    if staged_result.returncode == 0:
+        staged_entries = staged_result.stdout.split(b"\x00")
+    elif _has_head_commit(repo_root):
+        detail = staged_result.stderr.decode(errors="replace").strip()
+        action = f"enumerate staged bead-state changes under {rel_beads}"
+        if detail:
+            message = f"git {action} failed: {detail}"
+        else:
+            message = f"git {action} failed with exit code {staged_result.returncode}"
+        raise BeadWorkLaunchCommitError(message)
+    else:
+        # Unborn HEAD (fresh clone, no commit yet): there is nothing to diff
+        # against, so fall back to the worktree-only result instead of
+        # raising.
+        staged_entries = []
+
     db_prefix = f"{rel_beads}/beads.db"
     seen: dict[str, None] = {}
-    for entry in result.stdout.split(b"\x00"):
+    for entry in (*worktree_result.stdout.split(b"\x00"), *staged_entries):
         if not entry:
             continue
         path = entry.decode()
@@ -458,6 +491,25 @@ def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
             continue
         seen.setdefault(path, None)
     return list(seen)
+
+
+def _has_head_commit(repo_root: Path) -> bool:
+    """Return whether ``repo_root`` has at least one commit on ``HEAD``.
+
+    A fresh clone with staged-but-uncommitted bead state has no ``HEAD`` to
+    diff against, so callers use this to skip the staged-changes probe rather
+    than treat an unborn branch as a failure.
+    """
+    from sase.sdd._git import run_sdd_git
+
+    result = run_sdd_git(
+        ["rev-parse", "--verify", "-q", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+        op="bead.has_head_commit",
+    )
+    return result.returncode == 0
 
 
 def _list_bead_state_changes_silent(beads_dir: Path, repo_root: Path) -> list[str]:
