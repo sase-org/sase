@@ -31,7 +31,7 @@ from .models_panel_rows import (
 
 
 @dataclass(frozen=True)
-class _ProviderRoutingSnapshot:
+class ProviderRoutingSnapshot:
     """One immutable provider-routing snapshot for UI rendering."""
 
     statuses: tuple[ProviderRoutingStatus, ...]
@@ -53,19 +53,19 @@ class _ProviderRoutingSnapshot:
 
 
 @dataclass(frozen=True)
-class _ProviderWriteOutcome:
+class ProviderWriteOutcome:
     """Result returned by a provider-routing write worker."""
 
     action: Literal["disable", "enable"]
     provider: str
     changed: bool
-    snapshot: _ProviderRoutingSnapshot | None
+    snapshot: ProviderRoutingSnapshot | None
     error: str | None = None
 
 
-def _load_provider_routing_snapshot(
+def load_provider_routing_snapshot(
     now: float | None = None,
-) -> _ProviderRoutingSnapshot:
+) -> ProviderRoutingSnapshot:
     """Load provider routing, disables, alias views, and colors together."""
     captured_at = (
         max(float(now), 0.000001)
@@ -80,7 +80,7 @@ def _load_provider_routing_snapshot(
         provider_disables=dict(disables),
         big_epic_phase_threshold=threshold,
     )
-    return _ProviderRoutingSnapshot(
+    return ProviderRoutingSnapshot(
         statuses=statuses,
         provider_disables=dict(disables),
         alias_views=views,
@@ -97,23 +97,25 @@ def _now() -> float:
     return now()
 
 
-def _remaining_label(
+def remaining_label(
     disable: TemporaryProviderDisable,
     *,
     now: float,
     include_left: bool = True,
 ) -> str:
+    """Return a human-readable remaining-time label for a provider disable."""
     if disable.expires_at is None:
         return "until cleared"
     suffix = " left" if include_left else ""
     return f"{format_remaining(disable.expires_at - now)}{suffix}"
 
 
-def _active_disable(
+def active_disable(
     disable: TemporaryProviderDisable | None,
     *,
     now: float,
 ) -> TemporaryProviderDisable | None:
+    """Return the disable if it is still in effect at ``now``."""
     if disable is None:
         return None
     if disable.expires_at is not None and now >= disable.expires_at:
@@ -121,7 +123,7 @@ def _active_disable(
     return disable
 
 
-def _provider_disable_route_key(
+def provider_disable_route_key(
     disables: Mapping[str, TemporaryProviderDisable],
 ) -> tuple[tuple[str, float | None], ...]:
     """Return the routing-relevant shape of a provider-disable snapshot."""
@@ -143,11 +145,11 @@ def disabled_explicit_provider_message(
     provider, _model = target.split("/", 1)
     if not provider:
         return None
-    disable = _active_disable(disables.get(provider), now=now)
+    disable = active_disable(disables.get(provider), now=now)
     if disable is None:
         return None
     return (
         f"{provider.upper()} is temporarily disabled "
-        f"{_remaining_label(disable, now=now)}; choose another provider "
+        f"{remaining_label(disable, now=now)}; choose another provider "
         "or enable it in Provider Routing"
     )

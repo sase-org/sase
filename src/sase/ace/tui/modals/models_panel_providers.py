@@ -14,20 +14,12 @@ from sase.llm_provider import (
     TemporaryProviderDisable,
 )
 
-from .duration_choice_modal import DurationChoiceCancelled
-from .models_panel_provider_modal import _ProviderRoutingModal
-from .models_panel_provider_rendering import (
-    _provider_description_text,
-    _provider_duration_modal,
-    _provider_title_line,
-    _render_provider_row,
-)
+from .models_panel_provider_modal import ProviderRoutingModal
+from .models_panel_provider_rendering import provider_title_line
 from .models_panel_provider_state import (
-    _ProviderRoutingSnapshot,
-    _load_provider_routing_snapshot,
-    _now,
-    _provider_disable_route_key,
-    disabled_explicit_provider_message,
+    ProviderRoutingSnapshot,
+    load_provider_routing_snapshot,
+    provider_disable_route_key,
 )
 from .models_panel_rows import (
     BigEpicPhaseThresholdSettingRow,
@@ -48,8 +40,8 @@ class ModelsPanelProvidersMixin(_MixinBase):
         _changed: bool
         _provider_disables: dict[str, TemporaryProviderDisable]
         _provider_routing_changed: bool
-        _provider_snapshot: _ProviderRoutingSnapshot
-        _provider_snapshot_worker: Worker[_ProviderRoutingSnapshot] | None
+        _provider_snapshot: ProviderRoutingSnapshot
+        _provider_snapshot_worker: Worker[ProviderRoutingSnapshot] | None
         _provider_snapshot_keep: str | None
         _provider_snapshot_signal_changes: bool
         _provider_snapshot_update_rows: bool
@@ -73,12 +65,12 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
         def _emit_custom_builtin_shadow_warning(self) -> None: ...
 
-    def _initial_provider_snapshot(self) -> _ProviderRoutingSnapshot:
+    def _initial_provider_snapshot(self) -> ProviderRoutingSnapshot:
         launch_rows = build_launch_model_setting_rows(
             provider_disables={},
             big_epic_phase_threshold=DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
         )
-        return _ProviderRoutingSnapshot(
+        return ProviderRoutingSnapshot(
             statuses=(),
             provider_disables={},
             alias_views=(),
@@ -88,8 +80,8 @@ class ModelsPanelProvidersMixin(_MixinBase):
             big_epic_phase_threshold=DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
         )
 
-    def _load_provider_routing_snapshot(self) -> _ProviderRoutingSnapshot:
-        return _load_provider_routing_snapshot(self._models_panel_now())
+    def _load_provider_routing_snapshot(self) -> ProviderRoutingSnapshot:
+        return load_provider_routing_snapshot(self._models_panel_now())
 
     def _start_provider_snapshot_load(
         self,
@@ -102,7 +94,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
         if worker is not None and not worker.is_finished:
             worker.cancel()
 
-        def task() -> _ProviderRoutingSnapshot:
+        def task() -> ProviderRoutingSnapshot:
             return self._load_provider_routing_snapshot()
 
         self._provider_snapshot_keep = keep
@@ -137,21 +129,21 @@ class ModelsPanelProvidersMixin(_MixinBase):
             self._start_provider_snapshot_load(update_rows=True, signal_changes=True)
 
     def _provider_title_text(self) -> Text | None:
-        return _provider_title_line(
+        return provider_title_line(
             self._provider_disables, now=self._models_panel_now()
         )
 
     def _apply_provider_snapshot(
         self,
-        snapshot: _ProviderRoutingSnapshot,
+        snapshot: ProviderRoutingSnapshot,
         *,
         keep: str | None = None,
         update_rows: bool = True,
         signal_changes: bool = False,
     ) -> None:
-        routing_changed = _provider_disable_route_key(
+        routing_changed = provider_disable_route_key(
             self._provider_disables
-        ) != _provider_disable_route_key(snapshot.provider_disables)
+        ) != provider_disable_route_key(snapshot.provider_disables)
         self._provider_snapshot = snapshot
         self._provider_disables = dict(snapshot.provider_disables)
         self._provider_statuses = snapshot.visible_statuses
@@ -205,7 +197,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
     def action_providers(self) -> None:
         """Open the provider-routing manager."""
         self.app.push_screen(  # type: ignore[attr-defined]
-            _ProviderRoutingModal(
+            ProviderRoutingModal(
                 self._provider_snapshot,
                 load_snapshot=self._load_provider_routing_snapshot,
                 on_snapshot=self._on_provider_modal_snapshot,
@@ -215,7 +207,7 @@ class ModelsPanelProvidersMixin(_MixinBase):
 
     def _on_provider_modal_snapshot(
         self,
-        snapshot: _ProviderRoutingSnapshot,
+        snapshot: ProviderRoutingSnapshot,
         _keep_provider: str | None,
     ) -> None:
         selected = self._highlighted_row_id()  # type: ignore[attr-defined]

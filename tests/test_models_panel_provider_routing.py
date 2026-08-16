@@ -14,6 +14,7 @@ import sase.ace.tui.modals.models_panel as models_panel_module
 import sase.ace.tui.modals.models_panel_provider_modal as provider_modal
 import sase.ace.tui.modals.models_panel_provider_state as provider_state
 import sase.ace.tui.modals.models_panel_providers as providers
+from sase.ace.tui.modals.duration_choice_modal import DurationChoiceCancelled
 from sase.ace.tui.modals.models_panel import ModelsPanel
 from sase.ace.tui.modals.models_panel_duration import (
     OPEN_OVERRIDE_UNTIL,
@@ -21,12 +22,14 @@ from sase.ace.tui.modals.models_panel_duration import (
     OverrideUntilCleared,
     RelativeOverrideDuration,
 )
-from sase.ace.tui.modals.models_panel_providers import (
-    _ProviderRoutingModal,
-    _ProviderRoutingSnapshot,
-    _load_provider_routing_snapshot,
-    _provider_description_text,
-    _render_provider_row,
+from sase.ace.tui.modals.models_panel_provider_modal import ProviderRoutingModal
+from sase.ace.tui.modals.models_panel_provider_rendering import (
+    provider_description_text,
+    render_provider_row,
+)
+from sase.ace.tui.modals.models_panel_provider_state import (
+    ProviderRoutingSnapshot,
+    load_provider_routing_snapshot,
 )
 from sase.ace.tui.modals.models_panel_time import (
     OVERRIDE_UNTIL_BACK,
@@ -118,8 +121,8 @@ def _snapshot(
     disables: dict[str, TemporaryProviderDisable] | None = None,
     alias_views=None,
     launch_model_rows: tuple[LaunchModelSettingRow, ...] = (),
-) -> _ProviderRoutingSnapshot:
-    return _ProviderRoutingSnapshot(
+) -> ProviderRoutingSnapshot:
+    return ProviderRoutingSnapshot(
         statuses=tuple(statuses),
         provider_disables=disables or {},
         alias_views=tuple(alias_views or (make_alias_view("default", "default"),)),
@@ -140,18 +143,18 @@ def _until_result() -> ResolvedOverrideUntil:
     )
 
 
-def test_render_provider_rows_show_all_states() -> None:
-    available = _render_provider_row(
+def testrender_provider_rows_show_all_states() -> None:
+    available = render_provider_row(
         _status("codex", model_count=3),
         colors={"codex": "#10A37F"},
         now=100.0,
     )
-    missing = _render_provider_row(
+    missing = render_provider_row(
         _status("grok", model_count=1, cli_available=False),
         colors={},
         now=100.0,
     )
-    disabled = _render_provider_row(
+    disabled = render_provider_row(
         _status("claude", active_disable=_disable("claude", expires_at=3_820.0)),
         colors={"claude": "#D97757"},
         now=100.0,
@@ -163,7 +166,7 @@ def test_render_provider_rows_show_all_states() -> None:
 
 
 def test_provider_description_lists_disabled_effect_and_aliases() -> None:
-    description = _provider_description_text(
+    description = provider_description_text(
         _status(
             "claude",
             active_disable=_disable("claude", expires_at=None),
@@ -206,7 +209,7 @@ def test_provider_snapshot_worker_path_reads_authoritative_state(monkeypatch) ->
     monkeypatch.setattr(provider_state, "build_alias_views", view_mock)
     monkeypatch.setattr(provider_state, "provider_cli_status_color_map", color_mock)
 
-    snapshot = _load_provider_routing_snapshot(100.0)
+    snapshot = load_provider_routing_snapshot(100.0)
 
     provider_read.assert_called_once_with(100.0)
     status_mock.assert_called_once_with({"codex": disable})
@@ -220,7 +223,7 @@ async def test_panel_p_opens_provider_routing_modal(monkeypatch) -> None:
     snapshot = _snapshot(_status("claude"), _status("codex"))
     monkeypatch.setattr(
         providers,
-        "_load_provider_routing_snapshot",
+        "load_provider_routing_snapshot",
         lambda _now=None: snapshot,
     )
 
@@ -231,7 +234,7 @@ async def test_panel_p_opens_provider_routing_modal(monkeypatch) -> None:
         await pilot.press("p")
         await pilot.pause()
 
-        assert isinstance(pilot.app.screen, _ProviderRoutingModal)
+        assert isinstance(pilot.app.screen, ProviderRoutingModal)
 
 
 async def test_provider_modal_initial_snapshot_does_not_emit_change() -> None:
@@ -240,7 +243,7 @@ async def test_provider_modal_initial_snapshot_does_not_emit_change() -> None:
     on_snapshot = MagicMock()
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=lambda: after,
             on_snapshot=on_snapshot,
@@ -287,7 +290,7 @@ async def test_provider_modal_omits_hidden_provider_and_opens_duration() -> None
     )
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+        modal = ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
         pilot.app.push_screen(modal)
         await pilot.pause()
 
@@ -307,7 +310,7 @@ async def test_provider_modal_duration_cancel_and_back_paths() -> None:
     snapshot = _snapshot(_status("claude"))
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+        modal = ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
         pilot.app.push_screen(modal)
         await pilot.pause()
         modal._pending_provider = "claude"
@@ -315,7 +318,7 @@ async def test_provider_modal_duration_cancel_and_back_paths() -> None:
         modal._on_provider_duration_picked(None)
         await pilot.pause()
         assert pilot.app.screen is modal
-        modal._on_provider_duration_picked(providers.DurationChoiceCancelled())
+        modal._on_provider_duration_picked(DurationChoiceCancelled())
         await pilot.pause()
         assert pilot.app.screen is modal
 
@@ -363,13 +366,13 @@ async def test_provider_modal_disable_accepts_every_duration_result(
     exact_disable = MagicMock(return_value=disable)
     monkeypatch.setattr(provider_modal, "disable_provider", relative_disable)
     monkeypatch.setattr(provider_modal, "disable_provider_until", exact_disable)
-    monkeypatch.setattr(provider_modal, "_now", lambda: 100.0)
+    monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
 
-    def load_snapshot() -> _ProviderRoutingSnapshot:
+    def load_snapshot() -> ProviderRoutingSnapshot:
         return after if relative_disable.called or exact_disable.called else before
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(before, load_snapshot=load_snapshot)
+        modal = ProviderRoutingModal(before, load_snapshot=load_snapshot)
         modal.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -408,16 +411,16 @@ async def test_provider_modal_disable_writes_and_refreshes_snapshot(
     )
     disable_mock = MagicMock(return_value=disable)
 
-    def load_snapshot() -> _ProviderRoutingSnapshot:
+    def load_snapshot() -> ProviderRoutingSnapshot:
         return after if disable_mock.called else before
 
     load_snapshot_mock = MagicMock(side_effect=load_snapshot)
     monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
-    monkeypatch.setattr(provider_modal, "_now", lambda: 100.0)
-    snapshots: list[_ProviderRoutingSnapshot] = []
+    monkeypatch.setattr(provider_modal, "now", lambda: 100.0)
+    snapshots: list[ProviderRoutingSnapshot] = []
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=load_snapshot_mock,
             on_snapshot=lambda snapshot, _provider: snapshots.append(snapshot),
@@ -468,7 +471,7 @@ async def test_provider_modal_idempotent_disable_does_not_emit_change(
     monkeypatch.setattr(provider_modal, "disable_provider", disable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=lambda: after,
             on_snapshot=on_snapshot,
@@ -512,11 +515,11 @@ async def test_provider_modal_disable_replacement_with_new_expiry_emits_change(
         disable_mock,
     )
 
-    def load_snapshot() -> _ProviderRoutingSnapshot:
+    def load_snapshot() -> ProviderRoutingSnapshot:
         return after if disable_mock.called else before
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=load_snapshot,
             on_snapshot=on_snapshot,
@@ -544,7 +547,7 @@ async def test_provider_modal_enable_writes_and_refreshes_snapshot(monkeypatch) 
     monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=lambda: after,
             on_snapshot=on_snapshot,
@@ -567,7 +570,7 @@ async def test_provider_modal_enabled_provider_enable_is_noop(monkeypatch) -> No
     monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(before, load_snapshot=lambda: before)
+        modal = ProviderRoutingModal(before, load_snapshot=lambda: before)
         modal.notify = MagicMock()  # type: ignore[method-assign]
         pilot.app.push_screen(modal)
         await pilot.pause()
@@ -595,7 +598,7 @@ async def test_provider_modal_idempotent_enable_does_not_emit_change(
     monkeypatch.setattr(provider_modal, "enable_provider", enable_mock)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=lambda: before,
             on_snapshot=on_snapshot,
@@ -624,7 +627,7 @@ async def test_provider_modal_write_failure_reports_error(monkeypatch) -> None:
     monkeypatch.setattr(provider_modal, "disable_provider", fail_disable)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(
+        modal = ProviderRoutingModal(
             before,
             load_snapshot=lambda: before,
             on_snapshot=on_snapshot,
@@ -645,7 +648,7 @@ async def test_provider_modal_write_failure_reports_error(monkeypatch) -> None:
 
 
 def test_provider_modal_snapshot_failure_reports_warning() -> None:
-    modal = _ProviderRoutingModal(_snapshot(_status("claude")))
+    modal = ProviderRoutingModal(_snapshot(_status("claude")))
     failed_worker = SimpleNamespace(
         result=None,
         error=RuntimeError("state file locked"),
@@ -668,7 +671,7 @@ async def test_provider_modal_cursor_survives_snapshot_refresh() -> None:
     after = _snapshot(_status("claude"), _status("codex", model_count=4))
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        modal = _ProviderRoutingModal(before, load_snapshot=lambda: after)
+        modal = ProviderRoutingModal(before, load_snapshot=lambda: after)
         pilot.app.push_screen(modal)
         await pilot.pause()
         option_list = modal.query_one("#provider-routing-list", OptionList)
@@ -681,7 +684,7 @@ async def test_provider_modal_cursor_survives_snapshot_refresh() -> None:
 
 
 def test_provider_modal_unmount_cancels_active_workers() -> None:
-    modal = _ProviderRoutingModal(_snapshot(_status("claude")))
+    modal = ProviderRoutingModal(_snapshot(_status("claude")))
     snapshot_worker = SimpleNamespace(is_finished=False, cancel=MagicMock())
     write_worker = SimpleNamespace(is_finished=False, cancel=MagicMock())
     modal._snapshot_worker = snapshot_worker
@@ -796,7 +799,7 @@ async def test_models_panel_title_shows_disabled_provider_line(monkeypatch) -> N
     views = [make_alias_view("default", "default")]
     patch_alias_views(monkeypatch, views)
     disable = _disable("claude", expires_at=None)
-    snapshot = _ProviderRoutingSnapshot(
+    snapshot = ProviderRoutingSnapshot(
         statuses=(_status("claude", active_disable=disable),),
         provider_disables={"claude": disable},
         alias_views=tuple(views),

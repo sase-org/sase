@@ -15,11 +15,9 @@ from sase.ace.tui.modals.models_panel_runner_limit_cards import (
     RunnerLimitActionModal,
     RunnerLimitValueModal,
 )
-from sase.ace.tui.modals.models_panel_providers import (
-    _ProviderRoutingModal,
-    _ProviderRoutingSnapshot,
-)
-import sase.ace.tui.modals.models_panel_providers as models_panel_providers
+from sase.ace.tui.modals.models_panel_provider_modal import ProviderRoutingModal
+from sase.ace.tui.modals.models_panel_provider_rendering import provider_duration_modal
+from sase.ace.tui.modals.models_panel_provider_state import ProviderRoutingSnapshot
 import sase.ace.tui.modals.models_panel_provider_modal as models_panel_provider_modal
 from sase.ace.tui.modals.models_panel_time import OverrideUntilModal
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
@@ -200,7 +198,7 @@ async def test_models_panel_provider_duration_picker_png_snapshot(
         await wait_for_startup(page)
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
-        page.app.push_screen(models_panel_providers._provider_duration_modal("claude"))
+        page.app.push_screen(provider_duration_modal("claude"))
         await page.expect_modal("DurationPickerModal")
         await wait_for_svg_contains(page, "Disable CLAUDE")
         await wait_for_visual_idle(page)
@@ -217,9 +215,9 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel_provider_modal, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_modal, "now", lambda: FROZEN_NOW)
     disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
-    snapshot = _ProviderRoutingSnapshot(
+    snapshot = ProviderRoutingSnapshot(
         statuses=(
             provider_status(
                 "codex",
@@ -245,9 +243,9 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
-            _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+            ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
         )
-        await page.expect_modal("_ProviderRoutingModal")
+        await page.expect_modal("ProviderRoutingModal")
         await wait_for_svg_contains(page, "Provider Routing")
         await wait_for_svg_contains(page, "disabled · 42m left")
         await wait_for_visual_idle(page)
@@ -264,9 +262,9 @@ async def test_models_panel_provider_routing_until_cleared_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel_provider_modal, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_modal, "now", lambda: FROZEN_NOW)
     disable = provider_disable("codex", expires_at=None)
-    snapshot = _ProviderRoutingSnapshot(
+    snapshot = ProviderRoutingSnapshot(
         statuses=(
             provider_status(
                 "codex",
@@ -287,9 +285,9 @@ async def test_models_panel_provider_routing_until_cleared_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
-            _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+            ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
         )
-        await page.expect_modal("_ProviderRoutingModal")
+        await page.expect_modal("ProviderRoutingModal")
         await wait_for_svg_contains(page, "until cleared")
         await wait_for_visual_idle(page)
 
@@ -305,9 +303,9 @@ async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    monkeypatch.setattr(models_panel_provider_modal, "_now", lambda: FROZEN_NOW)
+    monkeypatch.setattr(models_panel_provider_modal, "now", lambda: FROZEN_NOW)
     disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
-    snapshot = _ProviderRoutingSnapshot(
+    snapshot = ProviderRoutingSnapshot(
         statuses=(
             provider_status(
                 "codex",
@@ -335,9 +333,9 @@ async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         page.app.push_screen(
-            _ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
+            ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
         )
-        await page.expect_modal("_ProviderRoutingModal")
+        await page.expect_modal("ProviderRoutingModal")
         await wait_for_svg_contains(page, "Provider Routing")
         await wait_for_svg_contains(page, "disabled · 42m left")
         await wait_for_visual_idle(page)

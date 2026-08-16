@@ -10,7 +10,7 @@ from textual.widgets import Input, OptionList, Static
 
 from sase.ace.testing import wait_for
 from sase.ace.tui.modals.models_panel import ModelsPanel
-from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
+from sase.ace.tui.modals.models_panel_provider_state import ProviderRoutingSnapshot
 from sase.ace.tui.modals.models_panel_threshold_cards import (
     BigEpicPhaseThresholdValueModal,
     _parse_big_epic_phase_threshold,
@@ -231,12 +231,12 @@ async def test_threshold_edit_refreshes_atomic_snapshot_and_reports_mismatch(
     views = [make_alias_view("large", "role")]
     patch_alias_views(monkeypatch, views)
 
-    def load_snapshot(self: ModelsPanel) -> _ProviderRoutingSnapshot:
+    def load_snapshot(self: ModelsPanel) -> ProviderRoutingSnapshot:
         from sase.ace.tui.modals.models_panel_rows import (
             build_launch_model_setting_rows,
         )
 
-        return _ProviderRoutingSnapshot(
+        return ProviderRoutingSnapshot(
             statuses=(),
             provider_disables={},
             alias_views=tuple(views),

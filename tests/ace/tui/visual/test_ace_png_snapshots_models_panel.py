@@ -11,7 +11,7 @@ import sase.ace.tui.modals.models_panel_providers as models_panel_providers
 import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_state
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
-from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
+from sase.ace.tui.modals.models_panel_provider_state import ProviderRoutingSnapshot
 from sase.llm_provider import AliasView
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
@@ -356,7 +356,7 @@ async def test_models_panel_provider_disabled_png_snapshot(
     patch_startup_loaders(monkeypatch)
     views = provider_disabled_views()
     disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
-    snapshot = _ProviderRoutingSnapshot(
+    snapshot = ProviderRoutingSnapshot(
         statuses=(
             provider_status(
                 "claude",
@@ -388,7 +388,7 @@ async def test_models_panel_provider_disabled_png_snapshot(
     monkeypatch.setattr(models_panel_provider_state, "_now", lambda: FROZEN_NOW)
     monkeypatch.setattr(
         models_panel_providers,
-        "_load_provider_routing_snapshot",
+        "load_provider_routing_snapshot",
         lambda *_a, **_k: snapshot,
     )
 

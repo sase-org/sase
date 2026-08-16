@@ -10,7 +10,7 @@ from textual.widgets import OptionList, Static
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.tui.modals.model_picker_modal import ModelPickerModal
 from sase.ace.tui.modals.models_panel import ModelsPanel, ModelsPanelResult
-from sase.ace.tui.modals.models_panel_providers import _ProviderRoutingSnapshot
+from sase.ace.tui.modals.models_panel_provider_state import ProviderRoutingSnapshot
 from sase.ace.tui.modals.models_panel_rows import (
     BigEpicPhaseThresholdSettingRow,
     LaunchModelSettingRow,
@@ -390,7 +390,7 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
     """A late initial snapshot must not steal a bucket selection before `e`."""
     views = make_bucketed_views()
     patch_alias_views(monkeypatch, views)
-    snapshot = _ProviderRoutingSnapshot(
+    snapshot = ProviderRoutingSnapshot(
         statuses=(),
         provider_disables={},
         alias_views=tuple(views),
@@ -401,7 +401,7 @@ async def test_delayed_provider_snapshot_keeps_bucket_for_guarded_edit(
     started = threading.Event()
     release = threading.Event()
 
-    def load_snapshot(self: ModelsPanel) -> _ProviderRoutingSnapshot:
+    def load_snapshot(self: ModelsPanel) -> ProviderRoutingSnapshot:
         started.set()
         assert release.wait(timeout=5)
         return snapshot

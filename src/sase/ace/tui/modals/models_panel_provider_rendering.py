@@ -16,7 +16,7 @@ from .models_panel_duration import (
     RelativeOverrideDuration,
     format_duration_chosen,
 )
-from .models_panel_provider_state import _active_disable, _remaining_label
+from .models_panel_provider_state import active_disable, remaining_label
 from .models_panel_time import ResolvedOverrideUntil
 
 _PROVIDER_CELL = 14
@@ -40,7 +40,7 @@ def _provider_label(provider: str, colors: Mapping[str, str]) -> Text:
     return label
 
 
-def _render_provider_row(
+def render_provider_row(
     status: ProviderRoutingStatus,
     *,
     colors: Mapping[str, str],
@@ -55,10 +55,10 @@ def _render_provider_row(
         count += "s"
     text.append(_pad(count, _COUNT_CELL), style="dim")
     text.append("   ")
-    disable = _active_disable(status.active_disable, now=now)
+    disable = active_disable(status.active_disable, now=now)
     if disable is not None:
         text.append(
-            f"disabled · {_remaining_label(disable, now=now)}",
+            f"disabled · {remaining_label(disable, now=now)}",
             style=_DISABLED_STYLE,
         )
     elif status.cli_available:
@@ -68,7 +68,7 @@ def _render_provider_row(
     return text
 
 
-def _provider_title_line(
+def provider_title_line(
     disables: Mapping[str, TemporaryProviderDisable],
     *,
     now: float,
@@ -76,10 +76,10 @@ def _provider_title_line(
     """Return the conditional Models-title provider-disable summary."""
     entries: list[str] = []
     for provider, disable in sorted(disables.items()):
-        if _active_disable(disable, now=now) is None:
+        if active_disable(disable, now=now) is None:
             continue
         entries.append(
-            f"{provider.upper()} {_remaining_label(disable, now=now, include_left=False)}"
+            f"{provider.upper()} {remaining_label(disable, now=now, include_left=False)}"
         )
     if not entries:
         return None
@@ -98,7 +98,7 @@ def _affected_aliases_text(status: ProviderRoutingStatus) -> str:
     return f"Affected aliases: {joined}."
 
 
-def _provider_description_text(
+def provider_description_text(
     status: ProviderRoutingStatus | None,
     *,
     now: float,
@@ -108,7 +108,7 @@ def _provider_description_text(
         return Text("", style=_DESCRIPTION_STYLE)
     text = Text(style=_DESCRIPTION_STYLE, no_wrap=False)
     label = status.provider.upper()
-    disable = _active_disable(status.active_disable, now=now)
+    disable = active_disable(status.active_disable, now=now)
     if disable is not None:
         text.append(
             f"New launches and fallbacks route around {label}; "
@@ -121,7 +121,7 @@ def _provider_description_text(
             end = datetime.fromtimestamp(disable.expires_at, get_timezone()).strftime(
                 "%b %-d %-I:%M%p"
             )
-            end = f"until {end} ({_remaining_label(disable, now=now)})"
+            end = f"until {end} ({remaining_label(disable, now=now)})"
         text.append(f"\n{end}. {_affected_aliases_text(status)}", style="dim")
     elif not status.cli_available:
         text.append(
@@ -145,7 +145,8 @@ def _provider_description_text(
     return text
 
 
-def _provider_duration_modal(provider: str) -> DurationPickerModal:
+def provider_duration_modal(provider: str) -> DurationPickerModal:
+    """Build the duration picker used to disable ``provider``."""
     label = provider.upper()
     return DurationPickerModal(
         title=f"Disable {label}",
@@ -161,11 +162,12 @@ def _provider_duration_modal(provider: str) -> DurationPickerModal:
     )
 
 
-def _duration_suffix(
+def duration_suffix(
     result: (
         RelativeOverrideDuration | OverrideUntilCleared | ResolvedOverrideUntil | None
     ),
 ) -> str:
+    """Return the toast suffix describing a chosen disable duration."""
     if isinstance(result, ResolvedOverrideUntil):
         return f"until {result.notification_display}"
     if isinstance(result, OverrideUntilCleared):

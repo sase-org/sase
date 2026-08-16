@@ -2347,7 +2347,7 @@ ModelsPanel {
     margin-top: 1;
 }
 
-_ProviderRoutingModal {
+ProviderRoutingModal {
     align: center middle;
 }
 

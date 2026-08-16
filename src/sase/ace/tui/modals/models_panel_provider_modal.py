@@ -25,20 +25,20 @@ from .models_panel_duration import (
     OverrideDurationResult,
     OverrideUntilCleared,
     RelativeOverrideDuration,
+    now,
 )
 from .models_panel_provider_rendering import (
-    _duration_suffix,
-    _provider_description_text,
-    _provider_duration_modal,
-    _render_provider_row,
+    duration_suffix,
+    provider_description_text,
+    provider_duration_modal,
+    render_provider_row,
 )
 from .models_panel_provider_state import (
-    _ProviderRoutingSnapshot,
-    _ProviderWriteOutcome,
-    _active_disable,
-    _load_provider_routing_snapshot,
-    _now,
-    _provider_disable_route_key,
+    ProviderRoutingSnapshot,
+    ProviderWriteOutcome,
+    active_disable,
+    load_provider_routing_snapshot,
+    provider_disable_route_key,
 )
 from .models_panel_time import (
     OverrideUntilBack,
@@ -50,7 +50,7 @@ _SNAPSHOT_GROUP = "provider-routing-snapshot"
 _WRITE_GROUP = "provider-routing-write"
 
 
-class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
+class ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
     """Manage temporary provider routing state."""
 
     _option_list_id = "provider-routing-list"
@@ -71,12 +71,12 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
 
     def __init__(
         self,
-        snapshot: _ProviderRoutingSnapshot,
+        snapshot: ProviderRoutingSnapshot,
         *,
-        load_snapshot: Callable[[], _ProviderRoutingSnapshot] = (
-            _load_provider_routing_snapshot
+        load_snapshot: Callable[[], ProviderRoutingSnapshot] = (
+            load_provider_routing_snapshot
         ),
-        on_snapshot: Callable[[_ProviderRoutingSnapshot, str | None], None]
+        on_snapshot: Callable[[ProviderRoutingSnapshot, str | None], None]
         | None = None,
     ) -> None:
         super().__init__()
@@ -93,9 +93,9 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
             | ResolvedOverrideUntil
             | None
         ) = None
-        self._snapshot_worker: Worker[_ProviderRoutingSnapshot] | None = None
+        self._snapshot_worker: Worker[ProviderRoutingSnapshot] | None = None
         self._snapshot_keep_provider: str | None = None
-        self._write_worker: Worker[_ProviderWriteOutcome] | None = None
+        self._write_worker: Worker[ProviderWriteOutcome] | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="provider-routing-container"):
@@ -144,7 +144,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
             return
         self._pending_provider = status.provider
         self.app.push_screen(
-            _provider_duration_modal(status.provider),
+            provider_duration_modal(status.provider),
             callback=self._on_provider_duration_picked,
         )
 
@@ -154,7 +154,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         status = self._selected_status()
         if status is None:
             return
-        if _active_disable(status.active_disable, now=self._now()) is None:
+        if active_disable(status.active_disable, now=self._now()) is None:
             self.notify(
                 f"{status.provider.upper()} is already enabled.",
                 severity="warning",
@@ -188,7 +188,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         if isinstance(result, OverrideUntilBack):
             provider = self._pending_provider
             self.app.push_screen(
-                _provider_duration_modal(provider),
+                provider_duration_modal(provider),
                 callback=self._on_provider_duration_picked,
             )
             return
@@ -198,13 +198,13 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         return self._write_worker is not None and not self._write_worker.is_finished
 
     def _now(self) -> float:
-        return _now()
+        return now()
 
     def _start_snapshot_load(self, *, keep_provider: str | None = None) -> None:
         if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
             self._snapshot_worker.cancel()
 
-        def task() -> _ProviderRoutingSnapshot:
+        def task() -> ProviderRoutingSnapshot:
             return self._load_snapshot()
 
         self._snapshot_keep_provider = keep_provider
@@ -224,16 +224,16 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
             self._snapshot_worker.cancel()
         provider = self._pending_provider
-        before = _provider_disable_route_key(self._snapshot.provider_disables)
+        before = provider_disable_route_key(self._snapshot.provider_disables)
 
-        def task() -> _ProviderWriteOutcome:
+        def task() -> ProviderWriteOutcome:
             try:
                 if isinstance(result, ResolvedOverrideUntil):
                     disable_provider_until(
                         provider,
                         result.expires_at,
                         source="ace",
-                        now=_now(),
+                        now=now(),
                     )
                 else:
                     seconds = (
@@ -241,17 +241,17 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
                         if isinstance(result, RelativeOverrideDuration)
                         else None
                     )
-                    disable_provider(provider, seconds, source="ace", now=_now())
+                    disable_provider(provider, seconds, source="ace", now=now())
                 snapshot = self._load_snapshot()
-                return _ProviderWriteOutcome(
+                return ProviderWriteOutcome(
                     action="disable",
                     provider=provider,
                     changed=before
-                    != _provider_disable_route_key(snapshot.provider_disables),
+                    != provider_disable_route_key(snapshot.provider_disables),
                     snapshot=snapshot,
                 )
             except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
-                return _ProviderWriteOutcome(
+                return ProviderWriteOutcome(
                     action="disable",
                     provider=provider,
                     changed=False,
@@ -273,17 +273,17 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         if self._snapshot_worker is not None and not self._snapshot_worker.is_finished:
             self._snapshot_worker.cancel()
 
-        def task() -> _ProviderWriteOutcome:
+        def task() -> ProviderWriteOutcome:
             try:
                 changed = enable_provider(provider)
-                return _ProviderWriteOutcome(
+                return ProviderWriteOutcome(
                     action="enable",
                     provider=provider,
                     changed=changed,
                     snapshot=self._load_snapshot(),
                 )
             except Exception as exc:  # noqa: BLE001 - surfaced in TUI toast.
-                return _ProviderWriteOutcome(
+                return ProviderWriteOutcome(
                     action="enable",
                     provider=provider,
                     changed=False,
@@ -357,7 +357,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         )
         if outcome.action == "disable":
             if outcome.changed:
-                suffix = _duration_suffix(duration)
+                suffix = duration_suffix(duration)
                 self.notify(
                     f"{outcome.provider.upper()} disabled {suffix}; "
                     "alias routing refreshed."
@@ -379,7 +379,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
 
     def _apply_snapshot(
         self,
-        snapshot: _ProviderRoutingSnapshot,
+        snapshot: ProviderRoutingSnapshot,
         *,
         keep_provider: str | None,
         emit_snapshot: bool,
@@ -407,7 +407,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         now = self._now()
         return [
             Option(
-                _render_provider_row(
+                render_provider_row(
                     status,
                     colors=self._snapshot.provider_colors,
                     now=now,
@@ -484,7 +484,7 @@ class _ProviderRoutingModal(OptionListNavigationMixin, ModalScreen[bool]):
         except Exception:
             return
         description.update(
-            _provider_description_text(self._selected_status(), now=self._now())
+            provider_description_text(self._selected_status(), now=self._now())
         )
 
     def on_option_list_option_highlighted(
