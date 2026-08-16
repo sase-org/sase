@@ -45,7 +45,7 @@ def resolve_summary_fold_scale(
     group_focused: bool = False,
     agent: object | None,
 ) -> FoldScale | None:
-    """Return the lane or aggregate scale selected by the current UI context."""
+    """Return the agent-node or aggregate scale selected by the current UI context."""
     if whole_panel_focused:
         return TRIBE_FOLD_SCALE
     if group_focused or agent is None:

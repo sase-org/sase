@@ -1,4 +1,4 @@
-"""Pure lane-kinship projection and Markdown rendering."""
+"""Pure agent-node kinship projection and Markdown rendering."""
 
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ NEIGHBOR_GROUP_LIMIT = 50
 
 
 @dataclass(frozen=True, slots=True)
-class _LaneKinshipRow:
-    """One related lane on a published agent or family page."""
+class _NodeKinshipRow:
+    """One related agent node on a published agent or family page."""
 
     lane_name: str
     relation: str
@@ -36,23 +36,23 @@ class _LaneKinshipRow:
 
 
 @dataclass(frozen=True, slots=True)
-class _LaneKinshipGroup:
+class _NodeKinshipGroup:
     """One bounded relation group in projection order."""
 
     relation: str
-    rows: tuple[_LaneKinshipRow, ...]
+    rows: tuple[_NodeKinshipRow, ...]
     overflow_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
-class _LaneKinshipProjection:
-    """The ordered neighbor groups for one lane."""
+class _NodeKinshipProjection:
+    """The ordered neighbor groups for one agent node."""
 
     lane_name: str
-    groups: tuple[_LaneKinshipGroup, ...]
+    groups: tuple[_NodeKinshipGroup, ...]
 
     @property
-    def rows(self) -> tuple[_LaneKinshipRow, ...]:
+    def rows(self) -> tuple[_NodeKinshipRow, ...]:
         """Return the visible rows flattened in rendered order."""
 
         return tuple(row for group in self.groups for row in group.rows)
@@ -60,22 +60,22 @@ class _LaneKinshipProjection:
 
 @dataclass(frozen=True, slots=True)
 class HoodKinshipProjection:
-    """All name-derived lane projections for one hood snapshot."""
+    """All name-derived agent-node projections for one hood snapshot."""
 
-    lanes: tuple[_LaneKinshipProjection, ...]
+    lanes: tuple[_NodeKinshipProjection, ...]
     source_lanes: tuple[tuple[str, str], ...]
     hood_page_path: str
 
-    def for_lane(self, lane_name: str) -> _LaneKinshipProjection:
-        """Return a lane projection, including an empty compatibility fallback."""
+    def for_lane(self, lane_name: str) -> _NodeKinshipProjection:
+        """Return an agent-node projection, including an empty compatibility fallback."""
 
         for projection in self.lanes:
             if projection.lane_name == lane_name:
                 return projection
-        return _LaneKinshipProjection(lane_name, ())
+        return _NodeKinshipProjection(lane_name, ())
 
     def lane_for_source(self, source_run_id: str) -> str:
-        """Return the authoritative family-or-solo lane for a source run."""
+        """Return the authoritative family-or-solo agent node for a source run."""
 
         for candidate_id, lane_name in self.source_lanes:
             if candidate_id == source_run_id:
@@ -84,16 +84,16 @@ class HoodKinshipProjection:
 
 
 @dataclass(frozen=True, slots=True)
-class _Lane:
+class _Node:
     name: str
     page_path: str
     runs: tuple[V2RunRecord, ...]
     is_family: bool
     chain: tuple[str, ...]
 
-    def row(self, relation: str) -> _LaneKinshipRow:
+    def row(self, relation: str) -> _NodeKinshipRow:
         state = state_counts(self.runs) if self.is_family else self.runs[0].state
-        return _LaneKinshipRow(
+        return _NodeKinshipRow(
             lane_name=self.name,
             relation=relation,
             page_path=self.page_path,
@@ -104,11 +104,11 @@ class _Lane:
 
 
 def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
-    """Build every lane-relative kinship roster for one hood snapshot."""
+    """Build every agent-node-relative kinship roster for one hood snapshot."""
 
     by_id = {run.source_run_id: run for run in snapshot.runs}
     family_by_member: dict[str, V2ContainerRecord] = {}
-    lanes: list[_Lane] = []
+    nodes: list[_Node] = []
     owner_prefix = f"{snapshot.owner.username}.{snapshot.owner.machine_name}."
 
     for container in snapshot.containers:
@@ -117,14 +117,14 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
         members = tuple(
             by_id[source_id] for source_id in container.member_source_run_ids
         )
-        lane_name = container.global_name.removeprefix(owner_prefix)
-        lanes.append(
-            _Lane(
-                name=lane_name,
+        node_name = container.global_name.removeprefix(owner_prefix)
+        nodes.append(
+            _Node(
+                name=node_name,
                 page_path=f"families/{container.global_name}.md",
                 runs=members,
                 is_family=True,
-                chain=agent_name_ancestors(lane_name),
+                chain=agent_name_ancestors(node_name),
             )
         )
         for source_id in container.member_source_run_ids:
@@ -137,8 +137,8 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
         page_path = target.path
         if not page_path.startswith("agents/"):
             page_path = f"agents/{run.global_name}/README.md"
-        lanes.append(
-            _Lane(
+        nodes.append(
+            _Node(
                 name=run.local_name,
                 page_path=page_path,
                 runs=(run,),
@@ -147,17 +147,17 @@ def build_hood_kinship(snapshot: V2HoodSnapshot) -> HoodKinshipProjection:
             )
         )
 
-    ordered_lanes = tuple(sorted(lanes, key=_lane_sort_key))
-    by_name = {lane.name: lane for lane in ordered_lanes}
+    ordered_nodes = tuple(sorted(nodes, key=_node_sort_key))
+    by_name = {node.name: node for node in ordered_nodes}
     projections = tuple(
-        _lane_projection(lane, ordered_lanes, by_name) for lane in ordered_lanes
+        _node_projection(node, ordered_nodes, by_name) for node in ordered_nodes
     )
-    family_lane_names = {
+    family_node_names = {
         source_id: container.global_name.removeprefix(owner_prefix)
         for source_id, container in family_by_member.items()
     }
     source_lanes = tuple(
-        (run.source_run_id, family_lane_names.get(run.source_run_id, run.local_name))
+        (run.source_run_id, family_node_names.get(run.source_run_id, run.local_name))
         for run in snapshot.runs
     )
     hood_page_path = (
@@ -203,17 +203,17 @@ def render_neighbors_section(
     return lines
 
 
-def _lane_projection(
-    lane: _Lane,
-    lanes: tuple[_Lane, ...],
-    by_name: dict[str, _Lane],
-) -> _LaneKinshipProjection:
-    assigned = {lane.name}
-    groups: list[_LaneKinshipGroup] = []
+def _node_projection(
+    node: _Node,
+    nodes: tuple[_Node, ...],
+    by_name: dict[str, _Node],
+) -> _NodeKinshipProjection:
+    assigned = {node.name}
+    groups: list[_NodeKinshipGroup] = []
 
     ancestors = [
         by_name[name]
-        for name in reversed(lane.chain[:-1])
+        for name in reversed(node.chain[:-1])
         if name in by_name and name not in assigned
     ]
     if ancestors:
@@ -223,23 +223,23 @@ def _lane_projection(
     descendants = sorted(
         (
             candidate
-            for candidate in lanes
-            if lane.name in candidate.chain[:-1] and candidate.name not in assigned
+            for candidate in nodes
+            if node.name in candidate.chain[:-1] and candidate.name not in assigned
         ),
-        key=_lane_sort_key,
+        key=_node_sort_key,
     )
     if descendants:
         groups.append(_bounded_group("descendant", descendants))
         assigned.update(item.name for item in descendants)
 
-    for hood in reversed(lane.chain):
+    for hood in reversed(node.chain):
         neighbors = sorted(
             (
                 candidate
-                for candidate in lanes
+                for candidate in nodes
                 if hood in candidate.chain and candidate.name not in assigned
             ),
-            key=_lane_sort_key,
+            key=_node_sort_key,
         )
         if not neighbors:
             continue
@@ -247,20 +247,20 @@ def _lane_projection(
         groups.append(_bounded_group(relation, neighbors))
         assigned.update(item.name for item in neighbors)
 
-    return _LaneKinshipProjection(lane.name, tuple(groups))
+    return _NodeKinshipProjection(node.name, tuple(groups))
 
 
-def _bounded_group(relation: str, lanes: list[_Lane]) -> _LaneKinshipGroup:
-    visible = lanes[:NEIGHBOR_GROUP_LIMIT]
-    return _LaneKinshipGroup(
+def _bounded_group(relation: str, nodes: list[_Node]) -> _NodeKinshipGroup:
+    visible = nodes[:NEIGHBOR_GROUP_LIMIT]
+    return _NodeKinshipGroup(
         relation=relation,
-        rows=tuple(lane.row(relation) for lane in visible),
-        overflow_count=len(lanes) - len(visible),
+        rows=tuple(node.row(relation) for node in visible),
+        overflow_count=len(nodes) - len(visible),
     )
 
 
-def _lane_sort_key(lane: _Lane) -> tuple[str, str]:
-    return lane.name.casefold(), lane.name
+def _node_sort_key(node: _Node) -> tuple[str, str]:
+    return node.name.casefold(), node.name
 
 
 __all__ = [

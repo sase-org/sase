@@ -177,20 +177,20 @@ members. The clan's outer fold is binary, so move to a family or workflow row an
 `l` there to reveal that row's descendants. Lowercase `h` moves from any agent, Bash,
 Python, parallel, embedded, or compatibility workflow step to its validated immediate
 workflow, family, clan, or tribe parent without changing fold state. Uppercase `H` first
-retreats a selected open workflow or sequential-family lane by one fold level. After
-that lane is collapsed, the next press fully collapses every remaining open lane in the
-next grouping scope, then collapses only the open canonical clan enclosing the
-selection. The next press from that collapsed clan container collapses every remaining
-open canonical clan in the group, and only then does a later press fall back to
-selected-row structural handling and grouping collapse. A selection without an open
-enclosing workflow, family, or clan proceeds directly to the group-wide remaining-lane
-sweep. Selecting the clan row shows an aggregate `CLAN` header and a navigable summary
-of every section represented across its members. In the Agents list, direct members sort
-by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done — and then
-by launch recency within a bucket. The metadata roster uses chronological launch order
-instead, keeping its number-to-member mapping stable while statuses change. The runtime
-is the union of member run intervals, with human-wait windows excluded, so concurrent
-members are not double-counted.
+retreats a selected open workflow or sequential-family agent node by one fold level.
+After that agent node is collapsed, the next press fully collapses every remaining open
+agent node in the next grouping scope, then collapses only the open canonical clan
+enclosing the selection. The next press from that collapsed clan container collapses
+every remaining open canonical clan in the group, and only then does a later press fall
+back to selected-row structural handling and grouping collapse. A selection without an
+open enclosing workflow, family, or clan proceeds directly to the group-wide
+remaining-agent-node sweep. Selecting the clan row shows an aggregate `CLAN` header and
+a navigable summary of every section represented across its members. In the Agents list,
+direct members sort by status priority — Failed, Stopped, Running/Starting, Queued,
+Waiting, Done — and then by launch recency within a bucket. The metadata roster uses
+chronological launch order instead, keeping its number-to-member mapping stable while
+statuses change. The runtime is the union of member run intervals, with human-wait
+windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 
@@ -227,7 +227,7 @@ numeric jumps remain available at every level.
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to
 zoom an agent row's detail panel or the selected tribe panel's metadata document, `=` to
 isolate or restore a tribe panel from whole-panel focus or a row selection inside a
-panel, and `-` to sweep every open lane and clan (never a grouping banner) in the
+panel, and `-` to sweep every open agent node and clan (never a grouping banner) in the
 focused tribe panel closed in one press (or restore the last sweep) from whole-panel
 focus, a row selection, or merged layout; lowercase `z` starts fold mode. Fold state is
 panel-wide and applies when a clan or a sase agent is selected. Using a fold chord on a
@@ -357,8 +357,9 @@ after, with a single shared number width. Family members already shown under
 `FAMILY MEMBERS` are never repeated in `NEIGHBORS`; they are reported as a dim
 `… +N also listed under FAMILY MEMBERS` tail. The family's two-level scale drives the
 section too: level 1 shows the first three neighbors plus a hidden-count tail, and level
-2 shows all of them. See [Lane Neighbors Section](ace.md#lane-neighbors-section) for the
-full behavior, which single agents share through their own three-level scale.
+2 shows all of them. See
+[Sase Agent Neighbors Section](ace.md#sase-agent-neighbors-section) for the full
+behavior, which single agents share through their own three-level scale.
 
 #### Family member detail folding
 
@@ -372,8 +373,9 @@ with a warning instead of landing somewhere stale.
 
 Unlike the container's two-level family scale, a member panel folds its roster and every
 other section on the selected member's own three-level agent scale (`z1`–`z3`, `zz`,
-`za`, `zA`), so no `Fold: N/M` header line appears. A member row owns no lane, so its
-panel has no `NEIGHBORS` section — only `FAMILY MEMBERS`.
+`za`, `zA`), so no `Fold: N/M` header line appears. A member row is an agent shell node
+rather than a sase agent, so its panel has no `NEIGHBORS` section — only
+`FAMILY MEMBERS`.
 
 #### Per-member model lanes
 
@@ -520,34 +522,34 @@ collapsed-panel set for the session: `↺` title markers and the `= restore pane
 hint show that the next `=` will restore it. A separate sibling-panel or layout mutation
 invalidates that one-step restore.
 
-Press `-` to sweep every open lane and clan — never a grouping banner such as `Done` or
-`Running` — in the focused panel closed in one press. It resolves scope the same way `=`
-does — from whole-panel focus, from a row or banner selection inside a panel, and in
-merged layout, where it treats the merged roster as one scope — and it never collapses
-the panel itself. When the focused panel has nothing left to collapse, `-` reverses
-itself and re-expands exactly the folds its own last sweep in that panel closed,
-restoring each structural fold to the level it held before. The restore is filtered at
-press time to folds still live in that panel and still collapsed, so it tolerates folds
-re-expanded by hand and never resurrects a fold that no longer exists. Each panel
-remembers at most one sweep; a fresh sweep replaces that panel's record. Armed panels
-mark each fold `-` would re-expand with a gold `▿` on the owner row and `▿N` in the
-panel title, clearing the markers as soon as the next press would sweep instead. The
-footer shows `- collapse folds` or `- restore folds` depending on which direction the
-next press would take. A panel with only open grouping banners reports nothing to
-collapse or restore.
+Press `-` to sweep every open agent node and clan — never a grouping banner such as
+`Done` or `Running` — in the focused panel closed in one press. It resolves scope the
+same way `=` does — from whole-panel focus, from a row or banner selection inside a
+panel, and in merged layout, where it treats the merged roster as one scope — and it
+never collapses the panel itself. When the focused panel has nothing left to collapse,
+`-` reverses itself and re-expands exactly the folds its own last sweep in that panel
+closed, restoring each structural fold to the level it held before. The restore is
+filtered at press time to folds still live in that panel and still collapsed, so it
+tolerates folds re-expanded by hand and never resurrects a fold that no longer exists.
+Each panel remembers at most one sweep; a fresh sweep replaces that panel's record.
+Armed panels mark each fold `-` would re-expand with a gold `▿` on the owner row and
+`▿N` in the panel title, clearing the markers as soon as the next press would sweep
+instead. The footer shows `- collapse folds` or `- restore folds` depending on which
+direction the next press would take. A panel with only open grouping banners reports
+nothing to collapse or restore.
 
-Uppercase `H` on a selected expanded panel hints every currently expanded lane, clan,
-and top-level grouping banner in that panel — including owners hidden behind a collapsed
-banner — using the same adaptive hint keys as `L`, restricted to folds that are not
-already collapsed. Typing a hint fully collapses that one fold and leaves the remembered
-row and every other fold untouched; `H` never expands and never collapses the panel
-itself, which stays lowercase `h`'s job. A panel with nothing expanded warns without
-arming hint mode; an already collapsed panel keeps the existing already-collapsed
-warning. Whole-panel `H` is unavailable in merged layout, where the existing
-row/group-scoped ladder remains in effect. That row ladder first retreats a selected
-open workflow or family one fold level, then remaining group-wide lanes, then the
-selected open clan, then every remaining open canonical clan in the next group; the
-grouping banner closes only after those structural rungs are saturated. Custom keys
+Uppercase `H` on a selected expanded panel hints every currently expanded agent node,
+clan, and top-level grouping banner in that panel — including owners hidden behind a
+collapsed banner — using the same adaptive hint keys as `L`, restricted to folds that
+are not already collapsed. Typing a hint fully collapses that one fold and leaves the
+remembered row and every other fold untouched; `H` never expands and never collapses the
+panel itself, which stays lowercase `h`'s job. A panel with nothing expanded warns
+without arming hint mode; an already collapsed panel keeps the existing
+already-collapsed warning. Whole-panel `H` is unavailable in merged layout, where the
+existing row/group-scoped ladder remains in effect. That row ladder first retreats a
+selected open workflow or family one fold level, then remaining group-wide agent nodes,
+then the selected open clan, then every remaining open canonical clan in the next group;
+the grouping banner closes only after those structural rungs are saturated. Custom keys
 bound to `hooks_or_collapse_all` receive the same contextual behavior and footer labels.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four

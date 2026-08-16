@@ -83,7 +83,7 @@ class AgentPanelFoldSweepMixin(AgentGroupFoldingMixin):
     """Sweep every open fold in one tribe panel closed, and reverse it."""
 
     def action_collapse_panel_folds(self) -> None:
-        """Collapse every open lane/clan fold in the focused tribe panel, or restore it."""
+        """Collapse every open agent-node or clan fold, or restore the last sweep."""
         if self.current_tab != "agents":
             return
         if getattr(self, "_panel_fold_hint_mode_active", False):

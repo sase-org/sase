@@ -194,8 +194,8 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Agent Family
 - Agent Hood (aka hood, agent neighborhood)
 - Agent Instruction File (aka agents.md file)
-- Agent Lane
 - Agent Neighbor
+- Agent Node
 - Agent Shell
 - Agent Tribe
 - Artifact Reference (aka ref)
@@ -203,6 +203,7 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Proc (aka background task)
 - Proc Shell
 - Sase Agent (aka agent)
+- Sase Node (aka node)
 - Sase Project (aka project)
 - Sase Repo (aka repo)
 - Sase Shell (aka shell)

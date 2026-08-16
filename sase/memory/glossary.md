@@ -8,8 +8,8 @@ description: |-
   - Agent Family
   - Agent Hood (aka hood, agent neighborhood)
   - Agent Instruction File (aka agents.md file)
-  - Agent Lane
   - Agent Neighbor
+  - Agent Node
   - Agent Shell
   - Agent Tribe
   - Artifact Reference (aka ref)
@@ -17,6 +17,7 @@ description: |-
   - Proc (aka background task)
   - Proc Shell
   - Sase Agent (aka agent)
+  - Sase Node (aka node)
   - Sase Project (aka project)
   - Sase Repo (aka repo)
   - Sase Shell (aka shell)
@@ -69,17 +70,18 @@ post-commit hook, initializes the top-level agent instruction files using memori
 the sase/memory/ directory and ensures that all agent instruction files in the same
 directory contain the same contents.
 
-## Agent Lane
-
-An agent lane is the display container for a non-dismissed sase agent: its agent family,
-or its agent shell when it has no family. Dismissal removes the lane, not the sase
-agent's identity.
-
 ## Agent Neighbor
 
 An agent neighbor is any agent that is in the same agent hood as another agent. For
 example, agents named `foo`, `foo.baz`, and `foo.bar.1` are all neighbors of each other
 because they are all in the same `foo` agent hood.
+
+## Agent Node
+
+An agent node is the Agents-tab node for a non-dismissed sase agent: an agent family
+node, or an agent shell node when the agent has no family. A family node's member rows
+are agent shell nodes as well. Dismissal removes the node, not the sase agent's
+identity.
 
 ## Agent Shell
 
@@ -140,6 +142,15 @@ A sase agent is an agent family or a single agent that does not belong to a fami
 owns an ordered sequence of sase shells, and its name never ends in `--<suffix>` because
 that suffix is reserved for agent shells. A one-shell agent may share its shell name,
 while a family uses the bare name for its container.
+
+## Sase Node
+
+ALIASES: node
+
+A sase node is one row of the Agents tab's agent tree: an agent clan node, an agent node
+(with its member agent shell nodes), an agent step node — a workflow `python`, `bash`,
+or `parallel` step — or a proc shell node. Grouping banners and tribe-panel titles are
+chrome, not nodes.
 
 ## Sase Project
 

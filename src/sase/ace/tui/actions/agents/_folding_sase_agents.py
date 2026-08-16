@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class SaseAgentCollapseTarget:
-    """One validated, group-scoped, saturating lane-collapse action."""
+    """One validated, group-scoped, saturating agent-node collapse action."""
 
     panel_key: PanelKey
     group_key: GroupKey
@@ -23,7 +23,7 @@ class SaseAgentCollapseTarget:
 
 @dataclass(frozen=True, slots=True)
 class _AgentPanelLaneCollapseTarget:
-    """One validated, panel-wide, saturating lane-collapse action."""
+    """One validated, panel-wide, saturating agent-node collapse action."""
 
     panel_key: PanelKey
     fold_keys: tuple[str, ...]
@@ -37,7 +37,7 @@ def _is_canonical_lane_owner(
     panel_agents: list[Agent],
     owners_by_key: dict[str, list[Agent]],
 ) -> bool:
-    """Validate one standalone or direct-clan-member lane owner."""
+    """Validate one standalone or direct-clan-member agent-node owner."""
     from ...models._agent_tree import agent_fold_key, agent_parent_fold_key
 
     if agent.is_clan_container or agent.is_child_row:
@@ -52,9 +52,10 @@ def _is_canonical_lane_owner(
     if parent_key is None:
         return agent.tree_parent_key is None and agent.tree_depth == 0
 
-    # The only valid lane owner below another structural row is a direct
-    # clan member. Workflow steps and sequential-family members are aliases
-    # of their outer lane and were rejected above via ``is_child_row``.
+    # The only valid agent-node owner below another structural row is a
+    # direct clan member. Workflow steps and sequential-family members are
+    # aliases of their outer agent node and were rejected above via
+    # ``is_child_row``.
     if (
         agent.tree_parent_key != parent_key
         or agent.tree_depth != 1
@@ -76,7 +77,7 @@ def _open_canonical_lane_keys(
     global_indices: list[int],
     candidate_indices: tuple[int, ...],
 ) -> tuple[tuple[str, ...], dict[str, int]]:
-    """Return validated open lane keys and their global owner indices."""
+    """Return validated open agent-node keys and their global owner indices."""
     from ...models._agent_tree import agent_fold_key
     from ...models.fold_state import FoldLevel
 
@@ -130,7 +131,7 @@ def resolve_group_lane_collapse_target(
     owner: Any,
     group_key: GroupKey,
 ) -> SaseAgentCollapseTarget | None:
-    """Resolve every open canonical lane in one focused-panel group.
+    """Resolve every open canonical agent node in one focused-panel group.
 
     Group membership comes from a fully expanded grouping projection. This
     recovers the complete target membership when the focused banner is a
@@ -192,7 +193,7 @@ def resolve_panel_lane_collapse_target(
     owner: Any,
     panel_key: PanelKey,
 ) -> _AgentPanelLaneCollapseTarget | None:
-    """Resolve every open canonical lane in one selected tribe panel."""
+    """Resolve every open canonical agent node in one selected tribe panel."""
     from ._navigation_order import rendered_panel_slice
 
     global_indices, panel_agents = rendered_panel_slice(owner, panel_key)

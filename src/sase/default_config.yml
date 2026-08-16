@@ -364,7 +364,7 @@ ace:
       # collapses an explicitly selected expanded panel, and jumps from a
       # collapsed panel to the last expanded panel when one exists. H compacts
       # Tools; on row focus it first retreats a selected open workflow or
-      # family one fold level, then fully collapses remaining lanes in the
+      # family one fold level, then fully collapses remaining agent nodes in the
       # next group, then the selected open clan, then every remaining open
       # clan in that group, then the selected structural fallback and group.
       # On whole-panel focus it hints every expanded fold in that panel.

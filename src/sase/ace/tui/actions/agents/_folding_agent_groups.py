@@ -382,7 +382,7 @@ class AgentGroupFoldingMixin(AgentPanelClanFoldingMixin):
         self,
         target: SaseAgentCollapseTarget | None = None,
     ) -> bool:
-        """Fully collapse all open canonical lanes in one resolved scope."""
+        """Fully collapse all open canonical agent nodes in one resolved scope."""
         if target is None:
             target = self._resolve_sase_agent_collapse_target()
         if target is None:

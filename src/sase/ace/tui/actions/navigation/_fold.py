@@ -291,7 +291,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         return panel.resolve_section_at_row(document_row, width=panel.size.width)
 
     def _notify_lane_fold_scope(self) -> None:
-        """Explain fold scope only for a lane with nothing foldable."""
+        """Explain fold scope only for an agent node with nothing foldable."""
         get_selected = getattr(self, "_get_selected_agent", None)
         if not callable(get_selected):
             return
@@ -312,7 +312,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         )
 
     def _selected_lane_has_foldable_bead_rows(self, agent: object) -> bool:
-        """Return whether cached lane data has BEAD rows affected by folds."""
+        """Return whether cached agent-node data has foldable BEAD rows."""
         from ...widgets.prompt_panel import AgentPromptPanel
         from ...widgets.prompt_panel._agent_bead_section import (
             bead_summary_has_foldable_rows,
@@ -333,7 +333,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         )
 
     def _selected_lane_has_slow_tool_calls(self, agent: object) -> bool:
-        """Return whether cached lane data has any qualifying slow calls."""
+        """Return whether cached agent-node data has any qualifying slow calls."""
         count_resolver = getattr(
             self,
             "_selected_agent_slow_tool_call_count",

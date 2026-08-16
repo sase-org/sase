@@ -855,9 +855,9 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint                                                                |
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
-| `0`–`9`                   | Jump from a selected clan, lane, family member, or whole-panel roster to its numbered member or neighbor                                                    |
+| `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
 | `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
-| `~`                       | Jump among lane-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                                    |
+| `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
@@ -902,39 +902,39 @@ rather than landing somewhere stale.
 
 ### Agent Actions
 
-| Key                 | Action                                                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `R`                 | Revive a previously dismissed agent                                                                        |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane             |
-| `+`                 | Run custom agent                                                                                           |
-| `A`                 | Open auto-approve menu / answer HITL                                                                       |
-| `f`                 | Prepare a fork of the selected agent/family, clan container, or focused named tribe panel                  |
-| `n`                 | Name agent                                                                                                 |
-| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                     |
-| `v`                 | View files (hint mode; annotates clan/family containers in place)                                          |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                          |
-| `V`                 | Open the Agent Run Log modal for the focused agent                                                         |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                            |
-| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`  |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)    |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                      |
-| `U`                 | Toggle the focused agent's unread marker                                                                   |
-| `u`                 | Clear all agent marks                                                                                      |
-| `x`                 | Kill / dismiss agent, stop a running monitor, or act on every marked agent or focused group                |
-| `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                    |
-| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                   |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation             |
-| `E`                 | Edit panel content in editor                                                                               |
-| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                  |
-| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it) |
-| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
-| `p`                 | Toggle file / prompt layout                                                                                |
-| `z`                 | Start metadata fold mode for clan, lane (family or single agent), or selected whole-tribe detail panels    |
-| `Z`                 | Zoom the active agent or tribe detail panel                                                                |
-| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                            |
-| `-`                 | Collapse every open lane/clan fold in the focused tribe panel, or restore the last sweep's folds           |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
+| Key                 | Action                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `R`                 | Revive a previously dismissed agent                                                                           |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
+| `+`                 | Run custom agent                                                                                              |
+| `A`                 | Open auto-approve menu / answer HITL                                                                          |
+| `f`                 | Prepare a fork of the selected agent/family, clan container, or focused named tribe panel                     |
+| `n`                 | Name agent                                                                                                    |
+| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                        |
+| `v`                 | View files (hint mode; annotates clan/family containers in place)                                             |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
+| `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
+| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`     |
+| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)       |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                         |
+| `U`                 | Toggle the focused agent's unread marker                                                                      |
+| `u`                 | Clear all agent marks                                                                                         |
+| `x`                 | Kill / dismiss agent, stop a running monitor, or act on every marked agent or focused group                   |
+| `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                       |
+| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                |
+| `E`                 | Edit panel content in editor                                                                                  |
+| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser    |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                     |
+| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)    |
+| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                     |
+| `p`                 | Toggle file / prompt layout                                                                                   |
+| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels |
+| `Z`                 | Zoom the active agent or tribe detail panel                                                                   |
+| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                               |
+| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds        |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
 ### Forking Agents and Groups
 
@@ -1444,22 +1444,22 @@ title, even a lone expanded panel, as well as collapsed titles, and support the 
 Lowercase `l` only advances a real fold owned by the selected row or its immediate
 workflow/family owner, so a visible hidden leaf under an already fully expanded workflow
 is a no-op. Uppercase `H` is the structural mutation key. When the selected row owns an
-open workflow or sequential-family lane, the first press retreats that lane one fold
-level. From a visible hidden step that hides the selected row, selection re-anchors to
-the lane owner. After the selected lane is collapsed, later presses fully collapse every
-remaining open lane in the next grouping scope, then only the open canonical clan
-enclosing the selected row. With that now-collapsed clan container still selected,
-another press collapses every remaining open canonical clan in the group; only a later
-press collapses the grouping banner. A banner, already-collapsed lane, or
-already-collapsed clan selection proceeds directly to that remaining-lane or group-wide
-clan sweep. Tools detail still takes priority. On a selected expanded whole panel, `H`
-hints every currently expanded lane, clan, and top-level grouping banner in that panel —
-the same `L` hint affordance restricted to collapsible targets — and fully collapses
-whichever one you pick; it never expands and never touches the panel itself, which stays
-lowercase `h`'s job. A panel with nothing expanded warns without arming hint mode; an
-already collapsed panel keeps the usual already-collapsed notification. The merged
-layout has no whole-panel focus and keeps the row-focused group scope across the merged
-roster.
+open workflow or sequential-family agent node, the first press retreats that agent node
+one fold level. From a visible hidden step that hides the selected row, selection
+re-anchors to the agent-node owner. After the selected agent node is collapsed, later
+presses fully collapse every remaining open agent node in the next grouping scope, then
+only the open canonical clan enclosing the selected row. With that now-collapsed clan
+container still selected, another press collapses every remaining open canonical clan in
+the group; only a later press collapses the grouping banner. A banner, already-collapsed
+agent node, or already-collapsed clan selection proceeds directly to that
+remaining-agent-node or group-wide clan sweep. Tools detail still takes priority. On a
+selected expanded whole panel, `H` hints every currently expanded agent node, clan, and
+top-level grouping banner in that panel — the same `L` hint affordance restricted to
+collapsible targets — and fully collapses whichever one you pick; it never expands and
+never touches the panel itself, which stays lowercase `h`'s job. A panel with nothing
+expanded warns without arming hint mode; an already collapsed panel keeps the usual
+already-collapsed notification. The merged layout has no whole-panel focus and keeps the
+row-focused group scope across the merged roster.
 
 Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
@@ -1473,26 +1473,26 @@ row, it isolates the panel that holds the cursor without changing the selected r
 action preserves the selected panel's remembered row and is available only in the split
 layout.
 
-Press `-` to sweep every open structural fold — lanes and clans, never grouping banners
-such as `Done` or `Running` — closed in the tribe panel that holds focus, in one press.
-It resolves scope the same way `=` does: from whole-panel focus, from a row or banner
-selection inside a panel, and in the merged layout, where it treats the merged roster as
-one scope. `-` never collapses the panel itself; that stays lowercase `h`'s job, and it
-never touches an open grouping banner either — use `H` for that. When the focused panel
-has nothing left to collapse, `-` reverses itself: it re-expands exactly the folds its
-own last sweep in that panel closed, restoring each structural fold to the level it held
-before (a fully expanded lane comes back fully expanded, not merely expanded). The
-restore is filtered at press time to folds that are still live in that panel and still
-collapsed, so it is forgiving of folds the user re-expanded by hand or owners that
-disappeared, and it never resurrects a fold that no longer exists. Each panel remembers
-at most one sweep; a fresh sweep replaces that panel's record, and a panel that stops
-being live drops it. While a restore is armed, the panel marks every fold `-` would
-re-expand with a gold `▿` on the owner row and `▿N` in the panel title; those markers
-clear as soon as the next `-` press would sweep instead of restore. The footer shows
-`- collapse folds` when the focused panel has an open lane or clan fold to sweep, or
-`- restore folds` when nothing is left to collapse but a prior sweep's reverse is still
-armed. A panel with only open grouping banners and no open lane or clan reports nothing
-to collapse or restore.
+Press `-` to sweep every open structural fold — agent nodes and clans, never grouping
+banners such as `Done` or `Running` — closed in the tribe panel that holds focus, in one
+press. It resolves scope the same way `=` does: from whole-panel focus, from a row or
+banner selection inside a panel, and in the merged layout, where it treats the merged
+roster as one scope. `-` never collapses the panel itself; that stays lowercase `h`'s
+job, and it never touches an open grouping banner either — use `H` for that. When the
+focused panel has nothing left to collapse, `-` reverses itself: it re-expands exactly
+the folds its own last sweep in that panel closed, restoring each structural fold to the
+level it held before (a fully expanded agent node comes back fully expanded, not merely
+expanded). The restore is filtered at press time to folds that are still live in that
+panel and still collapsed, so it is forgiving of folds the user re-expanded by hand or
+owners that disappeared, and it never resurrects a fold that no longer exists. Each
+panel remembers at most one sweep; a fresh sweep replaces that panel's record, and a
+panel that stops being live drops it. While a restore is armed, the panel marks every
+fold `-` would re-expand with a gold `▿` on the owner row and `▿N` in the panel title;
+those markers clear as soon as the next `-` press would sweep instead of restore. The
+footer shows `- collapse folds` when the focused panel has an open agent-node or clan
+fold to sweep, or `- restore folds` when nothing is left to collapse but a prior sweep's
+reverse is still armed. A panel with only open grouping banners and no open agent node
+or clan reports nothing to collapse or restore.
 
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently
 holds focus. Press `X` to open the cleanup panel: `d` dismisses completed agents in the
@@ -1558,20 +1558,20 @@ setting. Every emitted grouping banner has its own binary expanded/collapsed sta
 separately for each tribe panel and grouping mode. Three independent folding layers can
 therefore be visible at once:
 
-| Layer             | What it controls                                         | Default keys                                                                                                                                                           |
-| ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped lanes/clans; `l` expands; `-` never sweeps banners                                                                                 |
-| Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group lanes, then group clans; `l` expands; `-` sweeps every open lane and clan in the panel at once |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints a lane/clan/banner fold to toggle                                                       |
+| Layer             | What it controls                                         | Default keys                                                                                                                                                          |
+| ----------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped agent nodes/clans; `l` expands; `-` never sweeps banners                                                                          |
+| Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints an agent-node/clan/banner fold to toggle                                               |
 
-| Key | Action                                                                                                                                                               |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                     |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                               |
-| `L` | On an expanded selected panel, hint every visible lane/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning    |
-| `H` | Collapse selected workflow/family one level, then remaining group lanes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
-| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                |
-| `-` | Sweep every open lane and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
+| Key | Action                                                                                                                                                                     |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                           |
+| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                     |
+| `L` | On an expanded selected panel, hint every visible agent-node/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning    |
+| `H` | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
+| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                      |
+| `-` | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -1593,14 +1593,14 @@ row and ends in an azure `<name>`; ordinary agent annotations and lone plan prop
 with only their display-only planner child remain gold. Clan `@tribe` labels follow the
 orchid name. A clan's outer fold is binary: from a collapsed clan row, press `l` once to
 reveal its direct agents, family rows, and visible workflow rows. The clan row's fold
-count and status chrome count those direct clan lanes once; nested family or workflow
-members do not inflate them. To reveal descendants within a family or workflow, move to
-that row and press `l` there; pressing `l` again on the clan row itself has no effect.
-Lowercase `h` moves to the validated parent without changing fold state. Sequential
-family members use `--<suffix>` names and run one after another. Killing or dismissing a
-clan row cascades to the clan's live members; acting on one member leaves its siblings
-alone. Direct clan members always sort by the clan-local status priority Failed,
-Stopped, Running, Queued, Waiting, Done in every grouping mode; Starting shares
+count and status chrome count those direct clan agent nodes once; nested family or
+workflow members do not inflate them. To reveal descendants within a family or workflow,
+move to that row and press `l` there; pressing `l` again on the clan row itself has no
+effect. Lowercase `h` moves to the validated parent without changing fold state.
+Sequential family members use `--<suffix>` names and run one after another. Killing or
+dismissing a clan row cascades to the clan's live members; acting on one member leaves
+its siblings alone. Direct clan members always sort by the clan-local status priority
+Failed, Stopped, Running, Queued, Waiting, Done in every grouping mode; Starting shares
 Running's rank. Launch recency orders only members in the same status bucket. A family
 row moves as one unit with its follow-ups and workflow steps, preserving their adjacency
 and internal order.
@@ -1613,25 +1613,26 @@ member state is present. Its count chip remains concrete and independent, so
 `QUEUED [Q3 W6]` reports three runner-slot waiters and six dependency, bead, or time
 waiters without merging the two categories.
 
-The uppercase `H` ladder starts with the selected workflow or sequential-family lane
-when that lane is still open. The first press retreats that lane by exactly one fold
-level. From a visible hidden step, that press hides hidden steps while leaving ordinary
-descendants visible and re-anchors selection to the lane owner; the next press then
-collapses that still-selected lane. Clans stay binary and do not take this two-level
-path. After the selected lane is collapsed, later presses continue through the existing
-group-scoped remaining-lane, selected-clan, remaining-clans, structural-fallback, and
-grouping-banner ladder. If the grouping banner that `H` would collapse next contains any
-open standalone workflow, agent, or sequential-family sase agent, and the selection does
-not own an open workflow or family fold, the next press drives every such remaining lane
-directly to fully collapsed while leaving the banner open. Once remaining lanes are
-saturated, a selection inside an open canonical clan makes the next press collapse only
-that clan. A selected descendant re-anchors to its visible clan container; selecting the
-container itself preserves selection without writing new selection memory. With the
-collapsed container still selected, the following press drives every remaining open
-canonical clan in the group directly to collapsed. A grouping banner, already-collapsed
-lane, already-collapsed clan, or invalid clan owner falls through to that group-wide
-sweep immediately. The footer advertises `H collapse workflow` or `H collapse family`
-while the selected lane is open, then `H collapse sase agents`, then `H collapse clan`,
+The uppercase `H` ladder starts with the selected workflow or sequential-family agent
+node when that agent node is still open. The first press retreats that agent node by
+exactly one fold level. From a visible hidden step, that press hides hidden steps while
+leaving ordinary descendants visible and re-anchors selection to the agent-node owner;
+the next press then collapses that still-selected agent node. Clans stay binary and do
+not take this two-level path. After the selected agent node is collapsed, later presses
+continue through the existing group-scoped remaining-agent-node, selected-clan,
+remaining-clans, structural-fallback, and grouping-banner ladder. If the grouping banner
+that `H` would collapse next contains any open standalone workflow, agent, or
+sequential-family sase agent, and the selection does not own an open workflow or family
+fold, the next press drives every such remaining agent node directly to fully collapsed
+while leaving the banner open. Once remaining agent nodes are saturated, a selection
+inside an open canonical clan makes the next press collapse only that clan. A selected
+descendant re-anchors to its visible clan container; selecting the container itself
+preserves selection without writing new selection memory. With the collapsed container
+still selected, the following press drives every remaining open canonical clan in the
+group directly to collapsed. A grouping banner, already-collapsed agent node,
+already-collapsed clan, or invalid clan owner falls through to that group-wide sweep
+immediately. The footer advertises `H collapse workflow` or `H collapse family` while
+the selected agent node is open, then `H collapse sase agents`, then `H collapse clan`,
 then `H collapse clans`, and only then `H collapse group`. Equal group names in other
 tribe panels are never affected; merged layout intentionally treats the merged panel as
 one scope. Ambiguous or malformed clan owners are skipped without blocking valid
@@ -1639,18 +1640,18 @@ siblings.
 
 Whole-panel focus gives `H` a hinted collapse instead of the group-scoped ladder,
 because it has no selected row or grouping scope to walk. It enumerates every currently
-visible expanded lane, clan, and top-level grouping banner in the selected panel — never
-an owner hidden behind a still-collapsed parent banner, since that owner isn't emitted
-as a row at all until its parent is expanded — assigns each one an adaptive hint key,
-and shows the chips in place of jump hints. Typing a hint fully collapses that one fold;
-an already collapsed fold is never offered, so every hint does something. `H` never
-expands and never collapses the panel itself, which stays lowercase `h`'s job. A panel
-with no expanded folds warns without arming hint mode; an already collapsed panel keeps
-the existing `Panel is already collapsed` warning. The footer shows the configured
+visible expanded agent node, clan, and top-level grouping banner in the selected panel —
+never an owner hidden behind a still-collapsed parent banner, since that owner isn't
+emitted as a row at all until its parent is expanded — assigns each one an adaptive hint
+key, and shows the chips in place of jump hints. Typing a hint fully collapses that one
+fold; an already collapsed fold is never offered, so every hint does something. `H`
+never expands and never collapses the panel itself, which stays lowercase `h`'s job. A
+panel with no expanded folds warns without arming hint mode; an already collapsed panel
+keeps the existing `Panel is already collapsed` warning. The footer shows the configured
 `hooks_or_collapse_all` key as `collapse fold` whenever the selected panel has an
-expanded lane, clan, or top-level banner to hint. `L`'s hint mode uses the same
+expanded agent node, clan, or top-level banner to hint. `L`'s hint mode uses the same
 enumeration but is not restricted to collapsible targets, so it also offers currently
-collapsed lanes, clans, and banners and toggles whichever one you pick.
+collapsed agent nodes, clans, and banners and toggles whichever one you pick.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  `
 segment per ancestor L0/L1 banner (in the parent tier's dim accent — project blue or
@@ -1677,11 +1678,11 @@ Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes.
 Agents tab shows a brief toast (`Grouping: by project` / `by date` / `by status`) on
 each cycle:
 
-| Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                         |
-| ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional Patch sub-level)                                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                         |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                     |
-| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone lanes precede name subgroups, with launch recency sorting units inside each partition. |
+| Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                               |
+| ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional Patch sub-level)                                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                               |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                           |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone agent nodes precede name subgroups, with launch recency sorting units inside each partition. |
 
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour
 windows (`09:00`) for `Today` and `Yesterday`, calendar-day labels for `This Week`, and
@@ -1697,22 +1698,22 @@ In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, 
 same singleton-suppression rule as `STANDARD`. Status priority fixes the bucket order:
 Stopped, Failed, Running, Queued, Waiting, Done, Starting. Within each bucket,
 standalone sase agents render before every visible name-root subgroup; `start_time`
-sorts lanes newest-first inside the standalone partition and subgroup units newest-first
-inside the subgroup partition. The same partitioning rule applies under a name-root,
-where directly contained lanes precede visible dotted-prefix subgroups. Units with no
-launch timestamp sort after timestamped units within their partition, with structural
-names and input order providing deterministic tie-breakers. A family, clan, or workflow
-subtree uses its outer/root agent's launch time and remains contiguous. Inside a clan,
-direct members still use the clan-local Failed, Stopped, Running/Starting, Queued,
-Waiting, Done priority described above, with launch recency breaking same-status ties;
-that order intentionally differs from this L0 bucket order. Family follow-ups and
-workflow steps remain adjacent to their direct-member anchor in their established
-internal preorder, including any name-prefix banners. The `Starting` bucket remains last
-and its transient rows remain hidden, so startup-only work does not displace active rows
-during daemon or launch refreshes. Each mode keeps its own per-group fold registry, so
-collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in
-`STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `…`,
-`⏳`, `✓`, `◐`) so the bucket title still leads visually.
+sorts agent nodes newest-first inside the standalone partition and subgroup units
+newest-first inside the subgroup partition. The same partitioning rule applies under a
+name-root, where directly contained agent nodes precede visible dotted-prefix subgroups.
+Units with no launch timestamp sort after timestamped units within their partition, with
+structural names and input order providing deterministic tie-breakers. A family, clan,
+or workflow subtree uses its outer/root agent's launch time and remains contiguous.
+Inside a clan, direct members still use the clan-local Failed, Stopped,
+Running/Starting, Queued, Waiting, Done priority described above, with launch recency
+breaking same-status ties; that order intentionally differs from this L0 bucket order.
+Family follow-ups and workflow steps remain adjacent to their direct-member anchor in
+their established internal preorder, including any name-prefix banners. The `Starting`
+bucket remains last and its transient rows remain hidden, so startup-only work does not
+displace active rows during daemon or launch refreshes. Each mode keeps its own
+per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project
+layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs
+(`▲`, `✗`, `▶`, `…`, `⏳`, `✓`, `◐`) so the bucket title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a
 `[group: <label> (o)]` badge so the current session mode is always visible after the
@@ -1724,7 +1725,7 @@ sequential family still contributes only one. A hidden top-level `STARTING` agen
 contributes one sase agent even though it is not selectable yet. Grouping mode, tribe
 ownership, and fold state do not change this projection.
 
-The lane total is followed by an always-visible capacity chip in the form
+The sase-agent total is followed by an always-visible capacity chip in the form
 `[R/L · Q queued]`: `R` is the global number of slot-participating user agents currently
 holding runner slots, `L` is the current effective `max_running_agents` limit (temporary
 override first, configured value second), and `Q` counts every live agent parked at the
@@ -1747,13 +1748,13 @@ counts agents paused for plan approval, questions, or workflow human-input steps
 `running` excludes queued, waiting, failed, and stopped agents; `waiting` contains
 genuinely blocked dependency, bead, and time waits, while the capacity chip's `queued`
 count contains every live runner-slot waiter; `failed` is terminal failed work; `unread`
-counts terminal lanes that still need acknowledgement; and `done` is completed visible
-work that has already been acknowledged. Nested family/clan member summaries remain
-concrete. The position/navigation denominator is a separate count: rendered selectable
-roots, where a clan container is one row and a hidden `STARTING` lane is excluded.
-During startup the header renders `Agents: …` until the first agent scan has loaded,
-avoiding a misleading zero-agent count. Each TUI launch starts in by-project grouping;
-cycling only changes the current session.
+counts terminal sase agents that still need acknowledgement; and `done` is completed
+visible work that has already been acknowledged. Nested family/clan member summaries
+remain concrete. The position/navigation denominator is a separate count: rendered
+selectable roots, where a clan container is one row and a hidden `STARTING` agent is
+excluded. During startup the header renders `Agents: …` until the first agent scan has
+loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project
+grouping; cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
 and need only runner capacity, whether their threshold comes from the global cap or an

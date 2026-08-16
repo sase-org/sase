@@ -1,4 +1,4 @@
-"""Pure lane-relative projection of agent neighbors."""
+"""Pure agent-node-relative projection of agent neighbors."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ type NeighborRelation = Literal["ancestor", "descendant", "neighbor"]
 
 @dataclass(frozen=True, slots=True)
 class LaneNeighborRow:
-    """One related row in a lane's shared modal/panel projection."""
+    """One related row in an agent node's shared modal/panel projection."""
 
     agent: Agent
     relation: NeighborRelation
@@ -33,7 +33,7 @@ class LaneNeighborRow:
 
 @dataclass(frozen=True, slots=True)
 class SaseAgentNeighborProjection:
-    """Ordered neighbor rows for one lane-owning agent."""
+    """Ordered neighbor rows for one agent-node-owning sase agent."""
 
     lane_identity: AgentIdentity
     rows: tuple[LaneNeighborRow, ...]

@@ -30,7 +30,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding(
         "H",
         "hooks_or_collapse_all",
-        "Collapse Selected Workflow/Family / Scoped Lanes/Clans/Groups / Hint Panel Fold / Compact Tools / All",
+        "Collapse Selected Workflow/Family / Scoped Agent Nodes/Clans/Groups / Hint Panel Fold / Compact Tools / All",
         show=False,
     ),
     Binding("f", "patches_filters", "Patch Filters", show=False),
