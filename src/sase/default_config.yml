@@ -859,6 +859,9 @@ llm_provider:
   default_model: "@large"
   epic_lander_model: "@large"
   big_epic_lander_model: "@xlarge"
+  # Maximum prior runs shown for one alias in the Launch Control agent-history
+  # panel. Values below 1 are ignored and fall back to 10.
+  model_alias_history_limit: 10
   # Model aliases for launch sizes, delegated work, and reusable prompts.
   # SASE ships exactly five built-in aliases: @xsmall, @small, @medium, @large,
   # and @xlarge. Phase and tale size launches route through these aliases

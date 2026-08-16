@@ -6,13 +6,21 @@ from unittest.mock import patch
 import pytest
 
 from sase.llm_provider import default_reasoning_effort
-from sase.llm_provider.config import _get_default_effort
+from sase.llm_provider.config import (
+    DEFAULT_MODEL_ALIAS_HISTORY_LIMIT,
+    _get_default_effort,
+    get_model_alias_history_limit,
+)
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
 
 def _mock_config(*, default_effort: Any) -> dict[str, Any]:
     """Build a merged-config payload carrying ``llm_provider.default_effort``."""
     return {"llm_provider": {"provider": "", "default_effort": default_effort}}
+
+
+def _mock_alias_history_config(value: Any) -> dict[str, Any]:
+    return {"llm_provider": {"provider": "", "model_alias_history_limit": value}}
 
 
 class TestGetDefaultEffort:
@@ -82,3 +90,42 @@ def test_public_default_reasoning_effort_is_normalized_and_validated(
 
         mock_config.return_value = _mock_config(default_effort="turbo")  # type: ignore[union-attr]
         assert default_reasoning_effort() is None
+
+
+class TestGetModelAliasHistoryLimit:
+    @patch("sase.llm_provider.config.load_merged_config")
+    def test_returns_configured_positive_integer(self, mock_config: object) -> None:
+        mock_config.return_value = _mock_alias_history_config(25)  # type: ignore[union-attr]
+
+        assert get_model_alias_history_limit() == 25
+
+    @patch("sase.llm_provider.config.load_merged_config")
+    def test_missing_key_returns_default(self, mock_config: object) -> None:
+        mock_config.return_value = {"llm_provider": {"provider": ""}}  # type: ignore[union-attr]
+
+        assert get_model_alias_history_limit() == DEFAULT_MODEL_ALIAS_HISTORY_LIMIT
+
+    @patch("sase.llm_provider.config.load_merged_config")
+    def test_missing_llm_provider_section_returns_default(
+        self, mock_config: object
+    ) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+
+        assert get_model_alias_history_limit() == DEFAULT_MODEL_ALIAS_HISTORY_LIMIT
+
+    @pytest.mark.parametrize("value", [0, -1, True, 3.5, "8", None])
+    @patch("sase.llm_provider.config.load_merged_config")
+    def test_invalid_values_return_default(
+        self,
+        mock_config: object,
+        value: Any,
+    ) -> None:
+        mock_config.return_value = _mock_alias_history_config(value)  # type: ignore[union-attr]
+
+        assert get_model_alias_history_limit() == DEFAULT_MODEL_ALIAS_HISTORY_LIMIT
+
+    @patch("sase.llm_provider.config.load_merged_config")
+    def test_returns_default_on_exception(self, mock_config: object) -> None:
+        mock_config.side_effect = RuntimeError("config error")  # type: ignore[union-attr]
+
+        assert get_model_alias_history_limit() == DEFAULT_MODEL_ALIAS_HISTORY_LIMIT

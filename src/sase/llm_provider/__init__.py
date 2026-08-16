@@ -22,12 +22,14 @@ from .alias_view import (
 )
 from .base import LLMProvider
 from .config import (
+    DEFAULT_MODEL_ALIAS_HISTORY_LIMIT,
     EffectiveDefaultEffortSnapshot,
     ModelAliasConfigSource,
     default_reasoning_effort,
     effective_default_effort_snapshot,
     get_builtin_model_aliases,
     get_custom_model_aliases,
+    get_model_alias_history_limit,
     model_alias_bucket,
     model_alias_bucket_description,
     model_alias_bucket_names,
@@ -102,6 +104,7 @@ __all__ = [
     "BucketView",
     "BaseMessage",
     "FileRefMode",
+    "DEFAULT_MODEL_ALIAS_HISTORY_LIMIT",
     "EffectiveDefaultEffortSnapshot",
     "EffortOverrideStateError",
     "HumanMessage",
@@ -143,6 +146,7 @@ __all__ = [
     "get_active_temporary_override",
     "get_builtin_model_aliases",
     "get_custom_model_aliases",
+    "get_model_alias_history_limit",
     "get_provider",
     "get_retry_config",
     "get_wait_time",

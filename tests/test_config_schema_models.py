@@ -54,6 +54,41 @@ def test_config_schema_accepts_scalar_launch_model_fields() -> None:
     assert errors == [], "\n".join(format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_model_alias_history_limit() -> None:
+    public_schema = schema()
+    config = {"llm_provider": {"model_alias_history_limit": 25}}
+
+    errors = sorted(
+        Draft7Validator(public_schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert errors == [], "\n".join(format_schema_error(error) for error in errors)
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_config_schema_rejects_model_alias_history_limit_below_minimum(
+    value: int,
+) -> None:
+    public_schema = schema()
+    config = {"llm_provider": {"model_alias_history_limit": value}}
+
+    errors = sorted(
+        Draft7Validator(public_schema).iter_errors(config),
+        key=lambda error: list(error.absolute_path),
+    )
+
+    assert any(
+        list(error.absolute_path)
+        == [
+            "llm_provider",
+            "model_alias_history_limit",
+        ]
+        and "less than the minimum of 1" in error.message
+        for error in errors
+    )
+
+
 def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> None:
     """``model_aliases.builtin`` stays a string map for ``@alias`` references."""
     public_schema = schema()

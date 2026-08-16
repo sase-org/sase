@@ -18,6 +18,8 @@ from .effort_resolution import (
     resolve_effective_effort_from_snapshot,
 )
 
+DEFAULT_MODEL_ALIAS_HISTORY_LIMIT = 10
+
 if TYPE_CHECKING:
     from sase.xprompt.directives import PromptDirectives
 
@@ -53,6 +55,17 @@ def _get_default_effort() -> str | None:
 def default_reasoning_effort() -> str | None:
     """Return the validated, normalized default reasoning-effort level."""
     return _get_default_effort()
+
+
+def get_model_alias_history_limit() -> int:
+    """Return the validated per-alias Launch Control history limit."""
+    raw = get_llm_provider_config().get(
+        "model_alias_history_limit",
+        DEFAULT_MODEL_ALIAS_HISTORY_LIMIT,
+    )
+    if type(raw) is int and raw >= 1:
+        return raw
+    return DEFAULT_MODEL_ALIAS_HISTORY_LIMIT
 
 
 def _get_temporary_default_effort(now: float) -> TemporaryEffortOverride | None:

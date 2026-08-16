@@ -1371,6 +1371,7 @@ llm_provider:
   default_model: "@large" # used when a launch has no %model directive
   epic_lander_model: "@large" # epic land agents below bead.big_epic_phase_threshold
   big_epic_lander_model: "@xlarge" # epic land agents at/above that threshold
+  model_alias_history_limit: 10 # runs shown per alias in Launch Control history
   # Override examples; shipped size-alias defaults are generated in docs/llms.md.
   model_aliases:
     builtin:
@@ -1386,17 +1387,18 @@ llm_provider:
         description: Writing and editing roles.
 ```
 
-| Field                                | Type   | Default     | Description                                                                                                                                                                                                                       |
-| ------------------------------------ | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` and `grok` declare no priority and are never auto-detected; name them explicitly. |
-| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                            |
-| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                            |
-| `llm_provider.default_model`         | string | `@large`    | Model expression used when a launch has no explicit `%model` directive.                                                                                                                                                           |
-| `llm_provider.epic_lander_model`     | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
-| `llm_provider.big_epic_lander_model` | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                         |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                     |
+| Field                                    | Type   | Default     | Description                                                                                                                                                                                                                       |
+| ---------------------------------------- | ------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`                  | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; built-ins default to claude → codex → qwen → opencode → agy. `muse` and `grok` declare no priority and are never auto-detected; name them explicitly. |
+| `llm_provider.model_tier_map.large`      | string | -           | Model identifier for the `large` tier.                                                                                                                                                                                            |
+| `llm_provider.model_tier_map.small`      | string | -           | Model identifier for the `small` tier.                                                                                                                                                                                            |
+| `llm_provider.default_model`             | string | `@large`    | Model expression used when a launch has no explicit `%model` directive.                                                                                                                                                           |
+| `llm_provider.epic_lander_model`         | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
+| `llm_provider.big_epic_lander_model`     | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
+| `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                   |
+| `llm_provider.model_aliases.builtin`     | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, or `\|\|` ordered fallbacks.                                         |
+| `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
+| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                     |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at
 names such as `%model:@medium` or `%model:@blogger` while each user's `sase.yml`
@@ -1444,6 +1446,10 @@ prompt/plan/phase/task/approval-picker `%model` wins first, then an active tempo
 override of the selected setting, then the config field resolves through the normal
 alias/effort/selector/provider-disable machinery, and a missing or malformed field falls
 back to its shipped default (`@large` / `@large` / `@xlarge`).
+
+`model_alias_history_limit` bounds the number of prior runs requested for each alias in
+Launch Control's agent-history panel. It defaults to `10`, must be at least `1`, and
+falls back to `10` at runtime when a malformed value bypasses schema validation.
 
 Accepted tale follow-ups without an approval-time model validate the actual handoff plan
 and choose the matching size alias directly. Legacy tale plans without size metadata use

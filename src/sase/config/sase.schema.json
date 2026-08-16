@@ -1979,6 +1979,12 @@
           "description": "Model expression used for threshold-selected big epic land agents unless the plan sets an explicit land model.",
           "default": "@xlarge"
         },
+        "model_alias_history_limit": {
+          "type": "integer",
+          "description": "Maximum runs shown per alias in the Launch Control agent-history panel.",
+          "default": 10,
+          "minimum": 1
+        },
         "model_tier_map": {
           "type": "object",
           "description": "Mapping from model tiers to specific model identifiers",
