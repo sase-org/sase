@@ -183,7 +183,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
             static_values=BEAD_TYPE_VALUES,
             repeatable=True,
             negatable=True,
-            hint="plan, phase, task, flag",
+            hint=", ".join(BEAD_TYPE_VALUES),
         ),
         QueryFieldSpec(
             key="tier",

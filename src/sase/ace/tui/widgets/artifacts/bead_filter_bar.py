@@ -42,7 +42,7 @@ class BeadFilterBar(FilterBar):
     COMPLETION_ID = "bead-filter-completion"
     CANDIDATE_ID_PREFIX = "bead-filter-candidate"
     KEY_COMPLETIONS = (
-        ("type", "plan, phase, task, flag"),
+        ("type", ", ".join(BEAD_TYPE_VALUES)),
         ("tier", "plan or epic"),
         ("status", "open, closed, blocked, triage"),
         ("size", "xsmall through xlarge"),

@@ -8,6 +8,7 @@ from textual.widgets import OptionList
 from sase.ace.query_profile import compile_query_profile
 from sase.ace.query_profile.profiles import beads_query_schema, files_query_schema
 from sase.ace.tui.widgets.filter_bar import FilterBar
+from sase.bead_type_presentation import BEAD_TYPE_VALUES
 
 _BEADS_PROFILE = compile_query_profile(beads_query_schema())
 _FILES_PROFILE = compile_query_profile(files_query_schema())
@@ -33,14 +34,9 @@ def _option_labels(option_list: OptionList) -> list[str]:
 
 def test_configure_from_profile_derives_dialect_without_class_declarations() -> None:
     bar = FilterBar(profile=_BEADS_PROFILE)
-    assert dict(bar.KEY_COMPLETIONS)["type"] == "plan, phase, task, flag"
+    assert dict(bar.KEY_COMPLETIONS)["type"] == ", ".join(BEAD_TYPE_VALUES)
     assert "id" not in dict(bar.KEY_COMPLETIONS)  # search-only field: not filterable
-    assert set(bar.STATIC_VALUE_COMPLETIONS["type"]) == {
-        "flag",
-        "phase",
-        "plan",
-        "task",
-    }
+    assert set(bar.STATIC_VALUE_COMPLETIONS["type"]) == set(BEAD_TYPE_VALUES)
     assert "assignee" not in bar.STATIC_VALUE_COMPLETIONS  # plain string field
     assert bar.NEGATABLE_KEYS == frozenset(_BEADS_PROFILE.negatable_fields())
     assert bar.REPEATABLE_VALUE_KINDS == frozenset(_BEADS_PROFILE.repeatable_fields())
@@ -74,12 +70,7 @@ async def test_enum_value_completion_uses_profile_static_values() -> None:
         await pilot.pause()
         completion = app.query_one(f"#{bar.COMPLETION_ID}", OptionList)
         labels = _option_labels(completion)
-        assert {label.split()[0] for label in labels} == {
-            "flag",
-            "phase",
-            "plan",
-            "task",
-        }
+        assert {label.split()[0] for label in labels} == set(BEAD_TYPE_VALUES)
 
 
 async def test_negation_completion_omits_non_negatable_profile_keys() -> None:
