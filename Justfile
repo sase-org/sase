@@ -334,9 +334,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-nb(reset_process_feature_flags)" \
-        --epic-symbol "sase-n8(AgentAliasHistoryLimitWire)" \
-        --epic-symbol "sase-n8(AliasHistoryProvenance)" \
-        --epic-symbol "sase-n8(AliasHistoryStatusRollup)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

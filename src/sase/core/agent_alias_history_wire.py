@@ -37,7 +37,7 @@ class AgentAliasHistoryQueryWire:
 
 
 @dataclass(frozen=True)
-class AgentAliasHistoryLimitWire:
+class _AgentAliasHistoryLimitWire:
     """Effective limit and truncation metadata for one alias group."""
 
     limit: int
@@ -82,7 +82,7 @@ class AgentAliasHistoryGroupWire:
     """History group for one requested alias."""
 
     alias: str
-    runs_limit: AgentAliasHistoryLimitWire
+    runs_limit: _AgentAliasHistoryLimitWire
     runs: list[AgentAliasRunWire] = field(default_factory=list)
 
 
@@ -150,8 +150,8 @@ def _query_from_dict(data: dict[str, Any]) -> AgentAliasHistoryQueryWire:
     return AgentAliasHistoryQueryWire(**kwargs)
 
 
-def _limit_from_dict(data: dict[str, Any]) -> AgentAliasHistoryLimitWire:
-    return AgentAliasHistoryLimitWire(
+def _limit_from_dict(data: dict[str, Any]) -> _AgentAliasHistoryLimitWire:
+    return _AgentAliasHistoryLimitWire(
         limit=int(data.get("limit", 0)),
         total_count=int(data.get("total_count", 0)),
         returned_count=int(data.get("returned_count", 0)),
@@ -179,7 +179,7 @@ def _group_from_dict(data: dict[str, Any]) -> AgentAliasHistoryGroupWire:
     runs_limit = (
         _limit_from_dict(raw_limit)
         if isinstance(raw_limit, dict)
-        else AgentAliasHistoryLimitWire(0, 0, 0, False)
+        else _AgentAliasHistoryLimitWire(0, 0, 0, False)
     )
     return AgentAliasHistoryGroupWire(
         alias=str(data.get("alias") or ""),
@@ -197,7 +197,6 @@ __all__ = [
     "DEFAULT_ALIAS_HISTORY_LIMIT_PER_ALIAS",
     "DEFAULT_ALIAS_HISTORY_PROMPT_SNIPPET_BYTES",
     "AgentAliasHistoryGroupWire",
-    "AgentAliasHistoryLimitWire",
     "AgentAliasHistoryQueryWire",
     "AgentAliasHistoryWire",
     "AgentAliasRunWire",

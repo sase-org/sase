@@ -45,7 +45,7 @@ _RUNNING_STATUSES = frozenset({"running", "starting", "waiting"})
 
 
 @dataclass(frozen=True, slots=True)
-class AliasHistoryProvenance:
+class _AliasHistoryProvenance:
     """How the queried alias entered one run.
 
     ``label`` is the four-way chip text (``direct`` / ``default`` /
@@ -61,7 +61,7 @@ class AliasHistoryProvenance:
 
 
 @dataclass(frozen=True, slots=True)
-class AliasHistoryStatusRollup:
+class _AliasHistoryStatusRollup:
     """Title-line counts over the returned window of runs."""
 
     done: int = 0
@@ -87,7 +87,7 @@ class AliasHistoryRun:
     status: str
     has_done_marker: bool
     hidden: bool
-    provenance: AliasHistoryProvenance
+    provenance: _AliasHistoryProvenance
     rollup_status: AliasHistoryRollupStatus
     agent_name: str | None = None
     workflow_name: str | None = None
@@ -118,7 +118,7 @@ class AliasHistoryGroup:
     total_count: int
     returned_count: int
     truncated: bool
-    status_rollup: AliasHistoryStatusRollup
+    status_rollup: _AliasHistoryStatusRollup
     runs: tuple[AliasHistoryRun, ...] = ()
 
 
@@ -133,14 +133,14 @@ class AliasHistoryView:
     projects: tuple[str, ...]
     freshness: AliasHistoryFreshness
     groups: tuple[AliasHistoryGroup, ...]
-    status_rollup: AliasHistoryStatusRollup
+    status_rollup: _AliasHistoryStatusRollup
 
 
 def _classify_alias_history_provenance(
     alias_position: int,
     origin: str | None,
     trail: Sequence[str] = (),
-) -> AliasHistoryProvenance:
+) -> _AliasHistoryProvenance:
     """Classify one run into the four pinned provenance cases.
 
     ``alias_position > 0`` is always indirect — the recorded origin describes
@@ -151,25 +151,25 @@ def _classify_alias_history_provenance(
     if alias_position > 0:
         via_alias = _previous_alias(alias_position, trail)
         label = f"via @{via_alias}" if via_alias else "via"
-        return AliasHistoryProvenance(
+        return _AliasHistoryProvenance(
             kind="indirect",
             label=label,
             origin=recorded_origin,
             via_alias=via_alias,
         )
     if recorded_origin == ALIAS_ORIGIN_DIRECTIVE:
-        return AliasHistoryProvenance(
+        return _AliasHistoryProvenance(
             kind="direct",
             label="direct",
             origin=recorded_origin,
         )
     if recorded_origin == ALIAS_ORIGIN_DEFAULT_MODEL:
-        return AliasHistoryProvenance(
+        return _AliasHistoryProvenance(
             kind="default",
             label="default",
             origin=recorded_origin,
         )
-    return AliasHistoryProvenance(
+    return _AliasHistoryProvenance(
         kind="unrecorded",
         label="unrecorded",
         origin=recorded_origin,
@@ -380,7 +380,7 @@ def _previous_alias(alias_position: int, trail: Sequence[str]) -> str | None:
     return None
 
 
-def _rollup_for_runs(runs: Sequence[AliasHistoryRun]) -> AliasHistoryStatusRollup:
+def _rollup_for_runs(runs: Sequence[AliasHistoryRun]) -> _AliasHistoryStatusRollup:
     done = failed = running = 0
     for run in runs:
         if run.rollup_status == "failed":
@@ -389,28 +389,26 @@ def _rollup_for_runs(runs: Sequence[AliasHistoryRun]) -> AliasHistoryStatusRollu
             running += 1
         else:
             done += 1
-    return AliasHistoryStatusRollup(done=done, failed=failed, running=running)
+    return _AliasHistoryStatusRollup(done=done, failed=failed, running=running)
 
 
 def _combine_rollups(
-    rollups: Iterable[AliasHistoryStatusRollup],
-) -> AliasHistoryStatusRollup:
+    rollups: Iterable[_AliasHistoryStatusRollup],
+) -> _AliasHistoryStatusRollup:
     done = failed = running = 0
     for rollup in rollups:
         done += rollup.done
         failed += rollup.failed
         running += rollup.running
-    return AliasHistoryStatusRollup(done=done, failed=failed, running=running)
+    return _AliasHistoryStatusRollup(done=done, failed=failed, running=running)
 
 
 __all__ = [
     "AliasHistoryFreshness",
     "AliasHistoryGroup",
-    "AliasHistoryProvenance",
     "AliasHistoryProvenanceKind",
     "AliasHistoryRollupStatus",
     "AliasHistoryRun",
-    "AliasHistoryStatusRollup",
     "AliasHistoryView",
     "load_alias_history",
 ]

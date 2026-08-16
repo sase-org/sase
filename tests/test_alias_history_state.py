@@ -8,7 +8,7 @@ from sase.ace.tui.modals.alias_history_state import (
     doubled_alias_history_limit,
     initial_alias_history_load_request,
 )
-from sase.llm_provider.alias_history import AliasHistoryProvenance, AliasHistoryRun
+from sase.llm_provider.alias_history import _AliasHistoryProvenance, AliasHistoryRun
 
 
 def _run(artifact_dir: str = "/tmp/a") -> AliasHistoryRun:
@@ -22,7 +22,7 @@ def _run(artifact_dir: str = "/tmp/a") -> AliasHistoryRun:
         status="done",
         has_done_marker=True,
         hidden=False,
-        provenance=AliasHistoryProvenance(kind="direct", label="direct"),
+        provenance=_AliasHistoryProvenance(kind="direct", label="direct"),
         rollup_status="done",
     )
 

@@ -12,7 +12,7 @@ from sase.ace.tui.modals.alias_history_rendering import (
     build_alias_history_rows,
 )
 from sase.core.agent_scan_wire_markers import UsedXPromptWire
-from sase.llm_provider.alias_history import AliasHistoryProvenance
+from sase.llm_provider.alias_history import _AliasHistoryProvenance
 
 from ._alias_history_helpers import make_entry as _entry
 from ._alias_history_helpers import make_group as _group
@@ -89,7 +89,9 @@ def test_row_shows_provenance_chip_for_each_kind() -> None:
         ("unrecorded", "unrecorded"),
     ):
         run = _run(
-            provenance=AliasHistoryProvenance(kind=kind, label=label, via_alias="coder")
+            provenance=_AliasHistoryProvenance(
+                kind=kind, label=label, via_alias="coder"
+            )
         )
         text = _alias_history_row_text(run, now=_NOW)
         assert label in text.plain
@@ -188,12 +190,12 @@ def test_detail_origin_line_for_each_provenance_kind() -> None:
         "unrecorded": "unrecorded — no alias origin was captured",
     }
     for kind, expected in cases.items():
-        run = _run(provenance=AliasHistoryProvenance(kind=kind, label=kind))
+        run = _run(provenance=_AliasHistoryProvenance(kind=kind, label=kind))
         text = alias_history_detail_text(run, entry=_entry())
         assert expected in text.plain
 
     indirect_run = _run(
-        provenance=AliasHistoryProvenance(
+        provenance=_AliasHistoryProvenance(
             kind="indirect", label="via @coder", via_alias="coder"
         )
     )

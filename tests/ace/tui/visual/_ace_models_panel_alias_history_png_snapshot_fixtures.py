@@ -7,10 +7,10 @@ from collections.abc import Iterable
 from sase.core.agent_scan_wire_markers import UsedXPromptWire
 from sase.llm_provider.alias_history import (
     AliasHistoryGroup,
-    AliasHistoryProvenance,
+    _AliasHistoryProvenance,
     AliasHistoryRollupStatus,
     AliasHistoryRun,
-    AliasHistoryStatusRollup,
+    _AliasHistoryStatusRollup,
     AliasHistoryView,
 )
 
@@ -210,7 +210,7 @@ def _direct_run(
         status="done",
         has_done_marker=True,
         rollup_status="done",
-        provenance=AliasHistoryProvenance(
+        provenance=_AliasHistoryProvenance(
             kind="direct",
             label="direct",
             origin="directive",
@@ -248,7 +248,7 @@ def _indirect_run(
         status="running",
         workflow_status="running",
         rollup_status="running",
-        provenance=AliasHistoryProvenance(
+        provenance=_AliasHistoryProvenance(
             kind="indirect",
             label=f"via @{via_alias}",
             origin="directive",
@@ -280,7 +280,7 @@ def _default_run(
         status="failed",
         workflow_status="failed",
         rollup_status="failed",
-        provenance=AliasHistoryProvenance(
+        provenance=_AliasHistoryProvenance(
             kind="default",
             label="default",
             origin="default_model",
@@ -319,7 +319,7 @@ def _unrecorded_run(
         status="done",
         has_done_marker=True,
         rollup_status="done",
-        provenance=AliasHistoryProvenance(
+        provenance=_AliasHistoryProvenance(
             kind="unrecorded",
             label="unrecorded",
         ),
@@ -341,7 +341,7 @@ def _run(
     started_at: str,
     status: str,
     rollup_status: AliasHistoryRollupStatus,
-    provenance: AliasHistoryProvenance,
+    provenance: _AliasHistoryProvenance,
     model_alias_origin: str | None,
     model_alias_trail: tuple[str, ...],
     alias_position: int,
@@ -428,7 +428,7 @@ def _view(
     )
 
 
-def _rollup(runs: Iterable[AliasHistoryRun]) -> AliasHistoryStatusRollup:
+def _rollup(runs: Iterable[AliasHistoryRun]) -> _AliasHistoryStatusRollup:
     done = failed = running = 0
     for run in runs:
         if run.rollup_status == "failed":
@@ -437,7 +437,7 @@ def _rollup(runs: Iterable[AliasHistoryRun]) -> AliasHistoryStatusRollup:
             running += 1
         else:
             done += 1
-    return AliasHistoryStatusRollup(done=done, failed=failed, running=running)
+    return _AliasHistoryStatusRollup(done=done, failed=failed, running=running)
 
 
 __all__ = [

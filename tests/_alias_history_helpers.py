@@ -5,9 +5,9 @@ from __future__ import annotations
 from sase.ace.tui.modals.alias_history_state import AliasHistoryEntryRequest
 from sase.llm_provider.alias_history import (
     AliasHistoryGroup,
-    AliasHistoryProvenance,
+    _AliasHistoryProvenance,
     AliasHistoryRun,
-    AliasHistoryStatusRollup,
+    _AliasHistoryStatusRollup,
     AliasHistoryView,
 )
 
@@ -23,7 +23,7 @@ def make_run(**overrides: object) -> AliasHistoryRun:
         "status": "done",
         "has_done_marker": True,
         "hidden": False,
-        "provenance": AliasHistoryProvenance(kind="direct", label="direct"),
+        "provenance": _AliasHistoryProvenance(kind="direct", label="direct"),
         "rollup_status": "done",
         "agent_name": "worker_1",
         "model": "opus",
@@ -46,7 +46,7 @@ def make_group(
         total_count=len(runs),
         returned_count=len(runs),
         truncated=truncated,
-        status_rollup=AliasHistoryStatusRollup(
+        status_rollup=_AliasHistoryStatusRollup(
             done=done, failed=failed, running=running
         ),
         runs=tuple(runs),
@@ -62,7 +62,7 @@ def make_view(groups: list[AliasHistoryGroup], **overrides: object) -> AliasHist
         "projects": (),
         "freshness": "cached",
         "groups": tuple(groups),
-        "status_rollup": AliasHistoryStatusRollup(
+        "status_rollup": _AliasHistoryStatusRollup(
             done=sum(g.status_rollup.done for g in groups),
             failed=sum(g.status_rollup.failed for g in groups),
             running=sum(g.status_rollup.running for g in groups),

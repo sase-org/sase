@@ -17,7 +17,7 @@ from sase.ace.tui.modals.models_panel_rows import (
     LaunchModelSettingRow,
 )
 from sase.llm_provider.alias_history import (
-    AliasHistoryStatusRollup,
+    _AliasHistoryStatusRollup,
     AliasHistoryView,
 )
 from sase.llm_provider.config import (
@@ -90,7 +90,7 @@ def _empty_view(*aliases: str) -> AliasHistoryView:
         projects=(),
         freshness="cached",
         groups=(),
-        status_rollup=AliasHistoryStatusRollup(),
+        status_rollup=_AliasHistoryStatusRollup(),
     )
 
 

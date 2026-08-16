@@ -9,7 +9,7 @@ import pytest
 
 from sase.core.agent_alias_history_wire import (
     AgentAliasHistoryGroupWire,
-    AgentAliasHistoryLimitWire,
+    _AgentAliasHistoryLimitWire,
     AgentAliasHistoryQueryWire,
     AgentAliasHistoryWire,
     AgentAliasRunWire,
@@ -56,7 +56,7 @@ def _group(
     recorded = returned if total_count is None else total_count
     return AgentAliasHistoryGroupWire(
         alias=alias,
-        runs_limit=AgentAliasHistoryLimitWire(
+        runs_limit=_AgentAliasHistoryLimitWire(
             limit=limit,
             total_count=recorded,
             returned_count=returned,
