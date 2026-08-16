@@ -8,7 +8,7 @@ import pytest
 from textual.widgets import OptionList
 
 import sase.ace.tui.modals.models_panel as models_panel
-import sase.ace.tui.modals.models_panel_providers as models_panel_providers
+import sase.ace.tui.modals.models_panel_provider_state as models_panel_provider_state
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import ModelsPanel
 from sase.llm_provider import AliasView
@@ -33,7 +33,7 @@ def _patch_alias_views(
 ) -> None:
     monkeypatch.setattr(models_panel, "build_alias_views", lambda *a, **k: factory())
     monkeypatch.setattr(
-        models_panel_providers, "build_alias_views", lambda *a, **k: factory()
+        models_panel_provider_state, "build_alias_views", lambda *a, **k: factory()
     )
 
 
