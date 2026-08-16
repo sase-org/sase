@@ -69,18 +69,37 @@ def test_size_aliases_use_independent_rotations(
     )
 
 
-def test_xsmall_packaged_defaults_select_correct_effort_per_provider(
+@pytest.mark.parametrize(
+    ("alias", "expectations"),
+    [
+        (
+            "@xsmall",
+            {
+                "claude/": ("claude/sonnet", "medium"),
+                "codex/": ("codex/gpt-5.5", "medium"),
+                "grok/": ("grok/grok-4.6", "medium"),
+                "agy/": ("agy/gemini-3.7-flash-medium", None),
+            },
+        ),
+        (
+            "@small",
+            {
+                "claude/": ("claude/sonnet", "high"),
+                "codex/": ("codex/gpt-5.5", "high"),
+                "grok/": ("grok/grok-4.6", "high"),
+                "agy/": ("agy/gemini-3.7-flash-high", None),
+            },
+        ),
+    ],
+)
+def test_packaged_defaults_select_correct_effort_per_provider(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
+    alias: str,
+    expectations: dict[str, tuple[str, str | None]],
 ) -> None:
     mock_provider_config(monkeypatch, {"provider": "claude"})
 
-    expectations = {
-        "claude/": ("claude/sonnet", "medium"),
-        "codex/": ("codex/gpt-5.5", "medium"),
-        "grok/": ("grok/grok-4.6", "medium"),
-        "agy/": ("agy/gemini-3.7-flash-high", None),
-    }
     for prefix, (expected_target, expected_effort) in expectations.items():
         monkeypatch.setattr(
             llm_config,
@@ -88,10 +107,10 @@ def test_xsmall_packaged_defaults_select_correct_effort_per_provider(
             lambda target, prefix=prefix: target.startswith(prefix),
         )
 
-        xsmall = resolve_model_alias_with_effort("@xsmall", consume=True)
+        selected = resolve_model_alias_with_effort(alias, consume=True)
 
-        assert xsmall.target == expected_target
-        assert xsmall.effort == expected_effort
+        assert selected.target == expected_target
+        assert selected.effort == expected_effort
 
 
 @pytest.mark.parametrize(
