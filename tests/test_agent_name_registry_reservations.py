@@ -28,6 +28,7 @@ from sase.agent.names import (
     reserve_registered_template_names,
 )
 from sase.agent.names import _registry
+from sase.agent.names.registry_freshness import agent_name_registry_freshness_token
 
 
 def test_registry_write_uses_unique_temp_file_for_nested_writer(tmp_path: Path) -> None:
@@ -194,9 +195,11 @@ def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> 
 
     with patch.object(Path, "home", return_value=tmp_path):
         claim_registered_name("foo", root_dir)
+        before_conversion = agent_name_registry_freshness_token()
         convert_registered_agent_to_family("foo", "foo--0", root_dir)
 
         assert get_reserved_family_names() == {"foo"}
+        assert agent_name_registry_freshness_token() > before_conversion
         assert lookup_registered_name("foo")["container_kind"] == "family"
         assert lookup_registered_name("foo--0")["reservation_kind"] == "claimed"
         with pytest.raises(NameCollisionError, match="reserved for agent family"):

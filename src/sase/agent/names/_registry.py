@@ -26,6 +26,9 @@ from sase.agent.names._registry_mutations import (
     ImportedV2RegistryClaim,
     RegistryMutationOperations,
 )
+from sase.agent.names.registry_freshness import (
+    invalidate_agent_name_registry_freshness,
+)
 from sase.agent.names._registry_scan import (
     collect_artifact_entries as _collect_artifact_entries,
     collect_dismissed_bundle_entries as _collect_dismissed_bundle_entries,
@@ -415,6 +418,7 @@ def rebuild_name_registry() -> dict[str, Any]:
         data = _registry_data(entries)
         _write_registry(_registry_path(), data)
         _set_cache(_registry_path(), data)
+        invalidate_agent_name_registry_freshness()
         return data
 
 
@@ -464,6 +468,7 @@ def _save_entries(entries: dict[str, Any]) -> None:
         path = _registry_path()
         _write_registry(path, data)
         _set_cache(path, data)
+        invalidate_agent_name_registry_freshness()
 
 
 def _registry_data(entries: dict[str, Any]) -> dict[str, Any]:

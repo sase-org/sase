@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from io import StringIO
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 from rich.console import Console
 
+from sase.agent.names.registry_freshness import (
+    invalidate_agent_name_registry_freshness,
+)
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_page_url import (
     agent_publishes_page,
+    clear_agent_page_url_registry_cache,
     resolve_agent_page_url,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
@@ -36,6 +43,13 @@ _META_COMMITS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _clear_page_url_registry_cache() -> Iterator[None]:
+    clear_agent_page_url_registry_cache()
+    yield
+    clear_agent_page_url_registry_cache()
+
+
 def _committed_agent(**overrides: object) -> Agent:
     values: dict[str, object] = {
         "status": "DONE",
@@ -53,7 +67,7 @@ def _stub_hosted_resolver(
     *,
     url: str | None = _AGENT_PAGE_URL,
 ) -> tuple[Mock, Mock, Mock]:
-    store = object()
+    store = SimpleNamespace(repo_root=Path("/sdd/widgets"))
     resolver = Mock()
     resolver.agent_url.return_value = url
     resolve_store = Mock(return_value=store)
@@ -169,7 +183,7 @@ def test_resolve_agent_page_url_requires_primary_root(
     assert resolve_agent_page_url(agent) is None
 
 
-@pytest.mark.parametrize("raising_boundary", ["store", "agent-url"])
+@pytest.mark.parametrize("raising_boundary", ["store", "snapshot", "agent-url"])
 def test_resolve_agent_page_url_swallows_resolution_errors(
     monkeypatch: pytest.MonkeyPatch,
     raising_boundary: str,
@@ -181,6 +195,10 @@ def test_resolve_agent_page_url_swallows_resolution_errors(
     resolve_store, _hosted_resolver, resolver = _stub_hosted_resolver(monkeypatch)
     if raising_boundary == "store":
         resolve_store.side_effect = RuntimeError("store unavailable")
+    elif raising_boundary == "snapshot":
+        resolver.snapshot_agent_name_registry.side_effect = RuntimeError(
+            "registry unavailable"
+        )
     else:
         resolver.agent_url.side_effect = RuntimeError("remote unavailable")
 
@@ -207,6 +225,84 @@ def test_resolve_agent_page_url_anchors_on_stable_primary_root(
     )
     resolver.snapshot_agent_name_registry.assert_called_once_with()
     resolver.agent_url.assert_called_once_with("worker")
+
+
+def test_resolve_agent_page_url_reuses_registry_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_page_url.parse_workspace_dir",
+        lambda _project_file: "/projects/widgets",
+    )
+    _resolve_store, hosted_resolver, resolver = _stub_hosted_resolver(monkeypatch)
+    agent = _committed_agent()
+
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+
+    assert hosted_resolver.call_count == 2
+    resolver.snapshot_agent_name_registry.assert_called_once_with()
+    assert resolver.agent_url.call_count == 2
+
+
+def test_resolve_agent_page_url_refreshes_after_registry_invalidation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_page_url.parse_workspace_dir",
+        lambda _project_file: "/projects/widgets",
+    )
+    _resolve_store, _hosted_resolver, resolver = _stub_hosted_resolver(monkeypatch)
+    agent = _committed_agent()
+
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+    invalidate_agent_name_registry_freshness()
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+
+    assert resolver.snapshot_agent_name_registry.call_count == 2
+
+
+def test_resolve_agent_page_url_refreshes_after_snapshot_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_page_url.parse_workspace_dir",
+        lambda _project_file: "/projects/widgets",
+    )
+    monotonic = Mock(side_effect=[100.0, 131.0])
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_page_url.time.monotonic",
+        monotonic,
+    )
+    _resolve_store, _hosted_resolver, resolver = _stub_hosted_resolver(monkeypatch)
+    agent = _committed_agent()
+
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+    assert resolve_agent_page_url(agent) == _AGENT_PAGE_URL
+
+    assert resolver.snapshot_agent_name_registry.call_count == 2
+
+
+def test_resolve_agent_page_url_isolates_registry_snapshots_by_project_and_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roots = iter(["/projects/widgets", "/projects/gadgets", "/projects/widgets"])
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_page_url.parse_workspace_dir",
+        lambda _project_file: next(roots),
+    )
+    _resolve_store, _hosted_resolver, resolver = _stub_hosted_resolver(monkeypatch)
+
+    assert resolve_agent_page_url(_committed_agent()) == _AGENT_PAGE_URL
+    assert (
+        resolve_agent_page_url(
+            _committed_agent(project_file="/projects/gadgets/gadgets.sase")
+        )
+        == _AGENT_PAGE_URL
+    )
+    assert resolve_agent_page_url(_committed_agent()) == _AGENT_PAGE_URL
+
+    assert resolver.snapshot_agent_name_registry.call_count == 2
 
 
 def test_summary_can_skip_agent_page_resolution(
