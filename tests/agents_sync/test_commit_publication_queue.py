@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 import subprocess
-import time
 
 import pytest
 
@@ -170,11 +169,19 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
     published: list[tuple[str, ProjectHoodInventory]] = []
     updated: list[tuple[tuple[str, str], ...]] = []
     acknowledged: list[tuple[tuple[str, str], ...]] = []
+    listed = 0
+    cleaned = 0
+    pulled = 0
+    commit_checks = 0
+    ahead_checks = 0
+
+    def list_publications(_project_key, **_kwargs):
+        nonlocal listed
+        listed += 1
+        return requests
 
     monkeypatch.setattr(
-        commit_publication,
-        "list_agent_publications",
-        lambda _project_key, **_kwargs: requests,
+        commit_publication, "list_agent_publications", list_publications
     )
 
     def integrate(*_args, **_kwargs):
@@ -222,31 +229,50 @@ def test_large_backlog_builds_one_inventory_and_publishes_each_hood_once(
 
     from sase.agents_sync import git_sync
 
+    def clean(*_args, **_kwargs):
+        nonlocal cleaned
+        cleaned += 1
+        return None
+
+    def pull(*_args, **_kwargs):
+        nonlocal pulled
+        pulled += 1
+        return subprocess.CompletedProcess([], 0, "", "")
+
+    def commit(*_args, **_kwargs):
+        nonlocal commit_checks
+        commit_checks += 1
+        return False
+
+    def ahead(*_args, **_kwargs):
+        nonlocal ahead_checks
+        ahead_checks += 1
+        return 0
+
+    monkeypatch.setattr(git_sync, "clean_agents_payload_worktree", clean)
     monkeypatch.setattr(
         git_sync,
         "pull_agents_rebase",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "", ""),
+        pull,
     )
-    monkeypatch.setattr(
-        git_sync,
-        "commit_agents_payload_if_dirty",
-        lambda *_args, **_kwargs: False,
-    )
-    monkeypatch.setattr(git_sync, "agents_ahead_count", lambda *_args: 0)
+    monkeypatch.setattr(git_sync, "commit_agents_payload_if_dirty", commit)
+    monkeypatch.setattr(git_sync, "agents_ahead_count", ahead)
 
-    started = time.perf_counter()
     result = _publish_queued_locked(target, owner, run_git)
-    elapsed = time.perf_counter() - started
 
     assert result.error is None
     assert result.drained == len(requests)
+    assert listed == 1
+    assert cleaned == 2
+    assert pulled == 1
+    assert commit_checks == 1
+    assert ahead_checks == 1
     assert integration_calls == 1
     assert build_calls == 1
     assert [hood for hood, _inventory in published] == list(hoods)
     assert all(seen_inventory is inventory for _hood, seen_inventory in published)
     assert sorted(len(keys) for keys in updated) == [500, 500, 500, 500]
     assert acknowledged == [tuple(item.logical_key for item in requests)]
-    assert elapsed < 1.0
 
 
 def test_mixed_queue_publishes_good_items_and_quarantines_only_bad_item(
