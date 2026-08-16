@@ -64,6 +64,8 @@ def test_agent_meta_records_default_alias_for_plain_prompt(
         effort,
     )
     assert meta["model_alias"] == "large"
+    assert meta["model_alias_trail"] == ["large"]
+    assert meta["model_alias_origin"] == "default_model"
 
 
 def test_agent_meta_default_alias_effort_beats_config_default_effort(
@@ -133,6 +135,8 @@ def test_agent_meta_records_model_alias_and_launch_override_target(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert meta["model_alias"] == "medium"
+    assert meta["model_alias_trail"] == ["medium"]
+    assert meta["model_alias_origin"] == "directive"
     assert (meta["llm_provider"], meta["model"]) == ("codex", "gpt-5")
 
 
@@ -156,6 +160,8 @@ def test_agent_meta_omits_model_alias_for_concrete_model(
         (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert "model_alias" not in meta
+    assert "model_alias_trail" not in meta
+    assert meta["model_alias_origin"] == "none"
 
 
 def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_selection(
@@ -220,6 +226,8 @@ def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_sele
         "medium",
     )
     assert first["model_alias"] == "pool"
+    assert first["model_alias_trail"] == ["pool"]
+    assert first["model_alias_origin"] == "directive"
 
     # A second, independent launch's metadata preview sees the same
     # unconsumed cursor position as the first, since neither call is a real
@@ -238,6 +246,8 @@ def test_agent_meta_previews_alias_pool_without_consuming_and_resume_reuses_sele
         "medium",
     )
     assert second["model_alias"] == "pool"
+    assert second["model_alias_trail"] == ["pool"]
+    assert second["model_alias_origin"] == "directive"
 
 
 def test_agent_meta_default_lane_previews_pool_without_consuming(
@@ -297,6 +307,8 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         first_effort,
     )
     assert first["model_alias"] == "large"
+    assert first["model_alias_trail"] == ["large"]
+    assert first["model_alias_origin"] == "default_model"
     assert cursor() == 0
 
     extract_directives_and_write_meta(
@@ -308,6 +320,8 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         (Path(first_artifacts) / "agent_meta.json").read_text(encoding="utf-8")
     )
     assert preserved["model_alias"] == "large"
+    assert preserved["model_alias_trail"] == ["large"]
+    assert preserved["model_alias_origin"] == "default_model"
     assert (preserved["llm_provider"], preserved["model"]) == (
         first_provider,
         first_model,
@@ -330,6 +344,8 @@ def test_agent_meta_default_lane_previews_pool_without_consuming(
         first_effort,
     )
     assert second["model_alias"] == "large"
+    assert second["model_alias_trail"] == ["large"]
+    assert second["model_alias_origin"] == "default_model"
     assert cursor() == 0
 
 
@@ -355,12 +371,16 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
         llm_provider="claude",
         reasoning_effort="xhigh",
         model_alias="medium",
+        model_alias_trail=["medium", "worker"],
+        model_alias_origin="directive",
     )
 
     marker_path = tmp_path / "prompt_step_s1.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["reasoning_effort"] == "xhigh"
     assert marker["model_alias"] == "medium"
+    assert marker["model_alias_trail"] == ["medium", "worker"]
+    assert marker["model_alias_origin"] == "directive"
 
     # A later rewrite that does not re-pass the effort keeps the stored value
     # (mirrors model/llm_provider preservation).
@@ -369,3 +389,5 @@ def test_step_marker_persists_and_preserves_effort(tmp_path: Path) -> None:
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     assert marker["reasoning_effort"] == "xhigh"
     assert marker["model_alias"] == "medium"
+    assert marker["model_alias_trail"] == ["medium", "worker"]
+    assert marker["model_alias_origin"] == "directive"

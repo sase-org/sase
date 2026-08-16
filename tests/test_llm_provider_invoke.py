@@ -446,8 +446,8 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
 
     with (
         patch(
-            "sase.llm_provider.registry.resolve_model_provider_with_effort",
-            return_value=(None, "unregistered-model", None),
+            "sase.llm_provider.registry.resolve_model_provider_with_trail",
+            return_value=(None, "unregistered-model", None, ()),
         ) as mock_resolve,
         patch(
             "sase.llm_provider.registry.get_default_provider_name",
@@ -472,7 +472,12 @@ def test_invoke_agent_warns_when_model_override_falls_back_to_default_provider(
             directives=PromptDirectives(model="unregistered-model"),
         )
 
-    mock_resolve.assert_called_once_with("unregistered-model", None, consume=True)
+    mock_resolve.assert_called_once_with(
+        "unregistered-model",
+        None,
+        consume=True,
+        model_tier="large",
+    )
     mock_default_provider.assert_called_once_with()
     mock_get_provider.assert_called_once_with("codex")
     mock_provider.invoke.assert_called_once_with(

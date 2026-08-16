@@ -9,7 +9,7 @@ The implementation is split by responsibility:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import create_artifacts_directory
@@ -98,9 +98,14 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
     _artifacts.update_meta_field(artifacts_dir, key, value)
 
 
-def update_meta_fields(artifacts_dir: str, fields: dict[str, Any]) -> None:
+def update_meta_fields(
+    artifacts_dir: str,
+    fields: dict[str, Any],
+    *,
+    remove_keys: Sequence[str] = (),
+) -> None:
     _sync_patchable_dependencies()
-    _artifacts.update_meta_fields(artifacts_dir, fields)
+    _artifacts.update_meta_fields(artifacts_dir, fields, remove_keys=remove_keys)
 
 
 def update_meta_suffix(artifacts_dir: str, suffix: str) -> None:

@@ -47,6 +47,8 @@ class AgentMetadataInputs:
     llm_provider: str | None
     reasoning_effort: str | None
     model_alias: str | None
+    model_alias_trail: list[str]
+    model_alias_origin: str | None
     model_alias_overrides: dict[str, str]
     vcs_provider: str | None
     auto_dismiss: str | None
@@ -79,10 +81,16 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
         "llm_provider",
         "reasoning_effort",
         "model_alias",
+        "model_alias_origin",
     ):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
             preserved[key] = value
+    model_alias_trail = existing_meta.get("model_alias_trail")
+    if isinstance(model_alias_trail, list) and all(
+        isinstance(item, str) and item for item in model_alias_trail
+    ):
+        preserved["model_alias_trail"] = model_alias_trail
     workspace_num = existing_meta.get("workspace_num")
     if isinstance(workspace_num, int):
         preserved["workspace_num"] = workspace_num
@@ -193,6 +201,10 @@ def build_agent_meta(
         agent_meta["reasoning_effort"] = inputs.reasoning_effort
     if inputs.model_alias:
         agent_meta["model_alias"] = inputs.model_alias
+    if inputs.model_alias_trail:
+        agent_meta["model_alias_trail"] = inputs.model_alias_trail
+    if inputs.model_alias_origin:
+        agent_meta["model_alias_origin"] = inputs.model_alias_origin
     if inputs.model_alias_overrides:
         agent_meta["model_alias_overrides"] = inputs.model_alias_overrides
     if inputs.vcs_provider:

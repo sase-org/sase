@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -59,14 +60,21 @@ def update_meta_field(artifacts_dir: str, key: str, value: Any) -> None:
         pass
 
 
-def update_meta_fields(artifacts_dir: str, fields: dict[str, Any]) -> None:
-    """Read agent_meta.json, set multiple keys, and write it back once."""
-    if not fields:
+def update_meta_fields(
+    artifacts_dir: str,
+    fields: dict[str, Any],
+    *,
+    remove_keys: Sequence[str] = (),
+) -> None:
+    """Read agent_meta.json, set/remove multiple keys, and write back once."""
+    if not fields and not remove_keys:
         return
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
+        for key in remove_keys:
+            meta.pop(key, None)
         meta.update(fields)
         write_agent_meta_atomic(
             artifacts_dir,

@@ -35,6 +35,7 @@ from .model_launch_settings import (
 from .temporary_override_defaults import (
     resolve_effective_default_provider_model,
     resolve_effective_default_provider_model_with_effort,
+    resolve_effective_default_provider_model_with_trail,
 )
 from .temporary_override_peek import (
     peek_active_alias_overrides,
@@ -59,6 +60,7 @@ __all__ = [
     "peek_active_temporary_override",
     "resolve_effective_default_provider_model",
     "resolve_effective_default_provider_model_with_effort",
+    "resolve_effective_default_provider_model_with_trail",
     "set_alias_override",
     "set_alias_override_until",
     "set_temporary_override",

@@ -255,6 +255,8 @@ def extract_directives_and_write_meta(
     agent_llm_provider: str
     agent_reasoning_effort: str | None
     agent_model_alias: str | None
+    agent_model_alias_trail: list[str]
+    agent_model_alias_origin: str | None
     if isinstance(preserved_model, str) and isinstance(preserved_provider, str):
         # Runner re-execs/resumptions reuse the authoritative launch selection
         # recorded in metadata and must not advance a load-balanced pool again.
@@ -262,11 +264,29 @@ def extract_directives_and_write_meta(
         agent_llm_provider = preserved_provider
         preserved_effort = preserved_metadata.get("reasoning_effort")
         preserved_model_alias = preserved_metadata.get("model_alias")
+        preserved_model_alias_trail = preserved_metadata.get("model_alias_trail")
+        preserved_model_alias_origin = preserved_metadata.get("model_alias_origin")
         agent_reasoning_effort = (
             preserved_effort if isinstance(preserved_effort, str) else None
         )
         agent_model_alias = (
             preserved_model_alias if isinstance(preserved_model_alias, str) else None
+        )
+        agent_model_alias_trail = (
+            preserved_model_alias_trail
+            if (
+                isinstance(preserved_model_alias_trail, list)
+                and all(
+                    isinstance(item, str) and item
+                    for item in preserved_model_alias_trail
+                )
+            )
+            else []
+        )
+        agent_model_alias_origin = (
+            preserved_model_alias_origin
+            if isinstance(preserved_model_alias_origin, str)
+            else None
         )
     else:
         # A non-consuming preview: the real, consuming resolution happens once,
@@ -289,6 +309,8 @@ def extract_directives_and_write_meta(
         agent_model = preview.model
         agent_llm_provider = preview.provider
         agent_reasoning_effort = preview.reasoning_effort
+        agent_model_alias_trail = list(preview.alias_trail)
+        agent_model_alias_origin = preview.alias_origin
         agent_model_alias = directives.model_alias
         if not directives.model:
             agent_model_alias = launch_model_setting_alias(
@@ -316,6 +338,8 @@ def extract_directives_and_write_meta(
         llm_provider=agent_llm_provider,
         reasoning_effort=agent_reasoning_effort,
         model_alias=agent_model_alias,
+        model_alias_trail=agent_model_alias_trail,
+        model_alias_origin=agent_model_alias_origin,
         model_alias_overrides=model_alias_overrides,
         vcs_provider=agent_vcs_provider,
         auto_dismiss=auto_dismiss,

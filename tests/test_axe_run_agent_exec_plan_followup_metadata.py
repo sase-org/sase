@@ -238,13 +238,44 @@ class TestPlanFollowupMetadata:
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@small\n")
 
+    def test_tale_size_followup_model_carries_alias_provenance(self, tmp_path) -> None:
+        """A tale-size routed follow-up carries directive alias provenance."""
+        ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text(VALID_TALE_PLAN, encoding="utf-8")
+        approval = PlanApprovalResult(
+            action="approve",
+            plan_file=plan_file,
+            coder_model=None,
+        )
+
+        with patch(
+            "sase.llm_provider.registry.resolve_model_provider",
+            return_value=("codex", "gpt-5.6-sol"),
+        ):
+            followup = accept_mod._resolve_followup_model(
+                approval,
+                ctx,
+                followup_plan_file=plan_file,
+            )
+
+        assert followup.model_alias == "small"
+        assert followup.model_alias_trail == ("small",)
+        assert followup.model_alias_origin == "directive"
+
     def test_followup_model_meta_records_size_alias(self, tmp_path) -> None:
         """The metadata rewrite records the alias that produced the model."""
         state = make_state(tmp_path)
         followup_dir = tmp_path / "followup"
         followup_dir.mkdir()
         (followup_dir / "agent_meta.json").write_text(
-            json.dumps({"model_alias": "planner_alias"}),
+            json.dumps(
+                {
+                    "model_alias": "planner_alias",
+                    "model_alias_trail": ["planner_alias"],
+                    "model_alias_origin": "directive",
+                }
+            ),
             encoding="utf-8",
         )
         state.current_artifacts_dir = str(followup_dir)
@@ -270,11 +301,15 @@ class TestPlanFollowupMetadata:
                     model_prefix="%model:@small\n",
                     meta=("codex", "gpt-5.6-sol"),
                     model_alias="small",
+                    model_alias_trail=("small",),
+                    model_alias_origin="directive",
                 ),
             )
 
         meta = json.loads((followup_dir / "agent_meta.json").read_text())
         assert meta["model_alias"] == "small"
+        assert meta["model_alias_trail"] == ["small"]
+        assert meta["model_alias_origin"] == "directive"
 
     def test_followup_model_meta_clears_alias_for_concrete_model(
         self, tmp_path
@@ -284,7 +319,13 @@ class TestPlanFollowupMetadata:
         followup_dir = tmp_path / "followup"
         followup_dir.mkdir()
         (followup_dir / "agent_meta.json").write_text(
-            json.dumps({"model_alias": "planner_alias"}),
+            json.dumps(
+                {
+                    "model_alias": "planner_alias",
+                    "model_alias_trail": ["planner_alias"],
+                    "model_alias_origin": "directive",
+                }
+            ),
             encoding="utf-8",
         )
         state.current_artifacts_dir = str(followup_dir)
@@ -309,11 +350,14 @@ class TestPlanFollowupMetadata:
                 accept_mod._FollowupModel(
                     model_prefix="%model:claude/opus\n",
                     meta=("claude", "opus"),
+                    model_alias_origin="none",
                 ),
             )
 
         meta = json.loads((followup_dir / "agent_meta.json").read_text())
         assert "model_alias" not in meta
+        assert "model_alias_trail" not in meta
+        assert "model_alias_origin" not in meta
 
     def test_epic_meta_is_left_to_host_without_creator_model(self, tmp_path) -> None:
         """The agent leaves launch metadata to the detached host task."""

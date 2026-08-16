@@ -154,10 +154,14 @@ def test_explicit_large_directive_and_default_alias_share_pool_cursor(
     _, _, first = _run_composed_launch(tmp_path, "first", "do the work")
     assert _selected(first) == (member0[0], member0[1])
 
-    _, _, second = _run_composed_launch(
+    root_meta, marker, second = _run_composed_launch(
         tmp_path, "second", "%model:@large\ndo the work"
     )
     assert _selected(second) == (member1[0], member1[1])
+    assert root_meta["model_alias_trail"] == ["large"]
+    assert root_meta["model_alias_origin"] == "directive"
+    assert marker["model_alias_trail"] == ["large"]
+    assert marker["model_alias_origin"] == "directive"
     assert _pool_cursor() == 0
 
 
@@ -172,8 +176,12 @@ def test_root_metadata_step_marker_and_chat_agree_with_invoked_model(
 
     assert root_meta["model"] == model
     assert root_meta["llm_provider"] == provider
+    assert root_meta["model_alias_trail"] == ["large"]
+    assert root_meta["model_alias_origin"] == "default_model"
     assert marker["model"] == model
     assert marker["llm_provider"] == provider
+    assert marker["model_alias_trail"] == ["large"]
+    assert marker["model_alias_origin"] == "default_model"
 
     chat_kwargs = captured["chat_kwargs"]
     assert isinstance(chat_kwargs, dict)

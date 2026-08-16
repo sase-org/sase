@@ -291,6 +291,8 @@ class PromptStepMixin:
         step_model = launch_selection.model
         step_llm_provider = launch_selection.provider
         step_reasoning_effort = launch_selection.reasoning_effort
+        step_model_alias_trail = list(launch_selection.alias_trail)
+        step_model_alias_origin = launch_selection.alias_origin
         step_model_alias = (
             effective_directives.model_alias if effective_directives.model else None
         )
@@ -305,6 +307,8 @@ class PromptStepMixin:
             llm_provider=step_llm_provider,
             reasoning_effort=step_reasoning_effort,
             model_alias=step_model_alias,
+            model_alias_trail=step_model_alias_trail,
+            model_alias_origin=step_model_alias_origin,
         )
 
         if self.workflow.is_anonymous():
@@ -330,12 +334,19 @@ class PromptStepMixin:
             root_meta_fields: dict[str, Any] = {
                 "model": step_model,
                 "llm_provider": step_llm_provider,
+                "model_alias_origin": step_model_alias_origin,
             }
             if root_model_alias:
                 root_meta_fields["model_alias"] = root_model_alias
+            if step_model_alias_trail:
+                root_meta_fields["model_alias_trail"] = step_model_alias_trail
             if step_reasoning_effort:
                 root_meta_fields["reasoning_effort"] = step_reasoning_effort
-            update_meta_fields(self.artifacts_dir, root_meta_fields)
+            update_meta_fields(
+                self.artifacts_dir,
+                root_meta_fields,
+                remove_keys=() if step_model_alias_trail else ("model_alias_trail",),
+            )
 
         # Check if any embedded workflow has finally-marked post-steps.
         # When present, those steps must run even if the agent invocation or

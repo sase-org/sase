@@ -30,6 +30,8 @@ class FollowupModel:
     model_prefix: str
     meta: tuple[str | None, str] | None = None
     model_alias: str | None = None
+    model_alias_trail: tuple[str, ...] = ()
+    model_alias_origin: str | None = None
 
 
 def resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
@@ -41,14 +43,32 @@ def resolve_model_meta(model_directive: str) -> tuple[str | None, str]:
     return resolve_model_provider(clean_model)
 
 
-def resolve_tale_size_followup(plan_file: str | Path) -> FollowupModel:
+def resolve_model_alias_provenance(model_directive: str) -> tuple[tuple[str, ...], str]:
+    """Resolve a follow-up ``%model`` directive value to alias trail/origin."""
+    from sase.llm_provider.launch_selection import (
+        ALIAS_ORIGIN_DIRECTIVE,
+        ALIAS_ORIGIN_NONE,
+    )
+    from sase.llm_provider.model_alias_resolution import resolve_model_alias_with_effort
+    from sase.xprompt.effort import split_model_effort
+
+    clean_model, _ = split_model_effort(model_directive)
+    resolved = resolve_model_alias_with_effort(clean_model)
+    trail = resolved.alias_trail if resolved.valid else ()
+    return trail, ALIAS_ORIGIN_DIRECTIVE if trail else ALIAS_ORIGIN_NONE
+
+
+def _resolve_tale_size_followup(plan_file: str | Path) -> FollowupModel:
     """Route a coder follow-up through the tale's size-specific worker alias."""
     directive = validated_tale_followup_model_directive(plan_file)
     model_alias, _ = normalize_model_alias_reference(directive)
+    model_alias_trail, model_alias_origin = resolve_model_alias_provenance(directive)
     return FollowupModel(
         model_prefix=f"%model:{directive}\n",
         meta=resolve_model_meta(directive),
         model_alias=model_alias,
+        model_alias_trail=model_alias_trail,
+        model_alias_origin=model_alias_origin,
     )
 
 
@@ -70,15 +90,25 @@ def resolve_followup_model(
         directive_value = format_model_directive_value(coder_model)
         prefix = f"%model:{directive_value}\n"
         model_alias, _ = normalize_model_alias_reference(directive_value)
+        model_alias_trail, model_alias_origin = resolve_model_alias_provenance(
+            directive_value
+        )
         if coder_model == ctx.agent_model:
-            return FollowupModel(model_prefix=prefix, model_alias=model_alias)
+            return FollowupModel(
+                model_prefix=prefix,
+                model_alias=model_alias,
+                model_alias_trail=model_alias_trail,
+                model_alias_origin=model_alias_origin,
+            )
         return FollowupModel(
             model_prefix=prefix,
             meta=resolve_model_meta(coder_model),
             model_alias=model_alias,
+            model_alias_trail=model_alias_trail,
+            model_alias_origin=model_alias_origin,
         )
 
-    return resolve_tale_size_followup(followup_plan_file)
+    return _resolve_tale_size_followup(followup_plan_file)
 
 
 def custom_coder_prompt_model(

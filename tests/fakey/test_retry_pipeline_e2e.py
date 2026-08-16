@@ -58,6 +58,7 @@ def test_execution_override_runs_fakey_with_requested_model_metadata(
     assert invocation["outcome"]["status"] == "succeeded"
     assert harness.agent_meta() == {
         **requested_meta,
+        "model_alias_origin": "none",
         "exec_llm_provider": "fakey",
     }
     assert harness.done_marker()["model"] == "opus"

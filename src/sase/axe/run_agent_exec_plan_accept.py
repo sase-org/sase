@@ -19,8 +19,8 @@ from sase.axe.run_agent_exec_plan_accept_models import (
     custom_coder_prompt_model as _custom_coder_prompt_model,
     plan_followup_base_meta as _plan_followup_base_meta,
     resolve_followup_model as _resolve_followup_model,
+    resolve_model_alias_provenance as _resolve_model_alias_provenance,
     resolve_model_meta as _resolve_model_meta,
-    resolve_tale_size_followup as _resolve_tale_size_followup,
 )
 from sase.axe.run_agent_exec_plan_accept_sdd import (
     accepted_plan_action_for_meta as _accepted_plan_action_for_meta,
@@ -78,8 +78,10 @@ def _commit_sdd_files(
 def _write_followup_model_alias_meta(
     artifacts_dir: str,
     model_alias: str | None,
+    model_alias_trail: tuple[str, ...],
+    model_alias_origin: str | None,
 ) -> None:
-    """Set or clear the follow-up agent's launch-time model alias."""
+    """Set or clear the follow-up agent's launch-time alias provenance."""
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     try:
         with meta_path.open(encoding="utf-8") as f:
@@ -92,6 +94,21 @@ def _write_followup_model_alias_meta(
         meta["model_alias"] = model_alias
     else:
         meta.pop("model_alias", None)
+    if model_alias_trail:
+        meta["model_alias_trail"] = list(model_alias_trail)
+        if model_alias_origin:
+            meta["model_alias_origin"] = model_alias_origin
+        else:
+            meta.pop("model_alias_origin", None)
+    elif model_alias:
+        meta.pop("model_alias_trail", None)
+        if model_alias_origin:
+            meta["model_alias_origin"] = model_alias_origin
+        else:
+            meta.pop("model_alias_origin", None)
+    else:
+        meta.pop("model_alias_trail", None)
+        meta.pop("model_alias_origin", None)
     write_agent_meta_atomic(
         artifacts_dir,
         meta,
@@ -112,6 +129,8 @@ def _write_followup_model_meta(state: LoopState, followup: _FollowupModel) -> No
     _write_followup_model_alias_meta(
         state.current_artifacts_dir,
         followup.model_alias,
+        followup.model_alias_trail,
+        followup.model_alias_origin,
     )
 
 
@@ -378,10 +397,15 @@ def handle_accepted_plan(
     custom_prompt_model = _custom_coder_prompt_model(plan_result.coder_prompt)
     if custom_prompt_model is not None:
         custom_model, custom_model_alias = custom_prompt_model
+        custom_model_alias_trail, custom_model_alias_origin = (
+            _resolve_model_alias_provenance(custom_model)
+        )
         followup_model = _FollowupModel(
             model_prefix="",
             meta=_resolve_model_meta(custom_model),
             model_alias=custom_model_alias,
+            model_alias_trail=custom_model_alias_trail,
+            model_alias_origin=custom_model_alias_origin,
         )
     else:
         # Decide the coder follow-up model: an explicit picker model wins; otherwise

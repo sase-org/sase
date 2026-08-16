@@ -112,6 +112,7 @@ class _ResolvedModelAlias:
     suspended_override: Any | None = None
     suspended_provider_disable: TemporaryProviderDisable | None = None
     valid: bool = True
+    alias_trail: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +185,7 @@ def _with_suspended_override(
         override,
         disable,
         result.valid,
+        result.alias_trail,
     )
 
 
@@ -222,6 +224,7 @@ def _resolve_model_alias_result(
         steps: int,
         selector_owner: str | None,
         inherited_effort: str | None,
+        trail: tuple[str, ...],
     ) -> _ResolvedModelAlias:
         nonlocal overrides
         current = value.strip()
@@ -242,6 +245,7 @@ def _resolve_model_alias_result(
                 if bare in seen:
                     return fail()
                 seen.add(bare)
+                trail = trail + (bare,)
                 current = launch_target
                 steps += 1
                 continue
@@ -270,6 +274,7 @@ def _resolve_model_alias_result(
                             if bare in seen or not underlying_target:
                                 return fail()
                             seen.add(bare)
+                            next_trail = trail + (bare,)
                             try:
                                 selector = parse_model_alias_selector(underlying_target)
                             except ModelAliasSelectorError:
@@ -284,6 +289,7 @@ def _resolve_model_alias_result(
                                         steps=steps + 1,
                                         selector_owner=bare,
                                         inherited_effort=effort,
+                                        trail=next_trail,
                                     )
                                     for member in selector.members
                                 ]
@@ -323,6 +329,7 @@ def _resolve_model_alias_result(
                                 steps=steps + 1,
                                 selector_owner=selector_owner,
                                 inherited_effort=effort,
+                                trail=next_trail,
                             )
                             return _with_suspended_override(
                                 result, override, suspended_disable
@@ -332,12 +339,14 @@ def _resolve_model_alias_result(
                             if bare in seen:
                                 return fail()
                             seen.add(bare)
+                            next_trail = trail + (bare,)
                             result = resolve(
                                 fallback,
                                 seen=set(seen),
                                 steps=steps + 1,
                                 selector_owner=selector_owner,
                                 inherited_effort=effort,
+                                trail=next_trail,
                             )
                             return _with_suspended_override(
                                 result, override, suspended_disable
@@ -347,6 +356,7 @@ def _resolve_model_alias_result(
                         effort or override_effort,
                         selector_owner,
                         applied_override=override,
+                        alias_trail=trail + (bare,),
                     )
 
             target: str | None = None
@@ -359,6 +369,7 @@ def _resolve_model_alias_result(
                 if bare in seen or not target:
                     return fail()
                 seen.add(bare)
+                trail = trail + (bare,)
                 try:
                     selector = parse_model_alias_selector(target)
                 except ModelAliasSelectorError:
@@ -375,6 +386,7 @@ def _resolve_model_alias_result(
                             steps=steps + 1,
                             selector_owner=bare,
                             inherited_effort=effort,
+                            trail=trail,
                         )
                         for member in selector.members
                     ]
@@ -408,6 +420,7 @@ def _resolve_model_alias_result(
                 if bare in seen:
                     return fail()
                 seen.add(bare)
+                trail = trail + (bare,)
                 current = fallback_reference
                 steps += 1
                 continue
@@ -417,6 +430,7 @@ def _resolve_model_alias_result(
                 bare if current.startswith("@") else current,
                 effort,
                 selector_owner,
+                alias_trail=trail,
             )
         return fail()
 
@@ -426,6 +440,7 @@ def _resolve_model_alias_result(
         steps=0,
         selector_owner=active_selector,
         inherited_effort=None,
+        trail=(),
     )
 
 

@@ -122,6 +122,8 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
         llm_provider=None,
         reasoning_effort=None,
         model_alias=None,
+        model_alias_trail=[],
+        model_alias_origin=None,
         model_alias_overrides={},
         vcs_provider=None,
         auto_dismiss=None,
@@ -146,11 +148,17 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
     assert os.environ["SASE_AGENT_NAME"] == "foo"
 
 
-def test_preserved_agent_metadata_keeps_model_alias(tmp_path: Path) -> None:
+def test_preserved_agent_metadata_keeps_model_alias_provenance(
+    tmp_path: Path,
+) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     (artifacts_dir / "agent_meta.json").write_text(
-        '{"model":"opus","llm_provider":"claude","model_alias":"medium"}',
+        (
+            '{"model":"opus","llm_provider":"claude","model_alias":"medium",'
+            '"model_alias_trail":["medium","worker"],'
+            '"model_alias_origin":"directive"}'
+        ),
         encoding="utf-8",
     )
 
@@ -159,6 +167,37 @@ def test_preserved_agent_metadata_keeps_model_alias(tmp_path: Path) -> None:
     assert preserved["model"] == "opus"
     assert preserved["llm_provider"] == "claude"
     assert preserved["model_alias"] == "medium"
+    assert preserved["model_alias_trail"] == ["medium", "worker"]
+    assert preserved["model_alias_origin"] == "directive"
+
+
+@pytest.mark.parametrize(
+    "model_alias_trail",
+    [
+        "medium",
+        ["medium", 42],
+        ["medium", ""],
+    ],
+)
+def test_preserved_agent_metadata_rejects_malformed_model_alias_trail(
+    tmp_path: Path,
+    model_alias_trail: object,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        (
+            '{"model":"opus","llm_provider":"claude","model_alias":"medium",'
+            f'"model_alias_trail":{model_alias_trail!r},'
+            '"model_alias_origin":"directive"}'
+        ).replace("'", '"'),
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert "model_alias_trail" not in preserved
+    assert preserved["model_alias_origin"] == "directive"
 
 
 def test_preserved_agent_metadata_keeps_workspace_num(tmp_path: Path) -> None:

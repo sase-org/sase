@@ -55,14 +55,33 @@ def resolve_effective_default_provider_model_with_effort(
     provider_disables: ProviderDisableSnapshot | None = None,
 ) -> tuple[str, str, str | None]:
     """Resolve the effective launch default including alias-borne effort."""
+    provider, model, effort, _alias_trail = (
+        resolve_effective_default_provider_model_with_trail(
+            model_tier,
+            model_alias_overrides,
+            consume=consume,
+            provider_disables=provider_disables,
+        )
+    )
+    return provider, model, effort
+
+
+def resolve_effective_default_provider_model_with_trail(
+    model_tier: ModelTier = "large",
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+    provider_disables: ProviderDisableSnapshot | None = None,
+) -> tuple[str, str, str | None, tuple[str, ...]]:
+    """Resolve the effective launch default including alias-hop provenance."""
     disables = (
         get_active_provider_disables()
         if provider_disables is None
         else provider_disables
     )
-    from .model_launch_settings import resolve_default_launch_provider_model_with_effort
+    from .model_launch_settings import resolve_default_launch_provider_model_with_trail
 
-    return resolve_default_launch_provider_model_with_effort(
+    return resolve_default_launch_provider_model_with_trail(
         model_tier,
         model_alias_overrides,
         consume=consume,

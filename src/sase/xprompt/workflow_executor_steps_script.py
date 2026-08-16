@@ -74,6 +74,8 @@ class ScriptStepMixin:
         llm_provider: str | None = None,
         reasoning_effort: str | None = None,
         model_alias: str | None = None,
+        model_alias_trail: list[str] | None = None,
+        model_alias_origin: str | None = None,
     ) -> None:
         """Save a marker file for prompt steps to track them in the TUI."""
         raise NotImplementedError

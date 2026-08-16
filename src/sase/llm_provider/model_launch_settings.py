@@ -67,6 +67,7 @@ class LaunchModelSettingSnapshot:
     provenance: LaunchModelProvenance
     referenced_alias: str | None
     override_key: str
+    alias_trail: tuple[str, ...] = ()
     override: TemporaryLLMOverride | None = None
     selector_mode: str | None = None
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
@@ -128,6 +129,7 @@ def build_launch_model_setting_snapshot(
     from .registry import (
         get_configured_default_provider_name,
         resolve_model_provider_with_effort,
+        resolve_model_provider_with_trail,
     )
     from .temporary_override import get_active_alias_override
     from .config import model_alias_selector_details
@@ -170,8 +172,9 @@ def build_launch_model_setting_snapshot(
     )
     selector_members: tuple[ModelAliasSelectorMember, ...] = ()
     selector_mode = selector.mode if selector is not None else None
+    alias_trail: tuple[str, ...] = ()
     if selector is not None:
-        provider, model, effort = resolve_model_provider_with_effort(
+        provider, model, effort, alias_trail = resolve_model_provider_with_trail(
             raw_value,
             overrides,
             consume=consume,
@@ -217,6 +220,7 @@ def build_launch_model_setting_snapshot(
                 provider_disables=disables,
             )
             effort = selected.effort
+            alias_trail = selected.alias_trail
             selector_mode = raw_selector.mode
             selector_members = tuple(
                 ModelAliasSelectorMember(
@@ -240,7 +244,7 @@ def build_launch_model_setting_snapshot(
                 )
             )
         else:
-            provider, model, effort = resolve_model_provider_with_effort(
+            provider, model, effort, alias_trail = resolve_model_provider_with_trail(
                 raw_value,
                 overrides,
                 consume=consume,
@@ -259,6 +263,7 @@ def build_launch_model_setting_snapshot(
         provenance=provenance,
         referenced_alias=referenced_alias,
         override_key=override_key,
+        alias_trail=alias_trail,
         override=override,
         selector_mode=selector_mode,
         selector_members=selector_members,
@@ -291,6 +296,25 @@ def resolve_default_launch_provider_model_with_effort(
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
 ) -> tuple[str, str, str | None]:
     """Return provider/model/alias effort for a launch with no ``%model``."""
+    provider, model, effort, _alias_trail = (
+        resolve_default_launch_provider_model_with_trail(
+            model_tier,
+            model_alias_overrides,
+            consume=consume,
+            provider_disables=provider_disables,
+        )
+    )
+    return provider, model, effort
+
+
+def resolve_default_launch_provider_model_with_trail(
+    model_tier: ModelTier = "large",
+    model_alias_overrides: Mapping[str, str] | None = None,
+    *,
+    consume: bool = False,
+    provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
+) -> tuple[str, str, str | None, tuple[str, ...]]:
+    """Return provider/model/effort plus alias hops for no-``%model`` launch."""
     snapshot = build_launch_model_setting_snapshot(
         DEFAULT_MODEL_FIELD,
         model_alias_overrides,
@@ -298,7 +322,7 @@ def resolve_default_launch_provider_model_with_effort(
         consume=consume,
         provider_disables=provider_disables,
     )
-    return snapshot.provider, snapshot.model, snapshot.effort
+    return snapshot.provider, snapshot.model, snapshot.effort, snapshot.alias_trail
 
 
 def select_epic_land_model_expression(
@@ -377,5 +401,6 @@ __all__ = [
     "launch_model_setting_override_keys",
     "resolve_default_launch_provider_model",
     "resolve_default_launch_provider_model_with_effort",
+    "resolve_default_launch_provider_model_with_trail",
     "select_epic_land_model_expression",
 ]

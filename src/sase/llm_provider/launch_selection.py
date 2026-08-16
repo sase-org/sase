@@ -26,7 +26,17 @@ from .types import ModelTier
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["LaunchSelection", "resolve_launch_selection"]
+ALIAS_ORIGIN_DIRECTIVE = "directive"
+ALIAS_ORIGIN_DEFAULT_MODEL = "default_model"
+ALIAS_ORIGIN_NONE = "none"
+
+__all__ = [
+    "ALIAS_ORIGIN_DEFAULT_MODEL",
+    "ALIAS_ORIGIN_DIRECTIVE",
+    "ALIAS_ORIGIN_NONE",
+    "LaunchSelection",
+    "resolve_launch_selection",
+]
 
 ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
 
@@ -39,6 +49,8 @@ class LaunchSelection:
     model: str
     reasoning_effort: str | None
     effort_explicit: bool
+    alias_trail: tuple[str, ...] = ()
+    alias_origin: str = ALIAS_ORIGIN_NONE
 
 
 def resolve_launch_selection(
@@ -65,9 +77,9 @@ def resolve_launch_selection(
     its cursor; pass ``True`` at most once per real provider invocation.
     """
     from .config import resolve_effective_effort
-    from .registry import get_default_provider_name, resolve_model_provider_with_effort
+    from .registry import get_default_provider_name, resolve_model_provider_with_trail
     from .temporary_override import (
-        resolve_effective_default_provider_model_with_effort,
+        resolve_effective_default_provider_model_with_trail,
     )
 
     overrides = model_alias_overrides or None
@@ -78,25 +90,31 @@ def resolve_launch_selection(
     ) or None
     model_override = directives.model
     alias_effort: str | None = None
+    alias_trail: tuple[str, ...] = ()
+    alias_origin = ALIAS_ORIGIN_NONE
 
     if model_override and not provider_name:
         if disables is None:
-            resolved_provider, model_override, alias_effort = (
-                resolve_model_provider_with_effort(
+            resolved_provider, model_override, alias_effort, alias_trail = (
+                resolve_model_provider_with_trail(
                     model_override,
                     overrides,
                     consume=consume,
+                    model_tier=model_tier,
                 )
             )
         else:
-            resolved_provider, model_override, alias_effort = (
-                resolve_model_provider_with_effort(
+            resolved_provider, model_override, alias_effort, alias_trail = (
+                resolve_model_provider_with_trail(
                     model_override,
                     overrides,
                     consume=consume,
+                    model_tier=model_tier,
                     provider_disables=disables,
                 )
             )
+        if alias_trail:
+            alias_origin = ALIAS_ORIGIN_DIRECTIVE
         if resolved_provider:
             provider_name = resolved_provider
         elif disables is None:
@@ -116,14 +134,14 @@ def resolve_launch_selection(
                 provider_name,
             )
 
-    def _resolve_default_alias() -> tuple[str, str, str | None]:
+    def _resolve_default_alias() -> tuple[str, str, str | None, tuple[str, ...]]:
         if disables is None:
-            return resolve_effective_default_provider_model_with_effort(
+            return resolve_effective_default_provider_model_with_trail(
                 model_tier,
                 overrides,
                 consume=consume,
             )
-        return resolve_effective_default_provider_model_with_effort(
+        return resolve_effective_default_provider_model_with_trail(
             model_tier,
             overrides,
             consume=consume,
@@ -131,11 +149,17 @@ def resolve_launch_selection(
         )
 
     if not model_override and not provider_name:
-        provider_name, model_override, alias_effort = _resolve_default_alias()
+        provider_name, model_override, alias_effort, alias_trail = (
+            _resolve_default_alias()
+        )
+        if alias_trail:
+            alias_origin = ALIAS_ORIGIN_DEFAULT_MODEL
 
     if model_override is None or provider_name is None:
         return None
 
+    if not alias_trail:
+        alias_origin = ALIAS_ORIGIN_NONE
     effective_effort, effort_explicit = resolve_effective_effort(
         directives, alias_effort
     )
@@ -144,4 +168,6 @@ def resolve_launch_selection(
         model=model_override,
         reasoning_effort=effective_effort,
         effort_explicit=effort_explicit,
+        alias_trail=alias_trail,
+        alias_origin=alias_origin,
     )

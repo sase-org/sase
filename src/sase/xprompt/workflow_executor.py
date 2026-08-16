@@ -505,6 +505,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         llm_provider: str | None = None,
         reasoning_effort: str | None = None,
         model_alias: str | None = None,
+        model_alias_trail: list[str] | None = None,
+        model_alias_origin: str | None = None,
     ) -> None:
         """Save a marker file for prompt steps to track them in the TUI.
 
@@ -558,8 +560,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         if response_path is None and existing_marker:
             response_path = existing_marker.get("response_path")
 
-        # Preserve model/llm_provider/reasoning_effort/model_alias from existing
-        # marker when not provided (later marker rewrites don't re-resolve them).
+        # Preserve model/llm_provider/reasoning_effort/model_alias provenance
+        # from existing marker when later rewrites do not re-resolve them.
         if model is None and existing_marker:
             model = existing_marker.get("model")
         if llm_provider is None and existing_marker:
@@ -568,6 +570,12 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             reasoning_effort = existing_marker.get("reasoning_effort")
         if model_alias is None and existing_marker:
             model_alias = existing_marker.get("model_alias")
+        if model_alias_trail is None and existing_marker:
+            existing_model_alias_trail = existing_marker.get("model_alias_trail")
+            if isinstance(existing_model_alias_trail, list):
+                model_alias_trail = existing_model_alias_trail
+        if model_alias_origin is None and existing_marker:
+            model_alias_origin = existing_marker.get("model_alias_origin")
 
         marker_data = {
             "workflow_name": self.workflow.name,
@@ -593,6 +601,8 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
             "llm_provider": llm_provider,
             "reasoning_effort": reasoning_effort,
             "model_alias": model_alias,
+            "model_alias_trail": list(model_alias_trail or ()),
+            "model_alias_origin": model_alias_origin,
         }
         try:
             with open(marker_path, "w", encoding="utf-8") as f:
