@@ -195,6 +195,7 @@ _CHECK_GATE_LINES = (
     'tools/run_silent "lint (keep-sorted)" just lint-keep-sorted',
     'tools/run_silent "lint (ruff)"        just _lint-ruff',
     'tools/run_silent "lint (mypy)"        just _lint-mypy',
+    'tools/run_silent "lint (feature flags)" just _lint-flags',
     'tools/run_silent "lint (pyscripts)"   just _lint-pyscripts',
     'tools/run_silent "lint (test waits)"  just _lint-test-waits',
     'tools/run_silent "lint (changelog)"   just _lint-changelog',
@@ -306,6 +307,33 @@ def test_retired_test_wait_lint_recipe_runs_the_tool() -> None:
     output = _dry_run("_lint-test-waits")
 
     assert "tools/check_test_wait_helpers" in output
+
+
+def test_lint_includes_feature_flags_stage() -> None:
+    output = _dry_run("lint")
+
+    assert "Checking feature flag registry integrity" in output
+    assert "just _lint-flags" in output
+
+
+def test_check_mirrors_feature_flags_stage() -> None:
+    output = _dry_run("check")
+
+    assert 'tools/run_silent "lint (feature flags)" just _lint-flags' in output
+
+
+def test_feature_flags_lint_recipe_uses_bead_handshake() -> None:
+    output = _dry_run("_lint-flags")
+
+    assert "BD_COMMAND=tools/sase_bead" in output
+    assert "SASE_SYMVISION_BEAD_STATUS_ONLY=1" in output
+    assert "tools/check_feature_flags" in output
+
+
+def test_validate_runs_static_feature_flag_checks() -> None:
+    output = _dry_run("validate")
+
+    assert "tools/check_feature_flags --static" in output
 
 
 def test_mypy_lint_recipe_runs_extensionless_tool_helper() -> None:

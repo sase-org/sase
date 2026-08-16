@@ -1,0 +1,930 @@
+#!/usr/bin/env python3
+"""Enforce feature-flag registry and flag-bead integrity.
+
+Static rules (also run under ``just validate``, no bead store required):
+
+1. every non-``ops`` definition names a bead; every ``ops`` definition
+   carries a rationale
+2. the generated ``feature_flags`` schema block matches the registry
+3. every registered key has at least one non-test reference
+4. no flag is resolved at module import time
+5. no repo-managed config layer overrides an unregistered ``feature_flags``
+   key
+
+Bead-status rules (``just lint``, via ``BD_COMMAND``):
+
+6. the named bead exists, is type ``flag``, and ``flag.key`` matches
+7. a closed flag bead whose definition survives is an error
+8. a live flag bead with no definition is an error
+9. an overdue flag is a warning, never an error
+
+A future ``_lint-backcompat`` recipe should register another
+:class:`MarkerSource` on this checker rather than ship a second bead-aware
+expiry linter.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import json
+import os
+import subprocess
+import sys
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date
+from pathlib import Path
+from typing import Any, Literal, NamedTuple, Protocol
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+import sase
+from sase._yaml_safe import yaml_safe_load
+from sase.bead.flag_due import flag_removal_due
+from sase.bead.model import FlagRecord
+from sase.core import time as core_time
+from sase.feature_flags.models import FeatureFlagDefinition, FeatureFlagError
+from sase.feature_flags.registry import feature_flag_definitions
+from sase.feature_flags.schema import feature_flags_schema_block
+
+
+SCHEMA_RELPATH = Path("src/sase/config/sase.schema.json")
+DEFAULT_BD_COMMAND = "tools/sase_bead"
+LIVE_STATUSES = frozenset({"open", "claimed", "ready", "snoozed", "in_progress"})
+SKIP_DIR_NAMES = frozenset(
+    {
+        ".eggs",
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".svn",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "node_modules",
+        "venv",
+    }
+)
+REFERENCE_EXCLUDED_RELPATHS = frozenset(
+    {
+        "src/sase/feature_flags/registry.py",
+        "src/sase/feature_flags/schema.py",
+        "tools/check_feature_flags",
+        "tools/sync_feature_flags_schema",
+    }
+)
+IMPORT_TIME_RESOLUTION_NAMES = frozenset(
+    {
+        "apply_feature_flags_env",
+        "current_flags",
+        "install_process_feature_flags",
+        "resolve_feature_flags",
+        "_build_snapshot",
+    }
+)
+
+
+class Finding(NamedTuple):
+    rule: int
+    message: str
+    path: Path | None = None
+    line_number: int | None = None
+    severity: Literal["error", "warning"] = "error"
+
+
+@dataclass(frozen=True)
+class MarkerDefinition:
+    """A bead-backed expiry marker owned by one :class:`MarkerSource`."""
+
+    source: str
+    key: str
+    kind: str
+    bead: str | None
+    rationale: str = ""
+
+
+@dataclass(frozen=True)
+class MarkerBead:
+    """A bead record used by the shared expiry-marker integrity loop."""
+
+    source: str
+    id: str
+    issue_type: str
+    status: str
+    key: str | None
+    remove_by_date: str | None = None
+    remove_by_release: str | None = None
+
+
+class MarkerSource(Protocol):
+    """One family of expiry markers checked against live beads.
+
+    ``_lint-backcompat`` should add a second implementation and append it to
+    :data:`MARKER_SOURCES` instead of introducing another bead-status linter.
+    """
+
+    @property
+    def name(self) -> str:
+        """Stable source id (``flag``, later ``backcompat``, …)."""
+
+    @property
+    def bead_type(self) -> str:
+        """Bead ``issue_type`` this source expects."""
+
+    def load_definitions(self, repo_root: Path) -> Sequence[MarkerDefinition]:
+        """Return the in-tree marker definitions for this source."""
+
+    def load_beads(
+        self, repo_root: Path, bd_command: str
+    ) -> Sequence[MarkerBead]:
+        """Return live and closed beads that belong to this source."""
+
+
+def _stable_json(value: Any) -> str:
+    return json.dumps(value, indent=2, sort_keys=True)
+
+
+def _relpath(path: Path, repo_root: Path) -> str:
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _is_skipped_dir(path: Path) -> bool:
+    return path.name in SKIP_DIR_NAMES or (path / ".git").exists()
+
+
+def iter_src_python_files(repo_root: Path) -> list[Path]:
+    """Return ``src/**/*.py`` files, skipping cache and VCS trees."""
+    src = repo_root / "src"
+    if not src.is_dir():
+        return []
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(src):
+        current = Path(dirpath)
+        dirnames[:] = [
+            name for name in dirnames if not _is_skipped_dir(current / name)
+        ]
+        for filename in filenames:
+            if filename.endswith(".py"):
+                files.append(current / filename)
+    return sorted(files)
+
+
+def iter_repo_config_files(repo_root: Path) -> list[Path]:
+    """Return repo-managed config-layer files (bundled ``default_config.yml``)."""
+    src = repo_root / "src"
+    if not src.is_dir():
+        return []
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(src):
+        current = Path(dirpath)
+        dirnames[:] = [
+            name for name in dirnames if not _is_skipped_dir(current / name)
+        ]
+        for filename in filenames:
+            if filename == "default_config.yml":
+                files.append(current / filename)
+    return sorted(files)
+
+
+def markers_from_flag_definitions(
+    definitions: Mapping[str, FeatureFlagDefinition],
+) -> tuple[MarkerDefinition, ...]:
+    """Project registry definitions into the shared marker record."""
+    return tuple(
+        MarkerDefinition(
+            source="flag",
+            key=str(definition.key),
+            kind=definition.kind,
+            bead=definition.bead,
+            rationale=definition.rationale,
+        )
+        for _, definition in sorted(definitions.items())
+    )
+
+
+def check_definition_metadata(
+    definitions: Mapping[str, FeatureFlagDefinition],
+) -> list[Finding]:
+    """Rule 1: non-ops flags name a bead; ops flags carry a rationale."""
+    findings: list[Finding] = []
+    for _, definition in sorted(definitions.items()):
+        try:
+            definition.validate()
+        except FeatureFlagError as exc:
+            findings.append(Finding(1, str(exc)))
+    return findings
+
+
+def check_schema(
+    document: Mapping[str, Any] | None,
+    definitions: Mapping[str, FeatureFlagDefinition],
+    *,
+    schema_path: Path | None = None,
+) -> list[Finding]:
+    """Rule 2: the shipped schema block matches the registry."""
+    expected = feature_flags_schema_block(definitions)
+    actual: Any = None
+    if document is not None:
+        properties = document.get("properties")
+        if isinstance(properties, Mapping):
+            actual = properties.get("feature_flags")
+    if actual == expected:
+        return []
+    return [
+        Finding(
+            2,
+            "feature_flags schema block is out of sync with the registry\n"
+            f"expected:\n{_stable_json(expected)}\n"
+            f"actual:\n{_stable_json(actual)}\n"
+            "Run tools/sync_feature_flags_schema --write to update it.",
+            path=schema_path,
+        )
+    ]
+
+
+def _is_feature_flag_expr(node: ast.AST) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id == "FeatureFlag"
+    return isinstance(node, ast.Attribute) and node.attr == "FeatureFlag"
+
+
+def _file_references_key(tree: ast.AST, key: str) -> bool:
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == key
+            and _is_feature_flag_expr(node.value)
+        ):
+            return True
+        if (
+            isinstance(node, ast.Subscript)
+            and _is_feature_flag_expr(node.value)
+            and isinstance(node.slice, ast.Constant)
+            and node.slice.value == key
+        ):
+            return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "enabled"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == key
+        ):
+            return True
+    return False
+
+
+def _is_reference_excluded(path: Path, repo_root: Path) -> bool:
+    rel = _relpath(path, repo_root)
+    return rel in REFERENCE_EXCLUDED_RELPATHS or path.name == "check_feature_flags"
+
+
+def parse_python_files(files: Sequence[Path]) -> list[tuple[Path, ast.AST]]:
+    """Parse *files*, skipping unreadable or syntactically invalid sources."""
+    trees: list[tuple[Path, ast.AST]] = []
+    for path in files:
+        try:
+            source = path.read_text(encoding="utf-8")
+            trees.append((path, ast.parse(source, filename=str(path))))
+        except (OSError, SyntaxError):
+            continue
+    return trees
+
+
+def check_references(
+    definitions: Mapping[str, FeatureFlagDefinition],
+    files: Sequence[Path] | None = None,
+    *,
+    repo_root: Path,
+    trees: Sequence[tuple[Path, ast.AST]] | None = None,
+) -> list[Finding]:
+    """Rule 3: every registered key is read from at least one non-test file."""
+    parsed = list(trees) if trees is not None else parse_python_files(files or ())
+    usable = [
+        (path, tree)
+        for path, tree in parsed
+        if not _is_reference_excluded(path, repo_root)
+    ]
+
+    findings: list[Finding] = []
+    for key in sorted(definitions):
+        if any(_file_references_key(tree, key) for _, tree in usable):
+            continue
+        findings.append(
+            Finding(3, f"feature flag {key!r} has no non-test reference")
+        )
+    return findings
+
+
+def _call_name(node: ast.Call) -> str | None:
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _is_type_checking_test(node: ast.AST) -> bool:
+    return isinstance(node, ast.Name) and node.id == "TYPE_CHECKING"
+
+
+def _is_main_guard(node: ast.If) -> bool:
+    test = node.test
+    return (
+        isinstance(test, ast.Compare)
+        and isinstance(test.left, ast.Name)
+        and test.left.id == "__name__"
+        and any(
+            isinstance(comparator, ast.Constant) and comparator.value == "__main__"
+            for comparator in test.comparators
+        )
+    )
+
+
+def _import_time_resolution_calls(tree: ast.AST) -> list[ast.Call]:
+    found: list[ast.Call] = []
+
+    def visit(node: ast.AST, *, in_function: bool) -> None:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            header: list[ast.AST] = [
+                *node.decorator_list,
+                *node.args.defaults,
+                *[
+                    default
+                    for default in node.args.kw_defaults
+                    if default is not None
+                ],
+            ]
+            if node.returns is not None:
+                header.append(node.returns)
+            for arg in (
+                *node.args.posonlyargs,
+                *node.args.args,
+                *node.args.kwonlyargs,
+            ):
+                if arg.annotation is not None:
+                    header.append(arg.annotation)
+            if node.args.vararg is not None and node.args.vararg.annotation is not None:
+                header.append(node.args.vararg.annotation)
+            if node.args.kwarg is not None and node.args.kwarg.annotation is not None:
+                header.append(node.args.kwarg.annotation)
+            for header_node in header:
+                visit(header_node, in_function=in_function)
+            for statement in node.body:
+                visit(statement, in_function=True)
+            return
+        if isinstance(node, ast.Lambda):
+            for default in node.args.defaults:
+                visit(default, in_function=in_function)
+            visit(node.body, in_function=True)
+            return
+        if isinstance(node, ast.ClassDef):
+            for decorator in node.decorator_list:
+                visit(decorator, in_function=in_function)
+            for statement in node.body:
+                visit(statement, in_function=in_function)
+            return
+        if isinstance(node, ast.If) and (
+            _is_type_checking_test(node.test) or _is_main_guard(node)
+        ):
+            return
+        if (
+            isinstance(node, ast.Call)
+            and not in_function
+            and _call_name(node) in IMPORT_TIME_RESOLUTION_NAMES
+        ):
+            found.append(node)
+        for child_node in ast.iter_child_nodes(node):
+            visit(child_node, in_function=in_function)
+
+    visit(tree, in_function=False)
+    return found
+
+
+def check_import_time(
+    files: Sequence[Path] | None = None,
+    *,
+    trees: Sequence[tuple[Path, ast.AST]] | None = None,
+) -> list[Finding]:
+    """Rule 4: flags are not resolved while a module is importing."""
+    parsed = list(trees) if trees is not None else parse_python_files(files or ())
+    findings: list[Finding] = []
+    for path, tree in parsed:
+        for call in _import_time_resolution_calls(tree):
+            name = _call_name(call) or "unknown"
+            findings.append(
+                Finding(
+                    4,
+                    f"feature flag resolved at module import time ({name})",
+                    path=path,
+                    line_number=call.lineno,
+                )
+            )
+    return findings
+
+
+def check_repo_config(
+    definitions: Mapping[str, FeatureFlagDefinition],
+    files: Sequence[Path],
+) -> list[Finding]:
+    """Rule 5: repo-managed layers do not name unregistered keys."""
+    known = set(definitions)
+    findings: list[Finding] = []
+    for path in files:
+        try:
+            loaded = yaml_safe_load(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            findings.append(
+                Finding(
+                    5,
+                    f"unable to parse repo-managed config: {exc}",
+                    path=path,
+                )
+            )
+            continue
+        if not isinstance(loaded, Mapping):
+            continue
+        raw_flags = loaded.get("feature_flags")
+        if raw_flags is None:
+            continue
+        if not isinstance(raw_flags, Mapping):
+            findings.append(
+                Finding(
+                    5,
+                    "repo-managed feature_flags must be a mapping of keys "
+                    "to booleans",
+                    path=path,
+                )
+            )
+            continue
+        for key in raw_flags:
+            key_text = str(key)
+            if key_text not in known:
+                findings.append(
+                    Finding(
+                        5,
+                        "repo-managed config overrides unregistered "
+                        f"feature flag {key_text!r}",
+                        path=path,
+                    )
+                )
+    return findings
+
+
+def _marker_label(marker: MarkerDefinition) -> str:
+    if marker.source == "flag":
+        return f"feature flag {marker.key!r}"
+    return f"{marker.source} marker {marker.key!r}"
+
+
+def check_bead_status(
+    markers: Sequence[MarkerDefinition],
+    beads: Sequence[MarkerBead],
+    *,
+    today: date,
+    release: str,
+    expected_bead_type: str = "flag",
+) -> list[Finding]:
+    """Rules 6-9: definition/bead integrity and overdue warnings."""
+    beads_by_id = {bead.id: bead for bead in beads if bead.id}
+    defined_keys = {marker.key for marker in markers}
+    named_ids = {marker.bead for marker in markers if marker.bead}
+    findings: list[Finding] = []
+
+    for marker in markers:
+        if marker.kind == "ops" or not marker.bead:
+            continue
+        bead = beads_by_id.get(marker.bead)
+        if bead is None:
+            findings.append(
+                Finding(
+                    6,
+                    f"{_marker_label(marker)} names missing bead "
+                    f"{marker.bead!r}",
+                )
+            )
+            continue
+        if bead.issue_type != expected_bead_type:
+            findings.append(
+                Finding(
+                    6,
+                    f"{_marker_label(marker)} names bead {bead.id!r} of type "
+                    f"{bead.issue_type!r}, expected {expected_bead_type!r}",
+                )
+            )
+        if bead.key != marker.key:
+            findings.append(
+                Finding(
+                    6,
+                    f"{_marker_label(marker)} names bead {bead.id!r} whose "
+                    f"key is {bead.key!r}",
+                )
+            )
+        if bead.status == "closed":
+            findings.append(
+                Finding(
+                    7,
+                    f"closed {marker.source} bead {bead.id!r} still has a "
+                    f"surviving {marker.key!r} definition",
+                )
+            )
+        elif (
+            bead.status in LIVE_STATUSES
+            and bead.remove_by_date
+            and bead.remove_by_release
+        ):
+            try:
+                state = flag_removal_due(
+                    FlagRecord(
+                        key=bead.key or marker.key,
+                        remove_by_date=bead.remove_by_date,
+                        remove_by_release=bead.remove_by_release,
+                    ),
+                    today=today,
+                    release=release,
+                )
+            except (IndexError, ValueError):
+                state = "live"
+            if state == "due":
+                findings.append(
+                    Finding(
+                        9,
+                        f"{marker.source} {marker.key!r} is overdue "
+                        f"(remove_by {bead.remove_by_date} / "
+                        f"{bead.remove_by_release})",
+                        severity="warning",
+                    )
+                )
+
+    for bead in beads:
+        if bead.status not in LIVE_STATUSES:
+            continue
+        if bead.id in named_ids and bead.key in defined_keys:
+            continue
+        if bead.key in defined_keys:
+            continue
+        findings.append(
+            Finding(
+                8,
+                f"live {bead.source} bead {bead.id!r} has no definition "
+                f"(key {bead.key!r})",
+            )
+        )
+    return findings
+
+
+def _json_from_stdout(stdout: str) -> Any:
+    text = stdout.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        for index, char in enumerate(text):
+            if char in "{[":
+                return json.loads(text[index:])
+        raise
+
+
+def marker_bead_from_issue_dict(
+    data: Mapping[str, Any], *, source: str
+) -> MarkerBead:
+    """Project a bead JSON issue object into a :class:`MarkerBead`."""
+    raw_flag = data.get("flag")
+    key: str | None = None
+    remove_by_date: str | None = None
+    remove_by_release: str | None = None
+    if isinstance(raw_flag, Mapping):
+        if raw_flag.get("key") is not None:
+            key = str(raw_flag["key"])
+        if raw_flag.get("remove_by_date"):
+            remove_by_date = str(raw_flag["remove_by_date"])
+        if raw_flag.get("remove_by_release"):
+            remove_by_release = str(raw_flag["remove_by_release"])
+    return MarkerBead(
+        source=source,
+        id=str(data.get("id") or ""),
+        issue_type=str(data.get("issue_type") or ""),
+        status=str(data.get("status") or ""),
+        key=key,
+        remove_by_date=remove_by_date,
+        remove_by_release=remove_by_release,
+    )
+
+
+def resolve_bd_command(value: str, repo_root: Path) -> str:
+    """Resolve a repo-relative ``BD_COMMAND`` against *repo_root*."""
+    path = Path(value)
+    if not path.is_absolute():
+        candidate = repo_root / path
+        if candidate.exists():
+            return str(candidate)
+    return value
+
+
+def _bead_env() -> dict[str, str]:
+    env = os.environ.copy()
+    # JSON list/show need the full document; the symvision handshake
+    # truncates ``show`` to the first status line.
+    env.pop("SASE_SYMVISION_BEAD_STATUS_ONLY", None)
+    return env
+
+
+def _run_bd_command(
+    bd_command: str,
+    args: Sequence[str],
+    *,
+    repo_root: Path,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [bd_command, *args],
+        cwd=repo_root,
+        env=_bead_env(),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def load_flag_beads(repo_root: Path, bd_command: str) -> list[MarkerBead]:
+    """List every flag bead through ``BD_COMMAND``."""
+    resolved = resolve_bd_command(bd_command, repo_root)
+    result = _run_bd_command(
+        resolved,
+        (
+            "list",
+            "--type",
+            "flag",
+            "--status",
+            "all",
+            "--format",
+            "json",
+            "--limit",
+            "0",
+        ),
+        repo_root=repo_root,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or (
+            f"exit {result.returncode}"
+        )
+        raise RuntimeError(f"cannot list flag beads via {resolved}: {detail}")
+    payload = _json_from_stdout(result.stdout)
+    if isinstance(payload, Mapping):
+        rows = payload.get("results", [])
+    elif isinstance(payload, list):
+        rows = payload
+    else:
+        raise RuntimeError(f"unexpected flag-bead list payload from {resolved}")
+    beads: list[MarkerBead] = []
+    for row in rows:
+        if isinstance(row, Mapping):
+            beads.append(marker_bead_from_issue_dict(row, source="flag"))
+    return beads
+
+
+def show_bead(
+    repo_root: Path, bd_command: str, bead_id: str
+) -> MarkerBead | None:
+    """Return one bead via ``BD_COMMAND show``, or ``None`` if missing."""
+    resolved = resolve_bd_command(bd_command, repo_root)
+    result = _run_bd_command(
+        resolved,
+        ("show", bead_id, "--format", "json"),
+        repo_root=repo_root,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        payload = _json_from_stdout(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    issue: Any = payload
+    if isinstance(payload, Mapping) and isinstance(payload.get("issue"), Mapping):
+        issue = payload["issue"]
+    if not isinstance(issue, Mapping):
+        return None
+    return marker_bead_from_issue_dict(issue, source="flag")
+
+
+def resolve_named_flag_beads(
+    markers: Sequence[MarkerDefinition],
+    listed: Sequence[MarkerBead],
+    *,
+    repo_root: Path,
+    bd_command: str,
+) -> list[MarkerBead]:
+    """Add ``show`` hits for named beads that ``list --type flag`` omitted."""
+    by_id = {bead.id: bead for bead in listed if bead.id}
+    resolved = list(listed)
+    for marker in markers:
+        if not marker.bead or marker.bead in by_id:
+            continue
+        shown = show_bead(repo_root, bd_command, marker.bead)
+        if shown is None:
+            continue
+        resolved.append(shown)
+        by_id[shown.id] = shown
+    return resolved
+
+
+@dataclass(frozen=True)
+class FlagMarkerSource:
+    """The feature-flag registry as a :class:`MarkerSource`."""
+
+    name: str = "flag"
+    bead_type: str = "flag"
+    definitions: Sequence[MarkerDefinition] | None = None
+    beads: Sequence[MarkerBead] | None = None
+
+    def load_definitions(self, repo_root: Path) -> Sequence[MarkerDefinition]:
+        if self.definitions is not None:
+            return self.definitions
+        del repo_root
+        return markers_from_flag_definitions(feature_flag_definitions())
+
+    def load_beads(
+        self, repo_root: Path, bd_command: str
+    ) -> Sequence[MarkerBead]:
+        if self.beads is not None:
+            return self.beads
+        listed = load_flag_beads(repo_root, bd_command)
+        return resolve_named_flag_beads(
+            self.load_definitions(repo_root),
+            listed,
+            repo_root=repo_root,
+            bd_command=bd_command,
+        )
+
+
+# Extra expiry-marker families (backcompat, …) register here so they share
+# rules 6-9 instead of growing a second bead-aware linter.
+MARKER_SOURCES: tuple[FlagMarkerSource, ...] = (FlagMarkerSource(),)
+
+
+def load_schema_document(path: Path) -> Mapping[str, Any] | None:
+    if not path.is_file():
+        return None
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(loaded, Mapping):
+        return loaded
+    return None
+
+
+def run_checks(
+    *,
+    repo_root: Path,
+    definitions: Mapping[str, FeatureFlagDefinition] | None = None,
+    schema_document: Mapping[str, Any] | None = None,
+    schema_path: Path | None = None,
+    python_files: Sequence[Path] | None = None,
+    config_files: Sequence[Path] | None = None,
+    marker_sources: Sequence[MarkerSource] | None = None,
+    beads: Sequence[MarkerBead] | None = None,
+    today: date | None = None,
+    release: str | None = None,
+    bd_command: str | None = None,
+    static_only: bool = False,
+) -> list[Finding]:
+    """Run the static rules, and the bead-status rules unless *static_only*."""
+    resolved_definitions = (
+        feature_flag_definitions() if definitions is None else definitions
+    )
+    resolved_schema_path = (
+        repo_root / SCHEMA_RELPATH if schema_path is None else schema_path
+    )
+    if schema_document is None and resolved_schema_path.is_file():
+        schema_document = load_schema_document(resolved_schema_path)
+    resolved_python = (
+        iter_src_python_files(repo_root) if python_files is None else python_files
+    )
+    resolved_config = (
+        iter_repo_config_files(repo_root) if config_files is None else config_files
+    )
+    findings: list[Finding] = []
+    findings.extend(check_definition_metadata(resolved_definitions))
+    findings.extend(
+        check_schema(
+            schema_document,
+            resolved_definitions,
+            schema_path=resolved_schema_path,
+        )
+    )
+    parsed_python = parse_python_files(resolved_python)
+    findings.extend(
+        check_references(
+            resolved_definitions,
+            repo_root=repo_root,
+            trees=parsed_python,
+        )
+    )
+    findings.extend(check_import_time(trees=parsed_python))
+    findings.extend(check_repo_config(resolved_definitions, resolved_config))
+    if static_only:
+        return findings
+
+    resolved_today = core_time.local_now().date() if today is None else today
+    resolved_release = sase.__version__ if release is None else release
+    resolved_bd = (
+        os.environ.get("BD_COMMAND") or DEFAULT_BD_COMMAND
+        if bd_command is None
+        else bd_command
+    )
+    sources: Sequence[MarkerSource]
+    if marker_sources is None:
+        flag_source = FlagMarkerSource(
+            definitions=(
+                markers_from_flag_definitions(resolved_definitions)
+                if definitions is not None
+                else None
+            ),
+            beads=beads,
+        )
+        sources = (flag_source, *MARKER_SOURCES[1:])
+    else:
+        sources = marker_sources
+    for source in sources:
+        try:
+            markers = source.load_definitions(repo_root)
+            loaded_beads = source.load_beads(repo_root, resolved_bd)
+        except RuntimeError as exc:
+            findings.append(Finding(6, str(exc)))
+            continue
+        findings.extend(
+            check_bead_status(
+                markers,
+                loaded_beads,
+                today=resolved_today,
+                release=resolved_release,
+                expected_bead_type=source.bead_type,
+            )
+        )
+    return findings
+
+
+def format_finding(finding: Finding, repo_root: Path) -> str:
+    """Render one finding the way sibling tools print path:line diagnostics."""
+    prefix = "warning: " if finding.severity == "warning" else ""
+    location = ""
+    if finding.path is not None:
+        location = _relpath(finding.path, repo_root)
+        if finding.line_number is not None:
+            location = f"{location}:{finding.line_number}"
+        location = f"{location}: "
+    return f"{prefix}{location}rule {finding.rule}: {finding.message}"
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--bd-command",
+        default=None,
+        help="bead CLI used for status rules (default: $BD_COMMAND or "
+        f"{DEFAULT_BD_COMMAND})",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=REPO_ROOT,
+        help="repository root to scan (default: the checkout containing this "
+        "tool)",
+    )
+    parser.add_argument(
+        "--static",
+        action="store_true",
+        help="run only the static rules (no bead store required)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parse_args(argv)
+    repo_root = args.repo_root.resolve()
+    try:
+        findings = run_checks(
+            repo_root=repo_root,
+            bd_command=args.bd_command,
+            static_only=args.static,
+        )
+    except FeatureFlagError as exc:
+        print(f"rule 1: {exc}", file=sys.stderr)
+        return 1
+
+    errors = [finding for finding in findings if finding.severity == "error"]
+    for finding in findings:
+        print(format_finding(finding, repo_root), file=sys.stderr)
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

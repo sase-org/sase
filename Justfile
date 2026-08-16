@@ -255,14 +255,14 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + generated schema + pyscripts + test waits + changelog + terminology audit + symvision + toobig + keep-sorted)
+# Run linters (ruff + mypy + feature flags + pyscripts + test waits + changelog + terminology audit + symvision + toobig + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
     @printf "\n---------- Running mypy type checker... ----------\n"
     @just _lint-mypy
-    @printf "\n---------- Checking generated feature flag schema... ----------\n"
-    @just _lint-feature-flags-schema
+    @printf "\n---------- Checking feature flag registry integrity... ----------\n"
+    @just _lint-flags
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
     @just _lint-pyscripts
     @printf "\n---------- Checking retired test wait helpers... ----------\n"
@@ -285,9 +285,15 @@ _lint-mypy: _setup
     {{ venv_bin }}/mypy
     {{ venv_bin }}/python tools/typecheck_extensionless_tools --mypy {{ venv_bin }}/mypy
 
-# Check the generated feature_flags JSON Schema block.
-_lint-feature-flags-schema: _setup
-    {{ venv_bin }}/python tools/sync_feature_flags_schema --check
+# Check feature-flag registry integrity and flag-bead status.
+# A future `_lint-backcompat` recipe should register a second marker source on
+# this same checker rather than ship another bead-aware expiry linter.
+_lint-flags: _setup
+    SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/python tools/check_feature_flags
+
+# Rewrite the generated feature_flags JSON Schema block from the registry.
+sync-feature-flags-schema: _setup
+    {{ venv_bin }}/python tools/sync_feature_flags_schema --write
 
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
@@ -613,7 +619,7 @@ check: _setup
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
-    @tools/run_silent "lint (feature flag schema)" just _lint-feature-flags-schema
+    @tools/run_silent "lint (feature flags)" just _lint-flags
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog
@@ -634,6 +640,7 @@ check-full: _setup
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
+    @tools/run_silent "lint (feature flags)" just _lint-flags
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog
@@ -756,6 +763,7 @@ docs-deploy-artifact-check:
 # Validate SASE initialization and SDD prompt/plan frontmatter links.
 validate: _setup
     {{ venv_bin }}/python tools/validate_sase_core_rs_version --pyproject pyproject.toml --published-minimum
+    {{ venv_bin }}/python tools/check_feature_flags --static
     {{ venv_bin }}/sase validate
 
 # Validate committed plans with the month-based schema cutover policy.
