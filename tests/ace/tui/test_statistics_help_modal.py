@@ -52,7 +52,7 @@ def test_help_documents_every_statistics_binding_and_current_scope() -> None:
         else:
             assert description in controls
     assert "Last 7 days · exact range" in controls
-    assert "0  Select View by Number — press 0 then 1-7" in controls
+    assert "0  Select View by Number — press 0 then 1-8" in controls
     assert "next ranked project; current: All projects" in controls
     assert "previous ranked project; current: All projects" in controls
 
@@ -64,6 +64,8 @@ def test_help_group_control_is_visible_only_for_grouping_views() -> None:
             assert "Group By — Projects · By Project" in controls
         elif view == "xprompts":
             assert "Group By — XPrompts · By Usage" in controls
+        elif view == "perf":
+            assert "Group By — Perf · By Subsystem" in controls
         else:
             assert "Group By" not in controls
 
@@ -115,5 +117,33 @@ def test_help_explains_xprompt_counting_methodology() -> None:
         "attribution is forward-only",
         "project filter is applied before aggregation",
         "artifact index has been rebuilt at its current schema",
+    ):
+        assert phrase in methodology
+
+
+def test_help_explains_perf_methodology() -> None:
+    methodology = _modal()._perf_methodology_text().plain
+
+    for phrase in (
+        "Nearest-rank on the sorted sample",
+        "round(q * (n - 1))",
+        "JKPerfTimer.summary()",
+        "telemetry.health_thresholds",
+        "p95_latency_*",
+        "error_rate_*",
+        "sase telemetry health",
+        "ok below 2s",
+        "warn below 5s",
+        "warn on any hitch",
+        "critical on any stall",
+        "not project-scoped",
+        "never by project",
+        "TUI perf logs carry no project",
+        "rolls raw samples up after 48 hours",
+        "byte-bounded",
+        "All time means as far back as the retained data goes",
+        "SASE_TUI_PERF",
+        "SASE_TUI_TRACE",
+        "does not parse the probe files",
     ):
         assert phrase in methodology

@@ -63,10 +63,34 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
             "Project scope = plans and questions honor the filter; "
             "skills and memories remain global"
         ),
+        "perf": (
+            "Global = Perf ignores the project filter; "
+            "its sources have no project labels"
+        ),
     }
     for view in VIEW_ORDER:
         pane._view = view
         assert expected[view] in _render_plain(pane._view_renderable(result))
+
+
+def test_empty_agent_runs_still_paint_the_perf_view() -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "perf"
+    pane._last_result = _result("perf", pane._range, empty=True)
+    painted: list[str] = []
+    pane._set_tiles_visible = lambda _visible: None  # type: ignore[method-assign]
+    pane._update_heading = lambda: None  # type: ignore[method-assign]
+    pane._empty_state_renderable = (  # type: ignore[method-assign]
+        lambda _result: painted.append("empty") or "empty"
+    )
+    pane._view_renderable = (  # type: ignore[method-assign]
+        lambda _result: painted.append("perf") or "perf"
+    )
+    pane._update_static = lambda _selector, _content: None  # type: ignore[method-assign]
+
+    pane._paint_current_view()
+
+    assert painted == ["perf"]
 
 
 def test_empty_state_names_range_and_omits_irrelevant_filter_action() -> None:

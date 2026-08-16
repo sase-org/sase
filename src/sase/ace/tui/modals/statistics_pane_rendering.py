@@ -17,6 +17,7 @@ from sase.stats.ranges import PresetKey, StatsRange
 from sase.telemetry.render import categorical_color, render_stat_tile
 
 from .statistics_pane_data import (
+    PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
@@ -43,6 +44,11 @@ _XPROMPTS_GROUP_LABELS: dict[XPromptsGroupBy, str] = {
     "project": "By Project",
     "pairing": "Used With",
 }
+_PERF_GROUP_LABELS: dict[PerfGroupBy, str] = {
+    "subsystem": "By Subsystem",
+    "provider": "By Provider",
+    "workflow": "By Workflow",
+}
 
 
 class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
@@ -50,11 +56,13 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
 
     _SCOPE_COMPACT_BELOW_WIDTH = 100
     _RUNNERS_STACK_BELOW_WIDTH = 108
+    _PERF_STACK_BELOW_WIDTH = 108
 
     _keymaps: StatisticsPaneKeymaps
     _view: StatisticsView
     _projects_group_by: ProjectsGroupBy
     _xprompts_group_by: XPromptsGroupBy
+    _perf_group_by: PerfGroupBy
     _project_filter: str | None
     _xprompt_focus: str | None
     _preset_key: PresetKey | None
@@ -64,6 +72,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _last_error: str
     _compact_scope: bool
     _runners_stacked: bool
+    _perf_stacked: bool
     _pending_view_select: bool
 
     def _paint_loading(self) -> None:
@@ -98,7 +107,7 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 self._runners_unavailable_renderable(result),
             )
             return
-        if result.views.empty and self._view not in {"runners", "xprompts"}:
+        if result.views.empty and self._view not in {"runners", "xprompts", "perf"}:
             self._set_tiles_visible(False)
             self._update_static(
                 "#statistics-body",
@@ -319,6 +328,11 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 f"XPrompts · {_XPROMPTS_GROUP_LABELS[self._xprompts_group_by]}",
                 style=f"bold {_GREEN}",
             )
+        elif self._view == "perf":
+            scope.append(
+                f"Perf · {_PERF_GROUP_LABELS[self._perf_group_by]}",
+                style=f"bold {_GREEN}",
+            )
         else:
             scope.append("—", style="dim")
         return scope
@@ -327,16 +341,22 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         key = self._effective_project_keys()
         scope = self._scope_text(key, "Project", accent=_GOLD)
         if self._project_filter is None:
-            scope.append("All projects", style=f"bold {_GOLD}")
-            return scope
-
-        project_label = self._project_filter
-        if self._last_result is not None:
-            project_label = self._last_result.project_display_snapshot.label_for(
-                self._project_filter
-            )
-        scope.append("■ ", style=categorical_color(self._project_filter))
-        scope.append(project_label, style=f"bold {_GOLD}")
+            project_label = "All projects"
+            label_style = "dim" if self._view == "perf" else f"bold {_GOLD}"
+            scope.append(project_label, style=label_style)
+        else:
+            project_label = self._project_filter
+            if self._last_result is not None:
+                project_label = self._last_result.project_display_snapshot.label_for(
+                    self._project_filter
+                )
+            if self._view == "perf":
+                scope.append(project_label, style="dim")
+            else:
+                scope.append("■ ", style=categorical_color(self._project_filter))
+                scope.append(project_label, style=f"bold {_GOLD}")
+        if self._view == "perf":
+            scope.append(" · not applied", style="dim")
         return scope
 
     def _xprompt_scope_text(self) -> Text:

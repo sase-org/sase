@@ -31,12 +31,14 @@ from sase.stats.ranges import (
 )
 
 from .statistics_pane_data import (
+    PERF_GROUP_ORDER,
     PROJECTS_GROUP_ORDER,
     XPROMPTS_GROUP_ORDER,
     VIEW_COMPACT_LABELS,
     VIEW_LABELS,
     VIEW_MICRO_LABELS,
     VIEW_ORDER,
+    PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
@@ -48,8 +50,10 @@ from .statistics_pane_rendering import StatisticsPanePresentationBase
 
 _ACCENT = "#FF87D7"
 _REFRESH_INTERVAL_SECONDS = 30.0
-_VIEWS_COMPACT_BELOW_WIDTH = 111
-_VIEWS_MICRO_BELOW_WIDTH = 75
+# Full eight-tab line is 119 cells; compact is 82. Keep a few cells of slack
+# so 120- and 90-column Admin Center layouts never clip the strip.
+_VIEWS_COMPACT_BELOW_WIDTH = 123
+_VIEWS_MICRO_BELOW_WIDTH = 83
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(
         view,
@@ -116,7 +120,7 @@ class _CustomRangeInput(Input):
 
 
 class StatisticsPane(StatisticsPanePresentationBase):
-    """Seven numeric Statistics views backed by durable agent activity."""
+    """Eight numeric Statistics views backed by durable agent activity."""
 
     can_focus = True
     BINDINGS = []
@@ -137,6 +141,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._range = resolve_preset(DEFAULT_PRESET)
         self._projects_group_by: ProjectsGroupBy = "project"
         self._xprompts_group_by: XPromptsGroupBy = "usage"
+        self._perf_group_by: PerfGroupBy = "subsystem"
         self._project_filter: str | None = None
         self._project_filter_options: tuple[str, ...] = ()
         self._xprompt_focus: str | None = None
@@ -151,6 +156,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         self._last_error = ""
         self._compact_scope = False
         self._runners_stacked = False
+        self._perf_stacked = False
         self._pending_view_select = False
 
     def compose(self) -> ComposeResult:
@@ -255,10 +261,18 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self._update_scope()
 
         runners_stacked = event.size.width < self._RUNNERS_STACK_BELOW_WIDTH
-        if runners_stacked == self._runners_stacked:
+        perf_stacked = event.size.width < self._PERF_STACK_BELOW_WIDTH
+        runners_changed = runners_stacked != self._runners_stacked
+        perf_changed = perf_stacked != self._perf_stacked
+        if runners_changed:
+            self._runners_stacked = runners_stacked
+        if perf_changed:
+            self._perf_stacked = perf_stacked
+        if self._last_result is None:
             return
-        self._runners_stacked = runners_stacked
-        if self._view == "runners" and self._last_result is not None:
+        if runners_changed and self._view == "runners":
+            self._paint_current_view()
+        elif perf_changed and self._view == "perf":
             self._paint_current_view()
 
     def focus_default(self) -> None:
@@ -381,6 +395,10 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 (index + 1) % len(XPROMPTS_GROUP_ORDER)
             ]
             self._selection_changed(reload=False)
+        elif self._view == "perf":
+            index = PERF_GROUP_ORDER.index(self._perf_group_by)
+            self._perf_group_by = PERF_GROUP_ORDER[(index + 1) % len(PERF_GROUP_ORDER)]
+            self._selection_changed(reload=True)
 
     def action_cycle_project_filter(self) -> None:
         """Cycle forward through All and cached ranked projects."""
@@ -495,6 +513,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 selected_range=self._range,
                 projects_group_by=self._projects_group_by,
                 xprompts_group_by=self._xprompts_group_by,
+                perf_group_by=self._perf_group_by,
                 project_label=project_label,
                 xprompt_focus_label=(
                     "All xprompts"
@@ -548,7 +567,10 @@ class StatisticsPane(StatisticsPanePresentationBase):
             self.query_one("#statistics-views", PanelTabStrip).set_active_tab(view)
         except Exception:
             pass
-        self._selection_changed(reload=False)
+        needs_perf = view == "perf" and (
+            self._last_result is None or self._last_result.perf is None
+        )
+        self._selection_changed(reload=needs_perf)
 
     def _selection_changed(self, *, reload: bool) -> None:
         self._last_error = ""
@@ -591,6 +613,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
         selected_range = self._range
         project_filter = self._project_filter
         xprompt_focus = self._xprompt_focus
+        perf_group_by = self._perf_group_by
         self._loading = True
         self._last_error = ""
         self._update_heading()
@@ -603,6 +626,7 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 selected_range,
                 project_filter,
                 xprompt_focus,
+                perf_group_by=perf_group_by,
             )
 
         self._worker = self.run_worker(
@@ -627,6 +651,13 @@ class StatisticsPane(StatisticsPanePresentationBase):
                 or result.selected_range != self._range
                 or result.project_filter != self._project_filter
                 or result.xprompt_focus != self._xprompt_focus
+                or (
+                    self._view == "perf"
+                    and (
+                        result.perf is None
+                        or result.perf.group_by != self._perf_group_by
+                    )
+                )
             ):
                 self._schedule_load()
                 return

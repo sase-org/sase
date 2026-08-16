@@ -20,7 +20,7 @@ from tests.ace.tui._statistics_pane_helpers import (
 )
 
 
-async def test_number_prefix_selects_second_and_seventh_views(
+async def test_number_prefix_selects_second_seventh_and_eighth_views(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
@@ -33,7 +33,7 @@ async def test_number_prefix_selects_second_and_seventh_views(
         assert pane._pending_view_select is True
         assert (
             pane.query_one("#statistics-hints", Static).render().plain
-            == "0… press 1-7 to select a view"
+            == "0… press 1-8 to select a view"
         )
         await page.press("2")
         await page.wait_for(lambda _state: pane._view == "runners")
@@ -42,6 +42,11 @@ async def test_number_prefix_selects_second_and_seventh_views(
 
         await page.press("0", "7")
         await page.wait_for(lambda _state: pane._view == "plans_questions")
+        assert modal._active_tab == "statistics"
+        assert pane._pending_view_select is False
+
+        await page.press("0", "8")
+        await page.wait_for(lambda _state: pane._view == "perf")
         assert modal._active_tab == "statistics"
         assert pane._pending_view_select is False
 
@@ -55,7 +60,7 @@ async def test_number_prefix_ignores_out_of_range_digit(
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
 
-        await page.press("0", "8")
+        await page.press("0", "9")
         await page.pause()
 
         assert modal._active_tab == "statistics"
@@ -216,7 +221,7 @@ async def test_configured_prefix_arms_the_same_number_selection(
 
         await page.press("f4")
         hints = pane.query_one("#statistics-hints", Static).render().plain
-        assert hints == "f4… press 1-7 to select a view"
+        assert hints == "f4… press 1-8 to select a view"
         await page.press("2")
         await page.wait_for(lambda _state: pane._view == "runners")
 

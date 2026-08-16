@@ -56,6 +56,8 @@ class StatisticsViewsRenderingMixin(
                 views.plans_questions,
                 requested_start_ts=result.selected_range.start_ts,
             )
+        elif self._view == "perf":
+            renderable = Text("")
         return Group(renderable, self._legend_note(self._view))
 
     def _overview_renderable(self, overview: Any) -> Group:

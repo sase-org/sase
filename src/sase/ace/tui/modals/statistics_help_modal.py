@@ -24,6 +24,7 @@ from .statistics_pane_data import (
     VIEW_DESCRIPTIONS,
     VIEW_LABELS,
     VIEW_ORDER,
+    PerfGroupBy,
     ProjectsGroupBy,
     StatisticsView,
     XPromptsGroupBy,
@@ -58,6 +59,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         selected_range: StatsRange,
         projects_group_by: ProjectsGroupBy,
         xprompts_group_by: XPromptsGroupBy,
+        perf_group_by: PerfGroupBy = "subsystem",
         project_label: str,
         xprompt_focus_label: str = "All xprompts",
         generated_at: float | None,
@@ -68,6 +70,7 @@ class StatisticsHelpModal(ModalScreen[None]):
         self._selected_range = selected_range
         self._projects_group_by = projects_group_by
         self._xprompts_group_by = xprompts_group_by
+        self._perf_group_by = perf_group_by
         self._project_label = project_label
         self._xprompt_focus_label = xprompt_focus_label
         self._generated_at = generated_at
@@ -116,6 +119,8 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "XPrompt methodology",
                 self._xprompt_methodology_text(),
             ),
+            Text(""),
+            self._section("Perf methodology", self._perf_methodology_text()),
             Text(""),
             self._section("Data & freshness", self._freshness_text()),
         )
@@ -181,6 +186,8 @@ class StatisticsHelpModal(ModalScreen[None]):
         if action == "cycle_group":
             if self._current_view == "xprompts":
                 return f"XPrompts · {self._xprompts_group_label()}"
+            if self._current_view == "perf":
+                return f"Perf · {self._perf_group_label()}"
             return f"Projects · {self._projects_group_label()}"
         if action == "cycle_project_filter":
             return f"next ranked project; current: {self._project_label}"
@@ -213,6 +220,13 @@ class StatisticsHelpModal(ModalScreen[None]):
         if self._xprompts_group_by == "project":
             return "By Project"
         return "Used With"
+
+    def _perf_group_label(self) -> str:
+        if self._perf_group_by == "provider":
+            return "By Provider"
+        if self._perf_group_by == "workflow":
+            return "By Workflow"
+        return "By Subsystem"
 
     def _glossary_text(self) -> Text:
         text = Text()
@@ -303,6 +317,53 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "The displayed max_running_agents value is today's effective global "
                 "reference (including a live temporary override), not a historical "
                 "limit or project-specific capacity.",
+            ),
+        )
+        text = Text()
+        for index, (term, meaning) in enumerate(rows):
+            if index:
+                text.append("\n")
+            text.append(f"{term} — ", style=f"bold {_CYAN}")
+            text.append(meaning, style="dim")
+        return text
+
+    def _perf_methodology_text(self) -> Text:
+        """Explain percentile method, thresholds, global scope, and coverage."""
+        rows = (
+            (
+                "Percentiles",
+                "Nearest-rank on the sorted sample at index round(q * (n - 1)), "
+                "clamped to [0, n - 1]; the same method JKPerfTimer.summary() uses.",
+            ),
+            (
+                "Latency and errors",
+                "Agent and LLM tiles use the configured telemetry.health_thresholds "
+                "(p95_latency_* and error_rate_*), matching sase telemetry health.",
+            ),
+            (
+                "Startup and stalls",
+                "Documented module constants: startup is ok below 2s and warn "
+                "below 5s; stalls are ok at zero, warn on any hitch, and critical "
+                "on any stall.",
+            ),
+            (
+                "Global",
+                "Perf is not project-scoped. Telemetry histograms are labeled by "
+                "provider, workflow, or hook type, never by project, and TUI perf "
+                "logs carry no project. The project chip stays visible but is not "
+                "applied.",
+            ),
+            (
+                "Retention",
+                "The telemetry store rolls raw samples up after 48 hours and the "
+                "JSONL logs are byte-bounded, so All time means as far back as the "
+                "retained data goes.",
+            ),
+            (
+                "Probes",
+                "SASE_TUI_PERF records per-keystroke j/k timings and "
+                "SASE_TUI_TRACE records hot-path spans. The view reports those "
+                "env vars as on or off and does not parse the probe files.",
             ),
         )
         text = Text()

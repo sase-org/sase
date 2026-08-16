@@ -544,7 +544,7 @@ def _patch_statistics_populated(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, project_filter=None, xprompt_focus=None: (
+        lambda view, selected_range, project_filter=None, xprompt_focus=None, **_kw: (
             _populated_statistics_view(
                 view,
                 selected_range,
@@ -560,7 +560,7 @@ def _patch_statistics_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, project_filter=None, xprompt_focus=None: (
+        lambda view, selected_range, project_filter=None, xprompt_focus=None, **_kw: (
             StatisticsViewData(
                 view=view,
                 selected_range=selected_range,

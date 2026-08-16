@@ -21,6 +21,7 @@ def test_every_ordered_statistics_view_has_a_description() -> None:
     assert {view for view in VIEW_ORDER if statistics_view_supports_grouping(view)} == {
         "projects",
         "xprompts",
+        "perf",
     }
 
 
@@ -46,11 +47,19 @@ def test_scope_renderables_cover_range_group_project_and_status(
     assert pane._group_scope_text().plain == " g  Group Projects · By Project"
     pane._view = "xprompts"
     assert pane._group_scope_text().plain == " g  Group XPrompts · By Usage"
+    pane._view = "perf"
+    assert pane._group_scope_text().plain == " g  Group Perf · By Subsystem"
+    pane._view = "xprompts"
     assert pane._xprompt_scope_text().plain == " x/X  XPrompt All xprompts"
     pane._xprompt_focus = "split_file"
     assert pane._xprompt_scope_text().plain == " x/X  XPrompt ■ #split_file"
 
     assert pane._project_scope_text().plain == " p/P  Project All projects"
+    pane._view = "perf"
+    assert pane._project_scope_text().plain == (
+        " p/P  Project All projects · not applied"
+    )
+    pane._view = "overview"
     project_key = "gh_acme__widgets"
     pane._project_filter = project_key
     pane._last_result = SimpleNamespace(  # type: ignore[assignment]
@@ -67,6 +76,12 @@ def test_scope_renderables_cover_range_group_project_and_status(
         span.start <= swatch_offset < span.end and str(span.style) == "#123456"
         for span in project_scope.spans
     )
+
+    pane._view = "perf"
+    perf_project = pane._project_scope_text()
+    assert perf_project.plain == " p/P  Project widgets · not applied"
+    assert "■" not in perf_project.plain
+    pane._view = "overview"
 
     pane._loading = True
     assert pane._status_text().plain == "refreshing…"
@@ -95,6 +110,23 @@ def test_runner_resize_only_repaints_when_composition_threshold_changes(
 ) -> None:
     pane = StatisticsPane(auto_load=False)
     pane._view = "runners"
+    pane._last_result = object()  # type: ignore[assignment]
+    repaints: list[bool] = []
+    monkeypatch.setattr(pane, "_paint_current_view", lambda: repaints.append(True))
+
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=120)))  # type: ignore[arg-type]
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=107)))  # type: ignore[arg-type]
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=90)))  # type: ignore[arg-type]
+    pane.on_resize(SimpleNamespace(size=SimpleNamespace(width=108)))  # type: ignore[arg-type]
+
+    assert repaints == [True, True]
+
+
+def test_perf_resize_only_repaints_when_composition_threshold_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "perf"
     pane._last_result = object()  # type: ignore[assignment]
     repaints: list[bool] = []
     monkeypatch.setattr(pane, "_paint_current_view", lambda: repaints.append(True))

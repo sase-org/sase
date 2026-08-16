@@ -109,6 +109,30 @@ def test_stale_xprompt_focus_result_is_discarded_and_rescheduled(
     assert pane._last_result is None
 
 
+def test_stale_perf_group_result_is_discarded_and_rescheduled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "perf"
+    pane._perf_group_by = "provider"
+    result = _result(
+        pane._view,
+        pane._range,
+        perf_group_by="subsystem",
+    )
+    worker = SimpleNamespace(result=result, error=None)
+    pane._worker = worker  # type: ignore[assignment]
+    scheduled: list[bool] = []
+    monkeypatch.setattr(pane, "_schedule_load", lambda: scheduled.append(True))
+
+    pane.on_worker_state_changed(
+        SimpleNamespace(worker=worker, state=WorkerState.SUCCESS)  # type: ignore[arg-type]
+    )
+
+    assert scheduled == [True]
+    assert pane._last_result is None
+
+
 async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

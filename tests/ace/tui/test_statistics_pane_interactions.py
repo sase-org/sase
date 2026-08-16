@@ -132,24 +132,37 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
 
+        grouping_views = {"projects", "xprompts", "perf"}
         for view in VIEW_ORDER:
             pane._set_view(view)
             await page.pause()
             group_scope = pane.query_one("#statistics-scope-group", Static)
-            assert group_scope.display is (view in {"projects", "xprompts"})
-            if view in {"projects", "xprompts"}:
+            assert group_scope.display is (view in grouping_views)
+            if view in grouping_views:
                 continue
             pane.action_cycle_group()
             await page.pause()
             assert pane._projects_group_by == "project"
-            assert len(calls) == 1
+            assert pane._perf_group_by == "subsystem"
+
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.perf is not None
+                and not pane._loading
+                and (
+                    pane._load_debouncer is None or not pane._load_debouncer.is_pending
+                )
+            )
+        )
+        cached_calls = len(calls)
 
         pane._set_view("projects")
         pane.action_cycle_group()
         await page.pause()
 
         assert pane._projects_group_by == "patch"
-        assert len(calls) == 1
+        assert len(calls) == cached_calls
         assert "Projects · By Patch" in _scope_plain(pane, "group")
         assert "group" not in (
             pane.query_one("#statistics-hints", Static).render().plain
@@ -159,7 +172,7 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         pane.action_cycle_group()
         await page.pause()
         assert pane._xprompts_group_by == "model"
-        assert len(calls) == 1
+        assert len(calls) == cached_calls
         assert "XPrompts · By Model" in _scope_plain(pane, "group")
 
         pane._set_view("providers")
@@ -167,14 +180,33 @@ async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
         await page.pause()
         assert pane._projects_group_by == "patch"
         assert pane._xprompts_group_by == "model"
-        assert len(calls) == 1
+        assert pane._perf_group_by == "subsystem"
+        assert len(calls) == cached_calls
         assert pane.query_one("#statistics-scope-group", Static).display is False
 
         pane._set_view("projects")
         await page.pause()
         assert pane.query_one("#statistics-scope-group", Static).display is True
         assert "Projects · By Patch" in _scope_plain(pane, "group")
-        assert len(calls) == 1
+        assert len(calls) == cached_calls
+
+        pane._set_view("perf")
+        await page.wait_for(
+            lambda _state: (
+                pane._view == "perf"
+                and pane._last_result is not None
+                and pane._last_result.perf is not None
+                and not pane._loading
+            )
+        )
+        perf_calls = len(calls)
+        pane.action_cycle_group()
+        await page.wait_for(
+            lambda _state: len(calls) == perf_calls + 1 and not pane._loading
+        )
+        assert pane._perf_group_by == "provider"
+        assert "Perf · By Provider" in _scope_plain(pane, "group")
+        assert pane.query_one("#statistics-scope-group", Static).display is True
 
 
 async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
@@ -249,7 +281,9 @@ async def test_empty_project_filter_clears_to_all_projects_in_either_direction(
         selected_range: StatsRange,
         project_filter: str | None = None,
         xprompt_focus: str | None = None,
+        perf_group_by: str = "subsystem",
     ) -> StatisticsViewData:
+        del perf_group_by
         calls.append((view, selected_range, project_filter, xprompt_focus))
         return _result(
             view,
@@ -310,12 +344,12 @@ def test_project_filter_cycle_is_inert_without_choices_and_handles_stale_selecti
 @pytest.mark.parametrize(
     ("width", "tier"),
     (
-        (111, "full"),
-        (75, "compact"),
+        (123, "full"),
+        (83, "compact"),
         (60, "micro"),
     ),
 )
-def test_numbered_seven_view_strip_fits_each_statistics_layout_tier(
+def test_numbered_eight_view_strip_fits_each_statistics_layout_tier(
     width: int,
     tier: str,
 ) -> None:
@@ -335,11 +369,11 @@ def test_numbered_seven_view_strip_fits_each_statistics_layout_tier(
 
     assert strip._line_width == len(rendered.plain)
     assert strip._line_width <= width
-    assert len(strip._tab_ranges) == 7
+    assert len(strip._tab_ranges) == 8
     assert [
         rendered.plain[start:end].split(maxsplit=1)[0]
         for start, end in strip._tab_ranges.values()
-    ] == [str(number) for number in range(1, 8)]
+    ] == [str(number) for number in range(1, 9)]
 
 
 async def test_project_filter_label_submits_canonical_key_across_reload_paths(
@@ -357,7 +391,9 @@ async def test_project_filter_label_submits_canonical_key_across_reload_paths(
         selected_range: StatsRange,
         project_filter: str | None = None,
         xprompt_focus: str | None = None,
+        perf_group_by: str = "subsystem",
     ) -> StatisticsViewData:
+        del perf_group_by
         calls.append((view, selected_range, project_filter, xprompt_focus))
         payload = _run_payload(selected_range, "tribe")
         payload["workspaces"][0]["project"] = widgets_key
@@ -431,7 +467,7 @@ async def test_view_cycle_reuses_composite_result_and_updates_strip(
         assert len(calls) == 1
 
 
-async def test_seven_view_keyboard_and_mouse_navigation_share_order_without_reload(
+async def test_eight_view_keyboard_and_mouse_navigation_share_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[StatisticsView, StatsRange, str | None, str | None]] = []
@@ -445,13 +481,26 @@ async def test_seven_view_keyboard_and_mouse_navigation_share_order_without_relo
             visited.append(pane._view)
 
         assert tuple(visited) == VIEW_ORDER
+        await page.wait_for(
+            lambda _state: (
+                pane._view == "perf"
+                and pane._last_result is not None
+                and pane._last_result.perf is not None
+                and not pane._loading
+                and (
+                    pane._load_debouncer is None or not pane._load_debouncer.is_pending
+                )
+            )
+        )
+        assert len(calls) == 2
         strip = pane.query_one("#statistics-views", PanelTabStrip)
         strip.post_message(PanelTabStrip.TabClicked("runners"))
         await page.wait_for(lambda _state: pane._view == "runners")
 
         assert VIEW_ORDER[1] == "runners"
+        assert VIEW_ORDER[-1] == "perf"
         assert strip._active_tab == "runners"
-        assert len(calls) == 1
+        assert len(calls) == 2
 
 
 async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(

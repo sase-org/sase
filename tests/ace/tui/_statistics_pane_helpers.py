@@ -14,6 +14,8 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.statistics_pane import StatisticsPane
 from sase.ace.tui.modals.statistics_pane_data import StatisticsView, StatisticsViewData
 from sase.project_display_names import ProjectDisplaySnapshot
+from sase.stats import PerfView, build_perf_view
+from sase.stats.perf_query import PerfGroupBy
 from sase.stats.query import RuntimeGroupBy
 from sase.stats.ranges import StatsRange
 from sase.stats.views import build_statistics_views
@@ -266,6 +268,21 @@ def _activity_payload() -> dict:
     }
 
 
+def _perf_view(
+    selected_range: StatsRange,
+    *,
+    group_by: PerfGroupBy = "subsystem",
+) -> PerfView:
+    from tests.stats._views_payloads import perf_logs_payload, perf_telemetry_payload
+
+    return build_perf_view(
+        perf_logs_payload(),
+        perf_telemetry_payload(),
+        selected_range=selected_range,
+        group_by=group_by,
+    )
+
+
 def _result(
     view: StatisticsView,
     selected_range: StatsRange,
@@ -276,6 +293,8 @@ def _result(
     project_display_case: ProjectDisplayCase | None = None,
     xprompt_focus: str | None = None,
     runtime_group_by: RuntimeGroupBy = "tribe",
+    perf_group_by: PerfGroupBy = "subsystem",
+    perf: PerfView | None = None,
 ) -> StatisticsViewData:
     run_payload = {} if empty else _run_payload(selected_range, runtime_group_by)
     if run_payload and xprompt_focus is not None:
@@ -328,6 +347,9 @@ def _result(
             else ProjectDisplaySnapshot()
         )
     )
+    resolved_perf = perf
+    if resolved_perf is None and view == "perf":
+        resolved_perf = _perf_view(selected_range, group_by=perf_group_by)
     return StatisticsViewData(
         view=view,
         selected_range=selected_range,
@@ -341,6 +363,7 @@ def _result(
         project_filter=project_filter,
         xprompt_focus=xprompt_focus,
         project_display_snapshot=display_snapshot,
+        perf=resolved_perf,
     )
 
 
@@ -358,6 +381,7 @@ def _patch_center(
         selected_range: StatsRange,
         project_filter: str | None = None,
         xprompt_focus: str | None = None,
+        perf_group_by: PerfGroupBy = "subsystem",
     ) -> StatisticsViewData:
         calls.append((view, selected_range, project_filter, xprompt_focus))
         return _result(
@@ -366,6 +390,7 @@ def _patch_center(
             project_filter=project_filter,
             project_display_case=project_display_case,
             xprompt_focus=xprompt_focus,
+            perf_group_by=perf_group_by,
         )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)

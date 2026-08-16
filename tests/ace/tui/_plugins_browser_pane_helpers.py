@@ -292,7 +292,7 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, project_filter=None, xprompt_focus=None: (
+        lambda view, selected_range, project_filter=None, xprompt_focus=None, **_kw: (
             StatisticsViewData(
                 view=view,
                 selected_range=selected_range,

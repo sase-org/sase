@@ -43,6 +43,7 @@ VIEW_ORDER: tuple[StatisticsView, ...] = (
     "activity",
     "xprompts",
     "plans_questions",
+    "perf",
 )
 VIEW_LABELS: dict[StatisticsView, str] = {
     "overview": "Overview",
@@ -52,6 +53,7 @@ VIEW_LABELS: dict[StatisticsView, str] = {
     "activity": "Activity",
     "xprompts": "XPrompts",
     "plans_questions": "Plans & Questions",
+    "perf": "Perf",
 }
 VIEW_COMPACT_LABELS: dict[StatisticsView, str] = {
     **VIEW_LABELS,
@@ -65,6 +67,7 @@ VIEW_MICRO_LABELS: dict[StatisticsView, str] = {
     "activity": "Act",
     "xprompts": "XP",
     "plans_questions": "P&Q",
+    "perf": "Prf",
 }
 VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
     "overview": "Totals and trends across runs, commits, plans, and questions.",
@@ -76,8 +79,17 @@ VIEW_DESCRIPTIONS: dict[StatisticsView, str] = {
         "XPrompt usage across prompts, with model, project, and co-usage breakdowns."
     ),
     "plans_questions": "Plan decisions, epic structure, and agent question patterns.",
+    "perf": (
+        "TUI responsiveness, launch and agent latency, and the health of the "
+        "data behind these numbers."
+    ),
 }
 
+PERF_GROUP_ORDER: tuple[PerfGroupBy, ...] = (
+    "subsystem",
+    "provider",
+    "workflow",
+)
 PROJECTS_GROUP_ORDER: tuple[ProjectsGroupBy, ...] = (
     "project",
     "patch",
@@ -93,7 +105,7 @@ XPROMPTS_GROUP_ORDER: tuple[XPromptsGroupBy, ...] = (
 
 def statistics_view_supports_grouping(view: StatisticsView) -> bool:
     """Return whether ``view`` exposes a configurable grouping strategy."""
-    return view in ("projects", "xprompts")
+    return view in ("projects", "xprompts", "perf")
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +229,7 @@ def _load_perf_view(
 
 
 __all__ = [
+    "PERF_GROUP_ORDER",
     "PROJECTS_GROUP_ORDER",
     "XPROMPTS_GROUP_ORDER",
     "VIEW_DESCRIPTIONS",

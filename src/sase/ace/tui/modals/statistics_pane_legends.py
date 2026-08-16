@@ -85,5 +85,27 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "plans and questions honor the filter; skills and memories remain global",
         ),
     ),
+    "perf": (
+        _MetricLegend("p50", "nearest-rank median of the window's samples"),
+        _MetricLegend(
+            "p95",
+            "nearest-rank 95th percentile; same method as JKPerfTimer",
+        ),
+        _MetricLegend("Startup", "median visible-ready time; ok < 2s, warn < 5s"),
+        _MetricLegend("Stall", "event-loop or message-pump freeze"),
+        _MetricLegend("Hitch", "brief stall below the freeze threshold"),
+        _MetricLegend(
+            "Global",
+            "Perf ignores the project filter; its sources have no project labels",
+        ),
+        _MetricLegend(
+            "Coverage",
+            "how far retained logs and telemetry actually go",
+        ),
+        _MetricLegend(
+            "Resolution",
+            "raw, 5m, 1h, or mixed — what the store served for this range",
+        ),
+    ),
 }
 __all__ = ["VIEW_LEGENDS"]

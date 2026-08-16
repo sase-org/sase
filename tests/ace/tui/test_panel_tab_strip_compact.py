@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 from textual import on
 from textual.app import App, ComposeResult
 
+from sase.ace.tui.modals import statistics_pane as sp
 from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 
@@ -171,6 +173,33 @@ async def test_compact_labels_preserve_active_treatment_and_click_ranges() -> No
         assert pilot.app.selected == "plans_questions"
         strip.set_active_tab("plans_questions")
         assert strip._build_content().plain == "Overview │ PLANS/Q"
+
+
+@pytest.mark.parametrize("width", (120, 90))
+def test_eight_statistics_tabs_fit_standard_admin_center_widths(width: int) -> None:
+    strip = PanelTabStrip(
+        sp._VIEW_TABS,
+        "overview",
+        show_numbers=True,
+        uppercase_active=True,
+        compact_below=sp._VIEWS_COMPACT_BELOW_WIDTH,
+        compact_separator="│",
+        micro_below=sp._VIEWS_MICRO_BELOW_WIDTH,
+        micro_separator="│",
+    )
+    if width < sp._VIEWS_MICRO_BELOW_WIDTH:
+        strip._tier = "micro"
+    elif width < sp._VIEWS_COMPACT_BELOW_WIDTH:
+        strip._tier = "compact"
+    else:
+        strip._tier = "full"
+
+    rendered = strip._build_content()
+
+    assert strip._line_width == len(rendered.plain)
+    assert strip._line_width <= width
+    assert len(strip._tab_ranges) == 8
+    assert "8" in rendered.plain
 
 
 def test_full_labels_remain_canonical_until_compact_threshold() -> None:
