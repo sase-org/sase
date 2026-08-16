@@ -46,6 +46,7 @@ from .duration_choice_modal import DURATION_CHOICE_CANCELLED
 from .models_panel_alias_edit import ModelsPanelAliasEditMixin
 from .models_panel_display import ModelsPanelDisplayMixin
 from .models_panel_effort import ModelsPanelEffortMixin
+from .models_panel_jump import ModelsPanelJumpMixin
 from .models_panel_effort_edit import build_default_effort_commit_offer
 from .models_panel_duration import (
     DurationPickerModal as _DurationPickerModal,
@@ -105,6 +106,7 @@ class ModelsPanel(
     ModelsPanelOverrideMixin,
     ModelsPanelThresholdMixin,
     ModelsPanelAliasEditMixin,
+    ModelsPanelJumpMixin,
     OptionListNavigationMixin,
     ModalScreen[ModelsPanelResult],
 ):
@@ -121,6 +123,7 @@ class ModelsPanel(
         ("up", "prev_option", "Previous"),
         ("ctrl+n", "next_option", "Next"),
         ("ctrl+p", "prev_option", "Previous"),
+        ("apostrophe", "jump_to_entry", "Jump"),
         ("l", "enter_bucket", "Open bucket"),
         ("right", "enter_bucket", "Open bucket"),
         ("h", "leave_bucket", "Back"),
@@ -166,6 +169,7 @@ class ModelsPanel(
         self._bucket_by_name: dict[str, BucketView] = {}
         self._row_by_id: dict[str, ModelsPanelDisplayRow] = {}
         self._active_bucket: str | None = None
+        self._jump_rendered_row_ids: tuple[str, ...] | None = None
         self._updating_highlight = False
         self._warning_toast_emitted = False
         self._pending_alias = ""

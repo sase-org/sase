@@ -119,3 +119,8 @@ def test_models_panel_includes_bucket_drill_bindings() -> None:
     assert ("h", "leave_bucket") in bindings
     assert ("left", "leave_bucket") in bindings
     assert ("ctrl+r", "manage_runner_limit") in bindings
+
+
+def test_models_panel_includes_jump_binding() -> None:
+    bindings = {(binding[0], binding[1]) for binding in ModelsPanel.BINDINGS}
+    assert ("apostrophe", "jump_to_entry") in bindings

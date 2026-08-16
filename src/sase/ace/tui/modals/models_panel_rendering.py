@@ -19,6 +19,7 @@ from sase.ace.tui.model_alias_styles import (
 from sase.llm_provider import AliasView, BucketView, ModelsPanelSection
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
+from ..actions.navigation.jump_hints import JUMP_HINT_CHARS
 from .models_panel_duration import format_remaining
 from .models_panel_rows import (
     BigEpicPhaseThresholdSettingRow,
@@ -27,6 +28,7 @@ from .models_panel_rows import (
     ModelsPanelDisplayRow,
     RunnerLimitSettingRow,
 )
+from .pane_entry_jump import apply_jump_hint_prefix
 
 _NAME_CELL = 22
 _OWNERSHIP_GUTTER_CELL = 2
@@ -75,6 +77,35 @@ def _append_ownership_gutter(text: Text, *, user_owned: bool) -> None:
         text.append(" ")
     else:
         text.append(" " * _OWNERSHIP_GUTTER_CELL)
+
+
+def jump_hint_gutter_width(target_count: int) -> int:
+    """Return the fixed jump-mode gutter width for a *target_count*-row session.
+
+    Matches the width of :func:`apply_jump_hint_prefix`'s ``[<hint>] `` marker:
+    four cells for the one-character hints a session of at most
+    :data:`JUMP_HINT_CHARS`-many targets uses, five for the two-character
+    hints a larger session requires.
+    """
+    hint_width = 1 if target_count <= len(JUMP_HINT_CHARS) else 2
+    return hint_width + 3
+
+
+def apply_jump_gutter(text: Text, hint: str | None, *, gutter_width: int) -> Text:
+    """Reserve the transient jump-mode gutter ahead of *text*.
+
+    Selectable rows with a hint get the standard ``[<hint>] `` marker from
+    :func:`apply_jump_hint_prefix`; every other row -- including disabled
+    headers, spacers, and the empty-custom hint -- gets a blank gutter of the
+    same width so the ownership/name/value/state grid stays aligned while
+    hints are painted.
+    """
+    if hint is not None:
+        return apply_jump_hint_prefix(text, hint)
+    decorated = Text(no_wrap=text.no_wrap, overflow=text.overflow)
+    decorated.append(" " * gutter_width)
+    decorated.append_text(text)
+    return decorated
 
 
 def _count_label(count: int, singular: str) -> str:
@@ -299,30 +330,39 @@ def _row_value_text(row: ModelsPanelDisplayRow, *, now: float) -> Text:
     return _provider_model_text(row)
 
 
-def provider_model_column_width(views: Iterable[AliasView]) -> int:
+def provider_model_column_width(
+    views: Iterable[AliasView], *, cap: int = PROVIDER_MODEL_CELL_MAX
+) -> int:
     """Return the provider/model column width (in cells) for *views*.
 
-    Sized to the widest badge currently visible, capped by
-    :data:`PROVIDER_MODEL_CELL_MAX` so the state tag stays on-screen. Rich cell
+    Sized to the widest badge currently visible, capped by *cap* (normally
+    :data:`PROVIDER_MODEL_CELL_MAX`, shrunk by the jump-mode gutter width
+    while hints are painted) so the state tag stays on-screen. Rich cell
     widths are used (not ``len``) so wide glyphs and future badges are measured
     correctly. Collapses to ``0`` when no row has a badge.
     """
     widest = 0
     for view in views:
         widest = max(widest, _provider_model_text(view).cell_len)
-    return min(widest, PROVIDER_MODEL_CELL_MAX)
+    return min(widest, cap)
 
 
 def panel_value_column_width(
     rows: Iterable[ModelsPanelDisplayRow],
     *,
     now: float,
+    cap: int = PROVIDER_MODEL_CELL_MAX,
 ) -> int:
-    """Return the shared value-column width for visible panel rows."""
+    """Return the shared value-column width for visible panel rows.
+
+    *cap* is normally :data:`PROVIDER_MODEL_CELL_MAX`; callers shrink it by
+    the jump-mode gutter width while hints are painted so the reserved gutter
+    does not push the state tag past the modal budget.
+    """
     widest = 0
     for row in rows:
         widest = max(widest, _row_value_text(row, now=now).cell_len)
-    return min(widest, PROVIDER_MODEL_CELL_MAX)
+    return min(widest, cap)
 
 
 def render_alias_row(view: AliasView, *, now: float, provider_model_width: int) -> Text:

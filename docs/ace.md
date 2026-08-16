@@ -160,16 +160,18 @@ jump mode open; the second completes the jump. Hints remain case-sensitive.
 
 Outside the Artifacts panes above, a single shared implementation backs `'` everywhere
 it appears: each Admin Center working section (see
-[Global Keybindings](#global-keybindings)) and three modals — the notification options
-modal, the model picker, and the saved-group revival modal. In all of them, pressing `'`
-a second time while the hints are painted is the **jump back** key: it pops the most
-recent origin off a bounded stack of the last ten pre-jump positions, rather than
-toggling between one saved target and the current row. With an empty stack it falls
-through to the first hinted row instead. The footer shows which of the two the next `'`
-will do — `JUMP ' back` while the stack holds an origin, `JUMP ' first` when it does
-not. Changes that shift which row is where — refiltering the model picker, paging or
-deleting in the revival modal — discard the stored origins instead of leaving them
-pointing at whatever row inherited the index.
+[Global Keybindings](#global-keybindings)) and four modals — the notification options
+modal, the model picker, the saved-group revival modal, and
+[Launch Control](#launch-control). In all of them, pressing `'` a second time while the
+hints are painted is the **jump back** key: it pops the most recent origin off a bounded
+stack of the last ten pre-jump positions, rather than toggling between one saved target
+and the current row. With an empty stack it falls through to the first hinted row
+instead. The footer shows which of the two the next `'` will do — `JUMP ' back` while
+the stack holds an origin, `JUMP ' first` when it does not. Changes that shift which row
+is where — refiltering the model picker, paging or deleting in the revival modal,
+drilling into or out of a Launch Control bucket, or an async provider-snapshot reload —
+discard the stored origins instead of leaving them pointing at whatever row inherited
+the index.
 
 ### Copy Mode in Stitches, Beads, Provider Documents, and Files
 
@@ -2620,20 +2622,21 @@ Because ownership follows the alias kind, the misplaced alias stays in the **Bui
 section and does not receive the ownership gutter.
 
 Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlighted row.
-Navigation skips headers, spacer rows, and the empty-custom hint.
+Navigation, and jump hints, skip headers, spacer rows, and the empty-custom hint.
 
-| Key                   | Action                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------- |
-| `l` / Right / `Enter` | **Open** the highlighted bucket                                                             |
-| `h` / Left            | **Back** to the top level from an open bucket                                               |
-| `o`                   | **Override** — set/change a time-bound temporary alias/default-effort/runner-limit override |
-| `x`                   | **Clear** — remove the active temporary override on the highlighted override-capable row    |
-| `e`                   | **Edit** — change the persistent configured value                                           |
-| `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                          |
-| `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing       |
-| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort    |
-| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit       |
-| `Esc` / `q`           | Close the panel                                                                             |
+| Key                   | Action                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `l` / Right / `Enter` | **Open** the highlighted bucket                                                                                     |
+| `h` / Left            | **Back** to the top level from an open bucket                                                                       |
+| `'`                   | **Jump** — paint adaptive hints; a hint moves the highlight without activating the row, and a second `'` jumps back |
+| `o`                   | **Override** — set/change a time-bound temporary alias/default-effort/runner-limit override                         |
+| `x`                   | **Clear** — remove the active temporary override on the highlighted override-capable row                            |
+| `e`                   | **Edit** — change the persistent configured value                                                                   |
+| `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                                                  |
+| `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing                               |
+| `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                            |
+| `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                               |
+| `Esc` / `q`           | Close the panel                                                                                                     |
 
 On `big epic starts at`, `Enter` and `e` open a focused positive-integer editor, and `r`
 previews a reset. The input accepts an unsigned base-10 whole number with minimum `1`

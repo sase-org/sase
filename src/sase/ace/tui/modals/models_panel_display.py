@@ -20,8 +20,11 @@ from sase.llm_provider import (
 
 from .models_panel_rendering import (
     OWNERSHIP_ACCENT,
+    PROVIDER_MODEL_CELL_MAX,
+    apply_jump_gutter,
     custom_builtin_shadow_warning_message,
     description_text_for_row,
+    jump_hint_gutter_width,
     panel_value_column_width,
     provider_model_column_width,
     render_bucket_row,
@@ -68,6 +71,15 @@ class ModelsPanelDisplayMixin(_MixinBase):
         _override_worker: Any
         _clear_worker: Any
         _provider_routing_changed: bool
+        _jump_rendered_row_ids: tuple[str, ...] | None
+        jump_mode_active: bool
+        jump_back_stack: list[int]
+
+        def jump_hints_by_key(self) -> dict[str, str]: ...
+
+        def invalidate_jump_hints(
+            self, *, identities_changed: bool, target_count: int
+        ) -> None: ...
 
         def _load_alias_views(self) -> list[AliasView]: ...
 
@@ -152,6 +164,9 @@ class ModelsPanelDisplayMixin(_MixinBase):
         )
 
     def _footer_markup(self) -> str:
+        if self.jump_mode_active:
+            action = "back" if self.jump_back_stack else "first"
+            return f"JUMP ' {action}  <esc> cancel"
         row = self._selected_row()
         if self._active_bucket is None and isinstance(row, BucketView):
             return (
@@ -160,6 +175,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 "[green]p[/green]=Providers\n"
                 "[green]l/enter[/green]=Open  "
                 "[dim]j/k[/dim]=Navigate  "
+                "[dim]'[/dim]=Jump  "
                 "[dim]esc[/dim]=Close"
             )
         if isinstance(row, DefaultEffortSettingRow):
@@ -171,6 +187,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 "[green]p[/green]=Providers\n"
                 "[green]ctrl+e[/green]=Effort  "
                 "[dim]j/k[/dim]=Navigate  "
+                "[dim]'[/dim]=Jump  "
                 "[dim]esc[/dim]=Close"
             )
         if isinstance(row, RunnerLimitSettingRow):
@@ -181,6 +198,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 "[green]p[/green]=Providers\n"
                 "[green]ctrl+r[/green]=Limit  "
                 "[dim]j/k[/dim]=Navigate  "
+                "[dim]'[/dim]=Jump  "
                 "[dim]esc[/dim]=Close"
             )
         if isinstance(row, BigEpicPhaseThresholdSettingRow):
@@ -191,6 +209,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 "[green]ctrl+e[/green]=Effort  "
                 "[green]ctrl+r[/green]=Limit  "
                 "[dim]j/k[/dim]=Navigate  "
+                "[dim]'[/dim]=Jump  "
                 "[dim]esc[/dim]=Close"
             )
         footer = (
@@ -204,7 +223,9 @@ class ModelsPanelDisplayMixin(_MixinBase):
         )
         if self._active_bucket is not None:
             footer += "  [green]h[/green]=Back"
-        return footer + ("  [dim]j/k[/dim]=Navigate  [dim]esc[/dim]=Close")
+        return footer + (
+            "  [dim]j/k[/dim]=Navigate  [dim]'[/dim]=Jump  [dim]esc[/dim]=Close"
+        )
 
     def _title_text(self) -> Text:
         text = Text("Launch Control", style="bold cyan")
@@ -277,10 +298,50 @@ class ModelsPanelDisplayMixin(_MixinBase):
             return (builtin, user), True
         return ((builtin,) if builtin.rows else (user,)), False
 
+    def _sync_jump_target_identity(self) -> None:
+        """Invalidate stale jump hints/history before this row set is painted.
+
+        Compares the ids about to be rendered against the ids from the last
+        rendered list -- across bucket entry/exit, async provider-snapshot
+        reloads, and alias/config edits alike -- so a changed or reordered
+        set clears painted hints and the back stack, while an unchanged set
+        only drops hints that now point past the row count. That keeps
+        value-only rebuilds (countdown ticks, provenance-chip updates) from
+        disturbing an open jump session. The tuple is only recorded, not
+        compared, on first composition so no history is manufactured before
+        the user has ever pressed ``'``.
+        """
+        next_ids = tuple(self._row_by_id)
+        previous_ids = self._jump_rendered_row_ids
+        self._jump_rendered_row_ids = next_ids
+        if previous_ids is None:
+            return
+        self.invalidate_jump_hints(
+            identities_changed=next_ids != previous_ids,
+            target_count=len(next_ids),
+        )
+
     def _render_current_options(self) -> list[Option]:
         rows = self._current_rows()
         now = self._models_panel_now()
         self._row_by_id = {self._row_id(row): row for row in rows}
+        self._sync_jump_target_identity()
+        jump_mode = self.jump_mode_active
+        jump_hints = self.jump_hints_by_key() if jump_mode else {}
+        gutter_width = jump_hint_gutter_width(len(jump_hints)) if jump_mode else 0
+        cap = (
+            PROVIDER_MODEL_CELL_MAX - gutter_width
+            if jump_mode
+            else (PROVIDER_MODEL_CELL_MAX)
+        )
+
+        def _decorate(prompt: Text, row_id: str) -> Text:
+            if not jump_mode:
+                return prompt
+            return apply_jump_gutter(
+                prompt, jump_hints.get(row_id), gutter_width=gutter_width
+            )
+
         options: list[Option] = []
         if self._active_bucket is None:
             launch_rows = [
@@ -299,30 +360,38 @@ class ModelsPanelDisplayMixin(_MixinBase):
             model_rows = [
                 row for row in rows if isinstance(row, (AliasView, BucketView))
             ]
-            value_width = panel_value_column_width(rows, now=now)
+            value_width = panel_value_column_width(rows, now=now, cap=cap)
             if launch_rows:
+                launch_header_id = f"{_SECTION_ID_PREFIX}launch"
                 options.append(
                     Option(
-                        render_launch_settings_header(
-                            value_width=value_width,
-                            count=len(launch_rows),
+                        _decorate(
+                            render_launch_settings_header(
+                                value_width=value_width,
+                                count=len(launch_rows),
+                            ),
+                            launch_header_id,
                         ),
-                        id=f"{_SECTION_ID_PREFIX}launch",
+                        id=launch_header_id,
                         disabled=True,
                     )
                 )
                 for row in launch_rows:
+                    row_id = self._row_id(row)
                     options.append(
                         Option(
-                            render_panel_row(row, now=now, value_width=value_width),
-                            id=self._row_id(row),
+                            _decorate(
+                                render_panel_row(row, now=now, value_width=value_width),
+                                row_id,
+                            ),
+                            id=row_id,
                         )
                     )
             sections, show_headers = self._current_sections(model_rows)
             provider_model_width = value_width
         else:
             alias_rows = [row for row in rows if isinstance(row, AliasView)]
-            provider_model_width = provider_model_column_width(alias_rows)
+            provider_model_width = provider_model_column_width(alias_rows, cap=cap)
             sections, show_headers = self._current_sections(alias_rows)
         visible_section_index = 0 if options else -1
         for section in sections:
@@ -332,25 +401,30 @@ class ModelsPanelDisplayMixin(_MixinBase):
             if not section_visible:
                 continue
             if options and visible_section_index >= 0:
+                spacer_id = (
+                    f"{_SPACER_ID_PREFIX}"
+                    f"{self._active_bucket or 'top'}:{section.ownership}"
+                )
                 options.append(
                     Option(
-                        render_section_spacer(),
-                        id=(
-                            f"{_SPACER_ID_PREFIX}"
-                            f"{self._active_bucket or 'top'}:{section.ownership}"
-                        ),
+                        _decorate(render_section_spacer(), spacer_id),
+                        id=spacer_id,
                         disabled=True,
                     )
                 )
             visible_section_index += 1
             if show_headers:
+                section_header_id = f"{_SECTION_ID_PREFIX}{section.ownership}"
                 options.append(
                     Option(
-                        render_section_header(
-                            section,
-                            provider_model_width=provider_model_width,
+                        _decorate(
+                            render_section_header(
+                                section,
+                                provider_model_width=provider_model_width,
+                            ),
+                            section_header_id,
                         ),
-                        id=f"{_SECTION_ID_PREFIX}{section.ownership}",
+                        id=section_header_id,
                         disabled=True,
                     )
                 )
@@ -364,17 +438,18 @@ class ModelsPanelDisplayMixin(_MixinBase):
                     prompt = render_panel_row(
                         section_row, now=now, value_width=provider_model_width
                     )
-                options.append(Option(prompt, id=row_id))
+                options.append(Option(_decorate(prompt, row_id), id=row_id))
             if (
                 show_headers
                 and self._active_bucket is None
                 and section.is_user_owned
                 and not section.rows
             ):
+                empty_hint_id = f"{_HINT_ID_PREFIX}empty-custom"
                 options.append(
                     Option(
-                        render_empty_custom_hint(),
-                        id=f"{_HINT_ID_PREFIX}empty-custom",
+                        _decorate(render_empty_custom_hint(), empty_hint_id),
+                        id=empty_hint_id,
                         disabled=True,
                     )
                 )
