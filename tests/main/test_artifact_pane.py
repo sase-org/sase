@@ -51,13 +51,26 @@ def test_pane_show_json_explains_verdicts(
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["id"] == "beads"
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     names = [item["capability"] for item in payload["capabilities"]]
     assert names == [item.value for item in PaneCapability]
     by_name = {item["capability"]: item for item in payload["capabilities"]}
     assert by_name["mutation"]["state"] == "ON"
     assert by_name["versions"]["state"] == "OFF"
-    assert by_name["relations"]["state"] == "OFF"
+    assert by_name["relations"]["state"] == "ON"
+    assert by_name["grouping"]["state"] == "ON"
+    assert [item["name"] for item in payload["relations"]] == [
+        "parent",
+        "children",
+        "plans",
+        "dependencies",
+    ]
+    assert payload["grouping"]["default_mode"] == "by_epic"
+    assert [item["id"] for item in payload["grouping"]["modes"]] == [
+        "by_epic",
+        "by_status",
+        "by_type",
+    ]
 
 
 def test_pane_show_unknown_id_lists_configured(monkeypatch, capsys) -> None:

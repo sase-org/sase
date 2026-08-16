@@ -16,6 +16,8 @@ from sase.ace.tui._artifact_tab_contract import (
     contract_with_digit,
 )
 from sase.ace.tui._artifact_tab_contract_provider import (
+    extract_provider_grouping,
+    extract_provider_relations,
     extract_provider_suppressions,
     provider_facts_from_spec,
 )
@@ -28,8 +30,12 @@ from sase.ace.tui._artifact_tab_descriptors import (
 from sase.ace.tui._artifact_tab_model import (
     PaneCapability,
     PaneDeclaredFacts,
+    PaneGroupingDecl,
+    PaneGroupingModeDecl,
+    PaneRelationDecl,
     ProjectProviderRecord,
     ProviderDiscoveryIssue,
+    RelationKind,
 )
 from sase.ace.tui.artifact_tabs import (
     artifacts_pane_contract,
@@ -84,6 +90,8 @@ def _document_spec(
     identity: dict[str, object] | None = None,
     inventory: dict[str, object] | None = None,
     capabilities: dict[str, object] | None = None,
+    relations: list[object] | None = None,
+    grouping: dict[str, object] | None = None,
 ) -> dict[str, object]:
     ref: dict[str, object] = {
         "kind": kind,
@@ -105,6 +113,10 @@ def _document_spec(
     }
     if capabilities is not None:
         ref["capabilities"] = capabilities
+    if relations is not None:
+        ref["relations"] = relations
+    if grouping is not None:
+        ref["grouping"] = grouping
     return {
         "schema_version": 1,
         "provider": kind,
@@ -136,8 +148,8 @@ def test_every_closed_capability_has_a_named_verdict() -> None:
         (PaneCapability.PLAN_APPROVE, "plan_approve_from_plan_adapter"),
         (PaneCapability.PLAN_REJECT, "plan_reject_from_plan_adapter"),
         (PaneCapability.PLAN_OPEN_BEAD, "plan_open_bead_from_plan_adapter"),
-        (PaneCapability.RELATIONS, "later_phase_reserved"),
-        (PaneCapability.GROUPING, "later_phase_reserved"),
+        (PaneCapability.RELATIONS, "relations_from_declared_edges"),
+        (PaneCapability.GROUPING, "grouping_from_declared_modes"),
         (PaneCapability.STATUS_COUNTERS, "later_phase_reserved"),
         (PaneCapability.SHELL, "later_phase_reserved"),
     ],
@@ -183,12 +195,42 @@ def test_mutation_is_builtin_only_and_plan_ops_are_plan_only() -> None:
     assert PaneCapability.PLAN_APPROVE not in provider
 
 
-def test_later_phase_capabilities_stay_off() -> None:
+def test_undeclared_relation_and_grouping_capabilities_stay_off() -> None:
     earned = _enabled(_facts())
     assert PaneCapability.RELATIONS not in earned
     assert PaneCapability.GROUPING not in earned
     assert PaneCapability.STATUS_COUNTERS not in earned
     assert PaneCapability.SHELL not in earned
+
+
+def test_declared_relations_and_grouping_earn_capabilities() -> None:
+    facts = _facts(
+        relations=(
+            PaneRelationDecl(
+                name="parents",
+                kind=RelationKind.HIERARCHY,
+                label="Parents",
+                source="parent",
+                target_pane=None,
+                inverse="children",
+                directed=True,
+                transitive=True,
+            ),
+        ),
+        grouping=PaneGroupingDecl(
+            modes=(
+                PaneGroupingModeDecl(
+                    id="by_status",
+                    label="Status",
+                    keys=("status",),
+                ),
+            ),
+            default_mode="by_status",
+        ),
+    )
+    earned = _enabled(facts)
+    assert PaneCapability.RELATIONS in earned
+    assert PaneCapability.GROUPING in earned
 
 
 def test_valid_suppression_turns_earned_capability_off() -> None:
@@ -224,7 +266,8 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
     assert contract.has(PaneCapability.REFRESH)
     assert contract.has(PaneCapability.STABLE_REFERENCE_COPY)
     assert contract.has(PaneCapability.FILTER_SESSION)
-    assert not contract.has(PaneCapability.RELATIONS)
+    assert contract.has(PaneCapability.RELATIONS)
+    assert contract.has(PaneCapability.GROUPING)
     assert contract.presentation_digest
     assert len(contract.verdicts) == len(PaneCapability)
     if adapter == "files":
@@ -237,6 +280,33 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
         assert not contract.has(PaneCapability.MUTATION)
         assert not contract.has(PaneCapability.VERSIONS)
     assert contract.has(PaneCapability.PROJECT_SCOPE)
+    assert contract.relations
+    assert contract.grouping.modes
+
+
+def test_patch_contract_names_relation_and_grouping_declarations() -> None:
+    contract = compile_builtin_contract(
+        "patches",
+        label="Patch",
+        icon="x",
+        accent="#000000",
+    )
+    assert [item.name for item in contract.relations] == [
+        "ancestors",
+        "children",
+        "siblings",
+    ]
+    assert [item.kind for item in contract.relations] == [
+        RelationKind.HIERARCHY,
+        RelationKind.HIERARCHY,
+        RelationKind.FAMILY,
+    ]
+    assert contract.grouping.default_mode == "by_project"
+    assert [item.id for item in contract.grouping.modes] == [
+        "by_project",
+        "by_date",
+        "by_status",
+    ]
 
 
 @pytest.mark.parametrize("adapter", ["stitches", "patches", "beads", "files"])
@@ -368,6 +438,13 @@ def test_plan_provider_earns_plan_only_capabilities() -> None:
     assert contract.copy_group == "artifacts_plans"
     assert not contract.has(PaneCapability.MUTATION)
     assert not contract.has(PaneCapability.VERSIONS)
+    assert contract.has(PaneCapability.RELATIONS)
+    assert contract.has(PaneCapability.GROUPING)
+    assert [item.name for item in contract.relations] == [
+        "parent",
+        "children",
+        "beads",
+    ]
 
 
 def test_unknown_document_provider_gets_generic_copy_targets() -> None:
@@ -388,6 +465,13 @@ def test_unknown_document_provider_gets_generic_copy_targets() -> None:
     assert not contract.has(PaneCapability.VERSIONS)
     assert not contract.has(PaneCapability.PLAN_APPROVE)
     assert not contract.has(PaneCapability.RELATIONS)
+    assert not contract.has(PaneCapability.GROUPING)
+    relations = contract.verdict_for(PaneCapability.RELATIONS)
+    grouping = contract.verdict_for(PaneCapability.GROUPING)
+    assert relations is not None
+    assert relations.rule == "relations_from_declared_edges"
+    assert grouping is not None
+    assert grouping.rule == "grouping_from_declared_modes"
 
 
 def test_valid_suppression_compiles_without_degrading() -> None:
@@ -406,6 +490,72 @@ def test_valid_suppression_compiles_without_degrading() -> None:
     verdict = result.contract.verdict_for(PaneCapability.FILTER_SESSION)
     assert verdict is not None
     assert verdict.suppression == "browse only"
+
+
+def test_provider_relation_and_grouping_declarations_compile() -> None:
+    result = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(
+            relations=[
+                {
+                    "name": "parents",
+                    "kind": "hierarchy",
+                    "label": "Parents",
+                    "source": "status",
+                    "target_pane": None,
+                    "inverse": "children",
+                    "directed": True,
+                    "transitive": True,
+                }
+            ],
+            grouping={
+                "default_mode": "by_status",
+                "modes": [{"id": "by_status", "label": "Status", "keys": ["status"]}],
+            },
+        ),
+        provider_spec_digest="rel",
+        configured_pane_ids=("ref:notes", "beads"),
+    )
+    contract = result.contract
+    assert result.error is None
+    assert contract.has(PaneCapability.RELATIONS)
+    assert contract.has(PaneCapability.GROUPING)
+    assert contract.relations[0].kind is RelationKind.HIERARCHY
+    assert contract.grouping.default_mode == "by_status"
+
+
+def test_provider_relation_capability_can_be_suppressed() -> None:
+    result = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(
+            capabilities={"suppress": {"relations": "read only"}},
+            relations=[
+                {
+                    "name": "parents",
+                    "kind": "hierarchy",
+                    "label": "Parents",
+                    "source": "status",
+                    "target_pane": None,
+                    "inverse": "children",
+                    "directed": True,
+                    "transitive": True,
+                }
+            ],
+        ),
+        provider_spec_digest="rel",
+    )
+    assert result.error is None
+    assert not result.contract.has(PaneCapability.RELATIONS)
+    verdict = result.contract.verdict_for(PaneCapability.RELATIONS)
+    assert verdict is not None
+    assert verdict.rule == "provider_suppressed"
+    assert verdict.suppression == "read only"
 
 
 @pytest.mark.parametrize(
@@ -432,6 +582,134 @@ def test_invalid_suppression_degrades_descriptor(capabilities: object) -> None:
     assert result.contract.has(PaneCapability.REFRESH)
     assert not result.contract.has(PaneCapability.FILTER_SESSION)
     assert not result.contract.has(PaneCapability.PLAN_APPROVE)
+
+
+@pytest.mark.parametrize(
+    ("relations", "message"),
+    [
+        (
+            [{"name": "parents", "kind": "hierarchy", "label": "Parents"}],
+            "source",
+        ),
+        (
+            [
+                {
+                    "name": "parents",
+                    "kind": "hierarchy",
+                    "label": "Parents",
+                    "source": "missing",
+                    "directed": True,
+                    "transitive": True,
+                }
+            ],
+            "declared ref.properties",
+        ),
+        (
+            [
+                {
+                    "name": "parents",
+                    "kind": "hierarchy",
+                    "label": "Parents",
+                    "source": "status",
+                    "target_pane": "ref:unknown",
+                    "directed": True,
+                    "transitive": True,
+                }
+            ],
+            "configured Artifacts pane",
+        ),
+        (
+            [
+                {
+                    "name": "parents",
+                    "kind": "hierarchy",
+                    "label": "Parents",
+                    "source": "status",
+                    "directed": True,
+                    "transitive": True,
+                    "color": "red",
+                }
+            ],
+            "unknown ref.relations",
+        ),
+    ],
+)
+def test_invalid_provider_relations_degrade_contract(
+    relations: list[object],
+    message: str,
+) -> None:
+    result = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(relations=relations),
+        provider_spec_digest="bad-rel",
+    )
+    assert result.error is not None
+    assert message in result.error
+    assert result.error_code == "invalid_ref_relations"
+    assert result.contract.has(PaneCapability.REFRESH)
+    assert not result.contract.has(PaneCapability.RELATIONS)
+
+
+@pytest.mark.parametrize(
+    ("grouping", "message"),
+    [
+        ({"modes": "by_status"}, "modes"),
+        (
+            {
+                "default_mode": "by_status",
+                "modes": [
+                    {
+                        "id": "by_status",
+                        "label": "Status",
+                        "keys": ["missing"],
+                    }
+                ],
+            },
+            "undeclared ref.properties",
+        ),
+        (
+            {
+                "default_mode": "by_missing",
+                "modes": [{"id": "by_status", "label": "Status", "keys": ["status"]}],
+            },
+            "default_mode",
+        ),
+        (
+            {
+                "default_mode": "by_status",
+                "modes": [
+                    {
+                        "id": "by_status",
+                        "label": "Status",
+                        "keys": ["status"],
+                        "renderer": "special",
+                    }
+                ],
+            },
+            "unknown ref.grouping.modes",
+        ),
+    ],
+)
+def test_invalid_provider_grouping_degrades_contract(
+    grouping: dict[str, object],
+    message: str,
+) -> None:
+    result = compile_provider_contract(
+        kind="notes",
+        label="Note",
+        icon="¶",
+        accent="#5FAFFF",
+        spec=_document_spec(grouping=grouping),
+        provider_spec_digest="bad-grouping",
+    )
+    assert result.error is not None
+    assert message in result.error
+    assert result.error_code == "invalid_ref_grouping"
+    assert result.contract.has(PaneCapability.REFRESH)
+    assert not result.contract.has(PaneCapability.GROUPING)
 
 
 def test_invalid_suppression_marks_provider_descriptor_degraded() -> None:
@@ -563,6 +841,46 @@ def test_extract_provider_suppressions_accepts_valid_block() -> None:
     assert error is None
     assert code is None
     assert suppressions == {"versions": "no history"}
+
+
+def test_extract_provider_relations_accepts_valid_block() -> None:
+    relations, error, code = extract_provider_relations(
+        "notes",
+        _document_spec(
+            relations=[
+                {
+                    "name": "beads",
+                    "kind": "link",
+                    "label": "Beads",
+                    "source": "status",
+                    "target_pane": "beads",
+                    "inverse": "notes",
+                    "directed": True,
+                    "transitive": False,
+                }
+            ]
+        ),
+        configured_pane_ids=("beads", "ref:notes"),
+    )
+    assert error is None
+    assert code is None
+    assert relations[0].name == "beads"
+    assert relations[0].target_pane == "beads"
+
+
+def test_extract_provider_grouping_accepts_valid_block() -> None:
+    grouping, error, code = extract_provider_grouping(
+        _document_spec(
+            grouping={
+                "default_mode": "by_status",
+                "modes": [{"id": "by_status", "label": "Status", "keys": ["status"]}],
+            },
+        )
+    )
+    assert error is None
+    assert code is None
+    assert grouping.default_mode == "by_status"
+    assert grouping.modes[0].keys == ("status",)
 
 
 def test_exact_lookup_does_not_normalize_unknown_ids(

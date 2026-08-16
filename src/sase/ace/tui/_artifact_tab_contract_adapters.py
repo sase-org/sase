@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ._artifact_tab_model import PaneEmptyState
+from ._artifact_tab_model import (
+    PaneEmptyState,
+    PaneGroupingDecl,
+    PaneGroupingModeDecl,
+    PaneRelationDecl,
+    RelationKind,
+)
 
 
 GENERIC_DOCUMENT_COPY_TARGETS: tuple[str, ...] = (
@@ -48,6 +54,8 @@ class _BuiltinAdapter:
     is_plan_adapter: bool
     project_scoped: bool
     has_detail: bool
+    relations: tuple[PaneRelationDecl, ...]
+    grouping: PaneGroupingDecl
     copy_group: str
     copy_targets: tuple[str, ...]
     copy_keymap_group: str
@@ -70,6 +78,58 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         is_plan_adapter=False,
         project_scoped=True,
         has_detail=True,
+        relations=(
+            PaneRelationDecl(
+                name="parents",
+                kind=RelationKind.HIERARCHY,
+                label="Parents",
+                source="vcs_commit_parent_ids",
+                target_pane=None,
+                inverse="children",
+                directed=True,
+                transitive=True,
+            ),
+            PaneRelationDecl(
+                name="children",
+                kind=RelationKind.HIERARCHY,
+                label="Children",
+                source="vcs_commit_parent_ids",
+                target_pane=None,
+                inverse="parents",
+                directed=True,
+                transitive=True,
+            ),
+            PaneRelationDecl(
+                name="plans",
+                kind=RelationKind.LINK,
+                label="Plans",
+                source="stitch_plan_links",
+                target_pane="ref:plan",
+                inverse="stitches",
+                directed=True,
+                transitive=False,
+            ),
+        ),
+        grouping=PaneGroupingDecl(
+            modes=(
+                PaneGroupingModeDecl(
+                    id="by_date",
+                    label="Date",
+                    keys=("committed_date",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_repo",
+                    label="Repository",
+                    keys=("repo",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_author",
+                    label="Author",
+                    keys=("author",),
+                ),
+            ),
+            default_mode="by_date",
+        ),
         copy_group="artifacts_stitches",
         copy_targets=(
             "snapshot",
@@ -103,6 +163,58 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         is_plan_adapter=False,
         project_scoped=True,
         has_detail=True,
+        relations=(
+            PaneRelationDecl(
+                name="ancestors",
+                kind=RelationKind.HIERARCHY,
+                label="Ancestors",
+                source="patch_parent",
+                target_pane=None,
+                inverse="children",
+                directed=True,
+                transitive=True,
+            ),
+            PaneRelationDecl(
+                name="children",
+                kind=RelationKind.HIERARCHY,
+                label="Children",
+                source="patch_parent",
+                target_pane=None,
+                inverse="ancestors",
+                directed=True,
+                transitive=True,
+            ),
+            PaneRelationDecl(
+                name="siblings",
+                kind=RelationKind.FAMILY,
+                label="Siblings",
+                source="patch_revert_family",
+                target_pane=None,
+                inverse=None,
+                directed=False,
+                transitive=False,
+            ),
+        ),
+        grouping=PaneGroupingDecl(
+            modes=(
+                PaneGroupingModeDecl(
+                    id="by_project",
+                    label="Project",
+                    keys=("project", "family"),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_date",
+                    label="Date",
+                    keys=("latest_timestamp",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_status",
+                    label="Status",
+                    keys=("status", "family"),
+                ),
+            ),
+            default_mode="by_project",
+        ),
         copy_group="patches",
         copy_targets=(
             "raw",
@@ -136,6 +248,68 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         is_plan_adapter=False,
         project_scoped=True,
         has_detail=True,
+        relations=(
+            PaneRelationDecl(
+                name="parent",
+                kind=RelationKind.HIERARCHY,
+                label="Parent",
+                source="bead_parent_id",
+                target_pane=None,
+                inverse="children",
+                directed=True,
+                transitive=True,
+            ),
+            PaneRelationDecl(
+                name="children",
+                kind=RelationKind.HIERARCHY,
+                label="Children",
+                source="bead_parent_id",
+                target_pane=None,
+                inverse="parent",
+                directed=True,
+                transitive=True,
+            ),
+            PaneRelationDecl(
+                name="plans",
+                kind=RelationKind.LINK,
+                label="Plans",
+                source="bead_plan_links",
+                target_pane="ref:plan",
+                inverse="beads",
+                directed=True,
+                transitive=False,
+            ),
+            PaneRelationDecl(
+                name="dependencies",
+                kind=RelationKind.LINK,
+                label="Dependencies",
+                source="bead_dependencies",
+                target_pane=None,
+                inverse="dependents",
+                directed=True,
+                transitive=False,
+            ),
+        ),
+        grouping=PaneGroupingDecl(
+            modes=(
+                PaneGroupingModeDecl(
+                    id="by_epic",
+                    label="Epic",
+                    keys=("parent_id",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_status",
+                    label="Status",
+                    keys=("status",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_type",
+                    label="Type",
+                    keys=("type", "tier"),
+                ),
+            ),
+            default_mode="by_epic",
+        ),
         copy_group="artifacts_beads",
         copy_targets=(
             "snapshot",
@@ -169,6 +343,38 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         is_plan_adapter=False,
         project_scoped=True,
         has_detail=True,
+        relations=(
+            PaneRelationDecl(
+                name="versions",
+                kind=RelationKind.FAMILY,
+                label="Versions",
+                source="artifact_file_versions",
+                target_pane=None,
+                inverse=None,
+                directed=False,
+                transitive=False,
+            ),
+        ),
+        grouping=PaneGroupingDecl(
+            modes=(
+                PaneGroupingModeDecl(
+                    id="by_source",
+                    label="Source",
+                    keys=("origin",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_kind",
+                    label="Kind",
+                    keys=("kind",),
+                ),
+                PaneGroupingModeDecl(
+                    id="by_project",
+                    label="Project",
+                    keys=("project",),
+                ),
+            ),
+            default_mode="by_source",
+        ),
         copy_group="artifacts_other",
         copy_targets=(
             "snapshot",
@@ -204,6 +410,58 @@ PLAN_ADAPTER = _BuiltinAdapter(
     is_plan_adapter=True,
     project_scoped=True,
     has_detail=True,
+    relations=(
+        PaneRelationDecl(
+            name="parent",
+            kind=RelationKind.HIERARCHY,
+            label="Parent",
+            source="plan_parent",
+            target_pane=None,
+            inverse="children",
+            directed=True,
+            transitive=True,
+        ),
+        PaneRelationDecl(
+            name="children",
+            kind=RelationKind.HIERARCHY,
+            label="Children",
+            source="plan_parent",
+            target_pane=None,
+            inverse="parent",
+            directed=True,
+            transitive=True,
+        ),
+        PaneRelationDecl(
+            name="beads",
+            kind=RelationKind.LINK,
+            label="Beads",
+            source="plan_bead_links",
+            target_pane="beads",
+            inverse="plans",
+            directed=True,
+            transitive=False,
+        ),
+    ),
+    grouping=PaneGroupingDecl(
+        modes=(
+            PaneGroupingModeDecl(
+                id="by_kind",
+                label="Kind",
+                keys=("kind", "tier"),
+            ),
+            PaneGroupingModeDecl(
+                id="by_status",
+                label="Status",
+                keys=("status",),
+            ),
+            PaneGroupingModeDecl(
+                id="by_project",
+                label="Project",
+                keys=("project",),
+            ),
+        ),
+        default_mode="by_kind",
+    ),
     copy_group="artifacts_plans",
     copy_targets=PLAN_COPY_TARGETS,
     copy_keymap_group="artifacts_plans",

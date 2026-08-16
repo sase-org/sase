@@ -16,13 +16,14 @@ from sase.ace.tui.artifact_tabs import (
 )
 from sase.ace.tui._artifact_tab_model import (
     ArtifactsPaneContract,
+    PaneGroupingModeDecl,
     PaneCapability,
     PaneRelationDecl,
     PaneStatusCounter,
 )
 
 
-PANE_SHOW_SCHEMA_VERSION = 1
+PANE_SHOW_SCHEMA_VERSION = 2
 
 
 def handle_pane(args: argparse.Namespace) -> int:
@@ -83,11 +84,18 @@ def _print_text(contract: ArtifactsPaneContract, payload: dict[str, object]) -> 
         str(len(_relation_names(contract.relations))),
     )
     header.add_row(
+        "Grouping",
+        str(len(_grouping_mode_names(contract.grouping.modes))),
+    )
+    header.add_row(
         "Status counters",
         str(len(_status_counter_names(contract.status_counters))),
     )
     console.print(header)
     console.print()
+
+    _print_relations(console, contract.relations)
+    _print_grouping(console, contract.grouping.modes)
 
     table = Table(
         show_header=True,
@@ -128,8 +136,77 @@ def _print_text(contract: ArtifactsPaneContract, payload: dict[str, object]) -> 
     console.print(table)
 
 
+def _print_relations(
+    console: Console,
+    relations: tuple[PaneRelationDecl, ...],
+) -> None:
+    if not relations:
+        console.print("[dim]Relations: none declared[/]")
+        console.print()
+        return
+    table = Table(
+        show_header=True,
+        header_style="bold",
+        box=None,
+        pad_edge=False,
+        title="Relations",
+        title_style="bold",
+    )
+    table.add_column("NAME")
+    table.add_column("KIND")
+    table.add_column("SOURCE")
+    table.add_column("TARGET")
+    table.add_column("INVERSE")
+    table.add_column("FLAGS")
+    for relation in relations:
+        flags = []
+        if relation.directed:
+            flags.append("directed")
+        if relation.transitive:
+            flags.append("transitive")
+        table.add_row(
+            relation.name,
+            relation.kind.value,
+            relation.source,
+            relation.target_pane or "same-pane",
+            relation.inverse or "—",
+            ", ".join(flags) or "undirected",
+        )
+    console.print(table)
+    console.print()
+
+
+def _print_grouping(
+    console: Console,
+    modes: tuple[PaneGroupingModeDecl, ...],
+) -> None:
+    if not modes:
+        console.print("[dim]Grouping: none declared[/]")
+        console.print()
+        return
+    table = Table(
+        show_header=True,
+        header_style="bold",
+        box=None,
+        pad_edge=False,
+        title="Grouping",
+        title_style="bold",
+    )
+    table.add_column("MODE")
+    table.add_column("LABEL")
+    table.add_column("KEYS")
+    for mode in modes:
+        table.add_row(mode.id, mode.label, ", ".join(mode.keys))
+    console.print(table)
+    console.print()
+
+
 def _relation_names(items: tuple[PaneRelationDecl, ...]) -> tuple[str, ...]:
     return tuple(item.name for item in items)
+
+
+def _grouping_mode_names(items: tuple[PaneGroupingModeDecl, ...]) -> tuple[str, ...]:
+    return tuple(item.id for item in items)
 
 
 def _status_counter_names(items: tuple[PaneStatusCounter, ...]) -> tuple[str, ...]:

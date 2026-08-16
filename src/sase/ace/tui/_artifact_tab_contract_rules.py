@@ -455,6 +455,58 @@ def _rule_later_phase(
     return _rule
 
 
+def _rule_relations(facts: PaneDeclaredFacts) -> CapabilityVerdict:
+    if facts.is_degraded:
+        return _verdict(
+            PaneCapability.RELATIONS,
+            enabled=False,
+            rule=_RULE_DEGRADED,
+            fact="is_degraded",
+            reason="degraded panes expose only safe host behavior",
+        )
+    if facts.relations:
+        return _verdict(
+            PaneCapability.RELATIONS,
+            enabled=True,
+            rule="relations_from_declared_edges",
+            fact="relations",
+            reason="at least one relation declaration survived validation",
+        )
+    return _verdict(
+        PaneCapability.RELATIONS,
+        enabled=False,
+        rule="relations_from_declared_edges",
+        fact="relations",
+        reason="no relation declarations are declared",
+    )
+
+
+def _rule_grouping(facts: PaneDeclaredFacts) -> CapabilityVerdict:
+    if facts.is_degraded:
+        return _verdict(
+            PaneCapability.GROUPING,
+            enabled=False,
+            rule=_RULE_DEGRADED,
+            fact="is_degraded",
+            reason="degraded panes expose only safe host behavior",
+        )
+    if facts.grouping.modes:
+        return _verdict(
+            PaneCapability.GROUPING,
+            enabled=True,
+            rule="grouping_from_declared_modes",
+            fact="grouping",
+            reason="at least one grouping mode is declared",
+        )
+    return _verdict(
+        PaneCapability.GROUPING,
+        enabled=False,
+        rule="grouping_from_declared_modes",
+        fact="grouping",
+        reason="no grouping modes are declared",
+    )
+
+
 _RULES = {
     PaneCapability.ENTRY_NAVIGATION: _rule_entry_navigation,
     PaneCapability.ENTRY_OPEN: _rule_entry_open,
@@ -471,8 +523,8 @@ _RULES = {
     PaneCapability.PLAN_APPROVE: _rule_plan_approve,
     PaneCapability.PLAN_REJECT: _rule_plan_reject,
     PaneCapability.PLAN_OPEN_BEAD: _rule_plan_open_bead,
-    PaneCapability.RELATIONS: _rule_later_phase(PaneCapability.RELATIONS),
-    PaneCapability.GROUPING: _rule_later_phase(PaneCapability.GROUPING),
+    PaneCapability.RELATIONS: _rule_relations,
+    PaneCapability.GROUPING: _rule_grouping,
     PaneCapability.STATUS_COUNTERS: _rule_later_phase(PaneCapability.STATUS_COUNTERS),
     PaneCapability.SHELL: _rule_later_phase(PaneCapability.SHELL),
 }

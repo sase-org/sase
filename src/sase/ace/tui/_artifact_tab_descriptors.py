@@ -107,11 +107,25 @@ def provider_descriptors(
         issues_by_kind.setdefault(kind, []).append(issue)
 
     kinds = set(by_kind) | set(issues_by_kind)
+    configured_pane_ids = (
+        "stitches",
+        "patches",
+        "beads",
+        *(f"ref:{kind}" for kind in kinds),
+        "files",
+    )
     descriptors: list[ArtifactsTabDescriptor] = []
     for kind in sorted(kinds, key=_natural_label_key):
         records = by_kind.get(kind, [])
         kind_issues = issues_by_kind.get(kind, [])
-        descriptors.append(_descriptor_for_provider_kind(kind, records, kind_issues))
+        descriptors.append(
+            _descriptor_for_provider_kind(
+                kind,
+                records,
+                kind_issues,
+                configured_pane_ids=configured_pane_ids,
+            )
+        )
     return tuple(descriptors)
 
 
@@ -187,6 +201,8 @@ def _descriptor_for_provider_kind(
     kind: str,
     records: Sequence[ProjectProviderRecord],
     issues: Sequence[ProviderDiscoveryIssue],
+    *,
+    configured_pane_ids: tuple[str, ...],
 ) -> ArtifactsTabDescriptor:
     healthy = [record for record in records if record.policy.spec is not None]
     policy = (healthy[0].policy if healthy else None) or (
@@ -224,6 +240,7 @@ def _descriptor_for_provider_kind(
         spec=spec,
         provider_spec_digest=digest or (policy.digest if policy is not None else None),
         is_degraded=error is not None,
+        configured_pane_ids=configured_pane_ids,
     )
     if compiled.error is not None:
         error = compiled.error

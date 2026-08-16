@@ -123,6 +123,70 @@ class CapabilityVerdict:
         }
 
 
+class RelationKind(StrEnum):
+    """Closed relation primitives understood by the Artifacts host."""
+
+    HIERARCHY = "hierarchy"
+    FAMILY = "family"
+    LINK = "link"
+
+
+@dataclass(frozen=True, slots=True)
+class PaneRelationDecl:
+    """One declared relation edge family for an Artifacts pane."""
+
+    name: str
+    kind: RelationKind
+    label: str
+    source: str
+    target_pane: str | None
+    inverse: str | None
+    directed: bool
+    transitive: bool
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "kind": self.kind.value,
+            "label": self.label,
+            "source": self.source,
+            "target_pane": self.target_pane,
+            "inverse": self.inverse,
+            "directed": self.directed,
+            "transitive": self.transitive,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PaneGroupingModeDecl:
+    """One declared grouping mode for an Artifacts pane."""
+
+    id: str
+    label: str
+    keys: tuple[str, ...]
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "keys": list(self.keys),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PaneGroupingDecl:
+    """Declared grouping modes for an Artifacts pane."""
+
+    modes: tuple[PaneGroupingModeDecl, ...] = ()
+    default_mode: str | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "default_mode": self.default_mode,
+            "modes": [mode.to_payload() for mode in self.modes],
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class PaneDeclaredFacts:
     """Immutable declared facts the compiler uses to derive capabilities."""
@@ -138,6 +202,8 @@ class PaneDeclaredFacts:
     is_plan_adapter: bool
     project_scoped: bool
     has_detail: bool
+    relations: tuple[PaneRelationDecl, ...] = ()
+    grouping: PaneGroupingDecl = field(default_factory=PaneGroupingDecl)
     suppressions: Mapping[str, str] = field(default_factory=dict)
 
     def to_payload(self) -> dict[str, Any]:
@@ -153,23 +219,10 @@ class PaneDeclaredFacts:
             "is_plan_adapter": self.is_plan_adapter,
             "project_scoped": self.project_scoped,
             "has_detail": self.has_detail,
+            "relations": [item.to_payload() for item in self.relations],
+            "grouping": self.grouping.to_payload(),
             "suppressions": dict(self.suppressions),
         }
-
-
-@dataclass(frozen=True, slots=True)
-class PaneRelationDecl:
-    """Later-phase relation placeholder. Unused this phase."""
-
-    name: str
-    target: str
-
-
-@dataclass(frozen=True, slots=True)
-class PaneGroupingDecl:
-    """Later-phase grouping placeholder. Empty this phase."""
-
-    keys: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,10 +309,8 @@ class ArtifactsPaneContract:
                 "body": self.empty_state.body,
             },
             "query_profile": self.query_profile.to_wire(),
-            "relations": [
-                {"name": item.name, "target": item.target} for item in self.relations
-            ],
-            "grouping": {"keys": list(self.grouping.keys)},
+            "relations": [item.to_payload() for item in self.relations],
+            "grouping": self.grouping.to_payload(),
             "status_counters": [
                 {"name": item.name, "field": item.field}
                 for item in self.status_counters

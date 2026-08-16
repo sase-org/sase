@@ -137,6 +137,61 @@ def test_sidecar_ref_icon_override_beats_provider_icon(tmp_path: Path) -> None:
     assert policy.spec["ref"]["icon"] == "∴"
 
 
+def test_inline_relations_and_grouping_are_preserved(tmp_path: Path) -> None:
+    report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "custom": {
+                        "research": {
+                            "description": "Research docs.",
+                            "ref": {
+                                "kind": "research",
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "source": "markdown_frontmatter",
+                                    }
+                                },
+                                "relations": [
+                                    {
+                                        "name": "parent",
+                                        "kind": "hierarchy",
+                                        "label": "Parent",
+                                        "source": "status",
+                                        "target_pane": None,
+                                        "inverse": "children",
+                                        "directed": True,
+                                        "transitive": True,
+                                    }
+                                ],
+                                "grouping": {
+                                    "default_mode": "by_status",
+                                    "modes": [
+                                        {
+                                            "id": "by_status",
+                                            "label": "Status",
+                                            "keys": ["status"],
+                                        }
+                                    ],
+                                },
+                            },
+                        }
+                    }
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("research",),
+    )
+
+    assert report.diagnostics == ()
+    policy = report.policies["research"]
+    assert policy.spec is not None
+    assert policy.spec["ref"]["relations"][0]["name"] == "parent"
+    assert policy.spec["ref"]["grouping"]["default_mode"] == "by_status"
+
+
 def test_sidecar_ref_deprecated_path_globs_alias_is_reported(
     tmp_path: Path,
 ) -> None:
