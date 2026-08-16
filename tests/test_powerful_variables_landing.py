@@ -9,12 +9,24 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# The sase-core release that first published the powerful-variable bindings.
+POWERFUL_VARIABLE_CORE_FLOOR = (0, 27, 9)
+_CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<0\.28\.0$")
+
+
+def _declared_core_floor() -> tuple[int, ...]:
+    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    for dependency in data["project"]["dependencies"]:
+        match = _CORE_FLOOR_RE.match(dependency)
+        if match is not None:
+            return tuple(int(part) for part in match.group(1).split("."))
+    raise AssertionError("sase-core-rs dependency is missing from pyproject.toml")
+
 
 def test_sase_core_rs_floor_is_published_powerful_variable_release() -> None:
-    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    dependencies = data["project"]["dependencies"]
-
-    assert "sase-core-rs>=0.27.9,<0.28.0" in dependencies
+    # Compare rather than pin: `tools/ratchet_core_window` raises this floor on
+    # the release branch, so an exact-string guard would fail every ratchet.
+    assert _declared_core_floor() >= POWERFUL_VARIABLE_CORE_FLOOR
 
 
 def test_configuration_documents_complete_sase_var_contract() -> None:
