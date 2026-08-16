@@ -177,17 +177,23 @@ def explicit_sidecar_config_update(config_path: Path) -> ConfigUpdate:
                 CommentedMap(
                     (
                         ("auto_clone", True),
+                        ("auto_sync", True),
                         ("ref", CommentedMap((("use", "plan"),))),
                     )
                 ),
             ),
             "beads": (
                 SIDECAR_BUILTIN_CONFIG_KEY,
-                CommentedMap((("auto_clone", True),)),
+                CommentedMap((("auto_clone", True), ("auto_sync", True))),
             ),
             "research": (
                 SIDECAR_CUSTOM_CONFIG_KEY,
-                CommentedMap((("description", DEFAULT_RESEARCH_DESCRIPTION),)),
+                CommentedMap(
+                    (
+                        ("description", DEFAULT_RESEARCH_DESCRIPTION),
+                        ("auto_sync", True),
+                    )
+                ),
             ),
             AGENTS_SIDECAR_ROLE: (
                 SIDECAR_BUILTIN_CONFIG_KEY,

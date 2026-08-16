@@ -42,6 +42,11 @@
           "description": "Materialize and synchronize this sidecar automatically before each agent launch. The intrinsic agents role ignores this setting and is never exposed to launched agents or cloned into workspaces.",
           "default": false
         },
+        "auto_sync": {
+          "type": "boolean",
+          "description": "Opt this role's materialized primary sidecar clone into conservative background convergence: fetch and fast-forward only while clean, attached, and non-diverged. Independent of auto_clone. The intrinsic agents role ignores this setting.",
+          "default": false
+        },
         "description": {
           "type": "string",
           "description": "Human-readable purpose used in repository inventory and generated agent memory.",

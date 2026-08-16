@@ -194,6 +194,7 @@ def _merged_sidecar_entries_cached(
         )
         normalized_entry = dict(entry)
         normalized_entry.setdefault("auto_clone", False)
+        normalized_entry.setdefault("auto_sync", False)
         normalized_entry.setdefault("visibility", "public")
         normalized_entry.setdefault("disabled", False)
         normalized_entry[_SIDECAR_REPO_MARKER] = True
@@ -324,10 +325,10 @@ def inject_default_linked_repos(
         if token
     }
     defaults = (
-        ("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),
-        ("beads", f"{project_name}--beads", DEFAULT_BEADS_DESCRIPTION, True),
+        ("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True, True),
+        ("beads", f"{project_name}--beads", DEFAULT_BEADS_DESCRIPTION, True, True),
     )
-    for role, name, description, auto_clone in defaults:
+    for role, name, description, auto_clone, auto_sync in defaults:
         if name in configured_names or {role, name}.intersection(
             configured_sidecar_tokens
         ):
@@ -338,6 +339,7 @@ def inject_default_linked_repos(
                 "path": f"../{name}",
                 "description": description,
                 "auto_clone": auto_clone,
+                "auto_sync": auto_sync,
                 _DEFAULT_LINKED_REPO_MARKER: True,
                 _SIDECAR_REPO_MARKER: True,
                 _SIDECAR_ROLE_KEY: role,
@@ -368,6 +370,7 @@ def inject_default_linked_repos(
                 "path": f"../{agents_identity.slug}",
                 "description": DEFAULT_AGENTS_DESCRIPTION,
                 "auto_clone": False,
+                "auto_sync": False,
                 "visibility": "public",
                 _DEFAULT_LINKED_REPO_MARKER: True,
                 _SIDECAR_REPO_MARKER: True,

@@ -243,6 +243,7 @@ def _collect_project_repos(
                         auto_clone=bool(
                             metadata.get("auto_clone", kind in {"plans", "beads"})
                         ),
+                        auto_sync=bool(metadata.get("auto_sync", False)),
                         description=(
                             _optional_text(metadata.get("description"))
                             or default_description
@@ -271,6 +272,7 @@ def _collect_project_repos(
             else:
                 materialized_sidecars.add(name)
                 path = str(Path(primary) / ".sase" / "sdd")
+                combined_metadata = entry_metadata.get(name, {})
                 records.append(
                     RepoRecord(
                         name=name,
@@ -280,6 +282,7 @@ def _collect_project_repos(
                         path=path,
                         exists=Path(path).is_dir(),
                         auto_clone=True,
+                        auto_sync=bool(combined_metadata.get("auto_sync", False)),
                         description="Durable SASE development artifacts.",
                         source="SDD store record",
                         env_name=_sanitize_env_name(name),
@@ -384,6 +387,7 @@ def _collect_project_repos(
                 path=path,
                 exists=Path(path).is_dir(),
                 auto_clone=auto_clone,
+                auto_sync=is_sidecar and entry.get("auto_sync") is True,
                 description=_optional_text(entry.get("description")),
                 source=(
                     "auto-injected sidecar"
@@ -476,6 +480,7 @@ def _entry_metadata_by_name(
         slug = _optional_text(entry.get(_SIDECAR_SLUG_KEY))
         payload: dict[str, object] = {
             "auto_clone": entry.get("auto_clone") is True,
+            "auto_sync": entry.get("auto_sync") is True,
             "description": entry.get("description"),
             "env_name": env_names.get(index),
             "is_configured_sidecar": (

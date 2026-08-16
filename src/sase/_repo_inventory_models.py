@@ -40,6 +40,7 @@ class RepoRecord:
     remote_url: str | None = None
     sdd_storage: str | None = None
     clones: tuple[RepoCloneRecord, ...] = ()
+    auto_sync: bool = False
 
     def clone_for_workspace(self, workspace_num: int) -> RepoCloneRecord | None:
         """Return this repo's clone record for *workspace_num*, if registered."""
@@ -65,6 +66,7 @@ class RepoRecord:
             "path": selected.path if selected is not None else self.path,
             "exists": selected.exists if selected is not None else self.exists,
             "auto_clone": self.auto_clone,
+            "auto_sync": self.auto_sync,
             "description": self.description,
             "source": self.source,
             "env_name": self.env_name,

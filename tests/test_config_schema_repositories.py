@@ -72,6 +72,7 @@ def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
                         "repo": "sase-org/sase--research",
                         "description": "Durable research.",
                         "auto_clone": False,
+                        "auto_sync": True,
                         "visibility": "private",
                         "disabled": False,
                         "ref": {
@@ -114,6 +115,7 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
         in public_schema["properties"]["repos"]["properties"]["sidecar"]["description"]
     )
     assert "never exposed" in sidecar["auto_clone"]["description"]
+    assert "auto_clone" in sidecar["auto_sync"]["description"]
     assert "agents sidecar" in sidecar["disabled"]["description"]
     assert "private" in sidecar["visibility"]["description"]
     assert sidecar["ref"]["$ref"] == "#/definitions/sidecarRef"
@@ -125,6 +127,7 @@ def test_config_schema_documents_intrinsic_agents_sidecar_contract() -> None:
         ({"visibility": "internal"}, "visibility"),
         ({"disabled": "no"}, "disabled"),
         ({"auto_clone": "yes"}, "auto_clone"),
+        ({"auto_sync": "yes"}, "auto_sync"),
     ],
 )
 def test_config_schema_rejects_invalid_sidecar_controls(

@@ -113,6 +113,33 @@ def test_bucketed_sidecar_role_in_both_buckets_resolves_to_custom(
     assert entries[0]["repo"] == "acme/custom-plans"
 
 
+def test_auto_sync_defaults_false_and_is_independent_of_auto_clone(
+    tmp_path: Path,
+) -> None:
+    """``auto_sync`` defaults off and does not follow ``auto_clone``."""
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    config = {
+        "repos": {
+            "sidecar": {
+                "builtin": {"plans": {"auto_clone": True}},
+                "custom": {"research": {"auto_clone": False, "auto_sync": True}},
+            }
+        }
+    }
+
+    entries = merged_sidecar_entries_from_config(
+        config, primary_workspace_dir=str(primary)
+    )
+    by_name = {entry["name"]: entry for entry in entries}
+
+    assert by_name["plans"]["auto_clone"] is True
+    assert by_name["plans"]["auto_sync"] is False
+    assert by_name["research"]["auto_clone"] is False
+    assert by_name["research"]["auto_sync"] is True
+
+
 def test_bucketed_sidecar_skips_non_mapping_values(tmp_path: Path) -> None:
     """Runtime parsing stays forgiving; doctor is what reports bad shapes."""
     primary = tmp_path / "widget"

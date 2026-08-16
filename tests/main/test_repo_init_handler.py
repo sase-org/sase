@@ -47,15 +47,18 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
         "    builtin:\n"
         "      plans:\n"
         "        auto_clone: true\n"
+        "        auto_sync: true\n"
         "        ref:\n"
         "          use: plan\n"
         "      beads:\n"
         "        auto_clone: true\n"
+        "        auto_sync: true\n"
         "      agents:\n"
         f"        description: {DEFAULT_AGENTS_DESCRIPTION}\n"
         "    custom:\n"
         "      research:\n"
         "        description: Durable SASE research reports and generated media.\n"
+        "        auto_sync: true\n"
     )
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
     assert (store_root / "README.md").is_file()

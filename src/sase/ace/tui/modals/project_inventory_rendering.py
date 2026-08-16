@@ -153,6 +153,8 @@ def repo_detail_text(
     text.append(record.source)
     text.append("    Auto-clone: ", style="dim")
     text.append("yes" if record.auto_clone else "no")
+    text.append("    Auto-sync: ", style="dim")
+    text.append("yes" if record.auto_sync else "no")
     text.append("\nDescription: ", style="dim")
     text.append(record.description or "-")
     text.append("\nEnvironment: ", style="dim")
