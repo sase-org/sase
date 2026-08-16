@@ -10,6 +10,8 @@ from sase.editor_resolver import resolve_editor
 class EditorMixin:
     """Mixin providing editor integration for agent prompts and workflows."""
 
+    _prompt_editor_suspended: bool
+
     def _open_editor_for_agent_prompt(
         self,
         initial_content: str = "",
@@ -75,8 +77,12 @@ class EditorMixin:
                 except OSError:
                     pass
 
-        with self.suspend():  # type: ignore[attr-defined]
-            return run_editor()
+        self._prompt_editor_suspended = True
+        try:
+            with self.suspend():  # type: ignore[attr-defined]
+                return run_editor()
+        finally:
+            self._prompt_editor_suspended = False
 
     def _open_workflow_yaml_editor(self) -> tuple[str, str] | None:
         """Suspend TUI and open editor for ad-hoc workflow YAML.

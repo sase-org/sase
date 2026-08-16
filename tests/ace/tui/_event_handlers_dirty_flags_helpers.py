@@ -72,7 +72,10 @@ class _FakeApp(EventHandlersMixin):
         self._prompt_context = None
         self._approve_prompt_context = None
         self._plan_feedback_context = None
+        self._prompt_editor_suspended = False
         self._mounted_prompt_bar = False
+        self._screen_stack: list[object] = []
+        self.screen = object()
         self._fs_watcher = object() if watcher_active else None
         self._sdd_beads_dir = sdd_beads_dir
         self._dirty_patches = False

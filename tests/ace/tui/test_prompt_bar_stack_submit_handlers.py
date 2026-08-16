@@ -15,6 +15,10 @@ These pin the contracts the launch path depends on:
 
 from __future__ import annotations
 
+from typing import Any
+
+from sase.ace.tui._app_action_availability import check_app_action
+from sase.ace.tui.actions._event_base import EventHandlersBase
 from sase.ace.tui.actions.agent_workflow._prompt_bar_submit import (
     PromptBarSubmitMixin,
 )
@@ -85,6 +89,20 @@ class _SubmitHarness(PromptBarSubmitMixin):
 
     def _unmount_prompt_bar_without_cancel_save(self) -> None:
         self.unmount_without_save_calls += 1
+
+
+class _KeepBarGateApp(EventHandlersBase, _FakeApp):
+    def __init__(self) -> None:
+        _FakeApp.__init__(self)
+        self._screen_stack = [object()]
+        self.current_tab = "agents"
+        self.screen = object()
+        self._prompt_editor_suspended = False
+
+    def query(self, selector: Any) -> list[object]:
+        if selector is PromptInputBar:
+            return [object()]
+        return []
 
 
 # --- submit routing --------------------------------------------------------
@@ -265,6 +283,19 @@ def test_keep_bar_launch_clones_context_and_preserves_base() -> None:
     assert snapshot.timestamp != "ts"
 
 
+def test_keep_bar_launch_keeps_ctrl_space_gated() -> None:
+    app = _KeepBarGateApp()
+
+    app._finish_agent_launch("pane one", keep_bar=True)
+
+    assert app.unmount_calls == []
+    assert app._prompt_context is not None
+    assert (
+        check_app_action(app, "start_agent_from_patch", (), lambda *_args: True)
+        is False
+    )
+
+
 def test_back_to_back_keep_bar_launches_use_distinct_contexts() -> None:
     app = _FakeApp()
     base = app._prompt_context
@@ -288,11 +319,12 @@ def test_back_to_back_keep_bar_launches_use_distinct_contexts() -> None:
 
 def test_keep_bar_false_launch_unmounts_like_today() -> None:
     app = _FakeApp()
+    base = app._prompt_context
 
     app._finish_agent_launch("solo prompt")
 
     assert app.unmount_calls == ["submit"]
+    assert app._prompt_context is None
     assert len(app.launch_tasks) == 1
-    # keep_bar=False threads ``None`` so the worker consumes the app context.
     app.launch_tasks[0]["proc_callable"]()
-    assert app.body_call_contexts == [None]
+    assert app.body_call_contexts == [base]

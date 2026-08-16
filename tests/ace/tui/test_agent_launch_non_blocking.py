@@ -263,9 +263,7 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
         assert task["cl_name"] == "test"
         assert task["project_file"] == "/tmp/test.sase"
         assert app.notifications == [("Launching agent for test...", None)]
-        assert app._prompt_context is not None
-        assert app._prompt_context.timestamp == "forced-ts"
-        assert app._prompt_context.workflow_name == "ace(run)-forced-ts"
+        assert app._prompt_context is None
 
         outcome = task["proc_callable"]()
 

@@ -12,12 +12,17 @@ before the launch worker runs.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 
 import sase.agent.prompt_placeholder_inputs as plan_module
 import sase.history.prompt_placeholders as placeholder_store
+from sase.ace.tui._app_action_availability import check_app_action
+from sase.ace.tui.actions._event_base import EventHandlersBase
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
+from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.agent.prompt_inputs import PromptInputError
 from sase.agent.prompt_placeholder_inputs import PromptInputValues
 
 from tests.ace.tui._agent_launch_helpers import _FakeApp
@@ -44,6 +49,30 @@ def _disable_collection(monkeypatch: pytest.MonkeyPatch) -> None:
         plan_module,
         "load_merged_config",
         lambda: {"ace": {"prompt_inputs": {"collect_raw_placeholders": False}}},
+    )
+
+
+class _PromptActivityApp(EventHandlersBase, _FakeApp):
+    """Launch harness that can model mounted and bar-less prompt contexts."""
+
+    def __init__(self, *, bar_mounted: bool) -> None:
+        _FakeApp.__init__(self)
+        self._bar_mounted = bar_mounted
+        self._screen_stack = [object()]
+        self.current_tab = "agents"
+        self.screen = object()
+        self._prompt_editor_suspended = False
+
+    def query(self, selector: Any) -> list[object]:
+        if selector is PromptInputBar and self._bar_mounted:
+            return [object()]
+        return []
+
+
+def _ctrl_space_available(app: _PromptActivityApp) -> bool:
+    return (
+        check_app_action(app, "start_agent_from_patch", (), lambda *_args: True)
+        is not False
     )
 
 
@@ -103,6 +132,50 @@ def test_required_input_modal_cancel_launches_nothing() -> None:
     assert ("Input collection cancelled", None) in app.notifications
 
 
+def test_required_input_modal_cancel_releases_barless_context() -> None:
+    app = _PromptActivityApp(bar_mounted=False)
+
+    app._finish_agent_launch(_REQUIRED_PROMPT)
+    _screen, callback = app.pushed_screens[0]
+    callback(None)
+
+    assert app.launch_tasks == []
+    assert app._prompt_context is None
+    assert _ctrl_space_available(app)
+
+
+def test_required_input_modal_cancel_preserves_mounted_bar_context() -> None:
+    app = _PromptActivityApp(bar_mounted=True)
+
+    app._finish_agent_launch(_REQUIRED_PROMPT)
+    _screen, callback = app.pushed_screens[0]
+    callback(None)
+
+    assert app.launch_tasks == []
+    assert app._prompt_context is not None
+    assert not _ctrl_space_available(app)
+
+
+def test_optional_input_error_releases_barless_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _PromptActivityApp(bar_mounted=False)
+
+    def fail_render(_prompt: str, _values: dict[str, str]) -> str:
+        raise PromptInputError("broken default")
+
+    monkeypatch.setattr(
+        "sase.agent.prompt_inputs.render_prompt_with_inputs",
+        fail_render,
+    )
+
+    app._finish_agent_launch(_OPTIONAL_PROMPT)
+
+    assert app.launch_tasks == []
+    assert app._prompt_context is None
+    assert _ctrl_space_available(app)
+
+
 def test_invalid_collected_value_does_not_launch() -> None:
     app = _FakeApp()
 
@@ -118,6 +191,42 @@ def test_invalid_collected_value_does_not_launch() -> None:
 
     assert app.launch_tasks == []
     assert any(sev == "error" for _msg, sev in app.notifications)
+
+
+def test_invalid_collected_value_releases_barless_context() -> None:
+    app = _PromptActivityApp(bar_mounted=False)
+
+    prompt = "---\ninput:\n  retries: int\n---\n{{ retries }}"
+    app._finish_agent_launch(prompt)
+    _screen, callback = app.pushed_screens[0]
+    callback(
+        PromptInputValues(
+            placeholders={},
+            declared={"retries": "three"},
+        )
+    )
+
+    assert app.launch_tasks == []
+    assert app._prompt_context is None
+    assert _ctrl_space_available(app)
+
+
+def test_invalid_collected_value_preserves_mounted_bar_context() -> None:
+    app = _PromptActivityApp(bar_mounted=True)
+
+    prompt = "---\ninput:\n  retries: int\n---\n{{ retries }}"
+    app._finish_agent_launch(prompt)
+    _screen, callback = app.pushed_screens[0]
+    callback(
+        PromptInputValues(
+            placeholders={},
+            declared={"retries": "three"},
+        )
+    )
+
+    assert app.launch_tasks == []
+    assert app._prompt_context is not None
+    assert not _ctrl_space_available(app)
 
 
 def test_raw_placeholder_opens_panel_then_launches_substituted(

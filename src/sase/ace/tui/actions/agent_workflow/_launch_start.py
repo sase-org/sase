@@ -81,6 +81,7 @@ class AgentLaunchStartMixin:
                 prompt = render_prompt_with_inputs(prompt, {})
             except PromptInputError as exc:
                 self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
+                self._release_prompt_context_if_no_bar_mounted()
                 return
 
         self._launch_resolved_prompt(prompt, keep_bar=keep_bar)
@@ -111,6 +112,7 @@ class AgentLaunchStartMixin:
         def _after(values: object) -> None:
             if values is None:
                 self.notify("Input collection cancelled")  # type: ignore[attr-defined]
+                self._release_prompt_context_if_no_bar_mounted()
                 return
             assert isinstance(values, PromptInputValues)
             record_prompt_placeholders(parse_yaml_front_matter(prompt)[1])
@@ -118,6 +120,7 @@ class AgentLaunchStartMixin:
                 resolved = apply_prompt_input_values(prompt, values)
             except PromptInputError as exc:
                 self.notify(f"Input error: {exc}", severity="error")  # type: ignore[attr-defined]
+                self._release_prompt_context_if_no_bar_mounted()
                 return
             self._launch_resolved_prompt(resolved, keep_bar=keep_bar)
 
@@ -166,16 +169,20 @@ class AgentLaunchStartMixin:
         ctx.workflow_name = f"ace(run)-{ctx.timestamp}"
 
         # Unmount prompt bar first (transfers focus to the active tab's list
-        # widget, see _transfer_focus_off_prompt_bar), then offload the
-        # heavy launch path to a worker thread. The launch worker writes
-        # the final non-cancelled history entry, so this path must NOT go
-        # through the safety-net cancel save (sase-3q.2).
+        # widget, see _transfer_focus_off_prompt_bar), then submit argv-only
+        # ``sase run`` to the durable supervisor. The out-of-process launch
+        # cannot release UI state for us, so the UI thread owns and releases
+        # the prompt context here. The launch worker writes the final
+        # non-cancelled history entry, so this path must NOT go through the
+        # safety-net cancel save (sase-3q.2).
         #
         # In the keep_bar case the bar stays mounted and ``self._prompt_context``
-        # remains the base, so the worker must operate on the explicit ``ctx``
-        # snapshot rather than reading (and clearing) the shared base.
+        # remains the base, so the vestigial in-process test callable must
+        # operate on the explicit ``ctx`` snapshot rather than reading the
+        # shared base.
         if not keep_bar:
             self._unmount_prompt_bar_after_submit()  # type: ignore[attr-defined]
+            self._prompt_context = None
         from ...util.trace import set_trace_context
 
         set_trace_context(
@@ -187,7 +194,6 @@ class AgentLaunchStartMixin:
             f"Launching agent for {_launch_toast_label(prompt, ctx.display_name)}..."
         )
 
-        launch_ctx = ctx if keep_bar else None
         self._submit_launch_proc(  # type: ignore[attr-defined]
             display_name=f"launch {ctx.display_name}",
             cl_name=ctx.display_name,
@@ -200,5 +206,27 @@ class AgentLaunchStartMixin:
                 "workflow_name": ctx.workflow_name,
             },
             submitted_prompt=prompt,
-            proc_callable=lambda: self._run_agent_launch_body(prompt, launch_ctx),  # type: ignore[attr-defined]
+            proc_callable=lambda: self._run_agent_launch_body(prompt, ctx),  # type: ignore[attr-defined]
         )
+
+    def _release_prompt_context_if_no_bar_mounted(self) -> None:
+        """Clear bar-less prompt state without destroying a mounted draft.
+
+        Prompt-input collection can be reached after opening a prompt directly
+        in an external editor, where no ``PromptInputBar`` exists to cancel.
+        If a bar is mounted, leave its context alone so the user's draft
+        survives modal cancel and input-error paths.
+        """
+        mounted_prompt_bar = getattr(self, "_mounted_prompt_bar", None)
+        if callable(mounted_prompt_bar):
+            if mounted_prompt_bar() is not None:
+                return
+        else:
+            query = getattr(self, "query", None)
+            if query is None:
+                return
+            from ...widgets import PromptInputBar
+
+            if query(PromptInputBar):
+                return
+        self._prompt_context = None

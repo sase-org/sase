@@ -58,6 +58,7 @@ class EventHandlersBase:
     _dirty_notifications: bool
     _artifact_change_defer_pending: bool
     _last_full_sanity_refresh: float
+    _prompt_editor_suspended: bool
 
     def _refresh_current_tab(self) -> None:
         """Refresh the display for whichever tab is currently active.
@@ -86,12 +87,8 @@ class EventHandlersBase:
         raise NotImplementedError
 
     def _prompt_input_active(self) -> bool:
-        """Return True while any prompt-like input surface is mounted."""
-        if getattr(self, "_prompt_context", None) is not None:
-            return True
-        if getattr(self, "_approve_prompt_context", None) is not None:
-            return True
-        if getattr(self, "_plan_feedback_context", None) is not None:
+        """Return True while a prompt surface is mounted or editor-suspended."""
+        if getattr(self, "_prompt_editor_suspended", False):
             return True
 
         query = getattr(self, "query", None)

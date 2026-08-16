@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -216,6 +217,20 @@ async def test_ctrl_space_action_is_gated_only_while_prompt_is_mounted(
         await _mount_home_prompt(page, "hello world")
 
         assert page.app.check_action("start_agent_from_patch", ()) is False
+
+        submissions: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        def submit(*args: object, **kwargs: object) -> object:
+            submissions.append((args, kwargs))
+            return SimpleNamespace(proc_id="proc-1")
+
+        with patch.object(page.app, "_submit_durable_proc", submit):
+            page.app._finish_agent_launch("hello world")
+        await page.pause()
+
+        assert submissions
+        assert page.app._prompt_context is None
+        assert page.app.check_action("start_agent_from_patch", ()) is not False
 
 
 async def test_other_main_screen_vim_hosts_contain_normal_space(page: AcePage) -> None:

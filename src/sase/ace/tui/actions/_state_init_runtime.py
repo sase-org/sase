@@ -198,6 +198,7 @@ def init_runtime_state(
     self._dirty_notifications = True
     self._artifact_change_defer_pending = False
     self._last_full_sanity_refresh = 0.0
+    self._prompt_editor_suspended = False
     self._last_agents_load_mono = 0.0
     # Per-STARTING-agent agent_meta.json/waiting.json (mtime_ns, size)
     # cache used by the countdown-tick STARTING-transition poll. Each
