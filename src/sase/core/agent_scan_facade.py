@@ -21,6 +21,12 @@ from pathlib import Path
 from collections.abc import Sequence
 from typing import Any
 
+from sase.core.agent_alias_history_wire import (
+    AgentAliasHistoryQueryWire,
+    AgentAliasHistoryWire,
+    agent_alias_history_from_dict,
+    agent_alias_history_query_to_dict,
+)
 from sase.core.agent_cleanup_wire import (
     AgentCleanupIdentityWire,
     agent_cleanup_wire_to_json_dict,
@@ -287,6 +293,20 @@ def query_agent_output_variable_history(
     return agent_output_variable_history_from_dict(payload)
 
 
+def query_agent_alias_history(
+    index_path: Path | str,
+    query: AgentAliasHistoryQueryWire,
+) -> AgentAliasHistoryWire:
+    """Return bounded per-alias agent history from the persistent artifact index."""
+    with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_agent_alias_history")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            agent_alias_history_query_to_dict(query),
+        )
+    return agent_alias_history_from_dict(payload)
+
+
 def parse_output_variable_selector(selector: str) -> OutputVariableSelectorWire:
     """Parse one ``sase var get`` selector through the Rust domain parser."""
     rust_parse = require_rust_binding("parse_output_variable_selector")
@@ -455,6 +475,7 @@ __all__ = [
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
     "parse_output_variable_selector",
+    "query_agent_alias_history",
     "query_agent_artifact_index",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",

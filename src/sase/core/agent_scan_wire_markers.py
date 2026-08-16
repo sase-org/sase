@@ -172,6 +172,8 @@ class AgentMetaWire:
     llm_provider: str | None = None
     reasoning_effort: str | None = None
     model_alias: str | None = None
+    model_alias_trail: list[str] = field(default_factory=list)
+    model_alias_origin: str | None = None
     vcs_provider: str | None = None
     role_suffix: str | None = None
     parent_timestamp: str | None = None
@@ -353,6 +355,8 @@ class PromptStepMarkerWire:
     llm_provider: str | None = None
     reasoning_effort: str | None = None
     model_alias: str | None = None
+    model_alias_trail: list[str] = field(default_factory=list)
+    model_alias_origin: str | None = None
     output: dict[str, Any] | None = None
     output_types: dict[str, str] | None = None
 

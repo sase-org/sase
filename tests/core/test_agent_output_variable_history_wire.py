@@ -19,7 +19,7 @@ from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 
 def test_history_schema_versions_are_pinned() -> None:
     assert AGENT_OUTPUT_VARIABLE_HISTORY_WIRE_SCHEMA_VERSION == 1
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 21
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 22
 
 
 def test_history_query_round_trips_defaults_and_filters() -> None:

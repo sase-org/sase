@@ -119,6 +119,9 @@ def agent_artifact_index_status_from_dict(
         dismissed_agents_rows=int(data.get("dismissed_agents_rows", 0)),
         agent_artifact_aliases_rows=int(data.get("agent_artifact_aliases_rows", 0)),
         agent_output_variables_rows=int(data.get("agent_output_variables_rows", 0)),
+        agent_artifact_model_aliases_rows=int(
+            data.get("agent_artifact_model_aliases_rows", 0)
+        ),
     )
 
 

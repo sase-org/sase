@@ -43,6 +43,8 @@ REQUIRED_BINDINGS = (
     "rebuild_agent_artifact_index",
     "query_agent_output_variable_history",
     "agent_output_variable_history_wire_schema_version",
+    "query_agent_alias_history",
+    "agent_alias_history_wire_schema_version",
     "parse_output_variable_selector",
     "query_agent_output_variable_selectors",
     "agent_output_variable_selector_wire_schema_version",
@@ -370,6 +372,87 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
         )
         return False
 
+    return True
+
+
+def _validate_agent_alias_history_schema(module: ModuleType) -> bool:
+    """Exercise schema-22 alias-history end to end so a stale wheel fails loudly.
+
+    A binding-name check alone cannot catch this: an installed wheel could
+    export ``query_agent_alias_history`` while still running the old schema-21
+    index code underneath, which would migrate the table but leave the
+    projection empty and quietly report zero history for every alias instead
+    of erroring. Round-tripping a real trail through rebuild + query is the
+    only way to tell "no history" from "broken projection".
+    """
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-alias-history-probe-") as tmp:
+        root = Path(tmp)
+        projects_root = root / "projects"
+        artifact_dir = (
+            projects_root / "probe" / "artifacts" / "ace-run" / "20260816120000"
+        )
+        artifact_dir.mkdir(parents=True)
+        (projects_root / "probe" / "probe.sase").write_text("", encoding="utf-8")
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "alias-history-probe",
+                    "model": "claude-opus",
+                    "llm_provider": "claude",
+                    "reasoning_effort": "high",
+                    "model_alias": "coder",
+                    "model_alias_trail": ["coder", "large"],
+                    "model_alias_origin": "directive",
+                }
+            ),
+            encoding="utf-8",
+        )
+        index_path = root / "agent_artifact_index.sqlite"
+        try:
+            module.rebuild_agent_artifact_index(
+                str(index_path),
+                str(projects_root),
+                _scan_probe_options(),
+            )
+            actual_version = int(module.agent_alias_history_wire_schema_version())
+            payload = module.query_agent_alias_history(
+                str(index_path),
+                {"aliases": ["large"]},
+            )
+        except Exception as exc:
+            _error(f"alias-history schema-22 probe failed: {exc}")
+            return False
+
+    if actual_version != 1:
+        _error(
+            "agent_alias_history_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 1"
+        )
+        return False
+    if not isinstance(payload, dict):
+        _error("alias-history schema-22 probe returned a non-dict payload")
+        return False
+    groups = payload.get("groups")
+    if not isinstance(groups, list) or len(groups) != 1:
+        _error("alias-history schema-22 probe did not return one alias group")
+        return False
+    runs = groups[0].get("runs") if isinstance(groups[0], dict) else None
+    if not isinstance(runs, list) or not runs:
+        _error(
+            "alias-history schema-22 probe returned no runs for a freshly "
+            "indexed alias trail; the installed wheel is stale"
+        )
+        return False
+    run = runs[0]
+    if run.get("alias_position") != 1 or run.get("model_alias_trail") != [
+        "coder",
+        "large",
+    ]:
+        _error(
+            "alias-history schema-22 probe did not project the recorded "
+            f"alias trail: got {run!r}"
+        )
+        return False
     return True
 
 
@@ -1074,6 +1157,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_skill_reference_contract(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
+        return 1
+    if not _validate_agent_alias_history_schema(module):
         return 1
     if not _validate_agent_stats_work_schema(module):
         return 1

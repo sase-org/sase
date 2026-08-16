@@ -310,6 +310,10 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-n8(AgentAliasHistoryGroupWire)" \
+        --epic-symbol "sase-n8(AgentAliasHistoryLimitWire)" \
+        --epic-symbol "sase-n8(AgentAliasRunWire)" \
+        --epic-symbol "sase-n8(query_agent_alias_history)" \
         --epic-symbol "sase-n9(agent_family_plan_preview_accent)" \
         --epic-symbol "sase-n9(agent_family_plan_preview_detail)" \
         --epic-symbol "sase-n9(agent_family_plan_preview_documentation)" \

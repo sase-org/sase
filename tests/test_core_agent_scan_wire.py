@@ -28,7 +28,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 6
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 21
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 22
 
 
 def test_clan_context_round_trips_with_source_identity() -> None:
