@@ -311,7 +311,7 @@ class PromptStepMixin:
             model_alias_origin=step_model_alias_origin,
         )
 
-        if self.workflow.is_anonymous():
+        if self.workflow.is_anonymous_workflow:
             # The anonymous workflow's single step is the top-level agent
             # invocation: reconcile agent_meta.json with the authoritative
             # selection so `sase agent list`, the ACE row, and any launch

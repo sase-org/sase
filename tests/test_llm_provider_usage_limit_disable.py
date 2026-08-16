@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.llm_provider.model_alias_policy import SMALL_MODEL_ALIAS_NAME
 from sase.llm_provider.provider_disable import (
     disable_provider,
     get_active_provider_disable,
@@ -21,13 +22,17 @@ from sase.llm_provider.usage_limit_disable import handle_possible_usage_limit
 from sase.notifications.store import load_notifications
 
 _NOW = 1_800_000_000.0
+_AGY_INDIVIDUAL_QUOTA_REACHED = (
+    "Error: Individual quota reached. Please upgrade your subscription to increase\n"
+    "your limits. Resets in 4h14m50s."
+)
 
 
 @pytest.fixture
 def registered_providers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.llm_provider.registry.registered_provider_names",
-        lambda: ["claude", "codex", "fakey"],
+        lambda: ["claude", "codex", "fakey", "grok", "agy"],
     )
 
 
@@ -164,6 +169,40 @@ class TestHandlePossibleUsageLimit:
         )
         assert result is None
         assert get_active_provider_disable("fakey") is None
+
+    def test_agy_captured_failure_disables_small_pool_member(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        registered_providers: None,
+        real_model_alias_defaults: None,
+    ) -> None:
+        from sase.llm_provider import registry
+        from sase.llm_provider.config import model_alias_selector_details
+        from sase.llm_provider.model_alias_resolution import (
+            resolved_target_is_available,
+        )
+
+        monkeypatch.setattr(registry, "_provider_cli_available", lambda _provider: True)
+        agy_target = "agy/gemini-3.7-flash-high"
+        assert resolved_target_is_available(agy_target) is True
+
+        result = handle_possible_usage_limit(
+            provider="agy",
+            error_text=_AGY_INDIVIDUAL_QUOTA_REACHED,
+        )
+
+        assert result is not None
+        disable = get_active_provider_disable("agy")
+        assert disable is not None
+        assert disable.source == "usage_limit"
+        assert resolved_target_is_available(agy_target) is False
+
+        details = model_alias_selector_details(SMALL_MODEL_ALIAS_NAME)
+        assert details is not None
+        agy_member = next(
+            member for member in details.members if member.target == agy_target
+        )
+        assert agy_member.available is False
 
 
 class TestUsageLimitNotification:

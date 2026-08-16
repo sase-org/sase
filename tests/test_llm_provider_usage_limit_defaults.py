@@ -7,8 +7,11 @@ cases that must NOT trip a disable.
 
 from unittest.mock import patch
 
+import pytest
+
 from sase.llm_provider.registry import iter_plugins
 from sase.llm_provider.usage_limit_config import (
+    detect_usage_limit,
     get_usage_limit_config,
     is_usage_limit_error,
 )
@@ -29,6 +32,11 @@ _CODEX_UPGRADE_TO_PRO = (
     "You've hit your usage limit. Upgrade to Pro "
     "(https://chatgpt.com/explore/pro), visit "
     "https://chatgpt.com/codex/settings/usage to purchase more credits"
+)
+
+_AGY_INDIVIDUAL_QUOTA_REACHED = (
+    "Error: Individual quota reached. Please upgrade your subscription to increase\n"
+    "your limits. Resets in 4h14m50s."
 )
 
 # --- Negative cases: must NOT match (Claude advisory/cooldown text) ---
@@ -157,6 +165,31 @@ class TestQwenAndAgyBuiltInDefaults:
         config = get_usage_limit_config("agy")
         assert config is not None
         assert is_usage_limit_error("Quota exceeded for this project", config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_agy_matches_captured_individual_quota_failure(
+        self, mock_config: object
+    ) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_usage_limit_config("agy")
+        assert config is not None
+        assert is_usage_limit_error(_AGY_INDIVIDUAL_QUOTA_REACHED, config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_agy_captured_failure_uses_reset_hint_duration(
+        self, mock_config: object
+    ) -> None:
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        detection = detect_usage_limit(
+            "agy",
+            _AGY_INDIVIDUAL_QUOTA_REACHED,
+            now=1_800_000_000.0,
+        )
+
+        assert detection is not None
+        assert detection.used_reset_hint is True
+        assert detection.reset_hint == "4h14m"
+        assert detection.disable_seconds == pytest.approx(4 * 3600 + 14 * 60 + 60)
 
 
 class TestUnverifiedProviderBaselines:

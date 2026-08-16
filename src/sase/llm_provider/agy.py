@@ -392,11 +392,16 @@ class AgyProvider(LLMProvider):
     def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
         from .usage_limit_config import ProviderUsageLimitConfig
 
-        # Antigravity is a Go binary built on Gemini Code Assist, so its
-        # usage-limit failures surface as Google API quota errors rather than
-        # distinctive prose (epic sase-n4 research).
+        # Captured Antigravity quota failures use this prose and a reset hint
+        # shaped like "Resets in 4h14m50s"; the parser consumes hours/minutes
+        # and adds its grace buffer. Keep the transport-level Google API
+        # patterns too, since Antigravity can surface backend errors directly.
         return ProviderUsageLimitConfig(
             patterns=[
+                (
+                    "individual quota reached. please upgrade your subscription "
+                    "to increase your limits"
+                ),
                 "resource_exhausted",
                 "quota exceeded",
                 "insufficient_quota",

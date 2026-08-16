@@ -149,6 +149,9 @@ class Workflow:
         skill_name: Provider-visible skill name when this workflow was
             converted from a canonical skill source, else ``None``.  Workflow
             files themselves are never skills.
+        is_anonymous_workflow: True when this workflow was constructed as an
+            anonymous launch wrapper. Unlike ``name``, this is identity metadata
+            and survives display-only renames.
     """
 
     name: str
@@ -164,6 +167,7 @@ class Workflow:
     skill_name: str | None = None
     memory_type: MemoryType | None = None
     discovery_rank: int | None = None
+    is_anonymous_workflow: bool = False
 
     def has_tag(self, tag: XPromptTag) -> bool:
         """Check if this workflow has the given tag."""

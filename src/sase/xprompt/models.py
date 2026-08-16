@@ -320,4 +320,5 @@ def create_anonymous_workflow(query: str) -> Workflow:
             )
         ],
         source_path=None,
+        is_anonymous_workflow=True,
     )
