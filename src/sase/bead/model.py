@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
+import re
 
 
 class Status(Enum):
@@ -20,6 +21,7 @@ class IssueType(Enum):
     PLAN = "plan"
     PHASE = "phase"
     TASK = "task"
+    FLAG = "flag"
 
 
 class BeadTier(Enum):
@@ -174,6 +176,72 @@ def _parse_snooze_timestamp(value: str, field_name: str) -> datetime:
     return parsed
 
 
+@dataclass(frozen=True)
+class FlagRecord:
+    """The registry key and removal thresholds a flag bead owns.
+
+    Mirrors ``BeadFlagWire`` in sase-core. The record exists exactly while the
+    issue type is ``flag``, so no flat field can drift out of sync with the
+    type.
+    """
+
+    key: str
+    remove_by_date: str
+    remove_by_release: str
+
+    def validate(self) -> None:
+        if not _is_snake_case_flag_key(self.key):
+            raise ValueError(
+                f"bead flag key must be non-empty snake_case: {self.key!r}"
+            )
+        _parse_flag_remove_by_date(self.remove_by_date)
+        if not _is_release_string(self.remove_by_release):
+            raise ValueError(
+                "bead flag remove_by_release must be a release string: "
+                f"{self.remove_by_release!r}"
+            )
+
+
+_SNAKE_CASE_FLAG_KEY_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
+_RELEASE_CORE_PART_RE = re.compile(r"^[0-9]+$")
+_RELEASE_SUFFIX_RE = re.compile(r"^[A-Za-z0-9.\-]+$")
+
+
+def _is_snake_case_flag_key(value: str) -> bool:
+    return bool(_SNAKE_CASE_FLAG_KEY_RE.match(value))
+
+
+def _parse_flag_remove_by_date(value: str) -> date:
+    """Parse a flag removal date, requiring a calendar ``YYYY-MM-DD`` ISO date.
+
+    Mirrors ``parse_flag_remove_by_date`` in sase-core.
+    """
+    text = value.strip()
+    try:
+        return date.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError(
+            f"bead flag remove_by_date must be an ISO date: {value!r} ({exc})"
+        ) from exc
+
+
+def _is_release_string(value: str) -> bool:
+    """Return whether *value* is ``X.Y.Z`` with an optional ``-``/``+`` suffix.
+
+    Mirrors ``is_release_string`` in sase-core.
+    """
+    split_at = next((i for i, ch in enumerate(value) if ch in "-+"), None)
+    core, suffix = (
+        (value, None) if split_at is None else (value[:split_at], value[split_at + 1 :])
+    )
+    parts = core.split(".")
+    if len(parts) != 3 or not all(_RELEASE_CORE_PART_RE.match(part) for part in parts):
+        return False
+    if suffix is None:
+        return True
+    return bool(suffix) and bool(_RELEASE_SUFFIX_RE.match(suffix))
+
+
 @dataclass
 class Issue:
     id: str
@@ -197,6 +265,7 @@ class Issue:
     plus_one_evidence: list[TaskPlusOneEvidence] = field(default_factory=list)
     close_history: list[CloseRecord] = field(default_factory=list)
     snooze: SnoozeRecord | None = None
+    flag: FlagRecord | None = None
     model: str = ""
     size: PhaseSize | None = None
     is_ready_to_work: bool = False
@@ -246,6 +315,10 @@ class Issue:
             raise ValueError("Task issues cannot have a parent_id")
         if self.issue_type == IssueType.TASK and self.tier is not None:
             raise ValueError("Task issues cannot carry plan tier metadata")
+        if self.issue_type == IssueType.FLAG and self.parent_id is not None:
+            raise ValueError("Flag issues cannot have a parent_id")
+        if self.issue_type == IssueType.FLAG and self.tier is not None:
+            raise ValueError("Flag issues cannot carry plan tier metadata")
         if self.issue_type != IssueType.TASK and self.plus_one_evidence:
             raise ValueError("Only task issues can carry +1 evidence")
         reporters: set[str] = set()
@@ -276,6 +349,12 @@ class Issue:
             raise ValueError("Only snoozed issues can carry snooze metadata")
         if self.snooze is not None:
             self.snooze.validate()
+        if self.issue_type == IssueType.FLAG and self.flag is None:
+            raise ValueError("flag issues must carry flag metadata")
+        if self.issue_type != IssueType.FLAG and self.flag is not None:
+            raise ValueError("Only flag issues can carry flag metadata")
+        if self.flag is not None:
+            self.flag.validate()
         if self.changespec_bug_id and not self.changespec_name:
             raise ValueError("changespec_bug_id requires changespec_name")
         if self.status != Status.CLOSED and self.resolution is not None:

@@ -8,7 +8,8 @@
   "by_type": {
     "plan": 2,
     "phase": 1,
-    "task": 0
+    "task": 0,
+    "flag": 0
   },
   "by_status": {
     "open": 0,
@@ -37,6 +38,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "plans/closed-epic.md",
@@ -67,6 +69,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "",
@@ -97,6 +100,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "plans/closed-plan.md",

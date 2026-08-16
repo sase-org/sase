@@ -8,7 +8,8 @@ from sase.bead.close_history_codec import (
     close_history_from_dicts,
     close_history_to_dicts,
 )
-from sase.bead.model import CloseRecord, SnoozeRecord, TaskPlusOneEvidence
+from sase.bead.flag_codec import flag_from_dict, flag_to_dict
+from sase.bead.model import CloseRecord, FlagRecord, SnoozeRecord, TaskPlusOneEvidence
 from sase.bead.snooze_codec import snooze_from_dict, snooze_to_dict
 
 
@@ -60,6 +61,27 @@ def snooze_from_json(value: object) -> SnoozeRecord | None:
     except (json.JSONDecodeError, TypeError, ValueError):
         return None
     return snooze_from_dict(record)
+
+
+def flag_json(record: FlagRecord | None) -> str | None:
+    """Encode a flag record for the mirror, or ``None`` when absent."""
+    if record is None:
+        return None
+    return json.dumps(
+        flag_to_dict(record),
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+
+def flag_from_json(value: object) -> FlagRecord | None:
+    if value in (None, ""):
+        return None
+    try:
+        record = json.loads(str(value))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return flag_from_dict(record)
 
 
 def close_history_from_json(value: object) -> list[CloseRecord]:

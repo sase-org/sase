@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sase.bead._project_types import EpicPreclaimRollback
 from sase.bead.model import (
     BeadTier,
     Dependency,
+    FlagRecord,
     Issue,
     IssueType,
     PhaseSize,
@@ -53,6 +54,7 @@ class BeadProjectMutationMixin:
         changespec_name: str | int | None = "",
         changespec_bug_id: str | int | None = "",
         external_ref: str | int | None = "",
+        flag: FlagRecord | None = None,
         model: str = "",
         size: PhaseSize | str | None = None,
         created_by: str | None = None,
@@ -86,6 +88,7 @@ class BeadProjectMutationMixin:
             changespec_name=changespec_name,
             changespec_bug_id=changespec_bug_id,
             external_ref=external_ref,
+            flag=flag,
             model=model,
             size=size,
             created_by=created_by,
@@ -95,7 +98,7 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return issue
 
-    def update(self, issue_id: str, **fields: str | int | None) -> Issue:
+    def update(self, issue_id: str, **fields: Any) -> Issue:
         """Update fields on an issue."""
         if "is_ready_to_work" in fields:
             raise ValueError(
@@ -119,9 +122,7 @@ class BeadProjectMutationMixin:
         self._refresh_db_from_jsonl()
         return issue
 
-    def update_many(
-        self, issue_ids: list[str], **fields: str | int | None
-    ) -> list[Issue]:
+    def update_many(self, issue_ids: list[str], **fields: Any) -> list[Issue]:
         """Apply the same field changes to multiple issues in one mutation.
 
         Every ID is resolved and validated against its pre-batch issue before

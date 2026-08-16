@@ -19,7 +19,7 @@ NOW = "2026-07-30T00:00:00Z"
 
 
 def test_parse_type_arg_accepts_bare_task() -> None:
-    assert bead_cli._parse_type_arg("task") == (IssueType.TASK, None, None)
+    assert bead_cli._parse_type_arg("task") == (IssueType.TASK, None, None, None)
 
 
 def test_create_task_accepts_size_and_prints_type(

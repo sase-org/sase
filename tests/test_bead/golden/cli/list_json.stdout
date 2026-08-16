@@ -12,7 +12,8 @@
   "by_type": {
     "plan": 3,
     "phase": 3,
-    "task": 0
+    "task": 0,
+    "flag": 0
   },
   "by_status": {
     "open": 5,
@@ -41,6 +42,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "Parent description",
       "notes": "",
       "design": "plans/alpha.md",
@@ -71,6 +73,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "",
@@ -101,6 +104,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "",
@@ -138,6 +142,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "Beta note",
       "design": "plans/beta.md",
@@ -168,6 +173,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "plans/cross.md",
@@ -198,6 +204,7 @@
       "resolution": null,
       "close_history": [],
       "snooze": null,
+      "flag": null,
       "description": "",
       "notes": "",
       "design": "",

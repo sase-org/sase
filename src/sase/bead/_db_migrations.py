@@ -228,6 +228,22 @@ def _migrate_issue_types(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_flag_type(conn: sqlite3.Connection) -> None:
+    """Admit the flag issue type and its payload column using Rust policy.
+
+    The type is constrained by a CHECK, so this rebuilds the table; the
+    copied column list includes ``snooze`` and ``close_history``, which is why
+    the caller runs this after those columns exist and after the snoozed
+    status migration's own rebuild.
+    """
+    needs_migration = require_rust_binding("bead_needs_flag_type_migration")
+    if not needs_migration(_create_table_sql(conn)):
+        return
+
+    migration_sql = require_rust_binding("bead_flag_type_migration_sql")
+    conn.executescript(migration_sql())
+
+
 def run_migrations(conn: sqlite3.Connection) -> None:
     """Bring a pre-existing issues table up to the current schema.
 
@@ -252,3 +268,6 @@ def run_migrations(conn: sqlite3.Connection) -> None:
     _migrate_add_close_history(conn)
     # Runs last: its rebuild copies close_history, so that column must exist.
     _migrate_snoozed_status(conn)
+    # Runs after snoozed status: its rebuild copies the snooze column, which
+    # that migration is what creates.
+    _migrate_flag_type(conn)

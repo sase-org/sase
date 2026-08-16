@@ -17,6 +17,7 @@
     "resolution": null,
     "close_history": [],
     "snooze": null,
+    "flag": null,
     "description": "Parent description",
     "notes": "",
     "design": "plans/alpha.md",

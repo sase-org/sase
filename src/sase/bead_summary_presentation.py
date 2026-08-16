@@ -24,6 +24,7 @@ BEAD_TYPE_NOUNS: dict[BeadTypeValue, tuple[str, str]] = {
     "plan": ("plan", "plans"),
     "phase": ("phase", "phases"),
     "task": ("task", "tasks"),
+    "flag": ("flag", "flags"),
 }
 
 BEAD_STATUS_ADJECTIVES: dict[BeadStatusValue, str] = {

@@ -12,7 +12,7 @@ from rich.cells import cell_len
 from sase.ansi_style import xterm256_foreground_style
 from sase.bead import cli as bead_cli
 from sase.bead import cli_query
-from sase.bead.model import IssueType, Status
+from sase.bead.model import FlagRecord, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.bead_time_presentation import BEAD_CREATED_GLYPH, BEAD_TIME_CLI_STYLE
 from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
@@ -260,7 +260,7 @@ def test_handle_bead_list_json_outputs_envelope(
     assert payload["total"] == 1
     assert payload["statuses"] == ["open", "claimed", "ready", "snoozed", "in_progress"]
     assert payload["implied_status_closed"] is False
-    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0}
+    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0, "flag": 0}
     assert payload["by_status"] == {
         "open": 1,
         "claimed": 0,
@@ -322,7 +322,7 @@ def test_handle_bead_list_json_empty_store_is_valid_envelope(
     assert payload["count"] == 0
     assert payload["total"] == 0
     assert payload["implied_status_closed"] is False
-    assert payload["by_type"] == {"plan": 0, "phase": 0, "task": 0}
+    assert payload["by_type"] == {"plan": 0, "phase": 0, "task": 0, "flag": 0}
     assert payload["by_status"] == {
         "open": 0,
         "claimed": 0,
@@ -369,7 +369,7 @@ def test_handle_bead_list_json_limit_preserves_total(
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] == 1
     assert payload["total"] == 2
-    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0}
+    assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0, "flag": 0}
     assert payload["by_status"] == {
         "open": 1,
         "claimed": 0,
@@ -611,6 +611,16 @@ def test_list_compact_color_modes_override_non_tty(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _seed_one_of_each_type(project_dir)
+    with BeadProject(project_dir) as proj:
+        proj.create(
+            "Flag Bead",
+            IssueType.FLAG,
+            flag=FlagRecord(
+                key="demo_key",
+                remove_by_date="2026-12-01",
+                remove_by_release="0.19.0",
+            ),
+        )
 
     bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
     assert "\x1b[" not in capsys.readouterr().out

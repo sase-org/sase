@@ -41,7 +41,7 @@ def test_summary_counts_all_buckets_and_renders_nonzero_groups() -> None:
 
     assert summary.shown == 4
     assert summary.matched == 4
-    assert summary.by_type == {"plan": 2, "phase": 1, "task": 1}
+    assert summary.by_type == {"plan": 2, "phase": 1, "task": 1, "flag": 0}
     assert summary.by_status == {
         "open": 2,
         "claimed": 0,

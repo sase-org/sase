@@ -7,6 +7,7 @@ import getpass
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 from rich.markup import escape
@@ -23,7 +24,8 @@ from sase.bead.cli_common import (
     init_beads,
     storage_plan_path,
 )
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.flag_codec import flag_to_dict
+from sase.bead.model import BeadTier, FlagRecord, Issue, IssueType, Status
 from sase.bead.mutation_commit import (
     close_mutation_commit_message,
     require_mutation_commit_message,
@@ -57,24 +59,27 @@ def handle_bead_init(args: argparse.Namespace) -> None:
     print(f"Initialized {beads_dirname}/ in {root}")
 
 
-def parse_type_arg(value: str) -> tuple[IssueType, str | None, str | None]:
-    """Parse the ``--type`` argument into (issue_type, plan_path, parent_id).
+def parse_type_arg(
+    value: str,
+) -> tuple[IssueType, str | None, str | None, FlagRecord | None]:
+    """Parse the ``--type`` argument into (issue_type, plan_path, parent_id, flag).
 
     Accepted forms:
-    - ``task``                        -> TASK, design=None, parent_id=None
-    - ``plan(<path>)``                -> PLAN, design=path, parent_id=None
-    - ``plan(<path>,<parent_id>)``    -> PLAN, design=path, parent_id=parent_id
-    - ``phase(<parent_id>)``          -> PHASE, design=None, parent_id=parent_id
+    - ``task``                              -> TASK
+    - ``plan(<path>)``                      -> PLAN, design=path
+    - ``plan(<path>,<parent_id>)``          -> PLAN, design=path, parent_id
+    - ``phase(<parent_id>)``                -> PHASE, parent_id
+    - ``flag(<key>,<YYYY-MM-DD>,<release>)`` -> FLAG, flag=FlagRecord(...)
     """
     if value == "task":
-        return IssueType.TASK, None, None
+        return IssueType.TASK, None, None, None
 
-    m = re.match(r"^(plan|phase)\((.+)\)$", value)
+    m = re.match(r"^(plan|phase|flag)\((.+)\)$", value)
     if not m:
         print(
             f"Error: invalid --type value: {value}\n"
             "Expected: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), or task",
+            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), or task",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -84,26 +89,41 @@ def parse_type_arg(value: str) -> tuple[IssueType, str | None, str | None]:
 
     if kind == "plan":
         if len(parts) == 1:
-            return IssueType.PLAN, parts[0], None
+            return IssueType.PLAN, parts[0], None, None
         if len(parts) == 2:
-            return IssueType.PLAN, parts[0], parts[1]
+            return IssueType.PLAN, parts[0], parts[1], None
         print(
             f"Error: plan() expects 1 or 2 arguments, got {len(parts)}",
             file=sys.stderr,
         )
         sys.exit(1)
-    else:  # phase
+    elif kind == "phase":
         if len(parts) == 1:
-            return IssueType.PHASE, None, parts[0]
+            return IssueType.PHASE, None, parts[0], None
         print(
             f"Error: phase() expects exactly 1 argument, got {len(parts)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    else:  # flag
+        if len(parts) == 3:
+            return (
+                IssueType.FLAG,
+                None,
+                None,
+                FlagRecord(
+                    key=parts[0], remove_by_date=parts[1], remove_by_release=parts[2]
+                ),
+            )
+        print(
+            f"Error: flag() expects exactly 3 arguments, got {len(parts)}",
             file=sys.stderr,
         )
         sys.exit(1)
 
 
 def handle_bead_create(args: argparse.Namespace) -> None:
-    issue_type, plan_path, parent_id = parse_type_arg(args.type)
+    issue_type, plan_path, parent_id, flag_record = parse_type_arg(args.type)
     changespec_name = (
         getattr(args, "patch", None)
         or getattr(args, "changespec", None)  # legacy CLI alias
@@ -181,6 +201,7 @@ def handle_bead_create(args: argparse.Namespace) -> None:
                 changespec_name=changespec_name,
                 changespec_bug_id=changespec_bug_id,
                 external_ref=getattr(args, "external_ref", None) or "",
+                flag=flag_record,
                 model=getattr(args, "model", None) or "",
                 size=size,
                 created_by=creator,
@@ -302,10 +323,32 @@ def _print_update_results(
         print(f"○ Reopened ancestor: {ancestor.id} — {ancestor.title}")
 
 
+def _parse_remove_by_arg(value: str, existing_key: str) -> FlagRecord:
+    """Parse ``--remove-by <YYYY-MM-DD>/<release>`` into a new flag record."""
+    remove_by_date, sep, remove_by_release = value.partition("/")
+    if not sep:
+        print(
+            f"Error: --remove-by expects <YYYY-MM-DD>/<release>: {value}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    record = FlagRecord(
+        key=existing_key,
+        remove_by_date=remove_by_date,
+        remove_by_release=remove_by_release,
+    )
+    try:
+        record.validate()
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    return record
+
+
 def handle_bead_update(args: argparse.Namespace) -> None:
     with bead_store_mutation(auto_commit_bead_store) as mutation:
         proj = mutation.project
-        fields: dict[str, str | int | None] = {}
+        fields: dict[str, Any] = {}
         if args.status:
             fields["status"] = args.status
         if args.title:
@@ -328,6 +371,28 @@ def handle_bead_update(args: argparse.Namespace) -> None:
             fields["model"] = args.model
         if getattr(args, "size", None) is not None:
             fields["size"] = args.size
+        if getattr(args, "remove_by", None) is not None:
+            if len(args.ids) != 1:
+                targets = ", ".join(args.ids)
+                print(
+                    "Error: --remove-by takes exactly one flag bead ID "
+                    f"(got {len(args.ids)}: {targets})",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            try:
+                target = proj.show(args.ids[0])
+            except KeyError:
+                print(f"Error: issue not found: {args.ids[0]}", file=sys.stderr)
+                sys.exit(1)
+            if target.issue_type != IssueType.FLAG or target.flag is None:
+                print(
+                    f"Error: --remove-by requires a flag bead: {args.ids[0]}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            new_flag = _parse_remove_by_arg(args.remove_by, target.flag.key)
+            fields["flag"] = flag_to_dict(new_flag)
         if not fields:
             print("No fields to update.", file=sys.stderr)
             sys.exit(1)

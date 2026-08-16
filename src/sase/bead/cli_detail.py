@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
+import sase
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.bead.cli_common import status_icon
 from sase.bead.cli_dep_render import ANSI_BOLD_BLUE
@@ -28,6 +29,7 @@ from sase.bead.cli_detail_resolution import (
     resolve_issue_detail,
 )
 from sase.bead.cli_detail_style import DetailPalette, DetailStyle
+from sase.bead.flag_due import flag_removal_due
 from sase.bead.model import BeadTier, Issue, IssueType, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_CLI_STYLE,
@@ -64,6 +66,7 @@ from sase.bead_time_presentation import (
     bead_instant_label,
 )
 from sase.bead_type_presentation import bead_type_presentation
+from sase.core import time as core_time
 from sase.core.agent_identity_facade import present_agent_name
 from sase.markdown_wrap import MIN_PROSE_WRAP_WIDTH, wrap_markdown
 from sase.phase_size_presentation import (
@@ -187,6 +190,9 @@ def render_issue_detail(
                 wrap=wrap,
             )
         )
+
+    if issue.flag is not None:
+        lines.extend(_render_flag_lines(issue, palette=palette))
 
     if issue.close_history:
         lines.extend(
@@ -417,6 +423,24 @@ def _render_snooze_lines(
         lines.append(f"  {palette.label('Reason:')}")
         lines.extend(_prose_lines(record.reason, style=style, wrap=wrap, indent="    "))
     return lines
+
+
+def _render_flag_lines(issue: Issue, *, palette: DetailPalette) -> list[str]:
+    """Render a flag bead's registry key, removal thresholds, and due state."""
+
+    record = issue.flag
+    assert record is not None
+    due_state = flag_removal_due(
+        record, today=core_time.local_now().date(), release=sase.__version__
+    )
+    return [
+        "",
+        palette.section("FLAG"),
+        f"  {palette.label('Key:')} {record.key}",
+        f"  {palette.label('Remove by:')} {record.remove_by_date} "
+        f"{palette.separator('·')} {record.remove_by_release}",
+        f"  {palette.label('Due state:')} {due_state}",
+    ]
 
 
 def _render_close_history_lines(

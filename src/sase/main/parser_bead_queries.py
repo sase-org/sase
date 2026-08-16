@@ -162,7 +162,7 @@ def register_bead_list_parser(
     parser.add_argument(
         "-t",
         "--type",
-        choices=["plan", "phase", "task"],
+        choices=["plan", "phase", "task", "flag"],
         action="append",
         help="Filter by type (repeatable)",
     )
@@ -263,7 +263,7 @@ def register_bead_search_parser(
     parser.add_argument(
         "-t",
         "--type",
-        choices=["plan", "phase", "task"],
+        choices=["plan", "phase", "task", "flag"],
         action="append",
         help="Filter by type (repeatable)",
     )

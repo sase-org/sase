@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 
+import sase
 from sase.bead.cli_detail_resolution import IssueDetail, PlanLink
 from sase.bead.close_history_codec import close_history_to_dicts
+from sase.bead.flag_due import flag_removal_due
 from sase.bead.model import Dependency, Issue
 from sase.bead.plus_one_presentation import evidence_recorded_after_current_close
 from sase.bead.reopen_presentation import evidence_reopened_bead
 from sase.bead.snooze_presentation import snooze_plus_ones_remaining
+from sase.core import time as core_time
 
 
 def render_issue_detail_json(
@@ -65,6 +68,7 @@ def issue_to_wire_dict(issue: Issue) -> dict[str, object]:
         "resolution": issue.resolution.value if issue.resolution else None,
         "close_history": close_history_to_dicts(issue.close_history),
         "snooze": _snooze_to_wire_dict(issue),
+        "flag": _flag_to_wire_dict(issue),
         "description": issue.description,
         "notes": issue.notes,
         "design": issue.design,
@@ -116,6 +120,27 @@ def _snooze_to_wire_dict(issue: Issue) -> dict[str, object] | None:
         "plus_one_baseline": record.plus_one_baseline,
         "reason": record.reason,
         "plus_ones_remaining": snooze_plus_ones_remaining(issue),
+    }
+
+
+def _flag_to_wire_dict(issue: Issue) -> dict[str, object] | None:
+    """Return the removal thresholds and derived due state, or ``None``.
+
+    ``due_state`` is derived here rather than left to the reader, for the
+    same reason ``plus_ones_remaining`` is on the snooze record: agents read
+    this JSON to decide whether a flag needs attention, and re-deriving the
+    comparison is how renderings drift apart.
+    """
+    record = issue.flag
+    if record is None:
+        return None
+    return {
+        "key": record.key,
+        "remove_by_date": record.remove_by_date,
+        "remove_by_release": record.remove_by_release,
+        "due_state": flag_removal_due(
+            record, today=core_time.local_now().date(), release=sase.__version__
+        ),
     }
 
 

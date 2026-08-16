@@ -206,7 +206,8 @@ def register_bead_create_parser(
         required=True,
         help=(
             "Bead type: plan(<plan_file>), plan(<plan_file>,<parent_id>), "
-            "phase(<parent_id>), or task; parent IDs may be full or shorthand"
+            "phase(<parent_id>), flag(<key>,<YYYY-MM-DD>,<release>), or task; "
+            "parent IDs may be full or shorthand"
         ),
     )
 
@@ -479,6 +480,15 @@ def register_bead_update_parser(
         ),
     )
     parser.add_argument("-n", "--notes")
+    parser.add_argument(
+        "-b",
+        "--remove-by",
+        metavar="DATE/RELEASE",
+        help=(
+            "Extend a flag bead's removal thresholds, e.g. 2026-12-01/0.19.0; "
+            "takes exactly one flag bead ID"
+        ),
+    )
     parser.add_argument(
         "-z",
         "--size",
