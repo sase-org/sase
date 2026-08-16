@@ -98,6 +98,9 @@ async def test_first_page_paints_before_full_extension(
 
             assert pane.selected_entry is not None
             assert pane.selected_entry.id == first_rows[0].id
+            # Both rows default to "capture" origin and share one "by_source"
+            # banner, but the banner starts expanded (not collapsed), so it's
+            # a visible header, not a navigation/jump stop.
             assert pane.entry_targets() == (
                 ArtifactEntryTarget(
                     pane_id="files", parts=(logical_file(first_rows[0]).logical_id,)

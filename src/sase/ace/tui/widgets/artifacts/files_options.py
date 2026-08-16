@@ -12,18 +12,29 @@ from textual.widgets.option_list import Option
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
 from sase.core.artifact_file_types import ArtifactFile
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
-from sase.core.time import local_now
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
+from ..._artifact_tab_model import PaneGroupingModeDecl
+from ...models.artifact_groups import (
+    ArtifactGroupBuildResult,
+    group_banner_option_id,
+    group_banner_target,
+)
+from ...models.group_fold import GroupFoldRegistry
 from .entry_navigation import ArtifactEntryTarget
 from .file_filter_bar import FileFilterBar
-from .files_data import FilesSnapshot
+from .files_data import FilesSnapshot, LogicalFile
 from .files_filtering import (
     FilesFilterQueryError,
     FilesFilterValues,
     to_query_string,
 )
-from .files_list import FileRow, build_file_options
+from .files_list import (
+    FILES_PANE_ID,
+    FileRow,
+    build_file_options,
+    build_grouped_file_rows,
+)
 from .files_navigation import FilesOptionList
 from .files_rendering import (
     build_files_hints,
@@ -81,10 +92,37 @@ class FilesOptionsMixin(_MixinBase):
             self,
             rows: dict[str, FileRow],
             options: list[Option],
+            banner_targets: dict[str, ArtifactEntryTarget] | None = None,
         ) -> None: ...
+
+        def _active_grouping_mode(self) -> PaneGroupingModeDecl | None: ...
+
+        def _group_fold_registry(self) -> GroupFoldRegistry: ...
 
     def _init_files_options(self) -> None:
         self._filtered_count = None
+
+    def _group_pane_id(self) -> str:
+        return FILES_PANE_ID
+
+    def _group_build_result(
+        self,
+        *,
+        fold_registry: GroupFoldRegistry,
+    ) -> ArtifactGroupBuildResult[LogicalFile]:
+        mode = self._active_grouping_mode()
+        snapshot = self._current_snapshot()
+        if mode is None or snapshot is None:
+            return ArtifactGroupBuildResult(rows=(), known_group_keys=())
+        return build_grouped_file_rows(
+            snapshot,
+            mode=mode,
+            project_ref_display=self._project_ref_display,
+            fold_registry=fold_registry,
+        )
+
+    def _group_refresh(self, preferred_target: ArtifactEntryTarget | None) -> None:
+        self._refresh_options(preferred_target=preferred_target)
 
     def _refresh_options(
         self,
@@ -112,16 +150,32 @@ class FilesOptionsMixin(_MixinBase):
                 )
             return
         self._filtered_count = None if filtered is None else len(filtered.rows)
-        options, rows = build_file_options(
+        mode = self._active_grouping_mode()
+        registry = self._group_fold_registry() if mode is not None else None
+        options, rows, known_group_keys = build_file_options(
             filtered,
             project_scope=self.project_scope,
             project_ref_display=self._project_ref_display,
             loading=self._loading,
-            now=local_now(),
+            mode=mode,
+            fold_registry=registry,
+            accent=self._accent(),
             jump_hints=self._entry_jump_hints,
             marks=self._entry_marks,
         )
-        self._set_file_rows(rows, options)
+        if registry is not None:
+            registry.clear_unknown(known_group_keys)
+        banner_targets_by_option_id = (
+            {}
+            if mode is None
+            else {
+                group_banner_option_id(mode.id, key): group_banner_target(
+                    FILES_PANE_ID, mode.id, key
+                )
+                for key in known_group_keys
+            }
+        )
+        self._set_file_rows(rows, options, banner_targets_by_option_id)
         # Resolve the target against the freshly built ``options`` list
         # directly rather than the live OptionList, which still reflects
         # the pre-rebuild rows until ``replace_options`` runs below.

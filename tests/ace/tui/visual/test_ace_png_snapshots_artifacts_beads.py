@@ -57,7 +57,11 @@ async def test_artifacts_beads_populated_png_snapshot(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
         )
         await page.press("l")
-        await page.wait_for(lambda _state: ("alpha", "alpha-1") in pane._expanded_epics)
+        await page.wait_for(
+            lambda _state: (
+                not pane._epic_fold_registry.is_collapsed(("alpha", "alpha-1"))
+            )
+        )
         pane._update_detail()
         await wait_for_svg_contains(page, "Build bead browsing")
         await wait_for_visual_idle(page)

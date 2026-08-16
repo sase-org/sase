@@ -70,6 +70,7 @@ class FilesNavigationMixin(_MixinBase):
     _entry_targets_cache: tuple[ArtifactEntryTarget, ...]
     _option_id_by_target: dict[ArtifactEntryTarget, str]
     _option_index_by_target: dict[ArtifactEntryTarget, int]
+    _banner_target_by_option_id: dict[str, ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
 
     if TYPE_CHECKING:
@@ -88,25 +89,38 @@ class FilesNavigationMixin(_MixinBase):
         self._entry_targets_cache = ()
         self._option_id_by_target = {}
         self._option_index_by_target = {}
+        self._banner_target_by_option_id = {}
         self._pending_entry_target = None
 
     def _set_file_rows(
         self,
         rows: dict[str, FileRow],
         options: list[Option],
+        banner_targets: dict[str, ArtifactEntryTarget] | None = None,
     ) -> None:
         self._rows = rows
-        self._option_id_by_target = {
-            file_row_target(row): option_id for option_id, row in rows.items()
+        self._banner_target_by_option_id = dict(banner_targets or {})
+        target_by_option_id: dict[str, ArtifactEntryTarget] = {
+            option_id: file_row_target(row) for option_id, row in rows.items()
         }
+        target_by_option_id.update(self._banner_target_by_option_id)
+        # Expanded banners render as disabled headers — visible, but not a
+        # navigation/jump stop, mirroring Patches (only collapsed banners
+        # are stops; real rows are never disabled).
         indexed_targets = tuple(
-            (index, file_row_target(row))
+            (index, target)
             for index, option in enumerate(options)
-            if (row := rows.get(option.id or "")) is not None
+            if not option.disabled
+            and (target := target_by_option_id.get(option.id or "")) is not None
         )
         self._entry_targets_cache = tuple(target for _index, target in indexed_targets)
         self._option_index_by_target = {
             target: index for index, target in indexed_targets
+        }
+        self._option_id_by_target = {
+            target: option.id or ""
+            for index, target in indexed_targets
+            if (option := options[index]).id is not None
         }
 
     def selected_row(self) -> FileRow | None:
@@ -118,6 +132,17 @@ class FilesNavigationMixin(_MixinBase):
         except Exception:
             return None
         return self._rows.get(option.id or "")
+
+    def selected_group_banner_target(self) -> ArtifactEntryTarget | None:
+        """Return the highlighted banner's target, or ``None`` for a real row."""
+        option_list = self._option_list()
+        if option_list is None or option_list.highlighted is None:
+            return None
+        try:
+            option = option_list.get_option_at_index(option_list.highlighted)
+        except Exception:
+            return None
+        return self._banner_target_by_option_id.get(option.id or "")
 
     def focus_list(self) -> None:
         option_list = self._option_list()
@@ -142,7 +167,9 @@ class FilesNavigationMixin(_MixinBase):
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()
-        return None if row is None else file_row_target(row)
+        if row is not None:
+            return file_row_target(row)
+        return self.selected_group_banner_target()
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         option_list = self._option_list()

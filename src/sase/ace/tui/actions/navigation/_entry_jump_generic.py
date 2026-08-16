@@ -80,6 +80,11 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
             return tab in _PATCH_TABS and self._patch_row_anchor_is_valid(anchor)
         if isinstance(anchor, int):
             return self._entry_jump_index_is_valid(tab, anchor)
+        if len(anchor) != 2:
+            # ArtifactBannerJumpAnchor: not constructed by this legacy
+            # stack-based system (Files/Plans/Stitches banners flow through
+            # ArtifactEntryTarget via artifacts_navigation.py instead).
+            return False
         kind, group_key = anchor
         return (
             kind
@@ -222,6 +227,10 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
             self.current_idx = anchor
             return True
 
+        if len(anchor) != 2:
+            # ArtifactBannerJumpAnchor: _entry_jump_anchor_is_valid already
+            # rejects this shape, so this is unreachable in practice.
+            return False
         _, group_key = anchor
         self._current_patch_group_key = group_key  # type: ignore[attr-defined]
         return True

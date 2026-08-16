@@ -13,6 +13,13 @@ from sase.plan_search.filter_query import PlanFilterQueryError, PlanFilterValues
 from sase.plan_search.filter_query import to_query_string, to_query_tokens
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
+from ..._artifact_tab_model import PaneGroupingModeDecl
+from ...models.artifact_groups import (
+    ArtifactGroupBuildResult,
+    group_banner_option_id,
+    group_banner_target,
+)
+from ...models.group_fold import GroupFoldRegistry
 from .entry_navigation import ArtifactEntryTarget
 from .plan_filter_bar import PlanFilterBar
 from .plans_data import PlansSnapshot, ProjectArchive
@@ -22,7 +29,13 @@ from .plans_deep_archive import (
     merge_archive_matches,
 )
 from .plans_filtering import PlanFilterIndex
-from .plans_list import PlanRow, build_plan_options, plan_row_target, row_option_id
+from .plans_list import (
+    PlanRow,
+    build_grouped_plan_rows,
+    build_plan_options,
+    plan_row_target,
+    row_option_id,
+)
 from .plans_rendering import (
     build_empty_plan_detail,
     build_plans_hints,
@@ -31,6 +44,8 @@ from .plans_rendering import (
 )
 from .query_session import ArtifactQuerySession
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
+
+PLANS_PANE_ID_PREFIX = "ref:"
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
@@ -103,10 +118,65 @@ class PlansOptionsMixin(_MixinBase):
 
         def _update_detail(self) -> None: ...
 
+        def _active_grouping_mode(self) -> PaneGroupingModeDecl | None: ...
+
+        def _group_fold_registry(self) -> GroupFoldRegistry: ...
+
     def _init_plans_options(self) -> None:
         self._display_matched_counts = None
         self._display_archive_total = None
         self._display_archive_coverage_label = None
+
+    def _group_pane_id(self) -> str:
+        snapshot = self._snapshot
+        if snapshot is not None:
+            return f"{PLANS_PANE_ID_PREFIX}{snapshot.provider_kind}"
+        contract = self.contract
+        return contract.id if contract is not None else "ref:plan"
+
+    def _group_build_result(
+        self,
+        *,
+        fold_registry: GroupFoldRegistry,
+    ) -> ArtifactGroupBuildResult[PlanRow]:
+        mode = self._active_grouping_mode()
+        snapshot = self._snapshot
+        if mode is None or snapshot is None:
+            return ArtifactGroupBuildResult(rows=(), known_group_keys=())
+        # `self._rows` already holds exactly the currently-visible, filtered
+        # rows in section order from the last refresh — reuse it instead of
+        # re-deriving the filter/deep-archive merge logic here.
+        return build_grouped_plan_rows(
+            list(self._rows.values()),
+            mode=mode,
+            snapshot=snapshot,
+            fold_registry=fold_registry,
+        )
+
+    def _group_refresh(self, preferred_target: ArtifactEntryTarget | None) -> None:
+        preferred_id: str | None = None
+        if preferred_target is not None:
+            from ...models.artifact_groups import (
+                group_banner_option_id,
+                is_group_banner_target,
+            )
+
+            if is_group_banner_target(preferred_target):
+                mode = self._active_grouping_mode()
+                if mode is not None:
+                    preferred_id = group_banner_option_id(
+                        mode.id, tuple(preferred_target.parts[2:])
+                    )
+            else:
+                preferred_id = next(
+                    (
+                        row_id
+                        for row_id, row in self._rows.items()
+                        if plan_row_target(row) == preferred_target
+                    ),
+                    None,
+                )
+        self._refresh_options(preferred_id=preferred_id)
 
     def _refresh_options(
         self,
@@ -241,18 +311,33 @@ class PlansOptionsMixin(_MixinBase):
                     coverage_label=coverage_label if not exact else None,
                 )
             return
-        options, rows = build_plan_options(
+        mode = self._active_grouping_mode()
+        registry = self._group_fold_registry() if mode is not None else None
+        options, rows, known_group_keys = build_plan_options(
             self._snapshot,
             project_scope=self.project_scope,
             loading=self._loading,
+            mode=mode,
+            fold_registry=registry,
             jump_hints=self._entry_jump_hints,
             marks=self._entry_marks,
             matched_option_ids=matched_option_ids,
             archive_entries=archive_entries,
-            archive_total=self._display_archive_total,
             accent=self._accent(),
         )
+        if registry is not None:
+            registry.clear_unknown(known_group_keys)
         self._rows = rows
+        self._banner_target_by_option_id = (
+            {}
+            if mode is None
+            else {
+                group_banner_option_id(mode.id, key): group_banner_target(
+                    self._group_pane_id(), mode.id, key
+                )
+                for key in known_group_keys
+            }
+        )
         pending_id = self._pending_option_id()
         if pending_id is None and self._pending_entry_target is not None:
             if not values.is_empty and self._clear_filter_for_entry_jump():

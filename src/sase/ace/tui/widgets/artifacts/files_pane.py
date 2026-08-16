@@ -44,6 +44,7 @@ from .files_navigation import FilesNavigationMixin, FilesOptionList
 from .files_options import FilesOptionsMixin
 from .files_query_index import FilesQueryIndexMixin
 from .files_selection import FilesSelectionMixin
+from .group_fold_navigation import ArtifactGroupFoldMixin
 from ..._artifact_tab_model import ArtifactsPaneContract
 from .query_rows import build_files_query_index
 from .query_session import ArtifactQuerySession
@@ -59,6 +60,7 @@ class _FilesSnapshotResult:
 
 
 class ArtifactsFilesPane(
+    ArtifactGroupFoldMixin,
     FilesDetailMixin,
     FilesFilterSessionMixin,
     FilesNavigationMixin,
@@ -104,6 +106,7 @@ class ArtifactsFilesPane(
         self._init_files_options()
         self._init_files_detail()
         self._init_files_filter_session()
+        self._init_group_fold()
 
     def compose(self) -> ComposeResult:
         yield FileFilterBar(id="file-filter-bar", profile=self._query_profile)

@@ -12,6 +12,7 @@ from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.keymaps import KeymapRegistry
 from sase.bead.model import IssueType, Status
 
+from ...models.group_fold import GroupFoldRegistry, GroupKey
 from .._prompt_preview_target import PreviewPayload
 from .beads_data import BeadsSnapshot
 from .beads_detail import (
@@ -81,7 +82,8 @@ class BeadsNavigationMixin(_MixinBase):
     _registry: KeymapRegistry
     _snapshot: BeadsSnapshot | None
     _rows: dict[str, BeadRow]
-    _expanded_epics: set[tuple[str, str]]
+    _epic_fold_registry: GroupFoldRegistry
+    _known_epic_keys: set[GroupKey]
     _detail_debouncer: DetailPanelDebouncer | None
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
@@ -108,7 +110,8 @@ class BeadsNavigationMixin(_MixinBase):
 
     def _init_beads_navigation(self) -> None:
         self._rows = {}
-        self._expanded_epics = set()
+        self._epic_fold_registry = GroupFoldRegistry()
+        self._known_epic_keys = set()
         self._detail_debouncer = None
         self._syncing_options = False
         self._entry_jump_hints = {}
@@ -260,6 +263,38 @@ class BeadsNavigationMixin(_MixinBase):
     def _option_index_for_target(self, target: ArtifactEntryTarget) -> int | None:
         return self._option_index_by_target.get(target)
 
+    def _seed_new_epic_keys(self) -> None:
+        """Default newly-seen epics to collapsed, without touching known ones.
+
+        Called once per options refresh so a first-loaded epic starts
+        collapsed while an epic the user already toggled keeps its state
+        across refreshes.  Also prunes fold state for epics that dropped out
+        of the snapshot entirely, so long sessions don't accumulate stale
+        collapsed entries as epics close and age out.
+        """
+        snapshot = self._snapshot
+        if snapshot is None:
+            return
+        known_now: set[GroupKey] = set()
+        for item in snapshot.epics:
+            key: GroupKey = (item.project, item.issue.id)
+            known_now.add(key)
+            if key not in self._known_epic_keys:
+                self._known_epic_keys.add(key)
+                self._epic_fold_registry.collapse(key)
+        self._epic_fold_registry.clear_unknown(known_now)
+        self._known_epic_keys &= known_now
+
+    def _expanded_epic_keys(self) -> set[tuple[str, str]]:
+        snapshot = self._snapshot
+        if snapshot is None:
+            return set()
+        return {
+            (item.project, item.issue.id)
+            for item in snapshot.epics
+            if not self._epic_fold_registry.is_collapsed((item.project, item.issue.id))
+        }
+
     def set_selected_epic_expanded(self, expanded: bool) -> None:
         row = self.selected_row()
         if row is None:
@@ -272,15 +307,14 @@ class BeadsNavigationMixin(_MixinBase):
         )
         if callable(cancel_jump):
             cancel_jump("beads")
-        key = (row.project, epic_id)
-        if expanded:
-            if key in self._expanded_epics:
-                return
-            self._expanded_epics.add(key)
-        else:
-            if key not in self._expanded_epics:
-                return
-            self._expanded_epics.discard(key)
+        key: GroupKey = (row.project, epic_id)
+        changed = (
+            self._epic_fold_registry.expand(key)
+            if expanded
+            else self._epic_fold_registry.collapse(key)
+        )
+        if not changed:
+            return
         preferred_id = (
             None
             if self._snapshot is None

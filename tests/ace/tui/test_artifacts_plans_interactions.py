@@ -16,7 +16,7 @@ from tests.ace.tui._artifacts_plans_helpers import _choices, _snapshot
 
 def test_every_document_preview_defaults_to_rendered(tmp_path: Path) -> None:
     snapshot = _snapshot(tmp_path)
-    _options, rows = build_plan_options(
+    _options, rows, _known_group_keys = build_plan_options(
         snapshot,
         project_scope="alpha",
         loading=False,

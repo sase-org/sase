@@ -36,6 +36,7 @@ from .plans_filter_session import PlansFilterSessionMixin
 from .plans_list import PlanRow, build_plan_options
 from .plans_navigation import PlansNavigationMixin, PlansOptionList
 from .plans_options import PlansOptionsMixin
+from .group_fold_navigation import ArtifactGroupFoldMixin
 from .query_rows import build_plans_query_index
 from .query_session import ArtifactQuerySession
 from .plans_rendering import (
@@ -67,6 +68,7 @@ class _PlansSnapshotResult:
 
 
 class ArtifactsDocumentsPane(
+    ArtifactGroupFoldMixin,
     PlansFilterSessionMixin,
     PlansNavigationMixin,
     PlansOptionsMixin,
@@ -118,6 +120,7 @@ class ArtifactsDocumentsPane(
         self._init_plans_navigation()
         self._init_plans_filter_session()
         self._init_plans_options()
+        self._init_group_fold()
 
     def compose(self) -> ComposeResult:
         accent = None if self.contract is None else self.contract.accent

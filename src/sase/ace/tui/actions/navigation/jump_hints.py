@@ -50,10 +50,20 @@ PatchBannerJumpAnchor = tuple[
     ],
     tuple[str, ...],
 ]
+#: Shared Artifacts banner anchor: any pane's collapsed grouping banner,
+#: identified by pane id plus its stable group key.  Files/Plans/Stitches
+#: banners already flow through ``ArtifactEntryTarget`` (their marker is
+#: baked into ``parts``) via the newer per-pane jump-history in
+#: ``artifacts_navigation.py``, so this variant exists for parity with
+#: ``PatchBannerJumpAnchor`` in the shared vocabulary rather than because an
+#: existing consumer constructs it today.
+ArtifactBannerJumpAnchor = tuple[Literal["artifact_banner"], str, tuple[str, ...]]
 #: ``int`` anchors are AXE's flat-list row index; Patches rows use the
 #: stable ``ArtifactEntryTarget`` identity instead so marks/anchors survive
 #: reorder and reload; collapsed Patch banners keep their own typed anchor.
-EntryJumpAnchor = int | ArtifactEntryTarget | PatchBannerJumpAnchor
+EntryJumpAnchor = (
+    int | ArtifactEntryTarget | PatchBannerJumpAnchor | ArtifactBannerJumpAnchor
+)
 
 
 def normalize_jump_key(key: str, character: str | None = None) -> str:

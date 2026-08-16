@@ -74,7 +74,6 @@ def check_declared_actions_are_registered(descriptor: ArtifactsTabDescriptor) ->
         actions = CAPABILITY_HOST_ACTIONS[capability]
         if capability in {
             PaneCapability.RELATIONS,
-            PaneCapability.GROUPING,
             PaneCapability.STATUS_COUNTERS,
             PaneCapability.SHELL,
         }:

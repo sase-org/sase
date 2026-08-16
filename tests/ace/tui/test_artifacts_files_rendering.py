@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from rich.console import Console
 
+from sase.ace.tui._artifact_tab_model import PaneGroupingModeDecl
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.widgets.artifacts.files_list import build_file_options
 from sase.ace.tui.widgets.artifacts.files_rendering import (
@@ -13,11 +12,14 @@ from sase.ace.tui.widgets.artifacts.files_rendering import (
     FILE_VIEW_MODE_GLYPHS,
     build_files_info,
 )
+from sase.ace.tui.widgets.artifacts.types import ARTIFACTS_ACCENTS
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
 )
 from tests.ace.tui._artifacts_files_helpers import artifact_file, snapshot
+
+_BY_SOURCE = PaneGroupingModeDecl(id="by_source", label="Source", keys=("origin",))
 
 
 def _projects() -> ProjectRefDisplaySnapshot:
@@ -26,30 +28,48 @@ def _projects() -> ProjectRefDisplaySnapshot:
     )
 
 
-def test_rows_stay_newest_first_with_date_headers_and_display_names() -> None:
+def test_rows_group_by_source_newest_first_within_each_group() -> None:
     rows = (
         artifact_file("today-new", created_at="2026-07-24T14:32:00-04:00"),
-        artifact_file("today-old", created_at="2026-07-24T09:15:00-04:00"),
+        artifact_file(
+            "today-old", created_at="2026-07-24T09:15:00-04:00", explicit=True
+        ),
         artifact_file("yesterday", created_at="2026-07-23T19:00:00-04:00"),
-        artifact_file("historic", created_at="2026-07-20T08:00:00-04:00"),
+        artifact_file(
+            "historic", created_at="2026-07-20T08:00:00-04:00", explicit=True
+        ),
     )
-    options, option_rows = build_file_options(
+    options, option_rows, known_group_keys = build_file_options(
         model := snapshot(rows),
         project_scope="alpha",
         project_ref_display=_projects(),
         loading=False,
-        now=datetime.fromisoformat("2026-07-24T20:00:00-04:00"),
+        mode=_BY_SOURCE,
+        fold_registry=None,
+        accent=ARTIFACTS_ACCENTS["files"],
     )
 
-    assert [option.prompt.plain for option in options if option.disabled] == [
-        "── Today ────────────────────",
-        "── Yesterday ────────────────────",
-        "── 2026-07-20 ────────────────────",
+    banner_labels = [
+        # Strip the leading fold glyph, then the trailing "(count) ----".
+        option.prompt.plain.split(" ", 1)[1].split("(")[0].strip()
+        for option in options
+        if option.disabled
     ]
-    assert [row.entry for row in option_rows.values()] == list(model.rows)
-    assert "14:32" in options[1].prompt.plain
-    assert "09:15" in options[2].prompt.plain
-    assert "[Alpha]" in options[1].prompt.plain
+    # "Captured" (today-new, yesterday) groups before "Created" (today-old,
+    # historic) since capture's first member (today-new) appears earlier in
+    # the input than created's first member.
+    assert banner_labels == ["Captured", "Created"]
+    assert known_group_keys == (("capture",), ("created",))
+    assert [row.entry for row in option_rows.values()] == [
+        model.rows[0],
+        model.rows[2],
+        model.rows[1],
+        model.rows[3],
+    ]
+    prompts = [option.prompt.plain for option in options if not option.disabled]
+    assert "14:32" in prompts[0]
+    assert "19:00" in prompts[1]
+    assert "[Alpha]" in prompts[0]
 
 
 def test_viewer_classifier_drives_icons_colors_origin_and_size() -> None:
@@ -66,12 +86,14 @@ def test_viewer_classifier_drives_icons_colors_origin_and_size() -> None:
         artifact_file("text", kind="file", path="/tmp/output.log"),
     )
     model = snapshot(rows)
-    options, _option_rows = build_file_options(
+    options, _option_rows, _known_group_keys = build_file_options(
         model,
         project_scope="alpha",
         project_ref_display=_projects(),
         loading=False,
-        now=datetime.fromisoformat("2026-07-24T20:00:00-04:00"),
+        mode=None,
+        fold_registry=None,
+        accent=ARTIFACTS_ACCENTS["files"],
     )
     prompts = [option.prompt for option in options if not option.disabled]
 

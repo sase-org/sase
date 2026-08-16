@@ -19,6 +19,8 @@ from sase.vcs_provider._types import MergeVisibility
 from sase.vcs_log.models import VcsLogResult
 from sase.vcs_log.filter_query import CommitLogFilterValues, to_query_string
 
+from ...models.artifact_groups import ArtifactGroupBuildResult, build_grouped_rows
+from ...models.group_fold import GroupFoldRegistry
 from .commit_filter_bar import CommitFilterBar
 from .commits_collection import (
     CommitCollectionPayload,
@@ -36,7 +38,15 @@ from .commits_rendering import (
     build_commits_legend,
     commit_filter_chips,
 )
-from .commits_timeline import CommitsTimeline
+from .commits_timeline import (
+    STITCHES_PANE_ID,
+    CommitsTimeline,
+    commit_group_label,
+    commit_key_value,
+    commit_row_target,
+)
+from .entry_navigation import ArtifactEntryTarget
+from .group_fold_navigation import ArtifactGroupFoldMixin
 from .panes import ArtifactsPaneLifecycle
 from .query_session import ArtifactQuerySession
 from .types import ARTIFACTS_ACCENTS
@@ -45,6 +55,7 @@ STITCHES_DETAIL_DEBOUNCE_S = 0.25
 
 
 class CommitsPane(
+    ArtifactGroupFoldMixin,
     CommitsCollectionMixin,
     CommitsFilteringMixin,
     CommitsDetailMixin,
@@ -86,6 +97,7 @@ class CommitsPane(
         self._last_project_scope = self.filters.project
         self._project_files: dict[str, str] = {}
         self._project_ref_display = ProjectRefDisplaySnapshot()
+        self._init_group_fold()
 
     def compose(self) -> ComposeResult:
         yield CommitFilterBar(id="commit-filter-bar", profile=self._query_profile)
@@ -257,9 +269,48 @@ class CommitsPane(
         )
 
     def _hints_text(self) -> Text:
+        return build_commits_hints(self._registry, accent=self._accent())
+
+    def _accent(self) -> str:
         contract = self.contract
-        accent = ARTIFACTS_ACCENTS["stitches"] if contract is None else contract.accent
-        return build_commits_hints(self._registry, accent=accent)
+        return ARTIFACTS_ACCENTS["stitches"] if contract is None else contract.accent
+
+    def _group_pane_id(self) -> str:
+        return STITCHES_PANE_ID
+
+    def _sync_timeline_grouping(self, timeline: CommitsTimeline) -> None:
+        mode = self._active_grouping_mode()
+        registry = self._group_fold_registry() if mode is not None else None
+        timeline.set_grouping(mode=mode, fold_registry=registry, accent=self._accent())
+
+    def _group_build_result(
+        self,
+        *,
+        fold_registry: GroupFoldRegistry,
+    ) -> ArtifactGroupBuildResult[Any]:
+        mode = self._active_grouping_mode()
+        if mode is None or self.result is None:
+            return ArtifactGroupBuildResult(rows=(), known_group_keys=())
+        return build_grouped_rows(
+            self.result.commits,
+            pane_id=STITCHES_PANE_ID,
+            mode_id=mode.id,
+            keys=(mode.id,),
+            key_values=lambda entry: (commit_key_value(entry, mode.id),),
+            label_for=lambda _level, value: commit_group_label(mode.id, value),
+            target_for=commit_row_target,
+            fold_registry=fold_registry,
+        )
+
+    def _group_refresh(self, preferred_target: ArtifactEntryTarget | None) -> None:
+        if self.result is None:
+            return
+        timeline = self.query_one("#stitches-timeline", CommitsTimeline)
+        self._sync_timeline_grouping(timeline)
+        timeline._rebuild_options(self.result, selected_target=preferred_target)
+        self._selected_commit_index = timeline.selected_commit_index
+        self._refresh_info()
+        self._refresh_position_badge()
 
     def _filter_chips(self) -> tuple[str, ...]:
         return commit_filter_chips(self.filters)

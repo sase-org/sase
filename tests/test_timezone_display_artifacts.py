@@ -16,10 +16,7 @@ from sase.ace.tui.widgets.artifacts.beads_detail import (
     bead_properties_header,
 )
 from sase.ace.tui.widgets.artifacts.files_detail import build_file_detail
-from sase.ace.tui.widgets.artifacts.files_rendering import (
-    file_group_label,
-    file_row_text,
-)
+from sase.ace.tui.widgets.artifacts.files_rendering import file_row_text
 from sase.ace.tui.widgets.artifacts.plans_rendering import archive_text
 from sase.agents_sync.models import CommitRecord
 from sase.agents_sync.rendering_commits import render_agent_commits
@@ -57,14 +54,12 @@ def _projects() -> ProjectRefDisplaySnapshot:
     return ProjectRefDisplaySnapshot(ProjectDisplaySnapshot({"alpha": "Alpha"}))
 
 
-def test_files_rows_and_groups_use_configured_timezone(
+def test_files_rows_use_configured_timezone(
     tz_divergence: None,
 ) -> None:
     row = _artifact_file()
     logical = logical_file(row)
-    today = datetime(2026, 7, 24, 23, 0)
 
-    assert file_group_label(logical, today=today) == "Today"
     rendered = file_row_text(logical, view_mode="markdown", projects=_projects())
     assert "21:30" in rendered.plain
     assert "01:30" not in rendered.plain

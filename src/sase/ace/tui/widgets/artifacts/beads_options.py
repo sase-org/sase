@@ -12,6 +12,7 @@ from sase.bead.filter_query import BeadFilterQueryError, BeadFilterValues
 from sase.bead.filter_query import to_query_string, to_query_tokens
 from sase.core.query_profile_corpus_facade import ArtifactQueryIndex
 
+from ...models.group_fold import GroupFoldRegistry
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot
 from .beads_filtering import BeadFilterIndex
@@ -40,7 +41,7 @@ class BeadsOptionsMixin(_MixinBase):
     _project_display_name: str | None
     _registry: KeymapRegistry
     _snapshot: BeadsSnapshot | None
-    _expanded_epics: set[tuple[str, str]]
+    _epic_fold_registry: GroupFoldRegistry
     _loading: bool
     _load_error: str | None
     _rows: dict[str, BeadRow]
@@ -90,6 +91,10 @@ class BeadsOptionsMixin(_MixinBase):
             has_active_filter: bool = ...,
         ) -> ArtifactsPaneState: ...
 
+        def _seed_new_epic_keys(self) -> None: ...
+
+        def _expanded_epic_keys(self) -> set[tuple[str, str]]: ...
+
     def _init_beads_options(self) -> None:
         self._display_matched_counts = None
         self._display_matched_triage_count = None
@@ -103,6 +108,7 @@ class BeadsOptionsMixin(_MixinBase):
         option_list = self._option_list()
         if option_list is None:
             return
+        self._seed_new_epic_keys()
         if preferred_id is None:
             preferred_id = self._selected_option_id()
         values = self._display_filter_values()
@@ -159,7 +165,7 @@ class BeadsOptionsMixin(_MixinBase):
             self._snapshot,
             project_scope=self.project_scope,
             loading=self._loading,
-            expanded_epics=self._expanded_epics,
+            expanded_epics=self._expanded_epic_keys(),
             jump_hints=self._entry_jump_hints,
             marks=self._entry_marks,
             matched_option_ids=matched_option_ids,
@@ -277,7 +283,7 @@ class BeadsOptionsMixin(_MixinBase):
             if phase_project != project:
                 continue
             if any(phase.issue.id == bead_id for phase in phases):
-                self._expanded_epics.add((project, epic_id))
+                self._epic_fold_registry.expand((project, epic_id))
                 return
 
     def _pending_option_id(self) -> str | None:

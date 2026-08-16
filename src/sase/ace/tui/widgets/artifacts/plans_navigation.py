@@ -71,6 +71,7 @@ class PlansNavigationMixin(_MixinBase):
     project_scope: str | None
     _snapshot: PlansSnapshot | None
     _rows: dict[str, PlanRow]
+    _banner_target_by_option_id: dict[str, ArtifactEntryTarget]
     _detail_debouncer: DetailPanelDebouncer | None
     _syncing_options: bool
     _entry_jump_hints: dict[ArtifactEntryTarget, str]
@@ -91,6 +92,7 @@ class PlansNavigationMixin(_MixinBase):
 
     def _init_plans_navigation(self) -> None:
         self._rows = {}
+        self._banner_target_by_option_id = {}
         self._detail_debouncer = None
         self._syncing_options = False
         self._entry_jump_hints = {}
@@ -127,14 +129,32 @@ class PlansNavigationMixin(_MixinBase):
             return ()
         targets: list[ArtifactEntryTarget] = []
         for index in range(option_list.option_count):
-            option_id = option_list.get_option_at_index(index).id or ""
+            option = option_list.get_option_at_index(index)
+            if option.disabled:
+                continue
+            option_id = option.id or ""
             if (row := self._rows.get(option_id)) is not None:
                 targets.append(plan_row_target(row))
+            elif (
+                banner_target := self._banner_target_by_option_id.get(option_id)
+            ) is not None:
+                targets.append(banner_target)
         return tuple(targets)
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         row = self.selected_row()
-        return None if row is None else plan_row_target(row)
+        if row is not None:
+            return plan_row_target(row)
+        option_list = self._option_list()
+        if option_list is None or option_list.highlighted is None:
+            return None
+        try:
+            option_id = (
+                option_list.get_option_at_index(option_list.highlighted).id or ""
+            )
+        except Exception:
+            return None
+        return self._banner_target_by_option_id.get(option_id)
 
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         option_list = self._option_list()
@@ -205,6 +225,8 @@ class PlansNavigationMixin(_MixinBase):
             option_id = option_list.get_option_at_index(index).id or ""
             row = self._rows.get(option_id)
             if row is not None and plan_row_target(row) == target:
+                return index
+            if self._banner_target_by_option_id.get(option_id) == target:
                 return index
         return None
 

@@ -47,6 +47,8 @@ class CommitsDetailMixin(_MixinBase):
 
         def _refresh_position_badge(self) -> None: ...
 
+        def _sync_timeline_grouping(self, timeline: CommitsTimeline) -> None: ...
+
     def _init_commits_detail(self, diff_loader: CommitDiffLoader) -> None:
         self._diff_loader = diff_loader
         self._selected_commit_index = None
@@ -80,10 +82,9 @@ class CommitsDetailMixin(_MixinBase):
     def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
         """Select a loaded commit by repository + full SHA identity."""
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
-        index = timeline.select_entry_target(target)
-        if index is None:
+        if not timeline.select_entry_target(target):
             return False
-        self._sync_timeline_selection(index)
+        self._sync_timeline_selection(timeline.selected_commit_index)
         return True
 
     def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
@@ -133,13 +134,15 @@ class CommitsDetailMixin(_MixinBase):
             cancel_jump("stitches")
         self.result = result
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
+        sync_grouping = getattr(self, "_sync_timeline_grouping", None)
+        if callable(sync_grouping):
+            sync_grouping(timeline)
         self._selected_commit_index = timeline.update_result(result)
         pending = self._pending_entry_target
         if pending is not None:
-            resolved_index = timeline.select_entry_target(pending)
-            if resolved_index is not None:
+            if timeline.select_entry_target(pending):
                 self._pending_entry_target = None
-                self._selected_commit_index = resolved_index
+                self._selected_commit_index = timeline.selected_commit_index
             else:
                 self._pending_entry_target = None
                 notify = getattr(self, "notify", None)

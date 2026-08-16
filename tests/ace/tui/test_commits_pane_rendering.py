@@ -11,6 +11,7 @@ from rich.console import Console
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui._artifact_tab_model import PaneGroupingModeDecl
 from sase.ace.tui.util.lazy_syntax import (
     PLAIN_RENDER_MAX_BYTES,
     LazySyntaxRenderCache,
@@ -23,6 +24,7 @@ from sase.ace.tui.widgets.artifacts.commits_rendering import (
     build_commits_info,
     build_commits_legend,
 )
+from sase.ace.tui.widgets.artifacts.types import ARTIFACTS_ACCENTS
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 import sase.ace.tui.widgets.artifacts.commits_pane as commits_pane_module
 from sase.core.vcs_log_wire import CommitPresence
@@ -38,12 +40,17 @@ from tests.ace.tui._commits_pane_helpers import (
     _result_with_merge,
 )
 
+_BY_DATE = PaneGroupingModeDecl(id="by_date", label="Date", keys=("committed_date",))
+
 
 def test_commits_renderer_builds_compact_single_line_rows() -> None:
     result = _result()
 
     legend = build_pretty_legend(result)
     timeline = CommitsTimeline()
+    timeline.set_grouping(
+        mode=_BY_DATE, fold_registry=None, accent=ARTIFACTS_ACCENTS["stitches"]
+    )
     selected = timeline.update_result(result)
 
     assert "alpha-platform-repository (1)" in legend.plain

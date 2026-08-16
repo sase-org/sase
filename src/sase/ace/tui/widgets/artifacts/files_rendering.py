@@ -191,29 +191,6 @@ def build_files_hints(
     return build_footer_hints(parts, accent=accent, disabled_labels=disabled_labels)
 
 
-def file_group_label(row: LogicalFile, *, today: datetime) -> str:
-    """Return Today, Yesterday, or an ISO date for one artifact row."""
-
-    timestamp = _artifact_file_datetime(row.latest)
-    if timestamp is None:
-        return "Unknown"
-    day_delta = (today.date() - timestamp.date()).days
-    if day_delta == 0:
-        return "Today"
-    if day_delta == 1:
-        return "Yesterday"
-    return timestamp.date().isoformat()
-
-
-def file_group_header(label: str) -> Text:
-    """Render one disabled date separator."""
-
-    text = Text(no_wrap=True, overflow="ellipsis")
-    text.append(f"── {label} ", style="dim")
-    text.append("─" * 20, style="dim #5F5F87")
-    return text
-
-
 def file_row_text(
     row: LogicalFile,
     *,
@@ -284,8 +261,6 @@ __all__ = [
     "build_files_hints",
     "build_files_info",
     "build_files_status",
-    "file_group_header",
-    "file_group_label",
     "file_row_text",
     "humanize_file_size",
 ]

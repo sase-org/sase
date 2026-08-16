@@ -5,16 +5,23 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from sase.ace.tui._artifact_tab_model import PaneGroupingModeDecl
 from sase.ace.tui.widgets.artifacts.plans_list import build_plan_options
+from sase.ace.tui.widgets.artifacts.types import ARTIFACTS_ACCENTS
 from tests.ace.tui._artifacts_plans_helpers import _snapshot
+
+_BY_KIND = PaneGroupingModeDecl(id="by_kind", label="Kind", keys=("kind", "tier"))
 
 
 def test_every_plan_document_appears_in_exactly_one_section(tmp_path: Path) -> None:
     snapshot = _snapshot(tmp_path)
-    options, rows = build_plan_options(
+    options, rows, _known_group_keys = build_plan_options(
         snapshot,
         project_scope="alpha",
         loading=False,
+        mode=_BY_KIND,
+        fold_registry=None,
+        accent=ARTIFACTS_ACCENTS["plans"],
     )
 
     assert [row.kind for row in rows.values()] == ["proposal", "active", "archive"]

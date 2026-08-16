@@ -249,28 +249,45 @@ class AgentGroupingMixin:
         """Advance the focused tab's grouping mode by one step.
 
         On Agents and Patches the active mode advances and the tab is
-        refreshed.  On AXE (which has no grouping model) the action is a
-        silent no-op.
+        refreshed.  On other Artifacts subtabs (Beads, Files, Plans/
+        Documents, Stitches) the active pane's own declared grouping mode
+        advances instead.  On AXE (which has no grouping model) the action
+        is a silent no-op.
         """
         if self.current_tab == "agents":
             self._cycle_agents_grouping_mode()
         elif self.current_tab in {  # legacy compatibility alias
-            "artifacts",
             "patches",
             "changespecs",  # legacy compatibility alias
         }:
             self._cycle_patch_grouping_mode()
+        elif self.current_tab == "artifacts":
+            self._cycle_artifacts_grouping_mode()
 
     def action_cycle_grouping_mode_reverse(self) -> None:
         """Advance the focused tab's grouping mode by one step in reverse."""
         if self.current_tab == "agents":
             self._cycle_agents_grouping_mode(reverse=True)
         elif self.current_tab in {  # legacy compatibility alias
-            "artifacts",
             "patches",
             "changespecs",  # legacy compatibility alias
         }:
             self._cycle_patch_grouping_mode(reverse=True)
+        elif self.current_tab == "artifacts":
+            self._cycle_artifacts_grouping_mode(reverse=True)
+
+    def _cycle_artifacts_grouping_mode(self, *, reverse: bool = False) -> None:
+        """Route the Artifacts-tab grouping cycle to the visible pane."""
+        if getattr(self, "current_artifacts_pane_key", "patches") == "patches":
+            self._cycle_patch_grouping_mode(reverse=reverse)
+            return
+        navigator = getattr(self, "_artifacts_entry_navigator", None)
+        pane = navigator() if callable(navigator) else None
+        if pane is None:
+            return
+        method = getattr(pane, "group_cycle_mode", None)
+        if callable(method):
+            method(reverse=reverse)
 
     def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
         next_mode = self._next_grouping_mode(reverse=reverse)

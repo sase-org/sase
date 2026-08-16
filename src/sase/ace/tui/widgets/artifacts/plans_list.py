@@ -10,8 +10,12 @@ from textual.widgets.option_list import Option
 
 from sase.plan_search.model import PlanSearchMatch
 
+from ..._artifact_tab_model import PaneGroupingModeDecl
+from ...models.artifact_groups import ArtifactGroupBuildResult, build_grouped_rows
+from ...models.group_fold import GroupFoldRegistry
 from .bead_plan_links import BeadPlanLink, plan_owner
 from .entry_navigation import ArtifactEntryTarget, prepend_jump_hint, prepend_mark_glyph
+from .group_banner import format_group_banner_option
 from .plans_data import ActivePlanDocument, PlanProposal, PlansSnapshot, ProjectArchive
 from .plans_rendering import (
     active_plan_text,
@@ -23,6 +27,12 @@ from .plans_rendering import (
 from .types import ARTIFACTS_ACCENTS
 
 PlanRowKind = Literal["proposal", "active", "archive"]
+
+_KIND_LABELS: dict[str, str] = {
+    "proposal": "Proposals",
+    "active": "Active plans",
+    "archive": "Archive",
+}
 
 
 @dataclass(frozen=True)
@@ -55,20 +65,95 @@ def plan_row_target(row: PlanRow) -> ArtifactEntryTarget:
     )
 
 
+def _plan_tier_value(row: PlanRow) -> str:
+    if row.proposal is not None:
+        return row.proposal.tier or row.proposal.frontmatter.get("tier", "")
+    if row.active is not None:
+        return row.active.document.frontmatter.get("tier", "")
+    if row.archive is not None:
+        plan = row.archive.plan
+        return plan.kind or plan.frontmatter.get("tier", "")
+    return ""
+
+
+def _plan_status_value(row: PlanRow) -> str:
+    if row.proposal is not None:
+        return "proposed"
+    if row.active is not None:
+        return row.active.document.frontmatter.get("status", "") or "active"
+    if row.archive is not None:
+        plan = row.archive.plan
+        return plan.status or plan.frontmatter.get("status", "") or "archived"
+    return ""
+
+
+def _plan_row_key_values(row: PlanRow, mode_id: str) -> tuple[str, ...]:
+    if mode_id == "by_kind":
+        return (row.kind, _plan_tier_value(row))
+    if mode_id == "by_status":
+        return (_plan_status_value(row),)
+    if mode_id == "by_project":
+        return (row.project,)
+    return ("",)
+
+
+def _plan_group_label(
+    mode_id: str,
+    level: int,
+    value: str,
+    *,
+    display_names: Mapping[str, str],
+) -> str:
+    if mode_id == "by_kind" and level == 0:
+        return _KIND_LABELS.get(value, value.title() if value else "Unknown")
+    if mode_id == "by_kind":
+        return value.title() if value else "(no tier)"
+    if mode_id == "by_project":
+        return (display_names.get(value, value) if value else None) or "(no project)"
+    if mode_id == "by_status":
+        return value.title() if value else "(no status)"
+    return value or "Unknown"
+
+
+def build_grouped_plan_rows(
+    ordered_rows: list[PlanRow],
+    *,
+    mode: PaneGroupingModeDecl,
+    snapshot: PlansSnapshot,
+    fold_registry: GroupFoldRegistry | None,
+) -> ArtifactGroupBuildResult[PlanRow]:
+    """Bucket already-filtered Plans rows by the active declared mode."""
+    return build_grouped_rows(
+        ordered_rows,
+        pane_id=f"ref:{snapshot.provider_kind}",
+        mode_id=mode.id,
+        keys=mode.keys,
+        key_values=lambda row: _plan_row_key_values(row, mode.id),
+        label_for=lambda level, value: _plan_group_label(
+            mode.id, level, value, display_names=snapshot.display_names
+        ),
+        target_for=plan_row_target,
+        fold_registry=fold_registry,
+    )
+
+
 def build_plan_options(
     snapshot: PlansSnapshot | None,
     *,
     project_scope: str | None,
     loading: bool,
+    mode: PaneGroupingModeDecl | None = None,
+    fold_registry: GroupFoldRegistry | None = None,
     jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
     marks: set[ArtifactEntryTarget] | None = None,
     matched_option_ids: frozenset[str] | None = None,
     archive_entries: tuple[ProjectArchive, ...] | None = None,
-    archive_total: int | None = None,
     accent: str = ARTIFACTS_ACCENTS["plans"],
-) -> tuple[list[Option], dict[str, PlanRow]]:
-    """Build Proposals, Active plans, and Archive without duplicate paths."""
-    options: list[Option] = []
+) -> tuple[list[Option], dict[str, PlanRow], tuple[tuple[str, ...], ...]]:
+    """Build Proposals, Active plans, and Archive without duplicate paths.
+
+    Returns ``(options, rows, known_group_keys)``.
+    """
     rows: dict[str, PlanRow] = {}
     active_marks = marks or set()
     if snapshot is None or snapshot.project != project_scope:
@@ -78,9 +163,12 @@ def build_plan_options(
             if loading
             else f"{provider_label} documents have not loaded yet."
         )
-        return [Option(single_line_text(label), disabled=True)], rows
+        return [Option(single_line_text(label), disabled=True)], rows, ()
 
     filter_active = matched_option_ids is not None
+    ordered_rows: list[PlanRow] = []
+    row_texts: dict[str, object] = {}
+
     proposals = tuple(
         (
             proposal,
@@ -95,14 +183,6 @@ def build_plan_options(
         for item in proposals
         if matched_option_ids is None or item[1] in matched_option_ids
     )
-    options.append(
-        _section_option(
-            "Proposals",
-            len(snapshot.proposals),
-            matched_count=len(visible_proposals) if filter_active else None,
-            accent=accent,
-        )
-    )
     for proposal, option_id in visible_proposals:
         row = PlanRow(
             "proposal",
@@ -111,20 +191,13 @@ def build_plan_options(
             snapshot.provider_kind,
             proposal=proposal,
         )
-        _append_row(
-            options,
-            rows,
-            row,
-            proposal_text(
-                proposal,
-                project_badge=project_badge(snapshot, proposal.project),
-                accent=accent,
-            ),
-            jump_hints=jump_hints,
-            marks=active_marks,
+        rows[row.row_id] = row
+        ordered_rows.append(row)
+        row_texts[row.row_id] = proposal_text(
+            proposal,
+            project_badge=project_badge(snapshot, proposal.project),
+            accent=accent,
         )
-    if not visible_proposals:
-        options.append(_empty_option("proposals", filter_active, pending=True))
 
     active_rows = tuple(
         (
@@ -138,14 +211,6 @@ def build_plan_options(
         for item in active_rows
         if matched_option_ids is None or item[1] in matched_option_ids
     )
-    options.append(
-        _section_option(
-            "Active plans",
-            len(snapshot.active),
-            matched_count=len(visible_active) if filter_active else None,
-            accent=accent,
-        )
-    )
     for active, option_id in visible_active:
         row = PlanRow(
             "active",
@@ -155,20 +220,13 @@ def build_plan_options(
             active=active,
             bead_link=active.owner,
         )
-        _append_row(
-            options,
-            rows,
-            row,
-            active_plan_text(
-                active,
-                project_badge=project_badge(snapshot, active.project),
-                accent=accent,
-            ),
-            jump_hints=jump_hints,
-            marks=active_marks,
+        rows[row.row_id] = row
+        ordered_rows.append(row)
+        row_texts[row.row_id] = active_plan_text(
+            active,
+            project_badge=project_badge(snapshot, active.project),
+            accent=accent,
         )
-    if not visible_active:
-        options.append(_empty_option("active plans", filter_active))
 
     displayed_archive = snapshot.archive if archive_entries is None else archive_entries
     archive_rows = tuple(
@@ -182,14 +240,6 @@ def build_plan_options(
         item
         for item in archive_rows
         if matched_option_ids is None or item[1] in matched_option_ids
-    )
-    options.append(
-        _section_option(
-            "Archive",
-            len(snapshot.archive) if archive_total is None else archive_total,
-            matched_count=len(visible_archive) if filter_active else None,
-            accent=accent,
-        )
     )
     for project_archive, option_id in visible_archive:
         owner = plan_owner(
@@ -206,26 +256,65 @@ def build_plan_options(
             archive_role=project_archive.role,
             bead_link=owner,
         )
-        _append_row(
-            options,
-            rows,
-            row,
-            archive_text(
-                project_archive.match,
-                project_badge=project_badge(snapshot, project_archive.project),
-                accent=accent,
-            ),
-            jump_hints=jump_hints,
-            marks=active_marks,
+        rows[row.row_id] = row
+        ordered_rows.append(row)
+        row_texts[row.row_id] = archive_text(
+            project_archive.match,
+            project_badge=project_badge(snapshot, project_archive.project),
+            accent=accent,
         )
+
+    options: list[Option] = []
+    known_group_keys: tuple[tuple[str, ...], ...] = ()
+    if mode is None:
+        for row in ordered_rows:
+            _append_row(
+                options,
+                row,
+                row_texts[row.row_id],
+                jump_hints=jump_hints,
+                marks=active_marks,
+            )
+    else:
+        grouped = build_grouped_plan_rows(
+            ordered_rows,
+            mode=mode,
+            snapshot=snapshot,
+            fold_registry=fold_registry,
+        )
+        known_group_keys = grouped.known_group_keys
+        hints = jump_hints or {}
+        for grouped_row in grouped.rows:
+            if grouped_row.kind == "banner" and grouped_row.banner is not None:
+                options.append(
+                    format_group_banner_option(
+                        grouped_row.banner,
+                        accent=accent,
+                        hint_char=hints.get(grouped_row.banner.target),
+                    )
+                )
+                continue
+            grouped_plan_row = grouped_row.item
+            assert grouped_plan_row is not None
+            _append_row(
+                options,
+                grouped_plan_row,
+                row_texts[grouped_plan_row.row_id],
+                jump_hints=jump_hints,
+                marks=active_marks,
+            )
+
+    if not visible_proposals:
+        options.append(_empty_option("proposals", filter_active, pending=True))
+    if not visible_active:
+        options.append(_empty_option("active plans", filter_active))
     if not visible_archive:
         options.append(_empty_option("committed plans", filter_active))
-    return options, rows
+    return options, rows, known_group_keys
 
 
 def _append_row(
     options: list[Option],
-    rows: dict[str, PlanRow],
     row: PlanRow,
     text: object,
     *,
@@ -233,7 +322,6 @@ def _append_row(
     marks: set[ArtifactEntryTarget],
 ) -> None:
     target = plan_row_target(row)
-    rows[row.row_id] = row
     options.append(
         Option(
             prepend_jump_hint(
@@ -254,23 +342,6 @@ def row_option_id(
     if snapshot.project is None:
         return f"{kind}:{project}:{identity}"
     return f"{kind}:{identity}"
-
-
-def _section_option(
-    label: str,
-    count: int,
-    *,
-    matched_count: int | None = None,
-    accent: str = ARTIFACTS_ACCENTS["plans"],
-) -> Option:
-    text = single_line_text()
-    text.append(f"── {label} ", style=f"bold {accent}")
-    count_label = str(count) if matched_count is None else f"{matched_count}/{count}"
-    text.append(f"({count_label}) ", style="dim")
-    text.append("─" * 8, style="dim #5F5F87")
-    return Option(
-        text, id=f"header:{label.casefold().replace(' ', '-')}", disabled=True
-    )
 
 
 def _empty_option(label: str, filtered: bool, *, pending: bool = False) -> Option:

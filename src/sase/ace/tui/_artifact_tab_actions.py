@@ -57,7 +57,14 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
     PaneCapability.PLAN_REJECT: ("plans_reject",),
     PaneCapability.PLAN_OPEN_BEAD: ("plans_open_bead",),
     PaneCapability.RELATIONS: (),
-    PaneCapability.GROUPING: (),
+    PaneCapability.GROUPING: (
+        "expand_or_layout",
+        "hooks_or_collapse",
+        "hooks_or_collapse_all",
+        "expand_all_folds",
+        "cycle_grouping_mode",
+        "cycle_grouping_mode_reverse",
+    ),
     PaneCapability.STATUS_COUNTERS: (),
     PaneCapability.SHELL: (),
 }
