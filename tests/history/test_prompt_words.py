@@ -9,8 +9,8 @@ import pytest
 
 from sase.history.prompt_store import PromptEntry, save_shard
 from sase.history.prompt_word_deletions import delete_prompt_word
+from sase.history.prompt_word_index import _extract_prompt_words
 from sase.history.prompt_words import (
-    _extract_prompt_words,
     collect_recent_prompt_words,
     history_words_source_token,
 )

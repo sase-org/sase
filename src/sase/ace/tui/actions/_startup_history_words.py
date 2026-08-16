@@ -85,6 +85,9 @@ class StartupHistoryWordsMixin:
 
     def forget_history_prompt_word(self: Any, word: str) -> None:
         """Optimistically remove *word* and force the next warm to reload."""
+        from sase.history.prompt_word_index import clear_prompt_word_index_cache
+
+        clear_prompt_word_index_cache()
         if isinstance(self._history_prompt_words_cache, list):
             self._history_prompt_words_cache = [
                 candidate

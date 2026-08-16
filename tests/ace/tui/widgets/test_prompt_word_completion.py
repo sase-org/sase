@@ -16,7 +16,7 @@ from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
     build_prompt_word_completion_result,
     word_range_at_cursor,
-    word_ranges,
+    _word_ranges,
 )
 
 from ._completion_helpers import CompletionTestApp
@@ -112,7 +112,7 @@ def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
         "snake_case_extra"
     ]
     range_text = "alpha.beta bob-mac-capture omega"
-    assert [range_text[start:end] for start, end in word_ranges(range_text)] == [
+    assert [range_text[start:end] for start, end in _word_ranges(range_text)] == [
         "alpha",
         "beta",
         "bob-mac-capture",

@@ -58,7 +58,7 @@ def build_prompt_word_completion_result(
 
     minimum = max(1, min_length)
     spellings: set[str] = set()
-    for start, end in word_ranges(text):
+    for start, end in _word_ranges(text):
         if start >= word_start:
             break
         word = text[start:end]
@@ -112,7 +112,7 @@ def word_range_at_cursor(text: str, cursor_offset: int) -> tuple[int, int] | Non
     return start, end
 
 
-def word_ranges(text: str) -> Iterator[tuple[int, int]]:
+def _word_ranges(text: str) -> Iterator[tuple[int, int]]:
     """Yield absolute ranges for all identifier-like prompt words in source order."""
     start = 0
     while start < len(text):
