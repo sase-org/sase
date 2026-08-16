@@ -154,10 +154,10 @@ async def test_stop_axe_and_quit_uses_robust_stop_when_status_is_stale(
             "desired_state_source": "ace quit",
         }
     ]
-    assert app.kill_task_calls == 1
+    assert app.kill_task_calls == 0
     assert app.stall_watchdog_stops == 1
     assert app.did_quit is True
-    assert order == ["watchdog", "kill-tasks", "stop", "quit"]
+    assert order == ["watchdog", "stop", "quit"]
 
 
 @pytest.mark.asyncio
@@ -201,12 +201,12 @@ async def test_stop_axe_and_quit_still_quits_when_stop_raises(
     await _run_stop_quit_worker(app)
 
     assert calls == 1
-    assert app.kill_task_calls == 1
+    assert app.kill_task_calls == 0
     assert app.did_quit is True
 
 
 @pytest.mark.asyncio
-async def test_stop_axe_and_quit_still_stops_and_quits_when_task_kill_raises(
+async def test_stop_axe_and_quit_does_not_kill_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = 0
@@ -222,7 +222,7 @@ async def test_stop_axe_and_quit_still_stops_and_quits_when_task_kill_raises(
     await _run_stop_quit_worker(app)
 
     assert calls == 1
-    assert app.kill_task_calls == 1
+    assert app.kill_task_calls == 0
     assert app.did_quit is True
 
 
@@ -233,7 +233,7 @@ async def test_stop_axe_and_quit_still_stops_and_quits_when_task_kill_raises(
         (True, AceExitAction.RESTART_TUI_AND_AXE),
     ],
 )
-def test_restart_tui_sets_exit_action_kills_tasks_and_quits(
+def test_restart_tui_sets_exit_action_and_quits(
     monkeypatch: pytest.MonkeyPatch,
     restart_axe: bool,
     expected_exit_action: AceExitAction,
@@ -248,10 +248,10 @@ def test_restart_tui_sets_exit_action_kills_tasks_and_quits(
     app._restart_tui(restart_axe=restart_axe)
 
     assert app.exit_action == expected_exit_action
-    assert app.kill_task_calls == 1
+    assert app.kill_task_calls == 0
     assert app.stall_watchdog_stops == 1
     assert app.did_quit is True
-    assert order == ["watchdog", "kill-tasks", "quit"]
+    assert order == ["watchdog", "quit"]
 
 
 @pytest.mark.parametrize("restart_axe", [False, True])
@@ -271,13 +271,13 @@ def test_restart_tui_routes_through_controlled_exit(restart_axe: bool) -> None:
     assert app.did_quit is False
 
 
-def test_restart_tui_still_quits_when_task_kill_raises() -> None:
+def test_restart_tui_does_not_kill_tasks() -> None:
     app = _StopQuitApp(kill_tasks_raises=True)
 
     app._restart_tui(restart_axe=False)
 
     assert app.exit_action == AceExitAction.RESTART_TUI
-    assert app.kill_task_calls == 1
+    assert app.kill_task_calls == 0
     assert app.did_quit is True
 
 
@@ -295,7 +295,7 @@ class _RestartStashApp(_StopQuitApp):
         return True
 
 
-def test_restart_tui_stashes_prompt_before_killing_tasks() -> None:
+def test_restart_tui_stashes_prompt_before_quit() -> None:
     app = _RestartStashApp()
 
     app._restart_tui(restart_axe=False)
@@ -303,7 +303,7 @@ def test_restart_tui_stashes_prompt_before_killing_tasks() -> None:
     assert app.stash_calls == 1
     assert app.exit_action == AceExitAction.RESTART_TUI
     assert app.did_quit is True
-    assert app.order == ["watchdog", "stash", "kill-tasks", "quit"]
+    assert app.order == ["watchdog", "stash", "quit"]
     assert app.notifications == [
         ("Prompt draft stashed; press @ to restore after restart", None)
     ]
@@ -316,7 +316,7 @@ def test_restart_tui_still_quits_when_restart_stash_raises() -> None:
 
     assert app.stash_calls == 1
     assert app.exit_action == AceExitAction.RESTART_TUI
-    assert app.kill_task_calls == 1
+    assert app.kill_task_calls == 0
     assert app.did_quit is True
-    assert app.order == ["watchdog", "stash", "kill-tasks", "quit"]
+    assert app.order == ["watchdog", "stash", "quit"]
     assert app.notifications == []

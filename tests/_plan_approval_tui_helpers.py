@@ -49,18 +49,19 @@ def run_tracked_procs_immediately(app: MagicMock) -> list[dict[str, Any]]:
 
     def submit(
         proc_type: str,
-        cl_name: str,
-        project_file: str,
         proc_callable: Any,
         *,
         display_name: str | None = None,
+        cl_name: str = "",
+        project_file: str = "",
         dedup_key: str | None = None,
         duplicate_message: str | None = None,
+        exclusive_scopes: Any = (),
         on_complete: Any = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
     ) -> ProcInfo:
-        del duplicate_message, reload_on_complete, notify_on_complete
+        del duplicate_message, exclusive_scopes, reload_on_complete, notify_on_complete
         proc_info = ProcInfo(
             proc_id=f"task-{len(submitted)}",
             proc_type=proc_type,
@@ -99,5 +100,14 @@ def run_tracked_procs_immediately(app: MagicMock) -> list[dict[str, Any]]:
             )
         return proc_info
 
-    app._submit_tracked_proc.side_effect = submit
+    app._submit_session_worker.side_effect = submit
+    app._submit_tracked_proc.side_effect = (
+        lambda proc_type, cl_name, project_file, proc_callable, **kwargs: submit(
+            proc_type,
+            proc_callable,
+            cl_name=cl_name,
+            project_file=project_file,
+            **kwargs,
+        )
+    )
     return submitted

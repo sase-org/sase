@@ -10,10 +10,8 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.config import load_merged_config
-from sase.dev_update.models import DevCommandResult
 from sase.mode_switch import execute_mode_switch, plan_mode_switch
 from sase.mode_switch.models import ModeSwitchResult, SwitchPlan, TargetMode
 from sase.mode_switch.render import render_mode_switch_plan
@@ -157,15 +155,10 @@ class ModeSwitchActionsMixin:
         self.app.push_screen(modal, _on_confirmed)
 
     def _submit_mode_switch_task(self, plan: SwitchPlan) -> None:
-        def task(reporter: ProcReporter) -> TrackedProcResult[ModeSwitchResult]:
+        def task() -> TrackedProcResult[ModeSwitchResult]:
             start = time.monotonic()
             try:
-                reporter.phase("Switching install mode")
-                result = execute_mode_switch(
-                    plan,
-                    run_uv_fn=reporter.uv_runner(),
-                    run_command_fn=_mode_switch_reporter_runner(reporter),
-                )
+                result = execute_mode_switch(plan)
             except UvToolError as exc:
                 return TrackedProcResult(
                     success=False,
@@ -174,23 +167,17 @@ class ModeSwitchActionsMixin:
                 )
             elapsed = max(0.0, time.monotonic() - start)
             message = _mode_switch_success_message(result, elapsed)
-            reporter.log(message, stream="result")
             return TrackedProcResult(success=True, message=message, payload=result)
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
         submit(
             "mode-switch",
-            plan.target_mode,
-            "",
             task,
             display_name=f"switch to {plan.target_mode}",
-            dedup_key="mode-switch",
-            duplicate_message="An install-mode switch is already running.",
+            cl_name=plan.target_mode,
             on_complete=self._on_mode_switch_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
 
     def _on_mode_switch_complete(
@@ -219,19 +206,6 @@ def _mode_switch_details(plan: SwitchPlan) -> tuple[str, ...]:
     for command in plan.commands[:4]:
         details.append("run: " + " ".join(command.command))
     return tuple(details)
-
-
-def _mode_switch_reporter_runner(reporter: ProcReporter) -> Any:
-    def _run(argv: Any, *, cwd: Any = None) -> DevCommandResult:
-        reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
-        completed = reporter.run(argv, cwd=cwd)
-        return DevCommandResult(
-            returncode=completed.returncode,
-            stdout=completed.stdout,
-            stderr=completed.stderr,
-        )
-
-    return _run
 
 
 _ModeSwitchPreview = ModeSwitchPreview

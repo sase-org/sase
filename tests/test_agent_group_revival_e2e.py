@@ -43,6 +43,7 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
     )
     patch_startup_loaders(monkeypatch, agents=[agent])
     _patch_dismissed_archive_paths(monkeypatch, tmp_path)
+    _patch_local_cleanup_submit(monkeypatch)
     restored: list[tuple[str, str | None]] = []
     monkeypatch.setattr(
         AceApp,
@@ -117,6 +118,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
     """S/R revive restores deleted markers from the bundle and keeps the tribe."""
 
     _patch_non_agent_startup(monkeypatch)
+    _patch_local_cleanup_submit(monkeypatch)
     project_file, artifacts_dir = _write_done_agent_artifacts(
         project="saved-group-real",
         cl_name="visual-polish",
@@ -219,6 +221,7 @@ async def test_lowercase_s_dispatches_by_active_tab(
     agent = _agent(raw_suffix="20260527122000")
     patch_startup_loaders(monkeypatch, agents=[agent])
     _patch_dismissed_archive_paths(monkeypatch, tmp_path)
+    _patch_local_cleanup_submit(monkeypatch)
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._marking.sync_dismissed_agent_artifact_index",
         lambda *_args, **_kwargs: None,
@@ -290,6 +293,25 @@ def _patch_dismissed_archive_paths(
         "_OLD_BUNDLES_FILE",
         tmp_path / "dismissed_agent_bundles.json",
     )
+
+
+def _patch_local_cleanup_submit(monkeypatch: pytest.MonkeyPatch) -> None:
+    def submit(
+        self: AceApp,
+        *,
+        proc_callable=None,
+        on_settled=None,
+        **_kwargs: object,
+    ) -> bool:
+        try:
+            if proc_callable is not None:
+                proc_callable()
+        finally:
+            if on_settled is not None:
+                on_settled()
+        return True
+
+    monkeypatch.setattr(AceApp, "_submit_cleanup_proc", submit, raising=False)
 
 
 def _write_done_agent_artifacts(

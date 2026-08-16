@@ -210,7 +210,7 @@ async def test_action_quit_ignores_stale_artifact_pane_and_continues(
     assert app._artifact_file_tmux_pane_id is None
     assert app._artifact_file_tmux_decoration_state is None
     assert "-artifact-file-viewer-active" not in app.content.classes
-    assert app.count_running_tasks_calls == 1
+    assert app.count_running_tasks_calls == 0
     assert app.did_quit is True
 
 

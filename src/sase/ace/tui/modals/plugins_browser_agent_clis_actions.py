@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import shlex
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 from rich.console import RenderableType
@@ -12,7 +11,6 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -24,7 +22,6 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
     UpdateTrigger,
 )
-from sase.agent_clis.runner import CommandResult, run_command
 
 from .plugin_action_confirm_modal import (
     PluginActionConfirmModal,
@@ -272,33 +269,12 @@ class AgentCliBrowserActionsMixin:
     ) -> None:
         from . import plugins_browser_pane as pane_module
 
-        def task(
-            reporter: ProcReporter,
-        ) -> TrackedProcResult[tuple[AgentCliUpdateResult, ...]]:
-            reporter.phase("Updating agent CLIs")
-
-            def task_runner(
-                argv: tuple[str, ...],
-                *,
-                timeout: float = 300.0,
-                env_overlay: Mapping[str, str] | None = None,
-            ) -> CommandResult:
-                return run_command(
-                    argv,
-                    timeout=timeout,
-                    env_overlay=env_overlay,
-                    run_fn=reporter.subprocess_run_fn(),
-                )
-
+        def task() -> TrackedProcResult[tuple[AgentCliUpdateResult, ...]]:
             results = pane_module._execute_agent_cli_updates(
                 plan,
-                run_fn=task_runner,
                 trigger=UpdateTrigger.ADMIN_CENTER,
             )
             message = _agent_cli_update_summary(results)
-            reporter.section("Results")
-            for result in results:
-                reporter.log(agent_cli_result_line(result), stream="result")
             failed = any(
                 result.status is UpdateResultStatus.FAILED for result in results
             )
@@ -309,21 +285,18 @@ class AgentCliBrowserActionsMixin:
                 error=message if failed else None,
             )
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
         submit(
             "agent-cli-update",
-            "agent CLIs",
-            "",
             task,
             display_name="update agent CLIs",
+            cl_name="agent CLIs",
             dedup_key="agent-cli-update",
             exclusive_scopes=("agent-cli-update",),
-            duplicate_message="An agent CLI update is already running.",
-            on_complete=self._on_agent_cli_update_complete,
             reload_on_complete=False,
-            notify_on_complete=False,
+            on_complete=self._on_agent_cli_update_complete,
         )
 
     def _on_agent_cli_update_complete(

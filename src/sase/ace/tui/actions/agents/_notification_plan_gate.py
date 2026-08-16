@@ -75,9 +75,9 @@ def submit_neutral_plan_response(
     if choice is None:
         choice = "feedback" if result.feedback else "reject"
 
-    submit = getattr(app, "_submit_tracked_proc", None)
+    submit = getattr(app, "_submit_session_worker", None)
     if not callable(submit):
-        app.notify("Tracked plan execution is unavailable", severity="error")  # type: ignore[attr-defined]
+        app.notify("Plan execution is unavailable", severity="error")  # type: ignore[attr-defined]
         return False
 
     from ...actions.proc_actions import TrackedProcResult
@@ -138,16 +138,12 @@ def submit_neutral_plan_response(
     project_file = notification.action_data.get("agent_project_file") or (
         notification.action_data.get("project_dir") or notification.files[0]
     )
-    submitted = submit(
+    submit(
         "plan-gate",
-        cl_name,
-        project_file,
         work,
         display_name=f"Plan response: {choice}",
-        dedup_key=f"plan-gate:{notification.id}",
-        duplicate_message="This plan response is already running",
+        cl_name=str(cl_name),
+        project_file=str(project_file),
         on_complete=on_complete,
-        reload_on_complete=False,
-        notify_on_complete=False,
     )
-    return submitted is not None
+    return True

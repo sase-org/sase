@@ -43,23 +43,11 @@ class CleanupProcMixin:
         on_settled: Callable[[], None] | None = None,
     ) -> bool:
         """Submit a durable cleanup persist proc and return whether it was accepted."""
+        del proc_callable
         from ..agent_durable import submit_agent_cleanup
         from ..cleanup_payload import json_identities
 
         request_payload = dict(payload or {})
-        if proc_callable is not None and not request_payload:
-            # Compatibility for tests that still pass a persist body. Production
-            # callers send a JSON-shaped payload so persist runs in the command.
-            outcome = proc_callable()
-            request_payload = {
-                "action": proc_type,
-                "message": outcome.message,
-                "notify": outcome.notify,
-                "refresh_notifications": outcome.refresh_notifications,
-                "schedule_agents_refresh_source": outcome.schedule_agents_refresh_source,
-                "severity": outcome.severity,
-                "success": outcome.success,
-            }
         request_payload.setdefault("action", proc_type)
         dismissed = request_payload.get("dismissed_identities")
         if isinstance(dismissed, (set, list, tuple)) and dismissed:
@@ -85,7 +73,6 @@ class CleanupProcMixin:
             project_file=project_file,
             display_name=display_name,
             on_complete=self._on_cleanup_proc_complete,
-            live_body=proc_callable,
             on_settled=on_settled,
         )
         return submitted

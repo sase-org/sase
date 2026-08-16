@@ -71,9 +71,9 @@ class LifecycleMixin:
         from sase.logs import flush_toasts
 
         flush_toasts(timeout=1.0)
-        stop_proc_mirror = getattr(self, "_stop_proc_mirror", None)
-        if stop_proc_mirror is not None:
-            stop_proc_mirror()
+        stop_proc_observer = getattr(self, "_stop_proc_observer", None)
+        if stop_proc_observer is not None:
+            stop_proc_observer()
         shutdown_loader_executor()
         restore_artifact_decoration = getattr(
             self, "_restore_artifact_file_tmux_decoration", None
@@ -193,13 +193,8 @@ class LifecycleMixin:
 
     def _count_running_tasks(self) -> int:
         """Return the count of running procs."""
-        return self._proc_queue.running_count  # type: ignore[attr-defined]
-
-    def _kill_all_running_tasks(self) -> None:
-        """Kill all running procs."""
-        for task in self._proc_queue.get_all():  # type: ignore[attr-defined]
-            if task.status == "running":
-                self._kill_proc(task.proc_id)  # type: ignore[attr-defined]
+        projection = getattr(self, "_proc_projection", None)
+        return int(getattr(projection, "active_count", 0))
 
     def action_dismiss_toasts(self) -> None:
         """Dismiss all currently-visible toast notifications.
@@ -215,30 +210,6 @@ class LifecycleMixin:
         """Quit the application, saving the current selection."""
         toggle_artifact = getattr(self, "_toggle_tracked_artifact_file_tmux_pane", None)
         if callable(toggle_artifact) and toggle_artifact():
-            return
-        count = self._count_running_tasks()
-        if count > 0:
-            from ..modals import QuitConfirmModal
-
-            running = [
-                task
-                for task in self._proc_queue.get_all()  # type: ignore[attr-defined]
-                if task.status == "running"
-            ]
-            if not running:
-                await self._begin_controlled_exit()
-                return
-
-            def _on_confirm(confirmed: bool | None) -> None:
-                if not confirmed:
-                    return
-                self._kill_all_running_tasks()
-                self._request_controlled_exit()
-
-            self.push_screen(  # type: ignore[attr-defined]
-                QuitConfirmModal(running),
-                callback=_on_confirm,
-            )
             return
         await self._begin_controlled_exit()
 
@@ -355,10 +326,10 @@ class LifecycleMixin:
 
             flush_toasts(timeout=1.0)
 
-        def stop_durable_proc_mirror() -> None:
-            stop_mirror = getattr(self, "_stop_proc_mirror", None)
-            if stop_mirror is not None:
-                stop_mirror()
+        def stop_proc_observer() -> None:
+            stop_observer = getattr(self, "_stop_proc_observer", None)
+            if stop_observer is not None:
+                stop_observer()
 
         def unregister_live_session() -> None:
             from ..util.session_registration import unregister_ace_session
@@ -388,7 +359,7 @@ class LifecycleMixin:
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)
-            cleanup(stop_durable_proc_mirror)
+            cleanup(stop_proc_observer)
             cleanup(unregister_live_session)
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_file_tmux_decoration)

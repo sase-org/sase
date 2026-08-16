@@ -9,7 +9,7 @@ from textual import events
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
-from ..proc_queue import ProcInfo, ProcQueue
+from ..proc_observer import ObservedProc, ProcProjection
 from ..util.selection import restore_selection_by_identity
 from .pane_entry_jump import apply_jump_hint_prefix
 from .procs_pane_render import is_active, task_row_label
@@ -94,18 +94,16 @@ class ProcsPaneSelectionMixin(_MixinBase):
         _option_list_id: str
         _session_state: object
         _store_loaded_once: bool
-        _store_load_pending: bool
-        _store_rows: list[ProcInfo]
-        _tasks: list[ProcInfo]
+        _tasks: list[ObservedProc]
         _user_scrolled: bool
 
-        def _display_output(self, task: ProcInfo | None) -> None: ...
+        def _display_output(self, task: ObservedProc | None) -> None: ...
 
         def _is_active_tab(self) -> bool: ...
 
         def _request_store_reload(self, *, force: bool = False) -> None: ...
 
-        def _proc_queue(self) -> ProcQueue | None: ...
+        def _proc_projection(self) -> ProcProjection: ...
 
         def invalidate_jump_hints(
             self, *, identities_changed: bool, target_count: int
@@ -113,17 +111,9 @@ class ProcsPaneSelectionMixin(_MixinBase):
 
         def jump_hint_for(self, index: int) -> str | None: ...
 
-    def _merged_tasks(self) -> list[ProcInfo]:
-        """Merge in-memory tasks with the store rows they do not shadow."""
-        queue = self._proc_queue()
-        memory = queue.get_all() if queue is not None else []
-        mirrored = {task.durable_proc_id for task in memory if task.durable_proc_id}
-        merged = [
-            *memory,
-            *(row for row in self._store_rows if row.proc_id not in mirrored),
-        ]
-        merged.sort(key=lambda task: task.started_at, reverse=True)
-        return merged
+    def _merged_tasks(self) -> list[ObservedProc]:
+        """Return observer rows in the pane's current scope."""
+        return self._proc_projection().scoped_rows(all_sessions=self._all_sessions)
 
     def _refresh_snapshot(
         self,
@@ -148,7 +138,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
             for index, task in enumerate(self._tasks)
         ]
 
-    def _render_task_label(self, index: int, task: ProcInfo) -> Text:
+    def _render_task_label(self, index: int, task: ObservedProc) -> Text:
         label = task_row_label(task)
         hint = self.jump_hint_for(index)
         if hint is None:
@@ -161,7 +151,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
         except Exception:
             return None
 
-    def _get_selected_task(self) -> ProcInfo | None:
+    def _get_selected_task(self) -> ObservedProc | None:
         """Return the task for the currently highlighted option."""
         option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
@@ -189,10 +179,10 @@ class ProcsPaneSelectionMixin(_MixinBase):
         return None
 
     @staticmethod
-    def _task_identity(task: ProcInfo) -> str:
+    def _task_identity(task: ObservedProc) -> str:
         return task.durable_proc_id or task.proc_id
 
-    def _option_id_for_task(self, task: ProcInfo) -> str:
+    def _option_id_for_task(self, task: ObservedProc) -> str:
         return f"{_TASK_OPTION_PREFIX}{self._task_identity(task)}"
 
     def _task_index_for_option_id(self, option_id: str) -> int | None:
@@ -280,7 +270,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
                 )
                 self._record_bookmark(current_row, authoritative=not stand_in_echo)
                 self._display_output(task)
-                if task.store_backed and not task.output:
+                if not task.output:
                     self._request_store_reload(force=True)
 
     def action_next_option(self) -> None:
@@ -323,9 +313,10 @@ class ProcsPaneSelectionMixin(_MixinBase):
         bookmark = self._session_state.task  # type: ignore[attr-defined]
         identity = self._rekey_task_identity(prior_identity or bookmark.identity)
         selected_index: int | None = None
-        pending_missing_bookmark = not any(
-            self._task_identity(task) == identity for task in self._tasks
-        ) and (self._store_load_pending or not self._store_loaded_once)
+        pending_missing_bookmark = (
+            not any(self._task_identity(task) == identity for task in self._tasks)
+            and not self._store_loaded_once
+        )
         option_list.clear_options()
         for option in self._create_options():
             option_list.add_option(option)

@@ -291,7 +291,7 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
             submitted.update(kwargs)
             return object()
 
-        monkeypatch.setattr(page.app, "_submit_tracked_proc", submit)
+        monkeypatch.setattr(page.app, "_submit_session_worker", submit)
         pane.action_update_agent_clis()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
@@ -327,7 +327,7 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
             "_execute_agent_cli_updates",
             lambda *_args, **_kwargs: (result,),
         )
-        task_result = submitted["args"][3](_Reporter())
+        task_result = submitted["args"][1]()
         assert task_result.success is True
         assert task_result.payload == (result,)
 

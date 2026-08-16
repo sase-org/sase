@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import tempfile
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from rich.text import Text
@@ -14,7 +13,7 @@ from textual.widgets import Label, Static
 from sase.ace.hints import build_editor_args
 
 from ..actions.clipboard import schedule_copy_delivery
-from ..proc_queue import ProcInfo, ProcQueue
+from ..proc_observer import ObservedProc
 from .procs_pane_render import (
     BodyCache,
     is_active,
@@ -35,18 +34,16 @@ class ProcsPaneActionsMixin(_MixinBase):
     if TYPE_CHECKING:
         _body_cache: BodyCache
         _spinner_index: int
-        _tasks: list[ProcInfo]
+        _tasks: list[ObservedProc]
         _user_scrolled: bool
 
-        def _get_selected_task(self) -> ProcInfo | None: ...
+        def _get_selected_task(self) -> ObservedProc | None: ...
 
         def _highlighted_row(self) -> int | None: ...
 
-        def _kill_callback(self) -> Callable[[str], bool] | None: ...
+        def _kill_store_task(self, task: ObservedProc) -> None: ...
 
-        def _kill_store_task(self, task: ProcInfo) -> None: ...
-
-        def _merged_tasks(self) -> list[ProcInfo]: ...
+        def _merged_tasks(self) -> list[ObservedProc]: ...
 
         def _rebuild_list(
             self,
@@ -59,9 +56,7 @@ class ProcsPaneActionsMixin(_MixinBase):
 
         def _selected_task_identity(self) -> str | None: ...
 
-        def _proc_queue(self) -> ProcQueue | None: ...
-
-    def _display_output(self, task: ProcInfo | None) -> None:
+    def _display_output(self, task: ObservedProc | None) -> None:
         """Render task output in the right pane."""
         title = self.query_one("#procs-output-title", Label)
         content = self.query_one("#procs-output-content", Static)
@@ -79,7 +74,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         elif not is_active(task):
             self._reset_output_scroll()
 
-    def _output_text(self, task: ProcInfo) -> Text:
+    def _output_text(self, task: ObservedProc) -> Text:
         out = Text()
         out.append_text(output_header(task, spinner_index=self._spinner_index))
         body = output_body(task, self._body_cache)
@@ -112,7 +107,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         except Exception:
             pass
 
-    def _display_task_live_output(self, task: ProcInfo) -> None:
+    def _display_task_live_output(self, task: ObservedProc) -> None:
         """Update the output pane with live output and scroll to bottom."""
         content = self.query_one("#procs-output-content", Static)
         content.update(self._output_text(task))
@@ -120,40 +115,26 @@ class ProcsPaneActionsMixin(_MixinBase):
             self._scroll_output_to_end()
 
     def action_dismiss_task(self) -> None:
-        """Remove the selected completed task from the queue."""
+        """Durable proc rows are retained by the proc-store retention policy."""
         task = self._get_selected_task()
-        queue = self._proc_queue()
-        if task is None or queue is None or is_active(task):
+        if task is None or is_active(task):
             return
-        if task.store_backed:
-            self.notify(
-                "Durable procs age out with procs.history_limit",
-                severity="warning",
-            )
-            return
-        queue.remove(task.proc_id)
-        highlighted = self._highlighted_row()
-        self._tasks = self._merged_tasks()
-        self._rebuild_list(highlight_index=highlighted)
+        self.notify(
+            "Durable procs age out with procs.history_limit",
+            severity="warning",
+        )
 
     def action_dismiss_all_done(self) -> None:
-        """Remove all completed tasks from the queue."""
-        queue = self._proc_queue()
-        if queue is None:
-            return
-        queue.remove_completed()
-        prior_identity = self._selected_task_identity()
-        highlighted = self._highlighted_row()
-        self._tasks = self._merged_tasks()
-        self._rebuild_list(highlight_index=highlighted, prior_identity=prior_identity)
+        """Durable proc rows are retained by the proc-store retention policy."""
+        self.notify(
+            "Durable procs age out with procs.history_limit",
+            severity="warning",
+        )
 
     def action_kill_task(self) -> None:
         """Kill the selected running task after confirmation."""
         task = self._get_selected_task()
-        if task is None or not is_active(task):
-            return
-        kill_callback = self._kill_callback()
-        if not task.store_backed and kill_callback is None:
+        if task is None or not is_active(task) or not task.store_backed:
             return
 
         from .confirm_action_modal import ConfirmActionModal
@@ -162,14 +143,7 @@ class ProcsPaneActionsMixin(_MixinBase):
         def _on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            if task.store_backed:
-                self._kill_store_task(task)
-                return
-            if kill_callback is not None and kill_callback(task.proc_id):
-                highlighted = self._highlighted_row()
-                self._tasks = self._merged_tasks()
-                self._rebuild_list(highlight_index=highlighted)
-                self.notify(f"Killed: {task.label}")
+            self._kill_store_task(task)
 
         self.app.push_screen(
             ConfirmActionModal(

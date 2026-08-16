@@ -1100,7 +1100,7 @@ PatchList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTribeModal, AgentCleanupClanModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTribeModal, AgentCleanupClanModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, InputCollectionModal {
     align: center middle;
 }
 
@@ -1462,48 +1462,6 @@ UpdatePinnedStashModal #update-pinned-stash-container.-narrow PromptStashPreview
 StashedPromptsModal #stashed-prompts-container.-narrow #stashed-prompts-list-panel,
 UpdatePinnedStashModal #update-pinned-stash-container.-narrow #update-pinned-stash-list-panel {
     width: 100%;
-}
-
-/* Quit confirmation with running proc details */
-QuitConfirmModal > #quit-confirm-container {
-    width: 70;
-    max-width: 95%;
-    height: auto;
-    max-height: 88%;
-    border: round $error;
-    background: $surface;
-    padding: 1 2;
-    border-subtitle-align: center;
-}
-
-QuitConfirmModal #quit-confirm-summary {
-    height: auto;
-    margin-bottom: 1;
-}
-
-QuitConfirmModal #quit-confirm-procs {
-    height: auto;
-    max-height: 16;
-    border: solid $secondary;
-    scrollbar-gutter: stable;
-    margin-bottom: 1;
-}
-
-QuitConfirmModal .quit-confirm-proc-card {
-    height: auto;
-    padding: 0 1;
-    margin-bottom: 1;
-}
-
-QuitConfirmModal #quit-confirm-buttons {
-    align: center middle;
-    height: auto;
-    margin-top: 1;
-}
-
-QuitConfirmModal Button {
-    margin: 0 1;
-    min-width: 20;
 }
 
 /* Revert agent commits confirmation */

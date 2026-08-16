@@ -64,7 +64,8 @@ def test_mixin_submits_argv_off_the_event_loop(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     from sase.ace.tui.actions.proc_actions import ProcActionsMixin
-    from sase.ace.tui.proc_queue import ProcQueue
+    from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
+    from sase.core.time import local_now
 
     submitted_on: list[str] = []
 
@@ -79,20 +80,32 @@ def test_mixin_submits_argv_off_the_event_loop(
     monkeypatch.setattr(
         "sase.ace.tui.durable_submit.submit_durable_proc_request", fake_submit
     )
-    monkeypatch.setattr(
-        "sase.ace.tui.durable_submit.decode_durable_completion",
-        lambda handle, timeout=None: SimpleNamespace(
-            success=True, message="ok", payload={}, error=None
-        ),
-    )
 
     class Host(ProcActionsMixin):
         def __init__(self) -> None:
-            self._proc_queue = ProcQueue()
-            self._proc_workers = {}
+            self._proc_projection = ProcProjection()
+            self._durable_submit_workers = {}
             self._proc_completion_callbacks = {}
+            self._proc_pending_scopes = {}
+            self._proc_observer = SimpleNamespace(
+                register_pending=self._register_pending,
+                register_submitted=lambda **_kwargs: None,
+                remove_pending=lambda _placeholder_id: None,
+            )
             self.notices: list[str] = []
             self.workers: list[Any] = []
+
+        def _register_pending(self, **kwargs: Any) -> ObservedProc:
+            return ObservedProc(
+                proc_id="pending-1",
+                proc_type=kwargs["proc_type"],
+                cl_name=kwargs["cl_name"],
+                project_file=kwargs["project_file"],
+                status="pending",
+                message="pending",
+                started_at=local_now(),
+                display_name=kwargs["display_name"],
+            )
 
         def notify(self, message: str, severity: str = "information") -> None:
             self.notices.append(message)
@@ -136,7 +149,8 @@ def test_mixin_surfaces_collision_without_failure_rollback(
         ProcActionsMixin,
         TrackedProcCompletion,
     )
-    from sase.ace.tui.proc_queue import ProcQueue
+    from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
+    from sase.core.time import local_now
     from sase.procs.service import ProcSubmitError
 
     def boom(**kwargs: Any) -> Any:
@@ -147,11 +161,28 @@ def test_mixin_surfaces_collision_without_failure_rollback(
 
     class Host(ProcActionsMixin):
         def __init__(self) -> None:
-            self._proc_queue = ProcQueue()
-            self._proc_workers = {}
+            self._proc_projection = ProcProjection()
+            self._durable_submit_workers = {}
             self._proc_completion_callbacks = {}
-            self._proc_mirror = SimpleNamespace(finish=lambda *a, **k: None)
+            self._proc_pending_scopes = {}
+            self._proc_observer = SimpleNamespace(
+                register_pending=self._register_pending,
+                register_submitted=lambda **_kwargs: None,
+                remove_pending=lambda _placeholder_id: None,
+            )
             self.notices: list[tuple[str, str]] = []
+
+        def _register_pending(self, **kwargs: Any) -> ObservedProc:
+            return ObservedProc(
+                proc_id="pending-1",
+                proc_type=kwargs["proc_type"],
+                cl_name=kwargs["cl_name"],
+                project_file=kwargs["project_file"],
+                status="pending",
+                message="pending",
+                started_at=local_now(),
+                display_name=kwargs["display_name"],
+            )
 
         def notify(self, message: str, severity: str = "information") -> None:
             self.notices.append((message, severity))
@@ -159,7 +190,7 @@ def test_mixin_surfaces_collision_without_failure_rollback(
         def run_worker(self, fn: Any, thread: bool = False) -> SimpleNamespace:
             result = fn()
             worker = SimpleNamespace(result=result, thread=thread)
-            self._on_proc_worker_completed(worker)
+            self._on_durable_submit_worker_completed(worker)
             return worker
 
         def _update_proc_indicator(self) -> None:

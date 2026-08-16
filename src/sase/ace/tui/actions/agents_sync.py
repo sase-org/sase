@@ -21,8 +21,6 @@ from sase.agents_sync.models import (
 )
 
 from ..agents_sync_format import (
-    agents_sync_outcome_line,
-    cached_agents_result_line,
     summarize_cached_agents_results,
     summarize_agents_sync_outcomes,
 )
@@ -35,8 +33,6 @@ from ..util.shutdown import is_shutdown_requested
 
 if TYPE_CHECKING:
     from textual.timer import Timer
-
-    from ..proc_subprocess import ProcReporter
 
 log = logging.getLogger(__name__)
 
@@ -189,14 +185,8 @@ class AgentsSyncActionsMixin:
     def action_sync_agents(self) -> None:
         """Submit synchronization of every enabled agents repo as a tracked task."""
 
-        def task(
-            reporter: ProcReporter,
-        ) -> TrackedProcResult[tuple[SyncOutcome, ...]]:
-            reporter.phase("Synchronizing agents repositories")
+        def task() -> TrackedProcResult[tuple[SyncOutcome, ...]]:
             outcomes = sync_agents()
-            reporter.section("Agents repository results")
-            for outcome in outcomes:
-                reporter.log(agents_sync_outcome_line(outcome), stream="result")
             message = f"Agents repos: {summarize_agents_sync_outcomes(outcomes)}"
             failed = any(outcome.error for outcome in outcomes)
             return TrackedProcResult(
@@ -212,20 +202,18 @@ class AgentsSyncActionsMixin:
             self._schedule_agents_sync_indicator_revalidation()
             self._schedule_agents_refresh_after_sync(source="agents_full_sync")
 
-        submit = getattr(self, "_submit_tracked_proc", None)
+        submit = getattr(self, "_submit_session_worker", None)
         if not callable(submit):
             return
         submit(
             "agents-sync",
-            "agents repositories",
-            "",
             task,
             display_name="sync agents repositories",
+            cl_name="agents repositories",
             dedup_key="agents-sync",
             exclusive_scopes=("agents-sync",),
-            duplicate_message="An agents-repository synchronization is already running.",
-            on_complete=on_complete,
             reload_on_complete=False,
+            on_complete=on_complete,
         )
 
     def action_integrate_cached_agents(self) -> None:
@@ -243,14 +231,8 @@ class AgentsSyncActionsMixin:
         if not captured_items:
             return
 
-        def task(
-            reporter: ProcReporter,
-        ) -> TrackedProcResult[tuple[CachedIntegrationResult, ...]]:
-            reporter.phase("Importing cached incoming agent hoods")
+        def task() -> TrackedProcResult[tuple[CachedIntegrationResult, ...]]:
             results = integrate_cached_agent_updates(captured_items)
-            reporter.section("Cached incoming hood results")
-            for result in results:
-                reporter.log(cached_agents_result_line(result), stream="result")
             message = "Cached agents: " + summarize_cached_agents_results(results)
             failed = any(not result.ok for result in results)
             return TrackedProcResult(
@@ -266,20 +248,18 @@ class AgentsSyncActionsMixin:
             self._schedule_agents_sync_indicator_revalidation()
             self._schedule_agents_refresh_after_sync(source="agents_cached_integration")
 
-        submit = getattr(self, "_submit_tracked_proc", None)
+        submit = getattr(self, "_submit_session_worker", None)
         if not callable(submit):
             return
         submit(
             "agents-cached-integration",
-            "cached incoming agent hoods",
-            "",
             task,
             display_name="import cached incoming hoods",
+            cl_name="cached incoming agent hoods",
             dedup_key="agents-sync",
             exclusive_scopes=("agents-sync",),
-            duplicate_message="An agents-repository synchronization is already running.",
-            on_complete=on_complete,
             reload_on_complete=False,
+            on_complete=on_complete,
         )
 
     def _schedule_agents_refresh_after_sync(self, *, source: str) -> None:

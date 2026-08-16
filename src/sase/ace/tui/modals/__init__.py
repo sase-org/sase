@@ -223,7 +223,6 @@ _LAZY_EXPORTS = {
     "PropertyPickerModal": (".property_picker_modal", "PropertyPickerModal"),
     "PropertyPickerRecord": (".property_picker_modal", "PropertyPickerRecord"),
     "QueryEditModal": (".query_edit_modal", "QueryEditModal"),
-    "QuitConfirmModal": (".quit_confirm_modal", "QuitConfirmModal"),
     "QuitOption": (".quit_options_modal", "QuitOption"),
     "QuitOptionsModal": (".quit_options_modal", "QuitOptionsModal"),
     "RecursiveFileFinderModal": (
@@ -489,7 +488,6 @@ __all__ = [
     "PostWriteActionsModal",
     "QueryEditModal",
     "SavedQueryPickerModal",
-    "QuitConfirmModal",
     "QuitOption",
     "QuitOptionsModal",
     "RenamePatchModal",

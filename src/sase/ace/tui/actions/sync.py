@@ -196,7 +196,7 @@ class SyncMixin:
 
         This action:
         1. Validates STATUS is not "Submitted", "Reverted", or "Archived"
-        2. Checks per-Patch deduplication (handled by _submit_proc)
+        2. Checks per-Patch deduplication (handled by durable submission)
         3. Submits a proc that claims/releases workspace
         4. Shows toast notifications for start/completion/failure
         """

@@ -1,9 +1,8 @@
 """Procs pane for the SASE Admin Center.
 
-The pane renders a merged view: in-memory tasks owned by this TUI stay
-authoritative for live output, and rows read from the durable task store fill
-in everything else. This module is the stable public facade; selection, store
-synchronization, and user actions live in focused sibling modules.
+The pane renders the app's read-only proc observer projection. This module is
+the stable public facade; selection, observer refresh, and user actions live in
+focused sibling modules.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label, Static
 
 from ..actions.navigation.jump_hints import normalize_jump_key
-from ..proc_queue import ProcInfo, ProcQueue
+from ..proc_observer import ObservedProc, ProcProjection
 from ..util.selection import ProgrammaticSelectionGuard
 from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
@@ -26,12 +25,7 @@ from .procs_pane_actions import ProcsPaneActionsMixin
 from .procs_pane_render import BodyCache
 from .procs_pane_selection import ProcsPaneSelectionMixin, TaskList
 from .procs_pane_store import ProcsPaneStoreMixin
-from .procs_store_rows import (
-    StoreTasksSnapshot,
-    current_tui_session_id,
-    kill_store_task,
-    load_store_task_rows,
-)
+from .procs_store_rows import kill_store_task
 
 
 class ProcsPane(
@@ -73,7 +67,7 @@ class ProcsPane(
     ) -> None:
         super().__init__(**kwargs)
         self._session_state = session_state or ProcsSessionState()
-        self._tasks: list[ProcInfo] = []
+        self._tasks: list[ObservedProc] = []
         self._last_statuses: dict[str, tuple[str, str | None, str]] = {}
         self._user_scrolled = False
         self._selection_guard = ProgrammaticSelectionGuard()
@@ -82,10 +76,7 @@ class ProcsPane(
         self._body_cache: BodyCache = {}
         self._all_sessions = self._session_state.all_sessions
         self._session_id: str | None = None
-        self._store_rows: list[ProcInfo] = []
-        self._store_mtime: float | None = None
         self._store_detail_id: str | None = None
-        self._store_load_pending = False
         self._store_loaded_once = False
         self._tick_count = 0
 
@@ -104,10 +95,7 @@ class ProcsPane(
         yield Static(self._hints(), id="procs-hints", markup=False)
 
     def on_mount(self) -> None:
-        queue = self._proc_queue()
-        if queue is not None:
-            queue.prune_old()
-        self._session_id = current_tui_session_id()
+        self._session_id = self._proc_projection().session_id
         self._refresh_snapshot()
         self._request_store_reload(force=True)
         self._refresh_timer = self.set_interval(0.25, self._refresh_running_output)
@@ -159,37 +147,17 @@ class ProcsPane(
         except Exception:
             pass
 
-    def _proc_queue(self) -> ProcQueue | None:
-        queue = getattr(self.app, "_proc_queue", None)
-        return queue if isinstance(queue, ProcQueue) else None
-
-    def _kill_callback(self) -> Callable[[str], bool] | None:
-        callback = getattr(self.app, "_kill_proc", None)
-        return callback if callable(callback) else None
+    def _proc_projection(self) -> ProcProjection:
+        projection = getattr(self.app, "_proc_projection", None)
+        return (
+            projection if isinstance(projection, ProcProjection) else ProcProjection()
+        )
 
     def _is_active_tab(self) -> bool:
         try:
             return getattr(self.screen, "_active_tab", None) == self.id
         except Exception:
             return False
-
-    def _load_store_rows(
-        self,
-        *,
-        session_id: str | None,
-        all_sessions: bool,
-        known_mtime: float | None,
-        known_detail_task_id: str | None,
-        detail_task_id: str | None,
-    ) -> StoreTasksSnapshot:
-        """Call the facade's patchable durable-store loader."""
-        return load_store_task_rows(
-            session_id=session_id,
-            all_sessions=all_sessions,
-            known_mtime=known_mtime,
-            known_detail_task_id=known_detail_task_id,
-            detail_task_id=detail_task_id,
-        )
 
     def _signal_store_task(self, proc_id: str) -> str | None:
         """Call the facade's patchable durable-task kill helper."""

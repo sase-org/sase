@@ -16,8 +16,12 @@ from unittest.mock import patch
 from textual.css.query import NoMatches
 
 from sase.ace.tui.actions.agents import AgentsMixin
-from sase.ace.tui.actions.proc_actions import ProcActionsMixin
+from sase.ace.tui.actions.proc_actions import (
+    TrackedProcCompletion,
+    TrackedProcResult,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -35,11 +39,11 @@ def _make_agent(**overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-class _CleanupProcApp(AgentsMixin, ProcActionsMixin):
+class _CleanupProcApp(AgentsMixin):
     """Harness driving the real proc queue with deferred worker execution."""
 
     def __init__(self, agents: list[Agent]) -> None:
-        self._init_proc_queue()
+        self._proc_queue = ProcQueue()
         self.current_tab = "agents"
         self.current_idx = 0
         self._agents = list(agents)
@@ -88,6 +92,40 @@ class _CleanupProcApp(AgentsMixin, ProcActionsMixin):
 
     def _reload_and_reposition(self) -> None:
         self.reloads += 1
+
+    def _submit_cleanup_proc(
+        self,
+        *,
+        proc_type: str,
+        display_name: str,
+        cl_name: str,
+        project_file: str,
+        payload: dict[str, object] | None = None,
+        proc_callable: Any = None,
+        on_settled: Any = None,
+    ) -> bool:
+        del payload
+
+        def _callable() -> Any:
+            try:
+                if proc_callable is None:
+                    return TrackedProcResult(success=True, message="ok")
+                return proc_callable()
+            finally:
+                if on_settled is not None:
+                    on_settled()
+
+        self._submit_tracked_proc(
+            proc_type,
+            cl_name,
+            project_file,
+            _callable,
+            display_name=display_name,
+            on_complete=self._on_cleanup_proc_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+        return True
 
     def _submit_durable_proc(
         self,
@@ -140,6 +178,45 @@ class _CleanupProcApp(AgentsMixin, ProcActionsMixin):
             notify_on_complete=notify_on_complete,
         )
 
+    def _submit_tracked_proc(
+        self,
+        proc_type: str,
+        cl_name: str,
+        project_file: str,
+        proc_callable: Any,
+        *,
+        display_name: str | None = None,
+        dedup_key: str | None = None,
+        duplicate_message: str | None = None,
+        on_complete: Any = None,
+        reload_on_complete: bool = True,
+        notify_on_complete: bool = True,
+    ) -> ProcInfo:
+        del duplicate_message, reload_on_complete, notify_on_complete
+        proc_info = self._proc_queue.submit(
+            proc_type,
+            cl_name,
+            project_file,
+            display_name=display_name,
+            dedup_key=dedup_key,
+        )
+
+        def _worker_body() -> TrackedProcResult[Any]:
+            result = proc_callable()
+            if isinstance(result, TrackedProcResult):
+                return result
+            return TrackedProcResult(
+                success=getattr(result, "success", True),
+                message=str(getattr(result, "message", "ok")),
+                payload=result,
+                error=None if getattr(result, "success", True) else str(result),
+            )
+
+        worker = self.run_worker(_worker_body, thread=True)
+        worker.proc_info = proc_info
+        worker.on_complete = on_complete
+        return proc_info
+
     def run_worker(self, fn: Any, *, thread: bool = False) -> Any:
         """Defer the worker body so tests can observe the running proc."""
         assert thread is True
@@ -157,6 +234,39 @@ class _CleanupProcApp(AgentsMixin, ProcActionsMixin):
         worker = self.pending_workers[idx]
         worker.result = worker._fn()
         self._on_proc_worker_completed(worker)
+
+    def _on_proc_worker_completed(self, worker: Any) -> None:
+        proc_info = worker.proc_info
+        if getattr(worker, "cancelled", False):
+            return
+        result = worker.result
+        proc_info.status = "success" if result.success else "error"
+        proc_info.message = result.message
+        proc_info.error = result.error
+        completion: TrackedProcCompletion[Any] = TrackedProcCompletion(
+            proc_info=proc_info,
+            success=result.success,
+            message=result.message,
+            output="",
+            payload=result.payload,
+            error=result.error,
+        )
+        on_complete = getattr(worker, "on_complete", None)
+        if on_complete is not None:
+            on_complete(completion)
+
+    def _kill_proc(self, proc_id: str) -> bool:
+        proc = self._proc_queue.get(proc_id)
+        if proc is None:
+            return False
+        proc.status = "error"
+        proc.message = "Killed by user"
+        proc.error = "Killed by user"
+        for worker in self.pending_workers:
+            if getattr(worker, "proc_info", None) is proc:
+                worker.cancel()
+                break
+        return True
 
 
 _KILL_PATCHES = (

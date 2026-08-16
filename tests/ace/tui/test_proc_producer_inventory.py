@@ -142,8 +142,6 @@ class _SubmitCallVisitor(ast.NodeVisitor):
         target_attr = _getattr_target(node.value)
         if target_attr in {
             "_submit_durable_proc",
-            "_submit_tracked_proc",
-            "_submit_proc",
             "_submit_session_worker",
         }:
             for target in node.targets:
@@ -155,8 +153,6 @@ class _SubmitCallVisitor(ast.NodeVisitor):
         target_attr = _getattr_target(node.value) if node.value else None
         if isinstance(node.target, ast.Name) and target_attr in {
             "_submit_durable_proc",
-            "_submit_tracked_proc",
-            "_submit_proc",
             "_submit_session_worker",
         }:
             self.bound[node.target.id] = target_attr
@@ -168,26 +164,17 @@ class _SubmitCallVisitor(ast.NodeVisitor):
         proc_type = "dynamic"
         if isinstance(node.func, ast.Attribute) and node.func.attr in {
             "_submit_durable_proc",
-            "_submit_proc",
             "_submit_session_worker",
-            "_submit_tracked_proc",
         }:
             proc_type = (
                 _durable_proc_type(node)
                 if node.func.attr == "_submit_durable_proc"
                 else _proc_type_from_arg(node.args[0] if node.args else None)
             )
-            if function == "_submit_proc" and node.func.attr == "_submit_tracked_proc":
-                kind = "adapter_forward"
-                proc_type = "passthrough"
-            elif node.func.attr == "_submit_durable_proc":
+            if node.func.attr == "_submit_durable_proc":
                 kind = "direct_submit_durable"
-            elif node.func.attr == "_submit_proc":
-                kind = "direct_submit_proc"
             elif node.func.attr == "_submit_session_worker":
                 kind = "session_worker"
-            else:
-                kind = "direct_submit_tracked"
         elif isinstance(node.func, ast.Name) and node.func.id in self.bound:
             target_attr = self.bound[node.func.id]
             if target_attr == "_submit_durable_proc":
@@ -195,9 +182,6 @@ class _SubmitCallVisitor(ast.NodeVisitor):
                 proc_type = _durable_proc_type(node)
             elif target_attr == "_submit_session_worker":
                 kind = "session_worker"
-                proc_type = _proc_type_from_arg(node.args[0] if node.args else None)
-            else:
-                kind = "duck_submit"
                 proc_type = _proc_type_from_arg(node.args[0] if node.args else None)
         if kind is not None:
             key = (self.rel, function, kind, proc_type)
@@ -258,21 +242,36 @@ def test_inventory_matches_live_production_source() -> None:
     )
 
 
-def test_inventory_allows_only_the_adapter_forwarding_edge() -> None:
-    found = _scan_production_submit_calls()
-    forwards = [item for item in found if item.kind == "adapter_forward"]
-
-    assert len(forwards) == 1
-    assert forwards[0].source_path.endswith("proc_actions.py")
-    assert forwards[0].function == "_submit_proc"
-    assert (
-        sum(1 for site in PRODUCTION_PRODUCERS if site.kind == "adapter_forward") == 1
-    )
+def test_inventory_rejects_legacy_callable_submitters() -> None:
+    root = _repo_root()
+    src = root / "src" / "sase" / "ace"
+    legacy_names = {
+        "_submit_proc",
+        "_submit_tracked_proc",
+        "ProcQueue",
+        "ProcMirror",
+        "ProcReporter",
+    }
+    write_api_names = {"append_proc", "append_proc_log_text", "update_proc"}
+    violations: list[tuple[str, str]] = []
+    for path in sorted(src.rglob("*.py")):
+        rel = _relpath(path, root)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and node.id in legacy_names:
+                violations.append((rel, node.id))
+            elif isinstance(node, ast.Attribute) and node.attr in legacy_names:
+                violations.append((rel, node.attr))
+            elif isinstance(node, ast.Name) and node.id in write_api_names:
+                violations.append((rel, node.id))
+            elif isinstance(node, ast.Attribute) and node.attr in write_api_names:
+                violations.append((rel, node.attr))
+    assert not violations
 
 
 def test_inventory_records_infrastructure_and_classifications() -> None:
-    assert any(site.site_id == "infra.proc_queue" for site in INFRASTRUCTURE)
-    assert any(site.site_id == "infra.proc_mirror" for site in INFRASTRUCTURE)
+    assert any(site.site_id == "infra.proc_observer" for site in INFRASTRUCTURE)
+    assert any(site.site_id == "infra.submit_session" for site in INFRASTRUCTURE)
     assert any(site.function == "_submit_durable_proc" for site in INFRASTRUCTURE)
     assert any(
         site.classification == "ui_only" and site.site_id == "prompt.stash"
@@ -282,4 +281,4 @@ def test_inventory_records_infrastructure_and_classifications() -> None:
         site for site in PRODUCTION_PRODUCERS if site.classification == "durable"
     ]
     assert durable
-    assert len(PRODUCTION_PRODUCERS) == 37
+    assert len(PRODUCTION_PRODUCERS) == 36

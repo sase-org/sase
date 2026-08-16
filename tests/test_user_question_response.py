@@ -29,11 +29,11 @@ def test_neutral_question_response_runs_as_tracked_background_task() -> None:
     app._agent_pre_question_status = {}
 
     def submit(*args: object, **kwargs: object) -> object:
-        captured["body"] = args[3]
+        captured["body"] = args[1]
         captured["on_complete"] = kwargs["on_complete"]
         return object()
 
-    app._submit_tracked_proc = submit
+    app._submit_session_worker = submit
 
     from sase.ace.tui.actions.agents._notification_modals import handle_user_question
 
@@ -97,7 +97,7 @@ def test_user_question_response_dismisses_notification_and_marks_answered(
         raw_suffix="20260425120000",
     )
     app = MagicMock()
-    app._submit_tracked_proc = None
+    app._submit_session_worker = None
     app._agents = [agent]
     app._agents_with_children = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
@@ -192,7 +192,7 @@ def test_user_question_response_marks_root_and_child_answered(
         parent_workflow="my_cl.plan",
     )
     app = MagicMock()
-    app._submit_tracked_proc = None
+    app._submit_session_worker = None
     app._agents = [root, child]
     app._agents_with_children = [root, child]
     app._agent_status_overrides = {
@@ -269,7 +269,7 @@ def test_open_user_question_modal_from_marker_marks_root_row(tmp_path: Path) -> 
         parent_workflow="my_cl.plan",
     )
     app = MagicMock()
-    app._submit_tracked_proc = None
+    app._submit_session_worker = None
     app._agents = [root, child]
     app._agents_with_children = [root, child]
     app._agent_status_overrides = {
@@ -331,7 +331,7 @@ def test_open_user_question_modal_from_marker_dismissed_notification(
     )
 
     app = MagicMock()
-    app._submit_tracked_proc = None
+    app._submit_session_worker = None
 
     from sase.ace.tui.actions.agents._notification_modals import (
         open_user_question_modal_from_marker,
@@ -393,7 +393,7 @@ def test_open_user_question_modal_from_marker_marks_answered(tmp_path: Path) -> 
         raw_suffix="20260425120000",
     )
     app = MagicMock()
-    app._submit_tracked_proc = None
+    app._submit_session_worker = None
     app._agents = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
     app._agent_pre_question_status = {agent.identity: "RUNNING"}

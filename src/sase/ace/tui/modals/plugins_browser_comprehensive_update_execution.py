@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.comprehensive_update import (
@@ -11,7 +11,6 @@ from sase.ace.comprehensive_update import (
     ComprehensiveUpdateResult,
     SaseUpdateResultStatus,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliUpdateResult,
@@ -19,18 +18,13 @@ from sase.agent_clis.models import (
     UpdateResultStatus,
     UpdateTrigger,
 )
-from sase.agent_clis.runner import CommandResult, run_command
 from sase.agents_sync import integrate_cached_agent_updates
 from sase.agents_sync.models import CachedIntegrationResult
-from sase.ace.tui.agents_sync_format import (
-    cached_agents_result_line,
-    summarize_cached_agents_results,
-)
+from sase.ace.tui.agents_sync_format import summarize_cached_agents_results
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
 
-from .plugins_browser_agent_clis import agent_cli_result_line
 from .plugins_browser_comprehensive_update_models import (
     ComprehensiveUpdatePreview,
     error_text,
@@ -44,7 +38,6 @@ from .plugins_browser_sase_update_summary import (
     combined_sase_update_success_message,
     sase_update_success_message,
 )
-from .plugins_browser_sase_update_procs import dev_update_reporter_runner
 
 
 class ComprehensiveUpdateExecutionMixin:
@@ -60,7 +53,6 @@ class ComprehensiveUpdateExecutionMixin:
     def _execute_provider_leg(
         self,
         preview: ComprehensiveUpdatePreview,
-        reporter: ProcReporter,
     ) -> tuple[tuple[AgentCliUpdateResult, ...], str | None]:
         """Execute provider commands first, preserving skips and drops."""
         plan = preview.provider_plan
@@ -68,26 +60,10 @@ class ComprehensiveUpdateExecutionMixin:
         error: str | None = None
         if isinstance(plan, (AgentCliUpdatesReady, AgentCliNothingToUpdate)):
             try:
-                reporter.phase("Updating agent CLIs")
-
-                def task_runner(
-                    argv: tuple[str, ...],
-                    *,
-                    timeout: float = 300.0,
-                    env_overlay: Mapping[str, str] | None = None,
-                ) -> CommandResult:
-                    return run_command(
-                        argv,
-                        timeout=timeout,
-                        env_overlay=env_overlay,
-                        run_fn=reporter.subprocess_run_fn(),
-                    )
-
                 from . import plugins_browser_pane as pane_module
 
                 results = pane_module._execute_agent_cli_updates(
                     plan,
-                    run_fn=task_runner,
                     trigger=UpdateTrigger.COMPREHENSIVE,
                 )
             except Exception as exc:  # noqa: BLE001 - SASE must still run.
@@ -110,20 +86,11 @@ class ComprehensiveUpdateExecutionMixin:
             (*results, *dropped_results),
             preview.request.provider_names,
         )
-        if ordered or error:
-            reporter.section("Agent CLI results")
-            for result in ordered:
-                reporter.log(agent_cli_result_line(result), stream="result")
-            if error:
-                reporter.log(
-                    f"Agent CLI planning/execution failed: {error}", stream="result"
-                )
         return ordered, error
 
     def _execute_comprehensive_sase_leg(
         self,
         preview: ComprehensiveUpdatePreview,
-        reporter: ProcReporter,
     ) -> ComprehensiveSaseUpdateResult:
         """Attempt the selected SASE leg after all provider commands finish."""
         if preview.sase_current:
@@ -140,12 +107,8 @@ class ComprehensiveUpdateExecutionMixin:
         sase_preview = preview.sase_preview
         if sase_preview.plan is None:
             try:
-                reporter.phase("Resolving sase update")
                 run_sase_update = cast(Any, self)._run_sase_update_summary
-                summary, elapsed = run_sase_update(
-                    self._uv_tool,
-                    run_fn=reporter.uv_runner(),
-                )
+                summary, elapsed = run_sase_update(self._uv_tool)
             except Exception as exc:  # noqa: BLE001 - typed aggregate failure.
                 return ComprehensiveSaseUpdateResult(
                     SaseUpdateResultStatus.FAILED,
@@ -164,11 +127,7 @@ class ComprehensiveUpdateExecutionMixin:
         plan = sase_preview.plan
         started = time.monotonic()
         try:
-            reporter.phase("Updating editable SASE checkouts")
-            dev_result = self._execute_dev_update(
-                plan,
-                run=dev_update_reporter_runner(reporter),
-            )
+            dev_result = self._execute_dev_update(plan)
             append_dev_update_journal(plan, dev_result)
         except Exception as exc:  # noqa: BLE001 - terminal failure is aggregate data.
             return ComprehensiveSaseUpdateResult(
@@ -184,12 +143,10 @@ class ComprehensiveUpdateExecutionMixin:
 
         if sase_preview.managed_argv:
             try:
-                reporter.phase("Resolving managed SASE packages")
                 run_planned_update = cast(Any, self)._run_planned_sase_update_summary
                 managed_summary, _ = run_planned_update(
                     sase_preview.managed_argv,
                     sase_preview.managed_packages,
-                    run_fn=reporter.uv_runner(),
                 )
             except Exception as exc:  # noqa: BLE001 - retain successful dev leg.
                 combined = CombinedUpdateResult(
@@ -231,25 +188,16 @@ class ComprehensiveUpdateExecutionMixin:
     def _execute_agents_leg(
         self,
         preview: ComprehensiveUpdatePreview,
-        reporter: ProcReporter,
     ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
         """Import only the cached agent hoods captured by the preview."""
         if not preview.agents_runnable:
             return (), None
         try:
-            reporter.phase("Importing cached incoming agent hoods")
             outcomes = tuple(integrate_cached_agent_updates(preview.agents_updates))
         except Exception as exc:  # noqa: BLE001 - retain successful prior legs.
             error = error_text(exc)
-            reporter.section("Cached incoming hood results")
-            reporter.log(
-                f"Cached incoming hood import failed: {error}", stream="result"
-            )
             return (), error
 
-        reporter.section("Cached incoming hood results")
-        for outcome in outcomes:
-            reporter.log(cached_agents_result_line(outcome), stream="result")
         return outcomes, None
 
 

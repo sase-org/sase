@@ -15,7 +15,6 @@ from sase.ace.query_profile.pane_registry import compiled_profile_for_builtin_pa
 from sase.ace.tui._artifact_tab_contract import compile_provider_contract
 from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.core.query_profile_corpus_facade import (
-    canonicalize_artifact_query,
     compile_artifact_query_index,
     evaluate_artifact_query_many,
 )
@@ -99,7 +98,6 @@ def test_profile_python_rust_canonical_match_predicate_and_cache_parity(
     )
 
     canonical = canonical_query_for_profile(query, profile)
-    assert canonicalize_artifact_query(query, profile) == canonical
 
     index = compile_artifact_query_index(
         pane_id=pane_id,
@@ -121,9 +119,6 @@ def test_profile_python_rust_canonical_match_predicate_and_cache_parity(
         ("!@", ("ordinary",)),
         ("*", ("matching",)),
     ):
-        assert canonicalize_artifact_query(
-            predicate_query, profile
-        ) == canonical_query_for_profile(predicate_query, profile)
         python_predicates = evaluate_query_many_for_profile(
             predicate_query, rows, profile
         )

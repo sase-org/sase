@@ -130,7 +130,6 @@ def submit_agent_cleanup(
     project_file: str,
     display_name: str,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
-    live_body: Callable[..., Any] | None = None,
     on_settled: Callable[[], None] | None = None,
 ) -> bool:
     """Submit ``sase agent persist-cleanup`` through the durable adapter."""
@@ -149,7 +148,6 @@ def submit_agent_cleanup(
         on_complete=on_complete,
         reload_on_complete=False,
         notify_on_complete=False,
-        live_body=live_body,
         on_settled=on_settled,
     )
     return submitted is not None

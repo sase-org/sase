@@ -7,7 +7,6 @@ from typing import cast
 import pytest
 from textual.widgets import OptionList
 
-from sase.ace.testing import wait_for
 from sase.ace.tui.modals import procs_pane as tp
 from sase.ace.tui.modals.confirm_action_modal import ConfirmActionModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
@@ -261,40 +260,6 @@ async def test_tasks_tab_store_rows_cannot_be_dismissed(
         app = cast(ProcsTestApp, pilot.app)
         assert any("history_limit" in message for message, _ in app.notifications)
         assert pane.query_one("#procs-list", OptionList).option_count == 1
-
-
-@pytest.mark.parametrize(
-    ("status", "expects_cache"),
-    [("running", False), ("success", True)],
-)
-async def test_following_a_live_store_row_bypasses_the_mtime_cache(
-    monkeypatch: pytest.MonkeyPatch,
-    status: str,
-    expects_cache: bool,
-) -> None:
-    """A detached task appends to its log without touching the store."""
-    calls = patch_store_loader(
-        monkeypatch,
-        [
-            store_task(
-                "fff666",
-                label="detached task",
-                status=status,
-                session_id=None,
-            )
-        ],
-        output="line 1\n",
-    )
-
-    async with ProcsTestApp(queue()).run_test() as pilot:
-        _, pane = await open_procs_pane(pilot)
-        await pilot.pause()
-
-        pane._request_store_reload()
-        await wait_for(pilot, lambda: not pane._store_load_pending)
-
-    assert calls[-1]["detail_task_id"] == "fff666"
-    assert (calls[-1]["known_mtime"] is not None) is expects_cache
 
 
 async def test_tasks_session_restores_selected_store_row_across_modal_instances(

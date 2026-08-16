@@ -1,34 +1,39 @@
-"""Mixin providing background proc submission for the TUI app."""
+"""Mixin providing read-only durable proc observation for the TUI app."""
 
 from __future__ import annotations
 
 import logging
 import os
-from inspect import Parameter, signature
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
+from sase.core.time import local_now
 from sase.procs import ProcSubmitError
 from sase.project_display_names import humanize_cl_name, humanize_cl_names_in_text
 
-from ..proc_mirror import ProcMirror
-from ..proc_queue import ProcInfo, ProcQueue, redirect_print_to
-from ..proc_subprocess import ProcReporter
+from ..proc_observer import (
+    ObservedProc,
+    ProcCompletionRecord,
+    ProcObserver,
+    ProcObserverSnapshot,
+    ProcProjection,
+)
 from ..widgets.proc_indicator import ProcIndicator
 
 if TYPE_CHECKING:
     from ...patch import Patch
+    from ..durable_submit import DurableSubmitHandle
 
 log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class TrackedProcResult[T]:
-    """Result returned by a tracked background proc body."""
+    """Result returned by durable result decoding or session-local work."""
 
     success: bool
     message: str
@@ -39,9 +44,9 @@ class TrackedProcResult[T]:
 
 @dataclass(frozen=True)
 class TrackedProcCompletion[T]:
-    """UI-thread completion record for a tracked background proc."""
+    """UI-thread completion record for a background operation."""
 
-    proc_info: ProcInfo
+    proc_info: ObservedProc
     success: bool
     message: str
     output: str
@@ -51,10 +56,17 @@ class TrackedProcCompletion[T]:
 
 
 @dataclass(frozen=True)
-class _ProcWorkerResult[T]:
+class _SessionWorkerResult[T]:
     proc_id: str
     result: TrackedProcResult[T]
     output: str
+
+
+@dataclass(frozen=True)
+class _DurableSubmitWorkerResult:
+    placeholder_id: str
+    handle: DurableSubmitHandle | None = None
+    result: TrackedProcResult[Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -62,110 +74,43 @@ class _ProcCallbackConfig:
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None
     reload_on_complete: bool
     notify_on_complete: bool
-
-
-def _tracked_result_from_live_body(outcome: Any) -> TrackedProcResult[Any]:
-    """Normalize a cleanup/live persist body return value."""
-    if isinstance(outcome, TrackedProcResult):
-        return outcome
-    success = bool(getattr(outcome, "success", True))
-    message = str(getattr(outcome, "message", "") or "ok")
-    return TrackedProcResult(
-        success=success,
-        message=message,
-        payload=outcome,
-        error=message if not success else None,
-    )
+    on_settled: Callable[[], None] | None = None
+    workspace_claim: Mapping[str, Any] | None = None
 
 
 class ProcActionsMixin:
-    """Mixin providing background proc submission for the TUI app."""
+    """Mixin providing durable proc submission and read-only observation."""
 
-    # Type hints for AceApp attributes used by this mixin
     patches: list[Patch]
     current_idx: int
 
-    def _init_proc_queue(self) -> None:
-        """Initialize the proc queue, worker tracking map, and durable mirror.
-
-        Must be called during AceApp.__init__().
-        """
-        self._proc_queue = ProcQueue()
-        self._proc_workers: dict[str, Worker[Any]] = {}
+    def _init_proc_observer(self) -> None:
+        """Initialize observer projection, short submit workers, and callbacks."""
+        self._proc_projection = ProcProjection()
+        self._durable_submit_workers: dict[str, Worker[Any]] = {}
+        self._session_workers: dict[str, Worker[Any]] = {}
+        self._session_completion_callbacks: dict[str, Any] = {}
         self._proc_completion_callbacks: dict[str, _ProcCallbackConfig] = {}
-        self._detached_proc_count = 0
-        self._proc_mirror = ProcMirror(
-            on_detached_count=self._on_detached_proc_count,
+        self._proc_pending_scopes: dict[str, frozenset[str]] = {}
+        self._proc_observer = ProcObserver(
+            on_snapshot=self._on_proc_observer_thread_snapshot,
         )
-        self._proc_mirror.start()
+        self._proc_observer.start()
 
-    def _stop_proc_mirror(self) -> None:
-        """Drain and retire the durable proc mirror on the way out."""
-        mirror = getattr(self, "_proc_mirror", None)
-        if mirror is not None:
-            mirror.stop(timeout=1.0)
-
-    def _on_detached_proc_count(self, count: int) -> None:
-        """Receive a detached-proc count from the mirror's writer thread."""
-        try:
-            self.call_from_thread(self._apply_detached_proc_count, count)  # type: ignore[attr-defined]
-        except Exception:
-            log.debug("detached proc count delivery failed", exc_info=True)
-
-    def _apply_detached_proc_count(self, count: int) -> None:
-        """Record the detached-proc count and repaint the indicator."""
-        self._detached_proc_count = count
-        self._update_proc_indicator()
+    def _stop_proc_observer(self) -> None:
+        """Retire the observer thread without touching proc lifetimes."""
+        observer = getattr(self, "_proc_observer", None)
+        if observer is not None:
+            observer.stop(timeout=1.0)
 
     def _update_proc_indicator(self) -> None:
-        """Update the top-bar proc indicator with the current running count.
-
-        Counts global detached procs and this session's command procs, so an
-        epic launch approved from Telegram shows up here as well.
-        """
+        """Update the top-bar proc indicator from the observer projection."""
         try:
             indicator = self.query_one("#proc-indicator", ProcIndicator)  # type: ignore[attr-defined]
-            detached = getattr(self, "_detached_proc_count", 0)
-            indicator.set_count(self._proc_queue.running_count + detached)
+            projection = getattr(self, "_proc_projection", ProcProjection())
+            indicator.set_count(projection.active_count)
         except Exception:
             pass
-
-    def _submit_proc(
-        self,
-        proc_type: str,
-        cl_name: str,
-        project_file: str,
-        proc_callable: Callable[..., tuple[bool, str]],
-        on_success: Callable[[], None] | None = None,
-    ) -> bool:
-        """Submit a proc to run in background via run_worker().
-
-        Returns False if a proc is already running for this Patch.
-        The callable should return (success, message).
-        Output capture (stdout/stderr redirect) is handled automatically.
-        """
-
-        def _callable(reporter: ProcReporter) -> TrackedProcResult[None]:
-            success, message = _invoke_proc_callable(proc_callable, reporter)
-            return TrackedProcResult(
-                success=success,
-                message=message,
-                error=message if not success else None,
-            )
-
-        def _on_complete(completion: TrackedProcCompletion[None]) -> None:
-            if not completion.success or on_success is None:
-                return
-            on_success()
-
-        proc_info = self._submit_tracked_proc(
-            proc_type,
-            cl_name,
-            project_file,
-            _callable,
-            on_complete=_on_complete if on_success is not None else None,
-        )
-        return proc_info is not None
 
     def _submit_durable_proc(
         self,
@@ -182,57 +127,57 @@ class ProcActionsMixin:
         cl_name: str = "",
         project_file: str = "",
         cwd: str | Path | None = None,
-        workspace_claim: Any = None,
+        workspace_claim: Mapping[str, Any] | None = None,
         duplicate_message: str | None = None,
         on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
         reload_on_complete: bool = True,
         notify_on_complete: bool = True,
-        live_body: Callable[..., Any] | None = None,
         on_settled: Callable[[], None] | None = None,
-    ) -> ProcInfo | None:
-        """Submit argv through the detached proc service off the event loop.
-
-        Completion is decoded only from the typed result envelope. The optional
-        callback is a live-session convenience and is not authoritative after
-        ACE restarts. Callable argv and request values are rejected here so
-        this adapter never serializes or executes a Python callable.
-
-        ``live_body`` is the in-process persist used by cleanup producers so
-        ACE-session monkeypatches and optimistic completion stay correct.
-        The argv command is still submitted for supervisor ownership; this
-        adapter does not wait for that command when *live_body* already
-        produced the typed outcome. ``on_settled`` runs after submit/wait so
-        inflight claims are released even when the user kills the proc row.
-
-        Shared-store concurrency collisions are reported with the existing
-        duplicate warning and do not fire failure rollback.
-        """
+    ) -> ObservedProc | None:
+        """Submit argv to the proc supervisor; completion comes from observation."""
         from ..durable_ops import (
             is_concurrency_collision,
             project_identity,
             release_workspace_claim,
         )
         from ..durable_submit import (
-            DurableSubmitHandle,
             coerce_operation_request,
-            decode_durable_completion,
             reject_callable_submission,
             submit_durable_proc_request,
         )
         from sase.ops import DurableSubmitError
 
-        reject_callable_submission(argv, request)
-        typed_request = coerce_operation_request(operation, request)
-        work_cwd = str(cwd or os.getcwd())
-        submit_label = label or display_name or operation
-        queue_type = proc_type or operation
+        try:
+            reject_callable_submission(argv, request)
+            typed_request = coerce_operation_request(operation, request)
+        except DurableSubmitError as exc:
+            self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+            return None
 
-        if not hasattr(self, "_proc_completion_callbacks"):
-            self._proc_completion_callbacks = {}
-        if not hasattr(self, "_proc_workers"):
-            self._proc_workers = {}
+        if not hasattr(self, "_proc_observer"):
+            self._init_proc_observer()
 
-        existing = self._proc_queue.get_running_for_scopes(concurrency_keys)
+        requested_scopes = frozenset(concurrency_keys)
+        projection = getattr(self, "_proc_projection", ProcProjection())
+        existing = projection.scope_conflict(requested_scopes)
+        if existing is None and requested_scopes:
+            for pending_scopes in getattr(self, "_proc_pending_scopes", {}).values():
+                if pending_scopes & requested_scopes:
+                    existing = ObservedProc(
+                        proc_id="pending",
+                        proc_type=proc_type or operation,
+                        cl_name=cl_name,
+                        project_file=project_file,
+                        status="pending",
+                        message="pending",
+                        started_at=(
+                            projection.rows[0].started_at
+                            if projection.rows
+                            else local_now()
+                        ),
+                        display_name=display_name or label or operation,
+                    )
+                    break
         if existing is not None:
             self.notify(  # type: ignore[attr-defined]
                 duplicate_message
@@ -244,45 +189,31 @@ class ProcActionsMixin:
             )
             return None
 
-        presentation = self._proc_queue.submit(
-            queue_type,
-            cl_name,
-            project_file,
+        work_cwd = str(cwd or os.getcwd())
+        submit_label = label or display_name or operation
+        queue_type = proc_type or operation
+        observer: ProcObserver = self._proc_observer
+        presentation = observer.register_pending(
+            proc_type=queue_type,
+            cl_name=cl_name,
+            project_file=project_file,
             display_name=display_name or submit_label,
-            exclusive_scopes=concurrency_keys,
+            exclusive_scopes=requested_scopes,
+            command=argv,
+        )
+        placeholder_id = presentation.proc_id
+        self._proc_pending_scopes[placeholder_id] = requested_scopes
+        self._proc_completion_callbacks[placeholder_id] = _ProcCallbackConfig(
+            on_complete=on_complete,
+            reload_on_complete=reload_on_complete,
+            notify_on_complete=notify_on_complete,
+            on_settled=on_settled,
+            workspace_claim=workspace_claim,
         )
 
-        def _off_loop() -> TrackedProcResult[Any]:
+        def _submit() -> _DurableSubmitWorkerResult:
             try:
-                if live_body is not None:
-                    outcome = live_body()
-                    result = _tracked_result_from_live_body(outcome)
-                    try:
-                        submitted = submit_durable_proc_request(
-                            argv=argv,
-                            operation=operation,
-                            request=typed_request,
-                            cwd=work_cwd,
-                            label=submit_label,
-                            result_path=result_path,
-                            request_fingerprint=request_fingerprint,
-                            concurrency_keys=concurrency_keys,
-                            origin="ace",
-                            project=project_identity(project_file)
-                            if project_file
-                            else None,
-                            cl_name=cl_name or None,
-                            workspace_claim=workspace_claim,
-                        )
-                        presentation.durable_proc_id = submitted.proc_id
-                        presentation.store_backed = True
-                    except Exception:
-                        log.exception(
-                            "Durable %s submit failed after in-process persist",
-                            operation,
-                        )
-                    return result
-                handle: DurableSubmitHandle = submit_durable_proc_request(
+                handle = submit_durable_proc_request(
                     argv=argv,
                     operation=operation,
                     request=typed_request,
@@ -296,62 +227,46 @@ class ProcActionsMixin:
                     cl_name=cl_name or None,
                     workspace_claim=workspace_claim,
                 )
-                presentation.durable_proc_id = handle.proc_id
-                presentation.store_backed = True
-                decoded = decode_durable_completion(handle)
-                return TrackedProcResult(
-                    success=decoded.success,
-                    message=decoded.message,
-                    payload=None if decoded.payload is None else dict(decoded.payload),
-                    error=decoded.error,
+                return _DurableSubmitWorkerResult(
+                    placeholder_id=placeholder_id,
+                    handle=handle,
                 )
-            finally:
-                if on_settled is not None:
-                    on_settled()
-
-        def _wrapped() -> _ProcWorkerResult[Any]:
-            try:
-                result = _off_loop()
             except ProcSubmitError as exc:
                 if is_concurrency_collision(exc):
                     release_workspace_claim(workspace_claim)
-                    result = TrackedProcResult(
-                        success=False,
-                        message=str(exc),
-                        error=str(exc),
-                        collision=True,
+                    return _DurableSubmitWorkerResult(
+                        placeholder_id=placeholder_id,
+                        result=TrackedProcResult(
+                            success=False,
+                            message=str(exc),
+                            error=str(exc),
+                            collision=True,
+                        ),
                     )
-                else:
-                    log.exception("Durable proc %s failed to submit", operation)
-                    if not presentation.durable_proc_id:
-                        release_workspace_claim(workspace_claim)
-                    result = TrackedProcResult(
-                        success=False,
-                        message=str(exc),
-                        error=str(exc),
-                    )
-            except (DurableSubmitError, Exception) as exc:
                 log.exception("Durable proc %s failed to submit", operation)
-                if not presentation.durable_proc_id:
-                    release_workspace_claim(workspace_claim)
-                result = TrackedProcResult(
-                    success=False,
-                    message=str(exc),
-                    error=str(exc),
+                release_workspace_claim(workspace_claim)
+                return _DurableSubmitWorkerResult(
+                    placeholder_id=placeholder_id,
+                    result=TrackedProcResult(
+                        success=False,
+                        message=str(exc),
+                        error=str(exc),
+                    ),
                 )
-            return _ProcWorkerResult(
-                presentation.proc_id, result, presentation.get_live_output()
-            )
+            except Exception as exc:  # noqa: BLE001 - submit worker must report.
+                log.exception("Durable proc %s failed to submit", operation)
+                release_workspace_claim(workspace_claim)
+                return _DurableSubmitWorkerResult(
+                    placeholder_id=placeholder_id,
+                    result=TrackedProcResult(
+                        success=False,
+                        message=str(exc),
+                        error=str(exc),
+                    ),
+                )
 
-        self._proc_completion_callbacks[presentation.proc_id] = _ProcCallbackConfig(
-            on_complete=on_complete,  # type: ignore[arg-type]
-            reload_on_complete=reload_on_complete,
-            notify_on_complete=notify_on_complete,
-        )
-        worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
-            _wrapped, thread=True
-        )
-        self._proc_workers[presentation.proc_id] = worker
+        worker: Worker[Any] = self.run_worker(_submit, thread=True)  # type: ignore[attr-defined]
+        self._durable_submit_workers[placeholder_id] = worker
         self._update_proc_indicator()
         return presentation
 
@@ -365,17 +280,15 @@ class ProcActionsMixin:
         cl_name: str = "",
         project_file: str = "",
     ) -> None:
-        """Run session-local work in a thread-backed worker with no proc row."""
-        from ..proc_queue import ProcInfo
-
-        if not hasattr(self, "_session_workers"):
-            self._session_workers: dict[str, Worker[Any]] = {}
-        if not hasattr(self, "_session_completion_callbacks"):
-            self._session_completion_callbacks: dict[str, Any] = {}
-
+        """Run true UI-session-local work in a thread-backed worker."""
         from sase.core.time import local_now
 
-        proc_info = ProcInfo(
+        if not hasattr(self, "_session_workers"):
+            self._session_workers = {}
+        if not hasattr(self, "_session_completion_callbacks"):
+            self._session_completion_callbacks = {}
+
+        proc_info = ObservedProc(
             proc_id=f"session-{len(self._session_workers)}-{os.getpid()}",
             proc_type=proc_type,
             cl_name=cl_name,
@@ -386,7 +299,7 @@ class ProcActionsMixin:
             display_name=display_name or proc_type,
         )
 
-        def _wrapped() -> _ProcWorkerResult[T]:
+        def _wrapped() -> _SessionWorkerResult[T]:
             try:
                 result = body()
             except Exception as exc:
@@ -396,315 +309,234 @@ class ProcActionsMixin:
                     message=str(exc),
                     error=str(exc),
                 )
-            return _ProcWorkerResult(proc_info.proc_id, result, "")
+            return _SessionWorkerResult(proc_info.proc_id, result, "")
 
         self._session_completion_callbacks[proc_info.proc_id] = (
             on_complete,
             proc_info,
         )
-        worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
-            _wrapped, thread=True
-        )
+        worker: Worker[Any] = self.run_worker(_wrapped, thread=True)  # type: ignore[attr-defined]
         self._session_workers[proc_info.proc_id] = worker
 
-    def _submit_tracked_proc[T](
-        self,
-        proc_type: str,
-        cl_name: str,
-        project_file: str,
-        proc_callable: Callable[..., TrackedProcResult[T]],
-        *,
-        display_name: str | None = None,
-        dedup_key: str | None = None,
-        exclusive_scopes: Collection[str] = (),
-        duplicate_message: str | None = None,
-        on_complete: Callable[[TrackedProcCompletion[T]], None] | None = None,
-        reload_on_complete: bool = True,
-        notify_on_complete: bool = True,
-    ) -> ProcInfo | None:
-        """Submit a typed proc to run in a Textual worker thread.
-
-        Returns None if a running proc already exists for the dedup scope.
-        Existing Patch actions keep using :meth:`_submit_proc`;
-        launch and other non-Patch work can provide ``display_name`` and
-        ``dedup_key`` for clean proc-queue rows.
-        """
-        if not hasattr(self, "_proc_completion_callbacks"):
-            self._proc_completion_callbacks = {}
-        if not hasattr(self, "_proc_workers"):
-            self._proc_workers = {}
-        if not hasattr(self, "_proc_mirror"):
-            # An unstarted mirror is inert, so callers that skipped
-            # _init_proc_queue() simply do not mirror.
-            self._proc_mirror = ProcMirror()
-
-        existing = (
-            self._proc_queue.get_running_for_key(dedup_key)
-            if dedup_key is not None
-            else self._proc_queue.get_running_for_cl(cl_name)
-        )
-        if existing is None:
-            existing = self._proc_queue.get_running_for_scopes(exclusive_scopes)
-        if existing is not None:
-            msg = duplicate_message or (
-                f"A {existing.proc_type} proc is already running for "
-                f"{humanize_cl_name(cl_name)}"
-            )
-            self.notify(msg, severity="warning")  # type: ignore[attr-defined]
-            return None
-
-        proc_info = self._proc_queue.submit(
-            proc_type,
-            cl_name,
-            project_file,
-            display_name=display_name,
-            dedup_key=dedup_key,
-            exclusive_scopes=exclusive_scopes,
-        )
-        proc_id = proc_info.proc_id
-
-        def _wrapped() -> _ProcWorkerResult[T]:
-            """Run the callable with proc-local reporting."""
-            reporter = ProcReporter(proc_info)
-            with redirect_print_to(proc_info.log):
-                try:
-                    result = _invoke_proc_callable(proc_callable, reporter)
-                except Exception as exc:
-                    log.exception("Background proc %s failed", proc_id)
-                    reporter.log(str(exc), stream="stderr")
-                    result = TrackedProcResult(
-                        success=False,
-                        message=str(exc),
-                        error=str(exc),
-                    )
-            if result.message:
-                marker = "OK" if result.success else "ERROR"
-                reporter.log(f"{marker}: {result.message}", stream="result")
-            return _ProcWorkerResult(proc_id, result, proc_info.get_live_output())
-
-        self._proc_completion_callbacks[proc_id] = _ProcCallbackConfig(
-            on_complete=on_complete,  # type: ignore[arg-type]
-            reload_on_complete=reload_on_complete,
-            notify_on_complete=notify_on_complete,
-        )
-
-        self._proc_mirror.track(proc_info, cl_name=cl_name or None)
-
-        worker: Worker[Any] = self.run_worker(  # type: ignore[attr-defined]
-            _wrapped, thread=True
-        )
-        self._proc_workers[proc_id] = worker
-        self._update_proc_indicator()
-        return proc_info
-
-    def _on_proc_worker_completed(
-        self,
-        worker: Worker[Any],
-    ) -> None:
-        """Handle a background-proc worker reaching SUCCESS state.
-
-        Called from on_worker_state_changed; updates the ProcQueue, fires
-        notifications, and triggers a reload.
-        """
+    def _on_durable_submit_worker_completed(self, worker: Worker[Any]) -> None:
+        """Register successful submit handles or surface submit failures."""
         result = worker.result
-        if result is None:
+        if not isinstance(result, _DurableSubmitWorkerResult):
+            return
+        placeholder_id = result.placeholder_id
+        self._durable_submit_workers.pop(placeholder_id, None)
+        self._proc_pending_scopes.pop(placeholder_id, None)
+        observer = getattr(self, "_proc_observer", None)
+        config = self._proc_completion_callbacks.get(placeholder_id)
+        if result.handle is not None:
+            if config is not None:
+                self._proc_completion_callbacks[result.handle.proc_id] = config
+                self._proc_completion_callbacks.pop(placeholder_id, None)
+            if observer is not None:
+                observer.register_submitted(
+                    placeholder_id=placeholder_id,
+                    proc_id=result.handle.proc_id,
+                    operation=result.handle.operation,
+                    result_path=result.handle.result_path,
+                )
             return
 
-        if not isinstance(result, _ProcWorkerResult):
-            proc_id, success, message, output = result
-            result = _ProcWorkerResult(
-                proc_id,
-                TrackedProcResult(
-                    success=success,
-                    message=message,
-                    error=message if not success else None,
-                ),
-                output,
+        proc_result = result.result or TrackedProcResult(
+            success=False,
+            message="durable submit failed",
+            error="durable submit failed",
+        )
+        proc_info = self._placeholder_proc(placeholder_id)
+        if observer is not None:
+            observer.remove_pending(placeholder_id)
+        self._proc_completion_callbacks.pop(placeholder_id, None)
+        self._deliver_tracked_completion(
+            proc_id=placeholder_id,
+            proc_info=proc_info,
+            result=proc_result,
+            output=proc_info.get_live_output(),
+            config=config,
+        )
+        self._update_proc_indicator()
+
+    def _on_durable_submit_worker_error(self, worker: Worker[Any]) -> None:
+        """Handle a submit worker that raised before returning a typed result."""
+        placeholder_id = next(
+            (
+                key
+                for key, item in getattr(self, "_durable_submit_workers", {}).items()
+                if item is worker
+            ),
+            None,
+        )
+        if placeholder_id is None:
+            return
+        self._durable_submit_workers.pop(placeholder_id, None)
+        self._proc_pending_scopes.pop(placeholder_id, None)
+        observer = getattr(self, "_proc_observer", None)
+        if observer is not None:
+            observer.remove_pending(placeholder_id)
+        error_msg = str(worker.error) if worker.error else "Unknown submit error"
+        config = self._proc_completion_callbacks.pop(placeholder_id, None)
+        if config is not None:
+            from ..durable_ops import release_workspace_claim
+
+            release_workspace_claim(config.workspace_claim)
+        proc_info = self._placeholder_proc(placeholder_id)
+        self._deliver_tracked_completion(
+            proc_id=placeholder_id,
+            proc_info=proc_info,
+            result=TrackedProcResult(
+                success=False,
+                message=error_msg,
+                error=error_msg,
+            ),
+            output="",
+            config=config,
+        )
+        self._update_proc_indicator()
+
+    def _on_proc_observer_thread_snapshot(
+        self,
+        snapshot: ProcObserverSnapshot,
+    ) -> None:
+        """Receive an immutable snapshot from the observer thread."""
+        try:
+            self.call_from_thread(self._apply_proc_observer_snapshot, snapshot)  # type: ignore[attr-defined]
+        except Exception:
+            log.debug("proc observer snapshot delivery failed", exc_info=True)
+
+    def _apply_proc_observer_snapshot(self, snapshot: ProcObserverSnapshot) -> None:
+        """Apply observer projection and deliver decoded completions once."""
+        self._proc_projection = snapshot.projection
+        self._update_proc_indicator()
+        for completion in snapshot.completions:
+            self._deliver_observed_completion(completion, snapshot.projection)
+
+    def _deliver_observed_completion(
+        self,
+        completion: ProcCompletionRecord,
+        projection: ProcProjection,
+    ) -> None:
+        config = self._proc_completion_callbacks.pop(completion.proc_id, None)
+        if config is None:
+            return
+        row = next(
+            (
+                item
+                for item in projection.rows
+                if item.proc_id == completion.proc_id
+                or item.durable_proc_id == completion.proc_id
+            ),
+            None,
+        ) or self._placeholder_proc(completion.proc_id)
+        result: TrackedProcResult[Any]
+        if completion.result is None:
+            message = completion.error or "durable proc did not write a typed result"
+            result = TrackedProcResult(
+                success=False,
+                message=message,
+                error=message,
             )
-
-        proc_id = result.proc_id
-        proc_result = result.result
-
-        self._proc_queue.complete(
-            proc_id,
-            success=proc_result.success,
-            message=proc_result.message,
-            output=result.output,
-            error=proc_result.error,
+        else:
+            decoded = completion.result
+            result = TrackedProcResult(
+                success=decoded.success,
+                message=decoded.message,
+                payload=None if decoded.payload is None else dict(decoded.payload),
+                error=decoded.error,
+            )
+        self._deliver_tracked_completion(
+            proc_id=completion.proc_id,
+            proc_info=row,
+            result=result,
+            output=row.get_live_output(),
+            config=config,
         )
-        proc_info = self._proc_queue.get(proc_id)
-        if proc_info is None:
-            return
-        self._proc_mirror.finish(
-            proc_info,
-            status="success" if proc_result.success else "error",
-            message=proc_result.message,
-            exit_code=proc_info.exit_code,
-        )
-        config = self._proc_completion_callbacks.pop(
-            proc_id,
-            _ProcCallbackConfig(
+
+    def _deliver_tracked_completion(
+        self,
+        *,
+        proc_id: str,
+        proc_info: ObservedProc,
+        result: TrackedProcResult[Any],
+        output: str,
+        config: _ProcCallbackConfig | None,
+    ) -> None:
+        if config is None:
+            config = _ProcCallbackConfig(
                 on_complete=None,
                 reload_on_complete=True,
                 notify_on_complete=True,
-            ),
-        )
-
-        if config.notify_on_complete:
-            display_message = humanize_cl_names_in_text(proc_result.message)
-            if proc_result.collision:
-                self.notify(  # type: ignore[attr-defined]
-                    (
-                        f"A {proc_info.proc_type} proc is already running for "
-                        f"{humanize_cl_name(proc_info.cl_name)}"
-                    ),
-                    severity="warning",
-                )
-            elif proc_result.success:
-                self.notify(display_message)  # type: ignore[attr-defined]
-            else:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Proc failed: {display_message}",
-                    severity="error",
-                )
-
-        if config.on_complete is not None:
-            try:
+            )
+        try:
+            if config.notify_on_complete:
+                self._notify_tracked_proc_result(proc_info, result)
+            if config.on_complete is not None:
                 config.on_complete(
                     TrackedProcCompletion(
                         proc_info=proc_info,
-                        success=proc_result.success,
-                        message=proc_result.message,
-                        output=result.output,
-                        payload=proc_result.payload,
-                        error=proc_result.error,
-                        collision=proc_result.collision,
+                        success=result.success,
+                        message=result.message,
+                        output=output,
+                        payload=result.payload,
+                        error=result.error,
+                        collision=result.collision,
                     )
                 )
-            except Exception:
-                log.exception("Background proc %s completion callback failed", proc_id)
-
-        # Reload the TUI
-        if config.reload_on_complete:
-            self._reload_and_reposition()  # type: ignore[attr-defined]
-
-        self._proc_workers.pop(proc_id, None)
-
-        self._update_proc_indicator()
-
-    def _on_proc_worker_error(
-        self,
-        worker: Worker[Any],
-    ) -> None:
-        """Handle a background-proc worker reaching ERROR state.
-
-        Called from on_worker_state_changed when the worker itself raised.
-        """
-        proc_id: str | None = None
-        for tid, w in self._proc_workers.items():
-            if w is worker:
-                proc_id = tid
-                break
-
-        config = _ProcCallbackConfig(
-            on_complete=None,
-            reload_on_complete=True,
-            notify_on_complete=True,
-        )
-        if proc_id is not None:
-            error_msg = str(worker.error) if worker.error else "Unknown error"
-            proc_info = self._proc_queue.get(proc_id)
-            output = proc_info.get_live_output() if proc_info is not None else ""
-            if proc_info is not None:
-                proc_info.log.append(f"ERROR: {error_msg}", stream="result")
-            self._proc_queue.complete(
-                proc_id,
-                success=False,
-                message=error_msg,
-                output=output,
-                error=error_msg,
-            )
-            if proc_info is None:
-                proc_info = self._proc_queue.get(proc_id)
-            if proc_info is not None:
-                self._proc_mirror.finish(
-                    proc_info,
-                    status="error",
-                    message=error_msg,
-                    exit_code=proc_info.exit_code,
-                )
-            config = self._proc_completion_callbacks.pop(
-                proc_id,
-                config,
-            )
-            if config.notify_on_complete:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Proc failed: {error_msg}",
-                    severity="error",
-                )
-            if config.on_complete is not None and proc_info is not None:
+            if config.reload_on_complete:
+                self._reload_and_reposition()  # type: ignore[attr-defined]
+        finally:
+            if config.on_settled is not None:
                 try:
-                    config.on_complete(
-                        TrackedProcCompletion(
-                            proc_info=proc_info,
-                            success=False,
-                            message=error_msg,
-                            output=output,
-                            error=error_msg,
-                        )
-                    )
+                    config.on_settled()
                 except Exception:
-                    log.exception(
-                        "Background proc %s completion callback failed", proc_id
-                    )
-            self._proc_workers.pop(proc_id, None)
+                    log.exception("Background proc %s settle callback failed", proc_id)
+            self._update_proc_indicator()
 
-        if proc_id is None or config.reload_on_complete:
-            self._reload_and_reposition()  # type: ignore[attr-defined]
-        self._update_proc_indicator()
-
-    def _kill_proc(self, proc_id: str) -> bool:
-        """Kill a running background proc by cancelling its worker.
-
-        Returns True if the proc was found and killed.
-        """
-        worker = self._proc_workers.get(proc_id)
-        if worker is None:
-            return False
-
-        proc_info = self._proc_queue.get(proc_id)
-        if proc_info is not None:
-            proc_info.terminate_processes()
-            proc_info.log.append("ERROR: Killed by user", stream="result")
-
-        worker.cancel()
-
-        self._proc_queue.complete(
-            proc_id,
-            success=False,
-            message="Killed by user",
-            output=proc_info.get_live_output() if proc_info is not None else "",
-            error="Killed by user",
-        )
-
-        if proc_info is not None:
-            self._proc_mirror.finish(
-                proc_info,
-                status="killed",
-                message="Killed by user",
-                exit_code=proc_info.exit_code,
+    def _notify_tracked_proc_result(
+        self,
+        proc_info: ObservedProc,
+        result: TrackedProcResult[Any],
+    ) -> None:
+        display_message = humanize_cl_names_in_text(result.message)
+        if result.collision:
+            self.notify(  # type: ignore[attr-defined]
+                (
+                    f"A {proc_info.proc_type} proc is already running for "
+                    f"{humanize_cl_name(proc_info.cl_name)}"
+                ),
+                severity="warning",
+            )
+        elif result.success:
+            self.notify(display_message)  # type: ignore[attr-defined]
+        else:
+            self.notify(  # type: ignore[attr-defined]
+                f"Proc failed: {display_message}",
+                severity="error",
             )
 
-        self._proc_workers.pop(proc_id, None)
-        self._proc_completion_callbacks.pop(proc_id, None)
+    def _placeholder_proc(self, proc_id: str) -> ObservedProc:
+        projection = getattr(self, "_proc_projection", ProcProjection())
+        for row in projection.rows:
+            if row.proc_id == proc_id or row.durable_proc_id == proc_id:
+                return row
+        from sase.core.time import local_now
 
-        self._update_proc_indicator()
-        return True
+        return ObservedProc(
+            proc_id=proc_id,
+            proc_type="proc",
+            cl_name="",
+            project_file="",
+            status="error",
+            message="proc failed",
+            started_at=local_now(),
+        )
 
     def _on_session_worker_completed(self, worker: Worker[Any]) -> None:
         """Deliver a session-local worker result on the UI thread."""
         result = worker.result
-        if not isinstance(result, _ProcWorkerResult):
+        if not isinstance(result, _SessionWorkerResult):
             return
         callbacks = getattr(self, "_session_completion_callbacks", {})
         recorded = callbacks.pop(result.proc_id, None)
@@ -754,48 +586,22 @@ class ProcActionsMixin:
         )
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        """Route worker state changes for background procs."""
-        if event.worker in self._proc_workers.values():
+        """Route worker state changes for proc submission and session workers."""
+        if event.worker in getattr(self, "_durable_submit_workers", {}).values():
             if event.state == WorkerState.SUCCESS:
-                self._on_proc_worker_completed(event.worker)
+                self._on_durable_submit_worker_completed(event.worker)
             elif event.state == WorkerState.ERROR:
-                self._on_proc_worker_error(event.worker)
+                self._on_durable_submit_worker_error(event.worker)
             return
 
-        session_workers = getattr(self, "_session_workers", {})
-        if event.worker in session_workers.values():
+        if event.worker in getattr(self, "_session_workers", {}).values():
             if event.state == WorkerState.SUCCESS:
                 self._on_session_worker_completed(event.worker)
             elif event.state == WorkerState.ERROR:
                 self._on_session_worker_error(event.worker)
             return
 
-        # Handle axe worker (defined in AxeMixin)
         axe_worker = getattr(self, "_axe_worker", None)
         if axe_worker is not None and event.worker is axe_worker:
             if event.state in (WorkerState.SUCCESS, WorkerState.ERROR):
                 self._on_axe_worker_done(event.worker, event.state)  # type: ignore[attr-defined]
-
-
-def _invoke_proc_callable[T](
-    proc_callable: Callable[..., T], reporter: ProcReporter
-) -> T:
-    if _callable_accepts_reporter(proc_callable):
-        return proc_callable(reporter)
-    return proc_callable()
-
-
-def _callable_accepts_reporter(proc_callable: Callable[..., object]) -> bool:
-    try:
-        params = signature(proc_callable).parameters.values()
-    except (TypeError, ValueError):
-        return False
-    for param in params:
-        if param.kind is Parameter.VAR_POSITIONAL:
-            return True
-        if param.kind in (
-            Parameter.POSITIONAL_ONLY,
-            Parameter.POSITIONAL_OR_KEYWORD,
-        ):
-            return True
-    return False

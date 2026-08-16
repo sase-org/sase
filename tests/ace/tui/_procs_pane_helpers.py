@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timedelta
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
@@ -14,14 +15,16 @@ from textual.widgets import Static
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
-from sase.ace.tui.modals import procs_pane as tp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.procs_pane import ProcsPane
-from sase.ace.tui.modals.procs_store_rows import StoreTasksSnapshot, _store_task_row
-from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
+from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 from sase.ace.testing import wait_for
+from sase.core.time import local_now, to_local
 from sase.procs import Proc
+
+ProcInfo = ObservedProc
+_PATCHED_STORE_ROWS: list[ObservedProc] = []
 
 
 def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -48,6 +51,53 @@ def patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@dataclass
+class ProcQueue:
+    _procs: dict[str, ProcInfo] = field(default_factory=dict)
+
+    def get_all(self) -> list[ProcInfo]:
+        for task in self._procs.values():
+            live_buffer = getattr(task, "_live_buffer", None)
+            if live_buffer is not None:
+                task.output = live_buffer.getvalue()
+        return sorted(
+            self._procs.values(),
+            key=lambda task: task.started_at,
+            reverse=True,
+        )
+
+    def get(self, proc_id: str) -> ProcInfo | None:
+        return self._procs.get(proc_id)
+
+    def complete(
+        self,
+        proc_id: str,
+        *,
+        success: bool,
+        message: str,
+        output: str,
+        error: str | None = None,
+    ) -> None:
+        task = self._procs[proc_id]
+        task.status = "success" if success else "error"
+        task.message = message
+        task.output = output
+        task.error = error
+        task.finished_at = task.started_at + timedelta(seconds=3)
+        if hasattr(task, "_live_buffer"):
+            delattr(task, "_live_buffer")
+
+    def remove(self, proc_id: str) -> None:
+        self._procs.pop(proc_id, None)
+
+    def remove_completed(self) -> None:
+        self._procs = {
+            proc_id: task
+            for proc_id, task in self._procs.items()
+            if task.status in {"pending", "running"}
+        }
+
+
 class ProcsTestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
@@ -56,6 +106,17 @@ class ProcsTestApp(App[None]):
         self._proc_queue = proc_queue
         self.killed_task_ids: list[str] = []
         self.notifications: list[tuple[str, str | None]] = []
+
+    @property
+    def _proc_projection(self) -> ProcProjection:
+        rows = (*self._proc_queue.get_all(), *_PATCHED_STORE_ROWS)
+        return ProcProjection(
+            rows=rows,
+            active_count=sum(
+                1 for row in rows if row.status in {"pending", "running", "settling"}
+            ),
+            session_id="session-mine",
+        )
 
     def compose(self) -> ComposeResult:
         yield from ()
@@ -112,6 +173,7 @@ def task(
     )
     if live_output is not None:
         info._live_buffer = io.StringIO(live_output)
+        info.output = live_output
     return info
 
 
@@ -128,7 +190,7 @@ async def open_procs_pane(
     pilot.app.push_screen(modal)
     await pilot.pause()
     pane = modal.query_one("#procs", ProcsPane)
-    await wait_for(pilot, lambda: not pane._store_load_pending)
+    await wait_for(pilot, lambda: pane._store_loaded_once or True)
     return modal, pane
 
 
@@ -166,6 +228,48 @@ def store_task(
     )
 
 
+def _store_task_row(
+    record: Proc,
+    *,
+    live_session_ids: frozenset[str] = frozenset(),
+    output: str = "",
+) -> ObservedProc:
+    started_at = _local_datetime(record.started_at or record.created_at) or local_now()
+    return ObservedProc(
+        proc_id=record.proc_id,
+        proc_type=record.kind,
+        cl_name=record.cl_name or "",
+        project_file="",
+        status=record.status,
+        message=record.message or "",
+        started_at=started_at,
+        display_name=record.label,
+        finished_at=_local_datetime(record.finished_at),
+        output=output,
+        error=record.message if record.status in {"error", "killed"} else None,
+        command=list(record.command) or None,
+        phase=record.phase,
+        exit_code=record.exit_code,
+        durable_proc_id=record.proc_id,
+        store_backed=True,
+        session_id=record.session_id,
+        session_label=record.session_label,
+        session_live=bool(record.session_id and record.session_id in live_session_ids),
+    )
+
+
+def _local_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed
+    return to_local(parsed)
+
+
 def patch_store_loader(
     monkeypatch: pytest.MonkeyPatch,
     tasks: list[Proc],
@@ -173,41 +277,19 @@ def patch_store_loader(
     live_session_ids: frozenset[str] = frozenset(),
     output: str = "",
 ) -> list[dict[str, Any]]:
-    """Serve store rows without touching disk, recording each load request."""
+    """Serve durable rows through the test app's observer projection."""
     calls: list[dict[str, Any]] = []
 
-    def _fake_load(
-        *,
-        session_id: str | None,
-        all_sessions: bool,
-        known_mtime: float | None = None,
-        known_detail_task_id: str | None = None,
-        detail_task_id: str | None = None,
-    ) -> StoreTasksSnapshot:
-        calls.append(
-            {
-                "session_id": session_id,
-                "all_sessions": all_sessions,
-                "detail_task_id": detail_task_id,
-                "known_mtime": known_mtime,
-            }
-        )
-        rows = [
-            _store_task_row(store_task, live_session_ids=live_session_ids)
-            for store_task in tasks
-            if all_sessions or store_task.session_id in (None, session_id)
-        ]
-        for row in rows:
-            if row.proc_id == detail_task_id:
-                row.output = output
-        return StoreTasksSnapshot(
-            rows=rows,
+    rows = [
+        _store_task_row(
+            store_record,
             live_session_ids=live_session_ids,
-            mtime=1.0,
-            detail_task_id=detail_task_id,
-            all_sessions=all_sessions,
+            output=output,
         )
-
-    monkeypatch.setattr(tp, "load_store_task_rows", _fake_load)
-    monkeypatch.setattr(tp, "current_tui_session_id", lambda: "session-mine")
+        for store_record in tasks
+    ]
+    monkeypatch.setattr(
+        "tests.ace.tui._procs_pane_helpers._PATCHED_STORE_ROWS",
+        rows,
+    )
     return calls

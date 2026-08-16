@@ -233,11 +233,6 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             stop_watchdog()
 
         try:
-            self._kill_all_running_tasks()  # type: ignore[attr-defined]
-        except Exception:
-            pass
-
-        try:
             await asyncio.to_thread(
                 _stop_axe_daemon_result,
                 timeout=5.0,
@@ -280,16 +275,11 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             except Exception:
                 pass
 
-        try:
-            self._kill_all_running_tasks()  # type: ignore[attr-defined]
-        except Exception:
-            pass
-        finally:
-            request_exit = getattr(self, "_request_controlled_exit", None)
-            if callable(request_exit):
-                request_exit()
-            else:
-                self._do_quit()  # type: ignore[attr-defined]
+        request_exit = getattr(self, "_request_controlled_exit", None)
+        if callable(request_exit):
+            request_exit()
+        else:
+            self._do_quit()  # type: ignore[attr-defined]
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""
@@ -460,6 +450,8 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 navigate_to_agent_tab(self, result.cl_name, result.pid)
 
         # Collect background procs for the modal
+        projection = getattr(self, "_proc_projection", None)
+        rows = tuple(getattr(projection, "rows", ()) or ())
         bg_procs = [
             BackgroundProcEntry(
                 proc_type=t.proc_type,
@@ -470,7 +462,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 started_at=t.started_at,
                 finished_at=t.finished_at,
             )
-            for t in self._proc_queue.get_all()  # type: ignore[attr-defined]
+            for t in rows
         ]
 
         self.push_screen(RunnersModal(background_procs=bg_procs), on_dismiss)  # type: ignore[attr-defined]

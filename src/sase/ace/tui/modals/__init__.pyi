@@ -172,7 +172,6 @@ from .property_picker_modal import PropertyPickerItem as PropertyPickerItem
 from .property_picker_modal import PropertyPickerModal as PropertyPickerModal
 from .property_picker_modal import PropertyPickerRecord as PropertyPickerRecord
 from .query_edit_modal import QueryEditModal as QueryEditModal
-from .quit_confirm_modal import QuitConfirmModal as QuitConfirmModal
 from .quit_options_modal import QuitOption as QuitOption
 from .quit_options_modal import QuitOptionsModal as QuitOptionsModal
 from .recursive_finder_modal import RecursiveFileFinderModal as RecursiveFileFinderModal

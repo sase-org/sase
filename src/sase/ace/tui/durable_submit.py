@@ -9,12 +9,9 @@ from typing import Any
 
 from sase.ops import (
     DurableOperationRequest,
-    DurableOperationResult,
     DurableSubmitError,
-    OperationIOError,
-    read_operation_result,
 )
-from sase.procs import ProcSubmitRequest, submit_proc_request, wait_for_proc
+from sase.procs import ProcSubmitRequest, submit_proc_request
 
 
 @dataclass(frozen=True)
@@ -106,30 +103,9 @@ def submit_durable_proc_request(
     )
 
 
-def decode_durable_completion(
-    handle: DurableSubmitHandle,
-    *,
-    timeout: float | None = None,
-) -> DurableOperationResult:
-    """Wait for settlement and decode completion only from the typed result."""
-    finished = wait_for_proc(handle.proc_id, timeout=timeout)
-    result_path = handle.result_path or (finished.result or {}).get("result_path")
-    if not result_path:
-        raise OperationIOError(
-            "missing",
-            f"durable proc {handle.proc_id} has no typed result path",
-        )
-    return read_operation_result(
-        result_path,
-        expected_operation=handle.operation,
-        expected_proc_id=handle.proc_id,
-    )
-
-
 __all__ = [
     "DurableSubmitHandle",
     "coerce_operation_request",
-    "decode_durable_completion",
     "reject_callable_submission",
     "submit_durable_proc_request",
 ]

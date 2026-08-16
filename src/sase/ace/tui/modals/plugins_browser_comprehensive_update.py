@@ -11,7 +11,6 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.agent_clis.models import AgentCliStatus
 from sase.agents_sync import get_agents_sync_status
@@ -309,15 +308,11 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
     ) -> bool:
         """Submit exactly one task claiming all update mutation scopes."""
 
-        def task(
-            reporter: ProcReporter,
-        ) -> TrackedProcResult[ComprehensiveUpdateResult]:
+        def task() -> TrackedProcResult[ComprehensiveUpdateResult]:
             start = time.monotonic()
-            provider_results, provider_error = self._execute_provider_leg(
-                preview, reporter
-            )
-            sase_result = self._execute_comprehensive_sase_leg(preview, reporter)
-            agents_outcomes, agents_error = self._execute_agents_leg(preview, reporter)
+            provider_results, provider_error = self._execute_provider_leg(preview)
+            sase_result = self._execute_comprehensive_sase_leg(preview)
+            agents_outcomes, agents_error = self._execute_agents_leg(preview)
             result = ComprehensiveUpdateResult(
                 sase=sase_result,
                 provider_results=provider_results,
@@ -327,8 +322,6 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 elapsed=max(0.0, time.monotonic() - start),
             )
             message = comprehensive_update_summary(result)
-            reporter.section("Summary")
-            reporter.log(message, stream="result")
             return TrackedProcResult(
                 success=not result.has_failures,
                 message=message,
@@ -336,25 +329,23 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 error=message if result.has_failures else None,
             )
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return False
-        proc_info = submit(
+        submit(
             "comprehensive-update",
-            "sase + agent CLIs + cached hoods",
-            "",
             task,
             display_name="comprehensive update",
+            cl_name="sase + agent CLIs + cached hoods",
             dedup_key="comprehensive-update",
-            exclusive_scopes=("sase-update", "agent-cli-update", "agents-sync"),
-            duplicate_message=(
-                "A SASE, agent CLI, or agents-repository update is already running."
+            exclusive_scopes=(
+                "sase-update",
+                "agent-cli-update",
+                "agents-sync",
             ),
             on_complete=self._on_comprehensive_update_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
-        return proc_info is not None
+        return True
 
     def _on_comprehensive_update_complete(
         self,

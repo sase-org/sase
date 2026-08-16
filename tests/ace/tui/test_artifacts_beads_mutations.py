@@ -127,7 +127,7 @@ def test_descendant_preview_lists_every_unclosed_descendant_once() -> None:
 def test_tracked_submission_uses_operation_scoped_dedup_key() -> None:
     submit = Mock(return_value=SimpleNamespace(proc_id="task-1"))
     refresh = Mock()
-    host = SimpleNamespace(_submit_tracked_proc=submit)
+    host = SimpleNamespace(_submit_session_worker=submit)
     pane = SimpleNamespace(request_refresh=refresh)
     task = Mock()
 
@@ -142,10 +142,10 @@ def test_tracked_submission_uses_operation_scoped_dedup_key() -> None:
         task=task,
     )
 
-    assert submit.call_args.args[:4] == (
+    assert submit.call_args.args[:2] == (
         "bead-note",
-        "sase-a1",
-        "/work/sase",
         task,
     )
+    assert submit.call_args.kwargs["cl_name"] == "sase-a1"
+    assert submit.call_args.kwargs["project_file"] == "/work/sase"
     assert submit.call_args.kwargs["dedup_key"] == "beads:note:sase:sase-a1"

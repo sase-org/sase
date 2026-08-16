@@ -60,7 +60,7 @@ class _SubmitApp:
     def __init__(self) -> None:
         self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
-    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
+    def _submit_session_worker(self, *args: Any, **kwargs: Any) -> object:
         self.submitted = (args, kwargs)
         return object()
 
@@ -71,13 +71,13 @@ class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
         self.order: list[str] = []
 
     def _execute_provider_leg(
-        self, _preview: Any, _reporter: Any
+        self, _preview: Any
     ) -> tuple[tuple[Any, ...], str | None]:
         self.order.append("providers")
         return (), "provider failed"
 
     def _execute_comprehensive_sase_leg(
-        self, _preview: Any, _reporter: Any
+        self, _preview: Any
     ) -> ComprehensiveSaseUpdateResult:
         self.order.append("sase")
         return ComprehensiveSaseUpdateResult(
@@ -86,7 +86,7 @@ class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
         )
 
     def _execute_agents_leg(
-        self, _preview: Any, _reporter: Any
+        self, _preview: Any
     ) -> tuple[tuple[CachedIntegrationResult, ...], str | None]:
         self.order.append("agents")
         return (
@@ -120,7 +120,7 @@ def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_fail
     )
     assert kwargs["dedup_key"] == "comprehensive-update"
 
-    task_result = args[3](_Reporter())
+    task_result = args[1]()
     assert harness.order == ["providers", "sase", "agents"]
     assert task_result.success is False
     assert task_result.payload is not None
@@ -186,7 +186,7 @@ def test_agents_leg_integrates_exact_captured_items_without_widening(
     )
     harness = ComprehensiveUpdateActionsMixin.__new__(ComprehensiveUpdateActionsMixin)
 
-    outcomes, error = harness._execute_agents_leg(preview, _Reporter())
+    outcomes, error = harness._execute_agents_leg(preview)
 
     assert error is None
     assert calls == [(zulu, alpha)]

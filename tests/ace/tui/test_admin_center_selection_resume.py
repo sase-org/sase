@@ -24,6 +24,7 @@ from sase.ace.tui.modals.project_inventory_panes import (
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.xprompt_browser_pane import XPromptBrowserPane
+from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 from sase.ace.tui.util.selection import restore_selection_by_identity
 
 from tests.ace.tui._config_pane_widget_helpers import _fixture_view
@@ -37,11 +38,21 @@ from tests.ace.tui.modals.test_project_inventory_subtabs import (
 )
 from tests.ace.tui._procs_pane_helpers import (
     patch_store_loader as _patch_store_loader,
-    queue as _queue,
     store_task as _store_task,
     task as _task,
 )
 from tests.ace.tui.test_xprompt_browser_load_keymap import _md_xprompt
+
+
+class _NoopProcObserver:
+    def request_poll(self) -> None:
+        return None
+
+    def set_detail_proc(self, proc_id: str | None) -> None:
+        del proc_id
+
+    def stop(self, *, timeout: float = 1.0) -> None:
+        del timeout
 
 
 @dataclass(frozen=True)
@@ -225,6 +236,19 @@ def _normalized_selection(surface: str, selection: str | None) -> str | None:
     return selection.removeprefix(prefix)
 
 
+def _seed_proc_projection(app: object, rows: list[ObservedProc]) -> None:
+    observer = getattr(app, "_proc_observer", None)
+    stop = getattr(observer, "stop", None)
+    if callable(stop):
+        stop()
+    app._proc_observer = _NoopProcObserver()
+    app._proc_projection = ProcProjection(
+        rows=tuple(rows),
+        active_count=sum(1 for row in rows if row.status == "running"),
+        session_id="session-mine",
+    )
+
+
 async def _wait_for_surface_ready(
     page: AcePage,
     modal: ConfigCenterModal,
@@ -272,7 +296,7 @@ async def test_real_opener_resume_restores_visible_selection(
     ]
 
     async with AcePage(initial_tab="agents") as page:
-        page.app._proc_queue = _queue(*tasks)
+        _seed_proc_projection(page.app, tasks)
         await page.press("number_sign")
         await page.expect_modal("ConfigCenterModal")
         modal = page.app.screen
@@ -281,6 +305,8 @@ async def test_real_opener_resume_restores_visible_selection(
         await page.wait_for(lambda _s: modal._active_tab is not None)
         if case.setup_keys:
             await page.press(*case.setup_keys)
+        if case.surface == "procs":
+            _seed_proc_projection(page.app, tasks)
         await _wait_for_surface_ready(page, modal, case.surface)
 
         before = _surface_selection(modal, case.surface)
@@ -302,6 +328,8 @@ async def test_real_opener_resume_restores_visible_selection(
         assert isinstance(resumed, ConfigCenterModal)
         await page.press("number_sign")
         await page.wait_for(lambda _s: resumed._active_tab is not None)
+        if case.surface == "procs":
+            _seed_proc_projection(page.app, tasks)
         await _wait_for_surface_ready(page, resumed, case.surface)
         await page.wait_for(
             lambda _s: _surface_selection(resumed, case.surface) == selected

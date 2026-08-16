@@ -435,10 +435,10 @@ def _submit_legacy_epic_launch_task(
             timeout=15,
         )
 
-    submit = getattr(app, "_submit_tracked_proc", None)
+    submit = getattr(app, "_submit_session_worker", None)
     if not callable(submit):
         app.notify(  # type: ignore[attr-defined]
-            "Tracked epic launch execution is unavailable",
+            "Epic launch execution is unavailable",
             title="Epic launch failed",
             severity="error",
             timeout=15,
@@ -454,19 +454,16 @@ def _submit_legacy_epic_launch_task(
         or notification.action_data.get("project_dir")
         or plan_file
     )
-    proc_info = submit(
+    submit(
         "launch",
-        cl_name,
-        project_file,
         work,
         display_name=f"Launch epic: {Path(plan_file).expanduser().stem}",
+        cl_name=cl_name,
+        project_file=project_file,
         dedup_key=f"legacy-epic-launch:{notification.id}",
-        duplicate_message="This epic launch is already running",
         on_complete=on_complete,
-        reload_on_complete=False,
-        notify_on_complete=False,
     )
-    return proc_info is not None
+    return True
 
 
 def _start_plan_approval_background_worker(

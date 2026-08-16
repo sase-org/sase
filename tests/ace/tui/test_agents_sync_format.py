@@ -1,13 +1,10 @@
-"""Formatting coverage for cached agents-sync outcomes."""
+"""Formatting coverage for cached agents-sync summaries."""
 
-from sase.ace.tui.agents_sync_format import (
-    cached_agents_result_line,
-    summarize_cached_agents_results,
-)
+from sase.ace.tui.agents_sync_format import summarize_cached_agents_results
 from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
 
 
-def test_owner_observed_cached_result_is_rendered_plainly() -> None:
+def test_owner_observed_cached_result_is_summarized_plainly() -> None:
     captured = CapturedIncomingHood(
         project_key="proj",
         project="Project",
@@ -30,8 +27,4 @@ def test_owner_observed_cached_result_is_rendered_plainly() -> None:
         unchanged=2,
     )
 
-    assert (
-        cached_agents_result_line(result)
-        == "Project: unknown-user.athena.crew — owner observed"
-    )
     assert summarize_cached_agents_results((result,)) == "1 owner observed"

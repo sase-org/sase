@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import time
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -11,7 +10,6 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcCompletion,
     TrackedProcResult,
 )
-from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
 from sase.main.update_types import CombinedUpdateResult
@@ -28,8 +26,6 @@ from .plugins_browser_dev_update import (
 from .plugins_browser_sase_update_summary import (
     SASE_UPDATE_NOOP_MESSAGE,
     combined_sase_update_success_message,
-    log_combined_update_result,
-    log_update_summary,
     managed_update_changed,
     sase_update_success_message,
 )
@@ -73,13 +69,9 @@ class SaseUpdateProcMixin:
         """Run the self-update engine in the shared tracked-proc system."""
         install = self._uv_tool
 
-        def proc(reporter: ProcReporter) -> TrackedProcResult[UpdateSummary]:
+        def proc() -> TrackedProcResult[UpdateSummary]:
             try:
-                reporter.phase("Resolving sase update")
-                summary, elapsed = self._run_sase_update_summary(
-                    install,
-                    run_fn=reporter.uv_runner(),
-                )
+                summary, elapsed = self._run_sase_update_summary(install)
             except UvToolError as exc:
                 return TrackedProcResult(
                     success=False,
@@ -87,28 +79,21 @@ class SaseUpdateProcMixin:
                     error=str(exc),
                 )
             message = sase_update_success_message(summary, elapsed)
-            log_update_summary(reporter, summary, message)
             return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=summary,
             )
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
         submit(
             "sase-update",
-            "sase",
-            "",
             proc,
             display_name="sase update",
-            dedup_key="sase-update",
-            exclusive_scopes=("sase-update",),
-            duplicate_message="A sase update is already running.",
+            cl_name="sase",
             on_complete=self._on_sase_update_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
 
     def _on_sase_update_complete(
@@ -133,13 +118,9 @@ class SaseUpdateProcMixin:
     ) -> None:
         """Run a dev-update plan in the shared tracked-proc system."""
 
-        def proc(reporter: ProcReporter) -> TrackedProcResult[DevUpdateResult]:
+        def proc() -> TrackedProcResult[DevUpdateResult]:
             start = time.monotonic()
-            reporter.phase("Fetching editable checkouts")
-            result = self._execute_dev_update(
-                plan,
-                run=dev_update_reporter_runner(reporter),
-            )
+            result = self._execute_dev_update(plan)
             append_dev_update_journal(plan, result)
             elapsed = max(0.0, time.monotonic() - start)
             if dev_update_failed(result):
@@ -153,28 +134,22 @@ class SaseUpdateProcMixin:
             message = dev_update_success_message(
                 result, subject=subject, elapsed=elapsed
             )
-            reporter.log(message, stream="result")
             return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=result,
             )
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        del dedup_key, duplicate_message
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
         submit(
             "dev-update",
-            subject,
-            "",
             proc,
             display_name=display_name,
-            dedup_key=dedup_key,
-            exclusive_scopes=("sase-update",),
-            duplicate_message=duplicate_message,
+            cl_name=subject,
             on_complete=self._on_dev_update_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
 
     def _submit_combined_update_proc(self, preview: DevUpdatePreview) -> None:
@@ -182,13 +157,9 @@ class SaseUpdateProcMixin:
         assert preview.plan is not None
         plan = preview.plan
 
-        def proc(reporter: ProcReporter) -> TrackedProcResult[CombinedUpdateResult]:
+        def proc() -> TrackedProcResult[CombinedUpdateResult]:
             start = time.monotonic()
-            reporter.phase("Checking editable SASE checkouts")
-            dev_result = self._execute_dev_update(
-                plan,
-                run=dev_update_reporter_runner(reporter),
-            )
+            dev_result = self._execute_dev_update(plan)
             append_dev_update_journal(plan, dev_result)
             if dev_update_failed(dev_result):
                 reason = dev_update_failure_message(dev_result)
@@ -204,12 +175,10 @@ class SaseUpdateProcMixin:
                 )
 
             try:
-                reporter.phase("Resolving managed SASE packages")
                 managed_summary, _managed_elapsed = (
                     self._run_planned_sase_update_summary(
                         preview.managed_argv,
                         preview.managed_packages,
-                        run_fn=reporter.uv_runner(),
                     )
                 )
             except UvToolError as exc:
@@ -230,24 +199,17 @@ class SaseUpdateProcMixin:
                 elapsed=max(0.0, time.monotonic() - start),
             )
             message = combined_sase_update_success_message(result)
-            log_combined_update_result(reporter, result, message)
             return TrackedProcResult(success=True, message=message, payload=result)
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
         submit(
             "sase-update",
-            "sase",
-            "",
             proc,
             display_name="sase update",
-            dedup_key="sase-update",
-            exclusive_scopes=("sase-update",),
-            duplicate_message="A sase update is already running.",
+            cl_name="sase",
             on_complete=self._on_combined_update_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
 
     def _on_dev_update_complete(
@@ -327,37 +289,8 @@ class SaseUpdateProcMixin:
             restart(restart_axe=True)
 
 
-def dev_update_reporter_runner(reporter: ProcReporter) -> Any:
-    """Adapt a tracked proc reporter to the dev-update command interface."""
-    from sase.dev_update.models import DevCommandResult
-
-    def _run(argv: Any, *, cwd: Any = None, env: Any = None) -> DevCommandResult:
-        reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
-        try:
-            completed = reporter.run(argv, cwd=cwd, env=env)
-        except FileNotFoundError as exc:
-            return DevCommandResult(returncode=127, stderr=str(exc))
-        except subprocess.TimeoutExpired:
-            return DevCommandResult(returncode=124, stderr="command timed out")
-        except OSError as exc:
-            return DevCommandResult(returncode=1, stderr=str(exc))
-        return DevCommandResult(
-            returncode=completed.returncode,
-            stdout=completed.stdout,
-            stderr=completed.stderr,
-        )
-
-    return _run
-
-
 def running_background_procs(app: Any) -> list[Any]:
-    """Return tracked procs that must finish before ACE can restart."""
-    proc_queue = getattr(app, "_proc_queue", None)
-    get_all = getattr(proc_queue, "get_all", None)
-    if not callable(get_all):
-        return []
-    try:
-        procs = get_all()
-    except Exception:  # noqa: BLE001 - restart checks must not break update flow.
-        return []
-    return [proc for proc in procs if getattr(proc, "status", None) == "running"]
+    """Return observed active procs that must finish before ACE can restart."""
+    projection = getattr(app, "_proc_projection", None)
+    rows = tuple(getattr(projection, "rows", ()) or ())
+    return [proc for proc in rows if getattr(proc, "status", None) == "running"]

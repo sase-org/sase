@@ -20,7 +20,6 @@ from sase.ace.query_profile.profiles import (
 )
 from sase.core.query_profile_corpus_facade import (
     ArtifactQueryCacheKey,
-    canonicalize_artifact_query,
     compile_artifact_query_index,
     evaluate_artifact_query_many,
     parse_artifact_query,
@@ -274,18 +273,10 @@ def test_provider_profile_index_matches_python_reference() -> None:
     ]
 
 
-@pytest.mark.parametrize(
-    "query",
-    ['"example"', "%w", "name:example", "!!", "+sase"],
-)
-def test_parse_and_canonicalize_through_rust_match_python_reference(
-    query: str,
-) -> None:
+@pytest.mark.parametrize("query", ['"example"', "%w", "name:example", "!!", "+sase"])
+def test_parse_through_rust_matches_python_reference(query: str) -> None:
     profile = compile_query_profile(patches_query_schema())
     assert parse_artifact_query(query, profile) == parse_query_for_profile(
-        query, profile
-    )
-    assert canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
         query, profile
     )
 
@@ -294,7 +285,7 @@ def test_parse_and_canonicalize_through_rust_match_python_reference(
     ("query", "flat"),
     [("status:open", True), ("kind:file", False)],
 )
-def test_flat_parse_and_canonicalize_through_rust_match_python_reference(
+def test_flat_parse_through_rust_matches_python_reference(
     query: str,
     flat: bool,
 ) -> None:
@@ -302,8 +293,5 @@ def test_flat_parse_and_canonicalize_through_rust_match_python_reference(
         beads_query_schema() if flat else files_query_schema()
     )
     assert parse_artifact_query(query, profile) == parse_query_for_profile(
-        query, profile
-    )
-    assert canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
         query, profile
     )

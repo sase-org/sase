@@ -239,7 +239,7 @@ class AxeBgCmdMixin:
             if is_synthetic_key:
                 # Soften the generic "A bgcmd-launch task is already running
                 # for bgcmd-slot-N" message for the synthetic-key path; the
-                # warning from _submit_proc already fired.
+                # warning from the durable submitter already fired.
                 self.notify(  # type: ignore[attr-defined]
                     f"A bgcmd launch is already in flight for slot {slot}",
                     severity="warning",

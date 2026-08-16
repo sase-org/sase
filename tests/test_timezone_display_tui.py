@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,7 +19,6 @@ from sase.ace.tui.modals.logs_pane_toasts import (
 from sase.ace.tui.modals.project_inventory_rendering import (
     _absolute_workspace_time,
 )
-from sase.ace.tui.modals.quit_confirm_modal import _format_elapsed
 from sase.ace.tui.modals.saved_agent_group_revival_rendering import (
     _saved_group_time_label,
 )
@@ -29,9 +28,8 @@ from sase.ace.tui.modals.statistics_pane_projects import (
     StatisticsProjectsRenderingMixin,
 )
 from sase.ace.tui.modals.procs_pane_render import _elapsed, _relative_time
-from sase.ace.tui.modals.procs_store_rows import _local_datetime
-from sase.ace.tui.proc_mirror import _utc_timestamp
-from sase.ace.tui.proc_queue import ProcInfo, ProcQueue, _ProcLog
+from sase.ace.tui.proc_observer import ObservedProc
+from sase.ace.tui import proc_observer as po
 from sase.ace.tui.tools.cache import (
     ToolsCacheEntry,
     cached_tool_calls_end_reference,
@@ -48,6 +46,7 @@ from sase.ace.tui.widgets.prompt_panel._member_roster import (
 )
 from sase.ace.tui.widgets.tools_panel import AgentToolsPanel
 from sase.logs import ToastRecord
+from sase.procs import Proc
 from sase.stats.ranges import StatsRange
 
 
@@ -138,7 +137,7 @@ def test_task_rows_and_default_references_share_configured_wall_time(
     monkeypatch.setattr(
         "sase.ace.tui.modals.procs_pane_render.local_now", lambda: later
     )
-    task = ProcInfo(
+    task = ObservedProc(
         proc_id="task",
         proc_type="sync",
         cl_name="change",
@@ -148,45 +147,36 @@ def test_task_rows_and_default_references_share_configured_wall_time(
         started_at=local,
     )
 
-    assert _local_datetime("2026-07-03T10:24:49Z") == local
+    assert po._local_datetime("2026-07-03T10:24:49Z") == local
     assert _relative_time(local) == "1m ago"
     assert _elapsed(task) == "1:00"
 
 
-def test_quit_confirm_elapsed_uses_configured_wall_time(
-    tz_divergence: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    started_at = datetime(2026, 7, 3, 6, 24, 49)
-    monkeypatch.setattr(
-        "sase.ace.tui.modals.quit_confirm_modal.local_now",
-        lambda: started_at + timedelta(seconds=12),
-    )
-
-    assert _format_elapsed(started_at) == "12s"
-
-
-def test_proc_queue_mints_configured_wall_times(
+def test_proc_observer_mints_configured_wall_times(
     tz_divergence: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     local = datetime(2026, 7, 3, 6, 24, 49)
-    monkeypatch.setattr("sase.ace.tui.proc_queue.local_now", lambda: local)
-    log = _ProcLog()
+    monkeypatch.setattr("sase.ace.tui.proc_observer.local_now", lambda: local)
+    log = po._ObservedProcLog()
     log.append("hello")
-    queue = ProcQueue()
-    task = queue.submit("sync", "change", "project.sase")
-    queue.complete(task.proc_id, success=True, message="done", output="")
+    task = po._store_proc_row(
+        Proc(
+            proc_id="proc-1",
+            label="sync change",
+            kind="sync",
+            status="running",
+            command=["sase", "sync"],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-07-03T10:24:49Z",
+            started_at=None,
+            log_path="/tmp/proc-1.log",
+        )
+    )
 
     assert log.snapshot().lines[0].ts == local
     assert task.started_at == local
-    assert task.finished_at == local
-
-
-def test_proc_mirror_treats_naive_input_as_configured_wall_time(
-    tz_divergence: None,
-) -> None:
-    assert _utc_timestamp(datetime(2026, 7, 3, 6, 24, 49)) == ("2026-07-03T10:24:49Z")
 
 
 def test_tools_cache_uses_configured_wall_time(

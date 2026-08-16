@@ -15,7 +15,7 @@ from sase.sessions import session_chip
 from sase.core.time import local_now
 from sase.procs import DETACHED_PROC_KIND
 
-from ..proc_queue import ProcInfo, ProcLogLine
+from ..proc_observer import ObservedProc, ProcLogLine
 from ..proc_subprocess import command_display
 
 _STATUS_DISPLAY: dict[str, tuple[str, str]] = {
@@ -36,7 +36,7 @@ _DETACHED_MARKER = "◆ detached"
 BodyCache = dict[str, tuple[int, str | None, Text]]
 
 
-def is_active(task: ProcInfo) -> bool:
+def is_active(task: ObservedProc) -> bool:
     """Return whether a row is still pending or running."""
     return task.status in _ACTIVE_STATUSES
 
@@ -59,7 +59,7 @@ def _relative_time(dt: datetime, *, now: datetime | None = None) -> str:
     return f"{days}d ago"
 
 
-def _elapsed(task: ProcInfo, *, now: datetime | None = None) -> str:
+def _elapsed(task: ObservedProc, *, now: datetime | None = None) -> str:
     """Format how long a task has been running, or ran for."""
     end = task.finished_at or now or local_now()
     seconds = max(0, int((end - task.started_at).total_seconds()))
@@ -70,19 +70,18 @@ def _elapsed(task: ProcInfo, *, now: datetime | None = None) -> str:
     return f"{minutes}:{sec:02d}"
 
 
-def _task_status_token(task: ProcInfo, *, spinner_index: int) -> tuple[str, str]:
+def _task_status_token(task: ObservedProc, *, spinner_index: int) -> tuple[str, str]:
     """Return the glyph and style for a task's status."""
     if task.status == "running":
         return _SPINNER_FRAMES[spinner_index % len(_SPINNER_FRAMES)], "bold green"
     return _STATUS_DISPLAY.get(task.status, ("?", "dim"))
 
 
-def _row_session_chip(task: ProcInfo) -> Text | None:
+def _row_session_chip(task: ObservedProc) -> Text | None:
     """Return the session badge for a store-backed row, if it needs one.
 
-    In-memory rows always belong to this session and stay chip-free. Detached
-    rows use their explicit marker instead; every other store-backed row gets
-    a chip so foreign or unattributed ownership is visible at a glance.
+    Detached rows use their explicit marker instead; every other store-backed
+    row gets a chip so foreign or unattributed ownership is visible at a glance.
     """
     if not task.store_backed or task.proc_type == DETACHED_PROC_KIND:
         return None
@@ -97,7 +96,7 @@ def _row_session_chip(task: ProcInfo) -> Text | None:
 
 def _append_detached_marker(
     text: Text,
-    task: ProcInfo,
+    task: ObservedProc,
     *,
     prefix: str = "  ",
     suffix: str = "",
@@ -107,7 +106,7 @@ def _append_detached_marker(
         text.append(f"{prefix}{_DETACHED_MARKER}{suffix}", style="bold cyan")
 
 
-def task_row_label(task: ProcInfo) -> Text:
+def task_row_label(task: ObservedProc) -> Text:
     """Build the styled option-list entry for one task."""
     icon, icon_style = _STATUS_DISPLAY.get(task.status, ("?", "dim"))
     text = Text()
@@ -126,7 +125,7 @@ def task_row_label(task: ProcInfo) -> Text:
     return text
 
 
-def output_header(task: ProcInfo, *, spinner_index: int) -> Text:
+def output_header(task: ObservedProc, *, spinner_index: int) -> Text:
     """Build the output-pane header for one task."""
     out = Text()
     icon, style = _task_status_token(task, spinner_index=spinner_index)
@@ -155,7 +154,7 @@ def output_header(task: ProcInfo, *, spinner_index: int) -> Text:
     return out
 
 
-def output_footer(task: ProcInfo) -> Text:
+def output_footer(task: ObservedProc) -> Text:
     """Build the terminal-state summary shown under a finished task."""
     out = Text()
     out.append(_RULE, style="dim")
@@ -175,21 +174,17 @@ def output_footer(task: ProcInfo) -> Text:
     return out
 
 
-def output_body(task: ProcInfo, cache: BodyCache) -> Text:
+def output_body(task: ObservedProc, cache: BodyCache) -> Text:
     """Render a task's output body, memoized per task in *cache*.
 
-    Store-backed rows carry their log tail in ``output`` and keep an empty
-    in-memory log, so the cache key pairs the log version with whatever
-    static text is being shown.
+    Observer rows carry selected durable log tails in ``output`` and keep a
+    small in-memory log only for local presentation placeholders.
     """
     snapshot = task.log.snapshot()
-    legacy = None
     final_output = None
     if not snapshot.lines and task.output:
         final_output = task.output
-    elif not snapshot.lines and task._live_buffer is not None:  # noqa: SLF001
-        legacy = task._live_buffer.getvalue()  # noqa: SLF001
-    static_text = legacy or final_output
+    static_text = final_output
     cached = cache.get(task.proc_id)
     if (
         cached is not None
@@ -207,7 +202,7 @@ def output_body(task: ProcInfo, cache: BodyCache) -> Text:
     return out
 
 
-def cached_body_version(task: ProcInfo, cache: BodyCache) -> int:
+def cached_body_version(task: ObservedProc, cache: BodyCache) -> int:
     """Return the log version the cached body was rendered from."""
     cached = cache.get(task.proc_id)
     return -1 if cached is None else cached[0]

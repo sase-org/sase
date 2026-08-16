@@ -7,10 +7,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from sase.ace.tui.proc_subprocess import ProcReporter
-from sase.main.update_state import rust_prebuild_summary
 from sase.main.update_types import CombinedUpdateResult
-from sase.dev_update.timings import slowest_reconcile_command
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.commands import build_upgrade_all
 from sase.uv_tool.detect import UvToolInstall
@@ -165,55 +162,3 @@ def plural(count: int, singular: str) -> str:
     if singular.endswith("y"):
         return f"{singular[:-1]}ies"
     return f"{singular}s"
-
-
-def log_update_summary(
-    reporter: ProcReporter, summary: UpdateSummary, message: str
-) -> None:
-    """Write a managed-update result to a tracked task reporter."""
-    reporter.section("Summary")
-    reporter.log(message, stream="result")
-    for outcome in summary.outcomes:
-        old = getattr(outcome, "old_version", None)
-        new = getattr(outcome, "new_version", None)
-        name = getattr(outcome, "name", "package")
-        if old and new:
-            reporter.log(f"{name}: {old} -> {new}", stream="result")
-        elif new:
-            reporter.log(f"{name}: installed {new}", stream="result")
-        elif old:
-            reporter.log(f"{name}: removed {old}", stream="result")
-
-
-def log_combined_update_result(
-    reporter: ProcReporter,
-    result: CombinedUpdateResult,
-    message: str,
-) -> None:
-    """Write a combined dev/managed result to a tracked task reporter."""
-    reporter.section("Summary")
-    reporter.log(message, stream="result")
-    if result.dev_result is not None:
-        for outcome in result.dev_result.outcomes:
-            if outcome.status != "updated":
-                continue
-            reporter.log(
-                f"{outcome.record.name}: {outcome.old_version} -> "
-                f"{outcome.new_version}",
-                stream="result",
-            )
-        if slowest := slowest_reconcile_command(result.dev_result.commands):
-            reporter.log(
-                f"slowest: {slowest.label} "
-                f"({humanize_duration(slowest.duration_seconds)})",
-                stream="result",
-            )
-        if prebuild := rust_prebuild_summary(result.dev_result):
-            reporter.log(prebuild, stream="result")
-    if result.managed_summary is not None:
-        for managed_outcome in result.managed_summary.updated:
-            reporter.log(
-                f"{managed_outcome.name}: {managed_outcome.old_version} -> "
-                f"{managed_outcome.new_version}",
-                stream="result",
-            )

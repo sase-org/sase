@@ -87,15 +87,13 @@ class ArtifactsBeadsIssueMutationActionsMixin(ArtifactsBeadsCommonMixin):
         def completed(_completion: Any) -> None:
             pane.request_refresh()
 
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
+        self._submit_session_worker(  # type: ignore[attr-defined]
             f"bead-issue-{operation}",
-            row.issue.id,
-            workspace,
             task,
             display_name=display_name,
-            dedup_key=f"beads:issue:{operation}:{link.project}:{link.issue_id}",
+            cl_name=row.issue.id,
+            project_file=workspace,
             on_complete=completed,
-            reload_on_complete=False,
         )
 
     def _submit_bead_issue_attach(

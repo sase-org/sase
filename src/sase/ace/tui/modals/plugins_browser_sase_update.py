@@ -27,8 +27,6 @@ from .plugins_browser_sase_update_summary import (
     combined_sase_update_success_message as _combined_sase_update_success_message,
     installed_version,
     load_receipt_for_summary,
-    log_combined_update_result as _log_combined_update_result,
-    log_update_summary as _log_update_summary,
     managed_update_changed as _managed_update_changed,
     plural as _plural,
     run_planned_sase_update_summary,
@@ -37,7 +35,6 @@ from .plugins_browser_sase_update_summary import (
 )
 from .plugins_browser_sase_update_procs import (
     SaseUpdateProcMixin,
-    dev_update_reporter_runner as _dev_update_reporter_runner,
     running_background_procs as _running_background_procs,
 )
 

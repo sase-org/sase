@@ -130,7 +130,7 @@ async def test_tasks_tab_live_refresh_updates_output_and_rebuilds_status() -> No
         assert "finished" in output_plain(pane)
 
 
-async def test_tasks_tab_dismisses_selected_and_all_completed() -> None:
+async def test_tasks_tab_dismiss_warns_because_rows_are_durable() -> None:
     running = task(
         "run",
         label="sync sase-42",
@@ -154,22 +154,34 @@ async def test_tasks_tab_dismisses_selected_and_all_completed() -> None:
         await pilot.pause()
 
         pane.action_dismiss_task()
-        assert proc_queue.get("ok") is None
-        assert pane.query_one("#procs-list", OptionList).option_count == 2
+        assert proc_queue.get("ok") is success
+        assert pane.query_one("#procs-list", OptionList).option_count == 3
 
         pane.action_dismiss_all_done()
-        assert proc_queue.get("err") is None
+        assert proc_queue.get("err") is error
         assert proc_queue.get("run") is running
-        assert pane.query_one("#procs-list", OptionList).option_count == 1
+        assert pane.query_one("#procs-list", OptionList).option_count == 3
+        app = cast(ProcsTestApp, pilot.app)
+        assert app.notifications[-1][1] == "warning"
 
 
-async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
+async def test_tasks_tab_kill_confirms_and_signals_store_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     running = task(
         "run",
         label="sync sase-42",
         status="running",
         age_seconds=3,
         live_output="Syncing...\n",
+    )
+    running.store_backed = True
+    running.durable_proc_id = running.proc_id
+    signals: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.procs_pane.kill_store_task",
+        lambda proc_id: signals.append(proc_id) or None,
     )
 
     async with ProcsTestApp(queue(running)).run_test() as pilot:
@@ -186,11 +198,12 @@ async def test_tasks_tab_kill_confirms_and_calls_app_callback() -> None:
         await pilot.press("y")
         await pilot.pause()
 
-        app = cast(ProcsTestApp, pilot.app)
         assert pilot.app.screen is modal
-        assert app.killed_task_ids == ["run"]
-        assert running.status == "error"
-        assert "Killed by user" in output_plain(pane)
+        assert signals == ["run"]
+        assert cast(ProcsTestApp, pilot.app).notifications[-1] == (
+            "Killed: sync sase-42",
+            "information",
+        )
 
 
 async def test_tasks_tab_empty_state_and_empty_output_guards() -> None:

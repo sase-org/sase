@@ -14,7 +14,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals import plugins_browser_sase_update as pbsu
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
-from sase.ace.tui.proc_queue import ProcInfo, ProcQueue
+from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind
@@ -33,12 +33,23 @@ from tests.ace.tui._plugins_browser_pane_update_helpers import (
 )
 
 
+class _NoopProcObserver:
+    def request_poll(self) -> None:
+        return None
+
+    def set_detail_proc(self, proc_id: str | None) -> None:
+        del proc_id
+
+    def stop(self, *, timeout: float = 1.0) -> None:
+        del timeout
+
+
 def _task(
     proc_id: str,
     proc_type: str,
     status: str = "running",
-) -> ProcInfo:
-    return ProcInfo(
+) -> ObservedProc:
+    return ObservedProc(
         proc_id=proc_id,
         proc_type=proc_type,
         cl_name=f"{proc_type}-cl",
@@ -49,22 +60,26 @@ def _task(
     )
 
 
-def _queue(*procs: ProcInfo) -> ProcQueue:
-    queue = ProcQueue()
-    for proc in procs:
-        queue._procs[proc.proc_id] = proc
-    return queue
+def _projection(*procs: ObservedProc) -> ProcProjection:
+    return ProcProjection(
+        rows=tuple(procs),
+        active_count=sum(1 for proc in procs if proc.status == "running"),
+    )
 
 
-class _FailingProcQueue:
-    def get_all(self) -> list[ProcInfo]:
-        raise RuntimeError("queue unavailable")
+def _set_projection(app: object, *procs: ObservedProc) -> None:
+    observer = getattr(app, "_proc_observer", None)
+    stop = getattr(observer, "stop", None)
+    if callable(stop):
+        stop()
+    app._proc_observer = _NoopProcObserver()
+    app._proc_projection = _projection(*procs)
 
 
 def test_restart_blockers_include_running_tracked_background_procs() -> None:
     blockers = pbsu._running_background_procs(
         SimpleNamespace(
-            _proc_queue=_queue(
+            _proc_projection=_projection(
                 _task("run-sync", "sync"),
                 _task("run-mail", "mail"),
                 _task("run-launch", "launch"),
@@ -82,14 +97,10 @@ def test_restart_blockers_include_running_tracked_background_procs() -> None:
     }
 
 
-def test_restart_blockers_fail_open_when_queue_cannot_be_inspected() -> None:
-    assert (
-        pbsu._running_background_procs(SimpleNamespace(_proc_queue=_FailingProcQueue()))
-        == []
-    )
+def test_restart_blockers_fail_open_without_projection_rows() -> None:
     assert (
         pbsu._running_background_procs(
-            SimpleNamespace(_proc_queue=SimpleNamespace(get_all=None))
+            SimpleNamespace(_proc_projection=SimpleNamespace(rows=None))
         )
         == []
     )
@@ -199,12 +210,9 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             return SimpleNamespace(stop=lambda: None)
 
         monkeypatch.setattr(page.app, "set_timer", _set_timer)
-        background = page.app._proc_queue.submit(
-            "sync",
-            "feature_a",
-            "/tmp/project.sase",
-            display_name="sync feature_a",
-        )
+        background = _task("sync-feature-a", "sync")
+        background.display_name = "sync feature_a"
+        _set_projection(page.app, background)
         pane.action_update_sase()
         await page.expect_modal("PluginActionConfirmModal")
         modal = page.app.screen
@@ -219,12 +227,10 @@ async def test_updates_pane_sase_update_confirm_executes_and_refreshes(
             for message, _severity in messages
         )
 
-        page.app._proc_queue.complete(
-            background.proc_id,
-            success=True,
-            message="sync done",
-            output="sync done",
-        )
+        background.status = "success"
+        background.message = "sync done"
+        background.output = "sync done"
+        background.finished_at = datetime(2026, 7, 9, 12, 0, 5)
         timer_callbacks.pop(0)()
         await page.pause()
 

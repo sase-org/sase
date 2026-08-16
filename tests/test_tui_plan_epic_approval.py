@@ -105,23 +105,21 @@ def test_tui_epic_launch_preflight_runs_only_inside_tracked_task(
 
     def capture_task(
         proc_type: str,
-        cl_name: str,
-        project_file: str,
         proc_callable: Any,
         **kwargs: Any,
     ) -> object:
         submitted.append(
             {
                 "proc_type": proc_type,
-                "cl_name": cl_name,
-                "project_file": project_file,
+                "cl_name": kwargs.get("cl_name"),
+                "project_file": kwargs.get("project_file"),
                 "proc_callable": proc_callable,
                 "kwargs": kwargs,
             }
         )
         return object()
 
-    app._submit_tracked_proc.side_effect = capture_task
+    app._submit_session_worker.side_effect = capture_task
 
     from sase.ace.tui.actions.agents._notification_modals import (
         handle_plan_approval,

@@ -65,27 +65,12 @@ class _Harness(AgentsSyncActionsMixin):
     def query_one(self, *_args: object) -> _Indicator:
         return self.indicator
 
-    def _submit_tracked_proc(self, *args: Any, **kwargs: Any) -> object:
+    def _submit_session_worker(self, *args: Any, **kwargs: Any) -> object:
         self.submitted = (args, kwargs)
         return object()
 
     def _schedule_agents_async_refresh(self, *, source: str) -> None:
         self.refresh_sources.append(source)
-
-
-class _Reporter:
-    def __init__(self) -> None:
-        self.lines: list[str] = []
-
-    def phase(self, text: str) -> None:
-        self.lines.append(text)
-
-    def section(self, text: str) -> None:
-        self.lines.append(text)
-
-    def log(self, text: str, *, stream: str = "stdout") -> None:
-        del stream
-        self.lines.append(text)
 
 
 def _snapshot(behind: int = 1) -> SyncStatusSnapshot:
@@ -235,13 +220,10 @@ def test_manual_sync_uses_tracked_deduplicated_scope_and_refreshes_status(
     assert kwargs["dedup_key"] == "agents-sync"
     assert kwargs["exclusive_scopes"] == ("agents-sync",)
     assert kwargs["reload_on_complete"] is False
-    reporter = _Reporter()
-    task_result = args[3](reporter)
+    task_result = args[1]()
     assert task_result.success is False
     assert task_result.payload == outcomes
     assert task_result.message == "Agents repos: 1 current, 1 failed"
-    assert "Alpha: current — pulled" in reporter.lines
-    assert "Beta: failed — push failed" in reporter.lines
 
     kwargs["on_complete"](None)
     assert len(app.workers) == 1
@@ -278,14 +260,10 @@ def test_indicator_integration_captures_items_and_uses_no_network_api(
     args, kwargs = app.submitted
     assert kwargs["dedup_key"] == "agents-sync"
     assert kwargs["exclusive_scopes"] == ("agents-sync",)
-    reporter = _Reporter()
-    task_result = args[3](reporter)
+    task_result = args[1]()
     assert calls == [(captured,)]
     assert task_result.success is True
     assert task_result.message == "Cached agents: 1 applied"
-    assert (
-        "Alpha: alice.zeus.foo — applied (1 hood, 2 runs, 1 family)" in reporter.lines
-    )
 
     kwargs["on_complete"](None)
     assert len(app.workers) == 1

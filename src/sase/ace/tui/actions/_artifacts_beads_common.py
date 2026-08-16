@@ -133,16 +133,14 @@ class ArtifactsBeadsCommonMixin:
                 if callable(refresh):
                     refresh()
 
-        self._submit_tracked_proc(  # type: ignore[attr-defined]
+        self._submit_session_worker(  # type: ignore[attr-defined]
             f"bead-{operation}",
-            bead_id,
-            workspace,
             task,
             display_name=display_name,
+            cl_name=bead_id,
+            project_file=workspace,
             dedup_key=f"beads:{operation}:{project}:{bead_id}",
-            duplicate_message=f"A {operation} proc is already running for {bead_id}",
             on_complete=completed,
-            reload_on_complete=False,
         )
 
 

@@ -15,7 +15,6 @@ from sase.ace.tui.actions.proc_actions import (
     TrackedProcResult,
 )
 from sase.ops.names import PLUGIN_INSTALL
-from sase.ace.tui.proc_subprocess import ProcReporter
 from sase.plugins.catalog import PluginCatalogEntry, PluginCatalogError
 from sase.plugins.operations import (
     AlreadyInstalled,
@@ -450,42 +449,33 @@ class PluginInstallActionsMixin:
     ) -> None:
         """Run one combined marked-set install in a tracked proc."""
 
-        label = ", ".join(names)
         count = len(names)
 
-        def task(reporter: ProcReporter) -> TrackedProcResult[InstallManyOutcome]:
+        def task() -> TrackedProcResult[InstallManyOutcome]:
             try:
-                reporter.phase(f"Installing {count} marked plugin(s)")
-                outcome = self._execute_install_many(plan, run_fn=reporter.uv_runner())
+                outcome = self._execute_install_many(plan)
             except UvToolError as exc:
                 return TrackedProcResult(
                     success=False, message=str(exc), error=str(exc)
                 )
             message = install_many_success_message(outcome)
-            reporter.log(message, stream="result")
             return TrackedProcResult(
                 success=True,
                 message=message,
                 payload=outcome,
             )
 
-        submit = getattr(self.app, "_submit_tracked_proc", None)
+        submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
-        proc_info = submit(
+        submit(
             "plugin-install",
-            label,
-            "",
             task,
             display_name=f"install {count} marked plugins",
-            dedup_key=f"plugin-install-many:{','.join(names)}",
-            duplicate_message="A marked plugin install is already running.",
+            cl_name=", ".join(names),
             on_complete=self._on_install_many_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
         )
-        if proc_info is not None:
-            self._clear_install_marks()
+        self._clear_install_marks()
 
     def _on_install_complete(
         self, completion: TrackedProcCompletion[InstallOutcome]

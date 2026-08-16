@@ -36,8 +36,8 @@ def _make_agent(**overrides: object) -> Agent:
 
 class _FakeMarkApp(
     AgentMarkingMixin,
-    CleanupProcMixin,
     TrackedProcRecorderMixin,
+    CleanupProcMixin,
     AgentUnreadMixin,
     MarkingMixin,
 ):

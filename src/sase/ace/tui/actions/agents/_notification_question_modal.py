@@ -187,7 +187,6 @@ def _submit_question_response_task(
     from sase.ace.tui.actions.proc_actions import TrackedProcResult
 
     request_id = action_data.get("request_id") or response_dir.name
-    dedup_key = f"question-response:{request_id}"
 
     def task_body() -> _QuestionResponseTaskOutcome:
         from sase.user_question_actions import (
@@ -239,20 +238,16 @@ def _submit_question_response_task(
             return
         _finish_question_response_task(app, outcome, on_response_written)
 
-    submit = getattr(app, "_submit_tracked_proc", None)
+    submit = getattr(app, "_submit_session_worker", None)
     if callable(submit):
         try:
             submit(
                 "question",
-                f"question {request_id}",
-                str(response_dir),
                 tracked_body,
                 display_name=f"answer question {request_id}",
-                dedup_key=dedup_key,
-                duplicate_message="Question response is already being processed",
+                cl_name=f"question {request_id}",
+                project_file=str(response_dir),
                 on_complete=finish,
-                reload_on_complete=False,
-                notify_on_complete=False,
             )
             return
         except Exception:

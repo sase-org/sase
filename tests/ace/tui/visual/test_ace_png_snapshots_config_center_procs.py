@@ -5,11 +5,8 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals import procs_pane as tp
 from sase.ace.tui.modals import procs_pane_render as tpr
-from sase.ace.tui.modals.procs_store_rows import _store_task_row
-from sase.ace.tui.proc_queue import ProcQueue
-from sase.procs import Proc
+from sase.ace.tui.proc_observer import ObservedProc
 from textual.widgets import OptionList, Static
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _FIXED_TASK_NOW,
@@ -56,34 +53,26 @@ async def test_config_center_procs_tab_png_snapshot(
     # Freeze the running-task spinner so the status token is byte-stable; the
     # 0.25s refresh timer would otherwise advance it between runs.
     monkeypatch.setattr(tpr, "_SPINNER_FRAMES", ("|",))
-    detached = _store_task_row(
-        Proc(
-            proc_id="detached123",
-            label="Epic · nightly",
-            kind="detached",
-            status="running",
-            command=["sase", "bead", "work", "nightly.md", "--yes-to-all"],
-            cwd="/repo",
-            origin="telegram",
-            created_at="2026-06-26T11:59:56Z",
-            started_at="2026-06-26T11:59:56Z",
-            log_path="/tmp/detached123.log",
-        )
+    detached = ObservedProc(
+        proc_id="detached123",
+        proc_type="detached",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="",
+        started_at=_FIXED_TASK_NOW.replace(tzinfo=None),
+        display_name="Epic · nightly",
+        output="worker: creating beads\n",
+        command=["sase", "bead", "work", "nightly.md", "--yes-to-all"],
+        durable_proc_id="detached123",
+        store_backed=True,
     )
-    # Keep the real durable store out of the frame while retaining one fixed
-    # detached row so its global marker has PNG coverage.
-    monkeypatch.setattr(
-        tp,
-        "load_store_task_rows",
-        lambda **_kwargs: tp.StoreTasksSnapshot(rows=[detached], mtime=1.0),
-    )
-    monkeypatch.setattr(ProcQueue, "prune_old", lambda self: None)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
-        _seed_tasks_tab_queue(page.app)
+        _seed_tasks_tab_queue(page.app, extra_rows=(detached,))
         _, pane = await _open_procs_modal(page)
         option_list = pane.query_one("#procs-list", OptionList)
         output = pane.query_one("#procs-output-content", Static)
