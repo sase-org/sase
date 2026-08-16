@@ -49,6 +49,7 @@ from .reconcile import (
 #: How long ``stop_monitor`` waits for the supervisor to leave ``running``.
 _STOP_WAIT_SECONDS = 10.0
 _STOP_POLL_SECONDS = 0.1
+_RECONCILE_ACTIVE_MONITOR_LIMIT = 1000
 
 #: Mirrors :data:`sase.procs.ids.MIN_PROC_REF_LENGTH` for monitor id prefixes.
 MIN_MONITOR_REF_LENGTH = 3
@@ -323,7 +324,7 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
 def reconcile_dead_supervisors(*, project: str | None = None) -> list[MonitorRecord]:
     """Reconcile all running monitors whose supervisors are no longer alive."""
     return reconcile_dead_supervisors_for_records(
-        _monitor_records(project),
+        _reconciliation_monitor_records(project),
         get_monitor=get_monitor,
     )
 
@@ -414,16 +415,66 @@ def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     ]
 
 
-def _project_records(
-    project_name: str | None, *, only_monitors: bool = False
+def _reconciliation_monitor_records(
+    project_name: str | None,
 ) -> list[AgentArtifactRecordWire]:
-    projects_root = sase_projects_dir()
-    options = AgentArtifactScanOptionsWire(
+    return [
+        record
+        for record in _reconciliation_project_records(project_name)
+        if is_monitor_member_record(record)
+    ]
+
+
+def _scan_options(
+    project_name: str | None,
+    *,
+    max_records: int | None = None,
+    newest_first: bool = False,
+) -> AgentArtifactScanOptionsWire:
+    return AgentArtifactScanOptionsWire(
         only_workflow_dirs=("ace-run",),
         include_prompt_step_markers=False,
         include_raw_prompt_snippets=False,
         only_projects=(project_name,) if project_name else (),
+        max_records=max_records,
+        newest_first=newest_first,
     )
+
+
+def _reconciliation_project_records(
+    project_name: str | None,
+) -> list[AgentArtifactRecordWire]:
+    projects_root = sase_projects_dir()
+    options = _scan_options(
+        project_name,
+        max_records=0,
+        newest_first=True,
+    )
+    query = AgentArtifactIndexQueryWire(
+        include_active=True,
+        include_recent_completed=False,
+        include_full_history=False,
+        active_limit=_RECONCILE_ACTIVE_MONITOR_LIMIT,
+        recent_completed_limit=0,
+        include_hidden=True,
+        only_monitors=True,
+    )
+    index_path = default_agent_artifact_index_path()
+    if index_path.is_file():
+        try:
+            scan = query_agent_artifact_index(index_path, projects_root, query, options)
+            return list(scan.records)
+        except (OSError, RuntimeError, ValueError, ImportError, AttributeError):
+            pass
+    scan = scan_agent_artifacts(projects_root, options)
+    return list(scan.records)
+
+
+def _project_records(
+    project_name: str | None, *, only_monitors: bool = False
+) -> list[AgentArtifactRecordWire]:
+    projects_root = sase_projects_dir()
+    options = _scan_options(project_name)
     query = AgentArtifactIndexQueryWire(
         include_active=True,
         include_recent_completed=True,
