@@ -310,6 +310,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-n4.5(ProviderDisableWriteOutcome)" \
+        --epic-symbol "sase-n4.5(try_disable_provider)" \
+        --epic-symbol "sase-n4.5(try_disable_provider_until)" \
         --epic-symbol "sase-n4(UsageLimitSettings)" \
         --epic-symbol "sase-nb(encode_feature_flags_env)" \
         --epic-symbol "sase-nb(feature_flags_schema_block)" \

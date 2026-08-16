@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
+import json
 import math
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 import sase.llm_provider.provider_disable as provider_state
 from sase.llm_provider.provider_disable import (
     ProviderDisableStateError,
+    ProviderDisableWriteOutcome,
     TemporaryProviderDisable,
     disable_provider,
     disable_provider_until,
     enable_provider,
     get_active_provider_disable,
     get_active_provider_disables,
+    try_disable_provider,
+    try_disable_provider_until,
 )
 
 _NOW = 1_800_000_000.0
@@ -83,6 +91,137 @@ def test_facade_replacement_exact_expiry_and_idempotent_clear(
     disable_provider("codex", None, source="test", now=_NOW)
     assert enable_provider("codex") is True
     assert enable_provider("codex") is False
+
+
+def test_facade_try_disable_is_first_writer_and_preserves_siblings(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    registered_providers: None,
+    real_provider_disable_reads: None,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+
+    sibling = disable_provider("codex", 1_200.0, source="sibling", now=_NOW)
+    first = try_disable_provider("claude", 900.0, source="usage_limit", now=_NOW)
+    lost = try_disable_provider_until(
+        "claude",
+        _NOW + 3_600.0,
+        source="ace",
+        now=_NOW,
+    )
+
+    assert first.inserted is True
+    assert lost.inserted is False
+    assert lost.record == first.record
+    assert first.record.expires_at == _NOW + 900.0
+    assert get_active_provider_disables(_NOW) == {
+        "claude": first.record,
+        "codex": sibling,
+    }
+
+
+def test_facade_try_disable_one_winner_under_process_contention(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    registered_providers: None,
+    real_provider_disable_reads: None,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    sibling = disable_provider("codex", 1_200.0, source="sibling", now=_NOW)
+    start = tmp_path / "start"
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "\n".join(
+            [
+                "import json, sys, time",
+                "from pathlib import Path",
+                "from sase.llm_provider.provider_disable import try_disable_provider",
+                f"start = Path({str(start)!r})",
+                "for _ in range(400):",
+                "    if start.exists():",
+                "        break",
+                "    time.sleep(0.005)",
+                "else:",
+                "    raise SystemExit('start file never appeared')",
+                "index = int(sys.argv[1])",
+                "outcome = try_disable_provider(",
+                '    "claude",',
+                "    60.0 + index,",
+                '    source=f"contender-{index}",',
+                f"    now={_NOW} + index,",
+                ")",
+                'print(json.dumps({"inserted": outcome.inserted, '
+                '"source": outcome.record.source}))',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["SASE_HOME"] = str(tmp_path)
+    processes = [
+        subprocess.Popen(
+            [sys.executable, str(worker), str(index)],
+            cwd=str(Path(__file__).resolve().parents[1]),
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        for index in range(6)
+    ]
+    start.write_text("go\n", encoding="utf-8")
+    outcomes = []
+    for process in processes:
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == 0, stderr
+        outcomes.append(json.loads(stdout))
+    winners = [row for row in outcomes if row["inserted"] is True]
+    assert len(winners) == 1
+    assert all(row["source"] == winners[0]["source"] for row in outcomes)
+    stored = get_active_provider_disables(_NOW)
+    assert stored["codex"] == sibling
+    assert stored["claude"].source == winners[0]["source"]
+
+
+def test_facade_try_disable_replaces_expired_record(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    registered_providers: None,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    disable_provider_until("claude", _NOW + 5.0, source="usage_limit", now=_NOW)
+    replacement = try_disable_provider(
+        "claude",
+        60.0,
+        source="usage_limit",
+        now=_NOW + 5.0,
+    )
+    assert replacement.inserted is True
+    assert replacement.record.created_at == _NOW + 5.0
+    assert replacement.record.expires_at == _NOW + 65.0
+    assert get_active_provider_disables(_NOW + 5.0) == {"claude": replacement.record}
+
+
+def test_write_outcome_rehydration_rejects_stale_or_malformed_payloads() -> None:
+    record = _wire("claude")
+    with pytest.raises(ProviderDisableStateError, match="not an object"):
+        ProviderDisableWriteOutcome.from_wire(None)
+    with pytest.raises(ProviderDisableStateError, match="unknown extra"):
+        ProviderDisableWriteOutcome.from_wire(
+            {"version": 1, "inserted": True, "record": record, "extra": True}
+        )
+    with pytest.raises(ProviderDisableStateError, match="unsupported"):
+        ProviderDisableWriteOutcome.from_wire(
+            {"version": 2, "inserted": True, "record": record}
+        )
+    with pytest.raises(ProviderDisableStateError, match="boolean"):
+        ProviderDisableWriteOutcome.from_wire(
+            {"version": 1, "inserted": 1, "record": record}
+        )
+    with pytest.raises(ProviderDisableStateError):
+        ProviderDisableWriteOutcome.from_wire(
+            {"version": 1, "inserted": True, "record": {"version": 1}}
+        )
 
 
 def test_disable_validates_registered_provider_but_clear_remains_uninstall_safe(

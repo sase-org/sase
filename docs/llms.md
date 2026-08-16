@@ -1799,14 +1799,16 @@ normal routing resume immediately.
 
 Public provider-disable helpers:
 
-| Function                                                         | Purpose                                                    |
-| ---------------------------------------------------------------- | ---------------------------------------------------------- |
-| `get_active_provider_disables(now=None)`                         | Read every active disable, keyed by provider.              |
-| `get_active_provider_disable(provider, now=None)`                | Read one active provider disable, or `None`.               |
-| `disable_provider(provider, duration_seconds, source, now=None)` | Disable one provider for a duration or until cleared.      |
-| `disable_provider_until(provider, expires_at, source, now=None)` | Disable one provider until an exact Unix timestamp.        |
-| `enable_provider(provider)`                                      | Clear one provider disable; returns whether it existed.    |
-| `peek_active_provider_disables(now=None)`                        | Read-only, lock-free display snapshot for TUI/completions. |
+| Function                                                             | Purpose                                                               |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `get_active_provider_disables(now=None)`                             | Read every active disable, keyed by provider.                         |
+| `get_active_provider_disable(provider, now=None)`                    | Read one active provider disable, or `None`.                          |
+| `disable_provider(provider, duration_seconds, source, now=None)`     | Disable one provider for a duration or until cleared.                 |
+| `disable_provider_until(provider, expires_at, source, now=None)`     | Disable one provider until an exact Unix timestamp.                   |
+| `try_disable_provider(provider, duration_seconds, source, now=None)` | First-writer relative disable; `inserted` is whether this caller won. |
+| `try_disable_provider_until(provider, expires_at, source, now=None)` | First-writer exact-expiry disable; losers leave the record unchanged. |
+| `enable_provider(provider)`                                          | Clear one provider disable; returns whether it existed.               |
+| `peek_active_provider_disables(now=None)`                            | Read-only, lock-free display snapshot for TUI/completions.            |
 
 ### State File
 

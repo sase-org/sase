@@ -150,3 +150,29 @@ print(json.dumps(out, sort_keys=True))
     assert out["after_clear_xlarge"][0] == "claude"
     assert out["before_expiry"] == ["claude"]
     assert out["at_expiry"] == []
+
+
+def test_provider_disable_try_set_first_writer_smoke(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(tmp_path / "home"),
+            "PYTHONPATH": os.pathsep.join(
+                [str(repo_root), env.get("PYTHONPATH", "")]
+            ).rstrip(os.pathsep),
+            "SASE_HOME": str(tmp_path / "sase-home"),
+        }
+    )
+    writer = """
+import json
+from sase.llm_provider.provider_disable import try_disable_provider
+outcome = try_disable_provider(
+    "claude", 900.0, source=SOURCE, now=1000.0
+)
+print(json.dumps({"inserted": outcome.inserted, "source": outcome.record.source}))
+"""
+    first = _run_python(code=writer.replace("SOURCE", repr("usage_limit")), env=env)
+    lost = _run_python(code=writer.replace("SOURCE", repr("ace")), env=env)
+    assert json.loads(first.stdout) == {"inserted": True, "source": "usage_limit"}
+    assert json.loads(lost.stdout) == {"inserted": False, "source": "usage_limit"}

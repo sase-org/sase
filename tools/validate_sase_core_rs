@@ -144,6 +144,13 @@ REQUIRED_BINDINGS = (
     "vcs_log_wire_schema_version",
     "parse_merge_summary",
     "apply_snippet_session_event",
+    "provider_disable_wire_schema_version",
+    "provider_disable_get",
+    "provider_disable_set_relative",
+    "provider_disable_set_until",
+    "provider_disable_try_set_relative",
+    "provider_disable_try_set_until",
+    "provider_disable_clear",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the
@@ -999,6 +1006,140 @@ def _axe_chop_guard_request(
     }
 
 
+def _validate_provider_disable_first_writer(module: ModuleType) -> bool:
+    """Prove the installed wheel's try-set is a real first-writer, not a replace.
+
+    A binding-name check is not enough: an older wheel could grow the symbol
+    while still replacing an active record, which would re-extend expiry and
+    notify every losing caller. The probe writes, loses, then replaces only
+    after expiry.
+    """
+    try_relative = getattr(module, "provider_disable_try_set_relative", None)
+    try_until = getattr(module, "provider_disable_try_set_until", None)
+    get_snapshot = getattr(module, "provider_disable_get", None)
+    if (
+        not callable(try_relative)
+        or not callable(try_until)
+        or not callable(get_snapshot)
+    ):
+        _error("provider-disable first-writer bindings missing; cannot probe")
+        return False
+
+    now = 1_800_000_000.0
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-provider-disable-probe-") as tmp:
+        try:
+            first = try_relative(tmp, "claude", "usage_limit", 900.0, now)
+            sibling = try_until(tmp, "codex", now + 1_200.0, "test", now)
+            lost = try_until(tmp, "claude", now + 3_600.0, "ace", now)
+            snapshot = get_snapshot(tmp, now)
+            expired = try_relative(tmp, "claude", "usage_limit", 60.0, now + 900.0)
+        except Exception as exc:
+            _error(f"provider-disable first-writer probe failed: {exc}")
+            return False
+
+    if not _expect_provider_disable_outcome(
+        first,
+        inserted=True,
+        provider="claude",
+        source="usage_limit",
+        created_at=now,
+        expires_at=now + 900.0,
+        label="first relative write",
+    ):
+        return False
+    if not _expect_provider_disable_outcome(
+        sibling,
+        inserted=True,
+        provider="codex",
+        source="test",
+        created_at=now,
+        expires_at=now + 1_200.0,
+        label="unrelated until write",
+    ):
+        return False
+    if not _expect_provider_disable_outcome(
+        lost,
+        inserted=False,
+        provider="claude",
+        source="usage_limit",
+        created_at=now,
+        expires_at=now + 900.0,
+        label="losing until write",
+    ):
+        return False
+    if not isinstance(snapshot, dict) or snapshot.get("version") != 1:
+        _error(f"provider-disable snapshot probe returned stale payload: {snapshot!r}")
+        return False
+    disables = snapshot.get("disables")
+    if not isinstance(disables, list) or [
+        record.get("provider") if isinstance(record, dict) else None for record in disables
+    ] != ["claude", "codex"]:
+        _error(
+            "provider-disable snapshot probe did not preserve both records: "
+            f"{disables!r}"
+        )
+        return False
+    return _expect_provider_disable_outcome(
+        expired,
+        inserted=True,
+        provider="claude",
+        source="usage_limit",
+        created_at=now + 900.0,
+        expires_at=now + 960.0,
+        label="expired-record replacement",
+    )
+
+
+def _expect_provider_disable_outcome(
+    payload: object,
+    *,
+    inserted: bool,
+    provider: str,
+    source: str,
+    created_at: float,
+    expires_at: float,
+    label: str,
+) -> bool:
+    if not isinstance(payload, dict):
+        _error(f"provider-disable {label} probe returned a non-dict payload")
+        return False
+    if payload.get("version") != 1:
+        _error(
+            f"provider-disable {label} probe returned stale outcome version: "
+            f"{payload.get('version')!r}"
+        )
+        return False
+    if payload.get("inserted") is not inserted:
+        _error(
+            f"provider-disable {label} probe inserted={payload.get('inserted')!r}, "
+            f"expected {inserted!r}"
+        )
+        return False
+    record = payload.get("record")
+    if not isinstance(record, dict):
+        _error(f"provider-disable {label} probe payload has no record dict")
+        return False
+    expected = {
+        "version": 1,
+        "provider": provider,
+        "created_at": created_at,
+        "expires_at": expires_at,
+        "source": source,
+    }
+    mismatches = [
+        f"{name}={record.get(name)!r} (expected {value!r})"
+        for name, value in expected.items()
+        if record.get(name) != value
+    ]
+    if mismatches:
+        _error(
+            f"provider-disable {label} probe returned stale record fields: "
+            + "; ".join(mismatches)
+        )
+        return False
+    return True
+
+
 def _validate_axe_chop_guard_providers(
     module: ModuleType, *, schema_path: Path = _CONFIG_SCHEMA_PATH
 ) -> bool:
@@ -1169,6 +1310,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_proc_lifecycle_contract(module):
         return 1
     if not _validate_axe_chop_guard_providers(module):
+        return 1
+    if not _validate_provider_disable_first_writer(module):
         return 1
     return 0
 

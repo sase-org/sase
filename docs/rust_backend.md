@@ -47,11 +47,15 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   [`docs/notifications.md`](notifications.md#snooze-expiry-and-resurfacing)
 - Temporary LLM provider-disable state: `provider_disable_wire_schema_version`,
   `provider_disable_get`, `provider_disable_set_relative`, `provider_disable_set_until`,
-  and `provider_disable_clear`. The Rust core owns the versioned
+  `provider_disable_try_set_relative`, `provider_disable_try_set_until`, and
+  `provider_disable_clear`. The Rust core owns the versioned
   `llm_provider_disables.json` schema, bounded lock, atomic writes, per-provider
   validation/pruning, expiry semantics, deterministic provider ordering, and
-  multi-process read/modify/write cycle. Python owns provider registration, routing
-  policy, TUI presentation, and the lock-free display peek overlay.
+  multi-process read/modify/write cycle. Conditional try-set operations prune and decide
+  absence-plus-write under that same lock, returning the active record plus whether the
+  caller inserted it. Unconditional setters remain the replacement path for manual
+  duration changes. Python owns provider registration, routing policy, TUI presentation,
+  and the lock-free display peek overlay.
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index
   writes, artifact-marker deletion, workspace-release text mutation, and
   hook/mentor/comment kill marking. These calls prefer Rust but retain cleanup-specific

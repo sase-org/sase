@@ -314,6 +314,115 @@ def test_validate_sase_core_rs_requires_snippet_session_binding() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_provider_disable_first_writer() -> None:
+    validator = _load_validate_sase_core_rs()
+    bindings = {
+        "provider_disable_wire_schema_version",
+        "provider_disable_get",
+        "provider_disable_set_relative",
+        "provider_disable_set_until",
+        "provider_disable_try_set_relative",
+        "provider_disable_try_set_until",
+        "provider_disable_clear",
+    }
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+    def first_writer_module() -> SimpleNamespace:
+        state: dict[str, dict[str, object]] = {}
+
+        def try_relative(
+            _home: str,
+            provider: str,
+            source: str,
+            duration: float,
+            current: float,
+        ) -> dict[str, object]:
+            return _store_if_absent(
+                state,
+                provider,
+                source,
+                current,
+                current + duration,
+            )
+
+        def try_until(
+            _home: str,
+            provider: str,
+            expires_at: float,
+            source: str,
+            current: float,
+        ) -> dict[str, object]:
+            return _store_if_absent(state, provider, source, current, expires_at)
+
+        def get_snapshot(_home: str, _current: float) -> dict[str, object]:
+            return {
+                "version": 1,
+                "disables": [state[name] for name in sorted(state)],
+            }
+
+        return SimpleNamespace(
+            provider_disable_try_set_relative=try_relative,
+            provider_disable_try_set_until=try_until,
+            provider_disable_get=get_snapshot,
+        )
+
+    def _store_if_absent(
+        state: dict[str, dict[str, object]],
+        provider: str,
+        source: str,
+        current: float,
+        expires_at: float,
+    ) -> dict[str, object]:
+        existing = state.get(provider)
+        existing_expires = (
+            existing.get("expires_at") if isinstance(existing, dict) else None
+        )
+        if (
+            isinstance(existing, dict)
+            and isinstance(existing_expires, (int, float))
+            and current < float(existing_expires)
+        ):
+            return {"version": 1, "inserted": False, "record": existing}
+        record = {
+            "version": 1,
+            "provider": provider,
+            "created_at": current,
+            "expires_at": expires_at,
+            "source": source,
+        }
+        state[provider] = record
+        return {"version": 1, "inserted": True, "record": record}
+
+    assert validator._validate_provider_disable_first_writer(first_writer_module())
+
+    def always_insert(
+        _home: str,
+        provider: str,
+        source: str,
+        duration: float,
+        current: float,
+    ) -> dict[str, object]:
+        return {
+            "version": 1,
+            "inserted": True,
+            "record": {
+                "version": 1,
+                "provider": provider,
+                "created_at": current,
+                "expires_at": current + duration,
+                "source": source,
+            },
+        }
+
+    stale = first_writer_module()
+    stale.provider_disable_try_set_relative = always_insert
+    assert not validator._validate_provider_disable_first_writer(stale)
+
+
 def test_validate_sase_core_rs_requires_vcs_log_wire_schema_four() -> None:
     validator = _load_validate_sase_core_rs()
 

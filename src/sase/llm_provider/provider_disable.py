@@ -80,6 +80,48 @@ class TemporaryProviderDisable:
         return self.expires_at is None or now < self.expires_at
 
 
+@dataclass(frozen=True)
+class ProviderDisableWriteOutcome:
+    """Result of a conditional first-writer provider-disable write."""
+
+    inserted: bool
+    record: TemporaryProviderDisable
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderDisableWriteOutcome:
+        """Strictly rehydrate the Rust first-writer outcome envelope."""
+        if not isinstance(payload, dict):
+            raise ProviderDisableStateError(
+                "provider-disable write outcome is not an object"
+            )
+        required = {"version", "inserted", "record"}
+        if set(payload) != required:
+            missing = sorted(required - set(payload))
+            extra = sorted(set(payload) - required)
+            details: list[str] = []
+            if missing:
+                details.append(f"missing {', '.join(missing)}")
+            if extra:
+                details.append(f"unknown {', '.join(extra)}")
+            raise ProviderDisableStateError(
+                "invalid provider-disable write outcome fields: " + "; ".join(details)
+            )
+        version = payload["version"]
+        inserted = payload["inserted"]
+        if type(version) is not int or version != PROVIDER_DISABLE_WIRE_SCHEMA_VERSION:
+            raise ProviderDisableStateError(
+                f"unsupported provider-disable write outcome version: {version!r}"
+            )
+        if type(inserted) is not bool:
+            raise ProviderDisableStateError(
+                f"inserted must be a boolean, got {type(inserted).__name__}"
+            )
+        return cls(
+            inserted=inserted,
+            record=TemporaryProviderDisable.from_wire(payload["record"]),
+        )
+
+
 def get_active_provider_disables(
     now: float | None = None,
 ) -> dict[str, TemporaryProviderDisable]:
@@ -131,6 +173,45 @@ def disable_provider_until(
     binding = require_rust_binding("provider_disable_set_until")
     payload: Any = binding(str(sase_home()), provider, expires_at, source, now)
     return TemporaryProviderDisable.from_wire(payload)
+
+
+def try_disable_provider(
+    provider: str,
+    duration_seconds: float | None,
+    *,
+    source: str,
+    now: float | None = None,
+) -> ProviderDisableWriteOutcome:
+    """Disable *provider* only when no active record exists.
+
+    Returns the stored record and whether this caller created it. An already
+    active disable is left unchanged, including its ``created_at``, expiry,
+    and source.
+    """
+    provider = _require_registered_provider(provider)
+    binding = require_rust_binding("provider_disable_try_set_relative")
+    payload: Any = binding(
+        str(sase_home()),
+        provider,
+        source,
+        duration_seconds,
+        now,
+    )
+    return ProviderDisableWriteOutcome.from_wire(payload)
+
+
+def try_disable_provider_until(
+    provider: str,
+    expires_at: float,
+    *,
+    source: str,
+    now: float | None = None,
+) -> ProviderDisableWriteOutcome:
+    """Disable *provider* until *expires_at* only when no active record exists."""
+    provider = _require_registered_provider(provider)
+    binding = require_rust_binding("provider_disable_try_set_until")
+    payload: Any = binding(str(sase_home()), provider, expires_at, source, now)
+    return ProviderDisableWriteOutcome.from_wire(payload)
 
 
 def enable_provider(provider: str) -> bool:
@@ -226,10 +307,13 @@ def _is_finite_number(value: object) -> bool:
 __all__ = [
     "PROVIDER_DISABLE_WIRE_SCHEMA_VERSION",
     "ProviderDisableStateError",
+    "ProviderDisableWriteOutcome",
     "TemporaryProviderDisable",
     "disable_provider",
     "disable_provider_until",
     "enable_provider",
     "get_active_provider_disable",
     "get_active_provider_disables",
+    "try_disable_provider",
+    "try_disable_provider_until",
 ]
