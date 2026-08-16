@@ -2,8 +2,10 @@
 
 Providers are discovered by :mod:`sase.llm_provider._registry_plugins` via
 ``importlib.metadata.entry_points(group="sase_llm")``. Metadata normalization
-and cache fingerprints live in :mod:`sase.llm_provider._registry_metadata`.
-This module remains the stable façade for registry access and model resolution.
+and cache fingerprints live in :mod:`sase.llm_provider._registry_metadata`,
+while catalog assembly lives in :mod:`sase.llm_provider._registry_catalog`.
+This module remains the stable façade for registry access and model resolution;
+routing state and diagnostics live in :mod:`sase.llm_provider._registry_routing`.
 
 Dispatch uses a single-plugin :class:`pluggy.PluginManager` so only the
 selected provider's ``llm_invoke`` hook fires.  Metadata lookups (known
@@ -14,18 +16,23 @@ callers iterate ``pm.list_name_plugin()`` to collect per-plugin values.
 
 import functools
 import os
-from pathlib import Path
 import shutil
 from collections.abc import Mapping
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Any
 
 import pluggy
 
+from ._registry_catalog import (
+    build_llm_metadata_payload as _build_llm_metadata_payload,
+    hidden_provider_names as _hidden_provider_names,
+    model_advisory_color,
+    model_advisory_map as _model_advisory_map,
+    model_advisory_marker,
+    provider_names as _payload_provider_names,
+    string_map as _string_map,
+)
 from ._registry_metadata import (
     llm_metadata_cache_policy,
-    normalize_str_dict,
     provider_metadata,
     provider_path_env_var,
 )
@@ -33,50 +40,25 @@ from ._registry_plugins import (
     build_llm_plugin_manager,
     create_provider,
 )
+from ._registry_routing import (
+    ProviderDisableSnapshot,
+    ProviderRoutingStatus,
+    ProviderTemporarilyDisabledError,
+    affected_aliases_by_provider as _affected_aliases_by_provider,
+    format_provider_disable_expiry,
+    format_provider_model_label,
+    provider_cli_available as _provider_cli_available_from_payload,
+    provider_model_counts as _provider_model_counts_from_payload,
+)
 from .base import LLMProvider
 from .config import (
     get_llm_provider_config,
     resolve_model_alias_with_effort,
 )
 from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
-from .types import LLMInvocationError, ModelTier
-
-_PROVIDER_FAMILY_COLORS: dict[str, str] = {
-    "claude": "#D97757",
-    "anthropic": "#D97757",
-    "codex": "#10A37F",
-    "openai": "#10A37F",
-    "meta": "#0064E0",
-}
+from .types import ModelTier
 
 LLM_EXEC_PROVIDER_ENV = "SASE_LLM_EXEC_PROVIDER"
-
-ProviderDisableSnapshot = Mapping[str, TemporaryProviderDisable]
-
-
-@dataclass(frozen=True, slots=True)
-class ProviderRoutingStatus:
-    """Display-ready routing state for one registered LLM provider."""
-
-    provider: str
-    model_count: int
-    cli_available: bool
-    active_disable: TemporaryProviderDisable | None
-    hidden_from_model_pickers: bool
-    affected_aliases: tuple[str, ...] = ()
-
-
-class ProviderTemporarilyDisabledError(LLMInvocationError):
-    """Raised before a disabled provider plugin can be instantiated."""
-
-    def __init__(self, provider: str, disable: TemporaryProviderDisable) -> None:
-        self.provider = provider
-        self.disable = disable
-        super().__init__(
-            f"LLM provider {provider!r} is temporarily disabled "
-            f"{format_provider_disable_expiry(disable)}. "
-            "Enable the provider or choose a different model/provider."
-        )
 
 
 @functools.cache
@@ -107,60 +89,11 @@ def _provider_metadata(name: str, plugin: object) -> dict[str, Any]:
 
 def _direct_llm_metadata_payload() -> dict[str, Any]:
     """Collect LLM metadata directly from pluggy providers inside the host."""
-
-    providers: dict[str, dict[str, Any]] = {}
-    model_to_provider: dict[str, str] = {}
-    provider_short_names: dict[str, str] = {}
-    model_short_aliases: dict[str, str] = {}
-    model_advisories: dict[str, dict[str, str]] = {}
-    provider_colors = dict(_PROVIDER_FAMILY_COLORS)
-    autodetect_candidates: list[dict[str, Any]] = []
-    default_retry_configs: dict[str, dict[str, Any]] = {}
-
-    for name, plugin in iter_plugins():
-        provider_metadata = _provider_metadata(name, plugin)
-        providers[name] = provider_metadata
-
-        for model in provider_metadata["known_model_names"]:
-            model_to_provider[model] = name
-
-        provider_short_names[name] = provider_metadata["short_name"] or name
-        model_short_aliases.update(provider_metadata["model_short_aliases"])
-        model_advisories.update(provider_metadata["model_advisories"])
-        color = provider_metadata["cli_status_color"]
-        if color:
-            provider_colors[name] = color
-
-        priority = provider_metadata["autodetect_priority"]
-        if priority is not None:
-            autodetect_candidates.append(
-                {
-                    "priority": priority,
-                    "provider": name,
-                    "cli_name": provider_metadata["autodetect_cli_name"],
-                }
-            )
-
-        retry_config = provider_metadata["default_retry_config"]
-        if retry_config is not None:
-            default_retry_configs[name] = retry_config
-
-    autodetect_candidates.sort(
-        key=lambda item: (int(item["priority"]), str(item["provider"]))
+    return _build_llm_metadata_payload(
+        iter_plugins(),
+        _provider_metadata,
+        _llm_metadata_cache_policy(),
     )
-    return {
-        "schema_version": 1,
-        "providers": providers,
-        "provider_names": sorted(providers),
-        "model_to_provider": model_to_provider,
-        "provider_short_names": provider_short_names,
-        "model_short_aliases": model_short_aliases,
-        "model_advisories": model_advisories,
-        "provider_cli_status_colors": provider_colors,
-        "autodetect_candidates": autodetect_candidates,
-        "default_retry_configs": default_retry_configs,
-        "cache_invalidation": _llm_metadata_cache_policy(),
-    }
 
 
 @functools.cache
@@ -182,7 +115,7 @@ def get_llm_metadata_payload() -> dict[str, Any]:
 
 def model_to_provider_map() -> dict[str, str]:
     """Build a ``{model_name → provider_name}`` map from plugin metadata."""
-    return normalize_str_dict(_llm_metadata_payload().get("model_to_provider"))
+    return _string_map(_llm_metadata_payload(), "model_to_provider")
 
 
 def provider_short_name_map() -> dict[str, str]:
@@ -192,7 +125,7 @@ def provider_short_name_map() -> dict[str, str]:
     fallback is its entry-point name — preserving today's behavior for
     plugins that haven't been updated.
     """
-    return normalize_str_dict(_llm_metadata_payload().get("provider_short_names"))
+    return _string_map(_llm_metadata_payload(), "provider_short_names")
 
 
 def model_short_alias_map() -> dict[str, str]:
@@ -202,7 +135,7 @@ def model_short_alias_map() -> dict[str, str]:
     returning a dict of long-form model names to short aliases used in
     multi-model agent name suffixes.  Last writer wins on duplicates.
     """
-    return normalize_str_dict(_llm_metadata_payload().get("model_short_aliases"))
+    return _string_map(_llm_metadata_payload(), "model_short_aliases")
 
 
 def model_advisory_map() -> dict[str, dict[str, str]]:
@@ -213,14 +146,7 @@ def model_advisory_map() -> dict[str, dict[str, str]]:
     that declare no ``llm_model_advisories`` hook contribute nothing, so the
     map is empty on a stock install with no advisory-flagged models.
     """
-    advisories = _llm_metadata_payload().get("model_advisories")
-    if not isinstance(advisories, dict):
-        return {}
-    return {
-        str(model): normalize_str_dict(advisory)
-        for model, advisory in advisories.items()
-        if isinstance(advisory, dict)
-    }
+    return _model_advisory_map(_llm_metadata_payload())
 
 
 def model_advisory_for(model: str | None) -> dict[str, str] | None:
@@ -230,24 +156,9 @@ def model_advisory_for(model: str | None) -> dict[str, str] | None:
     return model_advisory_map().get(model)
 
 
-def model_advisory_marker(severity: str | None) -> str:
-    """Return the inline glyph marking an advisory of *severity*.
-
-    Shared by every advisory render site — the model picker, ``%model``
-    completion detail, and the resolved model label — so an advisory reads the
-    same wherever a user meets it.
-    """
-    return "ⓘ" if severity == "info" else "⚠"
-
-
-def model_advisory_color(severity: str | None) -> str:
-    """Return the hex color paired with :func:`model_advisory_marker`."""
-    return "#5FAFD7" if severity == "info" else "#FF8700"
-
-
 def provider_cli_status_color_map() -> dict[str, str]:
     """Return provider colors from plugin metadata, plus vendor-family defaults."""
-    return normalize_str_dict(_llm_metadata_payload().get("provider_cli_status_colors"))
+    return _string_map(_llm_metadata_payload(), "provider_cli_status_colors")
 
 
 def model_picker_hidden_provider_names() -> frozenset[str]:
@@ -258,23 +169,12 @@ def model_picker_hidden_provider_names() -> frozenset[str]:
     exists only for testing can opt out of the ACE model picker and ``%model``
     completion catalog while remaining fully registered and routable.
     """
-    providers = _llm_metadata_payload().get("providers")
-    if not isinstance(providers, dict):
-        return frozenset()
-    return frozenset(
-        name
-        for name, metadata in providers.items()
-        if isinstance(metadata, dict)
-        and metadata.get("hidden_from_model_pickers") is True
-    )
+    return _hidden_provider_names(_llm_metadata_payload())
 
 
 def _provider_names() -> list[str]:
     """Return all registered provider names (entry-point keys)."""
-    names = _llm_metadata_payload().get("provider_names")
-    if not isinstance(names, list):
-        return []
-    return [str(name) for name in names]
+    return _payload_provider_names(_llm_metadata_payload())
 
 
 def registered_provider_names() -> list[str]:
@@ -300,26 +200,12 @@ def _provider_cli_available(provider_name: str) -> bool:
     Tests that change provider metadata, ``PATH``, or a provider-path override
     should call ``_provider_cli_available.cache_clear()``.
     """
-    providers = _llm_metadata_payload().get("providers")
-    if not isinstance(providers, dict):
-        return False
-    metadata = providers.get(provider_name)
-    if not isinstance(metadata, dict):
-        return False
-    cli_name = metadata.get("autodetect_cli_name")
-    if cli_name is not None:
-        cli_name = str(cli_name).strip() or None
-    override = os.environ.get(provider_path_env_var(provider_name), "").strip()
-    command = override or cli_name
-    if command is None:
-        return True
-    expanded = os.path.expanduser(command)
-    if shutil.which(expanded) is not None:
-        return True
-    if os.sep in expanded:
-        candidate = Path(expanded)
-        return candidate.is_file() and os.access(candidate, os.X_OK)
-    return False
+    return _provider_cli_available_from_payload(
+        provider_name,
+        _llm_metadata_payload(),
+        environ=os.environ,
+        which=shutil.which,
+    )
 
 
 def capture_provider_disable_snapshot(
@@ -387,45 +273,7 @@ def build_provider_routing_statuses(
 
 
 def _provider_model_counts(payload: Mapping[str, object]) -> dict[str, int]:
-    providers = payload.get("providers")
-    model_to_provider = payload.get("model_to_provider")
-    counts: dict[str, int] = {}
-    if isinstance(model_to_provider, dict):
-        for provider in model_to_provider.values():
-            counts[str(provider)] = counts.get(str(provider), 0) + 1
-    if isinstance(providers, dict):
-        for provider, metadata in providers.items():
-            if provider in counts or not isinstance(metadata, dict):
-                continue
-            models = metadata.get("known_model_names")
-            counts[str(provider)] = len(models) if isinstance(models, list) else 0
-    return counts
-
-
-def _affected_aliases_by_provider() -> dict[str, tuple[str, ...]]:
-    try:
-        from .alias_view import build_alias_views
-
-        views = build_alias_views(provider_disables={})
-    except Exception:
-        return {}
-
-    affected: dict[str, set[str]] = {}
-    for view in views:
-        providers: set[str] = set()
-        if view.provider:
-            providers.add(view.provider)
-        if view.override is not None:
-            providers.add(view.override.provider)
-        for member in view.selector_members:
-            if member.provider:
-                providers.add(member.provider)
-        for provider in providers:
-            affected.setdefault(provider, set()).add(view.name)
-    return {
-        provider: tuple(sorted(alias_names))
-        for provider, alias_names in affected.items()
-    }
+    return _provider_model_counts_from_payload(payload)
 
 
 def raise_if_provider_temporarily_disabled(
@@ -438,33 +286,6 @@ def raise_if_provider_temporarily_disabled(
     disable = provider_disable_for(provider_name, provider_disables)
     if disable is not None:
         raise ProviderTemporarilyDisabledError(provider_name, disable)
-
-
-def format_provider_disable_expiry(
-    disable: TemporaryProviderDisable,
-    *,
-    now: float | None = None,
-) -> str:
-    """Format a provider-disable expiry for non-TUI diagnostics."""
-    if disable.expires_at is None:
-        return "until cleared"
-    expires = datetime.fromtimestamp(disable.expires_at, tz=UTC).strftime(
-        "%Y-%m-%d %H:%M:%S UTC"
-    )
-    current = datetime.now(tz=UTC).timestamp() if now is None else now
-    remaining = max(0.0, disable.expires_at - current)
-    return f"until {expires} ({_format_duration(remaining)} remaining)"
-
-
-def _format_duration(seconds: float) -> str:
-    total = int(seconds)
-    hours, remainder = divmod(total, 3600)
-    minutes, secs = divmod(remainder, 60)
-    if hours:
-        return f"{hours}h {minutes}m"
-    if minutes:
-        return f"{minutes}m {secs}s"
-    return f"{secs}s"
 
 
 def get_provider(
@@ -581,23 +402,6 @@ def resolve_model_provider_with_effort(
 
     # 3. Unknown model — fall back to default provider
     return None, model_override, resolved.effort
-
-
-def format_provider_model_label(
-    llm_provider: str | None = None,
-    model: str | None = None,
-) -> str:
-    """Format provider and model as PROVIDER(model), e.g. 'CLAUDE(opus)'.
-
-    Falls back to 'Agent' if neither is available.
-    """
-    if llm_provider and model:
-        return f"{llm_provider.upper()}({model})"
-    if llm_provider:
-        return llm_provider.upper()
-    if model:
-        return model
-    return "Agent"
 
 
 def get_configured_default_provider_name(
