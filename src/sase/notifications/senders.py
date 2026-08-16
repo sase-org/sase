@@ -1,7 +1,7 @@
 """Convenience functions that construct and store notifications."""
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from sase.core.paths import sase_subdir
@@ -9,6 +9,9 @@ from sase.core.time import get_timezone
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
 from sase.project_display_names import humanize_cl_name
+
+if TYPE_CHECKING:
+    from sase.llm_provider.usage_limit_config import UsageLimitDetection
 
 
 def notify_memory_proposed(proposal: Any) -> str:
@@ -311,3 +314,73 @@ def notify_hitl_request(
         action_data={"artifacts_dir": artifacts_dir},
     )
     append_notification(n)
+
+
+def notify_provider_usage_limit_disabled(
+    detection: "UsageLimitDetection",
+    *,
+    agent_name: str | None = None,
+    model: str | None = None,
+) -> str:
+    """Send a notification when a provider is auto-disabled for a usage limit.
+
+    Called once per disable window: the caller only invokes this after
+    actually writing a new :class:`TemporaryProviderDisable`, never when an
+    already-active disable was left untouched, so this is naturally
+    deduplicated per window without any bookkeeping here.
+    """
+    from sase.llm_provider.registry import get_llm_metadata_payload
+    from sase.llm_provider.retry_config import truncate_error_snippet
+
+    provider = detection.provider
+    providers_meta = get_llm_metadata_payload().get("providers", {})
+    provider_meta = (
+        providers_meta.get(provider) if isinstance(providers_meta, dict) else None
+    )
+    display_name = (
+        provider_meta.get("display_name") if isinstance(provider_meta, dict) else None
+    ) or provider
+
+    duration_text = _format_duration(detection.disable_seconds)
+    notes = [
+        f"{display_name} disabled for {duration_text} — {detection.matched_pattern}"
+    ]
+
+    if detection.expires_at is not None:
+        re_enable = _format_reenable_time(detection.expires_at)
+        if detection.used_reset_hint:
+            notes.append(f"Re-enables at {re_enable}, as reported by the provider.")
+        else:
+            notes.append(f"Re-enables at {re_enable}.")
+    else:
+        notes.append("Disabled until cleared.")
+
+    if agent_name and model:
+        notes.append(f"Triggered by agent {agent_name} on {model}.")
+    elif agent_name:
+        notes.append(f"Triggered by agent {agent_name}.")
+    elif model:
+        notes.append(f"Triggered on model {model}.")
+
+    notes.append(f'Provider said: "{truncate_error_snippet(detection.raw_message)}"')
+    notes.append("Launches now route to the next enabled provider in each alias.")
+
+    notification_id = str(uuid4())
+    n = Notification(
+        id=notification_id,
+        timestamp=datetime.now(get_timezone()).isoformat(),
+        sender="llm.usage_limit",
+        icon="⛔",
+        notes=notes,
+        tags=normalize_notification_tags(["llm", "usage-limit", provider]),
+    )
+    append_notification(n)
+    return notification_id
+
+
+def _format_reenable_time(epoch: float) -> str:
+    dt = datetime.fromtimestamp(epoch, tz=get_timezone())
+    clock = dt.strftime("%I:%M %p").lstrip("0")
+    tzname = dt.tzname() or ""
+    day = dt.strftime("%a %b %-d")
+    return f"{clock} {tzname} ({day})".strip()

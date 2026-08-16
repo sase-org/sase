@@ -307,7 +307,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(UsageLimitSettings)" \
         --epic-symbol "sase-n4(find_matching_pattern)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
-        --epic-symbol "sase-n4(get_usage_limit_settings)" \
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \

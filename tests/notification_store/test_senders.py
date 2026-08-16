@@ -1,6 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from sase.notifications.store import load_notifications
 
 
@@ -125,6 +127,143 @@ class TestNotifyMentorsComplete:
         assert notification.action_data["patch_name"] == canonical
         assert notification.action_data["changespec_name"] == canonical
         assert notification.action_data["project_file"] == "/canonical/project.sase"
+
+
+def _usage_limit_detection(
+    *,
+    provider: str = "claude",
+    disable_seconds: float = 3660.0,
+    expires_at: float | None = None,
+    used_reset_hint: bool = False,
+):
+    from sase.llm_provider.usage_limit_config import UsageLimitDetection
+
+    return UsageLimitDetection(
+        provider=provider,
+        matched_pattern="you've hit your weekly limit",
+        message="you've hit your weekly limit",
+        raw_message="You've hit your weekly limit · resets 8pm (America/New_York)",
+        disable_seconds=disable_seconds,
+        expires_at=expires_at,
+        reset_hint=None,
+        used_reset_hint=used_reset_hint,
+    )
+
+
+class TestNotifyProviderUsageLimitDisabled:
+    """Tests for notify_provider_usage_limit_disabled()."""
+
+    @pytest.fixture(autouse=True)
+    def _provider_metadata(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.get_llm_metadata_payload",
+            lambda: {"providers": {"claude": {"display_name": "Claude Code"}}},
+        )
+
+    def test_composes_notes_and_tags(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(_usage_limit_detection())
+
+        loaded = load_notifications()
+        assert len(loaded) == 1
+        n = loaded[0]
+        assert n.sender == "llm.usage_limit"
+        assert n.icon == "⛔"
+        assert n.tags == ["llm", "usage-limit", "claude"]
+        assert "Claude Code disabled for 1h 1m" in n.notes[0]
+        assert "you've hit your weekly limit" in n.notes[0]
+        assert "Disabled until cleared." in n.notes
+        assert any("Provider said:" in note for note in n.notes)
+        assert any("route to the next enabled provider" in note for note in n.notes)
+
+    def test_falls_back_to_provider_key_without_display_name(
+        self, temp_notifications_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.get_llm_metadata_payload",
+            lambda: {"providers": {}},
+        )
+
+        notify_provider_usage_limit_disabled(_usage_limit_detection(provider="grok"))
+
+        n = load_notifications()[0]
+        assert n.notes[0].startswith("grok disabled for")
+        assert n.tags == ["llm", "usage-limit", "grok"]
+
+    def test_expiry_notes_reset_hint_provenance(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(
+            _usage_limit_detection(
+                expires_at=1_800_003_600.0,
+                used_reset_hint=True,
+            )
+        )
+
+        n = load_notifications()[0]
+        reenable_note = next(note for note in n.notes if note.startswith("Re-enables"))
+        assert "as reported by the provider" in reenable_note
+
+    def test_expiry_without_reset_hint_omits_provenance(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(
+            _usage_limit_detection(
+                expires_at=1_800_003_600.0,
+                used_reset_hint=False,
+            )
+        )
+
+        n = load_notifications()[0]
+        reenable_note = next(note for note in n.notes if note.startswith("Re-enables"))
+        assert "as reported by the provider" not in reenable_note
+
+    def test_agent_and_model_note(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(
+            _usage_limit_detection(),
+            agent_name="bbugyi200.athena.03j",
+            model="claude-sonnet-5",
+        )
+
+        n = load_notifications()[0]
+        assert "Triggered by agent bbugyi200.athena.03j on claude-sonnet-5." in n.notes
+
+    def test_no_agent_context_omits_triggered_note(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(_usage_limit_detection())
+
+        n = load_notifications()[0]
+        assert not any(note.startswith("Triggered") for note in n.notes)
+
+    def test_provider_said_note_uses_raw_message_not_normalized(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(_usage_limit_detection())
+
+        n = load_notifications()[0]
+        assert any("You've hit your weekly limit" in note for note in n.notes)
+
+    def test_returns_the_notification_id(self, temp_notifications_dir: Path) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notification_id = notify_provider_usage_limit_disabled(_usage_limit_detection())
+
+        loaded = load_notifications()
+        assert loaded[0].id == notification_id
 
 
 class TestNotifyMemoryProposed:

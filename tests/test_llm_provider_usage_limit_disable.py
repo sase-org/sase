@@ -153,3 +153,139 @@ class TestHandlePossibleUsageLimit:
         )
         assert result is None
         assert get_active_provider_disable("fakey") is None
+
+
+class TestUsageLimitNotification:
+    """Notification wiring: fired on write, never on skip, isolated failures."""
+
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_notifies_once_on_new_disable(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        registered_providers: None,
+    ) -> None:
+        mock_detect.return_value = _detection()
+        result = handle_possible_usage_limit(
+            provider="claude", error_text="usage limit reached"
+        )
+        assert result is not None
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.args[0] is result
+
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_concurrent_detections_notify_exactly_once(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        registered_providers: None,
+    ) -> None:
+        mock_detect.return_value = _detection()
+        for _ in range(3):
+            handle_possible_usage_limit(
+                provider="claude", error_text="usage limit reached"
+            )
+        mock_notify.assert_called_once()
+
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch(
+        "sase.llm_provider.usage_limit_disable.get_usage_limit_settings",
+    )
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_respects_notify_setting(
+        self,
+        mock_detect: MagicMock,
+        mock_settings: MagicMock,
+        mock_notify: MagicMock,
+        registered_providers: None,
+    ) -> None:
+        from sase.llm_provider.usage_limit_config import UsageLimitSettings
+
+        mock_detect.return_value = _detection()
+        mock_settings.return_value = UsageLimitSettings(notify=False)
+
+        result = handle_possible_usage_limit(
+            provider="claude", error_text="usage limit reached"
+        )
+
+        assert result is not None
+        mock_notify.assert_not_called()
+
+    @patch(
+        "sase.notifications.senders.notify_provider_usage_limit_disabled",
+        side_effect=RuntimeError("boom"),
+    )
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_notification_failure_does_not_mask_the_detection(
+        self,
+        mock_detect: MagicMock,
+        _mock_notify: MagicMock,
+        registered_providers: None,
+    ) -> None:
+        mock_detect.return_value = _detection()
+        result = handle_possible_usage_limit(
+            provider="claude", error_text="usage limit reached"
+        )
+        assert result is not None
+        assert get_active_provider_disable("claude") is not None
+
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_no_notification_when_no_match(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        registered_providers: None,
+    ) -> None:
+        mock_detect.return_value = None
+        handle_possible_usage_limit(provider="claude", error_text="all good")
+        mock_notify.assert_not_called()
+
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_passes_agent_name_read_from_artifacts_dir(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        registered_providers: None,
+        tmp_path,
+    ) -> None:
+        import json
+
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps({"name": "bbugyi200.athena.03j"})
+        )
+        mock_detect.return_value = _detection()
+
+        handle_possible_usage_limit(
+            provider="claude",
+            error_text="usage limit reached",
+            artifacts_dir=str(artifacts_dir),
+        )
+
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.kwargs["agent_name"] == "bbugyi200.athena.03j"
+
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_agent_name_none_when_meta_file_missing(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        registered_providers: None,
+        tmp_path,
+    ) -> None:
+        mock_detect.return_value = _detection()
+
+        handle_possible_usage_limit(
+            provider="claude",
+            error_text="usage limit reached",
+            artifacts_dir=str(tmp_path / "does-not-exist"),
+        )
+
+        mock_notify.assert_called_once()
+        assert mock_notify.call_args.kwargs["agent_name"] is None

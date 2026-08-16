@@ -7,7 +7,9 @@ store — this module is the only writer that uses ``source="usage_limit"``.
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 
 from sase.telemetry.metrics import LLM_PROVIDER_AUTO_DISABLES
 
@@ -16,7 +18,11 @@ from .provider_disable import (
     disable_provider_until,
     get_active_provider_disable,
 )
-from .usage_limit_config import UsageLimitDetection, detect_usage_limit
+from .usage_limit_config import (
+    UsageLimitDetection,
+    detect_usage_limit,
+    get_usage_limit_settings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +109,52 @@ def _handle_possible_usage_limit(
         artifacts_dir,
     )
 
+    if get_usage_limit_settings().notify:
+        _notify_usage_limit_disabled(
+            detection, model=model, artifacts_dir=artifacts_dir
+        )
+
     return detection
+
+
+def _notify_usage_limit_disabled(
+    detection: UsageLimitDetection,
+    *,
+    model: str | None,
+    artifacts_dir: str | None,
+) -> None:
+    # Isolated from the caller's exception handling: a notification bug must
+    # never mask the disable write that already succeeded above.
+    try:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(
+            detection,
+            agent_name=_agent_name_from_artifacts_dir(artifacts_dir),
+            model=model,
+        )
+    except Exception:
+        logger.warning(
+            "usage-limit notification failed for provider %r",
+            detection.provider,
+            exc_info=True,
+        )
+
+
+def _agent_name_from_artifacts_dir(artifacts_dir: str | None) -> str | None:
+    """Best-effort agent identity for the notification, read from agent_meta.json."""
+    if not artifacts_dir:
+        return None
+    try:
+        data = json.loads(
+            (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    name = data.get("name")
+    return name if isinstance(name, str) and name else None
 
 
 __all__ = [
