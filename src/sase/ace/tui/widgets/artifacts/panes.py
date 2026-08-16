@@ -11,6 +11,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
 from sase.ace.query_profile import compiled_profile_for_builtin_pane
+from sase.core.artifact_relations import RelationIndex
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..._artifact_tab_model import ArtifactsPaneContract
@@ -137,6 +138,14 @@ class ArtifactsPatchesPane(
         # from ``_apply_detail_panel_update``; this pane never feeds the
         # shared non-PR footer-entries renderer.
         return ()
+
+    def relation_index(self) -> RelationIndex | None:
+        """Return the app-owned Patch relation index built on the load path."""
+        app = cast(Any, self.app)
+        getter = getattr(app, "relation_index", None)
+        if callable(getter):
+            return getter()
+        return None
 
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {

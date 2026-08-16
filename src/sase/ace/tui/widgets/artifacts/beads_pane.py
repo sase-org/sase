@@ -21,7 +21,11 @@ from sase.core.query_profile_corpus_facade import (
     evaluate_artifact_query_many,
 )
 
+from sase.core.artifact_relations import RelationIndex
+
 from ..._artifact_tab_model import ArtifactsPaneContract
+from ...relations import build_beads_relation_index
+from ...relations._support import relation_index_if_enabled
 from .bead_filter_bar import BeadFilterBar
 from .beads_data import BeadsSnapshot, load_beads_snapshot
 from .beads_data_models import ExternalIssueLink, ExternalIssueProjectCache
@@ -44,6 +48,7 @@ class _BeadsSnapshotResult:
     filter_index: BeadFilterIndex
     query_index: ArtifactQueryIndex
     initial_query_result: ArtifactQueryResult | None
+    relation_index: RelationIndex | None = None
 
 
 class ArtifactsBeadsPane(
@@ -212,6 +217,12 @@ class ArtifactsBeadsPane(
             filter_index=filter_index,
             query_index=query_index,
             initial_query_result=initial_result,
+            relation_index=relation_index_if_enabled(
+                self.contract,
+                lambda contract: build_beads_relation_index(
+                    snapshot, contract=contract
+                ),
+            ),
         )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
@@ -231,6 +242,7 @@ class ArtifactsBeadsPane(
             cancel_jump("beads")
         self._query_session.clear()
         self._snapshot = result.snapshot
+        self._relation_index = result.relation_index
         self._filter_index = result.filter_index
         self._filter_index_source_key = result.snapshot.source_key
         self._query_index = result.query_index

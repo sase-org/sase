@@ -310,6 +310,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-mq(operational_lease_settlement_policy)' \
         --epic-symbol 'sase-mq(submit_leased_proc_request)' \
         --epic-symbol 'sase-mq(transfer_operational_lease)' \
+        --epic-symbol 'sase-m6.7.1(RelationEdges)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -45,6 +45,11 @@ class ArtifactsSnapshotPane(ArtifactsPaneLifecycle, Vertical):
         self._load_generation = 0
         self._worker_generation = -1
         self._worker_full = False
+        self._relation_index: Any = None
+
+    def relation_index(self) -> Any:
+        """Return the snapshot-owned relation index, if this load built one."""
+        return self._relation_index
 
     def _request_snapshot(self, *, force: bool, full: bool = False) -> None:
         """Coalesce one off-thread load with last-request-wins semantics."""

@@ -25,9 +25,12 @@ from sase.ace.tui.actions.patch import PatchMixin
 from sase.core.query_corpus_facade import QueryCorpus
 
 
-def _make_cs(name: str) -> MagicMock:
+def _make_cs(name: str, *, project: str = "test") -> MagicMock:
     cs = MagicMock()
     cs.name = name
+    cs.project_name = project
+    cs.parent = None
+    cs.status = "WIP"
     return cs
 
 

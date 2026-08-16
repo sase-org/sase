@@ -9,12 +9,17 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual.worker import Worker, WorkerState
 
+from sase.core.artifact_relations import RelationIndex
 from sase.core.query_profile_corpus_facade import (
     ArtifactQueryIndex,
     ArtifactQueryResult,
     evaluate_artifact_query_many,
 )
+from sase.project_display_names import load_project_ref_display_snapshot
 from sase.vcs_log.models import VcsLogResult
+
+from ...relations import build_stitches_relation_index
+from ...relations._support import relation_index_if_enabled
 
 from .commit_filters import CommitLogFilterValues
 from .commits_timeline import CommitsTimeline
@@ -62,6 +67,7 @@ class CommitCollectionPayload:
     result: VcsLogResult
     query_index: ArtifactQueryIndex
     initial_query_result: ArtifactQueryResult
+    relation_index: RelationIndex | None = None
 
 
 class CommitsCollectionMixin(_MixinBase):
@@ -80,6 +86,7 @@ class CommitsCollectionMixin(_MixinBase):
         tuple[CommitScopeKey, CommitLogFilterValues], VcsLogResult
     ]
     _authoritative_query_indexes: dict[int, ArtifactQueryIndex]
+    _relation_indexes_by_result: dict[int, RelationIndex]
     _preview_base: AuthoritativeCommitSnapshot | None
     _filter_session_open: bool
     _live_filter_values: CommitLogFilterValues | None
@@ -142,6 +149,7 @@ class CommitsCollectionMixin(_MixinBase):
         self._collection_pending_force_fetch = False
         self._authoritative_results = {}
         self._authoritative_query_indexes: dict[int, ArtifactQueryIndex] = {}
+        self._relation_indexes_by_result: dict[int, RelationIndex] = {}
         self._preview_base = None
 
     @property
@@ -203,10 +211,25 @@ class CommitsCollectionMixin(_MixinBase):
             self._row_query_string(spec.filters),
             query_index,
         )
+        display = load_project_ref_display_snapshot()
+        project_keys_by_repo: dict[str, str] = {}
+        for entry in result.commits:
+            if entry.repo in project_keys_by_repo:
+                continue
+            mapped = display.project_key_for_ref(entry.repo)
+            project_keys_by_repo[entry.repo] = mapped or entry.repo
         return CommitCollectionPayload(
             result=result,
             query_index=query_index,
             initial_query_result=query_result,
+            relation_index=relation_index_if_enabled(
+                getattr(self, "contract", None),
+                lambda contract: build_stitches_relation_index(
+                    result.commits,
+                    contract=contract,
+                    project_keys_by_repo=project_keys_by_repo,
+                ),
+            ),
         )
 
     def _schedule_collection(self, *, force_fetch: bool = False) -> None:
@@ -258,6 +281,7 @@ class CommitsCollectionMixin(_MixinBase):
                     spec=spec,
                     query_index=payload.query_index,
                     initial_query_result=payload.initial_query_result,
+                    relation_index=payload.relation_index,
                 )
             else:
                 self._apply_result(cast(VcsLogResult, payload), spec=spec)
@@ -281,11 +305,17 @@ class CommitsCollectionMixin(_MixinBase):
         spec: CommitCollectionSpec | None = None,
         query_index: ArtifactQueryIndex | None = None,
         initial_query_result: ArtifactQueryResult | None = None,
+        relation_index: RelationIndex | None = None,
     ) -> None:
         spec = spec or self._collection_spec()
         if initial_query_result is not None:
             self._query_session.remember(initial_query_result)
-        self._remember_authoritative_result(spec, result, query_index=query_index)
+        self._remember_authoritative_result(
+            spec,
+            result,
+            query_index=query_index,
+            relation_index=relation_index,
+        )
         displayed = self._filtered_result(result, spec.filters)
         self._display_result(displayed)
         if not self._filter_session_open:
@@ -311,11 +341,14 @@ class CommitsCollectionMixin(_MixinBase):
         result: VcsLogResult,
         *,
         query_index: ArtifactQueryIndex | None = None,
+        relation_index: RelationIndex | None = None,
     ) -> None:
         key = (spec.scope_key, spec.filters)
         self._authoritative_results[key] = result
         if query_index is not None:
             self._authoritative_query_indexes[id(result)] = query_index
+        if relation_index is not None:
+            self._relation_indexes_by_result[id(result)] = relation_index
         # A filter session can produce many queries. Bound the revert/exact
         # cache while retaining insertion-order recency.
         if len(self._authoritative_results) > 32:
@@ -324,6 +357,7 @@ class CommitsCollectionMixin(_MixinBase):
                 old_result = self._authoritative_results.pop(oldest, None)
                 if old_result is not None:
                     self._authoritative_query_indexes.pop(id(old_result), None)
+                    self._relation_indexes_by_result.pop(id(old_result), None)
 
         candidate = AuthoritativeCommitSnapshot(
             spec.scope_key,
@@ -364,6 +398,19 @@ class CommitsCollectionMixin(_MixinBase):
         result: VcsLogResult,
     ) -> ArtifactQueryIndex | None:
         return self._authoritative_query_indexes.get(id(result))
+
+    def relation_index(self) -> RelationIndex | None:
+        """Return the relation index for the current collection result."""
+        result = getattr(self, "result", None)
+        if result is None:
+            return None
+        cached = self._relation_indexes_by_result.get(id(result))
+        if cached is not None:
+            return cached
+        snap = self._authoritative_snapshot(self.filters)
+        if snap is None:
+            return None
+        return self._relation_indexes_by_result.get(id(snap.result))
 
     def _show_collection_error(self, error: BaseException | None) -> None:
         message = str(error).strip() if error is not None else "unknown error"

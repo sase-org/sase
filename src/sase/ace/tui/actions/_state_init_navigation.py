@@ -80,6 +80,8 @@ def init_navigation_state(self: Any) -> None:
     # list identity changes (see ``_get_patch_graph_index``).
     self._patch_graph_index = None
     self._patch_graph_index_for_id = None
+    self._patch_relation_index = None
+    self._patch_relation_index_for_id = None
 
     # Leader mode state (for , key sub-commands)
     self._leader_mode_active = False

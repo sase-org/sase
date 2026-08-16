@@ -37,6 +37,17 @@ PLAN_COPY_TARGETS: tuple[str, ...] = (
 )
 GENERIC_DOCUMENT_COPY_KEYMAP_GROUP = "artifacts_documents"
 
+PROVIDER_BUNDLE_RELATION = PaneRelationDecl(
+    name="bundle",
+    kind=RelationKind.FAMILY,
+    label="Bundle",
+    source="document_filename_family",
+    target_pane=None,
+    inverse=None,
+    directed=False,
+    transitive=False,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _BuiltinAdapter:
@@ -100,11 +111,11 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
                 transitive=True,
             ),
             PaneRelationDecl(
-                name="plans",
+                name="patches",
                 kind=RelationKind.LINK,
-                label="Plans",
-                source="stitch_plan_links",
-                target_pane="ref:plan",
+                label="Patches",
+                source="stitch_patch_tag",
+                target_pane="patches",
                 inverse="stitches",
                 directed=True,
                 transitive=False,
@@ -480,4 +491,5 @@ __all__ = [
     "GENERIC_DOCUMENT_COPY_TARGETS",
     "PLAN_ADAPTER",
     "PLAN_COPY_TARGETS",
+    "PROVIDER_BUNDLE_RELATION",
 ]

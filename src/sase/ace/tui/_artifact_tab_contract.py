@@ -25,6 +25,7 @@ from ._artifact_tab_contract_adapters import (
     GENERIC_DOCUMENT_COPY_TARGETS,
     PLAN_ADAPTER,
     PLAN_COPY_TARGETS,
+    PROVIDER_BUNDLE_RELATION,
 )
 from ._artifact_tab_contract_provider import (
     REF_CAPABILITIES_CONFIG_KEY,
@@ -154,6 +155,9 @@ def compile_provider_contract(
     if kind == "plan" and not is_degraded:
         relations = relations or PLAN_ADAPTER.relations
         grouping = grouping if grouping.modes else PLAN_ADAPTER.grouping
+    elif not is_degraded and kind != "plan":
+        if all(item.name != PROVIDER_BUNDLE_RELATION.name for item in relations):
+            relations = (*relations, PROVIDER_BUNDLE_RELATION)
 
     if kind == "plan":
         query_profile = compiled_profile_for_builtin_pane("ref:plan")
@@ -425,6 +429,7 @@ __all__ = [
     "GENERIC_DOCUMENT_COPY_TARGETS",
     "PLAN_ADAPTER",
     "PLAN_COPY_TARGETS",
+    "PROVIDER_BUNDLE_RELATION",
     "REF_CAPABILITIES_CONFIG_KEY",
     "REF_CAPABILITIES_SUPPRESS_KEY",
     "REF_GROUPING_CONFIG_KEY",

@@ -309,6 +309,23 @@ def test_patch_contract_names_relation_and_grouping_declarations() -> None:
     ]
 
 
+def test_stitches_contract_names_patches_not_plans() -> None:
+    contract = compile_builtin_contract(
+        "stitches",
+        label="Stitch",
+        icon="x",
+        accent="#000000",
+    )
+    assert [item.name for item in contract.relations] == [
+        "parents",
+        "children",
+        "patches",
+    ]
+    patches = next(item for item in contract.relations if item.name == "patches")
+    assert patches.target_pane == "patches"
+    assert patches.source == "stitch_patch_tag"
+
+
 @pytest.mark.parametrize("adapter", ["stitches", "patches", "beads", "files"])
 def test_builtin_contract_carries_the_matching_compiled_profile(adapter: str) -> None:
     labels = {
@@ -464,7 +481,8 @@ def test_unknown_document_provider_gets_generic_copy_targets() -> None:
     assert not contract.has(PaneCapability.MUTATION)
     assert not contract.has(PaneCapability.VERSIONS)
     assert not contract.has(PaneCapability.PLAN_APPROVE)
-    assert not contract.has(PaneCapability.RELATIONS)
+    assert contract.has(PaneCapability.RELATIONS)
+    assert [item.name for item in contract.relations] == ["bundle"]
     assert not contract.has(PaneCapability.GROUPING)
     relations = contract.verdict_for(PaneCapability.RELATIONS)
     grouping = contract.verdict_for(PaneCapability.GROUPING)

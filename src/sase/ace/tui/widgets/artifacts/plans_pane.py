@@ -19,9 +19,15 @@ from sase.core.query_profile_corpus_facade import (
     ArtifactQueryResult,
     evaluate_artifact_query_many,
 )
+from sase.core.artifact_relations import RelationIndex
 from sase.plan_search.filter_query import to_query_string
 
 from ..._artifact_tab_model import ArtifactsPaneContract
+from ...relations import (
+    build_documents_relation_index,
+    build_provider_relation_index,
+)
+from ...relations._support import relation_index_if_enabled
 from .plan_filter_bar import PlanFilterBar
 from .plans_data import PlansSnapshot, load_plans_snapshot
 from .plans_deep_archive import DEEP_ARCHIVE_DEBOUNCE_S
@@ -57,6 +63,7 @@ class _PlansSnapshotResult:
     filter_index: PlanFilterIndex
     query_index: ArtifactQueryIndex
     initial_query_result: ArtifactQueryResult | None
+    relation_index: RelationIndex | None = None
 
 
 class ArtifactsDocumentsPane(
@@ -252,6 +259,14 @@ class ArtifactsDocumentsPane(
             filter_index=filter_index,
             query_index=query_index,
             initial_query_result=initial_result,
+            relation_index=relation_index_if_enabled(
+                self.contract,
+                lambda contract: (
+                    build_documents_relation_index(snapshot, contract=contract)
+                    if contract.facts.is_plan_adapter
+                    else build_provider_relation_index(snapshot, contract=contract)
+                ),
+            ),
         )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
@@ -272,6 +287,7 @@ class ArtifactsDocumentsPane(
         snapshot_changed = result.snapshot is not self._snapshot
         self._query_session.clear()
         self._snapshot = result.snapshot
+        self._relation_index = result.relation_index
         self._filter_index = result.filter_index
         self._filter_index_snapshot = result.snapshot
         self._query_index = result.query_index

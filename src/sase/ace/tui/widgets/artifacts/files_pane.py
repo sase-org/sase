@@ -26,8 +26,11 @@ from sase.core.query_profile_corpus_facade import (
     ArtifactQueryResult,
     evaluate_artifact_query_many,
 )
+from sase.core.artifact_relations import RelationIndex
 from sase.project_display_names import ProjectRefDisplaySnapshot
 
+from ...relations import build_files_relation_index
+from ...relations._support import relation_index_if_enabled
 from .file_filter_bar import FileFilterBar
 from .files_data import (
     FILES_FIRST_PAGE_LIMIT,
@@ -52,6 +55,7 @@ class _FilesSnapshotResult:
     snapshot: FilesSnapshot
     query_index: ArtifactQueryIndex
     initial_query_result: ArtifactQueryResult | None
+    relation_index: RelationIndex | None = None
 
 
 class ArtifactsFilesPane(
@@ -230,6 +234,12 @@ class ArtifactsFilesPane(
             snapshot=snapshot,
             query_index=query_index,
             initial_query_result=initial_result,
+            relation_index=relation_index_if_enabled(
+                self.contract,
+                lambda contract: build_files_relation_index(
+                    snapshot, contract=contract
+                ),
+            ),
         )
 
     def _accept_snapshot(self, result: Any, request: SnapshotRequest) -> bool:
@@ -251,6 +261,7 @@ class ArtifactsFilesPane(
             cancel_jump("files")
         self._query_session.clear()
         self._snapshot = result.snapshot
+        self._relation_index = result.relation_index
         self._query_index = result.query_index
         if result.initial_query_result is not None:
             self._query_session.remember(result.initial_query_result)

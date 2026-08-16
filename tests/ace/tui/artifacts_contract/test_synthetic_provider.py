@@ -70,7 +70,8 @@ def test_synthetic_provider_earns_generic_document_capabilities() -> None:
     assert not contract.has(PaneCapability.PLAN_APPROVE)
     assert not contract.has(PaneCapability.PLAN_REJECT)
     assert not contract.has(PaneCapability.PLAN_OPEN_BEAD)
-    assert not contract.has(PaneCapability.RELATIONS)
+    assert contract.has(PaneCapability.RELATIONS)
+    assert [item.name for item in contract.relations] == ["bundle"]
     assert not contract.has(PaneCapability.GROUPING)
 
 

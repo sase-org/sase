@@ -40,5 +40,91 @@
     "children": [],
     "siblings": ["foo__1", "foo__2"]
   },
-  "cross_kind_edges": []
+  "cross_kind_edges": [
+    {
+      "relation": "patches",
+      "kind": "link",
+      "source_parts": ["sase", "ccc"],
+      "target_parts": ["sase_key", "feat-x"],
+      "target_pane": "patches",
+      "dangling": false
+    },
+    {
+      "relation": "plans",
+      "kind": "link",
+      "source_parts": ["alpha", "epic", "e1"],
+      "target_parts": ["alpha", "active", "/plans/e1.md"],
+      "target_pane": "ref:plan",
+      "dangling": false
+    },
+    {
+      "relation": "beads",
+      "kind": "link",
+      "source_parts": ["alpha", "proposal", "p1"],
+      "target_parts": ["alpha", "epic", "e1"],
+      "target_pane": "beads",
+      "dangling": false
+    }
+  ],
+  "panes": {
+    "beads": {
+      "project": "alpha",
+      "epics": [{"id": "e1", "status": "open"}],
+      "phases": [{"id": "e1.1", "parent_id": "e1", "status": "closed"}],
+      "tasks": [
+        {
+          "id": "t1",
+          "parent_id": "e1",
+          "status": "open",
+          "depends_on": "e1.1"
+        }
+      ],
+      "plan_links": {"e1": "/plans/e1.md"}
+    },
+    "files": {
+      "logical_id": "notes.md",
+      "versions": ["v1", "v2"]
+    },
+    "stitches": {
+      "project_keys_by_repo": {"sase": "sase_key"},
+      "commits": [
+        {
+          "repo": "sase",
+          "id": "ccc",
+          "parents": ["ppp"],
+          "body": "feat\n\nSASE_PATCH=feat-x"
+        },
+        {"repo": "sase", "id": "ppp", "parents": []}
+      ]
+    },
+    "documents": {
+      "project": "alpha",
+      "proposal": {"id": "p1", "path": "/p.md"},
+      "active": {"path": "/p.md"},
+      "bead_link": {"bead_id": "e1", "bead_type": "plan", "path": "/p.md"}
+    },
+    "provider": {
+      "kind": "notes",
+      "archive": [
+        {"project": "alpha", "path": "/tmp/bundle.md", "relpath": "bundle.md"},
+        {
+          "project": "alpha",
+          "path": "/tmp/bundle__a.md",
+          "relpath": "bundle__a.md",
+          "frontmatter": {"related": "bundle.md"}
+        },
+        {
+          "project": "alpha",
+          "path": "/tmp/bundle__b.md",
+          "relpath": "bundle__b.md"
+        },
+        {
+          "project": "alpha",
+          "path": "/tmp/other.md",
+          "relpath": "other.md",
+          "frontmatter": {"related": "missing.md"}
+        }
+      ]
+    }
+  }
 }

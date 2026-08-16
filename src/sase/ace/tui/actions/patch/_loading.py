@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 from ....patch import Patch
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
+from sase.core.artifact_relations import RelationIndex
 
 #: Module-level cache for the PR filter-outcome document, keyed on
 #: ``(st_mtime_ns, st_size)`` so an unchanged document is never re-read.
@@ -82,6 +83,7 @@ class _PreparedPatchLoad:
     all_patches: list[Patch]
     query_index: ArtifactQueryIndex | None
     pr_unmirrored_counts: dict[str, int]
+    relation_index: RelationIndex | None = None
 
 
 class PatchLoadingMixin:
@@ -110,6 +112,8 @@ class PatchLoadingMixin:
     _patch_query_index_generation: int
     _patch_query_result_cache: OrderedDict[ArtifactQueryCacheKey, ArtifactQueryResult]
     _pr_unmirrored_counts_by_display_name: dict[str, int]
+    _patch_relation_index: RelationIndex | None
+    _patch_relation_index_for_id: int | None
 
     def _compat_loader(
         self,
@@ -174,6 +178,7 @@ class PatchLoadingMixin:
             all_patches=all_patches,
             query_index=query_index,
             pr_unmirrored_counts=_cached_pr_unmirrored_counts(),
+            relation_index=_build_patch_relation_index(all_patches),
         )
 
     def _patch_profile(self) -> CompiledQueryProfile:
@@ -242,6 +247,9 @@ class PatchLoadingMixin:
         """
         self._get_patch_query_index(all_patches)
         self._all_patches = all_patches  # Cache for ancestry lookup
+        self._store_patch_relation_index(
+            all_patches, _build_patch_relation_index(all_patches)
+        )
         self.patches = self._filter_patches(all_patches)
 
         # Marks are stable-target based and survive reload; a mark whose
@@ -400,6 +408,7 @@ class PatchLoadingMixin:
             current_name,
             query_index=prepared.query_index,
             pr_unmirrored_counts=prepared.pr_unmirrored_counts,
+            relation_index=prepared.relation_index,
         )
 
     def _snapshot_active_patch_name(self) -> str | None:
@@ -442,6 +451,7 @@ class PatchLoadingMixin:
             current_name,
             query_index=prepared.query_index,
             pr_unmirrored_counts=prepared.pr_unmirrored_counts,
+            relation_index=prepared.relation_index,
         )
 
     def _apply_reloaded_patches(
@@ -451,6 +461,7 @@ class PatchLoadingMixin:
         *,
         query_index: ArtifactQueryIndex | None = None,
         pr_unmirrored_counts: dict[str, int] | None = None,
+        relation_index: RelationIndex | None = None,
     ) -> None:
         """Apply a freshly-loaded patch list and reposition the cursor."""
         from ...util.selection import restore_selection_by_identity
@@ -483,6 +494,12 @@ class PatchLoadingMixin:
         else:
             self._apply_prepared_patch_query_index(all_patches, query_index)
         self._all_patches = all_patches  # Cache for ancestry lookup
+        stored = (
+            relation_index
+            if relation_index is not None
+            else _build_patch_relation_index(all_patches)
+        )
+        self._store_patch_relation_index(all_patches, stored)
         if use_legacy_filter and legacy_filter_fn is not None:
             new_patches = legacy_filter_fn(all_patches)
         elif use_canonical_filter and canonical_filter_fn is not None:
@@ -590,3 +607,38 @@ class PatchLoadingMixin:
             if self._patches_refresh_pending:
                 self._patches_refresh_pending = False
                 self._schedule_patches_async_refresh()
+
+    def _store_patch_relation_index(
+        self,
+        patches: list[Patch],
+        index: RelationIndex | None,
+    ) -> None:
+        self._patch_relation_index = index
+        self._patch_relation_index_for_id = id(patches)
+
+    def relation_index(self) -> RelationIndex | None:
+        """Return the load-owned Patch relation index for ``_all_patches``."""
+        patches = getattr(self, "_all_patches", None)
+        if patches is None:
+            return None
+        if getattr(self, "_patch_relation_index_for_id", None) != id(patches):
+            return None
+        return getattr(self, "_patch_relation_index", None)
+
+
+def _build_patch_relation_index(patches: list[Patch]) -> RelationIndex | None:
+    """Build the Patch relation index on a load path, never a keystroke path."""
+    from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
+    from sase.ace.tui.models.patch_graph_index import build_patch_graph_index
+    from sase.ace.tui.relations import build_patches_relation_index
+    from sase.ace.tui.relations._support import relation_index_if_enabled
+
+    contract = compile_builtin_contract("patches", label="Patch", icon="", accent="")
+    return relation_index_if_enabled(
+        contract,
+        lambda compiled: build_patches_relation_index(
+            patches,
+            build_patch_graph_index(patches),
+            contract=compiled,
+        ),
+    )
