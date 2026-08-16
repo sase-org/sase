@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets.artifacts import files_pane
+from sase.ace.tui.widgets.artifacts import files_detail_panel, files_pane
 from sase.ace.tui.widgets.artifacts.files_detail import (
     build_file_detail,
     load_file_detail,
@@ -247,7 +247,7 @@ async def test_rapid_navigation_loads_only_the_final_detail(
         "load_files_snapshot",
         lambda project, _limit: snapshot(rows, project=project),
     )
-    monkeypatch.setattr(files_pane, "load_file_detail", load_detail)
+    monkeypatch.setattr(files_detail_panel, "load_file_detail", load_detail)
 
     async with AcePage(initial_tab="patches") as page:
         await page.press(page.artifacts_digit("files"), "(")
