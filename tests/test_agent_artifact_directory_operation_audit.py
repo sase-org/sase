@@ -276,13 +276,6 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directory."
         ),
     ),
-    "src/sase/workspace_provider/reset_replay.py:_clear_owned_paths": DirOpReview(
-        exemption=(
-            "Clears only caller-supplied paths after resolving and verifying each "
-            "path is inside the live leased checkout; reset-and-replay already "
-            "refuses primary, unclaimed, and non-operational contexts."
-        ),
-    ),
     "src/sase/workspace_provider/utils.py:ensure_git_clone_at": DirOpReview(
         exemption=(
             "Workspace checkout directory under a managed root, not an agent "
