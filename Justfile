@@ -1075,6 +1075,11 @@ view-hints-perf-check *args: _setup
     @printf "\n---------- Agents view-hints regression floor (sase-a5.6) ----------\n"
     {{ venv_bin }}/python tests/perf/check_view_hints_regression.py {{ args }}
 
+# Run the Agents-tab disk-load operation-count regression floor.
+agent-disk-load-ops-check *args: _setup
+    @printf "\n---------- Agents disk-load operation-count floor (sase-n7.5) ----------\n"
+    {{ venv_bin }}/python tests/perf/check_agent_disk_load_ops_regression.py {{ args }}
+
 # Run a tiny bead benchmark as a CI smoke. This records the Rust-backed
 # shell/facade/work-plan path without enforcing workstation-sensitive latency
 # thresholds.

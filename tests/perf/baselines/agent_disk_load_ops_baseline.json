@@ -1,0 +1,20 @@
+{
+  "benchmark": "agent_disk_load_ops",
+  "schema_version": 1,
+  "scenarios": {
+    "monitors_0": {
+      "artifact_index_queries": 1,
+      "loader_index_queries": 1,
+      "monitor_reconcile_index_queries": 0,
+      "proc_store_reads": 0,
+      "sync_reconcile_calls": 0
+    },
+    "monitors_250": {
+      "artifact_index_queries": 1,
+      "loader_index_queries": 1,
+      "monitor_reconcile_index_queries": 0,
+      "proc_store_reads": 0,
+      "sync_reconcile_calls": 0
+    }
+  }
+}
