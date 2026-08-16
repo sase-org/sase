@@ -750,6 +750,7 @@ def _full_lane_recording_args(mode: str) -> list[str]:
             "changed_files": (
                 None if change_set is None else sorted(set(change_set.paths))
             ),
+            "tree_dirty": None if change_set is None else change_set.tree_dirty,
         }
     )
     return ["-p", HEALTH_PLUGIN_MODULE]

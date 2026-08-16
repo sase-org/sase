@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 from tests._test_selection_health import (  # noqa: E402
     CollectibleNodeIdOracle,
     CommitOrderOracle,
+    attributable_dirty_failures,
     collectible_nodeid_oracle,
     git_ancestor_oracle,
     git_commit_order_oracle,
@@ -167,6 +169,26 @@ def _stale_and_unresolved_lines(stale: frozenset[str], unresolved: int) -> list[
     return lines
 
 
+def _dirty_attribution_lines(excluded: Sequence[tuple[str, str]]) -> list[str]:
+    """Failures the gate discounted as the editing workspace's own dirty tree.
+
+    Surfaced by name rather than folded into a silent smaller count: a reader
+    watching the flake count drop needs to see it was attributed evidence
+    leaving, not a real flake going unnoticed. See
+    ``attributable_dirty_failures`` in ``tests/_test_selection_health_correlation.py``.
+    """
+    if not excluded:
+        return []
+    lines = [
+        f"flake baseline gate: {len(excluded)} failure(s) excluded from flake "
+        "evidence as attributable dirty-tree source-audit breakage (recorded "
+        "tree_dirty=True and a changed file inside the failing audit's own "
+        "scanned source root):"
+    ]
+    lines.extend(f"  {nodeid} ({record})" for nodeid, record in sorted(excluded))
+    return lines
+
+
 def _flake_gate_result(
     full_runs: tuple[FullRunRecord, ...],
     baseline: FlakeBaseline,
@@ -205,7 +227,13 @@ def _flake_gate_result(
         max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN,
         commit_order=commit_order,
     )
-    diagnostics = _stale_and_unresolved_lines(stale, unresolved)
+    excluded_dirty = attributable_dirty_failures(
+        eligible, max_failures_per_run=MAX_GATED_FAILURES_PER_FULL_RUN
+    )
+    diagnostics = [
+        *_stale_and_unresolved_lines(stale, unresolved),
+        *_dirty_attribution_lines(excluded_dirty),
+    ]
     new_flakes = sorted(current - baseline.nodeids)
     if not new_flakes:
         return 0, [

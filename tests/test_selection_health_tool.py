@@ -35,6 +35,10 @@ TOOL_PATH = ROOT / "tools" / "selection_health"
 NOW = datetime(2026, 8, 5, 12, 0, 0, tzinfo=UTC)
 WORKSPACE = "/workspaces/sase_11"
 FLAKE_NODE = "tests/test_flaky.py::test_x"
+AUDIT_NODE = (
+    "tests/test_agent_artifact_marker_path_passing_audit.py"
+    "::test_tracked_marker_path_passing_sites_are_reviewed"
+)
 
 
 def _load_tool() -> ModuleType:
@@ -91,6 +95,7 @@ def _write_full_run(
     minute: int,
     changed_files: list[str],
     failures: list[str],
+    tree_dirty: bool | None = None,
 ) -> None:
     when = NOW + timedelta(minutes=minute)
     path = allocate_record_path(
@@ -105,6 +110,7 @@ def _write_full_run(
             exit_status=1,
             workspace=WORKSPACE,
             changed_files=changed_files,
+            tree_dirty=tree_dirty,
             now=when,
         ),
     )
@@ -441,3 +447,54 @@ def test_fail_on_new_flake_ignores_fixed_deterministic_breaks(
     )
 
     assert "no new reproducible flakes" in capsys.readouterr().out
+
+
+def test_fail_on_new_flake_excludes_attributable_dirty_tree_audit_failures(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # sase-lc: a source-tree audit failing twice, from unrelated workspaces,
+    # each time recorded dirty with an uncommitted change under the audit's
+    # own scanned root (src/sase/). Without the attribution rule this shape
+    # is exactly what made the node read as a reproducible flake.
+    store = tmp_path / "store"
+    _write_full_run(
+        store,
+        minute=1,
+        changed_files=["src/sase/monitor/supervise.py"],
+        failures=[AUDIT_NODE],
+        tree_dirty=True,
+    )
+    _write_full_run(
+        store,
+        minute=2,
+        changed_files=["src/sase/pass.py"],
+        failures=[],
+        tree_dirty=False,
+    )
+    _write_full_run(
+        store,
+        minute=3,
+        changed_files=["src/sase/ace/tui/models/_loaders/_workflow_loaders.py"],
+        failures=[AUDIT_NODE],
+        tree_dirty=True,
+    )
+    baseline = _baseline(tmp_path / "baseline.txt")
+    tool = _load_tool()
+
+    assert (
+        tool.main(
+            [
+                "--store",
+                str(store),
+                "--flake-baseline",
+                str(baseline),
+                "--fail-on-new-flake",
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "no new reproducible flakes" in output
+    assert "excluded from flake evidence as attributable dirty-tree" in output
+    assert AUDIT_NODE in output

@@ -30,6 +30,70 @@ CommitOrderOracle = Callable[[str], int | None]
 CollectibleNodeIdOracle = Callable[[str], bool]
 
 
+#: Test files whose failure can be a deterministic, correct consequence of an
+#: uncommitted edit rather than intermittency: each scans the listed source
+#: root(s) with an AST/text walk and compares the result against a checked-in
+#: reviewed inventory (see ``tests/_agent_artifact_marker_audit_helpers.py``
+#: and its siblings). Editing a file under a listed root without updating the
+#: inventory breaks the audit in that workspace by design — see sase-lc.
+#: Deliberately hand-maintained rather than sniffed from each file's own
+#: `rglob` call: a wrong guess here would silently discard real flake
+#: evidence, so a new source-tree audit must be added deliberately.
+_SOURCE_AUDIT_SCAN_ROOTS: dict[str, tuple[str, ...]] = {
+    "tests/test_agent_artifact_marker_path_passing_audit.py": ("src/sase/",),
+    "tests/test_agent_artifact_marker_mutation_audit.py": ("src/sase/",),
+    "tests/test_commit_type_tag_contract.py": ("src/sase/",),
+    "tests/test_timezone_display_guard.py": ("src/sase/",),
+    "tests/test_agent_tribe_terminology.py": ("src/", "docs/"),
+    "tests/test_markdown_print_width.py": ("src/sase/",),
+    "tests/test_sdd_canonical_layout.py": ("src/sase/sdd/", "docs/", "tests/"),
+}
+
+
+def _is_attributable_dirty_failure(nodeid: str, full_run: FullRunRecord) -> bool:
+    """Whether ``full_run``'s own dirty tree, not intermittency, explains ``nodeid``.
+
+    Requires positive proof, never an inference from absence: an explicitly
+    recorded ``tree_dirty is True`` (a missing or unresolved flag stays
+    evidence, per the module-level warning on
+    :attr:`FullRunRecord.tree_dirty`) and a changed path that falls inside the
+    exact root a registered source-tree audit scans. Both a recorded clean
+    tree and an unrelated changed-file set leave the failure in the ordinary
+    evidence bar untouched.
+    """
+    if full_run.tree_dirty is not True:
+        return False
+    roots = _SOURCE_AUDIT_SCAN_ROOTS.get(nodeid_test_file(nodeid))
+    if not roots:
+        return False
+    changed = full_run.changed_files
+    if not changed:
+        return False
+    return any(path.startswith(root) for path in changed for root in roots)
+
+
+def attributable_dirty_failures(
+    full_runs: Sequence[FullRunRecord],
+    *,
+    max_failures_per_run: int | None = None,
+) -> tuple[tuple[str, str], ...]:
+    """``(nodeid, record name)`` pairs :func:`_flake_evidence_nodeids` excluded.
+
+    Kept separate from the evidence computation so the gate can report exactly
+    how many failures it discounted and why, instead of asking a reader to
+    trust a shrinking count with no explanation attached.
+    """
+    eligible = _ordered_flake_candidate_runs(
+        full_runs, max_failures_per_run=max_failures_per_run, commit_order=None
+    )
+    return tuple(
+        (nodeid, full_run.name)
+        for full_run in eligible
+        for nodeid in full_run.failures
+        if _is_attributable_dirty_failure(nodeid, full_run)
+    )
+
+
 def git_ancestor_oracle(root: Path) -> AncestorOracle:
     """An ``is-ancestor`` predicate, memoised per commit pair.
 
@@ -209,6 +273,14 @@ def _flake_evidence_nodeids(
     ``commit_order`` keeps parallel workspace records in commit order when the
     caller can resolve the commits. Without it, the sequence order is used.
 
+    A failure :func:`_is_attributable_dirty_failure` can explain — a
+    registered source-tree audit, failing in a run recorded with an
+    uncommitted change under the exact root it scans — never enters
+    ``failures_by_node`` at all: it is the editing workspace's own tree,
+    correctly caught, not cross-workspace evidence of anything. See
+    :func:`attributable_dirty_failures` for the matching exclusion count a
+    report can show.
+
     This is the shared evidence bar behind :func:`reproducible_flake_nodeids`
     and :func:`stale_flake_nodeids`, which differ only in which side of
     "still collectable" they keep — neither reasons about that here.
@@ -223,6 +295,8 @@ def _flake_evidence_nodeids(
         changed_files = full_run.changed_files
         assert changed_files is not None
         for nodeid in full_run.failures:
+            if _is_attributable_dirty_failure(nodeid, full_run):
+                continue
             failures_by_node.setdefault(nodeid, []).append((index, changed_files))
 
     flakes: set[str] = set()

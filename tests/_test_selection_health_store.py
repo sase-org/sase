@@ -212,6 +212,7 @@ def full_run_record(
     exit_status: int,
     workspace: str | None,
     changed_files: Sequence[str] | None,
+    tree_dirty: bool | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a full-lane record, identity included.
@@ -219,6 +220,8 @@ def full_run_record(
     ``workspace`` and ``changed_files`` are written even when unresolvable, as
     explicit nulls: a schema-2 record with no identity is as uncorrelatable as
     a pre-schema one, and saying so beats leaving the reader to infer it.
+    ``tree_dirty`` is the same tri-state: ``None`` means unresolvable, not
+    "clean", and correlation must keep treating it that way.
     """
     return {
         "schema": HEALTH_SCHEMA,
@@ -229,6 +232,7 @@ def full_run_record(
         "exit_status": exit_status,
         "workspace": workspace,
         "changed_files": None if changed_files is None else sorted(set(changed_files)),
+        "tree_dirty": tree_dirty,
         "failures": sorted(set(failures)),
     }
 

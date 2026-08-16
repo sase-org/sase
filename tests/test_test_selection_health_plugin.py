@@ -48,6 +48,7 @@ def test_recorder_writes_only_the_failures_it_saw(tmp_path: Path) -> None:
         mode="fast",
         workspace=WORKSPACE,
         changed_files=CHANGED,
+        tree_dirty=True,
     )
 
     for _ in range(2):
@@ -66,6 +67,7 @@ def test_recorder_writes_only_the_failures_it_saw(tmp_path: Path) -> None:
     assert payload["failures"] == ["tests/test_a.py::test_x", "tests/test_c.py"]
     assert payload["workspace"] == WORKSPACE
     assert payload["changed_files"] == list(CHANGED)
+    assert payload["tree_dirty"] is True
 
 
 def test_recorder_never_fails_a_run_over_an_unwritable_store(tmp_path: Path) -> None:
@@ -89,6 +91,7 @@ def test_plugin_registers_a_recorder_and_consumes_the_request(
                 "mode": "cov",
                 "workspace": WORKSPACE,
                 "changed_files": list(CHANGED),
+                "tree_dirty": True,
             }
         ),
     )
@@ -102,6 +105,7 @@ def test_plugin_registers_a_recorder_and_consumes_the_request(
     written = json.loads(record_path.read_text(encoding="utf-8"))
     assert written["workspace"] == WORKSPACE
     assert written["changed_files"] == list(CHANGED)
+    assert written["tree_dirty"] is True
     # Popped so nested pytest subprocesses cannot overwrite this run's record.
     assert RECORD_ENV not in os.environ
 

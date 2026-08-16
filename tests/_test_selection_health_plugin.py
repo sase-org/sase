@@ -41,6 +41,7 @@ class FullRunFailureRecorder:
         mode: str,
         workspace: str | None = None,
         changed_files: Sequence[str] | None = None,
+        tree_dirty: bool | None = None,
     ) -> None:
         self._path = path
         self._head = head
@@ -50,6 +51,7 @@ class FullRunFailureRecorder:
         # in no position to recompute it once it is running.
         self._workspace = workspace
         self._changed_files = changed_files
+        self._tree_dirty = tree_dirty
         self._failures: set[str] = set()
 
     @property
@@ -82,6 +84,7 @@ class FullRunFailureRecorder:
                     exit_status=int(exitstatus),
                     workspace=self._workspace,
                     changed_files=self._changed_files,
+                    tree_dirty=self._tree_dirty,
                 ),
             )
         except OSError:
@@ -116,6 +119,7 @@ def pytest_configure(config: pytest.Config) -> None:
     head = request.get("head")
     workspace = request.get("workspace")
     changed_files = request.get("changed_files")
+    tree_dirty = request.get("tree_dirty")
     recorder = FullRunFailureRecorder(
         Path(str(request["path"])),
         head=str(head) if head else None,
@@ -126,5 +130,6 @@ def pytest_configure(config: pytest.Config) -> None:
             if isinstance(changed_files, list)
             else None
         ),
+        tree_dirty=tree_dirty if isinstance(tree_dirty, bool) else None,
     )
     config.pluginmanager.register(recorder, "sase-selection-health-recorder")

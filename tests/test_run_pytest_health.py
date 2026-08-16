@@ -113,13 +113,11 @@ def test_full_lane_arms_the_failure_recorder(
     # Both halves of the correlation identity are resolved in the parent, and
     # the change set is the selector's own computation, not an approximation.
     assert request["workspace"] == str(runner.REPO_ROOT.resolve())
-    assert request["changed_files"] == sorted(
-        set(
-            runner.compute_change_set(
-                runner.REPO_ROOT, runner.SelectionOptions.from_environment().base_ref
-            ).paths
-        )
+    change_set = runner.compute_change_set(
+        runner.REPO_ROOT, runner.SelectionOptions.from_environment().base_ref
     )
+    assert request["changed_files"] == sorted(set(change_set.paths))
+    assert request["tree_dirty"] == change_set.tree_dirty
 
 
 def test_cost_lane_records_failures_but_not_probe_taxed_durations(

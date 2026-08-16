@@ -116,6 +116,7 @@ def write_full_run(
     minute: int = 30,
     workspace: str | None = WORKSPACE,
     changed_files: tuple[str, ...] | None = CHANGED,
+    tree_dirty: bool | None = None,
 ) -> Path:
     """Record a failing full-suite run ``minute`` minutes after ``NOW``."""
     when = NOW + timedelta(minutes=minute)
@@ -131,6 +132,7 @@ def write_full_run(
             exit_status=1,
             workspace=workspace,
             changed_files=changed_files,
+            tree_dirty=tree_dirty,
             now=when,
         ),
     )

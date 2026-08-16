@@ -108,6 +108,11 @@ class FullRunRecord:
     failures: tuple[str, ...]
     workspace: str | None = None
     changed_files: frozenset[str] | None = None
+    #: Whether the working tree carried uncommitted changes when this run was
+    #: recorded. ``None`` means unrecorded/unresolvable, never "clean" — a
+    #: record written before this field existed, or one where git itself
+    #: failed, must not be silently treated as evidence of a clean tree.
+    tree_dirty: bool | None = None
 
     @property
     def identity(self) -> tuple[str, frozenset[str]] | None:
@@ -155,6 +160,7 @@ def load_records(store: Path) -> HealthRecords:
         elif kind == KIND_FULL_RUN:
             head = payload.get("head")
             changed = payload.get("changed_files")
+            tree_dirty = payload.get("tree_dirty")
             full_runs.append(
                 FullRunRecord(
                     name=entry.name,
@@ -170,6 +176,7 @@ def load_records(store: Path) -> HealthRecords:
                         if isinstance(changed, list)
                         else None
                     ),
+                    tree_dirty=tree_dirty if isinstance(tree_dirty, bool) else None,
                 )
             )
     return HealthRecords(selections=tuple(selections), full_runs=tuple(full_runs))
