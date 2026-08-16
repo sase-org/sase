@@ -9,8 +9,9 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast, get_args
 
+from sase._plan_approval_protocol import EpicLaunchMode
 from sase.env_contracts import provider_project_dir_from_env
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError, GateGroup
@@ -593,7 +594,9 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
             }
         )
     if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID:
-        properties["epic_launch_mode"] = {"enum": ["launch", "skip"]}
+        # Mirror EpicLaunchMode exactly; a schema narrower than the domain type
+        # rejects submissions the responder and prepare_epic_launch both accept.
+        properties["epic_launch_mode"] = {"enum": list(get_args(EpicLaunchMode))}
     return {
         "type": "object",
         "properties": properties,

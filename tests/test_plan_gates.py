@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
+from sase._plan_approval_protocol import EpicLaunchMode
 from sase.notifications.store import load_notifications
 from sase.plan_gate import (
     PlanGateTier,
@@ -75,7 +77,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_approve["input_schema"] == {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {"epic_launch_mode": {"enum": ["launch", "skip"]}},
+        "properties": {"epic_launch_mode": {"enum": ["launch", "detached", "skip"]}},
         "additionalProperties": False,
     }
     assert epic_approve["result_schema"] == {
@@ -133,6 +135,24 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
 
     actions = {row.action for row in load_notifications()}
     assert actions == {"PlanApproval", "EpicApproval"}
+
+
+def test_epic_launch_mode_schema_admits_every_domain_mode(gate_home: Path) -> None:
+    """The gate schema must not be narrower than ``EpicLaunchMode``.
+
+    A schema missing a mode the responder accepts fails the submission with a
+    ``GateError`` after the agent has already done its work.
+    """
+    epic = create_plan_approval_gate(
+        write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
+        "epic-request",
+        agent_name="planner.epic",
+    )
+    request = json.loads(epic.request_path.read_text(encoding="utf-8"))
+    approve = request["options"][0]
+    schema_modes = approve["input_schema"]["properties"]["epic_launch_mode"]["enum"]
+
+    assert set(schema_modes) == set(get_args(EpicLaunchMode))
 
 
 def test_tale_gate_note_and_action_data_are_tier_aware(gate_home: Path) -> None:
