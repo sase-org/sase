@@ -9,6 +9,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NoReturn
 
 from .identity import (
     supervisor_from_previous_boot,
@@ -71,12 +72,15 @@ class ProcControlError(RuntimeError):
 def submit_proc_request(
     request: ProcSubmitRequest,
     *,
+    after_spawn: Callable[[DetachedSupervisor], None] | None = None,
     after_ack: Callable[[Proc], None] | None = None,
 ) -> Proc:
     """Reserve a proc-shell and launch its detached supervisor.
 
-    *after_ack* runs after the supervisor proves it is alive and before the
-    launch barrier is released, so callers can take a workspace claim (or
+    *after_spawn* runs as soon as the detached supervisor reports its real
+    pid, before waiting for its startup acknowledgement.  *after_ack* runs
+    after the supervisor proves it is alive and before the launch barrier is
+    released, so callers can take a workspace claim (or
     other start-side work) without letting the command start first.
     """
     argv = _validated_argv(request.argv)
@@ -139,7 +143,12 @@ def submit_proc_request(
             fingerprint=fingerprint,
         ),
     )
-    return _launch_reserved(outcome.proc, fingerprint=fingerprint, after_ack=after_ack)
+    return _launch_reserved(
+        outcome.proc,
+        fingerprint=fingerprint,
+        after_spawn=after_spawn,
+        after_ack=after_ack,
+    )
 
 
 def stop_proc_shell(proc: Proc, *, requested_by: str | None = None) -> Proc:
@@ -231,6 +240,7 @@ def _launch_reserved(
     proc: Proc,
     *,
     fingerprint: str,
+    after_spawn: Callable[[DetachedSupervisor], None] | None = None,
     after_ack: Callable[[Proc], None] | None = None,
 ) -> Proc:
     try:
@@ -245,6 +255,12 @@ def _launch_reserved(
             termination_reason="launch-failure",
         )
         raise ProcSubmitError(message) from exc
+
+    if after_spawn is not None:
+        try:
+            after_spawn(supervisor)
+        except Exception as exc:
+            _raise_start_hook_error(proc, supervisor, exc)
 
     ack_error = wait_for_start_acknowledgement(proc.proc_id, supervisor)
     if ack_error is not None:
@@ -266,23 +282,7 @@ def _launch_reserved(
         try:
             after_ack(current)
         except Exception as exc:
-            terminate_supervisor(supervisor)
-            message = (
-                str(exc)
-                if isinstance(exc, ProcSubmitError)
-                else f"could not finish proc start: {_one_line(exc)}"
-            )
-            if current.status not in TERMINAL_PROC_STATUSES:
-                settle_proc_shell(
-                    proc.proc_id,
-                    supervisor_id=current.supervisor_id or _starter_supervisor_id(),
-                    status="error",
-                    message=message,
-                    termination_reason="launch-failure",
-                )
-            if isinstance(exc, ProcSubmitError):
-                raise
-            raise ProcSubmitError(message) from exc
+            _raise_start_hook_error(current, supervisor, exc)
 
     try:
         write_launch_barrier(proc.proc_id, request_fingerprint=fingerprint)
@@ -299,6 +299,33 @@ def _launch_reserved(
         raise ProcSubmitError(message) from exc
 
     return get_proc(proc.proc_id) or proc
+
+
+def _raise_start_hook_error(
+    proc: Proc,
+    supervisor: DetachedSupervisor,
+    exc: Exception,
+) -> NoReturn:
+    """Terminate and settle a supervisor whose caller start hook failed."""
+    terminate_supervisor(supervisor)
+    _wait_for_terminal(proc.proc_id, timeout=_LAUNCH_SETTLE_SECONDS)
+    current = get_proc(proc.proc_id) or proc
+    message = (
+        str(exc)
+        if isinstance(exc, ProcSubmitError)
+        else f"could not finish proc start: {_one_line(exc)}"
+    )
+    if current.status not in TERMINAL_PROC_STATUSES:
+        settle_proc_shell(
+            proc.proc_id,
+            supervisor_id=current.supervisor_id or _starter_supervisor_id(),
+            status="error",
+            message=message,
+            termination_reason="launch-failure",
+        )
+    if isinstance(exc, ProcSubmitError):
+        raise exc
+    raise ProcSubmitError(message) from exc
 
 
 def _should_reconcile(proc: Proc) -> bool:

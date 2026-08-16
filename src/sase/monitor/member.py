@@ -62,6 +62,9 @@ def create_monitor_member(
         {
             "monitor_id": monitor_id,
             "proc_id": monitor_id,
+            # The selected agent's pid is not this new proc shell's pid.  Keep
+            # it empty until the detached supervisor reports its real pid.
+            "pid": None,
             "shell_kind": "proc",
             "monitor_command": command,
             "monitor_cwd": cwd,

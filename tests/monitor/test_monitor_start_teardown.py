@@ -71,6 +71,7 @@ def test_start_monitor_tears_down_the_member_when_the_supervisor_cannot_spawn(
     assert len(member_dirs) == 1
     meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "failed"
+    assert meta["pid"] is None
     done = json.loads((member_dirs[0] / "done.json").read_text())
     assert done["monitor_state"] == "failed"
     assert done["project_file"] == str(sase_projects_dir() / "proj" / "proj.sase")

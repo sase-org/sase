@@ -30,7 +30,7 @@ from sase.procs.models import ARTIFACTS_LOG_OWNER
 from sase.procs.request import ProcSubmitRequest
 from sase.procs.runtime import proc_started_path, read_json_object
 from sase.procs.service import ProcSubmitError, submit_proc_request
-from sase.procs.spawn import SUPERVISOR_LOG_NAME
+from sase.procs.spawn import SUPERVISOR_LOG_NAME, DetachedSupervisor
 from sase.running_field import get_claimed_workspaces
 from sase.workspace_provider import resolve_workspace_num_for_dir
 from sase.workspace_provider.utils import parse_workspace_dir
@@ -197,6 +197,11 @@ def _start_monitor_locked(
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
     claim_holder: dict[str, Any] = {}
 
+    def after_spawn(supervisor: DetachedSupervisor) -> None:
+        if supervisor.pid == os.getpid():
+            raise ProcSubmitError("supervisor reported the caller's pid")
+        update_meta_field(artifacts_dir, "pid", supervisor.pid)
+
     def after_ack(proc: Any) -> None:
         supervisor_pid = _supervisor_pid(proc)
         if supervisor_pid is None:
@@ -261,6 +266,7 @@ def _start_monitor_locked(
                     "tail_lines": request.tail_lines,
                 },
             ),
+            after_spawn=after_spawn,
             after_ack=after_ack,
         )
     except ProcSubmitError as exc:

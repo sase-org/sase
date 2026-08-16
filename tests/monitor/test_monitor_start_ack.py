@@ -24,7 +24,7 @@ import pytest
 from sase.core.paths import sase_projects_dir
 from sase.monitor.models import MonitorError, MonitorRecord
 from sase.monitor.start import StartMonitorRequest, start_monitor
-from sase.procs.runtime import proc_started_path
+from sase.procs.runtime import proc_started_path, start_ack_timeout_seconds
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
 from ._fixtures import (
@@ -65,8 +65,8 @@ def _wait_for_recorded_supervisor_pid(
     project_name: str,
     *,
     exclude: Path,
-    timeout: float = _POLL_TIMEOUT,
-) -> int:
+    timeout: float | None = None,
+) -> tuple[int, str]:
     """Poll for the ``pid`` a not-yet-acknowledged supervisor recorded.
 
     ``start_monitor`` overwrites this on the new member's ``agent_meta.json``
@@ -79,6 +79,8 @@ def _wait_for_recorded_supervisor_pid(
     is not enough -- this pid must belong to a distinct, real process,
     never this one.
     """
+    if timeout is None:
+        timeout = 2 * start_ack_timeout_seconds()
     artifacts_root = sase_projects_dir() / project_name / "artifacts" / "ace-run"
     deadline = time.monotonic() + timeout
     poll_interval = 0.02
@@ -91,8 +93,13 @@ def _wait_for_recorded_supervisor_pid(
             except (OSError, json.JSONDecodeError):
                 continue
             pid = meta.get("pid")
-            if isinstance(pid, int) and pid != os.getpid():
-                return pid
+            monitor_id = meta.get("monitor_id")
+            if (
+                isinstance(pid, int)
+                and pid != os.getpid()
+                and isinstance(monitor_id, str)
+            ):
+                return pid, monitor_id
         time.sleep(poll_interval)
     raise AssertionError("supervisor pid was never recorded")
 
@@ -100,7 +107,7 @@ def _wait_for_recorded_supervisor_pid(
 def test_startup_sigterm_settles_stopped_without_running_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("SASE_PROC_BOOTSTRAP_IMPORT_DELAY_SECONDS", "1.0")
+    monkeypatch.setenv("SASE_PROC_BOOTSTRAP_IMPORT_DELAY_SECONDS", "10.0")
     sentinel = tmp_path / "command-ran"
     write_project_file("proj")
     starter_dir = make_starter_agent(
@@ -144,16 +151,20 @@ def test_startup_sigterm_settles_stopped_without_running_command(
     thread = threading.Thread(target=worker)
     thread.start()
     try:
-        supervisor_pid = _wait_for_recorded_supervisor_pid(
-            "proj", exclude=Path(starter_dir), timeout=10.0
+        supervisor_pid, monitor_id = _wait_for_recorded_supervisor_pid(
+            "proj", exclude=Path(starter_dir)
         )
+        assert thread.is_alive()
+        assert not proc_started_path(monitor_id).exists()
         os.kill(supervisor_pid, signal.SIGTERM)
     finally:
         thread.join(timeout=_POLL_TIMEOUT)
     assert not thread.is_alive()
     if errors:
         assert results == []
-        assert any("acknowledge" in str(exc) or "killed" in str(exc) for exc in errors)
+        assert any(
+            "acknowledg" in str(exc) or "killed" in str(exc) for exc in errors
+        ), errors
         assert not sentinel.exists()
         return
     record = results[0]
