@@ -619,7 +619,7 @@ def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:
             assert worker is not None
 
             def _release() -> None:
-                time.sleep(0.02)
+                time.sleep(0.02)  # sase-test-wait: lets the drain reach join first
                 release_refresh.set()
 
             threading.Thread(target=_release, daemon=True).start()
@@ -663,7 +663,7 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
             assert refresh_started.wait(timeout=1.0)
 
             def _release() -> None:
-                time.sleep(0.02)
+                time.sleep(0.02)  # sase-test-wait: lets the drain reach join first
                 release_refresh.set()
 
             threading.Thread(target=_release, daemon=True).start()

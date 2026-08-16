@@ -124,5 +124,5 @@ def test_no_live_refresh_worker_after_drain_window() -> None:
             for thread in threading.enumerate()
         ):
             return
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: poll interval for refresh-thread exit
     raise AssertionError("sase-config-token-refresh still alive after fixture drain")
