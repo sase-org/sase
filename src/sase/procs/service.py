@@ -19,6 +19,7 @@ from .ids import new_proc_id
 from .logs import proc_log_path
 from .models import (
     ACTIVE_PROC_STATUSES,
+    COMMAND_PROC_KIND,
     PROC_LIFECYCLE_PROC_SHELL,
     TERMINAL_PROC_STATUSES,
     Proc,
@@ -80,6 +81,8 @@ def submit_proc_request(
     """
     argv = _validated_argv(request.argv)
     cwd = str(_validated_cwd(request.cwd))
+    if request.kind != COMMAND_PROC_KIND:
+        request = replace(request, kind=COMMAND_PROC_KIND)
     shell_name = _qualified_shell_name(request.shell_name)
     if shell_name != request.shell_name:
         request = replace(request, shell_name=shell_name)

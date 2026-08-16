@@ -40,8 +40,8 @@ For exhaustive flag tables, see the
 | `sase notify list`              | List recent notifications, optionally filtered by sender, tag, unread state, or query.                                                                                                                              | [Notifications](notifications.md)                                        |
 | `sase notify show`              | Show one notification as Markdown or JSON.                                                                                                                                                                          | [Notifications](notifications.md)                                        |
 | `sase proc`                     | Shortcut for `sase proc list`.                                                                                                                                                                                      | [ACE Procs tab](ace.md#procs-tab)                                        |
-| `sase proc list`                | List durable procs; filter by kind, session, project, tag, status, or query.                                                                                                                                        | [ACE Procs tab](ace.md#procs-tab)                                        |
-| `sase proc run -- COMMAND`      | Run a durable command proc; `--detached` makes it global, and `--wait` streams it and returns its exit code.                                                                                                        | [ACE Procs tab](ace.md#procs-tab)                                        |
+| `sase proc list`                | List durable procs; filter by session, project, tag, status, or query.                                                                                                                                              | [ACE Procs tab](ace.md#procs-tab)                                        |
+| `sase proc run -- COMMAND`      | Run a durable command proc; `--session none` leaves it unattributed, and `--wait` streams it and returns its exit code.                                                                                             | [ACE Procs tab](ace.md#procs-tab)                                        |
 | `sase proc show ID`             | Show one proc and its captured output; `--follow` streams until it finishes.                                                                                                                                        | [ACE Procs tab](ace.md#procs-tab)                                        |
 | `sase proc kill ID`             | Kill a running proc by id or unique prefix; an already-terminal proc is an unchanged no-op.                                                                                                                         | [ACE Procs tab](ace.md#procs-tab)                                        |
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                                                                                                                       | [ACE TUI](ace.md#agents-tab-reproduction-bundles)                        |
@@ -63,21 +63,18 @@ capacity-aware display order used by ACE: eligible waiters first, then parked wa
 nearest-opening threshold, with priority and request FIFO preserved inside each group.
 
 `sase proc` operates on durable procs: rows in `~/.sase/procs/procs.jsonl` with combined
-output logs under `~/.sase/procs/logs/`. There are three kinds: `tui` work is run and
-mirrored by one ACE process; `command` work runs under a supervisor but is attributed to
-a session; and `detached` work runs under a supervisor with no owning session, so every
-CLI and TUI includes it in scope. `sase proc run` creates `command` by default, while
-`--detached` creates the global kind and is mutually exclusive with `--session`.
-`sase task` is still accepted as a deprecated alias.
+output logs under `~/.sase/procs/logs/`. New `sase proc run` submissions always create
+`command` rows under a supervisor; `--session` only controls attribution, and
+`--session none` records an unattributed command visible in every session scope.
+Historical `detached` rows remain readable and controllable. `sase task` is still
+accepted as a deprecated alias.
 
-The supervisor is independent of the submitting shell or TUI, so both `command` and
-`detached` work survive TUI restarts and run with no TUI open. Use repeatable
-`--kind command|tui|detached`, or the `--detached` list shorthand, to filter by kind.
-The compact list markers are `⌘` for `command`, `▣` for `tui`, and `◆` for `detached`;
-`sase proc show` spells out the kind and describes detached ownership. Use
-`sase proc kill ID` to stop any active store-backed proc. JSON output uses a `procs`
-array for `list` and a `proc` object for `run`, `show`, and `kill`. Retention keeps
-every pending or running proc plus the newest
+The supervisor is independent of the submitting shell or TUI, so command work survives
+TUI restarts and runs with no TUI open. The compact list markers are `⌘` for `command`,
+`▣` for `tui`, and `◆` for historical `detached` rows; `sase proc show` spells out the
+kind and ownership. Use `sase proc kill ID` to stop any active store-backed proc. JSON
+output uses a `procs` array for `list` and a `proc` object for `run`, `show`, and
+`kill`. Retention keeps every pending or running proc plus the newest
 [`procs.history_limit`](configuration.md#procs) finished ones. See the
 [ACE Procs tab](ace.md#durable-procs) for the full model and the in-TUI equivalents.
 

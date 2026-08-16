@@ -44,7 +44,7 @@ def test_kill_terminal_proc_is_a_json_noop(
     assert dispatch(["proc", "kill", "aaa", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["changed"] is False
     assert payload["proc"]["status"] == "success"
 

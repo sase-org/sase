@@ -1,4 +1,4 @@
-"""Submission and control APIs for detached procs."""
+"""Submission and control APIs for durable procs."""
 
 from __future__ import annotations
 
@@ -100,16 +100,17 @@ def submit_detached_proc(
     timeout_seconds: int | None = None,
     idle_timeout_seconds: int | None = None,
 ) -> Proc:
-    """Record and detach a proc that no interactive session owns.
+    """Legacy wrapper that records an unattributed command proc.
 
-    A detached row carries no ``session_id``, so every surface keeps it in
-    scope no matter which session — if any — submitted it. ``origin`` is the
-    only record of where the work came from and is therefore required.
+    New proc rows no longer use ``detached`` as an execution kind. This API
+    stays import-compatible for older plugins and callers that want no session
+    attribution; ``origin`` remains required so the row still records where the
+    work came from.
     """
     return submit_proc_request(
         ProcSubmitRequest(
             argv=argv,
-            kind=DETACHED_PROC_KIND,
+            kind=COMMAND_PROC_KIND,
             label=label,
             cwd=cwd,
             session_id=None,

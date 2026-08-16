@@ -26,7 +26,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.logs._bounded import log_file_lock
 from sase.plan_chain import agent_family_base
-from sase.procs.models import ARTIFACTS_LOG_OWNER, DETACHED_PROC_KIND
+from sase.procs.models import ARTIFACTS_LOG_OWNER
 from sase.procs.request import ProcSubmitRequest
 from sase.procs.runtime import proc_started_path, read_json_object
 from sase.procs.service import ProcSubmitError, submit_proc_request
@@ -234,7 +234,6 @@ def _start_monitor_locked(
                 cwd=request.cwd,
                 origin=MONITOR_PROC_ORIGIN,
                 proc_id=monitor_id,
-                kind=DETACHED_PROC_KIND,
                 project=request.project_name,
                 workspace_num=lane_start.workspace_num,
                 cl_name=lane_start.cl_name,

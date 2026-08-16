@@ -75,11 +75,11 @@ def test_proc_list_help_documents_every_filter_and_examples() -> None:
 
     assert "usage: sase proc list" in list_help
     assert "-a, --all" in list_help
-    assert "-d, --detached" in list_help
+    assert "--detached" not in list_help
+    assert "--kind" not in list_help
     assert "-j, --json" in list_help
     assert "-r, --running" in list_help
     for short, long, metavar in (
-        ("-k", "--kind", "KIND"),
         ("-n", "--limit", "N"),
         ("-N", "--shell", "NAME"),
         ("-p", "--project", "NAME"),
@@ -105,7 +105,7 @@ def test_proc_run_help_documents_command_and_examples() -> None:
     assert "-- COMMAND ..." in run_help
     assert "-w, --wait" in run_help
     assert "-q, --quiet" in run_help
-    assert "-d, --detached" in run_help
+    assert "--detached" not in run_help
     assert "attribution, not delegation" in run_help
     assert "sase proc run -- just check" in run_help
     assert "-N, --shell" in run_help
@@ -174,26 +174,49 @@ def test_proc_list_status_filter_repeats_and_validates() -> None:
     assert args.status == ["error", "killed"]
 
 
-def test_proc_list_kind_filter_repeats_and_detached_is_a_shorthand() -> None:
-    """Kinds compose, and ``--detached`` is represented independently."""
+def test_proc_list_kind_filter_is_legacy_hidden_but_parseable() -> None:
+    """Historical kind filtering remains available without public help."""
     args = create_parser().parse_args(
-        ["proc", "list", "-k", "command", "-k", "tui", "--detached"]
+        ["proc", "list", "--kind", "command", "-k", "tui", "--kind", "detached"]
     )
 
-    assert args.kind == ["command", "tui"]
-    assert args.detached is True
+    assert args.kind == ["command", "tui", "detached"]
 
 
-def test_proc_run_detached_and_session_are_mutually_exclusive() -> None:
-    """A global detached proc cannot also carry session attribution."""
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["proc", "--detached"],
+        ["proc", "list", "--detached"],
+        ["proc", "list", "-d"],
+        ["task", "--detached"],
+        ["task", "list", "--detached"],
+        ["task", "run", "-d", "--", "true"],
+        ["proc", "run", "--detached", "--session", "latest", "--", "true"],
+    ],
+)
+def test_proc_task_obsolete_detached_selector_fails_with_exact_diagnostic(
+    argv: list[str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Retired detached flags fail before the public argparse surface."""
     parser = create_parser()
 
     with pytest.raises(SystemExit) as exit_info:
-        parser.parse_args(
-            ["proc", "run", "--detached", "--session", "latest", "--", "true"]
-        )
+        parser.parse_args(argv)
 
     assert exit_info.value.code == 2
+    assert capsys.readouterr().err == (
+        "all procs are detached; remove --detached "
+        "(use --session none for no attribution).\n"
+    )
+
+
+def test_proc_run_command_separator_protects_command_argv_from_obsolete_scan() -> None:
+    """A launched command may still receive a literal ``--detached`` argument."""
+    args = create_parser().parse_args(["proc", "run", "--", "echo", "--detached", "-d"])
+
+    assert args.proc_command == ["--", "echo", "--detached", "-d"]
 
 
 def test_proc_status_choices_match_the_store_lifecycle() -> None:

@@ -28,10 +28,11 @@ def prepare_epic_launch(
     origin: EpicLaunchOrigin = "api",
 ) -> EpicLaunchSubmission | None:
     """Start the host-owned epic launch, or intentionally skip it."""
-    # Detached launches now log through the task supervisor, so no caller-owned
-    # response directory is needed; the parameter stays for callers' sake.
+    # Host launches now log through a monitor or proc supervisor, so no
+    # caller-owned response directory is needed; the parameter stays for
+    # callers' sake.
     del response_dir
-    if mode not in {"detached", "skip"}:
+    if mode not in {"launch", "detached", "skip"}:
         raise PlanApprovalActionError(
             "invalid_request",
             "epic_launch_mode",
@@ -90,7 +91,7 @@ def can_claim_epic_launch(
     mode: EpicLaunchMode,
 ) -> bool:
     """Require that the host can durably claim an epic launch."""
-    if mode not in {"detached", "skip"}:
+    if mode not in {"launch", "detached", "skip"}:
         raise PlanApprovalActionError(
             "invalid_request",
             "epic_launch_mode",

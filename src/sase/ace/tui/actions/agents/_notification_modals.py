@@ -402,7 +402,7 @@ def _submit_legacy_epic_launch_task(
             task = prepare_epic_launch(
                 plan_context_from_notification(notification),
                 plan_file,
-                mode="detached",
+                mode="launch",
                 response_dir=response_dir,
                 origin="ace",
             )

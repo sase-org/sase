@@ -48,7 +48,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(
     gate = create_plan_approval_gate(plan, "durable-launch")
     response = {
         "selected_option_ids": ["approve"],
-        "input": {"epic_launch_mode": "detached"},
+        "input": {"epic_launch_mode": "launch"},
         "option_results": [
             {
                 "id": "approve",
@@ -76,7 +76,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(
         )
 
     assert prepare.call_args.args[1] == plan
-    assert prepare.call_args.kwargs["mode"] == "detached"
+    assert prepare.call_args.kwargs["mode"] == "launch"
     assert prepare.call_args.kwargs["origin"] == expected_origin
     assert response["epic_launch_monitor_id"] == "mon-durable"
 
@@ -97,7 +97,7 @@ def test_epic_gate_unresolvable_launch_raises_with_resume_hint(
         execute_gate_selection(
             gate.bundle_path,
             ["approve"],
-            {"epic_launch_mode": "detached"},
+            {"epic_launch_mode": "launch"},
         )
 
     assert exc_info.value.code == "epic_launch_failed"

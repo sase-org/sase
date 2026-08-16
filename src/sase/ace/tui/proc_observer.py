@@ -24,7 +24,6 @@ from sase.core.time import local_now, to_local
 from sase.ops import DurableOperationResult, OperationIOError, read_operation_result
 from sase.procs import (
     ACTIVE_PROC_STATUSES,
-    DETACHED_PROC_KIND,
     Proc,
     proc_store_path,
     read_proc_log_tail,
@@ -178,9 +177,7 @@ class ProcProjection:
         return [
             row
             for row in self.rows
-            if row.proc_type == DETACHED_PROC_KIND
-            or row.session_id is None
-            or row.session_id == self.session_id
+            if row.session_id is None or row.session_id == self.session_id
         ]
 
     def scope_conflict(self, exclusive_scopes: Collection[str]) -> ObservedProc | None:
@@ -488,7 +485,7 @@ def _is_relevant(
 ) -> bool:
     if proc.proc_id in watched:
         return True
-    if proc.kind == DETACHED_PROC_KIND:
+    if proc.session_id is None:
         return True
     if context.session_id is not None and proc.session_id == context.session_id:
         return True

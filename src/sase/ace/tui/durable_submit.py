@@ -75,7 +75,7 @@ def submit_durable_proc_request(
     session_id: str | None = None,
     workspace_claim: Mapping[str, Any] | None = None,
 ) -> DurableSubmitHandle:
-    """Submit argv through the detached proc service. Never executes a callable."""
+    """Submit argv through the durable proc service. Never executes a callable."""
     reject_callable_submission(argv, request)
     submit_request = ProcSubmitRequest(
         argv=list(argv),

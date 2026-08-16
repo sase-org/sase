@@ -308,13 +308,13 @@ def _start_epic_launch_monitor_request(
     return start_monitor.call_args.args[0]
 
 
-def test_start_epic_launch_monitor_falls_back_to_detached_task_when_lane_missing(
+def test_start_epic_launch_monitor_falls_back_to_unattributed_proc_when_lane_missing(
     tmp_path: Path,
 ) -> None:
     plan = tmp_path / "auth rewrite.md"
     task = SimpleNamespace(
         task_id="k7m2xyz",
-        kind="detached",
+        kind="command",
         session_id=None,
     )
     with (
@@ -325,7 +325,7 @@ def test_start_epic_launch_monitor_falls_back_to_detached_task_when_lane_missing
             return_value="sase",
         ),
         patch(
-            "sase.procs.runner.submit_detached_proc",
+            "sase.procs.runner.submit_proc",
             return_value=task,
         ) as submit_task,
     ):
@@ -356,8 +356,8 @@ def test_start_epic_launch_monitor_falls_back_to_detached_task_when_lane_missing
     assert kwargs["origin"] == "telegram"
     assert kwargs["project"] == "sase"
     assert kwargs["cl_name"] == "demo"
+    assert kwargs["session_id"] is None
     assert sorted(kwargs["tags"]) == ["epic", "launch"]
-    assert "session_id" not in kwargs
 
 
 def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
@@ -377,7 +377,7 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
         ),
-        patch("sase.procs.runner.submit_detached_proc") as submit_task,
+        patch("sase.procs.runner.submit_proc") as submit_task,
     ):
         submitted = start_epic_launch_monitor(plan, cwd=tmp_path)
 
@@ -386,7 +386,7 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
     assert read_tasks.call_args.kwargs["status"] == frozenset(
         {"pending", "running", "settling"}
     )
-    assert read_tasks.call_args.kwargs["kind"] == "detached"
+    assert read_tasks.call_args.kwargs["kind"] == {"command", "detached"}
     submit_task.assert_not_called()
 
 

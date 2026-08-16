@@ -54,6 +54,47 @@ def test_projection_detects_active_scope_conflicts() -> None:
     assert projection.scope_conflict({"ace:patch:done"}) is None
 
 
+def test_projection_scope_includes_unattributed_rows() -> None:
+    mine = ObservedProc(
+        proc_id="mine",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="mine",
+        started_at=local_now(),
+        session_id="session-a",
+    )
+    unattributed = ObservedProc(
+        proc_id="unattributed",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="unattributed",
+        started_at=local_now(),
+        session_id=None,
+    )
+    other = ObservedProc(
+        proc_id="other",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="other",
+        started_at=local_now(),
+        session_id="session-b",
+    )
+    projection = ProcProjection(
+        rows=(mine, unattributed, other),
+        active_count=3,
+        session_id="session-a",
+    )
+
+    assert projection.scoped_rows(all_sessions=False) == [mine, unattributed]
+    assert projection.scoped_rows(all_sessions=True) == [mine, unattributed, other]
+
+
 def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
     monkeypatch.setattr(po, "_read_log_tail", lambda proc_id: f"log {proc_id}\n")
     row = po._store_proc_row(

@@ -32,7 +32,7 @@ def test_run_without_a_command_is_a_usage_error(
 def test_run_prints_the_id_and_the_follow_hint(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    """A detached submit reports the new id plus how to watch it."""
+    """A submitted proc reports the new id plus how to watch it."""
     assert dispatch(["proc", "run", "-c", str(tmp_path), "--", *NOOP]) == 0
 
     out = capsys.readouterr().out.splitlines()
@@ -235,15 +235,18 @@ def test_run_session_none_leaves_the_proc_unattributed(
 
     dispatch(["proc", "run", "-j", "-s", "none", "-c", str(tmp_path), "--", *NOOP])
 
-    assert json.loads(capsys.readouterr().out)["proc"]["session_id"] is None
+    proc = json.loads(capsys.readouterr().out)["proc"]
+    assert proc["kind"] == "command"
+    assert proc["detached"] is False
+    assert proc["session_id"] is None
 
 
-def test_run_detached_creates_a_global_detached_kind(
+def test_run_obsolete_detached_flag_is_rejected_before_submission(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    """``--detached`` uses first-class global ownership, not session-none command."""
+    """``--detached`` is now a one-release usage diagnostic."""
     identity = SessionIdentity(
         session_id="20260725T120000Z-99",
         kind="ace",
@@ -253,26 +256,16 @@ def test_run_detached_creates_a_global_detached_kind(
     use_sessions(monkeypatch, [identity])
 
     assert (
-        dispatch(
-            [
-                "proc",
-                "run",
-                "--detached",
-                "--json",
-                "--cwd",
-                str(tmp_path),
-                "--",
-                *NOOP,
-            ]
-        )
-        == 0
+        dispatch(["proc", "run", "--detached", "--cwd", str(tmp_path), "--", *NOOP])
+        == 2
     )
 
-    proc = json.loads(capsys.readouterr().out)["proc"]
-    assert proc["kind"] == "detached"
-    assert proc["detached"] is True
-    assert proc["session_id"] is None
-    assert proc["session_label"] is None
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        "all procs are detached; remove --detached "
+        "(use --session none for no attribution).\n"
+    )
 
 
 def test_run_named_proc_shell_derives_and_does_not_conflate_keys(

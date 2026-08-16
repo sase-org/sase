@@ -1,4 +1,4 @@
-"""Process-level tests for detached proc submission and supervision."""
+"""Process-level tests for durable proc submission and supervision."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ import sase.procs.runner as proc_runner
 from sase.ace.hooks.processes import is_process_running
 from sase.sessions import SessionIdentity
 from sase.procs import (
+    COMMAND_PROC_KIND,
     DETACHED_PROC_KIND,
     Proc,
     ProcControlError,
@@ -144,10 +145,10 @@ def test_submit_validation_and_supervisor_spawn_failure_stay_visible(
     assert procs[0].message == ("could not start proc supervisor: detachment failed")
 
 
-def test_detached_submit_is_owned_by_no_session(
+def test_legacy_detached_submit_creates_unattributed_command_row(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
-    """A detached row stays unattributed even inside a live ACE session."""
+    """The legacy detached API now stays unattributed without writing that kind."""
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
     identity = SessionIdentity(
         session_id="session-live",
@@ -170,7 +171,7 @@ def test_detached_submit_is_owned_by_no_session(
     lines: list[str] = []
     finished = wait_for_proc(proc.proc_id, timeout=10, on_line=lines.append)
 
-    assert proc.kind == DETACHED_PROC_KIND
+    assert proc.kind == COMMAND_PROC_KIND
     assert proc.session_id is None
     assert proc.session_label is None
     assert proc.origin == "telegram"
@@ -179,6 +180,29 @@ def test_detached_submit_is_owned_by_no_session(
     assert finished.session_id is None
     assert lines == ["detached"]
     assert read_procs(session_id=None) == [finished]
+
+
+def test_ace_origin_proc_is_owned_by_its_supervisor_pid(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """ACE submits work; the recorded active owner is the proc supervisor."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    proc = submit_proc(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        label="ACE durable work",
+        cwd=tmp_path,
+        origin="ace",
+    )
+    running = _wait_for_running(proc.proc_id)
+
+    try:
+        assert running.pid is not None
+        assert running.pid != os.getpid()
+        assert running.supervisor_id
+        assert is_process_running(running.pid)
+    finally:
+        kill_proc(proc.proc_id)
+        wait_for_proc(proc.proc_id, timeout=10)
 
 
 def test_detached_submit_validates_argv_and_cwd(

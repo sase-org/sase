@@ -13,6 +13,7 @@ import pytest
 
 from sase.ace.hooks.processes import is_process_running
 from sase.procs import (
+    COMMAND_PROC_KIND,
     PROC_LIFECYCLE_PROC_SHELL,
     ProcSubmitError,
     ProcSubmitRequest,
@@ -85,6 +86,27 @@ def test_submit_request_replay_returns_the_active_row(
     assert replayed.status in {"pending", "running"}
     kill_proc(first.proc_id)
     wait_for_proc(first.proc_id, timeout=15)
+
+
+def test_submit_request_normalizes_legacy_kind_to_command(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    proc = submit_proc_request(
+        ProcSubmitRequest(
+            argv=[sys.executable, "-c", "print('normalized', flush=True)"],
+            label="Normalized",
+            cwd=tmp_path,
+            origin="test",
+            kind="detached",
+            session_id=None,
+        )
+    )
+    finished = wait_for_proc(proc.proc_id, timeout=15)
+
+    assert proc.kind == COMMAND_PROC_KIND
+    assert finished.kind == COMMAND_PROC_KIND
+    assert finished.session_id is None
 
 
 def test_named_proc_shell_reuse_is_project_scoped_and_waits_for_settlement(

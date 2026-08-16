@@ -24,7 +24,7 @@ type TaskLaunchOrigin = EpicLaunchOrigin
 def task_launch_origin_from_gate_source(
     source: str | None,
 ) -> TaskLaunchOrigin:
-    """Map a neutral gate response source to its detached-task origin."""
+    """Map a neutral gate response source to its task-launch origin."""
     return epic_launch_origin_from_gate_source(source)
 
 
@@ -76,23 +76,24 @@ def submit_task_launch_task(
     feedback: str | None = None,
     origin: TaskLaunchOrigin = "api",
 ) -> Proc:
-    """Submit or reuse one globally visible detached task-bead launch."""
+    """Submit or reuse one unattributed task-bead launch."""
     from sase.bead.project_name import infer_project_name_from_cwd
     from sase.logs._bounded import log_file_lock
     from sase.procs import procs_dir
-    from sase.procs.runner import submit_detached_proc
+    from sase.procs.runner import submit_proc
 
     resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
     project = infer_project_name_from_cwd(str(resolved_cwd))
     with log_file_lock(procs_dir() / _TASK_LAUNCH_SUBMIT_LOCK):
         if existing := _active_task_launch(task_id):
             return existing
-        return submit_detached_proc(
+        return submit_proc(
             _build_task_launch_argv(task_id, feedback=feedback),
             label=f"Task launch · {task_id}",
             cwd=resolved_cwd,
             origin=origin,
             project=project,
+            session_id=None,
             tags=_TASK_LAUNCH_TAGS,
         )
 
@@ -104,7 +105,7 @@ def submit_task_launch_for_project(
     feedback: str | None = None,
     origin: TaskLaunchOrigin | None = None,
 ) -> Proc:
-    """Resolve *project* and submit or reuse its detached task launch."""
+    """Resolve *project* and submit or reuse its task launch."""
     return submit_task_launch_task(
         bead_id,
         cwd=resolve_task_launch_cwd_for_project(project),
@@ -114,16 +115,17 @@ def submit_task_launch_for_project(
 
 
 def _is_task_launch_row(task: Proc) -> bool:
-    """Return whether *task* is a detached task-bead launch row."""
+    """Return whether *task* is a task-bead launch row."""
     return set(_TASK_LAUNCH_TAGS).issubset(task.tags) and (
         len(task.command) >= 4 and task.command[:3] == ["sase", "bead", "work"]
     )
 
 
 def active_task_launch_bead_ids() -> frozenset[str]:
-    """Return bead IDs with an active detached task-bead launch."""
+    """Return bead IDs with an active task-bead launch."""
     from sase.procs import (
         ACTIVE_PROC_STATUSES,
+        COMMAND_PROC_KIND,
         DETACHED_PROC_KIND,
         read_procs,
     )
@@ -132,23 +134,24 @@ def active_task_launch_bead_ids() -> frozenset[str]:
         task.command[3]
         for task in read_procs(
             status=ACTIVE_PROC_STATUSES,
-            kind=DETACHED_PROC_KIND,
+            kind={COMMAND_PROC_KIND, DETACHED_PROC_KIND},
         )
         if _is_task_launch_row(task)
     )
 
 
 def _active_task_launch(task_id: str) -> Proc | None:
-    """Return the newest active detached launch for *task_id*, if any."""
+    """Return the newest active launch for *task_id*, if any."""
     from sase.procs import (
         ACTIVE_PROC_STATUSES,
+        COMMAND_PROC_KIND,
         DETACHED_PROC_KIND,
         read_procs,
     )
 
     for task in read_procs(
         status=ACTIVE_PROC_STATUSES,
-        kind=DETACHED_PROC_KIND,
+        kind={COMMAND_PROC_KIND, DETACHED_PROC_KIND},
     ):
         if _is_task_launch_row(task) and task.command[3] == task_id:
             return task

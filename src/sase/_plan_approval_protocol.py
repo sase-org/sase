@@ -25,7 +25,7 @@ from sase.sdd.plan_validate import (
 
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
 PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
-EpicLaunchMode = Literal["detached", "skip"]
+EpicLaunchMode = Literal["launch", "detached", "skip"]
 
 
 @dataclass(frozen=True)

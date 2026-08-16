@@ -131,48 +131,51 @@ Source: `src/sase/integrations/agent_list_entries.py`,
 ## Durable Procs
 
 Plugins and host integrations can submit supervised work through `sase.procs`. Use
-`submit_proc()` when the row may be attributed to an ACE session, and
-`submit_detached_proc()` when no interactive session owns the work:
+`submit_proc()` for every new durable command submission. Pass `session_id=None` when no
+interactive session should own the work:
 
 ```python
 from pathlib import Path
 
 from sase.procs import (
-    DETACHED_PROC_KIND,
+    COMMAND_PROC_KIND,
     read_procs,
-    submit_detached_proc,
+    submit_proc,
 )
 
-proc = submit_detached_proc(
+proc = submit_proc(
     ["python", "-m", "my_plugin.worker"],
     label="Refresh external catalog",
     cwd=Path.cwd(),
     origin="my-plugin",
     project="sase",
+    session_id=None,
     tags=("catalog", "refresh"),
 )
 
-assert proc.kind == DETACHED_PROC_KIND
+assert proc.kind == COMMAND_PROC_KIND
 assert proc.session_id is None
-detached_rows = read_procs(kind=DETACHED_PROC_KIND)
+command_rows = read_procs(kind=COMMAND_PROC_KIND)
 ```
 
-Both submission functions validate a non-empty argument vector and an existing working
-directory, append a durable `pending` row, then start the same detached supervisor. The
-supervisor owns the child process group, captures combined stdout/stderr, and writes the
-terminal status. `submit_detached_proc()` deliberately accepts no `session_id`: `origin`
-is a required explicit argument, and the resulting `detached` row is unattributed even
-when called from a live ACE process. That makes it visible in every session's default
-Procs scope and adds an active detached proc to every live ACE session's top-bar proc
-count.
+`submit_proc()` validates a non-empty argument vector and an existing working directory,
+appends a durable `pending` row, then starts the supervisor. The supervisor owns the
+child process group, captures combined stdout/stderr, and writes the terminal status.
+`session_id=None` records an unattributed command row even when called from a live ACE
+process. That makes it visible in every session's default Procs scope and adds the
+active proc to every live ACE session's top-bar proc count.
+
+The legacy `submit_detached_proc()` compatibility wrapper is still importable for old
+integrations, but new code should call `submit_proc(..., session_id=None)`. The wrapper
+now writes an unattributed `command` row rather than a new `detached` row.
 
 `read_procs()` and `filter_procs()` accept `kind=` as one string or a collection. Public
 constants are `COMMAND_PROC_KIND`, `TUI_PROC_KIND`, `DETACHED_PROC_KIND`, and
 `PROC_KINDS`; status filters have the same one-or-many shape. Use `wait_for_proc()` to
 stream retained log lines and await completion, or `kill_proc()` to terminate the
-supervised process group. Active `command` and `detached` rows with no supervisor PID
-are allowed a 60-second startup grace period, then reconciled to `error`; `tui` rows are
-owned by the mirroring TUI and are not treated as supervisor orphans.
+supervised process group. Active `command` rows and historical `detached` rows with no
+supervisor PID are allowed a 60-second startup grace period, then reconciled to `error`;
+`tui` rows are owned by the mirroring TUI and are not treated as supervisor orphans.
 
 The storage model, CLI inspection commands, retention, and ACE rendering are documented
 under [Durable Procs](ace.md#durable-procs).

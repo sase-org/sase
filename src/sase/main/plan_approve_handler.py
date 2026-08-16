@@ -150,7 +150,7 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
     elif result.epic_launch_task_id is not None:
         task_id = result.epic_launch_task_id
         Console().print(
-            f"[cyan]Detached proc {task_id}[/cyan] "
+            f"[cyan]Proc {task_id}[/cyan] "
             f"[dim]Follow with `sase proc show {task_id} --follow`.[/dim]"
         )
     sys.exit(0)
@@ -171,7 +171,7 @@ def _approve_plan_from_cli(
         kind,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
-        epic_launch_mode="detached",
+        epic_launch_mode="launch",
         epic_launch_origin="cli",
     )
 

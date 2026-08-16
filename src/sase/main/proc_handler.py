@@ -20,7 +20,6 @@ from sase.sessions import (
 )
 from sase.procs import (
     ACTIVE_PROC_STATUSES,
-    DETACHED_PROC_KIND,
     TERMINAL_PROC_STATUSES,
     Proc,
     ProcControlError,
@@ -36,7 +35,6 @@ from sase.procs import (
     resolve_proc_ref,
     short_proc_id,
     submit_proc,
-    submit_detached_proc,
     wait_for_proc,
 )
 
@@ -84,26 +82,23 @@ class _ListScope:
     def matches(self, proc: Proc) -> bool:
         if self.all_sessions:
             return True
-        if proc.kind == DETACHED_PROC_KIND:
-            return True
         if proc.session_id is None:
-            return self.include_unattributed
+            return True
         return proc.session_id == self.session_id
 
     def label(self) -> str:
         if self.all_sessions:
             return "all sessions"
         if self.session_id is None:
-            return "global (detached + unattributed)"
+            return "unattributed"
         handle = short_session_handle(self.session_id)
         if self.ref is None:
-            return f"this session ({handle}) + detached + unattributed"
-        return f"session {handle} + detached"
+            return f"this session ({handle}) + unattributed"
+        return f"session {handle} + unattributed"
 
     def to_json(self) -> dict[str, Any]:
         return {
             "all": self.all_sessions,
-            "include_detached": True,
             "include_unattributed": self.all_sessions or self.include_unattributed,
             "ref": self.ref,
             "session_id": None if self.all_sessions else self.session_id,
@@ -161,7 +156,7 @@ def _handle_proc_list(args: argparse.Namespace) -> int:
 
 
 def _handle_proc_run(args: argparse.Namespace) -> int:
-    """Submit a detached background proc and optionally wait for it."""
+    """Submit a supervisor-owned proc and optionally wait for it."""
     command = _run_command(args)
     if not command:
         print(
@@ -172,18 +167,15 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
         return 2
 
     cwd = Path(getattr(args, "cwd", None) or Path.cwd()).expanduser()
-    detached = bool(getattr(args, "detached", False))
     session_id: str | None = None
-    if not detached:
-        try:
-            session_id = _resolve_session_id(getattr(args, "session", None))
-        except SessionRefError as exc:
-            print(f"sase proc run: {exc}", file=sys.stderr)
-            return 2
+    try:
+        session_id = _resolve_session_id(getattr(args, "session", None))
+    except SessionRefError as exc:
+        print(f"sase proc run: {exc}", file=sys.stderr)
+        return 2
 
     project, workspace_num = _infer_attribution(cwd, getattr(args, "project", None))
     try:
-        submit = submit_detached_proc if detached else submit_proc
         submit_kwargs: dict[str, Any] = {
             "label": getattr(args, "label", None) or _derived_label(command),
             "cwd": cwd,
@@ -191,13 +183,12 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
             "workspace_num": workspace_num,
             "tags": getattr(args, "tag", None) or (),
             "origin": "cli",
+            "session_id": session_id,
         }
-        if not detached:
-            submit_kwargs["session_id"] = session_id
         shell_name = getattr(args, "shell", None)
         if shell_name:
             submit_kwargs["shell_name"] = shell_name
-        proc = submit(command, **submit_kwargs)
+        proc = submit_proc(command, **submit_kwargs)
     except ProcShellNameError as exc:
         print(f"sase proc run: {exc}", file=sys.stderr)
         return 2
@@ -405,7 +396,7 @@ def _resolve_list_scope(args: argparse.Namespace) -> _ListScope:
     return _ListScope(
         all_sessions=False,
         session_id=session_id,
-        include_unattributed=ref is None or session_id is None,
+        include_unattributed=True,
         ref=ref,
     )
 
@@ -436,8 +427,6 @@ def _is_runtime_submit_error(exc: ProcSubmitError) -> bool:
 
 def _requested_kinds(args: argparse.Namespace) -> set[str] | None:
     kinds: set[str] = {str(value) for value in getattr(args, "kind", None) or ()}
-    if bool(getattr(args, "detached", False)):
-        kinds.add(DETACHED_PROC_KIND)
     return kinds or None
 
 

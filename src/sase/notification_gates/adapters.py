@@ -180,8 +180,8 @@ class GateAdapter:
         )
         if plan_action == "epic" and result.get("epic_launch_owner") == "host":
             effective_input = effective_response_input(response, selected_ids[0])
-            mode = effective_input.get("epic_launch_mode") or "detached"
-            if mode == "detached":
+            mode = effective_input.get("epic_launch_mode") or "launch"
+            if mode != "skip":
                 from sase.plan_approval_actions import (
                     PlanApprovalActionError,
                     durable_plan_file_for_context,
@@ -199,7 +199,7 @@ class GateAdapter:
                     launch = prepare_epic_launch(
                         context,
                         launch_plan,
-                        mode="detached",
+                        mode="launch",
                         response_dir=bundle_path,
                         origin=(
                             epic_launch_origin
@@ -251,7 +251,7 @@ class GateAdapter:
                 target = getattr(exc, "target", "auto")
                 raise GateError(str(code), str(target), str(exc)) from exc
         if self.kind == "epic_plan":
-            return {"epic_launch_mode": "detached"}
+            return {"epic_launch_mode": "launch"}
         return {}
 
 

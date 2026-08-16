@@ -24,7 +24,7 @@ from sase.procs import (
 )
 
 # Bumped only when the JSON payloads below change incompatibly.
-PROC_JSON_SCHEMA_VERSION = 1
+PROC_JSON_SCHEMA_VERSION = 2
 
 # The Procs-tab glyphs, plus a distinct pair for the two states the tab has
 # no icon for: a proc that has not started yet, and one that was killed.
@@ -48,8 +48,6 @@ _TERMINAL_ROW_STYLE = "dim"
 _EMPTY_HINT = (
     "Nothing here yet. Start one with:\n\n"
     "  sase proc run -- <command>\n\n"
-    "Or start globally visible work with:\n\n"
-    "  sase proc run --detached -- <command>\n\n"
     "Then follow it with `sase proc show <id> --follow`."
 )
 
@@ -70,7 +68,7 @@ def _kind_text(kind: str, *, verbose: bool = False) -> Text:
     glyph, style = _KIND_DISPLAY.get(kind, _UNKNOWN_KIND_DISPLAY)
     label = kind
     if kind == DETACHED_PROC_KIND and verbose:
-        label = "detached (global; no session owns this proc)"
+        label = "detached (legacy; no session attribution)"
     return Text(f"{glyph} {label}" if verbose else glyph, style=style)
 
 
@@ -94,6 +92,7 @@ def _proc_json(
     payload["named_proc_shell"] = proc.shell_name
     payload["is_terminal"] = proc.status in TERMINAL_PROC_STATUSES
     payload["detached"] = proc.kind == DETACHED_PROC_KIND
+    payload["unattributed"] = proc.session_id is None
     payload["duration_seconds"] = _proc_duration_seconds(proc)
     payload["session_handle"] = (
         short_session_handle(proc.session_id) if proc.session_id else None

@@ -37,7 +37,7 @@ _GATE_SOURCE_TO_EPIC_LAUNCH_ORIGIN: dict[str, EpicLaunchOrigin] = {
 def epic_launch_origin_from_gate_source(
     source: str | None,
 ) -> EpicLaunchOrigin:
-    """Map a neutral gate response source to its detached-task origin."""
+    """Map a neutral gate response source to its epic-launch origin."""
     return _GATE_SOURCE_TO_EPIC_LAUNCH_ORIGIN.get(source or "", "api")
 
 
@@ -118,8 +118,8 @@ def start_epic_launch_monitor(
 ) -> EpicLaunchSubmission:
     """Start one monitor member for an approved epic plan.
 
-    If the planner's lane is no longer resolvable, fall back to the legacy
-    detached-task submission so the approved epic still launches.
+    If the planner's lane is no longer resolvable, fall back to an
+    unattributed proc submission so the approved epic still launches.
 
     Raises:
         MonitorError: The monitor could not be started after lane resolution.
@@ -167,7 +167,7 @@ def start_epic_launch_monitor(
                 )
             except MonitorLaneError:
                 _logger.warning(
-                    "Falling back to detached epic launch task for %s: "
+                    "Falling back to unattributed epic launch task for %s: "
                     "planner lane %r is not resolvable",
                     resolved_plan,
                     lane,
@@ -175,7 +175,7 @@ def start_epic_launch_monitor(
                 )
         else:
             _logger.warning(
-                "Falling back to detached epic launch task for %s: planner lane "
+                "Falling back to unattributed epic launch task for %s: planner lane "
                 "is unavailable",
                 resolved_plan,
             )
@@ -258,12 +258,12 @@ def _submit_epic_launch_task(
     label: str,
     resolved_plan: Path,
 ) -> Proc:
-    """Submit the legacy detached task fallback for an approved epic plan."""
-    from sase.procs.runner import submit_detached_proc
+    """Submit the unattributed proc fallback for an approved epic plan."""
+    from sase.procs.runner import submit_proc
 
     if existing := _active_epic_launch_for_plan(resolved_plan):
         return existing
-    return submit_detached_proc(
+    return submit_proc(
         build_epic_launch_argv(
             plan_file,
             artifacts_dir=artifacts_dir,
@@ -273,22 +273,24 @@ def _submit_epic_launch_task(
         cwd=cwd,
         origin=origin,
         project=project,
+        session_id=None,
         tags=_EPIC_LAUNCH_TAGS,
         cl_name=cl_name,
     )
 
 
 def _active_epic_launch_for_plan(plan_file: Path) -> Proc | None:
-    """Return the newest active detached launch for *plan_file*, if any."""
+    """Return the newest active launch for *plan_file*, if any."""
     from sase.procs import (
         ACTIVE_PROC_STATUSES,
+        COMMAND_PROC_KIND,
         DETACHED_PROC_KIND,
         read_procs,
     )
 
     for task in read_procs(
         status=ACTIVE_PROC_STATUSES,
-        kind=DETACHED_PROC_KIND,
+        kind={COMMAND_PROC_KIND, DETACHED_PROC_KIND},
     ):
         if not set(_EPIC_LAUNCH_TAGS).issubset(task.tags):
             continue

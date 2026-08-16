@@ -5036,19 +5036,18 @@ Procs the TUI runs itself are **mirrored** into the durable proc store
 (`~/.sase/procs/procs.jsonl`, with one combined output log per proc under
 `~/.sase/procs/logs/`), so their outcome survives the session that produced them and is
 visible from `sase proc list` / `sase proc show`. Supervisor-backed procs — commands
-submitted with `sase proc run`, programmatic detached procs, and the detached fallback
-for an epic approval whose planner agent family cannot be resolved — are read back out
-of that store and rendered here, so work that this process never owned still shows up on
-the tab.
+submitted with `sase proc run`, programmatic submissions, and the unattributed command
+fallback for an epic approval whose planner agent family cannot be resolved — are read
+back out of that store and rendered here, so work that this process never owned still
+shows up on the tab.
 
-The pane defaults to **this session** plus unattributed procs and every global
-`detached` proc; press `a` to widen it to every session. Detached procs remain visible
-in both modes. The pane title names the active scope, e.g.
-`Procs · this session  [2 running · 5 done]`. Rows read from the store carry a colored
-session chip (`ace·sase#14 4f2a`) that matches the one `sase proc list` prints; a
-session that has since exited renders dim with a `†`. An ordinary unattributed proc
-renders a dim `—`; a global proc instead carries a cyan `◆ detached` marker that makes
-its ownership explicit.
+The pane defaults to **this session** plus unattributed procs; press `a` to widen it to
+every session. Historical `detached` rows remain visible in both modes. The pane title
+names the active scope, e.g. `Procs · this session  [2 running · 5 done]`. Rows read
+from the store carry a colored session chip (`ace·sase#14 4f2a`) that matches the one
+`sase proc list` prints; a session that has since exited renders dim with a `†`. An
+ordinary unattributed proc renders a dim `—`; a historical detached proc carries a cyan
+`◆ detached` marker that makes the legacy row kind explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
@@ -5058,8 +5057,8 @@ oldest-first, and running procs are never pruned. Because the store owns that re
 `d` / `D` only dismiss this session's in-memory rows.
 
 The top-bar proc indicator counts this session's active `command` procs plus **every
-active `detached` proc globally**, including an approved epic that had to use the
-detached-proc fallback.
+active unattributed proc globally**, including an approved epic that had to use the
+unattributed command fallback.
 
 ### Layout
 
@@ -5083,7 +5082,7 @@ Procs are durable records shared by every SASE surface, not just rows in this pa
 live in `~/.sase/procs/procs.jsonl`, with one combined stdout/stderr log per proc under
 `~/.sase/procs/logs/<proc_id>.log`. Because the records outlive the process that
 produced them, `sase proc` can list and inspect work started anywhere — including a
-TaskTriage launch or detached command submitted from another client.
+TaskTriage launch or unattributed command submitted from another client.
 
 Each proc carries a 12-character id resolvable by unique prefix (three characters
 minimum, like a git short SHA), so `sase proc show k7m2` works. Statuses are `pending`,
@@ -5103,41 +5102,43 @@ name is only reusable once the proc holding it settles. A monitor's member agent
 
 **Kinds and ownership.**
 
-| Kind       | Typical producer                                                  | Owner and scope                                                     |
-| ---------- | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `tui`      | Work run and mirrored by ACE                                      | The ACE process; scoped to its session                              |
-| `command`  | `sase proc run` or `sase.procs.submit_proc()`                     | The proc supervisor; attributed to one session or left unattributed |
-| `detached` | `sase proc run --detached`, epic-launch fallback, or detached API | The proc supervisor; global because no interactive session owns it  |
+| Kind       | Typical producer                                          | Owner and scope                                                     |
+| ---------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
+| `tui`      | Work run and mirrored by ACE                              | The ACE process; scoped to its session                              |
+| `command`  | `sase proc run` or `sase.procs.submit_proc()`             | The proc supervisor; attributed to one session or left unattributed |
+| `detached` | Historical rows from retired CLI/API detached submissions | The legacy proc supervisor; global because no session owns the row  |
 
-The programmatic detached API is `sase.procs.submit_detached_proc()`. It requires an
-explicit `origin` argument, uses the same detached supervisor and validation as
-`submit_proc()`, and never inherits a live ACE session. The public `read_procs()` and
-`filter_procs()` helpers accept `kind=` as either one kind or a collection. A `command`
-or `detached` row that remains `pending` without a supervisor PID for 60 seconds is
-reconciled to `error`; a mirrored `tui` row is left to its owning TUI. Detached epic
-launches record the approving surface as `ace`, `telegram`, `cli`, or `axe`, with `api`
-retained as the fallback for direct or unrecognized API callers.
+The programmatic submission API is `sase.procs.submit_proc()`. Pass `session_id=None`
+when no interactive session should own the row; it still writes a `command` proc. The
+legacy `sase.procs.submit_detached_proc()` wrapper remains for old callers but now
+records the same unattributed command row. The public `read_procs()` and
+`filter_procs()` helpers accept `kind=` as either one kind or a collection, including
+`detached` when a caller needs historical rows. A `command` or historical `detached` row
+that remains `pending` without a supervisor PID for 60 seconds is reconciled to `error`;
+a mirrored `tui` row is left to its owning TUI. Epic launches record the approving
+surface as `ace`, `telegram`, `cli`, or `axe`, with `api` retained as the fallback for
+direct or unrecognized API callers.
 
 Session attribution is not delegation: a `command` proc always executes under its own
 supervisor, while its session id decides which TUI includes it by default. `--session`
 accepts a full session id, a unique id prefix or short handle, or `current`, `latest`,
 and `none`; the default is this process's ACE session, then the newest live one, then no
-session. `sase proc run --detached` instead creates the global kind and cannot be
-combined with `--session`. `sase proc list` always admits detached work, scopes other
-work to the resolved session plus unattributed rows by default, and widens to other
-sessions with `--all`. Rows from a session that has since exited render dim with a `†`
-marker.
+session. `sase proc run --session none` creates an unattributed command row.
+`sase proc list` scopes work to the resolved session plus unattributed rows by default,
+and widens to every session with `--all`. Rows from a session that has since exited
+render dim with a `†` marker.
 
 **Retention.** [`procs.history_limit`](configuration.md#procs) caps how many _finished_
 procs are kept; pending and running work is never pruned for being old. Lowering the
 limit removes the oldest finished rows and their log files. The legacy
 `tasks.history_limit` key is still honored as a deprecated alias.
 
-The CLI equivalents are `sase proc list` (`--kind` / `--detached` to filter),
-`sase proc show ID` (`--follow` to stream), `sase proc run [--detached] -- COMMAND`
-(`--wait` to stream and inherit the exit code), and `sase proc kill ID`. Approved epics
-normally launch as [monitor shells](monitors.md); only an unresolvable planner agent
-family uses a detached proc. See the [CLI reference](cli.md#daily-operation).
+The CLI equivalents are `sase proc list`, `sase proc show ID` (`--follow` to stream),
+`sase proc run [--session SESSION|none] -- COMMAND` (`--wait` to stream and inherit the
+exit code), and `sase proc kill ID`. A hidden legacy `--kind` filter remains for
+historical kind rows. Approved epics normally launch as [monitor shells](monitors.md);
+only an unresolvable planner agent family uses an unattributed command proc. See the
+[CLI reference](cli.md#daily-operation).
 
 ### Keybindings
 

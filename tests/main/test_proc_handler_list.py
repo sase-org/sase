@@ -9,11 +9,13 @@ import sys
 import pytest
 
 from sase.procs import get_proc
+from sase.sessions import SessionIdentity
 from tests.main.proc_handler_helpers import (
     dead_pid,
     dispatch,
     stored,
     proc_home,
+    use_sessions,
 )
 
 __all__ = ["proc_home"]
@@ -79,6 +81,7 @@ def test_list_empty_store_renders_the_run_hint(
 
     out = capsys.readouterr().out
     assert "sase proc run -- <command>" in out
+    assert "--detached" not in out
     assert "hidden" not in out
 
 
@@ -98,7 +101,7 @@ def test_list_scopes_to_this_session_and_unattributed(
 def test_list_keeps_detached_procs_global_even_for_an_explicit_session(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Detached ownership ignores session scope while other sessions stay hidden."""
+    """Historical detached rows remain readable under unattributed scope."""
     stored(
         "aaaaaaaaaaaa",
         label="Global launch",
@@ -115,8 +118,41 @@ def test_list_keeps_detached_procs_global_even_for_an_explicit_session(
 
     out = capsys.readouterr().out
     assert "Global launch" in out
-    assert "detached" in out
+    assert "◆" in out
     assert "Other session" not in out
+
+
+def test_list_includes_unattributed_procs_for_an_explicit_session(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Explicit session scope includes matching rows plus unattributed rows."""
+    identity = SessionIdentity(
+        session_id="20260725T120000Z-99",
+        kind="ace",
+        pid=os.getpid(),
+        started_at="2026-07-25T12:00:00Z",
+    )
+    use_sessions(monkeypatch, [identity])
+    stored(
+        "aaaaaaaaaaaa",
+        label="Session launch",
+        session_id=identity.session_id,
+    )
+    stored("bbbbbbbbbbbb", label="Unattributed launch", session_id=None)
+    stored(
+        "cccccccccccc",
+        label="Other session",
+        session_id="20260725T120000Z-42",
+    )
+
+    assert dispatch(["proc", "list", "--session", "latest"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Session launch" in out
+    assert "Unattributed launch" in out
+    assert "Other session" not in out
+    assert "+ unattributed" in out
 
 
 def test_list_all_includes_other_sessions_with_a_dead_chip(
@@ -191,15 +227,15 @@ def test_list_applies_status_project_tag_query_and_limit(
     assert "Elsewhere" in capsys.readouterr().out
 
 
-def test_list_filters_by_repeated_kind_and_detached_shorthand(
+def test_list_filters_by_hidden_legacy_kind_filter(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``--kind`` composes, while ``--detached`` selects only global work."""
+    """Suppressed ``--kind`` still filters historical proc kinds."""
     stored("aaaaaaaaaaaa", label="Command proc")
     stored("bbbbbbbbbbbb", label="Detached proc", kind="detached")
     stored("cccccccccccc", label="TUI proc", kind="tui")
 
-    assert dispatch(["proc", "list", "--detached"]) == 0
+    assert dispatch(["proc", "list", "--kind", "detached"]) == 0
     detached = capsys.readouterr().out
     assert "Detached proc" in detached
     assert "◆" in detached
@@ -254,11 +290,10 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     assert dispatch(["proc", "list", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["count"] == 1
     assert payload["scope"] == {
         "all": False,
-        "include_detached": True,
         "include_unattributed": True,
         "ref": None,
         "session_id": None,
@@ -268,6 +303,7 @@ def test_list_json_envelope_is_stable(capsys: pytest.CaptureFixture[str]) -> Non
     assert proc["short_id"] == "aaaaaa"
     assert proc["is_terminal"] is True
     assert proc["detached"] is False
+    assert proc["unattributed"] is True
     assert proc["duration_seconds"] == 5.0
     assert proc["session_handle"] is None
     assert proc["named_proc_shell"] is None

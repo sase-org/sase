@@ -294,8 +294,8 @@ def execute_plan_gate_command(option_id: str) -> int:
             coder_model=_optional_text(raw_input.get("coder_model")),
         )
         if protocol_choice == "epic":
-            mode = raw_input.get("epic_launch_mode", "detached")
-            if mode not in {"detached", "skip"}:
+            mode = raw_input.get("epic_launch_mode", "launch")
+            if mode not in {"launch", "detached", "skip"}:
                 raise ValueError(f"unsupported epic launch mode: {mode}")
             # Transitional compatibility for pre-upgrade agents, which launch
             # the epic themselves unless the host owner is explicit.
@@ -593,7 +593,7 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
             }
         )
     if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID:
-        properties["epic_launch_mode"] = {"enum": ["detached", "skip"]}
+        properties["epic_launch_mode"] = {"enum": ["launch", "skip"]}
     return {
         "type": "object",
         "properties": properties,

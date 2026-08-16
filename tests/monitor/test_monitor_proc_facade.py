@@ -16,7 +16,7 @@ from sase.monitor.models import MonitorRecord
 from sase.monitor.proc_adapter import compile_monitor_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.store import list_monitors, stop_monitor
-from sase.procs.models import DETACHED_PROC_KIND
+from sase.procs.models import COMMAND_PROC_KIND
 from sase.procs.store import get_proc
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
@@ -122,7 +122,7 @@ def test_start_uses_one_proc_id_and_artifacts_cross_links(
     assert proc.proc_id == record.monitor_id
     assert proc.argv == ["/bin/sh", "-c", "true"]
     assert proc.origin == "monitor"
-    assert proc.kind == DETACHED_PROC_KIND
+    assert proc.kind == COMMAND_PROC_KIND
     assert proc.shell_kind == "proc"
     assert proc.shell_name == "acme--mon"
     assert proc.log_owner == "artifacts"

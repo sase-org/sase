@@ -78,7 +78,7 @@ def test_resolve_task_launch_cwd_reuses_canonical_project_resolution(
     get_workspace_directory.assert_called_once_with("sase", 1)
 
 
-def test_submit_task_launch_task_submits_literal_detached_command(
+def test_submit_task_launch_task_submits_literal_unattributed_command(
     tmp_path: Path,
 ) -> None:
     task = SimpleNamespace(task_id="k7m2xyz")
@@ -90,7 +90,7 @@ def test_submit_task_launch_task_submits_literal_detached_command(
             return_value="sase",
         ),
         patch(
-            "sase.procs.runner.submit_detached_proc",
+            "sase.procs.runner.submit_proc",
             return_value=task,
         ) as submit_task,
     ):
@@ -116,6 +116,7 @@ def test_submit_task_launch_task_submits_literal_detached_command(
         "cwd": tmp_path,
         "origin": "telegram",
         "project": "sase",
+        "session_id": None,
         "tags": ("task", "launch"),
     }
 
@@ -136,7 +137,7 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
             "sase.bead.project_name.infer_project_name_from_cwd",
             return_value="sase",
         ),
-        patch("sase.procs.runner.submit_detached_proc") as submit_task,
+        patch("sase.procs.runner.submit_proc") as submit_task,
     ):
         submitted = submit_task_launch_task(
             "sase-42",
@@ -147,7 +148,7 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
     assert submitted is existing
     assert read_tasks.call_args.kwargs == {
         "status": frozenset({"pending", "running", "settling"}),
-        "kind": "detached",
+        "kind": {"command", "detached"},
     }
     submit_task.assert_not_called()
 
@@ -156,7 +157,7 @@ def _task_row(
     task_id: str,
     *,
     status: str = "running",
-    kind: str = "detached",
+    kind: str = "command",
     command: list[str] | None = None,
     tags: list[str] | None = None,
 ) -> SimpleNamespace:
@@ -184,10 +185,10 @@ def test_active_task_launch_bead_ids_returns_active_task_bead_launches() -> None
         ),
     ]
 
-    def read_tasks(*, status: frozenset[str], kind: str) -> list[SimpleNamespace]:
+    def read_tasks(*, status: frozenset[str], kind: set[str]) -> list[SimpleNamespace]:
         assert status == frozenset({"pending", "running", "settling"})
-        assert kind == "detached"
-        return [row for row in rows if row.status in status and row.kind == kind]
+        assert kind == {"command", "detached"}
+        return [row for row in rows if row.status in status and row.kind in kind]
 
     with patch("sase.procs.read_procs", side_effect=read_tasks):
         assert active_task_launch_bead_ids() == frozenset({"sase-42", "sase-99"})

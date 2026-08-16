@@ -144,6 +144,12 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "xprompt": ("sase.main.parser_xprompt", "register_xprompt_parser"),
 }
 
+_OBSOLETE_DETACHED_PROC_MESSAGE = (
+    "all procs are detached; remove --detached (use --session none for no attribution)."
+)
+_PROC_ALIASES = frozenset({"proc", "task"})
+_PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED = frozenset({"list", "run"})
+
 
 class _SaseArgumentParser(argparse.ArgumentParser):
     """Root parser with cross-option validation that argparse cannot express."""
@@ -170,7 +176,10 @@ class _SaseArgumentParser(argparse.ArgumentParser):
         args: Iterable[str] | None = None,
         namespace: Any = None,
     ) -> Any:
-        parsed = super().parse_args(args, namespace)
+        raw_args = list(sys.argv[1:] if args is None else args)
+        if _uses_obsolete_detached_proc_option(raw_args):
+            self.exit(2, f"{_OBSOLETE_DETACHED_PROC_MESSAGE}\n")
+        parsed = super().parse_args(raw_args, namespace)
         if (
             getattr(parsed, "command", None) == "agent"
             and getattr(parsed, "agent_subcommand", None) == "sync"
@@ -190,6 +199,26 @@ class _SaseArgumentParser(argparse.ArgumentParser):
                 if getattr(parsed, attribute, False):
                     self.error(f"sase agent sync {flag} cannot be used with --check")
         return parsed
+
+
+def _uses_obsolete_detached_proc_option(argv: Sequence[str]) -> bool:
+    """Return whether proc/task argv uses the retired detached selector."""
+    if not argv or argv[0] not in _PROC_ALIASES:
+        return False
+
+    subcommand = "list"
+    option_start = 1
+    if len(argv) > 1 and not argv[1].startswith("-"):
+        subcommand = argv[1]
+        option_start = 2
+    if subcommand not in _PROC_SUBCOMMANDS_WITH_LEGACY_DETACHED:
+        return False
+
+    try:
+        option_end = argv.index("--", option_start)
+    except ValueError:
+        option_end = len(argv)
+    return any(token in {"-d", "--detached"} for token in argv[option_start:option_end])
 
 
 @dataclass(frozen=True)

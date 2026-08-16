@@ -75,7 +75,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_approve["input_schema"] == {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {"epic_launch_mode": {"enum": ["detached", "skip"]}},
+        "properties": {"epic_launch_mode": {"enum": ["launch", "skip"]}},
         "additionalProperties": False,
     }
     assert epic_approve["result_schema"] == {

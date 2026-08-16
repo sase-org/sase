@@ -35,12 +35,12 @@ def test_show_renders_detail_and_log_tail(capsys: pytest.CaptureFixture[str]) ->
 def test_show_names_detached_global_ownership(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Detached detail makes the lack of a session explicit."""
+    """Historical detached detail makes the legacy kind explicit."""
     stored("aaaaaaaaaaaa", label="Epic launch", kind="detached")
 
     assert dispatch(["proc", "show", "aaa"]) == 0
 
-    assert "detached (global; no session owns this proc)" in capsys.readouterr().out
+    assert "detached (legacy; no session attribution)" in capsys.readouterr().out
 
 
 def test_show_output_only_prints_the_log_without_chrome(
@@ -65,7 +65,7 @@ def test_show_json_includes_the_proc_and_log(
     assert dispatch(["proc", "show", "aaa", "-f", "json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["proc"]["label"] == "Docs"
     assert payload["log"] == "captured\n"
 

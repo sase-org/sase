@@ -145,7 +145,7 @@ proposal pending.
 
 Tale approval promotes the plan and launches its coder through the agent runner. Every
 epic approval surface — ACE, the CLI, Telegram, or a bare gate response — instead hands
-`sase bead work <plan-file> --yes-to-all` to a detached supervisor, because launching an
+`sase bead work <plan-file> --yes-to-all` to a durable supervisor, because launching an
 epic's phases is itself a long-running command that must outlive the approving process.
 
 The preferred form is a [monitor](monitors.md) shell under the planner's own agent
@@ -158,22 +158,22 @@ otherwise it remains `EPIC APPROVED`. No follow-up agent is recorded — `sase b
 launches the phase agents itself — and the monitor takes a zero workspace claim, since
 the launch runs in the project's primary workspace rather than the planner's. If the
 planner's agent family cannot be resolved (a very old artifacts layout, or a wiped
-agent), the launch falls back to a global `detached` proc with the same command and
+agent), the launch falls back to an unattributed command proc with the same command and
 label rather than silently dropping the approval. Other monitor-start errors fail the
 approval rather than selecting that fallback.
 
 Either way the launch is durable: it survives the approving process, and normal command
 success or failure emits the epic-completion notification. Inspect a monitor-backed
-launch with `sase monitor list` / `sase monitor show <id> --follow`; the `detached`-proc
-fallback appears in every default `sase proc list` and Procs-tab scope and streams with
-`sase proc show <id> --follow`. A durable manual fallback is
-`sase proc run --detached --label 'Epic launch · <plan>' -- sase bead work <plan> --yes-to-all`.
+launch with `sase monitor list` / `sase monitor show <id> --follow`; the unattributed
+proc fallback appears in every default `sase proc list` and Procs-tab scope and streams
+with `sase proc show <id> --follow`. A durable manual fallback is
+`sase proc run --session none --label 'Epic launch · <plan>' -- sase bead work <plan> --yes-to-all`.
 If the approval host cannot resolve or submit the launch, approval fails loudly with a
 direct `sase bead work <plan> --yes-to-all` resume command (plus applicable metadata
 flags), not the wrapper above, instead of falling back to an invisible planner-side
-subprocess. On the `detached`-proc path, which has no monitor row to relabel, the
-planner remains `EPIC APPROVED` until successful metadata back-fill makes the created
-epic known.
+subprocess. On the proc fallback path, which has no monitor row to relabel, the planner
+remains `EPIC APPROVED` until successful metadata back-fill makes the created epic
+known.
 
 `--kind approve` runs the coder without committing an SDD plan, while `--kind commit`
 records the approved plan in SDD without launching a coder.

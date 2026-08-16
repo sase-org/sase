@@ -76,7 +76,7 @@ def execute_plan_approval_response(
     run_coder: bool | None = None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
-    epic_launch_mode: EpicLaunchMode = "detached",
+    epic_launch_mode: EpicLaunchMode = "launch",
     epic_launch_origin: EpicLaunchOrigin = "api",
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> PlanApprovalActionResult:

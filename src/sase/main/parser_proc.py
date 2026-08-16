@@ -21,9 +21,9 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List, inspect, run, and kill durable procs",
         description=(
             "Inspect and run SASE procs. Procs are durable: they "
-            "survive TUI restarts and are readable from any surface. Command "
-            "and TUI procs may belong to a session; detached procs are global "
-            "and belong to none. Running `sase proc` defaults to "
+            "survive TUI restarts and are readable from any surface. Session "
+            "scope is attribution only: unattributed procs are visible from "
+            "every session. Running `sase proc` defaults to "
             "`sase proc list`. `sase task` remains accepted as a legacy alias."
         ),
     )
@@ -81,7 +81,6 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase proc list --running\n"
             "  sase proc list --all --limit 10\n"
             "  sase proc list --tag epic --json\n"
-            "  sase proc list --detached\n"
             "  sase proc list -N build\n"
             "  sase proc list --session latest --status error"
         ),
@@ -91,12 +90,6 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         "--all",
         action="store_true",
         help="Include procs from every session (default: this session plus unattributed)",
-    )
-    list_parser.add_argument(
-        "-d",
-        "--detached",
-        action="store_true",
-        help="Only detached procs (shorthand for --kind detached)",
     )
     list_parser.add_argument(
         "-j",
@@ -111,10 +104,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=PROC_KIND_CHOICES,
         default=None,
         metavar="KIND",
-        help=(
-            "Only procs of this kind; repeat to add more "
-            f"({', '.join(PROC_KIND_CHOICES)})"
-        ),
+        help=argparse.SUPPRESS,
     )
     list_parser.add_argument(
         "-n",
@@ -186,10 +176,10 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
 
     run_parser = proc_sub.add_parser(
         "run",
-        help="Run a command as a detached, durable proc",
+        help="Run a command as a durable proc",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Record a proc, start it under a detached supervisor, and return. "
+            "Record a proc, start it under a supervisor, and return. "
             "The supervisor owns the command's process group and captures its "
             "combined output, so the proc survives this shell and any TUI. "
             "Everything after `--` is the command to run.\n\n"
@@ -201,7 +191,6 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n"
             "  sase proc run -- just check\n"
             "  sase proc run -N build -- just check\n"
-            "  sase proc run --detached -- ./overnight.sh\n"
             "  sase proc run --wait -- pytest -x\n"
             "  sase proc run --label 'Nightly docs' --tag docs -- just docs\n"
             "  sase proc run --session none --json -- ./slow_script.sh"
@@ -250,14 +239,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Print only the new proc id",
     )
-    run_scope = run_parser.add_mutually_exclusive_group()
-    run_scope.add_argument(
-        "-d",
-        "--detached",
-        action="store_true",
-        help="Make the proc global instead of attributing it to a session",
-    )
-    run_scope.add_argument(
+    run_parser.add_argument(
         "-s",
         "--session",
         default=None,
