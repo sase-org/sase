@@ -13,7 +13,6 @@ from sase.ace.tui._artifact_tab_actions import (
     CAPABILITY_HOST_ACTIONS,
     action_applies_to_contract,
     keymap_actions_by_key,
-    registered_host_actions,
 )
 from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui._artifact_tab_descriptors import _provider_accent_for_kind
@@ -104,7 +103,9 @@ _PRESENTATION_ONLY_CAPABILITIES = frozenset(
 def check_declared_actions_are_registered(descriptor: ArtifactsTabDescriptor) -> None:
     """Every ON capability maps to a registered host action or is presentation-only."""
     contract = descriptor.resolved_contract
-    registered = registered_host_actions()
+    registered = frozenset(
+        action for actions in CAPABILITY_HOST_ACTIONS.values() for action in actions
+    )
     for capability in contract.capabilities:
         actions = CAPABILITY_HOST_ACTIONS[capability]
         if capability in _PRESENTATION_ONLY_CAPABILITIES:

@@ -81,6 +81,12 @@ def _build_snapshot() -> FeatureFlagSnapshot:
     )
 
 
+def current_flag_layers() -> tuple[FeatureFlagLayerInput, ...]:
+    """Return the current process config layers used for flag resolution."""
+    layers, _diagnostics = _project_layer_inputs()
+    return layers
+
+
 def current_flags() -> FeatureFlagSnapshot:
     """Return the immutable process feature-flag snapshot."""
     global _snapshot

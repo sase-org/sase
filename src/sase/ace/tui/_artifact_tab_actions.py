@@ -79,16 +79,6 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
 }
 
 
-def host_actions_for_capability(capability: PaneCapability) -> tuple[str, ...]:
-    return CAPABILITY_HOST_ACTIONS.get(capability, ())
-
-
-def registered_host_actions() -> frozenset[str]:
-    return frozenset(
-        action for actions in CAPABILITY_HOST_ACTIONS.values() for action in actions
-    )
-
-
 def action_applies_to_contract(contract: ArtifactsPaneContract, action: str) -> bool:
     """Return whether *action* is the host verb this pane's contract names.
 
@@ -129,7 +119,5 @@ def keymap_actions_by_key(app_km: AppKeymaps) -> dict[str, tuple[str, ...]]:
 __all__ = [
     "CAPABILITY_HOST_ACTIONS",
     "action_applies_to_contract",
-    "host_actions_for_capability",
     "keymap_actions_by_key",
-    "registered_host_actions",
 ]

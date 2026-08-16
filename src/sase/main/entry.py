@@ -228,6 +228,12 @@ def main() -> NoReturn:
 
         handle_file_hook_command(args)
 
+    # --- flag ---
+    if args.command == "flag":
+        from .flag_handler import handle_flag_group
+
+        handle_flag_group(args)
+
     # --- gate ---
     if args.command == "gate":
         from .gate_handler import handle_gate_command

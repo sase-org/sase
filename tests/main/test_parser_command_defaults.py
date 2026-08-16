@@ -62,6 +62,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase chat",
         "sase file",
         "sase file-history",
+        "sase flag",
         "sase memory",
         "sase memory agent-docs",
         "sase notify",

@@ -19,6 +19,11 @@ FlagSource = Literal["default", "user", "overlay", "local", "override", "env"]
 _SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 
 
+def is_feature_flag_key(value: str) -> bool:
+    """Return whether *value* is a non-empty snake_case flag key."""
+    return bool(_SNAKE_CASE_RE.fullmatch(value))
+
+
 class FeatureFlagError(Exception):
     """Base error for feature-flag resolution failures."""
 
@@ -42,7 +47,7 @@ class FeatureFlagDefinition:
     def validate(self) -> None:
         """Validate registry invariants for this definition."""
         key = str(self.key)
-        if not _SNAKE_CASE_RE.fullmatch(key):
+        if not is_feature_flag_key(key):
             raise FeatureFlagError(f"feature flag key must be snake_case: {key!r}")
         if self.kind == "ops":
             if not self.rationale.strip():
@@ -110,3 +115,17 @@ class FeatureFlagSnapshot:
             for key in sorted(self.decisions)
             if self.decisions[key].overridden
         )
+
+
+__all__ = [
+    "FeatureFlagDecision",
+    "FeatureFlagDefinition",
+    "FeatureFlagDiagnostic",
+    "FeatureFlagEnvError",
+    "FeatureFlagError",
+    "FeatureFlagSnapshot",
+    "FlagKind",
+    "FlagScope",
+    "FlagSource",
+    "is_feature_flag_key",
+]
