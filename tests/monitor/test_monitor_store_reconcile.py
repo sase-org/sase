@@ -343,6 +343,53 @@ def test_reconcile_dead_supervisors_leaves_healthy_running_monitors_unchanged(
         child.wait()
 
 
+def _make_monitor_record(**overrides: object) -> MonitorRecord:
+    base: dict[str, object] = {
+        "monitor_id": "aaa",
+        "member_agent_name": "acme--mon",
+        "lane": "acme",
+        "project_name": "proj",
+        "artifacts_dir": "/tmp/does-not-matter",
+        "timestamp": "20260812120000",
+        "command": "sleep 60",
+        "cwd": "/work",
+        "reason": "",
+        "label": "",
+        "start_status": "MONITORED",
+        "stop_status": "MONITORED",
+        "timeout_seconds": 0.0,
+        "tail_lines": 0,
+        "monitor_state": "running",
+        "pid": 12345,
+    }
+    base.update(overrides)
+    return MonitorRecord(**base)  # type: ignore[arg-type]
+
+
+def test_should_reconcile_dead_supervisor_skips_proc_lookup_for_terminal_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cheap ``monitor_state``/``pid`` rejects must run before any proc I/O."""
+    import sase.monitor.proc_adapter as proc_adapter_module
+    from sase.monitor.reconcile import should_reconcile_dead_supervisor
+
+    calls: list[str] = []
+
+    def fake_proc_shell_owns(monitor_id: str) -> bool:
+        calls.append(monitor_id)
+        return False
+
+    monkeypatch.setattr(proc_adapter_module, "proc_shell_owns", fake_proc_shell_owns)
+
+    terminal_record = _make_monitor_record(monitor_state="completed", settled=True)
+    assert should_reconcile_dead_supervisor(terminal_record) is False
+
+    pidless_record = _make_monitor_record(monitor_state="running", pid=None)
+    assert should_reconcile_dead_supervisor(pidless_record) is False
+
+    assert calls == []
+
+
 def _kill_process_group(pgid: int) -> None:
     try:
         os.killpg(pgid, signal.SIGKILL)
