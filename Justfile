@@ -336,7 +336,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-nb(reset_process_feature_flags)" \
         --epic-symbol "sase-n8(AgentAliasHistoryLimitWire)" \
         --epic-symbol "sase-n8(AliasHistoryProvenance)" \
-        --epic-symbol "sase-n8(AliasHistoryRowSpec)" \
         --epic-symbol "sase-n8(AliasHistoryStatusRollup)" \
         {{ args }}
 
