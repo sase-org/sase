@@ -601,3 +601,64 @@ def test_raw_suffix_disambiguates_same_cl_name(
 
     assert app._unread_completed_agent_ids == {first_run.identity}
     assert _active_completion_ids() == {"n-first"}
+
+
+def test_large_roster_completion_schedules_exact_delta_not_broad(
+    temp_notifications_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """A one-agent completion stays a bounded delta against a large roster.
+
+    Structural regression for the diagnosed incident: a real, ~500-row
+    roster with the completed agent folded/filtered out of the visible
+    ``_agents`` projection must still resolve through the complete
+    ``_agents_with_children`` roster to exactly one exact artifact delta,
+    never a broad ``request_agents_refresh`` fallback.
+    """
+    from sase.ace.tui.actions.agents._notification_utils import (
+        request_notification_agents_refresh,
+    )
+
+    assert temp_notifications_dir.is_dir()
+
+    bulk_roster = [
+        make_agent(
+            name=f"bulk-{i}",
+            status="RUNNING",
+            raw_suffix=f"202605{(i % 27) + 1:02d}090000",
+        )
+        for i in range(500)
+    ]
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    target = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="folded-target",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=make_agent().start_time,
+        raw_suffix="20260722090000",
+        artifacts_dir=str(artifacts_dir),
+    )
+
+    app = _E2EApp(bulk_roster)
+    # The visible/filtered projection only shows the bulk roster (as if a
+    # search query or fold hid the target); the complete loaded roster
+    # still has it.
+    app._agents_with_children = [*bulk_roster, target]
+    append_notification(_completion_notification(target, n_id="n-folded-target"))
+    app._notification_snapshot_cache = read_notification_snapshot()
+
+    scheduled: list[tuple[tuple[Path, ...], str]] = []
+    broad: list[tuple[str, bool]] = []
+    app._schedule_agent_artifact_delta_refresh = (  # type: ignore[attr-defined]
+        lambda dirs, *, source: scheduled.append((tuple(dirs), source))
+    )
+    app.request_agents_refresh = (  # type: ignore[attr-defined]
+        lambda source, *, latest_only: broad.append((source, latest_only))
+    )
+
+    request_notification_agents_refresh(app)
+
+    assert scheduled == [((artifacts_dir,), "notification")]
+    assert broad == []

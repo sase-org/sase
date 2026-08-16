@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -202,7 +204,14 @@ async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None
 
 
 @pytest.mark.asyncio
-async def test_new_notification_does_not_schedule_agents_refresh_off_tab() -> None:
+async def test_new_notification_off_tab_falls_back_to_broad_when_unresolvable() -> None:
+    """Notification targeting now runs regardless of tab.
+
+    A completion whose agent cannot be resolved from cached state (no
+    loaded roster match) still reaches the broad fallback even off-tab --
+    the target is genuinely absent, so waiting for a tab switch would
+    leave the row missing indefinitely.
+    """
     app = _FakeApp(watcher_active=True)
     app.current_tab = "patches"
     app._dirty_notifications = True
@@ -210,7 +219,47 @@ async def test_new_notification_does_not_schedule_agents_refresh_off_tab() -> No
 
     await app._run_auto_refresh()
 
-    assert app.refresh_calls == ["notifications"]
+    assert app.refresh_calls == ["notifications", "request_agents:notification"]
+    assert app.refresh_requests == ["notification"]
+
+
+@pytest.mark.asyncio
+async def test_new_notification_off_tab_with_resolvable_agent_schedules_exact_delta(
+    tmp_path: Path,
+) -> None:
+    """A completion for an already-loaded agent stays a bounded delta off-tab."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "patches"
+    app._dirty_notifications = True
+    app._poll_agent_completions_result = True
+
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    agent = _make_agent(
+        status="DONE",
+        cl_name="race-agent",
+        raw_suffix="20260722090000",
+        artifacts_dir=str(artifacts_dir),
+    )
+    # Folded/filtered off the visible `_agents` projection, but still in
+    # the complete loaded roster.
+    app._agents_with_children = [agent]  # type: ignore[attr-defined]
+    app._notification_snapshot_cache = SimpleNamespace(  # type: ignore[attr-defined]
+        notifications=[
+            SimpleNamespace(
+                sender="user-agent",
+                action="JumpToAgent",
+                dismissed=False,
+                action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+            )
+        ]
+    )
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["notifications", "delta:notification:1"]
+    assert app.delta_requests == [("notification", (artifacts_dir,))]
+    assert app.refresh_requests == []
 
 
 @pytest.mark.asyncio
@@ -272,6 +321,47 @@ async def test_off_tab_sanity_tick_still_loads_agents() -> None:
     await app._run_auto_refresh()
     assert "agents" in app.refresh_calls
     assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_off_tab_queued_delta_runs_without_tab_switch() -> None:
+    """A bounded, already-queued artifact delta stays live off-tab.
+
+    Broad loads remain tab-gated, but an exact delta is cheap and
+    independent of which tab is on screen, so it must not wait for a tab
+    switch or the sanity floor.
+    """
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "patches"
+    app._dirty_agents = True
+    app._dirty_agent_artifact_dirs = (Path("/tmp/artifacts/a"),)
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["delta:watcher:1"]
+    assert app.delta_requests == [("watcher", (Path("/tmp/artifacts/a"),))]
+    assert app._dirty_agents is False
+
+
+@pytest.mark.asyncio
+async def test_off_tab_delta_failure_retains_dirty_state_without_broad_load() -> None:
+    """An off-tab delta that cannot be applied never escalates to a broad load.
+
+    If the exact delta consumer is unavailable, the dirty state is left in
+    place for the next Agents-tab entry or sanity pass instead of falling
+    back to the expensive loader while off-tab.
+    """
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "patches"
+    app._dirty_agents = True
+    app._dirty_agent_artifact_dirs = (Path("/tmp/artifacts/a"),)
+    app._schedule_agent_artifact_delta_refresh = None  # type: ignore[assignment]
+
+    await app._run_auto_refresh()
+
+    assert "agents" not in app.refresh_calls
+    assert app._dirty_agents is True
+    assert app._dirty_agent_artifact_dirs == (Path("/tmp/artifacts/a"),)
 
 
 @pytest.mark.asyncio

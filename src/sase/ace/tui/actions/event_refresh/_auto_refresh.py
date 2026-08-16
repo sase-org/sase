@@ -149,18 +149,25 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         queued_agent_artifact_dirs = tuple(
             getattr(self, "_dirty_agent_artifact_dirs", ())
         )
-        agent_delta_due = (
+        agent_delta_ready = (
             watcher_active
             and bool(queued_agent_artifact_dirs)
             and getattr(self, "_dirty_agent_artifact_fallback_reason", None) is None
         )
-        agents_due = _should_refresh("_dirty_agents") or agent_delta_due
-        # Tab-gate: when the watcher is the source of truth, only pay
-        # for the (expensive) agent load while the user is actually
-        # looking at the agents tab. The sanity-floor escape hatch
-        # below keeps things converging even if the user lives on a
-        # different tab forever and we missed an inotify event.
-        if agents_due and not sanity_due and self.current_tab != "agents":
+        agents_due = _should_refresh("_dirty_agents") or agent_delta_ready
+        # Tab-gate: broad (expensive) agent loads are deferred until the
+        # user is actually looking at the Agents tab, or the sanity-floor
+        # escape hatch below fires. A queued, bounded exact artifact-delta
+        # request is cheap and independent of which tab is on screen, so
+        # it stays live off-tab -- that is what lets completion/unread
+        # state converge promptly while the user is on Artifacts or Axe
+        # instead of waiting for a tab switch or the sanity reconcile.
+        if (
+            agents_due
+            and not sanity_due
+            and not agent_delta_ready
+            and self.current_tab != "agents"
+        ):
             agents_due = False
         # Debounce: floor the auto-refresh tick to one load per window
         # regardless of how often inotify re-arms ``_dirty_agents``.
@@ -196,22 +203,36 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         if self._agents_loading:
             return
 
-        if new_agent_notification and self.current_tab == "agents" and not agents_due:
+        # Notification-triggered targeting now resolves against the complete
+        # loaded roster and schedules a bounded exact delta for an
+        # already-loaded (even folded/filtered) agent, so it is safe to run
+        # regardless of the active tab; only a genuinely absent/new agent
+        # falls back to a broad load. Skip only when other agent work is
+        # already due this tick to avoid duplicating it.
+        if new_agent_notification and not agents_due:
             request_notification_agents_refresh(self)
 
         if agents_due:
             fallback_reason = getattr(
                 self, "_dirty_agent_artifact_fallback_reason", None
             )
-            if (
+            can_consume_delta = (
                 watcher_active
                 and not sanity_due
                 and fallback_reason is None
-                and queued_agent_artifact_dirs
-                and self._consume_agent_artifact_delta_refresh(source="watcher")
+                and bool(queued_agent_artifact_dirs)
+            )
+            if can_consume_delta and self._consume_agent_artifact_delta_refresh(
+                source="watcher"
             ):
                 self._dirty_agents = False
                 self._last_agents_load_mono = time.monotonic()
+            elif not sanity_due and self.current_tab != "agents":
+                # Broad loads stay tab-gated. An off-tab delta that could
+                # not be applied (e.g. the delta consumer failed) leaves
+                # the dirty state in place for the next Agents-tab entry
+                # or sanity pass instead of escalating to a broad load.
+                pass
             else:
                 if fallback_reason is not None:
                     self._record_agent_artifact_delta_fallback(

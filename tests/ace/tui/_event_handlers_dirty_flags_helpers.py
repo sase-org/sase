@@ -23,6 +23,7 @@ def _make_agent(
     agent_type: AgentType = AgentType.RUNNING,
     parent_timestamp: str | None = None,
     step_type: str | None = None,
+    artifacts_dir: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -33,6 +34,7 @@ def _make_agent(
         raw_suffix=raw_suffix,
         parent_timestamp=parent_timestamp,
         step_type=step_type,
+        artifacts_dir=artifacts_dir,
     )
 
 

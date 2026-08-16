@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from inspect import Parameter, getattr_static, signature
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -14,6 +14,22 @@ if TYPE_CHECKING:
 
 
 TabName = Literal["artifacts", "agents", "axe"]
+
+
+def loaded_real_agent_roster(owner: Any) -> tuple[Agent, ...]:
+    """Return the complete loaded display-eligible roster without clan rows.
+
+    Notification targeting must resolve against every loaded agent, not
+    just the currently visible/folded/filtered ``_agents`` projection, so
+    a completion for a folded or search-hidden row still resolves to an
+    exact artifact-delta refresh instead of falling back to a broad load.
+    """
+    roster: Iterable[Agent] = (
+        getattr(owner, "_agents_with_children", None)
+        or getattr(owner, "_agents", ())
+        or ()
+    )
+    return tuple(agent for agent in roster if not agent.is_clan_container)
 
 
 def _callable_accepts_kwarg(callback: Callable[..., object], name: str) -> bool:
@@ -107,15 +123,21 @@ def _completion_notification_delta_dirs(app: Any) -> list[Path]:
         return []
 
     artifact_dirs: list[Path] = []
-    for agent in getattr(app, "_agents", []):
+    seen: set[str] = set()
+    for agent in loaded_real_agent_roster(app):
         if (agent.cl_name, agent.raw_suffix) not in completion_keys and (
             agent.cl_name,
             None,
         ) not in completion_keys:
             continue
         artifact_dir = _agent_artifact_dir(agent)
-        if artifact_dir is not None:
-            artifact_dirs.append(artifact_dir)
+        if artifact_dir is None:
+            continue
+        key = str(artifact_dir)
+        if key in seen:
+            continue
+        seen.add(key)
+        artifact_dirs.append(artifact_dir)
     return artifact_dirs
 
 

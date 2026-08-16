@@ -2,26 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
-from ._notification_utils import active_completion_agent_keys
+from ._notification_utils import (
+    active_completion_agent_keys,
+    loaded_real_agent_roster as loaded_real_agent_roster,
+)
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
     from ...models import Agent
     from ...models.agent import AgentType
-
-
-def loaded_real_agent_roster(owner: Any) -> tuple[Agent, ...]:
-    """Return the complete loaded display-eligible roster without clan rows."""
-    roster: Iterable[Agent] = (
-        getattr(owner, "_agents_with_children", None)
-        or getattr(owner, "_agents", ())
-        or ()
-    )
-    return tuple(agent for agent in roster if not agent.is_clan_container)
 
 
 def _member_clan_key(agent: Agent) -> tuple[str, str | None] | None:

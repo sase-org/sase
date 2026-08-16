@@ -562,3 +562,287 @@ class TestRefreshNotificationCount:
         assert app._indicator_tab_count(None) == 1
         assert app._indicator_tab_count(MUTED_TAB_KEY) == 1
         assert app._last_unread_ids == {priority.id, rest.id}
+
+    def test_single_pass_reads_the_store_exactly_once(self) -> None:
+        """The count refresh must not precede a full read with a count-only one."""
+        app = _FakeApp()
+        notif = _make(action="JumpToAgent", notes=["done"])
+
+        with patch(
+            "sase.notifications.read_notification_snapshot",
+            return_value=_snapshot([notif]),
+        ) as read_snapshot:
+            app._refresh_notification_count()
+
+        assert read_snapshot.call_count == 1
+        assert app._indicator_count == 1
+
+
+class TestNotificationAgentTargeting:
+    """Section 2: notification targeting resolves the complete loaded roster.
+
+    ``find_agent_for_notification`` and the completion-delta lookup used by
+    ``request_notification_agents_refresh`` must resolve against the
+    complete loaded roster (``_agents_with_children``), not just the
+    currently visible/folded/filtered ``_agents`` projection, so a
+    completion for a hidden row still schedules a bounded exact delta
+    instead of falling back to a broad load.
+    """
+
+    def _install_capture(
+        self, app: _FakeApp
+    ) -> tuple[list[tuple[tuple[Path, ...], str]], list[tuple[str, bool]]]:
+        scheduled: list[tuple[tuple[Path, ...], str]] = []
+        broad: list[tuple[str, bool]] = []
+        app._schedule_agent_artifact_delta_refresh = (  # type: ignore[attr-defined]
+            lambda dirs, *, source: scheduled.append((tuple(dirs), source))
+        )
+        app.request_agents_refresh = (  # type: ignore[attr-defined]
+            lambda source, *, latest_only: broad.append((source, latest_only))
+        )
+        return scheduled, broad
+
+    def test_clan_folded_completion_schedules_exact_delta_not_broad(
+        self, tmp_path: Path
+    ) -> None:
+        """A completed agent hidden behind a collapsed clan still resolves."""
+        from sase.ace.tui.actions.agents._notification_utils import (
+            request_notification_agents_refresh,
+        )
+
+        app = _FakeApp()
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        cl_name = "clan-child"
+        raw_suffix = "20260722090000"
+        child = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=cl_name,
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 7, 22, 9, 0, 0),
+            raw_suffix=raw_suffix,
+            artifacts_dir=str(artifacts_dir),
+            agent_clan="clan-a",
+        )
+        clan_container = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="clan-a",
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 7, 22, 9, 0, 0),
+            raw_suffix=None,
+            is_clan_container=True,
+            agent_clan="clan-a",
+        )
+        # The visible/filtered projection only shows the collapsed clan
+        # container row; the complete roster still has the real child.
+        app._agents = [clan_container]
+        app._agents_with_children = [clan_container, child]  # type: ignore[attr-defined]
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": cl_name, "raw_suffix": raw_suffix},
+        )
+        app._notification_snapshot_cache = _snapshot([completion])
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(app)
+
+        assert scheduled == [((artifacts_dir,), "notification")]
+        assert broad == []
+
+    def test_search_hidden_completion_schedules_exact_delta_not_broad(
+        self, tmp_path: Path
+    ) -> None:
+        """A completed agent excluded by the active search query still resolves."""
+        from sase.ace.tui.actions.agents._notification_utils import (
+            request_notification_agents_refresh,
+        )
+
+        app = _FakeApp()
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        cl_name = "hidden-agent"
+        raw_suffix = "20260722091500"
+        hidden = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=cl_name,
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 7, 22, 9, 0, 0),
+            raw_suffix=raw_suffix,
+            artifacts_dir=str(artifacts_dir),
+        )
+        # A search query filtered `hidden` out of the visible projection,
+        # but the complete roster (used to restore the query) keeps it.
+        app._agents = []
+        app._agents_with_children = [hidden]  # type: ignore[attr-defined]
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": cl_name, "raw_suffix": raw_suffix},
+        )
+        app._notification_snapshot_cache = _snapshot([completion])
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(app)
+
+        assert scheduled == [((artifacts_dir,), "notification")]
+        assert broad == []
+
+    def test_find_agent_for_notification_resolves_via_agents_with_children(
+        self,
+    ) -> None:
+        from sase.ace.tui.actions.agents._notification_navigation import (
+            find_agent_for_notification,
+        )
+
+        app = _FakeApp()
+        cl_name = "hidden-agent"
+        raw_suffix = "20260722091500"
+        hidden = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=cl_name,
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 7, 22, 9, 0, 0),
+            raw_suffix=raw_suffix,
+        )
+        app._agents = []
+        app._agents_with_children = [hidden]  # type: ignore[attr-defined]
+        notification = _make(
+            action="PlanApproval",
+            action_data={
+                "agent_cl_name": cl_name,
+                "agent_root_timestamp": raw_suffix,
+            },
+        )
+
+        assert find_agent_for_notification(app, notification) is hidden
+
+    def test_find_agent_for_notification_excludes_clan_containers(self) -> None:
+        from sase.ace.tui.actions.agents._notification_navigation import (
+            find_agent_for_notification,
+        )
+
+        app = _FakeApp()
+        cl_name = "clan-child"
+        raw_suffix = "20260722090000"
+        # This synthetic clan-container row would otherwise satisfy the
+        # notification's identity fields; only the is_clan_container
+        # exclusion should keep it from being returned.
+        clan_container = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=cl_name,
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 7, 22, 9, 0, 0),
+            raw_suffix=raw_suffix,
+            is_clan_container=True,
+            agent_clan="clan-a",
+        )
+        app._agents = [clan_container]
+        app._agents_with_children = [clan_container]  # type: ignore[attr-defined]
+        notification = _make(
+            action="PlanApproval",
+            action_data={
+                "agent_cl_name": cl_name,
+                "agent_root_timestamp": raw_suffix,
+            },
+        )
+
+        assert find_agent_for_notification(app, notification) is None
+
+
+class TestCompletionRaceOrder:
+    """Section 1: the completion race converges regardless of arrival order.
+
+    A terminal marker and its completion notification can land in either
+    order. When the terminal status is already cached (loaded ahead of the
+    notification), the later notification poll must still project the row
+    unread. The reverse order (notification cached first, terminal status
+    loaded later during finalize) is covered by
+    ``tests/ace/tui/test_agent_unread_finalizer.py``.
+    """
+
+    def test_terminal_row_loaded_before_notification_becomes_unread_on_poll(
+        self,
+    ) -> None:
+        app = _FakeApp()
+        cl_name = "race-agent"
+        raw_suffix = "20260722090000"
+        agent = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=cl_name,
+            project_file="/tmp/test.sase",
+            status="DONE",
+            start_time=datetime(2026, 7, 22, 9, 0, 0),
+            raw_suffix=raw_suffix,
+        )
+        # The terminal marker already landed and the row is loaded; the
+        # completion notification has not been polled yet.
+        app._agents = [agent]
+        completion = _make(
+            action="JumpToAgent",
+            sender="user-agent",
+            action_data={"cl_name": cl_name, "raw_suffix": raw_suffix},
+        )
+
+        with _patch_snapshot([completion]):
+            asyncio.run(app._poll_agent_completions())
+
+        assert agent.identity in app._unread_completed_agent_ids
+
+
+class TestNotificationSnapshotSingleFlight:
+    """Section 3: overlapping snapshot readers share one direct-store parse."""
+
+    async def _wait_for_pending(self, app: _FakeApp) -> None:
+        for _ in range(1000):
+            if getattr(app, "_notification_snapshot_read_pending", False):
+                return
+            await asyncio.sleep(0)
+        raise AssertionError("count refresh never registered as pending")
+
+    def test_overlapping_poll_and_count_refresh_share_one_parse(self) -> None:
+        """A completion poll and a scheduled count refresh must not double-parse."""
+        app = _FakeApp()
+        notif = _make(action="JumpToAgent", notes=["done"])
+
+        read_started = threading.Event()
+        release_read = threading.Event()
+        call_count = 0
+        lock = threading.Lock()
+
+        def _slow_read(*_args: object, **_kwargs: object) -> object:
+            nonlocal call_count
+            with lock:
+                call_count += 1
+                this_call = call_count
+            if this_call == 1:
+                read_started.set()
+                assert release_read.wait(timeout=5.0)
+            return _snapshot([notif])
+
+        async def _run() -> bool:
+            poll_task = asyncio.create_task(app._poll_agent_completions())
+            await asyncio.to_thread(read_started.wait, 2.0)
+            count_task = asyncio.create_task(app._refresh_notification_count_async())
+            await self._wait_for_pending(app)
+            release_read.set()
+            saw_new = await poll_task
+            await count_task
+            return saw_new
+
+        with patch(
+            "sase.notifications.read_notification_snapshot", side_effect=_slow_read
+        ):
+            saw_new = asyncio.run(_run())
+
+        assert saw_new is True
+        # One shared parse for the poll plus one bounded follow-up to
+        # satisfy the count refresh that arrived mid-read -- never one
+        # parse per caller.
+        assert call_count == 2
+        assert app._indicator_count == 1

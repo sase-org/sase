@@ -219,6 +219,56 @@ class AgentNotificationProviderMixin:
         if callable(sync_deadline):
             sync_deadline(snapshot)
 
+    async def _read_notification_snapshot_guarded(
+        self: Any,
+        *,
+        expire_due_snoozes: bool = False,
+    ) -> Any:
+        """Single-flight, single-pass notification snapshot read.
+
+        Completion polling (:meth:`_poll_agent_completions_once`) and the
+        scheduled count/snapshot refresh (:meth:`_refresh_notification_count_async`)
+        both read the same direct-store snapshot, which already carries
+        notifications, counts, tabs, and the snooze deadline together. Both
+        call sites route through here so overlapping triggers share one
+        parse instead of each doing its own: a caller that arrives while a
+        read is already in flight marks a trailing follow-up and awaits the
+        same read rather than starting a second one, and the owning read
+        loops for at most one extra pass to pick up that follow-up before
+        every awaiter gets the final snapshot.
+        """
+        import asyncio
+
+        task = getattr(self, "_notification_snapshot_read_task", None)
+        if task is not None and not task.done():
+            self._notification_snapshot_read_pending = True  # type: ignore[attr-defined]
+            if expire_due_snoozes:
+                self._notification_snapshot_read_pending_expire = True  # type: ignore[attr-defined]
+            return await asyncio.shield(task)
+
+        async def _read_loop() -> Any:
+            want_expire = expire_due_snoozes
+            try:
+                while True:
+                    self._notification_snapshot_read_pending = False  # type: ignore[attr-defined]
+                    self._notification_snapshot_read_pending_expire = False  # type: ignore[attr-defined]
+                    snapshot = await asyncio.to_thread(
+                        self._read_notification_snapshot_from_provider,
+                        expire_due_snoozes=want_expire,
+                    )
+                    self._set_notification_snapshot_cache(snapshot)
+                    if not getattr(self, "_notification_snapshot_read_pending", False):
+                        return snapshot
+                    want_expire = getattr(
+                        self, "_notification_snapshot_read_pending_expire", False
+                    )
+            finally:
+                self._notification_snapshot_read_task = None  # type: ignore[attr-defined]
+
+        new_task = asyncio.ensure_future(_read_loop())
+        self._notification_snapshot_read_task = new_task  # type: ignore[attr-defined]
+        return await new_task
+
     def _read_notification_snapshot_from_provider(
         self: Any,
         *,

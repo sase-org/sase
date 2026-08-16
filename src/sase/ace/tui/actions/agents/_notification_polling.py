@@ -83,8 +83,7 @@ class AgentNotificationPollingMixin:
         previous_notifications = list(
             getattr(previous_snapshot, "notifications", []) or []
         )
-        snapshot = await asyncio.to_thread(
-            self._read_notification_snapshot_from_provider,
+        snapshot = await self._read_notification_snapshot_guarded(
             expire_due_snoozes=True,
         )
         notifications = snapshot.notifications
@@ -131,7 +130,8 @@ class AgentNotificationPollingMixin:
             unread_active + unread_muted,
         )
         delivered_activity_cursors.update(new_activity_cursors)
-        self._set_notification_snapshot_cache(snapshot)
+        # The guarded read (above) already cached this snapshot as soon as
+        # the disk parse landed; no need to set it again here.
         apply_disappeared_plan_notification_refresh(
             self,
             disappeared_artifact_dirs,
@@ -198,32 +198,22 @@ class AgentNotificationPollingMixin:
         """Reload unread notification count from disk and update the indicator.
 
         Called after notifications are dismissed outside the notification modal
-        (e.g. when an agent is killed or dismissed-done).
+        (e.g. when an agent is killed or dismissed-done). A direct full
+        snapshot already carries notifications, counts, and tabs together,
+        so this reads the store exactly once instead of a separate
+        count-only parse followed by a full one.
         """
         from ...widgets import NotificationIndicator
 
-        count_snapshot = self._read_notification_counts_from_provider()
-        tabs = count_snapshot.tabs
-
-        if not getattr(self, "_notification_provider_used_daemon", False):
-            snapshot = self._read_notification_snapshot_from_provider()
-            self._set_notification_snapshot_cache(snapshot)
-            unread_priority, unread_errors, unread_rest, _ = (
-                unread_notification_buckets(snapshot.notifications)
-            )
-            tabs = snapshot.tabs
-            self._last_unread_ids = {
-                n.id for n in unread_priority + unread_errors + unread_rest
-            }
-        elif (
-            cached := getattr(self, "_notification_snapshot_cache", None)
-        ) is not None:
-            unread_priority, unread_errors, unread_rest, _ = (
-                unread_notification_buckets(cached.notifications)
-            )
-            self._last_unread_ids = {
-                n.id for n in unread_priority + unread_errors + unread_rest
-            }
+        snapshot = self._read_notification_snapshot_from_provider()
+        self._set_notification_snapshot_cache(snapshot)
+        unread_priority, unread_errors, unread_rest, _ = unread_notification_buckets(
+            snapshot.notifications
+        )
+        tabs = snapshot.tabs
+        self._last_unread_ids = {
+            n.id for n in unread_priority + unread_errors + unread_rest
+        }
 
         try:
             indicator = self.query_one(  # type: ignore[attr-defined]
@@ -238,38 +228,21 @@ class AgentNotificationPollingMixin:
         """Async variant that reads the notifications file off the main thread.
 
         The widget update still runs on the asyncio event loop (main thread).
+        Routes through the guarded single-flight snapshot loader so an
+        overlapping completion poll and count refresh share one direct-store
+        parse instead of each doing its own.
         """
-        import asyncio
-
         from ...widgets import NotificationIndicator
 
         try:
-            count_snapshot = await asyncio.to_thread(
-                self._read_notification_counts_from_provider
+            snapshot = await self._read_notification_snapshot_guarded()
+            unread_priority, unread_errors, unread_rest, _ = (
+                unread_notification_buckets(snapshot.notifications)
             )
-            tabs = count_snapshot.tabs
-
-            if not getattr(self, "_notification_provider_used_daemon", False):
-                snapshot = await asyncio.to_thread(
-                    self._read_notification_snapshot_from_provider
-                )
-                self._set_notification_snapshot_cache(snapshot)
-                unread_priority, unread_errors, unread_rest, _ = (
-                    unread_notification_buckets(snapshot.notifications)
-                )
-                tabs = snapshot.tabs
-                self._last_unread_ids = {
-                    n.id for n in unread_priority + unread_errors + unread_rest
-                }
-            elif (
-                cached := getattr(self, "_notification_snapshot_cache", None)
-            ) is not None:
-                unread_priority, unread_errors, unread_rest, _ = (
-                    unread_notification_buckets(cached.notifications)
-                )
-                self._last_unread_ids = {
-                    n.id for n in unread_priority + unread_errors + unread_rest
-                }
+            tabs = snapshot.tabs
+            self._last_unread_ids = {
+                n.id for n in unread_priority + unread_errors + unread_rest
+            }
 
             try:
                 indicator = self.query_one(  # type: ignore[attr-defined]

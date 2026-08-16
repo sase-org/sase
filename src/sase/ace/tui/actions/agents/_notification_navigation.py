@@ -14,6 +14,8 @@ from sase.notifications.agent_matching import (
 )
 from sase.project_display_names import humanize_cl_name
 
+from ._notification_utils import loaded_real_agent_roster
+
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
@@ -59,8 +61,12 @@ def find_agent_for_notification(
 ) -> Agent | None:
     """Find the agent matching a notification's identity fields.
 
-    Matches notification routing metadata against the currently loaded agents
-    list. Timestamped notifications can match by agent_cl_name or agent_name.
+    Matches notification routing metadata against the complete loaded
+    agent roster (``_agents_with_children``, falling back to ``_agents``),
+    not just the currently visible/folded/filtered projection, so a
+    completion for a folded or search-hidden row still resolves. Clan
+    container rows are synthetic groupings and are excluded. Timestamped
+    notifications can match by agent_cl_name or agent_name.
 
     Args:
         app: The AceApp instance.
@@ -70,8 +76,7 @@ def find_agent_for_notification(
     Returns:
         The matching Agent, or None if not found.
     """
-    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
-    for agent in agents:
+    for agent in loaded_real_agent_roster(app):
         if agent_matches_notification_identity(agent, notification):
             return agent
 
@@ -90,7 +95,8 @@ def find_agents_for_notification(
     at the same time and each holds its own status override keyed by
     ``Agent.identity`` (which includes ``raw_suffix``). Status mutations must
     visit every matched row so the visible root and its asking child stay in
-    sync.
+    sync. Matches are resolved from the complete loaded roster (see
+    :func:`find_agent_for_notification`).
 
     Args:
         app: The AceApp instance.
@@ -100,10 +106,9 @@ def find_agents_for_notification(
     Returns:
         The list of matching agents, in their loaded order (possibly empty).
     """
-    agents: list[Agent] = app._agents  # type: ignore[attr-defined]
     return [
         agent
-        for agent in agents
+        for agent in loaded_real_agent_roster(app)
         if agent_matches_notification_identity(agent, notification)
     ]
 

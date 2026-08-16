@@ -46,11 +46,12 @@ def _make(
     snooze_until: str | None = None,
     resurfaced_at: str | None = None,
     timestamp: str | None = None,
+    sender: str = "test",
 ) -> Notification:
     return Notification(
         id=id or str(uuid.uuid4()),
         timestamp=timestamp or datetime.now(get_timezone()).isoformat(),
-        sender="test",
+        sender=sender,
         notes=notes or [],
         files=files or [],
         action=action,
