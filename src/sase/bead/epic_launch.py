@@ -129,7 +129,7 @@ def start_epic_launch_monitor(
     Raises:
         MonitorError: The monitor could not be started after lane resolution.
         ProcSubmitError: The fallback task could not be recorded or started.
-        OperationalLeaseError: The workspace lease could not be acquired.
+        RuntimeError: The operational workspace lease could not be acquired.
     """
     from sase.logs._bounded import log_file_lock
     from sase.procs import procs_dir

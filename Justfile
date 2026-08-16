@@ -304,12 +304,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-mq(OperationalLeaseError)' \
-        --epic-symbol 'sase-mq(authorize_operational_lease_workspace)' \
-        --epic-symbol 'sase-mq(bind_operational_lease)' \
-        --epic-symbol 'sase-mq(operational_lease_settlement_policy)' \
-        --epic-symbol 'sase-mq(submit_leased_proc_request)' \
-        --epic-symbol 'sase-mq(transfer_operational_lease)' \
         --epic-symbol 'sase-m6.7.1(RelationEdges)' \
         {{ args }}
 

@@ -66,7 +66,7 @@ _LEASE_FAILURE_KINDS = frozenset(
 )
 
 
-class OperationalLeaseError(RuntimeError):
+class _OperationalLeaseError(RuntimeError):
     """Resumable failure of one operational-lease step.
 
     The message names the failed operation and never authorizes using the
@@ -122,7 +122,7 @@ class OperationalLease:
     def settlement_policy(self) -> dict[str, Any]:
         """Return the persisted policy that releases this lease once."""
 
-        return operational_lease_settlement_policy(self)
+        return _operational_lease_settlement_policy(self)
 
     def reset_and_replay(
         self,
@@ -151,24 +151,24 @@ class OperationalLease:
         )
 
 
-def authorize_operational_lease_workspace(workspace_num: int) -> int:
+def _authorize_operational_lease_workspace(workspace_num: int) -> int:
     """Accept a unified-pool workspace number for a machine-owned lease."""
 
     normalized = normalize_workspace_num(workspace_num)
     if normalized == PRIMARY_WORKSPACE_NUM:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "allocation",
             "cannot lease primary workspace #0 "
             "(legacy #1 normalizes to the user-owned primary checkout)",
         )
     if normalized < MACHINE_OWNED_MIN_WORKSPACE:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "allocation",
             f"cannot lease reserved workspace #{normalized}; "
             f"machine-owned leases start at #{MACHINE_OWNED_MIN_WORKSPACE}",
         )
     if normalized > _UNIFIED_MAX_WORKSPACE:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "allocation",
             f"cannot lease workspace #{normalized}; "
             f"the unified claim pool ends at #{_UNIFIED_MAX_WORKSPACE}",
@@ -185,7 +185,7 @@ def is_operational_lease_policy(policy: Mapping[str, Any] | None) -> bool:
     )
 
 
-def operational_lease_settlement_policy(
+def _operational_lease_settlement_policy(
     lease: OperationalLease,
 ) -> dict[str, Any]:
     """Return the durable settlement policy for *lease*."""
@@ -218,9 +218,9 @@ def acquire_operational_lease(
     """
 
     if not workflow or not workflow.strip():
-        raise OperationalLeaseError("allocation", "workflow identity is required")
+        raise _OperationalLeaseError("allocation", "workflow identity is required")
     if not holder or not holder.strip():
-        raise OperationalLeaseError("allocation", "holder identity is required")
+        raise _OperationalLeaseError("allocation", "holder identity is required")
 
     spec = _resolve_project_file(project, project_file)
     claim_name = cl_name if cl_name else holder
@@ -250,13 +250,13 @@ def acquire_operational_lease(
             env=env,
         )
         if context.checkout_dir != checkout:
-            raise OperationalLeaseError(
+            raise _OperationalLeaseError(
                 "materialization",
                 f"leased context checkout {context.checkout_dir} "
                 f"does not match {checkout}",
             )
         if context.is_primary:
-            raise OperationalLeaseError(
+            raise _OperationalLeaseError(
                 "allocation",
                 "leased operational context resolved to primary workspace #0",
             )
@@ -271,12 +271,12 @@ def acquire_operational_lease(
             cl_name=claim_name,
             context=context,
         )
-    except OperationalLeaseError:
+    except _OperationalLeaseError:
         _release_acquired_claim(spec, workspace_num, workflow, claim_name)
         raise
     except Exception as exc:
         _release_acquired_claim(spec, workspace_num, workflow, claim_name)
-        raise OperationalLeaseError("recovery", str(exc)) from exc
+        raise _OperationalLeaseError("recovery", str(exc)) from exc
 
 
 def release_operational_lease(
@@ -312,7 +312,7 @@ def release_operational_lease(
     )
 
 
-def bind_operational_lease(
+def _bind_operational_lease(
     request: Any,
     lease: OperationalLease,
 ) -> Any:
@@ -323,7 +323,7 @@ def bind_operational_lease(
     from sase.procs.request import ProcSubmitRequest
 
     if not isinstance(request, ProcSubmitRequest):
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "allocation",
             "durable leased submission requires a ProcSubmitRequest",
         )
@@ -337,12 +337,12 @@ def bind_operational_lease(
     )
 
 
-def transfer_operational_lease(lease: OperationalLease, proc: Any) -> None:
+def _transfer_operational_lease(lease: OperationalLease, proc: Any) -> None:
     """Hand the preclaim to the acknowledged supervisor PID."""
 
     supervisor_pid = _supervisor_pid(proc)
     if supervisor_pid is None:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "transfer",
             "acknowledged supervisor did not report a pid",
         )
@@ -356,7 +356,7 @@ def transfer_operational_lease(lease: OperationalLease, proc: Any) -> None:
         cl_name=lease.cl_name,
     )
     if not result.success:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "transfer",
             result.error or "workspace claim transfer was rejected",
         )
@@ -371,11 +371,10 @@ def submit_via_lease(
     """Submit *request* inside an already-acquired *lease*, then transfer.
 
     The claim is released on a pre-transfer spawn error. After a successful
-    transfer, proc settlement releases the claim exactly once. Use this
-    (rather than :func:`submit_leased_proc_request`) when the caller already
-    holds a lease it wants this submission to share -- for example a
-    detached fallback that reuses the same lease a prior monitor-start
-    attempt acquired.
+    transfer, proc settlement releases the claim exactly once. Use this when
+    the caller already holds a lease it wants this submission
+    to share -- for example a detached fallback that reuses the same lease a
+    prior monitor-start attempt acquired.
     """
 
     from sase.procs.service import submit_proc_request
@@ -384,56 +383,20 @@ def submit_via_lease(
 
     def _after_ack(proc: Any) -> None:
         nonlocal transferred
-        transfer_operational_lease(lease, proc)
+        _transfer_operational_lease(lease, proc)
         transferred = True
         if after_ack is not None:
             after_ack(proc)
 
     try:
         return submit_proc_request(
-            bind_operational_lease(request, lease),
+            _bind_operational_lease(request, lease),
             after_ack=_after_ack,
         )
     except Exception:
         if not transferred:
             release_operational_lease(lease)
         raise
-
-
-def submit_leased_proc_request(
-    request: Any,
-    *,
-    workflow: str,
-    holder: str,
-    project: str | None = None,
-    project_file: str | Path | None = None,
-    cl_name: str | None = None,
-    after_ack: Callable[[Any], None] | None = None,
-    config: Mapping[str, Any] | None = None,
-    env: Mapping[str, str] | None = None,
-) -> Any:
-    """Preclaim a lease, submit *request* in that checkout, then transfer.
-
-    The claim is released on a pre-transfer spawn error. After a successful
-    transfer, proc settlement releases the claim exactly once.
-    """
-
-    resolved_project = project or getattr(request, "project", None)
-    if not isinstance(resolved_project, str) or not resolved_project:
-        raise OperationalLeaseError(
-            "allocation",
-            "durable leased submission requires a project identity",
-        )
-    lease = acquire_operational_lease(
-        resolved_project,
-        workflow=workflow,
-        holder=holder,
-        project_file=project_file,
-        cl_name=cl_name,
-        config=config,
-        env=env,
-    )
-    return submit_via_lease(request, lease, after_ack=after_ack)
 
 
 @contextmanager
@@ -473,18 +436,18 @@ def _resolve_project_file(
     if project_file is not None:
         path = Path(project_file)
         if not path.is_file():
-            raise OperationalLeaseError(
+            raise _OperationalLeaseError(
                 "allocation",
                 f"project file does not exist: {path}",
             )
         return path.expanduser().resolve(strict=False)
     if not project:
-        raise OperationalLeaseError("allocation", "project identity is required")
+        raise _OperationalLeaseError("allocation", "project identity is required")
     from sase.workflows.utils import get_project_file_path
 
     path = Path(get_project_file_path(project))
     if not path.is_file():
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "allocation",
             f"project file does not exist: {path}",
         )
@@ -506,8 +469,8 @@ def _claim_pool_workspace(
             cl_name=cl_name,
         )
     except WorkspaceClaimError as exc:
-        raise OperationalLeaseError("allocation", str(exc)) from exc
-    return authorize_operational_lease_workspace(workspace_num)
+        raise _OperationalLeaseError("allocation", str(exc)) from exc
+    return _authorize_operational_lease_workspace(workspace_num)
 
 
 def _materialize_leased_checkout(
@@ -518,10 +481,10 @@ def _materialize_leased_checkout(
     config: Mapping[str, Any] | None,
     env: Mapping[str, str] | None,
 ) -> Path:
-    authorize_operational_lease_workspace(workspace_num)
+    _authorize_operational_lease_workspace(workspace_num)
     primary = parse_workspace_dir(str(project_file))
     if not primary:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "materialization",
             f"project {project!r} has no WORKSPACE_DIR; "
             "refusing to invent a primary checkout path",
@@ -535,10 +498,10 @@ def _materialize_leased_checkout(
             env=env,
         )
     except Exception as exc:
-        raise OperationalLeaseError("materialization", str(exc)) from exc
+        raise _OperationalLeaseError("materialization", str(exc)) from exc
     checkout_path = Path(checkout).expanduser().resolve(strict=False)
     if checkout_path == Path(primary_dir):
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "materialization",
             "materialization resolved to the primary checkout; "
             "refusing to lease user-owned workspace #0",
@@ -547,7 +510,7 @@ def _materialize_leased_checkout(
     workspace_path = store.resolve(workspace_num)
     expected = Path(workspace_path.checkout_dir).expanduser().resolve(strict=False)
     if checkout_path != expected:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "materialization",
             f"checkout {checkout_path} does not match store path {expected}",
         )
@@ -555,9 +518,9 @@ def _materialize_leased_checkout(
         record_workspace(store, workspace_path)
         marker = write_marker(store, workspace_path)
     except Exception as exc:
-        raise OperationalLeaseError("materialization", str(exc)) from exc
+        raise _OperationalLeaseError("materialization", str(exc)) from exc
     if marker is None:
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "materialization",
             f"could not write a checkout marker for workspace #{workspace_num}",
         )
@@ -566,7 +529,7 @@ def _materialize_leased_checkout(
 
 def _prepare_from_primary_remote(checkout: Path) -> None:
     if not (checkout / ".git").exists() and not (checkout / ".git").is_file():
-        raise OperationalLeaseError(
+        raise _OperationalLeaseError(
             "preparation",
             f"{checkout} is not a git checkout",
         )
@@ -575,7 +538,7 @@ def _prepare_from_primary_remote(checkout: Path) -> None:
         fetch = _run_git(["fetch", "--quiet", "origin"], checkout)
         if fetch.returncode != 0:
             detail = fetch.stderr.strip() or fetch.stdout.strip() or "git fetch failed"
-            raise OperationalLeaseError("preparation", detail)
+            raise _OperationalLeaseError("preparation", detail)
     upstream = _configured_upstream(checkout)
     if upstream is None:
         return
@@ -590,7 +553,7 @@ def _prepare_from_primary_remote(checkout: Path) -> None:
             or checkout_result.stdout.strip()
             or f"git checkout {upstream} failed"
         )
-        raise OperationalLeaseError("preparation", detail)
+        raise _OperationalLeaseError("preparation", detail)
 
 
 def _configured_upstream(checkout: Path) -> str | None:
@@ -651,8 +614,8 @@ def _release_acquired_claim(
     if workspace_num is None:
         return
     try:
-        authorize_operational_lease_workspace(workspace_num)
-    except OperationalLeaseError:
+        _authorize_operational_lease_workspace(workspace_num)
+    except _OperationalLeaseError:
         return
     _release_claim(project_file, workspace_num, workflow, cl_name)
 
@@ -688,19 +651,13 @@ def _supervisor_pid(proc: Any) -> int | None:
 __all__ = [
     "OPERATIONAL_LEASE_POLICY_KIND",
     "OperationalLease",
-    "OperationalLeaseError",
     "ReplayConflict",
     "ReplayDeferred",
     "ResetReplayError",
     "ResetReplayResult",
     "acquire_operational_lease",
-    "authorize_operational_lease_workspace",
-    "bind_operational_lease",
     "is_operational_lease_policy",
-    "operational_lease_settlement_policy",
     "operational_workspace_lease",
     "release_operational_lease",
-    "submit_leased_proc_request",
     "submit_via_lease",
-    "transfer_operational_lease",
 ]

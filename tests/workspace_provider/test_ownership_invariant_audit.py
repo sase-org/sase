@@ -30,7 +30,10 @@ import pytest
 from sase._plan_archive_approval import archive_approved_plan
 from sase.bead.epic_launch import start_epic_launch_monitor
 from sase.bead.task_launch import submit_task_launch_task
-from sase.workspace_provider.lease import OperationalLease, OperationalLeaseError
+from sase.workspace_provider.lease import (
+    OperationalLease,
+    _OperationalLeaseError as OperationalLeaseError,
+)
 from sase.workspace_provider.ownership import (
     AccessKind,
     MutationOrigin,

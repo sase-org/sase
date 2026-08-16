@@ -16,15 +16,15 @@ from sase.running_field import WorkspaceClaimError
 from sase.workspace_provider.lease import (
     OPERATIONAL_LEASE_POLICY_KIND,
     OperationalLease,
-    OperationalLeaseError,
+    _OperationalLeaseError as OperationalLeaseError,
+    _authorize_operational_lease_workspace as authorize_operational_lease_workspace,
+    _bind_operational_lease as bind_operational_lease,
+    _transfer_operational_lease as transfer_operational_lease,
     acquire_operational_lease,
-    authorize_operational_lease_workspace,
-    bind_operational_lease,
     is_operational_lease_policy,
     operational_workspace_lease,
     release_operational_lease,
-    submit_leased_proc_request,
-    transfer_operational_lease,
+    submit_via_lease,
 )
 from sase.workspace_provider.ownership import (
     AccessKind,
@@ -368,15 +368,11 @@ class TestDurableSubmission:
         transferred = MagicMock()
         released = MagicMock()
         monkeypatch.setattr(
-            "sase.workspace_provider.lease.acquire_operational_lease",
-            lambda *_args, **_kwargs: lease,
-        )
-        monkeypatch.setattr(
             "sase.procs.service.submit_proc_request",
             _submit,
         )
         monkeypatch.setattr(
-            "sase.workspace_provider.lease.transfer_operational_lease",
+            "sase.workspace_provider.lease._transfer_operational_lease",
             transferred,
         )
         monkeypatch.setattr(
@@ -391,12 +387,7 @@ class TestDurableSubmission:
             origin="test",
             project="demo",
         )
-        proc = submit_leased_proc_request(
-            request,
-            workflow="chop:demo",
-            holder="axe",
-            project_file=lease.project_file,
-        )
+        proc = submit_via_lease(request, lease)
 
         assert proc.pid == 4242
         assert Path(captured["request"].cwd) == lease.checkout_dir
@@ -414,10 +405,6 @@ class TestDurableSubmission:
 
         released = MagicMock()
         monkeypatch.setattr(
-            "sase.workspace_provider.lease.acquire_operational_lease",
-            lambda *_args, **_kwargs: lease,
-        )
-        monkeypatch.setattr(
             "sase.procs.service.submit_proc_request",
             _submit,
         )
@@ -434,12 +421,7 @@ class TestDurableSubmission:
             project="demo",
         )
         with pytest.raises(RuntimeError, match="supervisor"):
-            submit_leased_proc_request(
-                request,
-                workflow="chop:demo",
-                holder="axe",
-                project_file=lease.project_file,
-            )
+            submit_via_lease(request, lease)
         released.assert_called_once_with(lease)
 
     def test_transfer_failure_names_the_step(
