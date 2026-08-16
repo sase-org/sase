@@ -8,7 +8,7 @@ from sase.core.agent_output_variable_selector_wire import (
     DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
     OutputVariableSelectorWire,
 )
-from sase.main.parser import create_parser
+from sase.main.parser import create_parser, default_list_delegation_notice
 from sase.main.parser_var import WrappedAgentTarget
 
 
@@ -282,3 +282,111 @@ def test_var_list_and_get_help_keep_options_alphabetized(
     assert "sase var get build.status --format raw" in get_help
     assert "sase var get build.*" in get_help
     assert "quote" in get_help.lower() or "quoted" in get_help.lower()
+
+
+def test_parser_registers_var_set_assignments() -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(["var", "set", "plan_file=sdd/plan.md", "status=ok"])
+
+    assert args.command == "var"
+    assert args.var_subcommand == "set"
+    assert args.assignments == ["plan_file=sdd/plan.md", "status=ok"]
+
+
+def test_parser_registers_json_for_var_set() -> None:
+    parser = create_parser()
+
+    set_args = parser.parse_args(["var", "set", "cfg={}", "--json"])
+
+    assert set_args.var_subcommand == "set"
+    assert set_args.json is True
+
+
+def test_bare_var_delegates_to_list() -> None:
+    args = create_parser().parse_args(["var"])
+    explicit = create_parser().parse_args(["var", "list"])
+
+    assert args.var_subcommand == "list"
+    assert args.format == "pretty"
+    assert args.limit == explicit.limit
+    assert default_list_delegation_notice(args) == (
+        "No subcommand provided for 'sase var'; delegating to 'sase var list'."
+    )
+
+
+def test_var_help_keeps_subcommands_and_set_options_alphabetized(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "--help"])
+    assert exc.value.code == 0
+    group_help = capsys.readouterr().out
+    assert group_help.index("\n    get ") < group_help.index("\n    list ")
+    assert group_help.index("\n    list ") < group_help.index("\n    set ")
+    assert "\n    show " not in group_help
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "set", "--help"])
+    assert exc.value.code == 0
+    set_help = capsys.readouterr().out
+    # Match on ", --option" rather than "-x, --option" since argparse's
+    # short-flag/metavar formatting for options that take a value differs
+    # between Python 3.12 (`-v TEXT, --value TEXT`) and 3.13+ (`-v, --value
+    # TEXT`); the comma before the long option is stable across versions.
+    assert set_help.index(", --json") < set_help.index(", --value ")
+    assert set_help.index(", --value ") < set_help.index(", --value-file")
+
+
+@pytest.mark.parametrize(
+    ("option", "destination"),
+    (
+        ("-v", "value"),
+        ("--value", "value"),
+        ("-f", "value_file"),
+        ("--value-file", "value_file"),
+    ),
+)
+def test_parser_registers_var_set_value_sources(
+    option: str,
+    destination: str,
+) -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(["var", "set", "summary", option, "source"])
+
+    assert args.assignments == ["summary"]
+    assert getattr(args, destination) == "source"
+
+
+def test_parser_rejects_both_var_set_value_sources() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(
+            [
+                "var",
+                "set",
+                "summary",
+                "--value",
+                "text",
+                "--value-file",
+                "value.txt",
+            ]
+        )
+
+    assert exc.value.code == 2
+
+
+def test_parser_value_source_requires_a_positional_key(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["var", "set", "--value", "text"])
+
+    assert exc.value.code == 2
+    assert "requires exactly one bare KEY" in capsys.readouterr().err
