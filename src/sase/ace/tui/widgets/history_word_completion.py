@@ -42,9 +42,6 @@ class HistoryWordCompletionMetadata:
     frequency: float
 
 
-HistoryWordCompletionMetadata = _HistoryWordCompletionMetadata
-
-
 def build_history_word_completion_result(
     text: str,
     cursor_offset: int,
