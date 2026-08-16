@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from sase.axe.run_agent_exec_attempts import snapshot_attempt
@@ -80,20 +82,51 @@ def _resolve_fallback_provider(fallback_model: str | None) -> str | None:
     return provider
 
 
+def _read_recorded_execution_provider(artifacts_dir: str | None) -> str | None:
+    """Return the ``exec_llm_provider`` written for the attempt that just ran."""
+    if not artifacts_dir:
+        return None
+    try:
+        payload = json.loads(
+            (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    recorded = payload.get("exec_llm_provider")
+    if isinstance(recorded, str) and recorded.strip():
+        return recorded
+    return None
+
+
+def _refresh_execution_provider(
+    tracker: RetryTracker, artifacts_dir: str | None
+) -> str | None:
+    """Pin usage-limit attribution to the provider that just executed.
+
+    ``_invoke.py`` records the authoritative ``exec_llm_provider`` before each
+    subprocess, including after a fallback switches models. The loop-start
+    provider is only a fallback for workflows that never wrote one.
+    """
+    recorded = _read_recorded_execution_provider(artifacts_dir)
+    if recorded is not None:
+        tracker.execution_provider = recorded
+    return tracker.execution_provider
+
+
 def _detect_usage_limit_for_error(
     error_str: str, execution_provider: str | None
 ) -> UsageLimitDetection | None:
-    """Detect a usage-limit match, preferring the known execution provider.
+    """Detect a usage-limit match for the provider that actually ran.
 
-    Falls back to scanning every configured provider when the execution
-    provider is unknown at this level (e.g. a multi-step workflow that may
-    have invoked more than one LLM provider), mirroring
-    ``find_retry_config_for_error``.
+    When that provider is known, only its config is consulted — quoted
+    another-provider limit prose must not change retry policy. Scanning
+    every configured provider is reserved for workflows that genuinely
+    lack execution-provider provenance.
     """
     if execution_provider:
-        detection = detect_usage_limit(execution_provider, error_str)
-        if detection is not None:
-            return detection
+        return detect_usage_limit(execution_provider, error_str)
     return find_usage_limit_detection_for_error(error_str)
 
 
@@ -154,6 +187,9 @@ def handle_workflow_error(
     or ``"raise"`` to propagate the exception.
     """
     error_str = str(exc)
+    _refresh_execution_provider(
+        tracker, state.current_artifacts_dir or ctx.artifacts_dir
+    )
 
     # Try the agent's own provider config first; fall back to
     # checking all configured providers (handles the case where

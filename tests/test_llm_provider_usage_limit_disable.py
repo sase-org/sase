@@ -6,6 +6,7 @@ paths; see ``tests/test_llm_provider_invoke.py`` for the call-site wiring.
 
 from __future__ import annotations
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,9 +14,11 @@ import pytest
 from sase.llm_provider.provider_disable import (
     disable_provider,
     get_active_provider_disable,
+    get_active_provider_disables,
 )
 from sase.llm_provider.usage_limit_config import UsageLimitDetection
 from sase.llm_provider.usage_limit_disable import handle_possible_usage_limit
+from sase.notifications.store import load_notifications
 
 _NOW = 1_800_000_000.0
 
@@ -86,23 +89,31 @@ class TestHandlePossibleUsageLimit:
         assert disable.expires_at == _NOW + 3600.0
         assert disable.source == "usage_limit"
 
-    @patch("sase.llm_provider.usage_limit_disable.disable_provider")
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
     def test_skips_write_when_already_disabled(
         self,
         mock_detect: MagicMock,
-        mock_disable: MagicMock,
+        mock_notify: MagicMock,
         registered_providers: None,
     ) -> None:
-        disable_provider("claude", 999.0, source="usage_limit", now=_NOW)
+        existing = disable_provider("claude", 999.0, source="usage_limit", now=_NOW)
         mock_detect.return_value = _detection()
+        mock_counter = MagicMock()
 
-        result = handle_possible_usage_limit(
-            provider="claude", error_text="usage limit reached"
-        )
+        with patch(
+            "sase.llm_provider.usage_limit_disable.LLM_PROVIDER_AUTO_DISABLES",
+            mock_counter,
+        ):
+            result = handle_possible_usage_limit(
+                provider="claude", error_text="usage limit reached"
+            )
 
         assert result is not None
-        mock_disable.assert_not_called()
+        stored = get_active_provider_disable("claude", now=_NOW)
+        assert stored == existing
+        mock_counter.labels.assert_not_called()
+        mock_notify.assert_not_called()
 
     @patch(
         "sase.llm_provider.usage_limit_disable.detect_usage_limit",
@@ -174,20 +185,64 @@ class TestUsageLimitNotification:
         mock_notify.assert_called_once()
         assert mock_notify.call_args.args[0] is result
 
-    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
-    def test_concurrent_detections_notify_exactly_once(
+    def test_contending_detections_notify_and_increment_exactly_once(
         self,
         mock_detect: MagicMock,
-        mock_notify: MagicMock,
         registered_providers: None,
     ) -> None:
+        sibling = disable_provider("codex", 1_200.0, source="sibling")
         mock_detect.return_value = _detection()
-        for _ in range(3):
-            handle_possible_usage_limit(
-                provider="claude", error_text="usage limit reached"
-            )
-        mock_notify.assert_called_once()
+        increments: list[str] = []
+        lock = threading.Lock()
+        errors: list[BaseException] = []
+        worker_count = 8
+        barrier = threading.Barrier(worker_count)
+
+        class _Counter:
+            def labels(self, **kwargs: object) -> object:
+                provider = str(kwargs.get("provider"))
+
+                class _Labeled:
+                    def inc(self) -> None:
+                        with lock:
+                            increments.append(provider)
+
+                return _Labeled()
+
+        def worker() -> None:
+            try:
+                barrier.wait(timeout=5)
+                handle_possible_usage_limit(
+                    provider="claude", error_text="usage limit reached"
+                )
+            except BaseException as exc:  # noqa: BLE001 - collected for the parent
+                errors.append(exc)
+
+        with patch(
+            "sase.llm_provider.usage_limit_disable.LLM_PROVIDER_AUTO_DISABLES",
+            _Counter(),
+        ):
+            threads = [
+                threading.Thread(target=worker, name=f"usage-limit-{index}")
+                for index in range(worker_count)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+                assert not thread.is_alive()
+
+        assert errors == []
+        stored = get_active_provider_disables()
+        assert stored["codex"] == sibling
+        assert stored["claude"].source == "usage_limit"
+        assert increments == ["claude"]
+        notifications = [
+            note for note in load_notifications() if note.sender == "llm.usage_limit"
+        ]
+        assert len(notifications) == 1
+        assert "claude" in notifications[0].tags
 
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch(

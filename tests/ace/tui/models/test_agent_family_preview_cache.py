@@ -12,8 +12,8 @@ import sase.ace.tui.models.agent_family_preview_cache as cache_model
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_family_preview_cache import (
     FAMILY_PREVIEW_CACHE_MISS,
+    _family_plan_preview_cache_key as family_plan_preview_cache_key,
     cached_family_plan_preview,
-    family_plan_preview_cache_key,
     should_resolve_family_plan_preview,
     warm_family_plan_previews,
 )

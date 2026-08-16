@@ -120,7 +120,7 @@ class _FamilyPreviewCache:
 _FAMILY_PREVIEW_CACHE = _FamilyPreviewCache(max_entries=_CACHE_MAX_ENTRIES)
 
 
-def family_plan_preview_cache_key(agent: Agent) -> FamilyPreviewCacheKey | None:
+def _family_plan_preview_cache_key(agent: Agent) -> FamilyPreviewCacheKey | None:
     """Return the memory-only inputs that can change a family's preview.
 
     ``None`` for a non-family row: ``family_reference_name()`` falls back to
@@ -151,7 +151,7 @@ def cached_family_plan_preview(agent: Agent) -> AgentFamilyPlanPreview | None | 
     Returns :data:`FAMILY_PREVIEW_CACHE_MISS` when never resolved, ``None``
     when resolved but empty, or the preview otherwise.
     """
-    key = family_plan_preview_cache_key(agent)
+    key = _family_plan_preview_cache_key(agent)
     if key is None:
         return None
     return _FAMILY_PREVIEW_CACHE.get(key)
@@ -161,7 +161,7 @@ def should_resolve_family_plan_preview(agent: Agent) -> bool:
     """Return whether *agent* is a family row whose preview needs resolving."""
     if not agent.is_family_root_entry or agent.is_clan_container:
         return False
-    key = family_plan_preview_cache_key(agent)
+    key = _family_plan_preview_cache_key(agent)
     if key is None:
         return False
     return _FAMILY_PREVIEW_CACHE.should_resolve(key)
@@ -182,7 +182,7 @@ def warm_family_plan_previews(
     resolved: dict[FamilyPreviewCacheKey, AgentFamilyPlanPreview | None] = {}
     with BeadIssueLookupSession() as lookup_session:
         for agent in candidates:
-            key = family_plan_preview_cache_key(agent)
+            key = _family_plan_preview_cache_key(agent)
             if key is None or key in resolved:
                 continue
             try:
@@ -248,7 +248,6 @@ __all__ = [
     "FAMILY_PREVIEW_CACHE_MISS",
     "FamilyPreviewCacheKey",
     "cached_family_plan_preview",
-    "family_plan_preview_cache_key",
     "should_resolve_family_plan_preview",
     "warm_family_plan_previews",
 ]

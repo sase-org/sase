@@ -500,6 +500,11 @@ def retryable_failure(message: str = "temporary fakey outage") -> dict[str, obje
     }
 
 
+def usage_limit_failure(message: str = "FAKEY-USAGE-LIMIT hit") -> dict[str, object]:
+    """Retryable failure that also trips fakey's usage-limit detector."""
+    return retryable_failure(message)
+
+
 def successful_attempt(reply: str = "fakey recovered") -> dict[str, object]:
     return {"succeed": {"reply": reply}}
 

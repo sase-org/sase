@@ -14,9 +14,8 @@ from pathlib import Path
 from sase.telemetry.metrics import LLM_PROVIDER_AUTO_DISABLES
 
 from .provider_disable import (
-    disable_provider,
-    disable_provider_until,
-    get_active_provider_disable,
+    try_disable_provider,
+    try_disable_provider_until,
 )
 from .usage_limit_config import (
     UsageLimitDetection,
@@ -43,8 +42,9 @@ def handle_possible_usage_limit(
     already propagating.
 
     Returns the ``UsageLimitDetection`` when the error matched (whether or
-    not a disable was actually written — an already-active disable is left
-    untouched), or ``None`` when there was no match or detection failed.
+    not this caller won the first-writer disable window — an already-active
+    disable is left untouched), or ``None`` when there was no match or
+    detection failed.
     """
     try:
         return _handle_possible_usage_limit(
@@ -71,9 +71,22 @@ def _handle_possible_usage_limit(
     if detection is None:
         return None
 
-    if get_active_provider_disable(provider) is not None:
+    if detection.expires_at is not None:
+        outcome = try_disable_provider_until(
+            provider,
+            detection.expires_at,
+            source=USAGE_LIMIT_DISABLE_SOURCE,
+        )
+    else:
+        outcome = try_disable_provider(
+            provider,
+            detection.disable_seconds,
+            source=USAGE_LIMIT_DISABLE_SOURCE,
+        )
+
+    if not outcome.inserted:
         # Many agents can hit the same provider limit within the same
-        # minute; the first one to arrive here wins and the rest are
+        # minute; the first writer wins the window and the rest are
         # silent, so as not to extend the disable or double-notify.
         logger.debug(
             "usage-limit disable already active for provider %r; skipping write "
@@ -83,19 +96,6 @@ def _handle_possible_usage_limit(
             artifacts_dir,
         )
         return detection
-
-    if detection.expires_at is not None:
-        disable_provider_until(
-            provider,
-            detection.expires_at,
-            source=USAGE_LIMIT_DISABLE_SOURCE,
-        )
-    else:
-        disable_provider(
-            provider,
-            detection.disable_seconds,
-            source=USAGE_LIMIT_DISABLE_SOURCE,
-        )
 
     LLM_PROVIDER_AUTO_DISABLES.labels(provider=provider).inc()
     logger.info(

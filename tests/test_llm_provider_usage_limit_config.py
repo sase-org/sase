@@ -184,6 +184,32 @@ class TestGetUsageLimitConfig:
 
     @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_replace_patterns_true_with_empty_list_disables_built_in(
+        self, mock_config: object, mock_built_in: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["built-in one"])
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "usage_limit": {
+                    "providers": {
+                        "test-provider": {
+                            "patterns": [],
+                            "replace_patterns": True,
+                        }
+                    }
+                }
+            }
+        }
+        config = get_usage_limit_config("test-provider")
+        assert config is not None
+        assert config.patterns == []
+        assert is_usage_limit_error("built-in one tripped", config) is False
+        assert detect_usage_limit("test-provider", "built-in one tripped") is None
+
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_exclude_patterns_have_no_replace_escape_hatch(
         self, mock_config: object, mock_built_in: object
     ) -> None:

@@ -139,11 +139,18 @@ def _config_from_user_dict(user_dict: dict[str, Any]) -> ProviderUsageLimitConfi
 def _merge_with_built_in(
     user_dict: dict[str, Any], built_in: ProviderUsageLimitConfig
 ) -> ProviderUsageLimitConfig:
-    user_patterns = list(user_dict.get("patterns", []))
-    if user_dict.get("replace_patterns", False):
-        patterns = user_patterns if user_patterns else list(built_in.patterns)
+    # ``replace_patterns: true`` plus a present ``patterns`` key is a literal
+    # replacement, including ``patterns: []``. Key absence still keeps the
+    # built-ins so a provider can opt into replacement later without wiping
+    # detection in the meantime.
+    if user_dict.get("replace_patterns", False) and "patterns" in user_dict:
+        patterns = list(user_dict.get("patterns") or [])
+    elif user_dict.get("replace_patterns", False):
+        patterns = list(built_in.patterns)
     else:
-        patterns = _dedup_ordered(list(built_in.patterns) + user_patterns)
+        patterns = _dedup_ordered(
+            list(built_in.patterns) + list(user_dict.get("patterns", []))
+        )
 
     # exclude_patterns are always additive; there is no replace escape hatch.
     exclude_patterns = _dedup_ordered(
