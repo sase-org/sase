@@ -364,10 +364,21 @@ def _write_result_envelope(
 def _settle_workspace_claim(state: dict[str, Any]) -> None:
     if _already(state, "claim_settled"):
         return
-    if _looks_like_monitor_settlement(state):
-        return
     policy = state.get("workspace_claim")
     if not isinstance(policy, dict) or not policy:
+        return
+    from sase.workspace_provider.lease import (
+        OPERATIONAL_LEASE_POLICY_KIND,
+        is_operational_lease_policy,
+        release_operational_lease,
+    )
+
+    if policy.get(
+        "kind"
+    ) == OPERATIONAL_LEASE_POLICY_KIND or is_operational_lease_policy(policy):
+        release_operational_lease(policy)
+        return
+    if _looks_like_monitor_settlement(state):
         return
     project_file = policy.get("project_file")
     workspace_num = policy.get("workspace_num")
