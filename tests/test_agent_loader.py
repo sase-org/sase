@@ -348,6 +348,93 @@ def test_load_all_agents_filters_hook_processes() -> None:
         assert len(agents) == 0
 
 
+def test_load_all_agents_filters_operational_lease_claims() -> None:
+    """Machine-owned operational leases are not agents and render no row."""
+    # Mock a live lease claim taken by the bead_claim_checks chop.
+    mock_claim = MagicMock()
+    mock_claim.workspace_num = 100
+    mock_claim.workflow = "lease(chop:bead_claim_checks)"
+    mock_claim.cl_name = "bead_claim_checks:demo"
+    mock_claim.pid = 12345
+    mock_claim.artifacts_timestamp = None
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.get_all_project_files",
+            return_value=["/tmp/test.sase"],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[mock_claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=True,
+        ),
+        patch("sase.ace.tui.models.agent_loader.is_process_running", return_value=True),
+        patch("sase.ace.tui.models.agent_loader.find_all_patches", return_value=[]),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=_empty_artifact_snapshot(),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_done_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_running_home_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agents_from_snapshot",
+            return_value=[],
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader.load_workflow_agent_steps_from_snapshot",
+            return_value=([], {}),
+        ),
+    ):
+        agents = load_all_agents()
+        assert len(agents) == 0
+
+
+def test_load_agents_from_running_field_releases_dead_lease_claim() -> None:
+    """The lease skip stays below the stale-claim gate, so dead leases are reaped."""
+    claim = SimpleNamespace(
+        workspace_num=100,
+        workflow="lease(chop:bead_claim_checks)",
+        cl_name="bead_claim_checks:demo",
+        pid=12345,
+        artifacts_timestamp=None,
+        pinned=False,
+    )
+    project_file = "/tmp/.sase/projects/myproj/myproj.sase"
+
+    with (
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.tui.models._loaders._running_loaders.release_workspace",
+        ) as release,
+    ):
+        agents = load_agents_from_running_field(
+            [project_file],
+            bug_by_cl_name={},
+            cl_by_cl_name={},
+        )
+
+    assert agents == []
+    release.assert_called_once_with(
+        project_file, 100, claim.workflow, "bead_claim_checks:demo"
+    )
+
+
 def test_load_all_agents_includes_axe_fix_hook() -> None:
     """Test that RUNNING entries with axe(fix-hook) workflow are included."""
     # Mock a RUNNING claim with axe(fix-hook)-timestamp workflow

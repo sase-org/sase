@@ -12,7 +12,7 @@ import pytest
 
 from sase.procs.request import ProcSubmitRequest
 from sase.procs.settlement import _settle_workspace_claim
-from sase.running_field import WorkspaceClaimError
+from sase.running_field import WorkspaceClaimError, get_claimed_workspaces
 from sase.workspace_provider.lease import (
     OPERATIONAL_LEASE_POLICY_KIND,
     OperationalLease,
@@ -185,8 +185,84 @@ class TestAcquireAndContextManager:
         policy = lease.settlement_policy()
         assert policy["kind"] == OPERATIONAL_LEASE_POLICY_KIND
         assert policy["workspace_num"] == 10
-        assert policy["workflow"] == "chop:demo"
+        assert policy["workflow"] == "lease(chop:demo)"
         assert is_operational_lease_policy(policy)
+
+    def test_acquire_claims_the_reserved_lease_label(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        primary = tmp_path / "proj"
+        primary.mkdir()
+        checkout = tmp_path / "proj_10"
+        checkout.mkdir()
+        project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
+        claimed: dict[str, Any] = {}
+
+        def _claim(_project_file: str, workflow: str, _pid: int, **kwargs: Any) -> int:
+            claimed["workflow"] = workflow
+            claimed["cl_name"] = kwargs.get("cl_name")
+            return 10
+
+        _patch_acquire_steps(
+            monkeypatch, checkout=checkout, primary=primary, claim=_claim
+        )
+
+        lease = acquire_operational_lease(
+            "demo",
+            workflow="chop:demo",
+            holder="bead_claim_checks:demo",
+            project_file=project_file,
+            config=_adjacent_config(),
+            env={},
+        )
+
+        # The RUNNING field records the reserved label, and every downstream
+        # consumer of the lease reports that same on-disk label.
+        assert claimed["workflow"] == "lease(chop:demo)"
+        assert lease.workflow == "lease(chop:demo)"
+        assert lease.settlement_policy()["workflow"] == "lease(chop:demo)"
+        # The holder stays the caller's identity and still backs cl_name.
+        assert lease.holder == "bead_claim_checks:demo"
+        assert claimed["cl_name"] == "bead_claim_checks:demo"
+        assert lease.cl_name == "bead_claim_checks:demo"
+
+    def test_lease_round_trips_through_the_running_field(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Real claim/release: the label lands on disk and is cleaned up."""
+        primary = tmp_path / "proj"
+        primary.mkdir()
+        checkout = tmp_path / "proj_10"
+        checkout.mkdir()
+        project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
+        monkeypatch.setattr(
+            "sase.workspace_provider.lease._materialize_leased_checkout",
+            lambda *_args, **_kwargs: checkout,
+        )
+        monkeypatch.setattr(
+            "sase.workspace_provider.lease._prepare_from_primary_remote",
+            lambda *_args, **_kwargs: None,
+        )
+        monkeypatch.setattr(
+            "sase.workspace_provider.lease.leased_operational_context",
+            lambda *_args, **_kwargs: _context(checkout, primary),
+        )
+
+        with operational_workspace_lease(
+            "demo",
+            workflow="chop:bead_claim_checks",
+            holder="bead_claim_checks:demo",
+            project_file=project_file,
+            config=_adjacent_config(),
+            env={},
+        ) as lease:
+            claims = get_claimed_workspaces(str(project_file))
+            assert [(c.workflow, c.cl_name) for c in claims] == [
+                ("lease(chop:bead_claim_checks)", "bead_claim_checks:demo")
+            ]
+            assert claims[0].workspace_num == lease.workspace_num
+
+        assert get_claimed_workspaces(str(project_file)) == []
 
     def test_context_manager_releases_on_success_and_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -277,8 +353,9 @@ class TestAcquireAndContextManager:
                 holder="axe",
                 project_file=project_file,
             )
+        # Released under the label that was claimed, not the caller's argument.
         assert calls["released"] == [
-            (str(project_file.resolve()), 10, "chop:demo", "axe")
+            (str(project_file.resolve()), 10, "lease(chop:demo)", "axe")
         ]
 
     def test_prepare_failure_releases_claim(

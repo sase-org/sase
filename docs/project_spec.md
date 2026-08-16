@@ -93,7 +93,10 @@ currently uses these fields:
   references. Aliases are canonicalized to the directory-key project name before launch
   state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or
-  workflows are running.
+  workflows are running. Machine-owned operational leases — the workspaces host work
+  such as chops, bead-claim reconciliation, and plan archiving takes to get a writable
+  checkout — appear here too, with a reserved `lease(<workflow>)` label in the workflow
+  column. Those entries are not agent runs and are not shown as agents.
 
 `BARE_REPO_DIR` and `WORKSPACE_DIR` are created by first-use `#git:<project>`
 initialization or `#git:<bare-repo-path>` registration. They are parsed only before the
@@ -266,8 +269,10 @@ RUNNING:
   #<WORKSPACE_NUM> | <PID> | <WORKFLOW> | <PATCH_NAME> | <TIMESTAMP> | PINNED
 ```
 
-The timestamp and `PINNED` marker are optional. Do not edit `RUNNING` by hand unless you
-are repairing a stale workspace claim and have verified the process is gone.
+The timestamp and `PINNED` marker are optional. A `<WORKFLOW>` of the reserved form
+`lease(<workflow>)` marks a machine-owned operational lease rather than an agent run. Do
+not edit `RUNNING` by hand unless you are repairing a stale workspace claim and have
+verified the process is gone.
 
 ## Patch Fields
 

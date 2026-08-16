@@ -25,6 +25,7 @@ from typing import Any
 from sase.running_field import (
     WorkspaceClaimError,
     claim_next_axe_workspace,
+    operational_lease_claim_workflow,
     release_workspace,
     transfer_workspace_claim,
 )
@@ -102,7 +103,12 @@ class _OperationalLeaseError(RuntimeError):
 
 @dataclass(frozen=True)
 class OperationalLease:
-    """One claimed, materialized, machine-owned operational checkout."""
+    """One claimed, materialized, machine-owned operational checkout.
+
+    ``workflow`` is the reserved ``lease(<workflow>)`` label as written to the
+    RUNNING field, so settlement, transfer, and release all match what is on
+    disk. ``holder`` remains the caller's own identity.
+    """
 
     project: str
     workflow: str
@@ -235,6 +241,11 @@ def acquire_operational_lease(
 
     On any failure after the RUNNING claim is taken, the claim is
     released. The primary checkout is never used as a fallback cwd.
+
+    The RUNNING-field label is the reserved ``lease(<workflow>)`` form, which
+    marks the claim as a machine-owned lease rather than an agent run.
+    ``OperationalLease.workflow`` reports that on-disk label rather than the
+    *workflow* argument; ``holder`` stays the caller's identity.
     """
 
     if not workflow or not workflow.strip():
@@ -243,13 +254,14 @@ def acquire_operational_lease(
         raise _OperationalLeaseError("allocation", "holder identity is required")
 
     spec = _resolve_project_file(project, project_file)
+    claim_workflow = operational_lease_claim_workflow(workflow.strip())
     claim_name = cl_name if cl_name else holder
     claim_pid = os.getpid() if pid is None else pid
     workspace_num: int | None = None
     try:
         workspace_num = _claim_pool_workspace(
             spec,
-            workflow=workflow,
+            workflow=claim_workflow,
             pid=claim_pid,
             cl_name=claim_name,
         )
@@ -282,7 +294,7 @@ def acquire_operational_lease(
             )
         return OperationalLease(
             project=project,
-            workflow=workflow,
+            workflow=claim_workflow,
             holder=holder,
             workspace_num=workspace_num,
             checkout_dir=checkout,
@@ -292,10 +304,10 @@ def acquire_operational_lease(
             context=context,
         )
     except _OperationalLeaseError:
-        _release_acquired_claim(spec, workspace_num, workflow, claim_name)
+        _release_acquired_claim(spec, workspace_num, claim_workflow, claim_name)
         raise
     except Exception as exc:
-        _release_acquired_claim(spec, workspace_num, workflow, claim_name)
+        _release_acquired_claim(spec, workspace_num, claim_workflow, claim_name)
         raise _OperationalLeaseError("recovery", str(exc)) from exc
 
 

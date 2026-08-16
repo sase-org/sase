@@ -12,8 +12,17 @@ Where:
 - PID is the process ID of the running agent (required - every entry must have a PID)
 - WORKFLOW is the name of the running workflow (e.g., crs, crs, run, rerun)
 - CL_NAME is the Patch name being worked on (optional, can be empty)
+
+Two WORKFLOW label forms are reserved wrappers around an inner identity:
+``workflow(<name>)`` marks an xprompt workflow claim, and ``lease(<workflow>)``
+marks a machine-owned operational workspace lease that is not an agent run.
 """
 
+from sase.running_field._claim_labels import (
+    OPERATIONAL_LEASE_CLAIM_PREFIX,
+    is_operational_lease_claim_workflow,
+    operational_lease_claim_workflow,
+)
 from sase.running_field._model import (
     ClaimResult,
     WorkspaceClaim,
@@ -36,6 +45,7 @@ from sase.running_field._workspace import (
 )
 
 __all__ = [
+    "OPERATIONAL_LEASE_CLAIM_PREFIX",
     "ClaimResult",
     "WorkspaceClaim",
     "WorkspaceClaimError",
@@ -47,6 +57,8 @@ __all__ = [
     "get_workspace_directory",
     "get_workspace_directory_for_num",
     "hold_workspace_claim",
+    "is_operational_lease_claim_workflow",
+    "operational_lease_claim_workflow",
     "release_workspace",
     "transfer_workspace_claim",
     "update_running_field_cl_name",

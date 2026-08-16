@@ -13,6 +13,11 @@ The ProjectSpec ``RUNNING`` field and home ``running.json`` marker are
 liveness claims, not display-status claims. Rows start as ``STARTING`` and
 metadata enrichment promotes them to ``RUNNING`` once ``run_started_at`` is
 recorded.
+
+Not every live claim is an agent: hook processes and machine-owned
+operational leases (``lease(<workflow>)`` labels) hold workspaces without
+being agent runs, so they are excluded before a row is built. Dead claims of
+either kind are still reaped by the stale-release path first.
 """
 
 from pathlib import Path
@@ -23,7 +28,12 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from sase.core.paths import sase_projects_dir
-from sase.running_field import WorkspaceClaim, get_claimed_workspaces, release_workspace
+from sase.running_field import (
+    WorkspaceClaim,
+    get_claimed_workspaces,
+    is_operational_lease_claim_workflow,
+    release_workspace,
+)
 
 from ....agent_tribes import REVIEW_AGENT_TRIBE
 from ....hooks.processes import is_process_running
@@ -133,6 +143,13 @@ def load_agents_from_running_field(
             # Skip hook processes - they're not agents
             # Hook processes have workflow like "axe(hooks)-1" or "axe(hooks)-1a"
             if claim.workflow and claim.workflow.startswith("axe(hooks)"):
+                continue
+
+            # Skip machine-owned operational leases (chops, bead-claim
+            # reconciliation, plan archiving). They hold a pool workspace but
+            # are not agents, and their cl_name is a lease holder identity
+            # rather than an agent or Patch name.
+            if is_operational_lease_claim_workflow(claim.workflow):
                 continue
 
             # Detect workflow claims: workflow field starts with "workflow("
