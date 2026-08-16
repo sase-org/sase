@@ -76,8 +76,10 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     _pending_view_select: bool
 
     def _paint_loading(self) -> None:
-        self._set_tiles_visible(self._view == "overview")
-        if self._view == "overview":
+        show_tiles = self._view in {"overview", "perf"}
+        self._set_tiles_visible(show_tiles)
+        if show_tiles:
+            self._clear_tile_tooltips()
             tile_width = self._tile_width()
             for index in range(5):
                 self._update_static(
@@ -96,7 +98,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
     def _paint_current_view(self) -> None:
         result = self._last_result
         self._update_heading()
-        self._set_tiles_visible(self._view == "overview")
+        show_tiles = self._view in {"overview", "perf"}
+        self._set_tiles_visible(show_tiles)
         if result is None:
             self._paint_loading()
             return
@@ -116,6 +119,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             return
         if self._view == "overview":
             self._paint_overview_tiles(result)
+        elif self._view == "perf":
+            self._paint_perf_tiles(result)
         self._update_static("#statistics-body", self._view_renderable(result))
 
     def _paint_overview_tiles(self, result: StatisticsViewData) -> None:
@@ -170,6 +175,15 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
         )
         for index, renderable in enumerate(tiles):
             self._update_static(f"#statistics-tile-{index}", renderable)
+        self._configure_overview_tile_widgets()
+
+    def _paint_perf_tiles(self, result: StatisticsViewData) -> None:
+        tile_width = self._tile_width()
+        for index, renderable in enumerate(
+            self._perf_hero_tiles(result, width=tile_width)
+        ):
+            self._update_static(f"#statistics-tile-{index}", renderable)
+        self._configure_perf_tile_widgets()
 
     def _paint_error(self, message: str) -> None:
         self._last_error = message
@@ -484,6 +498,21 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
             self.query_one(selector, Static).update(content)
         except Exception:
             pass
+
+    def _configure_overview_tile_widgets(self) -> None:
+        """Restore Overview click-through tooltips after a Perf paint."""
+        return
+
+    def _configure_perf_tile_widgets(self) -> None:
+        """Drop Overview tooltips so Perf tiles are not click-affordances."""
+        self._clear_tile_tooltips()
+
+    def _clear_tile_tooltips(self) -> None:
+        for index in range(5):
+            try:
+                self.query_one(f"#statistics-tile-{index}", Static).tooltip = None
+            except Exception:
+                pass
 
     def _is_active_tab(self) -> bool:
         try:

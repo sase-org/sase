@@ -9,7 +9,6 @@ from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Horizontal, VerticalScroll
 from textual.events import Click, Key, Resize
-from textual.message import Message
 from textual.widgets import Input, Static
 from textual.worker import Worker, WorkerState
 
@@ -73,31 +72,10 @@ OVERVIEW_TILE_TARGETS: tuple[tuple[str, StatisticsView], ...] = (
 )
 
 
-class _OverviewTile(Static):
-    """Mouse-only Overview summary that links to a detail view."""
+class _StatTile(Static):
+    """Fixed-geometry summary tile. Overview assigns a click-through tooltip."""
 
     can_focus = False
-
-    class Navigate(Message):
-        """Request navigation to the view explained by this tile."""
-
-        def __init__(self, view: StatisticsView) -> None:
-            super().__init__()
-            self.view = view
-
-    def __init__(
-        self,
-        target_view: StatisticsView,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        self._target_view = target_view
-        self.tooltip = f"Open {VIEW_LABELS[target_view]}"
-
-    def on_click(self, event: Click) -> None:
-        event.stop()
-        self.post_message(self.Navigate(self._target_view))
 
 
 class _CustomRangeInput(Input):
@@ -220,9 +198,8 @@ class StatisticsPane(StatisticsPanePresentationBase):
             id="statistics-custom-range",
         )
         with Horizontal(id="statistics-tiles"):
-            for index, (_caption, target_view) in enumerate(OVERVIEW_TILE_TARGETS):
-                yield _OverviewTile(
-                    target_view,
+            for index, (_caption, _target_view) in enumerate(OVERVIEW_TILE_TARGETS):
+                yield _StatTile(
                     self._loading_panel("Loading", height=6),
                     id=f"statistics-tile-{index}",
                     classes="statistics-tile",
@@ -530,9 +507,22 @@ class StatisticsPane(StatisticsPanePresentationBase):
         if event.tab_id in VIEW_ORDER:
             self._set_view(cast(StatisticsView, event.tab_id))
 
-    @on(_OverviewTile.Navigate)
-    def _on_overview_tile_navigate(self, event: _OverviewTile.Navigate) -> None:
-        self._set_view(event.view)
+    def on_click(self, event: Click) -> None:
+        """Navigate from Overview tiles only; Perf tiles are non-interactive."""
+        if self._view != "overview":
+            return
+        widget_id = getattr(event.widget, "id", None)
+        if not isinstance(widget_id, str) or not widget_id.startswith(
+            "statistics-tile-"
+        ):
+            return
+        try:
+            index = int(widget_id.removeprefix("statistics-tile-"))
+        except ValueError:
+            return
+        if 0 <= index < len(OVERVIEW_TILE_TARGETS):
+            event.stop()
+            self._set_view(OVERVIEW_TILE_TARGETS[index][1])
 
     @on(Input.Submitted, "#statistics-custom-range")
     def _on_custom_range_submitted(self, event: Input.Submitted) -> None:
@@ -558,6 +548,15 @@ class StatisticsPane(StatisticsPanePresentationBase):
     def _cycle_view(self, delta: int) -> None:
         index = VIEW_ORDER.index(self._view)
         self._set_view(VIEW_ORDER[(index + delta) % len(VIEW_ORDER)])
+
+    def _configure_overview_tile_widgets(self) -> None:
+        """Restore Overview click-through tooltips after painting those tiles."""
+        for index, (_caption, target_view) in enumerate(OVERVIEW_TILE_TARGETS):
+            try:
+                tile = self.query_one(f"#statistics-tile-{index}", Static)
+            except Exception:
+                continue
+            tile.tooltip = f"Open {VIEW_LABELS[target_view]}"
 
     def _set_view(self, view: StatisticsView) -> None:
         if view == self._view:

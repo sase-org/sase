@@ -15,6 +15,7 @@ from sase.core.time import get_timezone
 from sase.telemetry.render import format_duration
 
 from .statistics_pane_data import StatisticsView, StatisticsViewData
+from .statistics_pane_perf import StatisticsPerfRenderingMixin
 from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 from .statistics_pane_runners import StatisticsRunnersRenderingMixin
 from .statistics_pane_xprompts import StatisticsXPromptsRenderingMixin
@@ -26,6 +27,7 @@ _GREEN = "#5FD75F"
 
 
 class StatisticsViewsRenderingMixin(
+    StatisticsPerfRenderingMixin,
     StatisticsXPromptsRenderingMixin,
     StatisticsProjectsRenderingMixin,
     StatisticsRunnersRenderingMixin,
@@ -57,7 +59,7 @@ class StatisticsViewsRenderingMixin(
                 requested_start_ts=result.selected_range.start_ts,
             )
         elif self._view == "perf":
-            renderable = Text("")
+            renderable = self._perf_renderable(result)
         return Group(renderable, self._legend_note(self._view))
 
     def _overview_renderable(self, overview: Any) -> Group:
