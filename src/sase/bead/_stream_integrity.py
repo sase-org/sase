@@ -44,6 +44,7 @@ class _StreamAnalysis:
     last_event: int | None = None
     restored_events: tuple[dict[str, Any], ...] | None = None
     restored_text: str | None = None
+    rewrite_diagnosis: str | None = None
 
 
 def is_event_stream_relpath(path: str) -> bool:
@@ -112,7 +113,13 @@ def prepare_event_streams_for_commit(
             continue
         if analysis.kind == "rewrite":
             _write_stream_text(repo_root, path, ancestor_text)
-            errors.append(_rewrite_message(Path(path).stem, analysis.first_event))
+            errors.append(
+                _rewrite_message(
+                    Path(path).stem,
+                    analysis.first_event,
+                    analysis.rewrite_diagnosis,
+                )
+            )
             continue
         if analysis.kind == "restore_exact":
             _write_stream_text(repo_root, path, ancestor_text)
@@ -202,7 +209,13 @@ def refuse_unpublished_event_stream_shrink(
         if analysis.kind == "ok":
             continue
         if analysis.kind == "rewrite":
-            errors.append(_rewrite_message(stream_id, analysis.first_event))
+            errors.append(
+                _rewrite_message(
+                    stream_id,
+                    analysis.first_event,
+                    analysis.rewrite_diagnosis,
+                )
+            )
             continue
         errors.append(
             _missing_message(
@@ -318,7 +331,12 @@ def analyze_stream_against_ancestor(
     """Compare *local* to *ancestor* using the Rust append-only rules."""
     rewritten = _first_rewritten_event(ancestor, local)
     if rewritten is not None:
-        return _StreamAnalysis(kind="rewrite", first_event=rewritten)
+        event_number, ancestor_event, local_event = rewritten
+        return _StreamAnalysis(
+            kind="rewrite",
+            first_event=event_number,
+            rewrite_diagnosis=_describe_rewrite(ancestor_event, local_event),
+        )
 
     missing_indexes, extras = _missing_and_extras(ancestor, local)
     if not missing_indexes:
@@ -359,7 +377,7 @@ def analyze_stream_against_ancestor(
 def _first_rewritten_event(
     ancestor: list[dict[str, Any]],
     local: list[dict[str, Any]],
-) -> int | None:
+) -> tuple[int, dict[str, Any], dict[str, Any]] | None:
     local_by_id = {
         event_id: event for event in local if (event_id := _event_id(event)) is not None
     }
@@ -369,8 +387,54 @@ def _first_rewritten_event(
             continue
         counterpart = local_by_id.get(event_id)
         if counterpart is not None and counterpart != event:
-            return index + 1
+            return index + 1, event, counterpart
     return None
+
+
+def _describe_rewrite(
+    ancestor_event: dict[str, Any],
+    local_event: dict[str, Any],
+) -> str:
+    """Summarize what changed between an ancestor event and its rewrite."""
+    added, removed, changed = _diff_paths(ancestor_event, local_event)
+    parts: list[str] = []
+    if added:
+        parts.append(f"added {', '.join(added)}")
+    if removed:
+        parts.append(f"removed {', '.join(removed)}")
+    if changed:
+        parts.append(f"value changed at {', '.join(changed)}")
+    return "; ".join(parts) if parts else "no field-level difference detected"
+
+
+def _diff_paths(
+    ancestor: Any,
+    local: Any,
+    prefix: str = "",
+) -> tuple[list[str], list[str], list[str]]:
+    """Return dotted-path (added, removed, changed) keys between two JSON values."""
+    if not (isinstance(ancestor, dict) and isinstance(local, dict)):
+        return [], [], [prefix or "<root>"]
+    added: list[str] = []
+    removed: list[str] = []
+    changed: list[str] = []
+    ancestor_keys = set(ancestor.keys())
+    local_keys = set(local.keys())
+    for key in sorted(local_keys - ancestor_keys):
+        added.append(f"{prefix}.{key}" if prefix else key)
+    for key in sorted(ancestor_keys - local_keys):
+        removed.append(f"{prefix}.{key}" if prefix else key)
+    for key in sorted(ancestor_keys & local_keys):
+        if ancestor[key] == local[key]:
+            continue
+        path = f"{prefix}.{key}" if prefix else key
+        sub_added, sub_removed, sub_changed = _diff_paths(
+            ancestor[key], local[key], path
+        )
+        added.extend(sub_added)
+        removed.extend(sub_removed)
+        changed.extend(sub_changed)
+    return added, removed, changed
 
 
 def _missing_and_extras(
@@ -645,12 +709,19 @@ def _stream_history_records(
     return records
 
 
-def _rewrite_message(stream_id: str, event_number: int | None) -> str:
+def _rewrite_message(
+    stream_id: str,
+    event_number: int | None,
+    diagnosis: str | None = None,
+) -> str:
     number = event_number if event_number is not None else 0
-    return (
+    message = (
         "cannot publish non-append-only bead event stream "
         f"{stream_id}: worktree rewrote ancestor event {number}"
     )
+    if diagnosis:
+        return f"{message} ({diagnosis})"
+    return message
 
 
 def _missing_message(

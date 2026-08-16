@@ -30,7 +30,7 @@ from .sync_test_helpers import init_git_repo
 
 
 def _event(event_id: str, **fields: object) -> dict[str, object]:
-    payload = {
+    payload: dict[str, object] = {
         "event_id": event_id,
         "timestamp": "2026-08-13T00:00:00Z",
         "actor": "tester@example.com",
@@ -92,6 +92,42 @@ def test_analyze_restores_pure_shrink_and_rejects_rewrite() -> None:
     )
     assert rewrite.kind == "rewrite"
     assert rewrite.first_event == 2
+    assert rewrite.rewrite_diagnosis == "value changed at note"
+
+
+def test_analyze_rewrite_diagnosis_names_dropped_and_added_nested_keys() -> None:
+    # Mirrors the bead_event_resolution_roundtrip wedge: a nested field
+    # silently dropped by a non-round-trip-stable decode/encode pair.
+    ancestor = [
+        _event(
+            "a",
+            payload={"kind": "issue_updated", "fields": {"resolution": None}},
+        ),
+    ]
+    local = [
+        _event("a", payload={"kind": "issue_updated", "fields": {}}),
+    ]
+    rewrite = analyze_stream_against_ancestor(
+        ancestor,
+        local,
+        ancestor_text=encode_stream_events(ancestor),
+        other_streams={},
+        new_stream_ids=set(),
+        stream_id="sase-l1",
+    )
+    assert rewrite.kind == "rewrite"
+    assert rewrite.rewrite_diagnosis == "removed payload.fields.resolution"
+
+    reversed_rewrite = analyze_stream_against_ancestor(
+        local,
+        ancestor,
+        ancestor_text=encode_stream_events(local),
+        other_streams={},
+        new_stream_ids=set(),
+        stream_id="sase-l1",
+    )
+    assert reversed_rewrite.kind == "rewrite"
+    assert reversed_rewrite.rewrite_diagnosis == "added payload.fields.resolution"
 
 
 def test_analyze_preserves_local_extras_when_restoring_missing_prefix() -> None:
@@ -175,7 +211,10 @@ def test_prepare_rejects_rewrite_and_restores_ancestor(tmp_path: Path) -> None:
     events[0]["actor"] = "rewriter@example.com"
     _write_events(stream, events)
 
-    with pytest.raises(BeadStreamIntegrityError, match="rewrote ancestor event 1"):
+    with pytest.raises(
+        BeadStreamIntegrityError,
+        match=r"rewrote ancestor event 1 \(value changed at actor\)",
+    ):
         prepare_event_streams_for_commit(
             tmp_path / "beads",
             [f"events/streams/{issue_id}.jsonl"],
