@@ -21,6 +21,7 @@ from ._messages import (
     file_cache,
     get_cache_key,
 )
+from ._scroll_anchor import AnchorStore
 from ._state import FilePanelStateMixin
 
 
@@ -67,6 +68,16 @@ class AgentFilePanel(
         # navigates between files faster than reads complete.
         self._static_request_id: int = 0
         self._static_worker: Worker[StaticReadResult] | None = None
+        # Scroll-anchor controller state (see _scroll_anchor.py). Keyed per
+        # page slot so a page the reader has never opened starts at the top
+        # and a page they have read before returns to where they left off.
+        self._scroll_anchors = AnchorStore()
+        self._anchor_slot_key: tuple[object, str] | None = None
+        self._anchor_agent_identity: object | None = None
+        self._last_applied_scroll_row: int | None = None
+        self._anchor_restore_pending: bool = False
+        self._rendered_content_digest: str | None = None
+        self._rendered_gutter_present: bool = False
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent file output.
@@ -128,6 +139,7 @@ class AgentFilePanel(
             saved_path = self._file_list[self._current_file_index]
 
         self._current_agent = agent
+        self._anchor_agent_identity = agent.identity
         desired, default_value = self._desired_file_list(agent)
         self._reset_content_state()
         self._file_list = list(desired)
@@ -143,6 +155,7 @@ class AgentFilePanel(
                 file_index=self._current_file_index,
             )
         )
+        self._note_slot_change(self._current_anchor_key())
 
         # If starting on a linked or static extra page, display it immediately
         # and fetch the primary diff in the background.

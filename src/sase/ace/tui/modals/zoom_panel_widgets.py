@@ -78,6 +78,11 @@ class ZoomFilePanel(AgentFilePanel):
             super().set_file_list(files, start_index=start_index)
             return
         if not self._has_displayed_content and self._file_list:
+            # The seeded file list bypassed set_file_list's normal
+            # _note_slot_change call, so the anchor slot key was never
+            # established for this frozen list — establish it now, before
+            # the first real render.
+            self._note_slot_change(self._current_anchor_key())
             self._display_file_at_current_index()
 
 

@@ -44,6 +44,7 @@ def _make_file_panel() -> MagicMock:
     panel._display_static_video = types.MethodType(
         AgentFilePanel._display_static_video, panel
     )
+    panel._update_body = types.MethodType(AgentFilePanel._update_body, panel)
     # Async-static-read state used by display_static_file.
     panel._static_request_id = 0
     panel._static_worker = None

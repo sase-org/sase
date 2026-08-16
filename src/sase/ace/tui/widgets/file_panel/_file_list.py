@@ -47,6 +47,7 @@ class FilePanelFileListMixin:
     _current_file_index: int
     _has_displayed_content: bool
     _last_file_content: str | None
+    _anchor_agent_identity: object | None
 
     def set_file_list(self, files: list[str], start_index: int = 0) -> None:
         """Store the file list, reset index, and display a file.
@@ -91,6 +92,7 @@ class FilePanelFileListMixin:
             )
         )
         if files:
+            self._note_slot_change(self._current_anchor_key())  # type: ignore[attr-defined]
             self._display_file_at_current_index()
 
     def next_file(self) -> None:
@@ -98,6 +100,7 @@ class FilePanelFileListMixin:
         if len(self._file_list) <= 1:
             return
         self._current_file_index = (self._current_file_index + 1) % len(self._file_list)
+        self._note_slot_change(self._current_anchor_key())  # type: ignore[attr-defined]
         self._display_file_at_current_index()
         self.post_message(  # type: ignore[attr-defined]
             FileListChanged(
@@ -111,6 +114,7 @@ class FilePanelFileListMixin:
         if len(self._file_list) <= 1:
             return
         self._current_file_index = (self._current_file_index - 1) % len(self._file_list)
+        self._note_slot_change(self._current_anchor_key())  # type: ignore[attr-defined]
         self._display_file_at_current_index()
         self.post_message(  # type: ignore[attr-defined]
             FileListChanged(
@@ -259,7 +263,7 @@ class FilePanelFileListMixin:
     def _display_commit_diff_unavailable(self) -> None:
         self._reset_content_state()  # type: ignore[attr-defined]
         text = Text("Commit diff is unavailable.\n", style="dim italic")
-        self.update(text)  # type: ignore[attr-defined]
+        self._update_body(text)  # type: ignore[attr-defined]
         self._has_displayed_content = True
         self._post_file_visibility(has_file=False)
         self._post_line_count_changed()  # type: ignore[attr-defined]
@@ -281,16 +285,20 @@ class FilePanelFileListMixin:
     ) -> None:
         """Synchronize page slots with cached diff/link/artifact state."""
         self._current_agent = agent
+        self._anchor_agent_identity = agent.identity
         desired, default_value = self._desired_file_list(agent)
         current_value = self._current_file_value()
 
         if desired == self._file_list:
             if allow_initial_display and desired and not self._has_displayed_content:
+                # The list may have been populated by something other than
+                # this reconciler (e.g. a zoom-modal seed), so the anchor
+                # slot key may not be established yet — ensure it is before
+                # the first real render for it.
+                self._note_slot_change(self._current_anchor_key())  # type: ignore[attr-defined]
                 self._display_file_at_current_index()
             elif self._current_linked_diff_changed():
-                scroll_pos = self._save_scroll_position()  # type: ignore[attr-defined]
                 self._display_file_at_current_index()
-                self._restore_scroll_position(scroll_pos)  # type: ignore[attr-defined]
             return
 
         old_index = self._current_file_index
@@ -327,10 +335,9 @@ class FilePanelFileListMixin:
         if new_value is not None and is_linked_slot(new_value):
             needs_render = needs_render or self._current_linked_diff_changed()
         if allow_initial_display and needs_render:
-            scroll_pos = self._save_scroll_position()  # type: ignore[attr-defined]
+            if new_value != current_value:
+                self._note_slot_change(self._current_anchor_key())  # type: ignore[attr-defined]
             self._display_file_at_current_index()
-            if new_value == current_value:
-                self._restore_scroll_position(scroll_pos)  # type: ignore[attr-defined]
 
     def _pick_up_extra_files(self, agent: Agent) -> None:
         """Backward-compatible wrapper for same-agent file-list reconciliation."""

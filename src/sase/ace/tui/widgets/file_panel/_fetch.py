@@ -36,6 +36,7 @@ class FilePanelFetchMixin:
     _content_fetched_at: datetime | None
     _inflight_diff_tasks: dict[InflightDiffKey, Worker[str | None]]
     _static_worker: Worker[StaticReadResult] | None
+    _anchor_agent_identity: object | None
 
     def refresh_file(self, agent: Agent) -> None:
         """Force refresh the file for an agent.
@@ -44,6 +45,7 @@ class FilePanelFetchMixin:
             agent: The Agent to refresh file for.
         """
         self._current_agent = agent
+        self._anchor_agent_identity = agent.identity
         current = self._current_file_value()  # type: ignore[attr-defined]
         if current is not None and (is_commit_slot(current) or is_linked_slot(current)):
             self._reconcile_file_list(  # type: ignore[attr-defined]
@@ -199,24 +201,21 @@ class FilePanelFetchMixin:
                         and cache_entry.diff_output == self._last_file_content
                     ):
                         # Content unchanged: rebuild the small timestamp/header
-                        # group while reusing the cached body renderable.
-                        scroll_pos = self._save_scroll_position()  # type: ignore[attr-defined]
+                        # group while reusing the cached body renderable. The
+                        # scroll-anchor funnel inside _render_full_content
+                        # preserves the reader's position automatically.
                         self._content_fetched_at = cache_entry.fetch_time  # type: ignore[attr-defined]
                         self._render_full_content()  # type: ignore[attr-defined]
-                        self._restore_scroll_position(scroll_pos)  # type: ignore[attr-defined]
                     else:
-                        # Content changed - save scroll, update, restore scroll
-                        scroll_pos = self._save_scroll_position()  # type: ignore[attr-defined]
                         self._display_file_with_timestamp(  # type: ignore[attr-defined]
                             cache_entry.diff_output, cache_entry.fetch_time
                         )
-                        self._restore_scroll_position(scroll_pos)  # type: ignore[attr-defined]
         elif event.state == WorkerState.ERROR:
             # Show error state
             text = Text()
             text.append("Error fetching file\n", style="bold red")
             text.append("The diff command failed or timed out.", style="dim")
-            self.update(text)  # type: ignore[attr-defined]
+            self._update_body(text)  # type: ignore[attr-defined]
         elif event.state == WorkerState.CANCELLED:
             # Cancelled - do nothing, new worker will handle display
             pass

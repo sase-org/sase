@@ -60,6 +60,7 @@ def _make_render_panel() -> MagicMock:
     from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache
 
     panel._content_render_cache = LazySyntaxRenderCache(max_entries=2)
+    panel._update_body = types.MethodType(AgentFilePanel._update_body, panel)
     panel._cancel_static_worker = types.MethodType(
         AgentFilePanel._cancel_static_worker, panel
     )

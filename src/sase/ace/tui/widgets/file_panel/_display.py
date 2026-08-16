@@ -99,7 +99,7 @@ class FilePanelDisplayMixin:
                 text.append(refresh_indicator, style="dim italic")
             text.append("\n\n")
             text.append("No changes detected.\n", style="dim italic")
-            self.update(text)  # type: ignore[attr-defined]
+            self._update_body(text)  # type: ignore[attr-defined]
             self._post_line_count_changed()  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
@@ -186,7 +186,7 @@ class FilePanelDisplayMixin:
         body = Text(
             "No opened-repo changes are currently cached.\n", style="dim italic"
         )
-        self.update(Group(*cleanup, banner, Text(""), body))  # type: ignore[attr-defined]
+        self._update_body(Group(*cleanup, banner, Text(""), body))  # type: ignore[attr-defined]
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
         self._post_line_count_changed()  # type: ignore[attr-defined]
@@ -286,14 +286,14 @@ class FilePanelDisplayMixin:
         if result.status == "missing":
             self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("Could not read file.\n", style="dim italic")
-            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
+            self._update_body(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             self._post_line_count_changed()  # type: ignore[attr-defined]
             return
         if result.status == "empty":
             self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("File is empty.\n", style="dim italic")
-            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
+            self._update_body(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             self._post_line_count_changed()  # type: ignore[attr-defined]
             return
@@ -318,14 +318,14 @@ class FilePanelDisplayMixin:
         if result.status == "missing":
             self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("Could not read diff file.\n", style="dim italic")
-            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
+            self._update_body(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             self._post_line_count_changed()  # type: ignore[attr-defined]
             return
         if result.status == "empty":
             self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("Diff file is empty.\n", style="dim italic")
-            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
+            self._update_body(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
             self._post_line_count_changed()  # type: ignore[attr-defined]
             return
@@ -366,7 +366,7 @@ class FilePanelDisplayMixin:
         self._is_content_capped = False  # type: ignore[attr-defined]
 
         header = Text(expanded_path, style="bold #D7AF5F underline")
-        self.update(Group(*cleanup, header, Text(""), renderable))  # type: ignore[attr-defined]
+        self._update_body(Group(*cleanup, header, Text(""), renderable))  # type: ignore[attr-defined]
         self._has_displayed_content = True  # type: ignore[attr-defined]
         self._post_file_visibility(has_file=os.path.exists(expanded_path))  # type: ignore[attr-defined]
         self._post_line_count_changed()  # type: ignore[attr-defined]
@@ -385,7 +385,7 @@ class FilePanelDisplayMixin:
 
         header = Text(expanded_path, style="bold #D7AF5F underline")
         placeholder = _video_file_placeholder(expanded_path)
-        self.update(Group(*cleanup, header, Text(""), placeholder))  # type: ignore[attr-defined]
+        self._update_body(Group(*cleanup, header, Text(""), placeholder))  # type: ignore[attr-defined]
         self._has_displayed_content = True  # type: ignore[attr-defined]
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
         self._post_line_count_changed()  # type: ignore[attr-defined]

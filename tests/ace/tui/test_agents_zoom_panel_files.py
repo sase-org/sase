@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from rich.text import Text
+from textual.containers import VerticalScroll
 
+from sase.ace.testing.wait import wait_for
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.modals.zoom_panel_modal import _renderable_to_text
 from sase.ace.tui.widgets.file_panel import _LIVE_DIFF_SENTINEL
@@ -19,6 +22,20 @@ from tests.ace.tui._agents_zoom_panel_helpers import (
     _wait_for_file_content,
     _write_named_files,
 )
+
+_ROOT = Path(__file__).resolve().parents[3]
+
+
+class _StyledModalTestApp(_ModalTestApp):
+    """Modal test app that loads the real stylesheet.
+
+    ``_ModalTestApp`` has no CSS at all, so ``#zoom-file-scroll`` never gets
+    real dimensions and scroll geometry (``scroll_y``/``max_scroll_y``)
+    stays degenerate. Only needed by tests that assert on scroll position;
+    tests that just check rendered text don't need real layout.
+    """
+
+    CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
 
 
 async def test_completed_agent_zoom_loads_seeded_file_list_without_refresh(
@@ -538,6 +555,67 @@ async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
         assert modal._target == ZoomPanelTarget.METADATA
         assert modal.query_one("#zoom-file-view").has_class("hidden")
         assert modal.notifications == [("No files for this agent", "warning")]
+
+
+async def test_zoom_file_panel_anchors_scroll_position_per_page(tmp_path: Any) -> None:
+    """ZoomFilePanel must capture/restore against #zoom-file-scroll per page.
+
+    Regression coverage for the scroll-anchor controller inside the zoom
+    modal: ``ZoomFilePanel`` overrides ``_get_scroll_container`` to target
+    ``#zoom-file-scroll`` instead of the main tab's ``#agent-file-scroll``,
+    and the anchor controller must use that override for both capture and
+    restore.
+    """
+    content_first = "\n".join(f"first-line {i:04d}" for i in range(200)) + "\n"
+    content_second = "\n".join(f"second-line {i:04d}" for i in range(200)) + "\n"
+    first_path = tmp_path / "first.md"
+    first_path.write_text(content_first, encoding="utf-8")
+    second_path = tmp_path / "second.md"
+    second_path.write_text(content_second, encoding="utf-8")
+
+    agent = _make_agent(
+        status="DONE",
+        extra_files=[str(first_path), str(second_path)],
+    )
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.FILE,
+        seed=ZoomPanelSeed(
+            file_list=tuple(agent.all_files),
+            has_file_content=True,
+        ),
+        refresh_interval=10,
+    )
+
+    async with _StyledModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause(0)
+
+        from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
+
+        panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
+        scroll = modal.query_one("#zoom-file-scroll", VerticalScroll)
+        await _wait_for_file_content(pilot, panel, "first-line 0000")
+        # _wait_for_file_content's predicate can already be true on its first
+        # check (before any pump cycle runs), so it may return without ever
+        # yielding control — an explicit pause lets the pending post-layout
+        # scroll-anchor restore (scheduled via call_after_refresh) run before
+        # this test scrolls manually.
+        await pilot.pause()
+        await wait_for(pilot, lambda: scroll.max_scroll_y > 100)
+
+        scroll.scroll_to(y=100, animate=False, immediate=True)
+        await pilot.pause()
+        assert int(scroll.scroll_y) == 100
+
+        await pilot.press("ctrl+n")
+        await _wait_for_file_content(pilot, panel, "second-line 0000")
+        await wait_for(pilot, lambda: int(scroll.scroll_y) == 0)
+
+        await pilot.press("ctrl+p")
+        await _wait_for_file_content(pilot, panel, "first-line 0000")
+        await wait_for(pilot, lambda: int(scroll.scroll_y) == 100)
 
 
 async def test_zoom_file_full_content_survives_periodic_refresh(tmp_path: Any) -> None:
