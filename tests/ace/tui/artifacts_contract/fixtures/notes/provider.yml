@@ -11,6 +11,12 @@ ref:
     status:
       type: string
       source: markdown_frontmatter
+    related:
+      type: string
+      source: markdown_frontmatter
+    family:
+      type: string
+      source: markdown_frontmatter
   detail:
     fields:
       - title
@@ -22,3 +28,27 @@ ref:
   publication:
     link: vcs_permalink
     referenced_by: markdown_table
+  relations:
+    - name: link
+      kind: link
+      label: Related
+      source: related
+      target_pane: null
+      inverse: null
+      directed: true
+      transitive: false
+    - name: family
+      kind: family
+      label: Family
+      source: family
+      target_pane: null
+      inverse: null
+      directed: false
+      transitive: false
+  grouping:
+    default_mode: by_status
+    modes:
+      - id: by_status
+        label: Status
+        keys:
+          - status

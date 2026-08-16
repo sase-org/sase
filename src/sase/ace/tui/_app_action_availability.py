@@ -9,6 +9,34 @@ from .tab_order import ARTIFACTS_TAB
 
 CheckAction = Callable[[str, tuple[object, ...]], bool | None]
 
+_ARTIFACT_RELATION_NAV_ACTIONS = frozenset(
+    {
+        "start_ancestor_mode",
+        "start_child_mode",
+        "start_sibling_mode",
+    }
+)
+_ARTIFACT_GROUP_FOLD_ACTIONS = frozenset(
+    {
+        "expand_or_layout",
+        "hooks_or_collapse",
+        "hooks_or_collapse_all",
+        "expand_all_folds",
+    }
+)
+_ARTIFACT_GROUP_CYCLE_ACTIONS = frozenset(
+    {
+        "cycle_grouping_mode",
+        "cycle_grouping_mode_reverse",
+    }
+)
+_CONTRACT_GATED_ARTIFACT_ACTIONS = (
+    _ARTIFACT_RELATION_NAV_ACTIONS
+    | _ARTIFACT_GROUP_FOLD_ACTIONS
+    | _ARTIFACT_GROUP_CYCLE_ACTIONS
+)
+_GROUPING_CYCLE_KEY_COLLISION_PANES = frozenset({"beads", "files"})
+
 
 def check_app_action(
     app: Any,
@@ -86,6 +114,13 @@ def check_app_action(
         PLANS_ARTIFACT_ACTIONS,
     )
 
+    if (
+        app.current_tab == ARTIFACTS_TAB
+        and app.current_artifacts_pane_key != "patches"
+        and action in _CONTRACT_GATED_ARTIFACT_ACTIONS
+        and not _artifact_contract_action_available(app, action)
+    ):
+        return False
     if (
         app.current_tab == ARTIFACTS_TAB
         and app.current_artifacts_pane_key != "patches"
@@ -212,3 +247,24 @@ def check_app_action(
     ):
         return False
     return fallback(action, parameters)
+
+
+def _artifact_contract_action_available(app: Any, action: str) -> bool:
+    """Return whether a contract-gated Artifacts action reaches this pane."""
+    from .artifact_tabs import PaneCapability, artifacts_pane_contract
+
+    pane_key = str(app.current_artifacts_pane_key)
+    if action in _ARTIFACT_GROUP_CYCLE_ACTIONS and (
+        pane_key in _GROUPING_CYCLE_KEY_COLLISION_PANES
+    ):
+        return False
+    contract = getattr(app, "active_artifacts_contract", None)
+    if contract is None or getattr(contract, "id", pane_key) != pane_key:
+        contract = artifacts_pane_contract(pane_key)
+    if contract is None:
+        return False
+    if action in _ARTIFACT_RELATION_NAV_ACTIONS:
+        return contract.has(PaneCapability.RELATIONS)
+    if action in _ARTIFACT_GROUP_FOLD_ACTIONS | _ARTIFACT_GROUP_CYCLE_ACTIONS:
+        return contract.has(PaneCapability.GROUPING)
+    return True

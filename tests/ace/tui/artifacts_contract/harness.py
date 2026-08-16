@@ -13,7 +13,9 @@ from sase.ace.tui._artifact_tab_actions import (
     CAPABILITY_HOST_ACTIONS,
     registered_host_actions,
 )
+from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui._artifact_tab_descriptors import _provider_accent_for_kind
+from sase.ace.tui._artifact_tab_model import ArtifactsPaneContract
 from sase.ace.tui.artifact_tabs import (
     ARTIFACTS_ACCENTS,
     ArtifactsTabDescriptor,
@@ -21,9 +23,34 @@ from sase.ace.tui.artifact_tabs import (
     resolve_artifacts_subtabs,
 )
 from sase.ace.tui.copy_targets import copy_target_for
+from sase.ace.tui.models.artifact_groups import build_grouped_rows
+from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.widgets.artifacts.shell import build_degraded_card, build_shell_scope
+from sase.core.artifact_entry_target import ArtifactEntryTarget
+from sase.core.artifact_relations import RelationEdge, build_relation_index
 
 ConformanceCheck = Callable[[ArtifactsTabDescriptor], None]
+
+_RELATION_REACHABILITY_ACTIONS = frozenset(
+    {
+        "start_ancestor_mode",
+        "start_child_mode",
+        "start_sibling_mode",
+        "beads_open_plan",
+        "plans_open_bead",
+    }
+)
+_GROUPING_REACHABILITY_ACTIONS = frozenset(
+    {
+        "expand_or_layout",
+        "hooks_or_collapse",
+        "hooks_or_collapse_all",
+        "expand_all_folds",
+        "cycle_grouping_mode",
+        "cycle_grouping_mode_reverse",
+    }
+)
+_GROUPING_CYCLE_KEY_COLLISION_PANES = frozenset({"beads", "files"})
 
 
 def check_descriptor_identity(descriptor: ArtifactsTabDescriptor) -> None:
@@ -88,6 +115,124 @@ def check_declared_copy_targets_are_registered(
         assert copy_target_for(contract.copy_group, target) is not None
 
 
+def check_declared_relation_edges_resolve(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Every declared relation can produce a resolved target or diagnostic."""
+    contract = descriptor.resolved_contract
+    if not contract.has(PaneCapability.RELATIONS):
+        assert contract.relations == ()
+        return
+    assert contract.relations
+    origin = ArtifactEntryTarget(contract.id, ("origin",))
+    known_targets = {origin}
+    for relation in contract.relations:
+        target = ArtifactEntryTarget(
+            relation.target_pane or contract.id,
+            ("target", relation.name),
+        )
+        if target.pane_id == contract.id:
+            known_targets.add(target)
+        index = build_relation_index(
+            pane_id=contract.id,
+            relations=contract.relations,
+            edges=(
+                RelationEdge(
+                    kind=relation.kind,
+                    relation=relation.name,
+                    label=relation.label,
+                    source=origin,
+                    target=target,
+                ),
+            ),
+            known_targets=frozenset(known_targets),
+        )
+        resolved = index.edges_for_relation(origin, relation.name)
+        diagnostics = tuple(
+            item for item in index.diagnostics if item.relation == relation.name
+        )
+        assert resolved or diagnostics
+        assert not any(item.code == "undeclared_relation" for item in diagnostics)
+
+
+def check_declared_grouping_banners_are_navigable(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Declared grouping modes emit foldable banner targets."""
+    contract = descriptor.resolved_contract
+    if not contract.has(PaneCapability.GROUPING):
+        assert contract.grouping.modes == ()
+        return
+    assert contract.grouping.modes
+    for mode in contract.grouping.modes:
+        items = _grouping_sample_items(mode.keys)
+        expanded = build_grouped_rows(
+            items,
+            pane_id=contract.id,
+            mode_id=mode.id,
+            keys=mode.keys,
+            key_values=lambda item: item,
+            label_for=lambda _level, value: value,
+            target_for=lambda item: ArtifactEntryTarget(contract.id, ("row", *item)),
+        )
+        banners = tuple(row.banner for row in expanded.rows if row.banner is not None)
+        assert banners
+        first = banners[0]
+        assert first.target in {banner.target for banner in banners}
+        registry = GroupFoldRegistry()
+        assert registry.collapse(first.group_key)
+        collapsed = build_grouped_rows(
+            items,
+            pane_id=contract.id,
+            mode_id=mode.id,
+            keys=mode.keys,
+            key_values=lambda item: item,
+            label_for=lambda _level, value: value,
+            target_for=lambda item: ArtifactEntryTarget(contract.id, ("row", *item)),
+            fold_registry=registry,
+        )
+        collapsed_banners = tuple(
+            row.banner for row in collapsed.rows if row.banner is not None
+        )
+        assert any(
+            banner.group_key == first.group_key and banner.collapsed
+            for banner in collapsed_banners
+        )
+        visible_targets = tuple(
+            row.banner.target
+            for row in collapsed.rows
+            if row.kind == "banner" and row.banner is not None and row.banner.collapsed
+        )
+        assert first.target in visible_targets
+        assert registry.expand(first.group_key)
+
+
+def check_declared_relation_and_grouping_actions_are_reachable(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Declared relation/grouping actions must pass Textual availability."""
+    contract = descriptor.resolved_contract
+    app = _ActionAvailabilityApp(contract)
+    for capability, actions in (
+        (PaneCapability.RELATIONS, _RELATION_REACHABILITY_ACTIONS),
+        (PaneCapability.GROUPING, _GROUPING_REACHABILITY_ACTIONS),
+    ):
+        if not contract.has(capability):
+            continue
+        for action in CAPABILITY_HOST_ACTIONS[capability]:
+            if action not in actions or not _action_applies_to_contract(
+                contract, action
+            ):
+                continue
+            available = check_app_action(app, action, (), lambda _a, _p: True)
+            if action in {"cycle_grouping_mode", "cycle_grouping_mode_reverse"} and (
+                contract.id in _GROUPING_CYCLE_KEY_COLLISION_PANES
+            ):
+                assert available is False
+                continue
+            assert available is not False, f"{contract.id}:{action}"
+
+
 def check_unavailable_actions_have_off_verdicts(
     descriptor: ArtifactsTabDescriptor,
 ) -> None:
@@ -131,12 +276,61 @@ def check_pane_renders_shared_shell(descriptor: ArtifactsTabDescriptor) -> None:
     assert any(contract.accent in str(span.style) for span in header.spans)
 
 
+def _grouping_sample_items(keys: tuple[str, ...]) -> tuple[tuple[str, ...], ...]:
+    if not keys:
+        return ()
+    if len(keys) == 1:
+        return (("alpha",), ("alpha",), ("beta",))
+    return (
+        ("alpha", "one", *("x" for _ in keys[2:])),
+        ("alpha", "two", *("x" for _ in keys[2:])),
+        ("beta", "one", *("x" for _ in keys[2:])),
+    )
+
+
+class _ActionAvailabilityApp:
+    class _Screen:
+        _blocks_global_config_center_open = False
+
+    def __init__(self, contract: ArtifactsPaneContract) -> None:
+        self.screen = self._Screen()
+        self.focused = None
+        self._screen_stack = ()
+        self.current_tab = "artifacts"
+        self.current_artifacts_pane_key = contract.id
+        self.current_artifacts_subtab = contract.id
+        self.active_artifacts_contract = contract
+
+    def _prompt_input_active(self) -> bool:
+        return False
+
+
+def _action_applies_to_contract(
+    contract: ArtifactsPaneContract,
+    action: str,
+) -> bool:
+    if action == "beads_open_plan":
+        return contract.id == "beads"
+    if action == "plans_open_bead":
+        return contract.is_plan_adapter()
+    return True
+
+
 PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     ("descriptor_identity", check_descriptor_identity),
     ("provider_accent_is_declared", check_provider_accent_is_declared),
     ("degraded_tab_carries_error", check_degraded_tab_carries_error),
     ("descriptor_owns_contract", check_descriptor_owns_contract),
     ("declared_actions_are_registered", check_declared_actions_are_registered),
+    ("declared_relation_edges_resolve", check_declared_relation_edges_resolve),
+    (
+        "declared_grouping_banners_are_navigable",
+        check_declared_grouping_banners_are_navigable,
+    ),
+    (
+        "declared_relation_and_grouping_actions_are_reachable",
+        check_declared_relation_and_grouping_actions_are_reachable,
+    ),
     (
         "declared_copy_targets_are_registered",
         check_declared_copy_targets_are_registered,

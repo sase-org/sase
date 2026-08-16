@@ -46,6 +46,23 @@ Each visible section uses the declared relation label as its uppercase header, a
 targets dimmed with a `(missing)` marker. Cross-pane link rows show their destination
 pane id so the target switch is explicit.
 
+### Grouping banner rows
+
+Panes whose contract enables `PaneCapability.GROUPING` render host-owned banner rows
+from the active `PaneGroupingModeDecl`. The pane supplies already-loaded rows plus
+property values for the mode's keys; the shared grouping model clusters rows, emits one
+banner target per group key, and records member targets for fold actions and jump hints.
+
+Expanded banners are visible headings and are skipped by row navigation. Collapsed
+banners are selectable rows: `j`/`k` stop on them, `'` jump hints can target them, and
+`l` expands the selected banner back to its first visible child. Lowercase `h` collapses
+the focused row's deepest group, while `H` and `L` collapse or expand the visible banner
+layer without rebuilding provider data.
+
+Banner rendering is shared by `widgets/artifacts/group_banner.py`: a fold glyph, the
+mode label, the member count, and a short rule all use the pane contract's accent.
+Provider panes never render custom banner markup.
+
 ## State precedence
 
 Visible state is a closed `ArtifactsPaneState` enum, resolved by
