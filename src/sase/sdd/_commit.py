@@ -44,6 +44,7 @@ from sase.sdd._store_types import (
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
+    from sase.workspace_provider.ownership import OperationContext
 
 
 def commit_sdd_store_files(
@@ -56,6 +57,8 @@ def commit_sdd_store_files(
     artifacts_dir: str | Path | None = None,
     already_locked: bool = False,
     cause: str = "user",
+    mutation_origin: str = "user",
+    operation_context: "OperationContext | None" = None,
 ) -> bool:
     """Commit SDD files in their owning repository and push per config.
 
@@ -66,6 +69,10 @@ def commit_sdd_store_files(
     inside their own :func:`store_git_write_lock` span. Only the target whose
     repository this context actually owns hands the lock off; a split-store
     sibling repository is still locked normally.
+
+    ``mutation_origin`` and ``operation_context`` are forwarded to each
+    per-repo :func:`commit_sdd_files` call so machine mutations cannot
+    bypass the ownership contract by importing this helper.
     """
     committed_any = False
     for target_store, target_paths in sdd_commit_targets(store, paths):
@@ -82,6 +89,8 @@ def commit_sdd_store_files(
             already_locked=already_locked
             and store_write_lock_is_held(target_store.repo_root),
             cause=cause,
+            mutation_origin=mutation_origin,
+            operation_context=operation_context,
         )
         if committed:
             push_sdd_store_after_commit(

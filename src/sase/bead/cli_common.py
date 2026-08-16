@@ -142,6 +142,8 @@ def auto_commit_bead_store(
     push_after_commit: bool | Literal["async"] | None = None,
     already_locked: bool = False,
     cwd: Path | None = None,
+    mutation_origin: str = "user",
+    operation_context: Any | None = None,
 ) -> bool:
     """Best-effort commit/push for non-in-tree SDD bead store mutations."""
     try:
@@ -161,6 +163,10 @@ def auto_commit_bead_store(
             commit_kwargs["push_after_commit"] = push_after_commit
         if already_locked:
             commit_kwargs["already_locked"] = True
+        if mutation_origin != "user":
+            commit_kwargs["mutation_origin"] = mutation_origin
+        if operation_context is not None:
+            commit_kwargs["operation_context"] = operation_context
         return commit_sdd_store_files(
             store,
             message,
@@ -196,6 +202,8 @@ def bead_store_mutation(
     *,
     no_push: bool = False,
     cwd: Path | None = None,
+    mutation_origin: str = "user",
+    operation_context: Any | None = None,
 ) -> Iterator[_BeadStoreMutation]:
     """Keep one CLI bead mutation and its commit under one store lock."""
     from sase.bead.sync import bead_store_write_lock
@@ -215,6 +223,10 @@ def bead_store_mutation(
                 }
                 if cwd is not None:
                     commit_kwargs["cwd"] = cwd
+                if mutation_origin != "user":
+                    commit_kwargs["mutation_origin"] = mutation_origin
+                if operation_context is not None:
+                    commit_kwargs["operation_context"] = operation_context
                 committed = auto_commit(mutation.commit_message, **commit_kwargs)
     if committed and not no_push:
         if cwd is None:

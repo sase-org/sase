@@ -7,7 +7,11 @@ from pathlib import Path
 
 from sase.bead.model import Issue, Status
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
-from sase.bead.workspace import get_project_beads_dirs_for_project
+from sase.bead.workspace import (
+    get_project_beads_dirs_for_project,
+    resolve_primary_workspace_for_project,
+)
+from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM
 
 _NON_CLOSED_STATUSES: list[Status] = [
     status for status in Status if status is not Status.CLOSED
@@ -15,11 +19,39 @@ _NON_CLOSED_STATUSES: list[Status] = [
 
 
 def canonical_beads_dir_for_project(project: str) -> Path | None:
-    """Return the canonical readable bead-store directory for *project*."""
+    """Return the canonical readable bead-store directory for *project*.
+
+    This locator is read-only. Automated writers must use a writable
+    :class:`~sase.workspace_provider.ownership.OperationContext` instead
+    of mutating the path returned here.
+    """
     beads_dirs = get_project_beads_dirs_for_project(project)
     if not beads_dirs:
         return None
     return beads_dirs[0]
+
+
+def canonical_plans_dir_for_project(project: str) -> Path | None:
+    """Return the canonical readable plans directory for *project*."""
+    return canonical_sidecar_dir_for_project(project, "plans")
+
+
+def canonical_sidecar_dir_for_project(project: str, role: str) -> Path | None:
+    """Return the canonical readable sidecar root for *role* in *project*.
+
+    Readers (catalogs, wait evaluation, mobile views) may use this path.
+    Automated mutation must go through a writable operation context.
+    """
+    primary = resolve_primary_workspace_for_project(project)
+    if primary is None:
+        return None
+    try:
+        from sase.sdd.store import resolve_sdd_store
+
+        root = resolve_sdd_store(primary, PRIMARY_WORKSPACE_NUM).kind_root(role)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return root if root.is_dir() else None
 
 
 def open_bead_project_for_beads_dir(beads_dir: Path) -> BeadProject:

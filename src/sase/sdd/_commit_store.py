@@ -26,6 +26,7 @@ from sase.sdd._store_types import (
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
+    from sase.workspace_provider.ownership import OperationContext
 
 _logger = logging.getLogger(__name__)
 
@@ -42,6 +43,8 @@ def commit_sdd_files(
     record_commit_marker: bool = True,
     already_locked: bool = False,
     cause: str = "user",
+    mutation_origin: str = "user",
+    operation_context: "OperationContext | None" = None,
 ) -> bool:
     """Auto-commit SDD files in a local `.sase/sdd/` git repo.
 
@@ -51,9 +54,21 @@ def commit_sdd_files(
     ``already_locked`` marks a caller that mutated the worktree under
     :func:`store_git_write_lock` and is committing that mutation inside the
     same span; the lock is handed off rather than reacquired.
+
+    ``mutation_origin`` and ``operation_context`` enforce the workspace
+    ownership contract before any files are staged. User origin with no
+    context keeps foreground CLI behavior; machine origin fails closed on
+    primary ``#0``, unclaimed checkouts, and read-only canonical stores.
     """
     if not (sdd_dir / ".git").is_dir():
         return False
+    from sase.workspace_provider.ownership import authorize_store_mutation
+
+    authorize_store_mutation(
+        sdd_dir,
+        mutation_origin=mutation_origin,
+        context=operation_context,
+    )
 
     pathspecs = normalize_sdd_commit_pathspecs(sdd_dir, paths)
     lock = (

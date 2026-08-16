@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
+from typing import Any
 
 _logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ def publish_committed_bead_pages(
     *,
     primary_root: Path | str,
     project: str | None = None,
+    mutation_origin: str = "user",
+    operation_context: Any | None = None,
 ) -> _BeadPagePublicationOutcome:
     """Publish the lineage named by ``SASE_BEAD`` without ever raising."""
 
@@ -41,6 +44,8 @@ def publish_committed_bead_pages(
             bead_id,
             primary_root=anchor.primary_root,
             project=project or anchor.project_name,
+            mutation_origin=mutation_origin,
+            operation_context=operation_context,
         )
     except Exception as exc:  # noqa: BLE001 - auxiliary post-commit boundary.
         return _error_outcome(exc)
@@ -51,6 +56,8 @@ def _publish_bead_lineage(
     *,
     primary_root: Path,
     project: str | None,
+    mutation_origin: str = "user",
+    operation_context: Any | None = None,
 ) -> _BeadPagePublicationOutcome:
 
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
@@ -136,6 +143,11 @@ def _publish_bead_lineage(
         from sase.sdd.files import commit_sdd_store_files
 
         try:
+            commit_kwargs: dict[str, Any] = {}
+            if mutation_origin != "user":
+                commit_kwargs["mutation_origin"] = mutation_origin
+            if operation_context is not None:
+                commit_kwargs["operation_context"] = operation_context
             committed = commit_sdd_store_files(
                 store,
                 f"chore(beads): sync bead state and pages for {root_id}",
@@ -143,6 +155,7 @@ def _publish_bead_lineage(
                 auto_commit_type="beads",
                 push_after_commit="async",
                 already_locked=True,
+                **commit_kwargs,
             )
         except Exception as exc:  # noqa: BLE001 - preserve changed projection.
             return _error_outcome(exc, changed=bool(changed_paths))

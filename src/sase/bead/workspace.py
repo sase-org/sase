@@ -25,6 +25,14 @@ def get_project_beads_dirs() -> list[Path] | None:
     return [beads_dir] if beads_dir is not None else None
 
 
+def resolve_primary_workspace_for_project(project_name: str) -> Path | None:
+    """Resolve the user-owned primary checkout for an explicit project name."""
+    primary = _resolve_from_project_file(project_name)
+    if primary is None:
+        primary = _resolve_from_workspace_provider(project_name)
+    return primary
+
+
 def get_project_beads_dirs_for_project(project_name: str) -> list[Path] | None:
     """Find the canonical bead store for an explicit project name.
 
@@ -32,9 +40,7 @@ def get_project_beads_dirs_for_project(project_name: str) -> list[Path] | None:
     beads for the project that owns an agent without scanning sibling
     workspaces.
     """
-    primary = _resolve_from_project_file(project_name)
-    if primary is None:
-        primary = _resolve_from_workspace_provider(project_name)
+    primary = resolve_primary_workspace_for_project(project_name)
     if primary is None:
         return None
     beads_dir = _canonical_project_beads_dir(primary)
