@@ -202,6 +202,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=("bead_id", "operation"),
         result_kind="bead.status",
+        concurrency_keys=("beads:{operation}:{project}:{bead_id}",),
         optimistic_ui="pane refresh",
         restart_recovery="not durable; session-local bead mutation",
     ),
@@ -320,6 +321,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=("notification_id",),
         result_kind="run.launch",
+        concurrency_keys=("legacy-epic-launch:{notification_id}",),
         restart_recovery="not durable; session-local launch preparation",
     ),
     _site(
@@ -333,6 +335,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="agent.sync",
+        concurrency_keys=("agents-sync",),
         restart_recovery="not durable; session-local agents sync",
     ),
     _site(
@@ -346,6 +349,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="agent.sync",
+        concurrency_keys=("agents-sync",),
         restart_recovery="not durable; session-local agents sync",
     ),
     _site(
@@ -424,6 +428,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="sase.update",
+        concurrency_keys=("sase-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
     _site(
@@ -437,6 +442,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="sase.update",
+        concurrency_keys=("sase-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
     _site(
@@ -450,6 +456,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="sase.update",
+        concurrency_keys=("sase-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
     _site(
@@ -463,6 +470,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="agent-cli.update",
+        concurrency_keys=("agent-cli-update",),
         restart_recovery="not durable; session-local update workflow",
     ),
     _site(
@@ -476,6 +484,12 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
         "",
         identifiers=(),
         result_kind="sase.update",
+        concurrency_keys=(
+            "comprehensive-update",
+            "sase-update",
+            "agent-cli-update",
+            "agents-sync",
+        ),
         restart_recovery="not durable; session-local update workflow",
     ),
     _site(

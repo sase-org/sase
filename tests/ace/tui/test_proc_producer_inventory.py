@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ast
+import inspect
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.ace.tui.actions.proc_actions import ProcActionsMixin
 from sase.ace.tui.proc_producer_sites import (
     CallKind,
     INFRASTRUCTURE,
@@ -22,6 +24,7 @@ class FoundProducerCall:
     kind: CallKind
     proc_type: str
     index: int
+    keywords: tuple[str, ...] = ()
 
     @property
     def site_key(self) -> tuple[str, str, str, str, int]:
@@ -194,6 +197,11 @@ class _SubmitCallVisitor(ast.NodeVisitor):
                     kind=kind,
                     proc_type=proc_type,
                     index=index,
+                    keywords=tuple(
+                        keyword.arg
+                        for keyword in node.keywords
+                        if keyword.arg is not None
+                    ),
                 )
             )
         self.generic_visit(node)
@@ -266,6 +274,28 @@ def test_inventory_rejects_legacy_callable_submitters() -> None:
                 violations.append((rel, node.id))
             elif isinstance(node, ast.Attribute) and node.attr in write_api_names:
                 violations.append((rel, node.attr))
+    assert not violations
+
+
+def test_producer_calls_match_submit_signatures() -> None:
+    signature_by_kind = {
+        "direct_submit_durable": inspect.signature(
+            ProcActionsMixin._submit_durable_proc
+        ),
+        "duck_submit_durable": inspect.signature(ProcActionsMixin._submit_durable_proc),
+        "session_worker": inspect.signature(ProcActionsMixin._submit_session_worker),
+    }
+    violations: list[str] = []
+    for call in _scan_production_submit_calls():
+        signature = signature_by_kind[call.kind]
+        accepted = set(signature.parameters)
+        unexpected = sorted(set(call.keywords) - accepted)
+        if unexpected:
+            violations.append(
+                f"{call.source_path}:{call.function}:{call.kind} "
+                f"passes unsupported submit kwargs: {unexpected}"
+            )
+
     assert not violations
 
 

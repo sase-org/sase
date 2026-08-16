@@ -19,6 +19,9 @@ from sase.agents_sync.models import (
     SyncOutcome,
     SyncStatusSnapshot,
 )
+from tests.ace.tui._proc_submit_signature_helpers import (
+    assert_session_worker_submit_signature,
+)
 
 
 class _Indicator:
@@ -66,6 +69,7 @@ class _Harness(AgentsSyncActionsMixin):
         return self.indicator
 
     def _submit_session_worker(self, *args: Any, **kwargs: Any) -> object:
+        assert_session_worker_submit_signature(args, kwargs)
         self.submitted = (args, kwargs)
         return object()
 
@@ -219,7 +223,10 @@ def test_manual_sync_uses_tracked_deduplicated_scope_and_refreshes_status(
     args, kwargs = app.submitted
     assert kwargs["dedup_key"] == "agents-sync"
     assert kwargs["exclusive_scopes"] == ("agents-sync",)
-    assert kwargs["reload_on_complete"] is False
+    assert (
+        kwargs["duplicate_message"]
+        == "An agents-repository synchronization is already running."
+    )
     task_result = args[1]()
     assert task_result.success is False
     assert task_result.payload == outcomes
@@ -260,6 +267,10 @@ def test_indicator_integration_captures_items_and_uses_no_network_api(
     args, kwargs = app.submitted
     assert kwargs["dedup_key"] == "agents-sync"
     assert kwargs["exclusive_scopes"] == ("agents-sync",)
+    assert (
+        kwargs["duplicate_message"]
+        == "An agents-repository synchronization is already running."
+    )
     task_result = args[1]()
     assert calls == [(captured,)]
     assert task_result.success is True

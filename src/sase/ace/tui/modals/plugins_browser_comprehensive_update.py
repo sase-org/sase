@@ -332,7 +332,7 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
         submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return False
-        submit(
+        submitted = submit(
             "comprehensive-update",
             task,
             display_name="comprehensive update",
@@ -343,9 +343,12 @@ class ComprehensiveUpdateActionsMixin(ComprehensiveUpdateExecutionMixin):
                 "agent-cli-update",
                 "agents-sync",
             ),
+            duplicate_message=(
+                "A SASE, agent CLI, or agents-repository update is already running."
+            ),
             on_complete=self._on_comprehensive_update_complete,
         )
-        return True
+        return submitted is not None
 
     def _on_comprehensive_update_complete(
         self,

@@ -178,6 +178,11 @@ class ProcActionsMixin:
                         display_name=display_name or label or operation,
                     )
                     break
+        if existing is None:
+            existing = self._session_worker_conflict(
+                dedup_key=None,
+                exclusive_scopes=requested_scopes,
+            )
         if existing is not None:
             self.notify(  # type: ignore[attr-defined]
                 duplicate_message
@@ -279,7 +284,10 @@ class ProcActionsMixin:
         display_name: str | None = None,
         cl_name: str = "",
         project_file: str = "",
-    ) -> None:
+        dedup_key: str | None = None,
+        exclusive_scopes: Collection[str] = (),
+        duplicate_message: str | None = None,
+    ) -> ObservedProc | None:
         """Run true UI-session-local work in a thread-backed worker."""
         from sase.core.time import local_now
 
@@ -287,6 +295,39 @@ class ProcActionsMixin:
             self._session_workers = {}
         if not hasattr(self, "_session_completion_callbacks"):
             self._session_completion_callbacks = {}
+
+        requested_scopes = frozenset(exclusive_scopes)
+        existing = self._session_worker_conflict(
+            dedup_key=dedup_key,
+            exclusive_scopes=requested_scopes,
+        )
+        if existing is None:
+            projection = getattr(self, "_proc_projection", ProcProjection())
+            existing = projection.scope_conflict(requested_scopes)
+        if existing is None and requested_scopes:
+            for pending_scopes in getattr(self, "_proc_pending_scopes", {}).values():
+                if pending_scopes & requested_scopes:
+                    existing = ObservedProc(
+                        proc_id="pending",
+                        proc_type=proc_type,
+                        cl_name=cl_name,
+                        project_file=project_file,
+                        status="pending",
+                        message="pending",
+                        started_at=local_now(),
+                        display_name=display_name or proc_type,
+                    )
+                    break
+        if existing is not None:
+            self.notify(  # type: ignore[attr-defined]
+                duplicate_message
+                or (
+                    f"A {existing.proc_type} proc is already running for "
+                    f"{humanize_cl_name(cl_name or existing.cl_name)}"
+                ),
+                severity="warning",
+            )
+            return None
 
         proc_info = ObservedProc(
             proc_id=f"session-{len(self._session_workers)}-{os.getpid()}",
@@ -297,6 +338,8 @@ class ProcActionsMixin:
             message="running",
             started_at=local_now(),
             display_name=display_name or proc_type,
+            dedup_key=dedup_key,
+            exclusive_scopes=requested_scopes,
         )
 
         def _wrapped() -> _SessionWorkerResult[T]:
@@ -317,6 +360,29 @@ class ProcActionsMixin:
         )
         worker: Worker[Any] = self.run_worker(_wrapped, thread=True)  # type: ignore[attr-defined]
         self._session_workers[proc_info.proc_id] = worker
+        return proc_info
+
+    def _session_worker_conflict(
+        self,
+        *,
+        dedup_key: str | None,
+        exclusive_scopes: Collection[str],
+    ) -> ObservedProc | None:
+        """Return a live session worker claiming the requested key or scope."""
+        requested_scopes = frozenset(exclusive_scopes)
+        if dedup_key is None and not requested_scopes:
+            return None
+        for recorded in getattr(self, "_session_completion_callbacks", {}).values():
+            if not isinstance(recorded, tuple) or len(recorded) != 2:
+                continue
+            _on_complete, proc_info = recorded
+            if not isinstance(proc_info, ObservedProc):
+                continue
+            if dedup_key is not None and proc_info.dedup_key == dedup_key:
+                return proc_info
+            if requested_scopes and requested_scopes & proc_info.exclusive_scopes:
+                return proc_info
+        return None
 
     def _on_durable_submit_worker_completed(self, worker: Worker[Any]) -> None:
         """Register successful submit handles or surface submit failures."""

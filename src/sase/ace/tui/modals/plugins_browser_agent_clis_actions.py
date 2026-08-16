@@ -295,7 +295,7 @@ class AgentCliBrowserActionsMixin:
             cl_name="agent CLIs",
             dedup_key="agent-cli-update",
             exclusive_scopes=("agent-cli-update",),
-            reload_on_complete=False,
+            duplicate_message="An agent CLI update is already running.",
             on_complete=self._on_agent_cli_update_complete,
         )
 

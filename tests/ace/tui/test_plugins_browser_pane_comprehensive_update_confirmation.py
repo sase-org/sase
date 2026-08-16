@@ -116,6 +116,45 @@ async def test_comprehensive_confirmation_submits_same_captured_preview(
         assert submitted[0].request.provider_names == ("claude",)
 
 
+async def test_comprehensive_confirmation_stays_open_when_submit_collides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+    )
+
+    async with AcePage() as page:
+        admin = ConfigCenterModal(
+            initial_tab="updates",
+            auto_update=True,
+            comprehensive_provider_names=("claude",),
+        )
+        page.app.push_screen(admin)
+        await page.expect_modal("PluginActionConfirmModal")
+        confirm = page.app.screen
+        assert isinstance(confirm, PluginActionConfirmModal)
+        pane = admin.query_one("#updates")
+        submitted: list[_ComprehensiveUpdatePreview] = []
+        closed: list[bool] = []
+        monkeypatch.setattr(
+            pane,
+            "_submit_comprehensive_update_task",
+            lambda preview: submitted.append(preview) or False,
+        )
+        monkeypatch.setattr(
+            pane,
+            "_close_admin_center_after_sase_update",
+            lambda: closed.append(True),
+        )
+
+        confirm.action_confirm()
+        await page.wait_for(lambda _s: bool(submitted))
+        assert closed == []
+
+
 async def test_provider_only_comprehensive_confirmation_explains_no_ranges(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

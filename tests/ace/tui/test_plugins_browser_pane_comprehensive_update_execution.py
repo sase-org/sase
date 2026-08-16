@@ -20,6 +20,9 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update import (
     _ComprehensiveUpdatePreview,
 )
 from sase.agents_sync.models import CachedIntegrationResult, CapturedIncomingHood
+from tests.ace.tui._proc_submit_signature_helpers import (
+    assert_session_worker_submit_signature,
+)
 
 
 def _captured(
@@ -57,12 +60,14 @@ class _Reporter:
 
 
 class _SubmitApp:
-    def __init__(self) -> None:
+    def __init__(self, *, reject: bool = False) -> None:
+        self.reject = reject
         self.submitted: tuple[tuple[Any, ...], dict[str, Any]] | None = None
 
     def _submit_session_worker(self, *args: Any, **kwargs: Any) -> object:
+        assert_session_worker_submit_signature(args, kwargs)
         self.submitted = (args, kwargs)
-        return object()
+        return None if self.reject else object()
 
 
 class _ExecutionHarness(ComprehensiveUpdateActionsMixin):
@@ -119,6 +124,10 @@ def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_fail
         "agents-sync",
     )
     assert kwargs["dedup_key"] == "comprehensive-update"
+    assert (
+        kwargs["duplicate_message"]
+        == "A SASE, agent CLI, or agents-repository update is already running."
+    )
 
     task_result = args[1]()
     assert harness.order == ["providers", "sase", "agents"]
@@ -126,6 +135,18 @@ def test_comprehensive_task_claims_both_scopes_and_continues_after_provider_fail
     assert task_result.payload is not None
     assert task_result.payload.provider_error == "provider failed"
     assert task_result.payload.agents_outcomes[0].captured.project_key == "alpha"
+
+
+def test_comprehensive_task_reports_submit_collision() -> None:
+    harness = _ExecutionHarness()
+    harness.app = _SubmitApp(reject=True)
+    preview = _ComprehensiveUpdatePreview(
+        request=ComprehensiveUpdateRequest(("claude",)),
+        sase_preview=pbp._DevUpdatePreview(plan=None, subject="sase"),
+    )
+
+    assert harness._submit_comprehensive_update_task(preview) is False
+    assert harness.app.submitted is not None
 
 
 def test_comprehensive_summary_and_failures_include_agents_repos() -> None:

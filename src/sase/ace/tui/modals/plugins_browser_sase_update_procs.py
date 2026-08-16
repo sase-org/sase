@@ -93,6 +93,8 @@ class SaseUpdateProcMixin:
             proc,
             display_name="sase update",
             cl_name="sase",
+            dedup_key="sase-update",
+            exclusive_scopes=("sase-update",),
             on_complete=self._on_sase_update_complete,
         )
 
@@ -140,7 +142,6 @@ class SaseUpdateProcMixin:
                 payload=result,
             )
 
-        del dedup_key, duplicate_message
         submit = getattr(self.app, "_submit_session_worker", None)
         if submit is None:
             return
@@ -149,6 +150,9 @@ class SaseUpdateProcMixin:
             proc,
             display_name=display_name,
             cl_name=subject,
+            dedup_key=dedup_key,
+            exclusive_scopes=("sase-update",),
+            duplicate_message=duplicate_message,
             on_complete=self._on_dev_update_complete,
         )
 
@@ -209,6 +213,8 @@ class SaseUpdateProcMixin:
             proc,
             display_name="sase update",
             cl_name="sase",
+            dedup_key="sase-update",
+            exclusive_scopes=("sase-update",),
             on_complete=self._on_combined_update_complete,
         )
 

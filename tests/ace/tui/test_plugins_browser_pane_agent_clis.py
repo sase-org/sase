@@ -35,6 +35,9 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     _patch_other_panes,
     _render,
 )
+from tests.ace.tui._proc_submit_signature_helpers import (
+    assert_session_worker_submit_signature,
+)
 
 
 async def test_updates_subtabs_cycle_and_gate_plugin_actions(
@@ -287,6 +290,7 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
         pane._switch_to_subtab("agent-clis")
 
         def submit(*args: Any, **kwargs: Any) -> object:
+            assert_session_worker_submit_signature(args, kwargs)
             submitted["args"] = args
             submitted.update(kwargs)
             return object()
@@ -309,7 +313,9 @@ async def test_agent_cli_update_plan_confirm_and_tracked_execution(
         await page.expect_modal("ConfigCenterModal")
         assert submitted["dedup_key"] == "agent-cli-update"
         assert submitted["exclusive_scopes"] == ("agent-cli-update",)
-        assert submitted["reload_on_complete"] is False
+        assert (
+            submitted["duplicate_message"] == "An agent CLI update is already running."
+        )
 
         plan = pane._make_agent_cli_update_plan(None, all_clis=True)
         assert isinstance(plan, AgentCliUpdatesReady)

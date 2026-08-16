@@ -212,7 +212,7 @@ class AgentsSyncActionsMixin:
             cl_name="agents repositories",
             dedup_key="agents-sync",
             exclusive_scopes=("agents-sync",),
-            reload_on_complete=False,
+            duplicate_message="An agents-repository synchronization is already running.",
             on_complete=on_complete,
         )
 
@@ -258,7 +258,7 @@ class AgentsSyncActionsMixin:
             cl_name="cached incoming agent hoods",
             dedup_key="agents-sync",
             exclusive_scopes=("agents-sync",),
-            reload_on_complete=False,
+            duplicate_message="An agents-repository synchronization is already running.",
             on_complete=on_complete,
         )
 
