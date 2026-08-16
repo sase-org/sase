@@ -2101,6 +2101,82 @@
               }
             }
           }
+        },
+        "usage_limit": {
+          "type": "object",
+          "description": "Usage-limit detection and automatic provider disable configuration. Unlike 'retry', this section has genuine global scalars (enabled, disable_seconds, min/max_disable_seconds, honor_reset_hint, notify) alongside per-provider pattern overrides nested under 'providers', because every provider's disable duration and reset-hint handling share the same defaults unless overridden.",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable automatic provider disable on detected usage-limit errors.",
+              "default": true
+            },
+            "disable_seconds": {
+              "type": "integer",
+              "description": "Fallback disable duration in seconds used when no reset hint is available or honored.",
+              "default": 86400
+            },
+            "min_disable_seconds": {
+              "type": "integer",
+              "description": "Minimum disable duration in seconds; clamps any duration derived from a parsed reset hint.",
+              "default": 60
+            },
+            "max_disable_seconds": {
+              "type": "integer",
+              "description": "Maximum disable duration in seconds; clamps any duration derived from a parsed reset hint.",
+              "default": 604800
+            },
+            "honor_reset_hint": {
+              "type": "boolean",
+              "description": "Prefer a reset time reported by the provider itself over the flat disable_seconds fallback.",
+              "default": true
+            },
+            "notify": {
+              "type": "boolean",
+              "description": "Send a notification when a provider is automatically disabled.",
+              "default": true
+            },
+            "providers": {
+              "type": "object",
+              "description": "Per-provider usage-limit overrides. Keys are provider names (e.g., 'agy', 'claude', 'codex').",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "patterns": {
+                    "type": "array",
+                    "description": "Substrings to match against error output (case- and apostrophe-insensitive). Added to the built-in patterns unless replace_patterns is true.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  },
+                  "exclude_patterns": {
+                    "type": "array",
+                    "description": "Substrings that, when present anywhere in the error output, prevent a match even if a pattern also matches. Always additive to the built-ins.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  },
+                  "disable_seconds": {
+                    "type": ["integer", "null"],
+                    "description": "Per-provider override for the fallback disable duration. Null falls back to the global disable_seconds."
+                  },
+                  "honor_reset_hint": {
+                    "type": ["boolean", "null"],
+                    "description": "Per-provider override for honoring the provider's own reset hint. Null falls back to the global honor_reset_hint."
+                  },
+                  "replace_patterns": {
+                    "type": "boolean",
+                    "description": "When true, 'patterns' replaces the built-in patterns entirely instead of extending them.",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

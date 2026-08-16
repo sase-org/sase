@@ -24,6 +24,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "grok-4.6",
@@ -162,6 +163,20 @@ class GrokProvider(LLMProvider):
             wait_times=[60, 300, 1800],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,
             preserve_workspace=True,
+        )
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # Verbatim from a captured live failure (epic sase-n4 research); the
+        # source uses U+2019 in "You've", which normalize_for_match handles.
+        return ProviderUsageLimitConfig(
+            patterns=[
+                "reached your free grok build usage limit",
+                "usage limit for now",
+                "get supergrok for much higher limits",
+            ],
         )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:

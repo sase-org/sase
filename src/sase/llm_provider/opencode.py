@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.output import provider_timer
 
@@ -16,6 +17,9 @@ from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_opencode_json_output
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
+
+if TYPE_CHECKING:
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "anthropic/claude-sonnet-4-5",
@@ -161,6 +165,22 @@ class OpenCodeProvider(LLMProvider):
             "latest_version_package": "opencode-ai",
             "brew_package": "opencode",
         }
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # No usage-limit wording has been confirmed from this provider's
+        # shipped artifacts (epic sase-n4 research). This conservative
+        # baseline is unverified; tighten it once a real captured message is
+        # available.
+        return ProviderUsageLimitConfig(
+            patterns=[
+                "usage limit reached",
+                "quota exceeded",
+                "insufficient_quota",
+            ],
+        )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``--variant`` args."""

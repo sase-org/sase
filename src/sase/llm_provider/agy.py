@@ -42,6 +42,7 @@ from .types import (
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "gemini-3.7-flash-high",
@@ -385,6 +386,22 @@ class AgyProvider(LLMProvider):
             wait_times=[60, 300, 1800],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,
             preserve_workspace=True,
+        )
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # Antigravity is a Go binary built on Gemini Code Assist, so its
+        # usage-limit failures surface as Google API quota errors rather than
+        # distinctive prose (epic sase-n4 research).
+        return ProviderUsageLimitConfig(
+            patterns=[
+                "resource_exhausted",
+                "quota exceeded",
+                "insufficient_quota",
+                "you exceeded your current quota",
+            ],
         )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:

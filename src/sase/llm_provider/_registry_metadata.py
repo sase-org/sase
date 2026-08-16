@@ -56,6 +56,7 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
     )
     display_name = skill_template_context.get("provider_name") or provider_name or name
     retry_config = _call_optional(plugin, "llm_default_retry_config")
+    usage_limit_config = _call_optional(plugin, "llm_default_usage_limit_config")
     auth_evidence = _auth_evidence_metadata(_call_optional(plugin, "llm_auth_evidence"))
     install_metadata = _install_metadata(_call_optional(plugin, "llm_install_metadata"))
 
@@ -88,6 +89,7 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
         "auth_evidence": auth_evidence,
         "install": install_metadata,
         "default_retry_config": _dataclass_to_dict(retry_config),
+        "default_usage_limit_config": _dataclass_to_dict(usage_limit_config),
         "model_resolutions": model_resolutions,
         "hidden_from_model_pickers": (
             _call_optional(plugin, "llm_hidden_from_model_pickers") is True

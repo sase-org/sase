@@ -10,6 +10,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 hookspec = pluggy.HookspecMarker("sase_llm")
 hookimpl = pluggy.HookimplMarker("sase_llm")
@@ -143,6 +144,17 @@ class LLMHookSpec:
 
     @hookspec(firstresult=True)
     def llm_default_retry_config(self) -> ProviderRetryConfig | None: ...
+
+    @hookspec(firstresult=True)
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig | None:
+        """Built-in usage-limit detection patterns for this provider.
+
+        Omitting the hook means no built-in usage-limit detection for this
+        provider, so third-party provider plugins stay compatible without
+        implementing it. See ``usage_limit_config.py`` for the merge
+        semantics applied on top of this built-in.
+        """
+        ...
 
     @hookspec(firstresult=True)
     def llm_hidden_from_model_pickers(self) -> bool | None:

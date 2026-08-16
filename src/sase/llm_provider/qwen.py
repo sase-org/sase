@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.output import provider_timer
 
@@ -14,6 +15,9 @@ from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_qwen_json_output
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
+
+if TYPE_CHECKING:
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "qwen3.6-plus",
@@ -151,6 +155,21 @@ class QwenProvider(LLMProvider):
             "docs_url": "https://qwenlm.github.io/qwen-code-docs/en/",
             "latest_version_package": "@qwen-code/qwen-code",
         }
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # Qwen Code has no distinctive prose usage-limit message; its limit
+        # failures surface as transport-level errors (epic sase-n4 research).
+        return ProviderUsageLimitConfig(
+            patterns=[
+                "resource_exhausted",
+                "quota exceeded",
+                "insufficient_quota",
+                "you exceeded your current quota",
+            ],
+        )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Reject explicit effort; skip a config default (Qwen has none).

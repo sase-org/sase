@@ -18,6 +18,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 # Map model tiers to Claude CLI aliases
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -147,6 +148,35 @@ class ClaudeCodeProvider(LLMProvider):
             wait_times=[0],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,
             preserve_workspace=True,
+        )
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # Anchored on the confirmed template "You've hit your <label>" from
+        # the shipped Claude Code binary, plus the observed weekly-limit
+        # failure (epic sase-n4 research). The exclude_patterns guard against
+        # near-miss advisory text the same binary injects into *successful*
+        # runs ("approaching", "grace window") and the fast-mode cooldown
+        # message, none of which are account-level usage limits.
+        return ProviderUsageLimitConfig(
+            patterns=[
+                "you've hit your usage limit",
+                "you've hit your weekly limit",
+                "you've hit your session limit",
+                "you've hit your opus limit",
+                "you've hit your sonnet limit",
+                "usage limit reached",
+                "claude usage limit reached",
+            ],
+            exclude_patterns=[
+                "usage limit approaching",
+                "grace window active",
+                "approaching your",
+                "fast limit reached",
+                "close to your usage limit",
+            ],
         )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:

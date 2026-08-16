@@ -16,6 +16,7 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.core.paths import get_sase_managed_tmpdir
 from sase.output import provider_timer
@@ -25,6 +26,9 @@ from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_muse_json_output
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
+
+if TYPE_CHECKING:
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 # Both tiers map to the full-price model on purpose. ``small`` is what compact
 # size aliases can reach for automatically, and
@@ -253,6 +257,22 @@ class MuseProvider(LLMProvider):
             # lines to the user's shell rc files.
             "install_env": {"MUSE_UPGRADE_MODE": "1"},
         }
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # No usage-limit wording has been confirmed from this provider's
+        # shipped artifacts (epic sase-n4 research). This conservative
+        # baseline is unverified; tighten it once a real captured message is
+        # available.
+        return ProviderUsageLimitConfig(
+            patterns=[
+                "usage limit reached",
+                "quota exceeded",
+                "insufficient_quota",
+            ],
+        )
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         """Translate a resolved reasoning effort into ``--reasoning-effort`` args."""

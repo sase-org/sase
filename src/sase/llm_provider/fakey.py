@@ -20,6 +20,7 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage_limit_config import ProviderUsageLimitConfig
 
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -165,6 +166,14 @@ class FakeyProvider(LLMProvider):
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,
             preserve_workspace=True,
         )
+
+    @hookimpl
+    def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:
+        from .usage_limit_config import ProviderUsageLimitConfig
+
+        # Deterministic trigger so enforce/notify can be exercised end to end,
+        # exactly as fakey already does for retry.
+        return ProviderUsageLimitConfig(patterns=["FAKEY-USAGE-LIMIT"])
 
     def invocation_option_args(self, options: LLMInvocationOptions | None) -> list[str]:
         return effort_cli_args(
