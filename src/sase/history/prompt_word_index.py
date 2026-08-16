@@ -108,8 +108,6 @@ def build_prompt_word_index(
     prompt_limit: int | None = _SOURCE_TOKEN_PROMPT_LIMIT_DEFAULT,
     shard_paths: Iterable[Path] | None = None,
     load_shard_func: Callable[[Path], list[PromptEntry]] = load_shard,
-    stop_after_mru_words: int | None = None,
-    deleted_words: set[str] | frozenset[str] = frozenset(),
 ) -> PromptWordIndex:
     """Build an immutable word index from the prompt-history shards."""
     return _build_prompt_word_index_from_paths(
@@ -118,8 +116,6 @@ def build_prompt_word_index(
         shard_limit=shard_limit,
         prompt_limit=prompt_limit,
         load_shard_func=load_shard_func,
-        stop_after_mru_words=stop_after_mru_words,
-        deleted_words=deleted_words,
     )
 
 
@@ -144,8 +140,6 @@ def _build_prompt_word_index_from_paths(
     shard_limit: int | None,
     prompt_limit: int | None,
     load_shard_func: Callable[[Path], list[PromptEntry]],
-    stop_after_mru_words: int | None = None,
-    deleted_words: set[str] | frozenset[str] = frozenset(),
 ) -> PromptWordIndex:
     paths = tuple(shard_paths)
     source_token = _prompt_word_index_source_token_from_paths(
@@ -159,7 +153,6 @@ def _build_prompt_word_index_from_paths(
     prompt_word_rows: list[list[int]] = []
     prompt_epochs = array("d")
     last_used_epochs = array("d")
-    returned_word_count = 0
     reached_prompt_limit = False
     reached_shard_limit = False
 
@@ -184,7 +177,6 @@ def _build_prompt_word_index_from_paths(
             prompt_id = len(prompt_word_rows)
             prompt_word_ids: list[int] = []
             seen_in_prompt: set[int] = set()
-            stop_after_prompt = False
             for word in prompt_words:
                 word_id = word_ids.get(word)
                 if word_id is None:
@@ -193,29 +185,16 @@ def _build_prompt_word_index_from_paths(
                     words.append(word)
                     word_postings.append([])
                     last_used_epochs.append(prompt_epoch)
-                    if stop_after_mru_words is not None and word not in deleted_words:
-                        returned_word_count += 1
-                        if returned_word_count >= stop_after_mru_words:
-                            stop_after_prompt = True
 
                 if word_id in seen_in_prompt:
-                    if stop_after_prompt:
-                        break
                     continue
                 seen_in_prompt.add(word_id)
                 prompt_word_ids.append(word_id)
                 word_postings[word_id].append(prompt_id)
-                if stop_after_prompt:
-                    break
 
             prompt_word_rows.append(prompt_word_ids)
             prompt_epochs.append(prompt_epoch)
-            if stop_after_prompt:
-                break
-        if reached_prompt_limit or (
-            stop_after_mru_words is not None
-            and returned_word_count >= stop_after_mru_words
-        ):
+        if reached_prompt_limit:
             break
 
     if reached_shard_limit:

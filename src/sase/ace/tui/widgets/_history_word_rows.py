@@ -51,7 +51,7 @@ def history_word_label_width(candidate: CompletionCandidate) -> int:
     return min(_LABEL_WIDTH_CAP, cell_len(candidate.display))
 
 
-def build_score_meter(metadata: HistoryWordCompletionMetadata) -> Text:
+def _build_score_meter(metadata: HistoryWordCompletionMetadata) -> Text:
     """Return the 5-cell stacked composite-score meter for one ranked row.
 
     Filled length tracks ``metadata.score``; the filled cells are colored by
@@ -101,7 +101,7 @@ def _meter_cell_colors(
     return colors
 
 
-def format_reason_chip(metadata: HistoryWordCompletionMetadata) -> Text:
+def _format_reason_chip(metadata: HistoryWordCompletionMetadata) -> Text:
     """Return the dominant-reason chip for one smart-ranked history-word row."""
     glyph = _REASON_GLYPHS.get(metadata.reason, RECENCY_GLYPH)
     color = _REASON_COLORS.get(metadata.reason, RECENCY_COLOR)
@@ -168,7 +168,7 @@ def append_history_word_completion_row(
     word_width = cell_len(candidate.display)
     available = inner_width - 2 if inner_width > 0 else None
 
-    meter = build_score_meter(metadata)
+    meter = _build_score_meter(metadata)
     gap_and_padding = label_width - word_width + 2
     used = word_width + gap_and_padding + meter.cell_len
     if available is not None and used > available:
@@ -176,7 +176,7 @@ def append_history_word_completion_row(
     content.append(" " * gap_and_padding)
     content.append_text(meter)
 
-    chip = format_reason_chip(metadata)
+    chip = _format_reason_chip(metadata)
     used += 2 + chip.cell_len
     if available is not None and used > available:
         return

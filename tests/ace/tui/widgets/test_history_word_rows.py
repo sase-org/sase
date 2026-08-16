@@ -8,9 +8,9 @@ from textual.widgets import Static
 from sase.ace.tui.widgets._history_word_rows import (
     RECENCY_COLOR,
     RELATION_COLOR,
+    _build_score_meter,
+    _format_reason_chip,
     append_history_word_completion_row,
-    build_score_meter,
-    format_reason_chip,
     history_word_label_width,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
@@ -79,7 +79,7 @@ def test_score_meter_renders_empty_for_zero_score() -> None:
         frequency=0.0,
     )
 
-    meter = build_score_meter(metadata)
+    meter = _build_score_meter(metadata)
 
     assert meter.plain == "▱▱▱▱▱"
     assert all(str(span.style) == "dim" for span in meter.spans)
@@ -97,7 +97,7 @@ def test_score_meter_distributes_fixed_signal_order_by_largest_remainder() -> No
         frequency=0.0,
     )
 
-    meter = build_score_meter(metadata)
+    meter = _build_score_meter(metadata)
 
     assert meter.plain == "▰▰▰▱▱"
     styles = [str(span.style) for span in meter.spans]
@@ -124,7 +124,7 @@ def test_score_meter_never_shows_fewer_than_one_filled_cell_for_positive_score()
         frequency=0.02,
     )
 
-    meter = build_score_meter(metadata)
+    meter = _build_score_meter(metadata)
 
     assert meter.plain.count("▰") == 1
     assert meter.plain.count("▱") == 4
@@ -142,7 +142,7 @@ def test_reason_chip_shows_related_context_word() -> None:
         frequency=0.0,
     )
 
-    chip = format_reason_chip(metadata)
+    chip = _format_reason_chip(metadata)
 
     assert chip.plain == "⇄ monitor"
 
@@ -159,7 +159,7 @@ def test_reason_chip_truncates_long_context_word() -> None:
         frequency=0.0,
     )
 
-    chip = format_reason_chip(metadata)
+    chip = _format_reason_chip(metadata)
 
     assert chip.plain == "⇄ " + "a" * 13 + "..."
 
@@ -176,7 +176,7 @@ def test_reason_chip_shows_use_count_for_frequency() -> None:
         frequency=0.2,
     )
 
-    chip = format_reason_chip(metadata)
+    chip = _format_reason_chip(metadata)
 
     assert chip.plain == "✦ 47×"
 
@@ -193,7 +193,7 @@ def test_reason_chip_age_unit_boundaries() -> None:
             recency=0.3,
             frequency=0.0,
         )
-        return format_reason_chip(metadata).plain
+        return _format_reason_chip(metadata).plain
 
     assert chip_for(59) == "◷ 59s"
     assert chip_for(60) == "◷ 1m"

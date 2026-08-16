@@ -150,7 +150,7 @@ def remove_common_placeholder(text: str) -> bool:
 def common_placeholder_source_token() -> CommonPlaceholderSourceToken:
     """Return a cheap staleness token for the store file.
 
-    Mirrors ``prompt_words._shard_token`` so a warm cache can skip a rebuild
+    Mirrors ``prompt_word_index._shard_token`` so a warm cache can skip a rebuild
     that would produce the same list.  An absent store yields a sentinel that
     still differs from any real stat.
     """
