@@ -931,6 +931,31 @@ llm_provider:
     #   max_retries: 3
     #   error_patterns: ["FAKEY-RETRYABLE"]
     #   wait_times: [0]
+  # Usage-limit auto-disable policy. Positive provider-scoped matches create a
+  # machine-wide temporary provider disable before retry policy runs; plain
+  # transient 429s that do not match still use llm_provider.retry.
+  # usage_limit:
+  #   enabled: true              # false disables usage-limit classification
+  #   disable_seconds: 86400     # 24h fallback when no reset hint is honored
+  #   min_disable_seconds: 60    # lower bound for provider-reported reset hints
+  #   max_disable_seconds: 604800 # upper bound for reset hints (7d)
+  #   honor_reset_hint: true     # parse provider "resets at/in" hints when possible
+  #   notify: true               # notify once for each new disable window
+  #   providers:
+  #     claude:
+  #       # User patterns are additive with provider defaults by default.
+  #       patterns:
+  #         - "you've hit your usage limit"
+  #       # Exclusions are always additive and suppress otherwise matching text.
+  #       exclude_patterns:
+  #         - "usage limit approaching"
+  #       # true makes patterns literal replacements; [] intentionally disables
+  #       # this provider's detector without removing future built-in defaults.
+  #       replace_patterns: false
+  #       # null inherits the global value; an integer overrides it per provider.
+  #       disable_seconds: null
+  #       # null inherits the global reset-hint policy; true/false overrides it.
+  #       honor_reset_hint: null
 
 commit:
   finalizer:

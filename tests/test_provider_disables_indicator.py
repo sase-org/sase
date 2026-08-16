@@ -22,13 +22,14 @@ def _disable(
     provider: str = "claude",
     *,
     expires_at: float | None = 1_000.0,
+    source: str = "test",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
         provider=provider,
         created_at=100.0,
         expires_at=expires_at,
-        source="test",
+        source=source,
     )
 
 
@@ -80,16 +81,18 @@ def test_expired_provider_disable_renders_empty() -> None:
 def test_tooltip_lists_active_provider_disables() -> None:
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {
-            "claude": _disable("claude", expires_at=None),
-            "codex": _disable("codex", expires_at=3_820.0),
+            "claude": _disable("claude", expires_at=None, source="ace"),
+            "codex": _disable("codex", expires_at=3_820.0, source="usage_limit"),
+            "grok": _disable("grok", expires_at=4_000.0, source="external_plugin"),
         },
         now=100.0,
     )
 
     assert tooltip == (
         "Disabled providers:\n"
-        "CLAUDE - until cleared\n"
-        "CODEX - 1h2m left\n"
+        "CLAUDE - manual, until cleared\n"
+        "CODEX - usage-limit automatic, 1h2m left\n"
+        "GROK - external plugin, 1h5m left\n"
         "New launches route around them; running processes continue.\n"
         "Press ,m for Launch Control."
     )

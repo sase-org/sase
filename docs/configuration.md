@@ -1495,6 +1495,57 @@ direct explicit provider/model requests fail with an actionable diagnostic inste
 silently switching providers. See
 [Temporary Provider Disables](llms.md#temporary-provider-disables).
 
+#### `llm_provider.usage_limit`
+
+Automatic usage-limit detection temporarily disables a provider when that provider's own
+error output positively matches its configured usage-limit patterns. This is separate
+from `llm_provider.retry`: provider-scoped usage-limit classification wins before retry
+policy, while a plain transient `429` or other retryable error that does not match a
+usage-limit pattern still follows retry/fallback policy.
+
+```yaml
+llm_provider:
+  usage_limit:
+    enabled: true
+    disable_seconds: 86400
+    min_disable_seconds: 60
+    max_disable_seconds: 604800
+    honor_reset_hint: true
+    notify: true
+    providers:
+      claude:
+        patterns:
+          - "you've hit your usage limit"
+        exclude_patterns:
+          - "usage limit approaching"
+        replace_patterns: false
+        disable_seconds: null
+        honor_reset_hint: null
+```
+
+| Field                                                            | Type      | Default  | Description                                                                                                                  |
+| ---------------------------------------------------------------- | --------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.usage_limit.enabled`                               | bool      | `true`   | Enable usage-limit classification and automatic provider disables.                                                           |
+| `llm_provider.usage_limit.disable_seconds`                       | int       | `86400`  | Fallback disable duration in seconds when no provider reset hint is used.                                                    |
+| `llm_provider.usage_limit.min_disable_seconds`                   | int       | `60`     | Lower bound applied only to provider-reported reset-hint durations.                                                          |
+| `llm_provider.usage_limit.max_disable_seconds`                   | int       | `604800` | Upper bound applied only to provider-reported reset-hint durations.                                                          |
+| `llm_provider.usage_limit.honor_reset_hint`                      | bool      | `true`   | Parse provider messages such as "resets at 8pm" or "try again in 2 hours" when present.                                      |
+| `llm_provider.usage_limit.notify`                                | bool      | `true`   | Send one notification for each newly-created automatic disable window.                                                       |
+| `llm_provider.usage_limit.providers.<provider>`                  | dict      | -        | Provider-specific detection and duration overrides.                                                                          |
+| `llm_provider.usage_limit.providers.<provider>.patterns`         | list[str] | `[]`     | Positive case-insensitive substring patterns. User patterns are additive with provider defaults unless replacement is set.   |
+| `llm_provider.usage_limit.providers.<provider>.exclude_patterns` | list[str] | `[]`     | Case-insensitive exclusions that suppress otherwise positive matches; exclusions are always additive.                        |
+| `llm_provider.usage_limit.providers.<provider>.replace_patterns` | bool      | `false`  | When true, the configured `patterns` list literally replaces built-ins; `patterns: []` intentionally disables that detector. |
+| `llm_provider.usage_limit.providers.<provider>.disable_seconds`  | int/null  | `null`   | Per-provider fallback duration; `null` inherits `llm_provider.usage_limit.disable_seconds`.                                  |
+| `llm_provider.usage_limit.providers.<provider>.honor_reset_hint` | bool/null | `null`   | Per-provider reset-hint policy; `null` inherits the global value.                                                            |
+
+Automatic disables are written to the same machine-wide provider-disable state used by
+Launch Control, with `source: "usage_limit"`. They expire and self-clean like manual
+disables, can be cleared early from Launch Control, and do not unregister or rewrite a
+provider. If a fallback is available, retry/fallback may proceed only to a different
+enabled provider; the disabled provider remains skipped until expiry or clearing. See
+[Usage-Limit Auto-Disable](llms.md#usage-limit-auto-disable) for reset-hint parsing,
+notification, and replacement details.
+
 The same panel's fixed `Ctrl+E` binding manages the separate machine-wide default-effort
 override at `~/.sase/llm_effort_override.json`. It uses the alias override duration and
 exact-time cards, but its state and precedence are independent: explicit prompt effort

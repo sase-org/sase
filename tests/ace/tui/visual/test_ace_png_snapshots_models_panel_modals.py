@@ -216,7 +216,9 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(models_panel_provider_modal, "now", lambda: FROZEN_NOW)
-    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    disable = provider_disable(
+        "codex", expires_at=FROZEN_NOW + 2_520.0, source="usage_limit"
+    )
     snapshot = ProviderRoutingSnapshot(
         statuses=(
             provider_status(
@@ -247,7 +249,7 @@ async def test_models_panel_provider_routing_modal_png_snapshot(
         )
         await page.expect_modal("ProviderRoutingModal")
         await wait_for_svg_contains(page, "Provider Routing")
-        await wait_for_svg_contains(page, "disabled · 42m left")
+        await wait_for_svg_contains(page, "disabled · usage-limit automatic · 42m left")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -288,7 +290,7 @@ async def test_models_panel_provider_routing_until_cleared_png_snapshot(
             ProviderRoutingModal(snapshot, load_snapshot=lambda: snapshot)
         )
         await page.expect_modal("ProviderRoutingModal")
-        await wait_for_svg_contains(page, "until cleared")
+        await wait_for_svg_contains(page, "disabled · manual · until cleared")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -337,7 +339,7 @@ async def test_models_panel_provider_routing_modal_narrow_png_snapshot(
         )
         await page.expect_modal("ProviderRoutingModal")
         await wait_for_svg_contains(page, "Provider Routing")
-        await wait_for_svg_contains(page, "disabled · 42m left")
+        await wait_for_svg_contains(page, "disabled · manual · 42m left")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

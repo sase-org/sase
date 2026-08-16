@@ -96,13 +96,14 @@ def provider_disable(
     provider: str,
     *,
     expires_at: float | None = None,
+    source: str = "ace",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
         provider=provider,
         created_at=FROZEN_NOW,
         expires_at=expires_at,
-        source="visual",
+        source=source,
     )
 
 
@@ -242,7 +243,9 @@ def override_views() -> list[AliasView]:
 
 
 def provider_disabled_views() -> list[AliasView]:
-    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    disable = provider_disable(
+        "codex", expires_at=FROZEN_NOW + 2_520.0, source="visual"
+    )
     paused_override = TemporaryLLMOverride(
         provider="codex",
         model="o3",

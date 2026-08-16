@@ -25,13 +25,14 @@ def disable(
     provider: str,
     *,
     expires_at: float | None = None,
+    source: str = "test",
 ) -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
         provider=provider,
         created_at=100.0,
         expires_at=expires_at,
-        source="test",
+        source=source,
     )
 
 

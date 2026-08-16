@@ -7,6 +7,7 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from sase.llm_provider.provider_disable_peek import peek_active_provider_disables
 
@@ -106,7 +107,8 @@ class ProviderDisablesIndicator(Static):
                 remaining = "until cleared"
             else:
                 remaining = f"{format_remaining_until(disable.expires_at, now)} left"
-            lines.append(f"{provider.upper()} - {remaining}")
+            provenance = provider_disable_provenance_label(disable)
+            lines.append(f"{provider.upper()} - {provenance}, {remaining}")
         if not lines:
             return None
         return "\n".join(

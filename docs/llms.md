@@ -30,6 +30,7 @@ preprocessing, invocation, and postprocessing.
 - [Role Aliases for Delegated Work](#role-aliases-for-delegated-work)
 - [Temporary Model Overrides](#temporary-model-overrides)
 - [Temporary Provider Disables](#temporary-provider-disables)
+- [Usage-Limit Auto-Disable](#usage-limit-auto-disable)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
 - [Retry and Fallback](#retry-and-fallback)
@@ -1059,6 +1060,15 @@ llm_provider:
     buckets:
       research:
         description: Aliases used by research agents.
+  usage_limit:
+    enabled: true
+    disable_seconds: 86400
+    notify: true
+    providers:
+      claude:
+        patterns: ["you've hit your usage limit"]
+        exclude_patterns: ["usage limit approaching"]
+        replace_patterns: false
 ```
 
 ### Config Fields
@@ -1076,6 +1086,7 @@ llm_provider:
 | `llm_provider.model_aliases.builtin`     | dict   | -           | Builtin size-alias overrides only (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar below, a `\|` round-robin pool, or a `\|\|` ordered fallback. Retired names — `default`, `epic_lander`, `big_epic_lander`, `<size>_worker`, `smart`, `smarter`, `smartest`, `cheap`, `cheaper`, `cheapest`, `coder`, `<provider>_coder`, `epic_creator`, `phase_worker`, and `<size>_phase_worker` — are no longer builtin overrides; `sase doctor -C config.model_aliases` reports them and names each replacement. |
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and Launch Control.                                                                                                                                                                                                                                                                                    |
 | `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `llm_provider.usage_limit`               | dict   | enabled     | Usage-limit classification and automatic temporary provider-disable policy. See [Usage-Limit Auto-Disable](#usage-limit-auto-disable).                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## Per-Prompt Provider Switching
 
@@ -1726,6 +1737,12 @@ Provider-disable state is machine-wide runtime state in
 reader is reserved for high-frequency display and completion paths; launches and writes
 use the authoritative Rust-backed facade.
 
+Every record carries a `source` tag. Launch Control writes `source: "ace"` and displays
+it as a manual disable. Usage-limit detection writes `source: "usage_limit"` and
+displays it as usage-limit automatic. The UI treats the field as an open vocabulary:
+unknown non-empty sources are rendered as readable labels instead of being treated as
+manual disables.
+
 Provider disables are an availability layer:
 
 | Request                  | Disabled provider present? | Result                                             |
@@ -1772,6 +1789,13 @@ The state file is a versioned envelope with one independent record per provider:
 `now >= expires_at` removes the record. Authoritative reads self-clean expired or
 malformed per-provider records and delete the file when no active disables remain. A
 malformed envelope/version fails closed to no active disables and is removed.
+
+Manual Launch Control writes are replacements: choosing a new duration for an already
+disabled provider extends, shortens, or changes it to until-cleared. Automatic
+usage-limit writes create only the first active window for a provider; later usage-limit
+detections while that record is active do not extend it or send another notification.
+Clearing the provider early from Launch Control removes either kind of record and lets
+normal routing resume immediately.
 
 Public provider-disable helpers:
 
@@ -1886,6 +1910,49 @@ key:
 - Launch Control, highlight an alias, `x` → that alias's override is cleared; when the
   last override is removed the state file is deleted and defaults revert to permanent
   config / autodetect.
+
+## Usage-Limit Auto-Disable
+
+Usage-limit auto-disable classifies provider errors that mean an account or plan limit
+has been exhausted, then writes a temporary provider disable with
+`source: "usage_limit"`. It uses the same machine-wide state file and Launch Control
+surfaces as manual provider disables, so expiry, self-cleaning, alias routing, direct
+provider failures, and early clearing all follow
+[Temporary Provider Disables](#temporary-provider-disables).
+
+Provider plugins supply conservative built-in patterns through
+`llm_default_usage_limit_config()`. User configuration lives under
+`llm_provider.usage_limit`:
+
+- `enabled` turns classification on or off globally.
+- `disable_seconds` is the 24-hour fallback duration used when no reset hint is honored.
+- `min_disable_seconds` and `max_disable_seconds` clamp only provider-reported reset
+  hints, not the administrator-chosen fallback duration.
+- `honor_reset_hint` allows messages such as "resets at 8pm" or "try again in 2 hours"
+  to choose the expiry, with a small grace buffer.
+- `notify` controls the notification created for a new automatic disable window.
+- `providers.<provider>.patterns` adds positive provider-specific substrings.
+- `providers.<provider>.exclude_patterns` adds suppressing substrings for near misses
+  such as "approaching your usage limit".
+- `providers.<provider>.replace_patterns: true` makes the configured `patterns` list a
+  literal replacement for built-ins; `patterns: []` intentionally disables matching for
+  that provider.
+- `providers.<provider>.disable_seconds` and `.honor_reset_hint` override the global
+  duration/reset policy for that provider; `null` inherits the global value.
+
+Detection is provider-scoped. When the failed execution provider is known, SASE tests
+only that provider's usage-limit config; it scans other provider configs only for older
+or ambiguous paths that genuinely lack execution-provider provenance. A positive
+usage-limit match takes precedence over retry for that provider, so the failing attempt
+is not retried against the same disabled provider. A plain transient `429`, transport
+failure, or model-capacity error that does not match the provider's usage-limit patterns
+continues through [Retry and Fallback](#retry-and-fallback).
+
+Automatic writes are first-window only. If any active disable already exists for that
+provider, the detector leaves its source, creation time, and expiry unchanged and does
+not emit another notification. After the record expires or is cleared from Launch
+Control, a later matching failure may create a new window. Fallback may proceed only to
+a different enabled provider; it cannot silently route back to the disabled provider.
 
 ## Environment Variables
 

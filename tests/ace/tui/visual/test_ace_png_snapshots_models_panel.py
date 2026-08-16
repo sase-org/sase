@@ -355,7 +355,9 @@ async def test_models_panel_provider_disabled_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     views = provider_disabled_views()
-    disable = provider_disable("codex", expires_at=FROZEN_NOW + 2_520.0)
+    disable = provider_disable(
+        "codex", expires_at=FROZEN_NOW + 2_520.0, source="visual"
+    )
     snapshot = ProviderRoutingSnapshot(
         statuses=(
             provider_status(

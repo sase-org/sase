@@ -7,6 +7,7 @@ from datetime import datetime
 
 from rich.text import Text
 
+from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
 from sase.core.time import get_timezone
 from sase.llm_provider import ProviderRoutingStatus, TemporaryProviderDisable
 
@@ -57,8 +58,9 @@ def render_provider_row(
     text.append("   ")
     disable = active_disable(status.active_disable, now=now)
     if disable is not None:
+        provenance = provider_disable_provenance_label(disable)
         text.append(
-            f"disabled · {remaining_label(disable, now=now)}",
+            f"disabled · {provenance} · {remaining_label(disable, now=now)}",
             style=_DISABLED_STYLE,
         )
     elif status.cli_available:
@@ -110,6 +112,7 @@ def provider_description_text(
     label = status.provider.upper()
     disable = active_disable(status.active_disable, now=now)
     if disable is not None:
+        provenance = provider_disable_provenance_label(disable)
         text.append(
             f"New launches and fallbacks route around {label}; "
             "running provider processes continue.",
@@ -122,7 +125,10 @@ def provider_description_text(
                 "%b %-d %-I:%M%p"
             )
             end = f"until {end} ({remaining_label(disable, now=now)})"
-        text.append(f"\n{end}. {_affected_aliases_text(status)}", style="dim")
+        text.append(
+            f"\n{provenance} disable {end}. {_affected_aliases_text(status)}",
+            style="dim",
+        )
     elif not status.cli_available:
         text.append(
             f"{label} CLI is unavailable; automatic selector routing already skips it.",

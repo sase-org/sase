@@ -2718,13 +2718,14 @@ question continuations reacquire against the current effective global cap.
 
 Press `p` from Launch Control to open **Provider Routing**. The modal lists every
 user-facing registered LLM provider in stable order with its model count and one of
-three states:
+these states:
 
-| State                    | Meaning                                                                 |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `available`              | The provider is registered and its declared CLI is present.             |
-| `CLI unavailable`        | Automatic alias routing already skips it because its CLI is missing.    |
-| `disabled · <time> left` | You temporarily disabled it; routing skips it until expiry or clearing. |
+| State                                            | Meaning                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| `available`                                      | The provider is registered and its declared CLI is present.          |
+| `CLI unavailable`                                | Automatic alias routing already skips it because its CLI is missing. |
+| `disabled · manual · <time> left`                | Launch Control manually disabled it until expiry or clearing.        |
+| `disabled · usage-limit automatic · <time> left` | Usage-limit detection automatically disabled it.                     |
 
 Hidden testing providers stay out of this human-facing modal. Disabling a provider does
 not unregister it, change `sase.yml`, change model aliases, or stop provider processes
@@ -2735,15 +2736,17 @@ On an enabled row, press `d` or Enter to choose how long new launches should rou
 around that provider. The flow uses the same duration choices as alias overrides: `15m`,
 `30m`, `1h`, `2h`, `4h`, `Until cleared`, a custom duration, or `t` for an exact local
 time/date. On a disabled row, `d` or Enter replaces the duration and `x` enables the
-provider immediately. Pressing `x` on an enabled row warns without mutating state.
-Successful changes refresh the provider rows, Launch Control title, alias routing rows,
-and the top-bar indicators without closing the modal, so several providers can be
-managed in one pass.
+provider immediately, including an automatic usage-limit disable. Pressing `x` on an
+enabled row warns without mutating state. Successful changes refresh the provider rows,
+Launch Control title, alias routing rows, and the top-bar indicators without closing the
+modal, so several providers can be managed in one pass. Unknown disable sources are
+shown as readable labels instead of being folded into the manual state.
 
 ACE also shows active provider disables in a compact top-bar pill beside the model
 override indicators. One disabled provider renders like `CLAUDE off 42m`; several render
 as the alphabetically first provider plus a count, such as `CLAUDE +2`. Hover lists
-every active provider and expiry, and clicking the pill opens Launch Control.
+every active provider, provenance, and expiry, and clicking the pill opens Launch
+Control.
 
 ### Temporary overrides
 
