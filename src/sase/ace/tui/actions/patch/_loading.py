@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import sys
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
-    from sase.core.query_corpus_facade import QueryCorpus
+    from sase.ace.query_profile import CompiledQueryProfile
+    from sase.core.query_profile_corpus_facade import (
+        ArtifactQueryCacheKey,
+        ArtifactQueryIndex,
+        ArtifactQueryResult,
+    )
 
 from ....patch import Patch
 from ...util.pump_tasks import spawn_pump_free_task
@@ -71,10 +77,10 @@ def _is_mock(value: object) -> bool:
 
 @dataclass(frozen=True)
 class _PreparedPatchLoad:
-    """Patch disk load plus worker-built query corpus."""
+    """Patch disk load plus worker-built query index."""
 
     all_patches: list[Patch]
-    query_corpus: QueryCorpus | None
+    query_index: ArtifactQueryIndex | None
     pr_unmirrored_counts: dict[str, int]
 
 
@@ -98,8 +104,11 @@ class PatchLoadingMixin:
     _patches_refresh_pending: bool
     _patches_first_load_done: bool
     _current_patch_group_key: tuple[str, ...] | None
-    _query_corpus: QueryCorpus | None
-    _query_corpus_source_list_id: int | None
+    _patch_query_profile: CompiledQueryProfile | None
+    _patch_query_index: ArtifactQueryIndex | None
+    _patch_query_index_source_list_id: int | None
+    _patch_query_index_generation: int
+    _patch_query_result_cache: OrderedDict[ArtifactQueryCacheKey, ArtifactQueryResult]
     _pr_unmirrored_counts_by_display_name: dict[str, int]
 
     def _compat_loader(
@@ -155,61 +164,83 @@ class PatchLoadingMixin:
         return patch_module.find_all_patches_cached()
 
     def _prepare_patch_load_from_disk(self) -> _PreparedPatchLoad:
-        """Return Patches and their query corpus from one worker call."""
+        """Return Patches and their query index from one worker call."""
         all_patches = self._read_patches_from_disk()
         try:
-            query_corpus = self._compile_query_corpus_for_patches(all_patches)
+            query_index = self._compile_patch_query_index(all_patches)
         except (TypeError, ValueError):
-            query_corpus = None
+            query_index = None
         return _PreparedPatchLoad(
             all_patches=all_patches,
-            query_corpus=query_corpus,
+            query_index=query_index,
             pr_unmirrored_counts=_cached_pr_unmirrored_counts(),
         )
 
-    def _compile_query_corpus_for_patches(self, patches: list[Patch]) -> QueryCorpus:
-        """Compile and strictly validate a corpus for ``patches``."""
-        from sase.core.query_corpus_facade import compile_query_corpus
+    def _patch_profile(self) -> CompiledQueryProfile:
+        """Return the cached compiled Patch profile."""
+        from sase.ace.query_profile import compiled_profile_for_builtin_pane
 
-        corpus = compile_query_corpus(patches)
-        self._validate_query_corpus_for_patches(corpus, patches)
-        return corpus
+        cached = getattr(self, "_patch_query_profile", None)
+        if cached is not None:
+            return cached
+        profile = compiled_profile_for_builtin_pane("patches")
+        if profile is None:
+            raise ValueError("Patch query profile is not registered")
+        self._patch_query_profile = profile
+        return profile
 
-    def _validate_query_corpus_for_patches(
-        self, corpus: QueryCorpus, patches: list[Patch]
+    def _next_patch_query_index_generation(self) -> int:
+        generation = getattr(self, "_patch_query_index_generation", 0) + 1
+        self._patch_query_index_generation = generation
+        return generation
+
+    def _compile_patch_query_index(self, patches: list[Patch]) -> ArtifactQueryIndex:
+        """Compile and strictly validate an index for ``patches``."""
+        from sase.core.query_profile_corpus_facade import compile_artifact_query_index
+
+        index = compile_artifact_query_index(
+            pane_id="patches",
+            generation=self._next_patch_query_index_generation(),
+            profile=self._patch_profile(),
+            entries=patches,
+        )
+        self._validate_patch_query_index(index, patches)
+        return index
+
+    def _validate_patch_query_index(
+        self, index: ArtifactQueryIndex, patches: list[Patch]
     ) -> None:
-        """Raise unless ``corpus`` was built for this exact list object."""
-        source_list_id = id(patches)
-        if corpus.source_list_id != source_list_id:
+        """Raise unless ``index`` matches the current Patch list length."""
+        index.validate()
+        if len(index) != len(patches):
             raise ValueError(
-                "compiled query corpus source list id does not match the "
-                "current Patch list; rebuild the corpus before filtering"
-            )
-        if corpus.expected_length != len(patches):
-            raise ValueError(
-                "compiled query corpus length does not match the current "
-                "Patch list; rebuild the corpus before filtering"
+                "compiled query index length does not match the current "
+                "Patch list; rebuild the index before filtering"
             )
 
-    def _apply_prepared_query_corpus(
-        self, patches: list[Patch], query_corpus: QueryCorpus | None
+    def _apply_prepared_patch_query_index(
+        self, patches: list[Patch], query_index: ArtifactQueryIndex | None
     ) -> None:
-        """Install a pre-built corpus before filtering, or clear stale cache."""
-        if query_corpus is None:
-            self._query_corpus = None
-            self._query_corpus_source_list_id = None
+        """Install a pre-built index before filtering, or clear stale cache."""
+        if query_index is None:
+            self._patch_query_index = None
+            self._patch_query_index_source_list_id = None
+            self._clear_patch_query_result_cache()
             return
 
-        self._validate_query_corpus_for_patches(query_corpus, patches)
-        self._query_corpus = query_corpus
-        self._query_corpus_source_list_id = id(patches)
+        self._validate_patch_query_index(query_index, patches)
+        replaced = getattr(self, "_patch_query_index", None) is not query_index
+        self._patch_query_index = query_index
+        self._patch_query_index_source_list_id = id(patches)
+        if replaced:
+            self._clear_patch_query_result_cache()
 
     def _apply_patches(self, all_patches: list[Patch]) -> None:
         """Apply a pre-loaded patch list to app state.
 
         Must run on the main thread: touches widgets via ``_refresh_display``.
         """
-        self._get_query_corpus_for_patches(all_patches)
+        self._get_patch_query_index(all_patches)
         self._all_patches = all_patches  # Cache for ancestry lookup
         self.patches = self._filter_patches(all_patches)
 
@@ -238,13 +269,22 @@ class PatchLoadingMixin:
             return self._filter_patches_impl(patches)
 
     def _filter_patches_impl(self, patches: list[Patch]) -> list[Patch]:
-        from sase.core.query_corpus_facade import evaluate_query_many_with_corpus
-
         from ....patch import get_base_status
         from ....query import build_query_context
         from ....query.evaluator import (
             query_explicitly_targets_submitted,
             query_explicitly_targets_terminal,
+        )
+
+        display_query_fn = getattr(self, "_display_patch_query", None)
+        display_query = (
+            display_query_fn() if callable(display_query_fn) else self.query_string
+        )
+        display_parsed_query_fn = getattr(self, "_display_patch_parsed_query", None)
+        display_parsed_query = (
+            display_parsed_query_fn()
+            if callable(display_parsed_query_fn)
+            else self.parsed_query
         )
 
         # Status map drives the hide-toggle logic below. Building the
@@ -254,24 +294,28 @@ class PatchLoadingMixin:
         ctx = build_query_context(patches)
         status_map = ctx.status_map
 
-        corpus = self._get_query_corpus_for_patches(patches)
-        if not self.query_string.strip():
+        index = self._get_patch_query_index(patches)
+        if not display_query.strip():
             result = list(patches)
         else:
-            mask = evaluate_query_many_with_corpus(self.query_string, corpus)
-            result = [cs for cs, keep in zip(patches, mask, strict=True) if keep]
+            query_result = self._patch_query_result(display_query, index)
+            result = [
+                cs
+                for cs, keep in zip(patches, query_result.matched_mask, strict=True)
+                if keep
+            ]
 
         # Determine effective hide settings (disabled if query targets them)
         effective_hide_reverted = (
             self.hide_reverted
             and not query_explicitly_targets_terminal(
-                self.parsed_query, patches, status_map=status_map
+                display_parsed_query, patches, status_map=status_map
             )
         )
         effective_hide_submitted = (
             self.hide_submitted
             and not query_explicitly_targets_submitted(
-                self.parsed_query, patches, status_map=status_map
+                display_parsed_query, patches, status_map=status_map
             )
         )
 
@@ -292,23 +336,58 @@ class PatchLoadingMixin:
 
         return result
 
-    def _get_query_corpus_for_patches(self, patches: list[Patch]) -> QueryCorpus:
-        """Return the cached Rust query corpus for this exact list object."""
+    def _patch_query_result(
+        self,
+        query: str,
+        index: ArtifactQueryIndex,
+    ) -> ArtifactQueryResult:
+        """Return a cached profile-driven Rust query result."""
+        from ....query.profile_reference import canonical_query_for_profile
+        from sase.core.query_profile_corpus_facade import evaluate_artifact_query_many
+
+        canonical_query = canonical_query_for_profile(query, index.profile)
+        cache_key = index.cache_key(canonical_query)
+        cache = getattr(self, "_patch_query_result_cache", None)
+        if cache is None:
+            cache = OrderedDict()
+            self._patch_query_result_cache = cache
+        cached = cache.get(cache_key)
+        if cached is not None:
+            cache.move_to_end(cache_key)
+            return cached
+        result = evaluate_artifact_query_many(
+            query,
+            index,
+            canonical_query=canonical_query,
+        )
+        cache[cache_key] = result
+        if len(cache) > 32:
+            cache.popitem(last=False)
+        return result
+
+    def _clear_patch_query_result_cache(self) -> None:
+        cache = getattr(self, "_patch_query_result_cache", None)
+        if cache is not None:
+            cache.clear()
+
+    def _get_patch_query_index(self, patches: list[Patch]) -> ArtifactQueryIndex:
+        """Return the cached Rust query index for this exact list object."""
         source_list_id = id(patches)
-        cached = getattr(self, "_query_corpus", None)
-        cached_source_list_id = getattr(self, "_query_corpus_source_list_id", None)
+        cached = getattr(self, "_patch_query_index", None)
+        cached_source_list_id = getattr(self, "_patch_query_index_source_list_id", None)
         if (
             cached is not None
             and cached_source_list_id == source_list_id
-            and cached.source_list_id == source_list_id
-            and cached.expected_length == len(patches)
+            and len(cached) == len(patches)
         ):
+            cached.validate()
             return cached
 
-        corpus = self._compile_query_corpus_for_patches(patches)
-        self._query_corpus = corpus
-        self._query_corpus_source_list_id = id(patches)
-        return corpus
+        index = self._compile_patch_query_index(patches)
+        self._patch_query_index = index
+        self._patch_query_index_source_list_id = id(patches)
+        self._clear_patch_query_result_cache()
+        return index
 
     def _reload_and_reposition(self, current_name: str | None = None) -> None:
         """Reload patches and try to stay on the same one."""
@@ -319,7 +398,7 @@ class PatchLoadingMixin:
         self._apply_reloaded_patches(
             prepared.all_patches,
             current_name,
-            query_corpus=prepared.query_corpus,
+            query_index=prepared.query_index,
             pr_unmirrored_counts=prepared.pr_unmirrored_counts,
         )
 
@@ -361,7 +440,7 @@ class PatchLoadingMixin:
         self._apply_reloaded_patches(
             prepared.all_patches,
             current_name,
-            query_corpus=prepared.query_corpus,
+            query_index=prepared.query_index,
             pr_unmirrored_counts=prepared.pr_unmirrored_counts,
         )
 
@@ -370,7 +449,7 @@ class PatchLoadingMixin:
         all_patches: list[Patch],
         current_name: str | None,
         *,
-        query_corpus: QueryCorpus | None = None,
+        query_index: ArtifactQueryIndex | None = None,
         pr_unmirrored_counts: dict[str, int] | None = None,
     ) -> None:
         """Apply a freshly-loaded patch list and reposition the cursor."""
@@ -396,13 +475,13 @@ class PatchLoadingMixin:
             canonical_filter_patched
             or getattr(self, "current_tab", None) in {"patches"}
         )
-        if query_corpus is None:
+        if query_index is None:
             if use_legacy_filter or use_canonical_filter:
-                self._apply_prepared_query_corpus(all_patches, None)
+                self._apply_prepared_patch_query_index(all_patches, None)
             else:
-                self._get_query_corpus_for_patches(all_patches)
+                self._get_patch_query_index(all_patches)
         else:
-            self._apply_prepared_query_corpus(all_patches, query_corpus)
+            self._apply_prepared_patch_query_index(all_patches, query_index)
         self._all_patches = all_patches  # Cache for ancestry lookup
         if use_legacy_filter and legacy_filter_fn is not None:
             new_patches = legacy_filter_fn(all_patches)

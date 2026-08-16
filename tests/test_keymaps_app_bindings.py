@@ -61,6 +61,14 @@ def test_search_and_contextual_app_query_share_slash() -> None:
     assert by_action["show_help"].key == "question_mark"
 
 
+def test_patch_filters_take_f_and_hook_editing_moves_to_capital_f() -> None:
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {binding.action: binding for binding in bindings}
+
+    assert by_action["patches_filters"].key == "f"
+    assert by_action["edit_hooks"].key == "F"
+
+
 def test_diff_and_axe_description_toggle_share_d_in_resolution_order() -> None:
     bindings = build_app_bindings(default_app_keymaps())
 

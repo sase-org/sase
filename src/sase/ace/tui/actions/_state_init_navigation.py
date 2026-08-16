@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Literal
 
 from textual.worker import Worker
@@ -15,7 +16,6 @@ if TYPE_CHECKING:
         CommitViewSpec,
     )
     from .navigation._types import JumpAllResult
-    from sase.core.query_corpus_facade import QueryCorpus
 
 
 def init_navigation_state(self: Any) -> None:
@@ -71,7 +71,7 @@ def init_navigation_state(self: Any) -> None:
     self._w_ancestors_children = None
     self._w_patch_info_panel = None
     self._w_footer = None
-    self._w_search_query_panel = None
+    self._w_patch_filter_bar = None
     self._w_agent_detail = None
     self._w_agent_info_panel = None
     self._w_tab_bar = None
@@ -165,6 +165,10 @@ def init_navigation_state(self: Any) -> None:
     from ...patch import Patch
 
     self._all_patches = []  # Cache for ancestry lookup
-    self._query_corpus = None
-    self._query_corpus_source_list_id = None
+    self._live_patch_query = None
+    self._patch_query_profile = None
+    self._patch_query_index = None
+    self._patch_query_index_source_list_id = None
+    self._patch_query_index_generation = 0
+    self._patch_query_result_cache = OrderedDict()
     self._hidden_reverted_count = 0  # Count of filtered reverted Patches

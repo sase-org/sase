@@ -16,7 +16,7 @@ class StartupLoadsMixin:
         """Reload the active pane's ``_saved_queries`` bucket after a mutation.
 
         Called by the actions that mutate saved-query slots (save / delete
-        keymap and the help modal). The hot render path (``SearchQueryPanel``)
+        keymap and the help modal). The hot render path (Patch filter display)
         only touches the cached dict, so this is the lone refill site.
         """
         from ...saved_queries import load_saved_queries

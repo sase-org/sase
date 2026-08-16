@@ -90,6 +90,7 @@ class AppKeymaps:
     files_copy_path: str
     files_refresh: str
     # Patch actions
+    patches_filters: str
     quit: str
     change_status: str
     run_workflow: str

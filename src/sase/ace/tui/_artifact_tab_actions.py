@@ -32,6 +32,7 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
         "beads_filters",
         "files_filters",
         "stitches_filters",
+        "patches_filters",
     ),
     PaneCapability.REFRESH: (
         "plans_refresh",

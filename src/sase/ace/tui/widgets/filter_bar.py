@@ -77,6 +77,7 @@ class FilterBar(Static):
     STATUS_ID: ClassVar[str] = "filter-status"
     COMPLETION_ID: ClassVar[str] = "filter-completion"
     CANDIDATE_ID_PREFIX: ClassVar[str] = "filter-candidate"
+    DISPLAY_ID: ClassVar[str | None] = None
     KEY_COMPLETIONS: tuple[tuple[str, str], ...] = ()
     STATIC_VALUE_COMPLETIONS: Mapping[str, tuple[str, ...]] = {}
     VALUE_HINTS: Mapping[str, str] = {}
@@ -159,8 +160,21 @@ class FilterBar(Static):
                 classes="filter-bar-input",
                 read_only=self.PERSISTENT,
             )
-            editor.can_focus = not self.PERSISTENT
+            closed_display_text = self._closed_display_text(self._last_query_text)
+            has_closed_display = (
+                self.DISPLAY_ID is not None and closed_display_text is not None
+            )
+            editor.can_focus = not self.PERSISTENT and not has_closed_display
+            editor.display = not has_closed_display
             yield editor
+            if self.DISPLAY_ID is not None and closed_display_text is not None:
+                display = Static(
+                    closed_display_text,
+                    id=self.DISPLAY_ID,
+                    classes="filter-bar-display",
+                )
+                display.display = True
+                yield display
             yield Static("", id=self.STATUS_ID, classes="filter-bar-status")
         completion = _FilterBarCompletionList(
             id=self.COMPLETION_ID,
@@ -175,6 +189,8 @@ class FilterBar(Static):
         editor = self._editor()
         self._editing = True
         self.display = True
+        self._set_closed_display_visible(False)
+        editor.display = True
         editor.can_focus = True
         editor.read_only = False
         self.set_query(prefill)
@@ -190,7 +206,11 @@ class FilterBar(Static):
         editor = self._editor()
         editor._enter_normal_mode()
         editor.read_only = self.PERSISTENT
-        editor.can_focus = not self.PERSISTENT
+        if self._set_closed_display_visible(True):
+            editor.display = False
+            editor.can_focus = False
+        else:
+            editor.can_focus = not self.PERSISTENT
         self.display = self.PERSISTENT
 
     def set_query(self, text: str) -> None:
@@ -200,6 +220,7 @@ class FilterBar(Static):
         editor = self._editor()
         if editor.text != text:
             editor.load_text(text)
+        self._update_closed_display(text)
 
     def set_status(
         self,
@@ -292,6 +313,35 @@ class FilterBar(Static):
 
     def _editor(self) -> _FilterBarInput:
         return self.query_one(f"#{self.INPUT_ID}", _FilterBarInput)
+
+    def _closed_display(self) -> Static | None:
+        if self.DISPLAY_ID is None or not self.is_mounted:
+            return None
+        try:
+            return self.query_one(f"#{self.DISPLAY_ID}", Static)
+        except Exception:
+            return None
+
+    def _closed_display_text(self, text: str) -> Text | None:
+        del text
+        return None
+
+    def _update_closed_display(self, text: str) -> bool:
+        display = self._closed_display()
+        rendered = self._closed_display_text(text)
+        if display is None or rendered is None:
+            return False
+        display.update(rendered)
+        return True
+
+    def _set_closed_display_visible(self, visible: bool) -> bool:
+        display = self._closed_display()
+        if display is None:
+            return False
+        if visible and not self._update_closed_display(self._last_query_text):
+            return False
+        display.display = visible
+        return True
 
     def _completion_list(self) -> _FilterBarCompletionList:
         return self.query_one(f"#{self.COMPLETION_ID}", _FilterBarCompletionList)
@@ -585,6 +635,9 @@ def _apply_completion(
     if metadata.kind == "key":
         start = token_start
         insertion = metadata.value
+    elif metadata.kind.startswith("sigil:"):
+        start = min(token_start + 1, cursor)
+        insertion = _quote_completion_value(metadata.value)
     else:
         colon = _first_unquoted(text, token_start, cursor, ":")
         if colon is None:
@@ -668,4 +721,14 @@ def _quote_completion_value(value: str) -> str:
     return f'"{escaped}"'
 
 
-__all__ = ["FilterBar"]
+FilterCompletionMetadata = _FilterCompletionMetadata
+filter_candidate = _candidate
+filter_candidate_metadata = _metadata
+
+
+__all__ = [
+    "FilterBar",
+    "FilterCompletionMetadata",
+    "filter_candidate",
+    "filter_candidate_metadata",
+]

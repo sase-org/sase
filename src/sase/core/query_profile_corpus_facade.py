@@ -40,7 +40,7 @@ from typing import Any, NamedTuple
 from sase.ace.query.profile_evaluator import (
     ArtifactQueryRow,
     ArtifactQueryRowInput,
-    coerce_artifact_query_row,
+    coerce_artifact_query_rows,
 )
 from sase.ace.query.profile_reference import canonical_query_for_profile
 from sase.ace.query.types import QueryExpr
@@ -100,6 +100,7 @@ class ArtifactQueryResult:
 
     cache_key: ArtifactQueryCacheKey
     matched_row_ids: tuple[str, ...]
+    matched_mask: tuple[bool, ...]
 
 
 def compile_artifact_query_index(
@@ -116,7 +117,7 @@ def compile_artifact_query_index(
     are both real work proportional to entry count.
     """
 
-    rows = tuple(coerce_artifact_query_row(profile, entry) for entry in entries)
+    rows = coerce_artifact_query_rows(profile, entries)
     compile_corpus = require_rust_binding("compile_corpus_with_profile")
     wire_rows = [_row_wire(row) for row in rows]
     rust_handle = compile_corpus(profile.to_wire(), wire_rows)
@@ -156,14 +157,16 @@ def evaluate_artifact_query_many(
     evaluate_many = require_rust_binding("evaluate_many")
     program = compile_query(resolved_canonical, index.profile.to_wire())
     matches = evaluate_many(program, index.rust_handle)
+    matched_mask = tuple(bool(item) for item in matches)
     matched = tuple(
         row_id
-        for row_id, is_match in zip(index.row_ids, matches, strict=True)
+        for row_id, is_match in zip(index.row_ids, matched_mask, strict=True)
         if is_match
     )
     return ArtifactQueryResult(
         cache_key=index.cache_key(resolved_canonical),
         matched_row_ids=matched,
+        matched_mask=matched_mask,
     )
 
 

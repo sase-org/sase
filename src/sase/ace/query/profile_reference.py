@@ -11,8 +11,10 @@ from sase.ace.query.profile_evaluator import (
     ProfileFieldValue,
     build_query_context_for_profile,
     coerce_artifact_query_row,
+    coerce_artifact_query_rows,
     evaluate_query_for_profile,
     evaluate_query_with_profile_context,
+    patch_query_stable_id,
 )
 from sase.ace.query.profile_reference_boolean import parse_boolean_query
 from sase.ace.query.profile_reference_flat import (
@@ -61,8 +63,10 @@ __all__ = [
     "build_query_context_for_profile",
     "canonical_query_for_profile",
     "coerce_artifact_query_row",
+    "coerce_artifact_query_rows",
     "evaluate_query_for_profile",
     "evaluate_query_many_for_profile",
     "evaluate_query_with_profile_context",
+    "patch_query_stable_id",
     "parse_query_for_profile",
 ]

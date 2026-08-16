@@ -79,11 +79,12 @@ def evaluate_query_many(
     :func:`sase.core.query_corpus_facade.evaluate_query_many_with_corpus`.
     """
     from sase.core.query_corpus_facade import (
+        QueryCorpus,
         compile_query_corpus,
         evaluate_query_many_with_corpus,
     )
 
-    corpus = compile_query_corpus(patches)
+    corpus: QueryCorpus = compile_query_corpus(patches)
     return evaluate_query_many_with_corpus(query, corpus)
 
 

@@ -258,6 +258,8 @@ def _patches_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         from sase.ace.tui.artifact_tabs import is_document_artifacts_pane
 
         return is_document_artifacts_pane(ctx.artifacts_subtab)
+    if spec.id == "app.patches_filters":
+        return ctx.artifacts_subtab == "patches"
     if spec.id in {"app.cycle_files_subtab", "app.cycle_files_subtab_reverse"}:
         return False
     if spec.id in _STITCHES_ARTIFACT_COMMANDS:

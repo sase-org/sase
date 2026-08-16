@@ -7,6 +7,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.query import get_sole_project_filter
+from sase.ace.query.project_scope import (
+    PROJECT_SCOPE_NESTED,
+    project_scope_of,
+    rewrite_project_scope,
+)
 from sase.project_display_names import (
     ProjectDisplaySnapshot,
     ProjectRefDisplaySnapshot,
@@ -185,6 +190,7 @@ class ArtifactsMixin(
     """Compose Artifacts pane actions and manage their shared project scope."""
 
     parsed_query: Any
+    query_string: str
     artifacts_project_scope: str | None
     _artifacts_project_choices: _ArtifactsProjectChoices | None
     _artifacts_project_choices_loading: bool
@@ -303,9 +309,28 @@ class ArtifactsMixin(
         def _on_picked(result: InventoryProjectPickerResult | None) -> None:
             if result is None:
                 return
+            if self.current_artifacts_pane_key == "patches":
+                project_ref = choices.project_ref_display.label_for_ref(
+                    result.project_key
+                )
+                rewritten = rewrite_project_scope(self.query_string, project_ref)
+                if rewritten == PROJECT_SCOPE_NESTED:
+                    self.notify(  # type: ignore[attr-defined]
+                        "Project scope is inside a grouped expression; "
+                        "edit the query with <f>",
+                        severity="warning",
+                    )
+                    return
+                self._set_artifacts_project_scope(result.project_key, picked=True)
+                self._commit_patch_query(rewritten)  # type: ignore[attr-defined]
+                return
             self._set_artifacts_project_scope(result.project_key, picked=True)
 
         current_project = self.artifacts_project_scope
+        if self.current_artifacts_pane_key == "patches":
+            current_project = choices.project_ref_display.project_key_for_ref(
+                project_scope_of(self.query_string)
+            )
         if self.current_artifacts_pane_key == "stitches":
             pane = self._commits_pane()
             if pane is not None:
@@ -322,10 +347,7 @@ class ArtifactsMixin(
 
     def action_pick_artifacts_project(self) -> None:
         """Open the shared project-scope picker for project-backed panes."""
-        if (
-            self.current_tab != ARTIFACTS_TAB
-            or self.current_artifacts_pane_key == "patches"
-        ):
+        if self.current_tab != ARTIFACTS_TAB:
             return
         if self._artifacts_project_choices is None:
             self._artifacts_project_picker_pending = True

@@ -11,12 +11,16 @@ Shared fixtures live in ``_ace_png_snapshot_helpers``.
 from __future__ import annotations
 
 import pytest
+from textual.widgets import OptionList
 
+from sase.ace.query_record import QueryRecord
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -70,7 +74,34 @@ async def test_patch_selected_row_png_snapshot(
         )
 
 
-async def test_query_edit_modal_png_snapshot(
+async def test_patch_filter_bar_closed_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        page.app._saved_queries = {
+            "patches": {
+                "1": QueryRecord(source='"visual"', canonical='"visual"'),
+            }
+        }
+        page.app._refresh_display()
+        await wait_for_svg_contains(page, "[01]")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "patch_filter_bar_closed_120x40",
+            title="ACE Patch filter bar closed",
+        )
+
+
+async def test_patch_filter_bar_completion_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -82,13 +113,20 @@ async def test_query_edit_modal_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
         await page.press("slash")
-        await page.expect_modal("QueryEditModal")
+        bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
+        bar.open("%")
+        completion = bar.query_one("#patch-filter-completion", OptionList)
+        await page.wait_for(
+            lambda _state: completion.display and completion.option_count >= 6
+        )
+        await wait_for_svg_contains(page, "%w")
+        await wait_for_svg_contains(page, "%y")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
-            "query_edit_modal_120x40",
-            title="ACE query edit modal",
+            "patch_filter_bar_completion_120x40",
+            title="ACE Patch filter bar completion",
         )
 
 

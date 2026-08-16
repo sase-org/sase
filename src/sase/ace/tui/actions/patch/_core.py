@@ -6,6 +6,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 from ._display import PatchDisplayMixin
+from ._filter_session import PatchFilterSessionActionsMixin
 from ._grouping_nav import PatchGroupingNavMixin
 from ._loading import PatchLoadingMixin
 from ._query import PatchQueryMixin
@@ -32,6 +33,7 @@ def _legacy_changespec_targets(targets: Any) -> Any:
 
 class PatchMixin(
     PatchLoadingMixin,
+    PatchFilterSessionActionsMixin,
     PatchQueryMixin,
     PatchDisplayMixin,
     PatchGroupingNavMixin,

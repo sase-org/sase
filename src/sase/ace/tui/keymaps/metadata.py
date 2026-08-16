@@ -108,6 +108,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("files_copy_reference", "Copy Reference", False),
     ("files_copy_path", "Copy Stored Path", False),
     ("files_refresh", "Refresh Artifact Files", False),
+    ("patches_filters", "Patch Filters", False),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),

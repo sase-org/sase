@@ -111,7 +111,7 @@ class StartupMixin(
     _w_ancestors_children: Any
     _w_patch_info_panel: Any
     _w_footer: Any
-    _w_search_query_panel: Any
+    _w_patch_filter_bar: Any
     _w_agent_detail: Any
     _w_agent_info_panel: Any
     _w_tab_bar: Any

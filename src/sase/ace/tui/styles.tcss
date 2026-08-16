@@ -144,6 +144,15 @@ FilterBar .filter-bar-input {
     background: $background;
 }
 
+FilterBar .filter-bar-display {
+    width: 1fr;
+    height: 3;
+    padding: 0 1;
+    background: $background;
+    content-align: left middle;
+    text-overflow: ellipsis;
+}
+
 FilterBar .filter-bar-status {
     width: auto;
     min-width: 14;
@@ -199,6 +208,36 @@ CommitFilterBar .filter-bar-status.error {
 CommitFilterBar .filter-bar-completion > .option-list--option-highlighted {
     color: $background;
     background: #FFD700;
+    text-style: bold;
+}
+
+PatchFilterBar .filter-bar-sigil {
+    color: #00D7AF;
+}
+
+PatchFilterBar {
+    display: block;
+    height: 3;
+    min-height: 3;
+}
+
+PatchFilterBar .filter-bar-input,
+PatchFilterBar .filter-bar-display,
+PatchFilterBar .filter-bar-completion {
+    border: solid #00D7AF;
+}
+
+PatchFilterBar .filter-bar-status {
+    min-width: 0;
+}
+
+PatchFilterBar .filter-bar-status.error {
+    min-width: 24;
+}
+
+PatchFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #00D7AF;
     text-style: bold;
 }
 
@@ -971,14 +1010,6 @@ IssueEditModal {
 #detail-container {
     width: 1fr;  /* Takes remaining space */
     height: 100%;
-}
-
-#search-query-panel {
-    width: 100%;
-    height: auto;
-    max-height: 3;
-    border: solid $secondary;
-    padding: 0 1;
 }
 
 #detail-scroll {

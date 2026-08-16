@@ -9,9 +9,12 @@ import pytest
 from sase.ace.query.profile_reference import (
     ProfileQueryError,
     canonical_query_for_profile,
+    coerce_artifact_query_rows,
     evaluate_query_many_for_profile,
+    patch_query_stable_id,
     parse_query_for_profile,
 )
+from sase.ace.patch import Patch
 from sase.ace.query_profile import (
     ArtifactQuerySchema,
     QueryFieldSpec,
@@ -186,6 +189,53 @@ def test_provider_profile_coerces_repeated_string_properties() -> None:
         True,
         False,
     ]
+
+
+def test_non_repeatable_row_sequences_keep_every_value() -> None:
+    profile = compile_query_profile(
+        ArtifactQuerySchema(
+            pane_id="rows",
+            boolean=False,
+            fields=(QueryFieldSpec(key="tag", exact_match=True),),
+        )
+    )
+    rows = [{"stable_id": "one", "fields": {"tag": ["alpha", "beta"]}}]
+
+    assert evaluate_query_many_for_profile("tag:beta", rows, profile) == [True]
+
+
+def test_patch_profile_coerces_transitive_ancestor_chain() -> None:
+    profile = compile_query_profile(patches_query_schema())
+    patches = [
+        Patch("grand", "root", None, status="WIP", file_path="/tmp/proj/proj.sase"),
+        Patch("mid", "mid", "grand", status="WIP", file_path="/tmp/proj/proj.sase"),
+        Patch("kid", "kid", "mid", status="WIP", file_path="/tmp/proj/proj.sase"),
+    ]
+
+    assert evaluate_query_many_for_profile("ancestor:grand", patches, profile) == [
+        True,
+        True,
+        True,
+    ]
+    assert evaluate_query_many_for_profile("ancestor:mid", patches, profile) == [
+        False,
+        True,
+        True,
+    ]
+
+
+def test_patch_profile_stable_id_is_project_qualified() -> None:
+    profile = compile_query_profile(patches_query_schema())
+    patches = [
+        Patch("same", "one", None, status="WIP", file_path="/tmp/one/one.sase"),
+        Patch("same", "two", None, status="WIP", file_path="/tmp/two/two.sase"),
+    ]
+
+    rows = coerce_artifact_query_rows(profile, patches)
+
+    assert rows[0].stable_id == patch_query_stable_id(patches[0])
+    assert rows[1].stable_id == patch_query_stable_id(patches[1])
+    assert rows[0].stable_id != rows[1].stable_id
 
 
 def test_query_facade_keeps_profile_batch_compatibility_helper() -> None:

@@ -51,12 +51,32 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.pick_artifacts_project),
-                    "Pick; Stitches rewrites project:",
+                    "Pick; Patches/Stitches rewrite project:",
                 ),
                 (
                     d(a.open_command_palette),
                     "Jump directly to any artifact pane",
                 ),
+            ],
+        ),
+        (
+            "Patch Pane",
+            [
+                (
+                    f"{d(a.patches_filters)} / {d(a.edit_query)}",
+                    "Focus persistent Patch filter",
+                ),
+                ("+PROJECT / project:NAME", "Filter project scope"),
+                ("^NAME / ancestor:NAME", "Patch plus descendants"),
+                ("~NAME / sibling:NAME", "Revert-family siblings"),
+                ("&NAME / name:NAME", "Exact Patch name"),
+                ("%w/%d/%y/%m/%s/%r", "Status macros"),
+                ("!!! / !!", "Has / lacks error suffixes"),
+                ("@@@ / !@", "Has / lacks running agents"),
+                ("$$$ / !$ / *", "Process state / any special state"),
+                ("#N QUERY / #N", "Save / delete slot N"),
+                ("Enter / Esc", "Commit / restore query and selection"),
+                *artifact_list_navigation,
             ],
         ),
         (

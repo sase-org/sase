@@ -236,10 +236,7 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
     else:
         assert not contract.has(PaneCapability.MUTATION)
         assert not contract.has(PaneCapability.VERSIONS)
-    if adapter == "patches":
-        assert not contract.has(PaneCapability.PROJECT_SCOPE)
-    else:
-        assert contract.has(PaneCapability.PROJECT_SCOPE)
+    assert contract.has(PaneCapability.PROJECT_SCOPE)
 
 
 @pytest.mark.parametrize("adapter", ["stitches", "patches", "beads", "files"])

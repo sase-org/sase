@@ -45,10 +45,17 @@ from .profile_reference import (
     build_query_context_for_profile,
     canonical_query_for_profile,
     coerce_artifact_query_row,
+    coerce_artifact_query_rows,
     evaluate_query_for_profile,
     evaluate_query_many_for_profile,
     evaluate_query_with_profile_context,
+    patch_query_stable_id,
     parse_query_for_profile,
+)
+from .project_scope import (
+    PROJECT_SCOPE_NESTED,
+    project_scope_of,
+    rewrite_project_scope,
 )
 from .types import (
     AndExpr,
@@ -78,10 +85,15 @@ __all__ = [
     "build_query_context_for_profile",
     "canonical_query_for_profile",
     "coerce_artifact_query_row",
+    "coerce_artifact_query_rows",
     "evaluate_query_for_profile",
     "evaluate_query_many_for_profile",
     "evaluate_query_with_profile_context",
+    "patch_query_stable_id",
     "parse_query_for_profile",
+    "PROJECT_SCOPE_NESTED",
+    "project_scope_of",
+    "rewrite_project_scope",
     # Types
     "QueryExpr",
     "StringMatch",

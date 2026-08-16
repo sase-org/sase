@@ -72,7 +72,7 @@ class PatchQueryMixin:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from ....query import parse_query, to_canonical_string
+        from ....query import to_canonical_string
         from ....query_history import (
             QueryHistoryStacks,
             push_to_prev_stack,
@@ -95,7 +95,7 @@ class PatchQueryMixin:
             return
 
         try:
-            new_parsed = parse_query(record.source)
+            new_parsed = self._parse_patch_query(record.source)  # type: ignore[attr-defined]
             new_canonical = to_canonical_string(new_parsed)
 
             # Only push to history if query actually changes
@@ -226,7 +226,6 @@ class PatchQueryMixin:
 
     def action_prev_query(self) -> None:
         """Navigate to previous query in history (^ key)."""
-        from ....query import parse_query
         from ....query_history import (
             QueryHistoryStacks,
             navigate_prev,
@@ -252,7 +251,7 @@ class PatchQueryMixin:
             return
 
         try:
-            self.parsed_query = parse_query(prev_record.source)
+            self.parsed_query = self._parse_patch_query(prev_record.source)  # type: ignore[attr-defined]
             self.query_string = prev_record.source
             self._load_query_patches()
             self._restore_selection_for_current_query()  # type: ignore[attr-defined]
@@ -263,7 +262,6 @@ class PatchQueryMixin:
 
     def action_next_query(self) -> None:
         """Navigate to next query in history (_ key)."""
-        from ....query import parse_query
         from ....query_history import (
             QueryHistoryStacks,
             navigate_next,
@@ -289,7 +287,7 @@ class PatchQueryMixin:
             return
 
         try:
-            self.parsed_query = parse_query(next_record.source)
+            self.parsed_query = self._parse_patch_query(next_record.source)  # type: ignore[attr-defined]
             self.query_string = next_record.source
             self._load_query_patches()
             self._restore_selection_for_current_query()  # type: ignore[attr-defined]

@@ -64,7 +64,7 @@ def build_query_context_for_profile(
 
     return ArtifactQueryEvaluationContext(
         profile=profile,
-        rows=tuple(coerce_artifact_query_row(profile, entry) for entry in entries),
+        rows=coerce_artifact_query_rows(profile, entries),
     )
 
 
@@ -122,6 +122,36 @@ def coerce_artifact_query_row(
         searchable_text=searchable_text,
         predicates=predicates,
     )
+
+
+def coerce_artifact_query_rows(
+    profile: CompiledQueryProfile,
+    entries: Iterable[ArtifactQueryRowInput],
+) -> tuple[ArtifactQueryRow, ...]:
+    """Coerce entries with any corpus-level facts needed by *profile*.
+
+    ``repeatable`` belongs to the query syntax, not row cardinality. Patch
+    ancestry is also corpus-level: descendants must see the full transitive
+    parent chain, matching the Rust Patch corpus.
+    """
+
+    materialized = tuple(entries)
+    if profile.pane_id == "patches" and all(
+        _is_patch_row(item) for item in materialized
+    ):
+        parent_by_name = {
+            str(getattr(item, "name", "")).casefold(): _patch_parent_name(item)
+            for item in materialized
+        }
+        return tuple(
+            _coerce_patch_query_row(
+                profile,
+                item,
+                ancestor_chain=_patch_ancestor_chain(item, parent_by_name),
+            )
+            for item in materialized
+        )
+    return tuple(coerce_artifact_query_row(profile, entry) for entry in materialized)
 
 
 def _entry_mapping(entry: ArtifactQueryRowInput) -> Mapping[str, Any]:
@@ -198,7 +228,7 @@ def _raw_values(raw: object, *, repeatable: bool) -> tuple[object, ...]:
                 return parsed
         return (raw,)
     if isinstance(raw, Sequence) and not isinstance(raw, (bytes, bytearray)):
-        return tuple(raw) if repeatable else (raw[0],) if raw else ()
+        return tuple(raw)
     return (raw,)
 
 
@@ -397,6 +427,8 @@ def _is_patch_row(entry: object) -> bool:
 def _coerce_patch_query_row(
     profile: CompiledQueryProfile,
     entry: object,
+    *,
+    ancestor_chain: tuple[str, ...] | None = None,
 ) -> ArtifactQueryRow:
     from sase.ace.patch import has_any_status_suffix, normalize_pr_origin
     from sase.ace.query.matchers import get_base_status
@@ -417,7 +449,9 @@ def _coerce_patch_query_row(
         "pr_url": getattr(entry, "pr_url", "") or "",
         "notes": searchable,
     }
-    if parent:
+    if ancestor_chain is not None:
+        raw_fields["ancestor"] = ancestor_chain
+    elif parent:
         raw_fields["ancestor"] = (name, str(parent))
     else:
         raw_fields["ancestor"] = (name,)
@@ -434,11 +468,50 @@ def _coerce_patch_query_row(
     if RUNNING_PROCESS_MARKER in searchable:
         predicates.add("running_process")
     return ArtifactQueryRow(
-        stable_id=name,
+        stable_id=patch_query_stable_id(entry),
         fields=fields,
         searchable_text=searchable,
         predicates=frozenset(predicates),
     )
+
+
+def patch_query_stable_id(entry: object) -> str:
+    """Return the profile-query row id for a Patch-like object."""
+
+    project = getattr(entry, "project_name", None)
+    if project is None:
+        project = getattr(entry, "project_query_name", "")
+    return f"{project}\x1f{getattr(entry, 'name', '')}"
+
+
+def _patch_parent_name(entry: object) -> str | None:
+    parent = getattr(entry, "parent", None)
+    if parent is None:
+        return None
+    text = str(parent)
+    return text or None
+
+
+def _patch_ancestor_chain(
+    entry: object,
+    parent_by_name: Mapping[str, str | None],
+) -> tuple[str, ...]:
+    """Return own name followed by transitive ancestors, cycle-guarded."""
+
+    chain: list[str] = []
+    seen: set[str] = set()
+    current = str(getattr(entry, "name", ""))
+    while current:
+        folded = current.casefold()
+        if folded in seen:
+            break
+        seen.add(folded)
+        chain.append(current)
+        parent = parent_by_name.get(folded)
+        if parent is None:
+            break
+        current = parent
+    return tuple(chain)
 
 
 __all__ = [
@@ -448,6 +521,8 @@ __all__ = [
     "ProfileFieldValue",
     "build_query_context_for_profile",
     "coerce_artifact_query_row",
+    "coerce_artifact_query_rows",
     "evaluate_query_for_profile",
     "evaluate_query_with_profile_context",
+    "patch_query_stable_id",
 ]

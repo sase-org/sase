@@ -217,7 +217,7 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     """
     from pathlib import Path
 
-    from ....query import parse_query, to_canonical_string
+    from ....query import to_canonical_string
     from ....query_history import (
         QueryHistoryStacks,
         push_to_prev_stack,
@@ -247,7 +247,10 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     new_query = f"project:{project_name}"
 
     try:
-        new_parsed = parse_query(new_query)
+        parse_patch_query = getattr(app, "_parse_patch_query", None)
+        if not callable(parse_patch_query):
+            raise RuntimeError("Patch query parser is unavailable")
+        new_parsed = parse_patch_query(new_query)
         new_canonical = to_canonical_string(new_parsed)
         current_canonical = app.canonical_query_string  # type: ignore[attr-defined]
 

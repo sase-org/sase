@@ -305,7 +305,7 @@ class TreeNavigationMixin(NavigationMixinBase):
         """
         from sase.core.patch import strip_reverted_suffix
 
-        from ....query import parse_query, to_canonical_string
+        from ....query import to_canonical_string
         from ....query_history import (
             QueryHistoryStacks,
             push_to_prev_stack,
@@ -328,7 +328,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             new_query = f"ancestor:{current_cs.name}"
 
         try:
-            new_parsed = parse_query(new_query)
+            new_parsed = self._parse_patch_query(new_query)  # type: ignore[attr-defined]
             new_canonical = to_canonical_string(new_parsed)
             current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
 

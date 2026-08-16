@@ -333,6 +333,7 @@ ace:
       files_copy_path: "Y"
       files_refresh: "R"
       # PR actions
+      patches_filters: "f"
       quit: "q"
       change_status: "s"
       run_workflow: "r"
@@ -351,7 +352,7 @@ ace:
       toggle_axe_description: "d"
       rename_cl: "n"
       # Patch edits
-      edit_hooks: "f"
+      edit_hooks: "F"
       mark_pr_origin: "unbound"
       # Proposals & sync
       accept_proposal: "A"

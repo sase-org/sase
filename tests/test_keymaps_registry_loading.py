@@ -270,9 +270,10 @@ def test_ctrl_space_user_config_canonicalizes_to_ctrl_at() -> None:
 
 
 def test_edit_hooks_default_binding() -> None:
-    """Guard: ``f`` is bound to ``edit_hooks`` (restored after d7b96606)."""
+    """Guard: Patch filters own ``f`` and hook editing lives on ``F``."""
     reg = load_keymap_registry({})
-    assert reg.app.edit_hooks == "f"
+    assert reg.app.patches_filters == "f"
+    assert reg.app.edit_hooks == "F"
     assert reg.app.run_workflow == "r"
 
 

@@ -2,22 +2,10 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from ...query import QueryParseError, parse_query, to_canonical_string
-from ...saved_queries import (
-    delete_query,
-    find_slot_for_query,
-    get_next_available_slot,
-    load_saved_queries,
-    save_query,
-)
 from sase.project_display_names import humanize_cl_name
-from ..modals import (
-    QueryEditModal,
-    WorkflowSelectModal,
-)
+from ..modals import WorkflowSelectModal
 from ._admin_center_persistence import AdminCenterPersistenceMixin
 
 if TYPE_CHECKING:
@@ -464,6 +452,15 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
         if (
             self.current_tab == "artifacts"
+            and getattr(self, "current_artifacts_pane_key", "patches") == "patches"
+        ):
+            pane = self._artifacts_entry_navigator("patches")  # type: ignore[attr-defined]
+            show_filters = getattr(pane, "show_filters", None)
+            if callable(show_filters):
+                show_filters()
+            return
+        if (
+            self.current_tab == "artifacts"
             and getattr(self, "current_artifacts_pane_key", "patches") == "stitches"
         ):
             pane = self._commits_pane()  # type: ignore[attr-defined]
@@ -502,101 +499,6 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             if pane is not None:
                 pane.show_filters()
             return
-
-        current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
-        pane_id = getattr(self, "current_artifacts_pane_key", "patches")
-
-        def on_dismiss(new_query: str | None) -> None:
-            if not new_query:
-                return
-
-            # Check for save prefix: #<N> or just #
-            save_match = re.match(r"^#(\d)?(.*)$", new_query.strip())
-
-            if save_match:
-                slot_specified = save_match.group(1)
-                query_part = save_match.group(2).strip()
-
-                if not query_part:
-                    # Delete mode: #<N> with no query
-                    if slot_specified:
-                        if delete_query(pane_id, slot_specified):
-                            self._invalidate_saved_queries_cache()  # type: ignore[attr-defined]
-                            self.notify(f"Deleted query from slot {slot_specified}")  # type: ignore[attr-defined]
-                        else:
-                            self.notify("Failed to delete query", severity="error")  # type: ignore[attr-defined]
-                    else:
-                        self.notify("No slot specified to delete", severity="warning")  # type: ignore[attr-defined]
-                    return
-
-                # Save mode: parse and save the query
-                try:
-                    parsed = parse_query(query_part)
-                    canonical = to_canonical_string(parsed)
-                except (QueryParseError, ValueError) as e:
-                    self.notify(f"Invalid query: {e}", severity="error")  # type: ignore[attr-defined]
-                    return
-
-                # Determine slot
-                existing_slot = find_slot_for_query(pane_id, canonical)
-                if slot_specified:
-                    slot = slot_specified
-                else:
-                    if existing_slot is not None:
-                        self.notify(f"Query already saved in slot {existing_slot}")  # type: ignore[attr-defined]
-                        return
-                    queries = load_saved_queries(pane_id)
-                    slot = get_next_available_slot(queries)
-                    if slot is None:
-                        self.notify("All 10 slots are full", severity="warning")  # type: ignore[attr-defined]
-                        return
-
-                if save_query(pane_id, slot, query_part, canonical):
-                    self._invalidate_saved_queries_cache()  # type: ignore[attr-defined]
-                    if existing_slot is not None and existing_slot != slot:
-                        self.notify(  # type: ignore[attr-defined]
-                            f"Moved query from slot {existing_slot} to slot {slot}: {canonical}"
-                        )
-                    else:
-                        self.notify(f"Saved to slot {slot}: {canonical}")  # type: ignore[attr-defined]
-                else:
-                    self.notify("Failed to save query", severity="error")  # type: ignore[attr-defined]
-            else:
-                # Normal query update (existing logic)
-                from ...query_history import (
-                    QueryHistoryStacks,
-                    push_to_prev_stack,
-                    save_query_history,
-                )
-                from ...query_record import QueryRecord
-
-                try:
-                    new_parsed = parse_query(new_query)
-                    new_canonical = to_canonical_string(new_parsed)
-                    # Only update if the canonical form changed
-                    if new_canonical != current_canonical:
-                        self._save_selection_for_current_query()  # type: ignore[attr-defined]
-                        # Push current query to prev stack before changing
-                        current_record = QueryRecord(
-                            source=self.query_string,  # type: ignore[attr-defined]
-                            canonical=current_canonical,
-                        )
-                        stacks = self._query_history.setdefault(  # type: ignore[attr-defined]
-                            pane_id, QueryHistoryStacks(prev=[], next=[])
-                        )
-                        push_to_prev_stack(current_record, stacks)
-                        save_query_history(pane_id, stacks)
-
-                        self.query_string = new_query
-                        self.parsed_query = new_parsed
-                        self._load_patches()  # type: ignore[attr-defined]
-                        self._restore_selection_for_current_query()  # type: ignore[attr-defined]
-                        self._save_current_query()  # type: ignore[attr-defined]
-                        self.notify("Query updated")  # type: ignore[attr-defined]
-                except (QueryParseError, ValueError) as e:
-                    self.notify(f"Invalid query: {e}", severity="error")  # type: ignore[attr-defined]
-
-        self.push_screen(QueryEditModal(current_canonical), on_dismiss)  # type: ignore[attr-defined]
 
     def action_open_config_center(self) -> None:
         """Open the SASE Admin Center on its lightweight home view."""

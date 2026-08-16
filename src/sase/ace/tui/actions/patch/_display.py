@@ -64,7 +64,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
     _w_ancestors_children: object
     _w_patch_info_panel: object
     _w_footer: object
-    _w_search_query_panel: object
+    _w_patch_filter_bar: object
     _patch_graph_index: PatchGraphIndex | None
     _patch_graph_index_for_id: int | None
     _patches_first_load_done: bool
@@ -174,6 +174,9 @@ class PatchDisplayMixin(PatchOnboardingMixin):
     def _refresh_patch_detail_only_impl(self) -> None:
         from ....query import query_explicitly_targets_terminal
 
+        display_query = self._display_patch_query()  # type: ignore[attr-defined]
+        display_parsed = self._display_patch_parsed_query()  # type: ignore[attr-defined]
+
         if self._sync_patches_onboarding():
             footer_widget = self._get_footer_widget()
             if footer_widget is not None:
@@ -190,9 +193,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
 
         effective_hide_reverted = (
             self.hide_reverted
-            and not query_explicitly_targets_terminal(
-                self.parsed_query, self._all_patches
-            )
+            and not query_explicitly_targets_terminal(display_parsed, self._all_patches)
         )
 
         if self.patches and 0 <= self.current_idx < len(self.patches):
@@ -205,7 +206,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
                 effective_hide_reverted,
             )
         else:
-            detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
+            detail_widget.show_empty(display_query)
             self._apply_empty_footer_update(footer_widget)
             ancestors_panel.clear()
             self._ancestor_keys = {}
@@ -227,7 +228,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             hint_mappings, hook_hint_to_idx, hint_to_entry_id, _ = (
                 detail_widget.update_display_with_hints(  # type: ignore[attr-defined]
                     patch,
-                    self.canonical_query_string,  # type: ignore[attr-defined]
+                    self._display_patch_query(),  # type: ignore[attr-defined]
                     hints_for=self._hint_mode_hints_for,
                     hooks_collapsed=self.hooks_collapsed,
                     stitches_collapsed=self.stitches_collapsed,
@@ -242,7 +243,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         else:
             detail_widget.update_display(  # type: ignore[attr-defined]
                 patch,
-                self.canonical_query_string,  # type: ignore[attr-defined]
+                self._display_patch_query(),  # type: ignore[attr-defined]
                 hooks_collapsed=self.hooks_collapsed,
                 stitches_collapsed=self.stitches_collapsed,
                 mentors_collapsed=self.mentors_collapsed,
@@ -305,7 +306,9 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             return
         from ....query import get_sole_project_filter
 
-        sole_project = get_sole_project_filter(self.parsed_query)
+        sole_project = get_sole_project_filter(
+            self._display_patch_parsed_query()  # type: ignore[attr-defined]
+        )
         footer_widget.show_empty(project_name=sole_project)  # type: ignore[attr-defined]
 
     def _get_patch_list_widget(self) -> Any:
@@ -365,13 +368,13 @@ class PatchDisplayMixin(PatchOnboardingMixin):
     def _get_search_query_widget(self) -> Any:
         from textual.css.query import NoMatches
 
-        from ...widgets import SearchQueryPanel
+        from ...widgets import PatchFilterBar
 
-        cached = getattr(self, "_w_search_query_panel", None)
+        cached = getattr(self, "_w_patch_filter_bar", None)
         if cached is not None:
             return cached
         try:
-            return self.query_one("#search-query-panel", SearchQueryPanel)  # type: ignore[attr-defined]
+            return self.query_one("#patch-filter-bar", PatchFilterBar)  # type: ignore[attr-defined]
         except NoMatches:
             return None
 
@@ -384,9 +387,12 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         # Full refresh supersedes any pending debounced detail update.
         self._patch_detail_debouncer.cancel()
 
+        display_query = self._display_patch_query()  # type: ignore[attr-defined]
+        display_parsed = self._display_patch_parsed_query()  # type: ignore[attr-defined]
         search_panel = self._get_search_query_widget()
         if search_panel is not None:
-            search_panel.update_query(self.canonical_query_string)  # type: ignore[attr-defined]
+            search_panel.set_query(display_query)
+            search_panel.set_status(len(self.patches), exact=True, error=None)
 
         if self._sync_patches_onboarding():
             footer_widget = self._get_footer_widget()
@@ -454,9 +460,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         # Calculate effective hide_reverted (disabled if query targets reverted)
         effective_hide_reverted = (
             self.hide_reverted
-            and not query_explicitly_targets_terminal(
-                self.parsed_query, self._all_patches
-            )
+            and not query_explicitly_targets_terminal(display_parsed, self._all_patches)
         )
 
         if self.patches and 0 <= self.current_idx < len(self.patches):
@@ -469,7 +473,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
                 effective_hide_reverted,
             )
         else:
-            detail_widget.show_empty(self.canonical_query_string)  # type: ignore[attr-defined]
+            detail_widget.show_empty(display_query)
             self._apply_empty_footer_update(footer_widget)
             ancestors_panel.clear()
             self._ancestor_keys = {}

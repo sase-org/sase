@@ -9,6 +9,7 @@ from sase.ace.query_history import QueryHistoryStacks
 from sase.ace.query_record import QueryRecord
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import SavedQueryPickerModal
+from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 
 
@@ -196,14 +197,17 @@ async def test_malformed_cached_query_reports_error_without_crashing(
         assert notifications[-1][1] == "error"
 
 
-async def test_focused_query_input_can_type_artifact_file_digits_and_star() -> None:
+async def test_focused_patch_filter_bar_can_type_artifact_file_digits_and_star() -> (
+    None
+):
     async with AcePage(query='"feature"') as page:
         await page.press("2")
         await page.expect_state("artifacts_subtab", "patches")
         await page.press("slash")
-        await page.expect_modal("QueryEditModal")
-        query_input = page.app.screen.query_one(
-            "#query-input",
+        bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
+        await page.wait_for(lambda _state: bar._editing)  # type: ignore[attr-defined]
+        query_input = bar.query_one(
+            "#patch-filter-input",
             SingleLineVimTextArea,
         )
 

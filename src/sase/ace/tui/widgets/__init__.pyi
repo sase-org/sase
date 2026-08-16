@@ -54,6 +54,7 @@ from .keybinding_footer import KeybindingFooter as KeybindingFooter
 from .llm_override_indicator import LLMOverrideIndicator as LLMOverrideIndicator
 from .notification_indicator import NotificationIndicator as NotificationIndicator
 from .patch_detail import PatchDetail as PatchDetail
+from .artifacts.patch_filter_bar import PatchFilterBar as PatchFilterBar
 from .patch_info_panel import PatchInfoPanel as PatchInfoPanel
 from .patch_list import PatchList as PatchList
 from .patch_onboarding import PatchOnboarding as PatchOnboarding

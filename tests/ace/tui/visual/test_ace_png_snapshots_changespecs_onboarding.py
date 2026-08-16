@@ -72,7 +72,7 @@ async def test_patches_onboarding_no_match_png_snapshot(
         await page.expect_state("total", 0)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "Search Query")
+        assert_page_svg_contains(page, "missing")
         assert_page_svg_contains(page, "No PRs match this query")
         assert_page_svg_contains(page, "exists")
         _assert_single_prs_quickstart(page)

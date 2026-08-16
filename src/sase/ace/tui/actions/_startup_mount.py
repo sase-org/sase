@@ -24,10 +24,10 @@ class StartupMountMixin:
             AncestorsChildrenPanel,
             ArtifactsView,
             PatchDetail,
+            PatchFilterBar,
             PatchInfoPanel,
             PatchList,
             KeybindingFooter,
-            SearchQueryPanel,
             TabBar,
         )
 
@@ -91,7 +91,7 @@ class StartupMountMixin:
                     AncestorsChildrenPanel,
                 ),
                 ("_w_patch_info_panel", "#info-panel", PatchInfoPanel),
-                ("_w_search_query_panel", "#search-query-panel", SearchQueryPanel),
+                ("_w_patch_filter_bar", "#patch-filter-bar", PatchFilterBar),
                 ("_w_agent_detail", "#agent-detail-panel", AgentDetail),
             ):
                 try:

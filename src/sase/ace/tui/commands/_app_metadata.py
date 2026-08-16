@@ -279,6 +279,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("description", "expand description", "collapse description"),
     ),
     ("rename_cl", "Rename Patch / agent", "Patch Actions", CL_AGENTS, ()),
+    ("patches_filters", "Patches: filter bar", "Display", CL_ONLY, ()),
     # Patch edits
     (
         "edit_hooks",

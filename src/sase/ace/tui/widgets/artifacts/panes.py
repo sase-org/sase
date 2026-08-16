@@ -10,21 +10,30 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
+
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..._artifact_tab_model import ArtifactsPaneContract
 from ..ancestors_children_panel import AncestorsChildrenPanel
-from ..patch_detail import PatchDetail, SearchQueryPanel
+from ..patch_detail import PatchDetail
 from ..patch_info_panel import PatchInfoPanel
 from ..patch_list import PatchList
 from ..tab_quickstart import TabQuickStart
 from .lifecycle import ArtifactsPaneLifecycle
 from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .patch_filter_bar import PatchFilterBar
+from .patches_filter_session import PatchesFilterSessionMixin
 from .patch_entry import patch_row_target
 from .shell import build_degraded_card
 from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
-class ArtifactsPatchesPane(ArtifactEntryNavigator, ArtifactsPaneLifecycle, Horizontal):
+class ArtifactsPatchesPane(
+    PatchesFilterSessionMixin,
+    ArtifactEntryNavigator,
+    ArtifactsPaneLifecycle,
+    Horizontal,
+):
     """The existing Patch surface, hosted unchanged inside Artifacts."""
 
     def __init__(
@@ -35,6 +44,7 @@ class ArtifactsPatchesPane(ArtifactEntryNavigator, ArtifactsPaneLifecycle, Horiz
     ) -> None:
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
+        self._init_patches_filter_session()
         self.contract = contract
 
     def compose(self) -> ComposeResult:
@@ -43,7 +53,12 @@ class ArtifactsPatchesPane(ArtifactEntryNavigator, ArtifactsPaneLifecycle, Horiz
             yield PatchList(id="list-panel")
             yield AncestorsChildrenPanel(id="ancestors-children-panel")
         with Vertical(id="detail-container"):
-            yield SearchQueryPanel(id="search-query-panel")
+            profile = (
+                self.contract.query_profile
+                if self.contract is not None
+                else compiled_profile_for_builtin_pane("patches")
+            )
+            yield PatchFilterBar(id="patch-filter-bar", profile=profile)
             with VerticalScroll(id="detail-scroll"):
                 yield PatchDetail(id="detail-panel")
             yield TabQuickStart(

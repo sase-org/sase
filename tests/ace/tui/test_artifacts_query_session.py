@@ -84,6 +84,7 @@ def fake_evaluator(monkeypatch: pytest.MonkeyPatch) -> None:
         return ArtifactQueryResult(
             cache_key=index.cache_key(canonical_query),
             matched_row_ids=(query,),
+            matched_mask=(True,),
         )
 
     monkeypatch.setattr(

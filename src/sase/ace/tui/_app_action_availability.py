@@ -134,6 +134,12 @@ def check_app_action(
             return False
     if action == "start_saved_query_mode" and app.current_tab != ARTIFACTS_TAB:
         return False
+    if action == "patches_filters":
+        if (
+            app.current_tab != ARTIFACTS_TAB
+            or app.current_artifacts_pane_key != "patches"
+        ):
+            return False
     if action in PLANS_ARTIFACT_ACTIONS:
         from .artifact_tabs import PaneCapability, artifacts_pane_contract
 

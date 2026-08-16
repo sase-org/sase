@@ -109,7 +109,7 @@ def init_late_startup_state(
     self._query_selections = {"patches": load_query_selections("patches")}
 
     # Saved-query slots cached in memory, namespaced by pane id.
-    # ``SearchQueryPanel`` reads this on every render so we keep it
+    # Patch query display and keymap/help surfaces read this from memory, so keep it
     # disk-free; the cache is refreshed by
     # :meth:`_invalidate_saved_queries_cache` on explicit save/delete.
     from ...saved_queries import load_saved_queries
