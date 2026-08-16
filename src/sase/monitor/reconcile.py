@@ -19,6 +19,8 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.history.chat import save_chat_history
 from sase.logs._bounded import log_file_lock
+from sase.procs.models import ProcStoreSnapshot
+from sase.procs.store import read_proc_snapshot
 from sase.workflows.utils import get_project_file_path
 
 from .identity import supervisor_is_alive
@@ -44,7 +46,11 @@ _PROC_BOOT_ID_PATH = Path("/proc/sys/kernel/random/boot_id")
 GetMonitor = Callable[[str, str], MonitorRecord | None]
 
 
-def should_reconcile_dead_supervisor(record: MonitorRecord) -> bool:
+def should_reconcile_dead_supervisor(
+    record: MonitorRecord,
+    *,
+    snapshot: ProcStoreSnapshot | None = None,
+) -> bool:
     """Return whether a running monitor's supervisor needs reconciliation."""
     from .proc_adapter import proc_shell_owns
 
@@ -52,7 +58,7 @@ def should_reconcile_dead_supervisor(record: MonitorRecord) -> bool:
         return False
     if record.pid is None:
         return False
-    if proc_shell_owns(record.monitor_id):
+    if proc_shell_owns(record.monitor_id, snapshot=snapshot):
         return False
     if _is_pre_reboot_monitor(record):
         return True
@@ -63,6 +69,7 @@ def reconcile_dead_supervisor(
     record: MonitorRecord,
     *,
     get_monitor: GetMonitor,
+    snapshot: ProcStoreSnapshot | None = None,
 ) -> MonitorRecord:
     """Settle a running monitor after its supervisor died without reporting."""
     if not record.lane:
@@ -72,7 +79,7 @@ def reconcile_dead_supervisor(
         if current is None or current.monitor_state != "running":
             return current if current is not None else record
         candidate = _with_liveness_fallback(current, record)
-        if not should_reconcile_dead_supervisor(candidate):
+        if not should_reconcile_dead_supervisor(candidate, snapshot=snapshot):
             return current
         return _reconcile_dead_supervisor_locked(candidate, get_monitor=get_monitor)
 
@@ -81,17 +88,21 @@ def reconcile_dead_supervisors_for_records(
     records: Iterable[AgentArtifactRecordWire],
     *,
     get_monitor: GetMonitor,
+    snapshot: ProcStoreSnapshot | None = None,
 ) -> list[MonitorRecord]:
     """Reconcile every running monitor whose supervisor is no longer alive."""
+    procs = snapshot if snapshot is not None else read_proc_snapshot()
     reconciled: list[MonitorRecord] = []
     for wire_record in records:
         try:
             record = MonitorRecord.from_record(wire_record)
         except ValueError:
             continue
-        if not should_reconcile_dead_supervisor(record):
+        if not should_reconcile_dead_supervisor(record, snapshot=procs):
             continue
-        updated = reconcile_dead_supervisor(record, get_monitor=get_monitor)
+        updated = reconcile_dead_supervisor(
+            record, get_monitor=get_monitor, snapshot=procs
+        )
         if updated.monitor_state != "running":
             reconciled.append(updated)
     return reconciled

@@ -42,6 +42,7 @@ from sase.procs import (
     prune_procs,
     proc_log_path,
     read_proc_log_tail,
+    read_proc_snapshot,
     read_procs,
     request_proc_stop,
     resolve_proc_ref,
@@ -434,6 +435,41 @@ def test_rust_facade_round_trip_update_and_get(tmp_path: Path) -> None:
     assert updated.proc.pid == 4321
     assert get_proc(proc.proc_id, path=store) == updated.proc
     assert read_procs(path=store, status="running") == [updated.proc]
+
+
+def test_get_proc_resolves_many_ids_from_one_snapshot(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    import sase.procs.store as proc_store
+
+    store = tmp_path / "procs.jsonl"
+    first = _proc("aaaaaaaaaaaa", created_at="2026-07-25T12:00:00Z")
+    second = _proc("bbbbbbbbbbbb", created_at="2026-07-25T12:01:00Z")
+    append_proc(first, path=store, history_limit=10)
+    append_proc(second, path=store, history_limit=10)
+
+    snapshot = read_proc_snapshot(path=store)
+    reads: list[str] = []
+    original = proc_store._call_binding
+
+    def counting(name: str, *args: object) -> object:
+        if name == "read_procs_snapshot":
+            reads.append(name)
+        return original(name, *args)
+
+    monkeypatch.setattr(proc_store, "_call_binding", counting)
+
+    found_first = get_proc(first.proc_id, snapshot=snapshot)
+    found_second = get_proc(second.proc_id, snapshot=snapshot)
+    assert found_first is not None
+    assert found_first.proc_id == first.proc_id
+    assert found_second is not None
+    assert found_second.proc_id == second.proc_id
+    assert get_proc("missingxxxxx", snapshot=snapshot) is None
+    assert reads == []
+
+    assert get_proc(first.proc_id, path=store) is not None
+    assert reads == ["read_procs_snapshot"]
 
 
 def test_proc_shell_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> None:

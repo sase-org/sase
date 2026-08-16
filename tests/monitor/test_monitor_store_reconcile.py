@@ -8,6 +8,7 @@ import signal
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -417,7 +418,9 @@ def test_list_monitors_keeps_full_history_listing_query(
 
     monkeypatch.setattr(proc_service, "reconcile_proc_shells", lambda: None)
     monkeypatch.setattr(
-        store_module, "reconcile_dead_supervisors", lambda *, project: []
+        store_module,
+        "reconcile_dead_supervisors",
+        lambda *, project, snapshot=None: [],
     )
     monkeypatch.setattr(
         store_module,
@@ -469,6 +472,77 @@ def test_list_monitors_reconciles_dead_supervisors(
 
     assert [record.monitor_state for record in records] == ["failed"]
     assert (Path(monitor_dir) / "done.json").exists()
+
+
+def test_reconcile_dead_supervisors_reads_proc_store_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.monitor.reconcile as reconcile_module
+    import sase.procs.store as proc_store
+
+    dirs = [
+        make_starter_agent(
+            "proj",
+            f"20260812{120000 + index:06d}",
+            f"acme--mon{index}",
+            agent_family="acme",
+            agent_family_role="monitor",
+            monitor_id=f"mon{index:09d}",
+            monitor_state="running",
+            monitor_command="sleep 60",
+            pid=DEAD_PID,
+        )
+        for index in range(8)
+    ]
+    patch_project_records(monkeypatch, dirs)
+    monkeypatch.setattr(reconcile_module, "supervisor_is_alive", lambda *_a, **_k: True)
+    reads = _count_proc_store_reads(monkeypatch, proc_store)
+
+    assert reconcile_dead_supervisors(project="proj") == []
+    assert reads == ["read_procs_snapshot"]
+
+
+def test_list_monitors_proc_store_reads_do_not_scale_with_record_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.monitor.reconcile as reconcile_module
+    import sase.procs.store as proc_store
+
+    monkeypatch.setattr(reconcile_module, "supervisor_is_alive", lambda *_a, **_k: True)
+    real_binding = proc_store._call_binding
+
+    def count_reads(record_count: int, *, clock_base: int) -> int:
+        dirs = [
+            make_starter_agent(
+                "proj",
+                f"20260812{clock_base + index:06d}",
+                f"acme--mon{clock_base}{index}",
+                agent_family="acme",
+                agent_family_role="monitor",
+                monitor_id=f"m{clock_base:05d}{index:06d}",
+                monitor_state="running",
+                monitor_command="sleep 60",
+                pid=DEAD_PID,
+            )
+            for index in range(record_count)
+        ]
+        patch_project_records(monkeypatch, dirs)
+        reads: list[str] = []
+
+        def counting(name: str, *args: object) -> object:
+            if name == "read_procs_snapshot":
+                reads.append(name)
+            return real_binding(name, *args)
+
+        monkeypatch.setattr(proc_store, "_call_binding", counting)
+        listed = list_monitors(project="proj")
+        assert len(listed) == record_count
+        return len(reads)
+
+    small = count_reads(3, clock_base=120000)
+    large = count_reads(12, clock_base=130000)
+    assert small == large
+    assert 1 <= small <= 2
 
 
 def test_reconcile_dead_supervisors_leaves_healthy_running_monitors_unchanged(
@@ -533,7 +607,10 @@ def test_should_reconcile_dead_supervisor_skips_proc_lookup_for_terminal_record(
 
     calls: list[str] = []
 
-    def fake_proc_shell_owns(monitor_id: str) -> bool:
+    def fake_proc_shell_owns(
+        monitor_id: str, *, snapshot: object | None = None
+    ) -> bool:
+        del snapshot
         calls.append(monitor_id)
         return False
 
@@ -559,6 +636,21 @@ def _empty_snapshot(
         stats=AgentArtifactScanStatsWire(),
         records=[],
     )
+
+
+def _count_proc_store_reads(
+    monkeypatch: pytest.MonkeyPatch, proc_store: Any
+) -> list[str]:
+    reads: list[str] = []
+    original = proc_store._call_binding
+
+    def counting(name: str, *args: object) -> object:
+        if name == "read_procs_snapshot":
+            reads.append(name)
+        return original(name, *args)
+
+    monkeypatch.setattr(proc_store, "_call_binding", counting)
+    return reads
 
 
 def _kill_process_group(pgid: int) -> None:

@@ -20,6 +20,7 @@ from sase.procs.models import (
     PROC_LIFECYCLE_PROC_SHELL,
     TERMINAL_PROC_STATUSES,
     Proc,
+    ProcStoreSnapshot,
 )
 from sase.procs.store import get_proc
 from sase.workflows.utils import get_project_file_path
@@ -46,9 +47,14 @@ def compile_monitor_argv(command: str) -> list[str]:
     return [*MONITOR_ARGV_PREFIX, command]
 
 
-def proc_shell_owns(monitor_id: str) -> bool:
-    """Return whether *monitor_id* is a proc-shell row the facade must not adopt."""
-    proc = get_proc(monitor_id)
+def proc_shell_owns(
+    monitor_id: str, *, snapshot: ProcStoreSnapshot | None = None
+) -> bool:
+    """Return whether *monitor_id* is a proc-shell row the facade must not adopt.
+
+    Pass *snapshot* to answer many ownership checks from one store read.
+    """
+    proc = get_proc(monitor_id, snapshot=snapshot)
     return proc is not None and proc.lifecycle == PROC_LIFECYCLE_PROC_SHELL
 
 

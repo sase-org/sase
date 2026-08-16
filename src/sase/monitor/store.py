@@ -30,6 +30,7 @@ from sase.core.agent_scan_wire_markers import AgentMetaWire, DoneMarkerWire
 from sase.core.paths import sase_projects_dir
 from sase.core.wire import known_field_kwargs
 from sase.plan_chain import agent_family_base
+from sase.procs.models import ProcStoreSnapshot
 
 from .identity import supervisor_is_alive
 from .models import (
@@ -307,11 +308,13 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     when no ``--project`` filter is given.
     """
     from sase.procs.service import reconcile_proc_shells
+    from sase.procs.store import read_proc_snapshot
 
     reconcile_proc_shells()
-    reconcile_dead_supervisors(project=project)
+    snapshot = read_proc_snapshot()
+    reconcile_dead_supervisors(project=project, snapshot=snapshot)
     records = [
-        _with_proc_projection(converted)
+        _with_proc_projection(converted, snapshot=snapshot)
         for converted in (
             _monitor_record_from_wire(record) for record in _monitor_records(project)
         )
@@ -321,21 +324,31 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     return records
 
 
-def reconcile_dead_supervisors(*, project: str | None = None) -> list[MonitorRecord]:
+def reconcile_dead_supervisors(
+    *,
+    project: str | None = None,
+    snapshot: ProcStoreSnapshot | None = None,
+) -> list[MonitorRecord]:
     """Reconcile all running monitors whose supervisors are no longer alive."""
     return reconcile_dead_supervisors_for_records(
         _reconciliation_monitor_records(project),
         get_monitor=get_monitor,
+        snapshot=snapshot,
     )
 
 
-def _with_proc_projection(record: MonitorRecord) -> MonitorRecord:
+def _with_proc_projection(
+    record: MonitorRecord,
+    *,
+    snapshot: ProcStoreSnapshot | None = None,
+) -> MonitorRecord:
     """Overlay proc-shell execution state; never invent a proc for a legacy row."""
-    from sase.procs.store import get_proc
+    from sase.procs.store import get_proc, read_proc_snapshot
 
-    if not proc_shell_owns(record.monitor_id):
+    procs = snapshot if snapshot is not None else read_proc_snapshot()
+    if not proc_shell_owns(record.monitor_id, snapshot=procs):
         return record
-    proc = get_proc(record.monitor_id)
+    proc = get_proc(record.monitor_id, snapshot=procs)
     if proc is None:
         return record
     return overlay_proc_on_monitor(record, proc)

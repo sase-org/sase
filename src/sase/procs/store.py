@@ -39,6 +39,14 @@ class _AnySession:
 _ANY_SESSION = _AnySession()
 
 
+def read_proc_snapshot(*, path: Path | str | None = None) -> ProcStoreSnapshot:
+    """Read the durable proc store once as a newest-first snapshot."""
+    payload: Mapping[str, Any] = _call_binding(
+        "read_procs_snapshot", str(path or proc_store_path())
+    )
+    return ProcStoreSnapshot.from_dict(payload)
+
+
 def read_procs(
     *,
     path: Path | str | None = None,
@@ -51,10 +59,7 @@ def read_procs(
     shell_name: str | Collection[str] | None = None,
 ) -> list[Proc]:
     """Read newest-first procs, applying the shared CLI/TUI filters."""
-    payload: Mapping[str, Any] = _call_binding(
-        "read_procs_snapshot", str(path or proc_store_path())
-    )
-    snapshot = ProcStoreSnapshot.from_dict(payload)
+    snapshot = read_proc_snapshot(path=path)
     return filter_procs(
         snapshot.procs,
         status=status,
@@ -67,12 +72,20 @@ def read_procs(
     )
 
 
-def get_proc(proc_id: str, *, path: Path | str | None = None) -> Proc | None:
-    """Return the exact proc id, or ``None`` when it is absent."""
-    return next(
-        (proc for proc in read_procs(path=path) if proc.proc_id == proc_id),
-        None,
-    )
+def get_proc(
+    proc_id: str,
+    *,
+    path: Path | str | None = None,
+    snapshot: ProcStoreSnapshot | None = None,
+) -> Proc | None:
+    """Return the exact proc id, or ``None`` when it is absent.
+
+    Pass *snapshot* to resolve many ids against one already-loaded store
+    read. *path* is ignored when *snapshot* is supplied.
+    """
+    if snapshot is None:
+        snapshot = read_proc_snapshot(path=path)
+    return next((proc for proc in snapshot.procs if proc.proc_id == proc_id), None)
 
 
 def append_proc(
@@ -295,6 +308,7 @@ __all__ = [
     "finish_proc",
     "get_proc",
     "prune_procs",
+    "read_proc_snapshot",
     "read_procs",
     "request_proc_stop",
     "reserve_proc",
