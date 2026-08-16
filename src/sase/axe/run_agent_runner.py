@@ -256,6 +256,9 @@ def _record_completion(state: RunnerRunState) -> None:
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
+    from sase.feature_flags import install_process_feature_flags
+
+    install_process_feature_flags()
     state = _build_run_state(sys.argv)
 
     try:

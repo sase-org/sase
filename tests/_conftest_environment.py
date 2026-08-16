@@ -268,6 +268,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_CHOP_NAME",
                 "SASE_CHOP_PROMPT_HASH",
                 "SASE_CHOP_RUN_ID",
+                "SASE_FEATURE_FLAGS",
                 "SASE_LINKED_REPOS_JSON",
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
                 "SASE_SIBLING_REPOS_JSON",
@@ -285,6 +286,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     leaked_proc_keys = [key for key in os.environ if key.startswith("SASE_PROC_")]
     for key in (
         *WORKSPACE_PIN_ENV_VARS,
+        "SASE_FEATURE_FLAGS",
         SASE_MODEL_ALIAS_OVERRIDES_ENV,
         *leaked_proc_keys,
     ):

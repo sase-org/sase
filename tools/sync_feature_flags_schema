@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Check or rewrite the generated feature_flags config schema block."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from sase.feature_flags.schema import (
+    feature_flags_schema_block,
+    feature_flags_schema_drift,
+)
+
+
+SCHEMA_PATH = REPO_ROOT / "src" / "sase" / "config" / "sase.schema.json"
+
+
+def _load_schema(path: Path = SCHEMA_PATH) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_schema(document: dict[str, Any], path: Path = SCHEMA_PATH) -> None:
+    properties = document.setdefault("properties", {})
+    if not isinstance(properties, dict):
+        raise ValueError("schema root properties must be an object")
+    properties["feature_flags"] = feature_flags_schema_block()
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        _upsert_top_level_property_text(
+            text,
+            "feature_flags",
+            properties["feature_flags"],
+        ),
+        encoding="utf-8",
+    )
+
+
+def _render_top_level_property(key: str, value: Any) -> str:
+    wrapped = json.dumps({key: value}, indent=2).splitlines()
+    return "\n".join(f"  {line}" for line in wrapped[1:-1])
+
+
+def _find_property_value_end(text: str, start: int) -> int:
+    in_string = False
+    escaped = False
+    depth = 0
+    started = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            depth += 1
+            started = True
+            continue
+        if char == "}":
+            depth -= 1
+            if started and depth == 0:
+                return index + 1
+    raise ValueError("could not find end of feature_flags schema block")
+
+
+def _upsert_top_level_property_text(text: str, key: str, value: Any) -> str:
+    rendered = _render_top_level_property(key, value)
+    needle = f'\n    "{key}": '
+    start = text.find(needle)
+    if start >= 0:
+        property_start = start + 1
+        value_start = text.find("{", property_start)
+        if value_start < 0:
+            raise ValueError(f"could not find value for {key!r}")
+        value_end = _find_property_value_end(text, value_start)
+        return f"{text[:property_start]}{rendered}{text[value_end:]}"
+
+    properties_close = "\n  }\n}\n"
+    prefix, separator, suffix = text.rpartition(properties_close)
+    if not separator:
+        raise ValueError("could not locate root properties close in schema")
+    return f"{prefix},\n{rendered}{separator}{suffix}"
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="check for drift and exit non-zero when found (default)",
+    )
+    mode.add_argument(
+        "--write",
+        action="store_true",
+        help="rewrite the schema block in place",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    document = _load_schema()
+    if args.write:
+        try:
+            _write_schema(document)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        return 0
+
+    drift = feature_flags_schema_drift(document)
+    if drift is None:
+        return 0
+    print(drift, file=sys.stderr)
+    print("Run tools/sync_feature_flags_schema --write to update it.", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

@@ -255,12 +255,14 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + test waits + changelog + terminology audit + symvision + toobig + keep-sorted)
+# Run linters (ruff + mypy + generated schema + pyscripts + test waits + changelog + terminology audit + symvision + toobig + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
     @printf "\n---------- Running mypy type checker... ----------\n"
     @just _lint-mypy
+    @printf "\n---------- Checking generated feature flag schema... ----------\n"
+    @just _lint-feature-flags-schema
     @printf "\n---------- Validating scripts/tools directory structure... ----------\n"
     @just _lint-pyscripts
     @printf "\n---------- Checking retired test wait helpers... ----------\n"
@@ -282,6 +284,10 @@ _lint-ruff: _setup
 _lint-mypy: _setup
     {{ venv_bin }}/mypy
     {{ venv_bin }}/python tools/typecheck_extensionless_tools --mypy {{ venv_bin }}/mypy
+
+# Check the generated feature_flags JSON Schema block.
+_lint-feature-flags-schema: _setup
+    {{ venv_bin }}/python tools/sync_feature_flags_schema --check
 
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
@@ -305,11 +311,15 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-n4(UsageLimitSettings)" \
+        --epic-symbol "sase-nb(encode_feature_flags_env)" \
+        --epic-symbol "sase-nb(feature_flags_schema_block)" \
+        --epic-symbol "sase-nb(feature_flags_schema_drift)" \
         --epic-symbol "sase-n4(find_matching_pattern)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-nb(reset_process_feature_flags)" \
         --epic-symbol "sase-n8(AgentAliasHistoryGroupWire)" \
         --epic-symbol "sase-n8(AgentAliasHistoryLimitWire)" \
         --epic-symbol "sase-n8(AgentAliasRunWire)" \
@@ -606,6 +616,7 @@ check: _setup
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
     @tools/run_silent "lint (ruff)"        just _lint-ruff
     @tools/run_silent "lint (mypy)"        just _lint-mypy
+    @tools/run_silent "lint (feature flag schema)" just _lint-feature-flags-schema
     @tools/run_silent "lint (pyscripts)"   just _lint-pyscripts
     @tools/run_silent "lint (test waits)"  just _lint-test-waits
     @tools/run_silent "lint (changelog)"   just _lint-changelog

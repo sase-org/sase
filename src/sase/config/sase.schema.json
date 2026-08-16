@@ -2867,6 +2867,14 @@
           }
         }
       }
+    },
+    "feature_flags": {
+      "type": "object",
+      "description": "Code-owned SASE feature flags keyed by flag name.",
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "properties": {}
     }
   }
 }

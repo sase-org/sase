@@ -156,10 +156,14 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     from sase.ace.tui import AceApp
     from sase.ace.tui.log_setup import install_tui_file_logging
     from sase.config.core import set_include_local_config
+    from sase.feature_flags import install_process_feature_flags
 
     # Don't load repo-level sase.yml for the TUI — local config should
     # only apply to agent runs (which are separate processes).
     set_include_local_config(False)
+    # Pin flags only after local config is disabled; otherwise ACE would
+    # inherit project-local feature_flags that are meant for agent runs.
+    install_process_feature_flags()
 
     # Route every ``sase`` logger record (including un-instrumented
     # ``log.exception(...)`` calls) to a durable, findable ~/.sase/logs/tui.log

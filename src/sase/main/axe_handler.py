@@ -9,6 +9,10 @@ from sase.ace.query import QueryParseError
 
 def handle_axe_command(args: argparse.Namespace) -> None:
     """Handle the 'sase axe' command."""
+    from sase.feature_flags import install_process_feature_flags
+
+    install_process_feature_flags()
+
     # Wire --vcs-provider to env var for downstream resolution
     vcs_provider = getattr(args, "vcs_provider", None)
     if vcs_provider is not None:
