@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sase.bead.model import Issue, IssueType, Status
+from sase.bead.model import FlagRecord, Issue, IssueType, Status
 
 from ..widgets.artifacts.beads_list import BeadRow
 from ..widgets.artifacts.beads_pane import ArtifactsBeadsPane
@@ -204,7 +204,7 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         project = pane.project_scope
         if project is None:
             self.notify(  # type: ignore[attr-defined]
-                "Pick a project before creating a task bead", severity="warning"
+                "Pick a project before creating a bead", severity="warning"
             )
             return
         snapshot = pane.snapshot
@@ -246,21 +246,34 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
             ) as mutation:
                 issue = mutation.project.create(
                     result.title,
-                    IssueType.TASK,
+                    IssueType(result.issue_type),
                     description=result.description,
-                    size=result.size,
+                    size=result.size or None,
+                    flag=(
+                        FlagRecord(
+                            key=result.flag_key,
+                            remove_by_date=result.flag_remove_by_date,
+                            remove_by_release=result.flag_remove_by_release,
+                        )
+                        if result.issue_type == IssueType.FLAG.value
+                        else None
+                    ),
                 )
-                if result.ready:
+                if result.issue_type == IssueType.TASK.value and result.ready:
                     issue = mutation.project.update(issue.id, status=Status.READY.value)
                 mutation.commit(require_mutation_commit_message("create", [issue.id]))
-            return TrackedProcResult(True, f"Created task bead {issue.id}", issue)
+            return TrackedProcResult(
+                True,
+                f"Created {result.issue_type} bead {issue.id}",
+                issue,
+            )
 
         self._submit_beads_task(
             pane,
             project=project,
             bead_id="new",
             operation="create",
-            display_name="Create task bead",
+            display_name="Create bead",
             workspace=workspace,
             task=task,
         )

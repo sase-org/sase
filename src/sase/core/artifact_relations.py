@@ -62,6 +62,7 @@ class RelationIndex:
 
     pane_id: str
     relations: tuple[PaneRelationDecl, ...]
+    known_targets: frozenset[ArtifactEntryTarget]
     edges: tuple[RelationEdge, ...]
     diagnostics: tuple[RelationDiagnostic, ...]
     _by_source: Mapping[ArtifactEntryTarget, RelationEdges] = field(
@@ -155,15 +156,17 @@ def build_relation_index(
     known_targets: Iterable[ArtifactEntryTarget],
 ) -> RelationIndex:
     """Build one pane index. Never raises on bad source edges."""
+    known = frozenset(known_targets)
     assembled_edges, diagnostics = assemble_relation_graph(
         pane_id=pane_id,
         relations=relations,
         edges=tuple(edges),
-        known_targets=frozenset(known_targets),
+        known_targets=known,
     )
     return RelationIndex(
         pane_id=pane_id,
         relations=relations,
+        known_targets=known,
         edges=assembled_edges,
         diagnostics=diagnostics,
     )

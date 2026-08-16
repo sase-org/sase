@@ -82,7 +82,7 @@ def build_gate_debug_snapshot(
     projected_action_data = dict(action_data or notification.action_data)
     kind = _kind_for(notification.action, projected_action_data)
     request_id = str(projected_action_data.get("request_id") or notification.id)
-    icon = notification.icon or _icon_for_action(notification.action)
+    icon = _debug_icon(notification)
     paths = _resolve_paths(notification.action, projected_action_data)
 
     if paths is None:
@@ -327,6 +327,12 @@ def _kind_for(action: str | None, action_data: Mapping[str, str]) -> str:
     return adapter.kind if adapter is not None else "notification"
 
 
+def _debug_icon(notification: Notification) -> str:
+    if notification.action in {"FlagTriage"}:
+        return _icon_for_action(notification.action)
+    return notification.icon or _icon_for_action(notification.action)
+
+
 def _icon_for_action(action: str | None) -> str:
     icons = {
         "PlanApproval": "📝",
@@ -335,6 +341,7 @@ def _icon_for_action(action: str | None) -> str:
         "LaunchApproval": "🚀",
         "CustomGate": "✨",
         "HITL": "✋",
+        "FlagTriage": "⚑",
     }
     return icons.get(action, "🔔") if action is not None else "🔔"
 

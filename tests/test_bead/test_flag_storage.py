@@ -245,6 +245,7 @@ class TestFlagSqliteMirror:
                 "    CHECK((issue_type = 'flag') = (flag IS NOT NULL)),\n",
                 "",
             )
+            .replace(" AND issue_type != 'flag'", "")
         )
         assert "'flag'" not in legacy_schema
         conn = sqlite3.connect(db_path)

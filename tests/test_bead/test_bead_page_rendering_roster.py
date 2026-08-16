@@ -7,6 +7,7 @@ from types import MappingProxyType
 from sase.bead.model import (
     BeadTier,
     CloseRecord,
+    FlagRecord,
     Issue,
     IssueType,
     ReopenCause,
@@ -37,12 +38,12 @@ def test_roster_reopen_column_reports_the_archived_close_count() -> None:
     ).decode()
 
     assert (
-        "| Bead | Title | Type | Tier | Status | Created | +1 | ↺ | Phases"
+        "| Bead | Title | Type | Flag | Tier | Status | Created | +1 | ↺ | Phases"
         " | Agents | Commits |" in rendered
     )
     assert (
         "| [sase-task](sase-task/README.md) | Flaky retry test in CI | ◆ task |"
-        " — | open | unknown | 0 | 1 | 0 | 0 | 0 |" in rendered
+        " — | — | open | unknown | 0 | 1 | 0 | 0 | 0 |" in rendered
     )
 
 
@@ -66,19 +67,33 @@ def test_roster_renders_every_bead_type_with_its_shared_glyph() -> None:
         status=Status.READY,
         issue_type=IssueType.TASK,
     )
+    flag = Issue(
+        "sase-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.FLAG,
+        flag=FlagRecord(
+            key="plugins_enabled",
+            remove_by_date="2026-12-01",
+            remove_by_release="0.19.0",
+        ),
+    )
 
     rendered = render_bead_pages_roster_bytes(
-        (epic, phase, task),
+        (epic, phase, task, flag),
         BeadAssociationIndex(MappingProxyType({})),
     ).decode()
 
     # Phases are rolled into their lineage root, so only roots get a row.
     assert (
-        "| [sase-ai](sase-ai/README.md) | Published bead pages | ▸ plan | epic |"
-        " open | 2025-12-31 |" in rendered
+        "| [sase-ai](sase-ai/README.md) | Published bead pages | ▸ plan | — |"
+        " epic | open | 2025-12-31 |" in rendered
     )
     assert (
         "| [sase-task](sase-task/README.md) | Fix the flaky linter | ◆ task |"
-        " — | ready | unknown |" in rendered
+        " — | — | ready | unknown |" in rendered
+    )
+    assert (
+        "| [sase-flag](sase-flag/README.md) | Remove plugin switch | ⚑ flag | "
+        "plugins\\_enabled<br>2026-12-01<br>v0.19.0 | — | open | unknown |" in rendered
     )
     assert "sase-ai.1" not in rendered

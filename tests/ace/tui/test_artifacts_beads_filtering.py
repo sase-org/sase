@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,10 @@ from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.tui.widgets.artifacts import beads_pane
 from sase.ace.tui.widgets.artifacts.bead_filter_bar import BeadFilterBar
 from sase.ace.tui.widgets.artifacts.beads_data import BeadsSnapshot
-from sase.ace.tui.widgets.artifacts.beads_data_models import ExternalIssueLink
+from sase.ace.tui.widgets.artifacts.beads_data_models import (
+    ExternalIssueLink,
+    ProjectBead,
+)
 from sase.ace.tui.widgets.artifacts.beads_filtering import (
     build_bead_filter_index,
 )
@@ -33,11 +36,15 @@ from sase.bead.filter_query import (
 )
 from sase.bead.model import (
     CloseRecord,
+    FlagRecord,
+    Issue,
+    IssueType,
     ReopenCause,
     Resolution,
     Status,
     TaskPlusOneEvidence,
 )
+from sase.bead_flag_presentation import flag_due_presentation
 from sase.core.query_profile_corpus_facade import evaluate_artifact_query_many
 from sase.vcs_provider import IssueWire
 from tests.ace.tui._artifacts_beads_helpers import snapshot
@@ -107,7 +114,7 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
     values = parse_bead_filter_query(
         "type:task,phase -status:closed tier:epic size:medium project:Alpha "
         'assignee:"alpha agent" owner:owner@example.com model:gpt-5 has:triage '
-        "bug:open -bug:stale label:priority -label:wontfix "
+        "bug:open -bug:stale label:priority -label:wontfix due:soon -due:live "
         'since:2026-07-01 until:2026-07-31 "ready for" -ordinary',
         now=datetime(2026, 7, 29, tzinfo=UTC),
     )
@@ -125,6 +132,8 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
     assert values.excluded_bugs == ("stale",)
     assert values.labels == ("priority",)
     assert values.excluded_labels == ("wontfix",)
+    assert values.due == ("soon",)
+    assert values.excluded_due == ("live",)
     assert values.since_texts == ("2026-07-01",)
     assert values.until_texts == ("2026-07-31",)
     assert values.text == ("ready for",)
@@ -136,6 +145,7 @@ def test_parse_bead_filter_query_accepts_negated_repeatable_terms() -> None:
     [
         "type:bug",
         "status:done",
+        "due:later",
         "has:file",
         "unknown:value",
         "since:not-a-date",
@@ -176,6 +186,39 @@ def test_filter_terms_match_bead_metadata_and_derived_labels(tmp_path: Path) -> 
         "alpha-1.2",
     ]
     assert _matched_ids(tmp_path, '"Render the tree" -deps') == []
+
+
+def test_due_filter_matches_precomputed_flag_state(tmp_path: Path) -> None:
+    flag = Issue(
+        "alpha-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.FLAG,
+        flag=FlagRecord(
+            key="plugins_enabled",
+            remove_by_date="2026-08-01",
+            remove_by_release="0.19.0",
+        ),
+    )
+    assert flag.flag is not None
+    value = replace(
+        snapshot(tmp_path),
+        flags=(ProjectBead("alpha", flag),),
+        flag_due={
+            ("alpha", flag.id): flag_due_presentation(
+                flag.flag,
+                today=date(2026, 8, 16),
+                release="0.19.0",
+            )
+        },
+    )
+
+    assert [record.bead_id for record in _matched_records(value, "type:flag")] == [
+        "alpha-flag"
+    ]
+    assert [record.bead_id for record in _matched_records(value, "due:due")] == [
+        "alpha-flag"
+    ]
+    assert _matched_records(value, "-due:due type:flag") == []
 
 
 def test_has_plus_one_and_evidence_text_use_cached_filter_index(tmp_path: Path) -> None:

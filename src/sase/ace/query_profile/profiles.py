@@ -21,7 +21,11 @@ from typing import Any, get_args
 
 from sase.ace.query.tokenizer import STATUS_SHORTHANDS
 from sase.ace.query.tokenizer import VALID_PROPERTY_KEYS as _PATCH_PROPERTY_KEYS
-from sase.bead.filter_query import BEAD_HAS_VALUES, DERIVED_BEAD_STATUS_VALUES
+from sase.bead.filter_query import (
+    BEAD_FLAG_DUE_VALUES,
+    BEAD_HAS_VALUES,
+    DERIVED_BEAD_STATUS_VALUES,
+)
 from sase.bead.model import BeadTier
 from sase.bead_status_presentation import bead_status_display_order
 from sase.bead_type_presentation import BEAD_TYPE_VALUES
@@ -208,6 +212,14 @@ def beads_query_schema() -> ArtifactQuerySchema:
             repeatable=True,
             negatable=True,
             hint="xsmall through xlarge",
+        ),
+        QueryFieldSpec(
+            key="due",
+            value_kind="enum",
+            static_values=BEAD_FLAG_DUE_VALUES,
+            repeatable=True,
+            negatable=True,
+            hint="live, soon, or due",
         ),
         QueryFieldSpec(
             key="has",

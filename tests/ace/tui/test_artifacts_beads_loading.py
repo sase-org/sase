@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,7 +12,7 @@ import pytest
 from sase.ace.testing import make_patch
 from sase.ace.tui.widgets.artifacts import beads_data, beads_data_sources
 from sase.ace.tui.widgets.artifacts.beads_data import load_beads_snapshot
-from sase.bead.model import BeadTier, Issue, IssueType, Status
+from sase.bead.model import BeadTier, FlagRecord, Issue, IssueType, Status
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.notifications.models import Notification
 from sase.vcs_provider import IssueWire
@@ -41,12 +42,22 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
         issue_type=IssueType.TASK,
         status=Status.READY,
     )
+    flag = Issue(
+        "alpha-flag",
+        "Flag",
+        issue_type=IssueType.FLAG,
+        flag=FlagRecord(
+            key="plugins_enabled",
+            remove_by_date="2026-12-01",
+            remove_by_release="0.19.0",
+        ),
+    )
     calls = 0
 
     def load(_path: Path) -> tuple[list[Issue], frozenset[str], frozenset[str]]:
         nonlocal calls
         calls += 1
-        return [task, phase, epic], frozenset({task.id}), frozenset()
+        return [task, flag, phase, epic], frozenset({task.id}), frozenset()
 
     monkeypatch.setattr(
         beads_data,
@@ -76,6 +87,11 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
         "_resolve_plan_link",
         lambda *_args, **_kwargs: str(tmp_path / "resolved.md"),
     )
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_data.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
 
     first = load_beads_snapshot("alpha")
     reused = load_beads_snapshot("alpha", previous=first)
@@ -85,6 +101,8 @@ def test_snapshot_reuses_unchanged_source_key_and_force_reloads(
     assert forced is not first
     assert calls == 2
     assert [item.issue.id for item in first.tasks] == [task.id]
+    assert [item.issue.id for item in first.flags] == [flag.id]
+    assert first.flag_due[("alpha", flag.id)].state == "due"
     assert [item.issue.id for item in first.epics] == [epic.id]
     assert [item.issue.id for item in first.phases_by_epic[("alpha", epic.id)]] == [
         phase.id

@@ -138,11 +138,14 @@ def _reconstruct(lines: list[str], *, spaced: bool) -> str:
 def _field_labels(header: AgentHeader) -> list[str]:
     known_labels = {
         "Phase Title:",
+        "Flag Title:",
         "Task Title:",
         "Description:",
         "Notes:",
         "Epic Plan:",
         "Epic Title:",
+        "Flag Key:",
+        "Remove By:",
         "Size:",
         "+1 Reports:",
         "+1 Evidence:",
@@ -306,6 +309,41 @@ def test_task_bead_lane_renders_plus_one_count_and_evidence() -> None:
     assert "+1 agent.beta · 2026-08-01T15:00:00Z" in header.plain
     assert "research:202608/cache.md" in header.plain
     assert header.plain.index("+1 Evidence:") < header.plain.index("Created:")
+
+
+def test_flag_bead_lane_renders_flag_identity_and_thresholds() -> None:
+    summary = BeadSummary(
+        id="sase-flag",
+        phase_title="Remove plugin switch",
+        description="Delete the temporary plugin gate.",
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+        size=None,
+        created_at=_CREATED_AT,
+        bead_type="flag",
+        flag_key="plugins_enabled",
+        flag_remove_by_date="2026-12-01",
+        flag_remove_by_release="0.19.0",
+    )
+
+    header, _ = build_header_text(
+        make_agent(agent_name=summary.id),
+        summary=DetailHeaderSummary(phase_bead=summary),
+    )
+
+    assert "▸ BEAD · ⚑ flag sase-flag\n" in header.plain
+    assert "Flag Title: Remove plugin switch\n" in header.plain
+    assert "Description: Delete the temporary plugin gate.\n" in header.plain
+    assert "Flag Key: ⚑ plugins_enabled\n" in header.plain
+    assert "Remove By: 2026-12-01 · v0.19.0\n" in header.plain
+    assert f"Created: {_CREATED_LABEL}\n" in header.plain
+    assert "Size:" not in header.plain
+    assert "Epic Plan:" not in header.plain
+    assert_span_covers(header, "⚑", "bold #FF875F")
+    assert_span_covers(header, "plugins_enabled", "bold #FF875F")
 
 
 def test_bead_digest_folds_only_multiline_log_rows_and_keeps_row_order() -> None:

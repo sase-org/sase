@@ -29,7 +29,10 @@ from types import MappingProxyType
 
 import pytest
 
-from sase.ace.tui.models.agent_associated_plan import BeadSummary, _task_bead_summary
+from sase.ace.tui.models.agent_associated_plan import (
+    BeadSummary,
+    _plan_free_bead_summary,
+)
 from sase.ace.tui.widgets._artifact_ref_entity_catalogs import _bead_candidate
 from sase.ace.tui.widgets.artifacts.beads_detail import bead_preview_markdown
 from sase.ace.tui.widgets.artifacts.beads_rendering import _bead_text
@@ -209,7 +212,7 @@ def test_task_triage_presentation_note_shows_immutable_created_date() -> None:
 
 
 def test_context_lane_task_row_renders_created() -> None:
-    text = ResponsiveBeadSection(summary=_task_bead_summary(TASK)).logical_text
+    text = ResponsiveBeadSection(summary=_plan_free_bead_summary(TASK)).logical_text
 
     assert "Created" in text.plain
     assert CREATED_LOCAL in text.plain

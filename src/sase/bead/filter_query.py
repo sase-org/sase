@@ -35,6 +35,7 @@ BeadCompletionKind = Literal[
     "tier",
     "status",
     "size",
+    "due",
     "project",
     "assignee",
     "owner",
@@ -48,6 +49,7 @@ BeadCompletionKind = Literal[
 ]
 
 DERIVED_BEAD_STATUS_VALUES: tuple[str, ...] = ("blocked", "launched", "triage")
+BEAD_FLAG_DUE_VALUES: tuple[str, ...] = ("live", "soon", "due")
 BEAD_HAS_VALUES: tuple[str, ...] = (
     "+1",
     "reopened",
@@ -64,6 +66,7 @@ _FILTER_KEYS = (
     "tier",
     "status",
     "size",
+    "due",
     "project",
     "assignee",
     "owner",
@@ -93,6 +96,8 @@ class BeadFilterValues:
     excluded_statuses: tuple[str, ...] = ()
     sizes: tuple[str, ...] = ()
     excluded_sizes: tuple[str, ...] = ()
+    due: tuple[str, ...] = ()
+    excluded_due: tuple[str, ...] = ()
     projects: tuple[str, ...] = ()
     excluded_projects: tuple[str, ...] = ()
     assignees: tuple[str, ...] = ()
@@ -132,6 +137,8 @@ class BeadFilterValues:
                 self.excluded_statuses,
                 self.sizes,
                 self.excluded_sizes,
+                self.due,
+                self.excluded_due,
                 self.projects,
                 self.excluded_projects,
                 self.assignees,
@@ -261,6 +268,8 @@ def parse_bead_filter_query(
         excluded_statuses=tuple(excluded_repeated["status"]),
         sizes=tuple(repeated["size"]),
         excluded_sizes=tuple(excluded_repeated["size"]),
+        due=tuple(repeated["due"]),
+        excluded_due=tuple(excluded_repeated["due"]),
         projects=tuple(repeated["project"]),
         excluded_projects=tuple(excluded_repeated["project"]),
         assignees=tuple(repeated["assignee"]),
@@ -311,6 +320,7 @@ def to_query_tokens(values: BeadFilterValues) -> tuple[str, ...]:
         ("tier", values.tiers, values.excluded_tiers),
         ("status", values.statuses, values.excluded_statuses),
         ("size", values.sizes, values.excluded_sizes),
+        ("due", values.due, values.excluded_due),
         ("project", values.projects, values.excluded_projects),
         ("assignee", values.assignees, values.excluded_assignees),
         ("owner", values.owners, values.excluded_owners),
@@ -366,6 +376,8 @@ def _validate_static_values(
         allowed = (*_BEAD_STATUS_VALUES, *DERIVED_BEAD_STATUS_VALUES)
     elif key == "size":
         allowed = PHASE_SIZE_VALUES
+    elif key == "due":
+        allowed = BEAD_FLAG_DUE_VALUES
     elif key == "has":
         allowed = BEAD_HAS_VALUES
     if allowed is None:
@@ -423,6 +435,7 @@ def _error(message: str, token: FilterToken) -> BeadFilterQueryError:
 
 __all__ = [
     "BEAD_HAS_VALUES",
+    "BEAD_FLAG_DUE_VALUES",
     "DERIVED_BEAD_STATUS_VALUES",
     "DEFAULT_BEAD_FILTER_QUERY",
     "BeadCompletionKind",

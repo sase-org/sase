@@ -26,6 +26,7 @@ class _BeadFilterRecord:
     tier_labels: frozenset[str]
     status_labels: frozenset[str]
     size_labels: frozenset[str]
+    due_labels: frozenset[str]
     has_labels: frozenset[str]
     bug_labels: frozenset[str]
     issue_labels: frozenset[str]
@@ -56,6 +57,7 @@ def build_bead_filter_index(snapshot: BeadsSnapshot) -> BeadFilterIndex:
 
     records = [
         *(_record(snapshot, "task", item) for item in snapshot.tasks),
+        *(_record(snapshot, "flag", item) for item in snapshot.flags),
         *(_record(snapshot, "epic", item) for item in snapshot.epics),
         *(
             _record(snapshot, "phase", item)
@@ -92,6 +94,8 @@ def _record(
     if issue_key in snapshot.triage_gates:
         status_labels.add("triage")
     size_labels = _fold_labels(() if issue.size is None else (issue.size.value,))
+    due = snapshot.flag_due.get(issue_key)
+    due_labels = _fold_labels(() if due is None else (due.state,))
     has_labels = set[str]()
     if snapshot.plan_links.get(issue_key):
         has_labels.add("plan")
@@ -153,6 +157,7 @@ def _record(
             *tier_labels,
             *folded_statuses,
             *size_labels,
+            *due_labels,
             *folded_has,
             *bug_labels,
             *issue_labels,
@@ -167,6 +172,7 @@ def _record(
         tier_labels=tier_labels,
         status_labels=folded_statuses,
         size_labels=size_labels,
+        due_labels=due_labels,
         has_labels=folded_has,
         bug_labels=bug_labels,
         issue_labels=issue_labels,

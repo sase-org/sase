@@ -9,7 +9,9 @@ from pathlib import Path
 
 from rich.cells import cell_len
 
+import sase
 from sase.artifact_ref_models import ArtifactRefContext
+from sase.bead_flag_presentation import flag_due_cli_cell, flag_key_cli_cell
 from sase.bead.cli_common import created_cell, status_icon
 from sase.bead.cli_dep_render import ANSI_BOLD_BLUE, styled
 from sase.bead.cli_detail import (
@@ -39,6 +41,7 @@ from sase.bead_type_presentation import (
     bead_type_cli_cell,
     bead_type_presentation,
 )
+from sase.core import time as core_time
 from sase.phase_size_presentation import PHASE_SIZE_TOKEN_WIDTH, phase_size_cli_token
 
 
@@ -70,6 +73,21 @@ def compact_size_column(issue: Issue, *, use_color: bool, width: int) -> str:
     return f"{phase_size_cli_token(issue.size, use_color=use_color, width=width)} "
 
 
+def _flag_compact_cells(issue: Issue, *, use_color: bool) -> str:
+    """Return the compact flag identity and removal cells for flag rows."""
+    record = issue.flag
+    if record is None:
+        return ""
+    today = core_time.local_now().date()
+    due_cell = flag_due_cli_cell(
+        record,
+        today=today,
+        release=sase.__version__,
+        use_color=use_color,
+    )
+    return f"  {flag_key_cli_cell(record.key, use_color=use_color)} {due_cell}"
+
+
 def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
     # Measured (not assumed) so the column stays aligned even though the three
     # type glyphs may not always share a Unicode width class.
@@ -90,6 +108,7 @@ def render_list_compact(issues: list[Issue], *, use_color: bool) -> str:
             f"{type_cell} {status_glyph} "
             f"{compact_size_column(issue, use_color=use_color, width=size_width)}"
             f"{issue_id} · {issue.title}"
+            f"{_flag_compact_cells(issue, use_color=use_color)}"
             f"{row_badges(issue, use_color=use_color)}{parent}"
             f"{created_cell(issue, use_color=use_color)}"
         )
@@ -131,6 +150,7 @@ def render_list_json(
         "implied_status_closed": implied_status_closed,
         "by_type": dict(summary.by_type),
         "by_status": dict(summary.by_status),
+        "due_flags": summary.due_flags,
         "results": [issue_to_wire_dict(issue) for issue in issues],
     }
     return json.dumps(envelope, indent=2) + "\n"
@@ -162,7 +182,8 @@ def render_search_compact(
             f"{type_cell} {status_icon(issue.status)} "
             f"{compact_size_column(issue, use_color=use_color, width=size_width)}"
             f"{issue.id} · "
-            f"{issue.title}{row_badges(issue, use_color=use_color)}"
+            f"{issue.title}{_flag_compact_cells(issue, use_color=use_color)}"
+            f"{row_badges(issue, use_color=use_color)}"
             f"{created_cell(issue, use_color=use_color)}"
         )
         snippet = _compact_snippet(match, query, regex)
@@ -274,6 +295,9 @@ def search_field_value(issue: Issue, field: str) -> str:
         "status": issue.status.value,
         "type": issue.issue_type.value,
         "tier": issue.tier.value if issue.tier else "",
+        "flag_key": issue.flag.key if issue.flag else "",
+        "flag_remove_by_date": issue.flag.remove_by_date if issue.flag else "",
+        "flag_remove_by_release": (issue.flag.remove_by_release if issue.flag else ""),
     }
     return values.get(field, "")
 

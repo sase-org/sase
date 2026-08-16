@@ -19,6 +19,7 @@
     "in_progress": 0,
     "closed": 20
   },
+  "due_flags": 0,
   "results": [
     {
       "id": "beads-6",

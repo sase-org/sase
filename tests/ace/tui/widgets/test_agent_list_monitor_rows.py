@@ -327,12 +327,16 @@ def test_non_container_row_never_renders_monitor_badge() -> None:
 
 def test_family_container_badge_does_not_alter_status_chip() -> None:
     counts = ParallelFamilyStatusCounts(running=2, awaiting=1)
+    container = _family_container(monitor_state="running")
+    container.is_clan_container = True
+    container.agent_clan = "alpha"
+    container.agent_clan_generation = "gen"
 
     left, _suffix, _option_id = format_agent_option(
-        _family_container(monitor_state="running"),
+        container,
         0,
         is_selected=False,
-        parallel_family_counts=counts,
+        clan_counts=counts,
     )
 
     assert "[S1 R2]" in left.plain

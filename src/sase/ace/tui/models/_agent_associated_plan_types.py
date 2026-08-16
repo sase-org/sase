@@ -18,7 +18,7 @@ from sase.sdd.plan_display import (
     PlanPhaseAvailability as AssociatedPlanPhaseAvailability,
 )
 
-AgentPlanRole = Literal["ordinary", "author", "phase", "task", "land"]
+AgentPlanRole = Literal["ordinary", "author", "phase", "task", "flag", "land"]
 _InitialAgentPlanRole = Literal[
     "ordinary",
     "author",
@@ -47,6 +47,9 @@ class BeadSummary:
     bead_type: BeadTypeValue = "phase"
     notes: str | None = None
     plus_one_evidence: tuple[TaskPlusOneEvidence, ...] = ()
+    flag_key: str | None = None
+    flag_remove_by_date: str | None = None
+    flag_remove_by_release: str | None = None
 
     @property
     def plus_one_count(self) -> int:
@@ -101,7 +104,7 @@ class PlanFileCacheEntry:
 class ResolvedPlanAssociation:
     path: Path | None
     known_epic: bool = False
-    role: Literal["phase", "task", "land"] | None = None
+    role: Literal["phase", "task", "flag", "land"] | None = None
     plan_reference: str | None = None
     epic_bead_id: str | None = None
     phase_bead_id: str | None = None

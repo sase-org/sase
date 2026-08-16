@@ -145,7 +145,7 @@ class BeadsOptionsMixin(_MixinBase):
                 match_count = None
                 pending_query = True
             if not values.is_empty and match_count is not None:
-                matched_counts = dict.fromkeys(("task", "epic", "phase"), 0)
+                matched_counts = dict.fromkeys(("task", "flag", "epic", "phase"), 0)
                 triage_count = 0
                 for record in matching_records:
                     matched_counts[record.row_kind] += 1

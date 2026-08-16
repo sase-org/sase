@@ -29,7 +29,7 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Filter project or creation date" in combined
     assert "Title/body/id/metadata (AND)" in combined
     assert "Patch Actions" in combined
-    assert "Create task bead" in combined
+    assert "Create bead" in combined
     assert "Close / reopen bead" in combined
     assert "Copy Mode · Bead" in combined
     assert "Copy Mode · Other" in combined

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 
 from rich.text import Text
 
+from sase.bead_flag_presentation import FlagDuePresentation, flag_key_chip
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
@@ -87,6 +88,9 @@ def build_beads_status(
             )
             text.append("  ·  ", style="dim")
         phase_count = sum(len(phases) for phases in snapshot.phases_by_epic.values())
+        due_flag_count = sum(
+            presentation.state == "due" for presentation in snapshot.flag_due.values()
+        )
         if snapshot.project is None:
             text.append(f"{len(snapshot.projects)} projects", style="bold white")
             text.append("  ·  ", style="dim")
@@ -99,6 +103,18 @@ def build_beads_status(
             ),
             style=ARTIFACTS_ACCENTS["beads"],
         )
+        text.append("  ·  ", style="dim")
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "flag",
+                len(snapshot.flags),
+                "flags",
+            ),
+            style=bead_type_presentation("flag").accent_color,
+        )
+        if due_flag_count:
+            text.append(f" ({due_flag_count} due)", style="bold reverse")
         text.append("  ·  ", style="dim")
         text.append(
             _matched_count_label(
@@ -169,10 +185,15 @@ def build_empty_bead_detail(
     matched_total: int | None = None,
 ) -> str:
     if loading and snapshot is None:
-        return "# Beads\n\nLoading task, epic, and phase beads…"
+        return "# Beads\n\nLoading task, flag, epic, and phase beads…"
     if load_error and snapshot is None:
         return f"# Beads unavailable\n\n{load_error}"
-    if snapshot is not None and not snapshot.tasks and not snapshot.epics:
+    if (
+        snapshot is not None
+        and not snapshot.tasks
+        and not snapshot.flags
+        and not snapshot.epics
+    ):
         return (
             "# No beads yet\n\n"
             "Agents use `/sase_new_task` before creating a sized draft task, then "
@@ -188,7 +209,7 @@ def build_empty_bead_detail(
     message = (
         "Select a bead from all enabled projects."
         if project_scope is None
-        else "Select a task, epic, or phase bead."
+        else "Select a task, flag, epic, or phase bead."
     )
     lines = ["# Beads", "", message]
     if snapshot is not None and snapshot.errors:
@@ -214,6 +235,29 @@ def task_text(
         project_badge=project_badge,
         external_links=external_links,
     )
+
+
+def flag_text(
+    flag: Issue,
+    *,
+    due: FlagDuePresentation | None,
+    project_badge: str | None = None,
+) -> Text:
+    text = single_line_text()
+    presentation = bead_type_presentation(flag.issue_type)
+    text.append(f"{presentation.glyph} ", style=presentation.rich_style)
+    text.append(f"{flag.id} ", style="bold #FFD700")
+    text.append(flag.title, style="white")
+    if flag.flag is not None:
+        text.append("  ")
+        text.append_text(flag_key_chip(flag.flag.key))
+    if due is not None:
+        text.append("  ")
+        text.append(due.label, style=due.style.rich)
+    text.append("  ")
+    _append_status(text, flag.status)
+    _append_metadata(text, flag, project_badge)
+    return text
 
 
 def epic_text(
@@ -293,6 +337,8 @@ def _matched_count_label(
     count = str(total)
     if matched_counts is not None:
         count = f"{matched_counts.get(kind, 0)}/{total}"
+    elif total == 1 and noun.endswith("s"):
+        noun = noun[:-1]
     return f"{count} {noun}"
 
 
@@ -458,6 +504,7 @@ __all__ = [
     "build_beads_status",
     "build_empty_bead_detail",
     "epic_text",
+    "flag_text",
     "phase_text",
     "project_badge",
     "single_line_text",

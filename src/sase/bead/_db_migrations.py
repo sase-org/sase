@@ -10,6 +10,13 @@ import sqlite3
 
 from sase.core.rust import require_rust_binding
 
+_EXTERNAL_REF_INDEX_SQL = """\
+CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
+    ON issues(external_ref)
+    WHERE external_ref IS NOT NULL AND external_ref != ''
+      AND issue_type != 'flag'
+"""
+
 
 def _columns(conn: sqlite3.Connection) -> set[str]:
     return {row["name"] for row in conn.execute("PRAGMA table_info(issues)").fetchall()}
@@ -110,11 +117,27 @@ def _migrate_add_plus_one_evidence(conn: sqlite3.Connection) -> None:
 def _migrate_external_ref(conn: sqlite3.Connection) -> None:
     """Add project-qualified external issue identity storage and index."""
     needs_migration = require_rust_binding("bead_needs_external_ref_migration")
-    if not needs_migration(_create_table_sql(conn)):
-        return
+    if needs_migration(_create_table_sql(conn)):
+        migration_sql = require_rust_binding("bead_external_ref_migration_sql")
+        conn.executescript(migration_sql())
+        conn.commit()
+    _migrate_external_ref_index(conn)
 
-    migration_sql = require_rust_binding("bead_external_ref_migration_sql")
-    conn.executescript(migration_sql())
+
+def _migrate_external_ref_index(conn: sqlite3.Connection) -> None:
+    """Exclude flag beads from the external-ref uniqueness index."""
+    columns = _columns(conn)
+    if "external_ref" not in columns or "issue_type" not in columns:
+        return
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master "
+        "WHERE type='index' AND name='idx_issues_external_ref'"
+    ).fetchone()
+    sql = "" if row is None or row["sql"] is None else str(row["sql"])
+    if "issue_type != 'flag'" in sql or "issue_type!='flag'" in sql:
+        return
+    conn.execute("DROP INDEX IF EXISTS idx_issues_external_ref")
+    conn.execute(_EXTERNAL_REF_INDEX_SQL)
     conn.commit()
 
 

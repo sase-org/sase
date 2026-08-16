@@ -6,6 +6,7 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
+from sase.bead_flag_presentation import flag_key_chip
 from sase.bead.model import BeadTier, CloseRecord, Issue, IssueType, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
@@ -83,6 +84,7 @@ def bead_properties_header(
         ("Status", _status_chip(issue.status)),
         ("Readiness", _readiness_chip(issue, snapshot, project=project)),
     ]
+    properties.extend(_flag_properties(issue, snapshot, project=project))
     if issue.tier is not None:
         properties.append(("Tier", issue.tier.value))
     if issue.issue_type in (IssueType.PHASE, IssueType.TASK):
@@ -166,6 +168,7 @@ def bead_body_markdown(
             ]
         )
     lines.extend(_close_history_markdown(issue))
+    lines.extend(_flag_markdown(issue))
     lines.extend(_external_issue_markdown(issue, external_links))
     lines.extend(["## Description", "", issue.description or "_No description._"])
     lines.extend(_plus_one_evidence_markdown(issue))
@@ -196,6 +199,18 @@ def bead_preview_markdown(
         lines.append(f"**Tier:** {issue.tier.value}  ")
     if issue.size is not None:
         lines.append(f"**Size:** {issue.size.value}  ")
+    if issue.flag is not None:
+        record = issue.flag
+        lines.extend(
+            [
+                f"**Flag key:** {record.key}  ",
+                f"**Remove by date:** {record.remove_by_date}  ",
+                f"**Remove by release:** v{record.remove_by_release}  ",
+            ]
+        )
+        due = None if snapshot is None else snapshot.flag_due.get((project, issue.id))
+        if due is not None:
+            lines.append(f"**Due state:** {due.state} ({due.label})  ")
     if issue.plus_one_count:
         lines.append(f"**+1 reports:** {issue.plus_one_count}  ")
     if issue.snooze is not None:
@@ -304,6 +319,48 @@ def _plus_one_evidence_markdown(issue: Issue) -> list[str]:
             lines.append(">")
             lines.append(f"> **Refs:** {', '.join(evidence.refs)}")
     return lines
+
+
+def _flag_markdown(issue: Issue) -> list[str]:
+    record = issue.flag
+    if record is None:
+        return []
+    return [
+        "## Flag",
+        "",
+        f"- Key: `{_inline_code(record.key)}`",
+        f"- Remove by date: `{_inline_code(record.remove_by_date)}`",
+        f"- Remove by release: `v{_inline_code(record.remove_by_release)}`",
+        "",
+    ]
+
+
+def _flag_properties(
+    issue: Issue,
+    snapshot: BeadsSnapshot | None,
+    *,
+    project: str,
+) -> list[DetailProperty]:
+    record = issue.flag
+    if record is None:
+        return []
+    due = None if snapshot is None else snapshot.flag_due.get((project, issue.id))
+    due_text = Text("—", style="dim")
+    if due is not None:
+        due_text = Text(due.label, style=due.style.rich)
+        due_text.append(f"  {due.state}", style="dim")
+    return [
+        ("Flag", flag_key_chip(record.key)),
+        (
+            "Removal",
+            f"{record.remove_by_date} · v{record.remove_by_release}",
+        ),
+        ("Due state", due_text),
+    ]
+
+
+def _inline_code(value: str) -> str:
+    return value.replace("`", "\\`")
 
 
 def resolved_plan_path(
@@ -514,6 +571,9 @@ def _dependency_state(
     if snapshot is None:
         return "unknown"
     for item in snapshot.tasks:
+        if item.project == project and item.issue.id == issue_id:
+            return item.issue.status.value
+    for item in snapshot.flags:
         if item.project == project and item.issue.id == issue_id:
             return item.issue.status.value
     for item in snapshot.epics:

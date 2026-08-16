@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.bead.model import IssueType, PhaseSize, Status
+from sase.bead.model import FlagRecord, IssueType, PhaseSize, Status
 from sase.bead.store_locator import open_bead_project_for_beads_dir
 from sase.vcs_provider.testing import FakeIssueProvider
 
@@ -94,6 +94,33 @@ def test_bead_with_only_bug_ref_is_recognized_as_covering(
     report = run_mirror()
 
     assert report.beads_created == 0
+
+
+def test_flag_bead_bug_ref_does_not_cover_external_issue(
+    bead_store: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with open_bead_project_for_beads_dir(bead_store) as project:
+        project.create(
+            "Temporary plugin flag",
+            IssueType.FLAG,
+            external_ref="bug:sase#42",
+            refs=["bug:sase#42"],
+            flag=FlagRecord(
+                key="plugins_enabled",
+                remove_by_date="2026-12-01",
+                remove_by_release="0.19.0",
+            ),
+        )
+    vcs_provider = provider(FakeIssueProvider([issue(42)]))
+    install_provider(monkeypatch, vcs_provider)
+
+    report = run_mirror()
+
+    assert report.beads_created == 1
+    mirrored = beads(bead_store)
+    assert {bead.issue_type for bead in mirrored} == {IssueType.FLAG, IssueType.TASK}
+    created = next(bead for bead in mirrored if bead.issue_type is IssueType.TASK)
+    assert created.external_ref == "bug:sase#42"
 
 
 def test_conflict_created_between_plan_and_apply_is_detected_under_lock(

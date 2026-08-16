@@ -81,7 +81,8 @@ CREATE INDEX IF NOT EXISTS idx_issues_tier ON issues(tier);
 CREATE INDEX IF NOT EXISTS idx_issues_parent ON issues(parent_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     ON issues(external_ref)
-    WHERE external_ref IS NOT NULL AND external_ref != '';
+    WHERE external_ref IS NOT NULL AND external_ref != ''
+      AND issue_type != 'flag';
 CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 """
 

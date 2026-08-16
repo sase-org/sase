@@ -1,0 +1,40 @@
+"""Flag metadata rendering on generated bead pages."""
+
+from __future__ import annotations
+
+from types import MappingProxyType
+from typing import cast
+
+from sase.bead.model import FlagRecord, Issue, IssueType
+from sase.bead.project import BeadProject
+from sase.bead_pages.associations import BeadAssociationIndex
+from sase.bead_pages.rendering import render_bead_page
+from tests.test_bead.bead_page_rendering_test_helpers import View
+
+
+def test_flag_bead_page_renders_stable_identity_and_thresholds() -> None:
+    flag = Issue(
+        "sase-flag",
+        "Remove plugin switch",
+        issue_type=IssueType.FLAG,
+        flag=FlagRecord(
+            key="plugins_enabled",
+            remove_by_date="2026-12-01",
+            remove_by_release="0.19.0",
+        ),
+    )
+
+    rendered = render_bead_page(
+        cast(BeadProject, View((flag,))),
+        flag,
+        BeadAssociationIndex(MappingProxyType({})),
+    )
+
+    assert "**Type:** ⚑ flag" in rendered
+    assert "**Flag:** ⚑ `plugins_enabled`" in rendered
+    assert "## Flag" in rendered
+    assert "- **Key:** `plugins_enabled`" in rendered
+    assert "- **Remove by date:** `2026-12-01`" in rendered
+    assert "- **Remove by release:** `v0.19.0`" in rendered
+    assert "- **Due states:** `live`, `soon`, `due`" in rendered
+    assert "DUE" not in rendered

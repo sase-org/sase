@@ -94,6 +94,10 @@ def test_beads_source_emits_parent_dependencies_and_plan_link() -> None:
             ],
         ),
     )
+    flag = ProjectBead(
+        "alpha",
+        Issue(id="f1", title="flag", issue_type=IssueType.FLAG),
+    )
     snapshot = BeadsSnapshot(
         project="alpha",
         projects=("alpha",),
@@ -101,6 +105,7 @@ def test_beads_source_emits_parent_dependencies_and_plan_link() -> None:
         beads_dirs={},
         workspace_dirs={},
         tasks=(task,),
+        flags=(flag,),
         epics=(epic,),
         phases_by_epic={("alpha", "e1"): (phase,)},
         ready_ids=frozenset(),
@@ -115,9 +120,11 @@ def test_beads_source_emits_parent_dependencies_and_plan_link() -> None:
     phase_t = ArtifactEntryTarget("beads", ("alpha", "phase", "e1.1"))
     epic_t = ArtifactEntryTarget("beads", ("alpha", "epic", "e1"))
     task_t = ArtifactEntryTarget("beads", ("alpha", "task", "t1"))
+    flag_t = ArtifactEntryTarget("beads", ("alpha", "flag", "f1"))
     assert index.edges_for_relation(phase_t, "parent")[0].target == epic_t
     assert index.edges_for_relation(epic_t, "children")
     assert index.edges_for_relation(task_t, "dependencies")[0].target == phase_t
+    assert flag_t in index.known_targets
     plan = index.edges_for_relation(epic_t, "plans")[0]
     assert plan.target == ArtifactEntryTarget(
         "ref:plan", ("alpha", "active", "/plans/e1.md")

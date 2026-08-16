@@ -133,6 +133,7 @@ def _bead_query_entry(record: Any) -> dict[str, Any]:
         "tier": tuple(record.tier_labels),
         "status": tuple(record.status_labels),
         "size": tuple(record.size_labels),
+        "due": tuple(record.due_labels),
         "project": tuple(
             value for value in (record.project, record.project_display_name) if value
         ),

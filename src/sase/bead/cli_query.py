@@ -393,6 +393,11 @@ def handle_bead_blocked(args: argparse.Namespace) -> None:
 def handle_bead_stats(args: argparse.Namespace) -> None:
     with get_read_view() as view:
         s = view.stats()
+        flags = view.list_issues(
+            statuses=ALL_LIST_STATUSES,
+            issue_types=[IssueType.FLAG],
+        )
+        flag_summary = summarize_bead_rows(flags, matched=len(flags))
         print("Issue Statistics")
         print(f"  Total:       {s.get('total', 0)}")
         print(f"  Open:        {s.get('open', 0)}")
@@ -404,4 +409,6 @@ def handle_bead_stats(args: argparse.Namespace) -> None:
         print(f"  Plans:       {s.get('plan', 0)}")
         print(f"  Phases:      {s.get('phase', 0)}")
         print(f"  Tasks:       {s.get('task', 0)}")
+        print(f"  Flags:       {s.get('flag', len(flags))}")
+        print(f"  Due Flags:   {flag_summary.due_flags}")
         print(f"  +1 Reports:  {s.get('plus_one', 0)}")

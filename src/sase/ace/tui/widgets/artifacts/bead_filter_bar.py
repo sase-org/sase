@@ -8,6 +8,7 @@ from textual.message import Message
 
 from sase.ace.tui.widgets.filter_bar import FilterBar
 from sase.bead.filter_query import (
+    BEAD_FLAG_DUE_VALUES,
     BEAD_HAS_VALUES,
     DERIVED_BEAD_STATUS_VALUES,
     bead_completion_context,
@@ -46,6 +47,7 @@ class BeadFilterBar(FilterBar):
         ("tier", "plan or epic"),
         ("status", "open, closed, blocked, triage"),
         ("size", "xsmall through xlarge"),
+        ("due", "live, soon, or due"),
         ("project", "project key or display name"),
         ("assignee", "assigned person or agent"),
         ("owner", "owner email or name"),
@@ -61,6 +63,7 @@ class BeadFilterBar(FilterBar):
         "tier": tuple(value.value for value in BeadTier),
         "status": (*bead_status_display_order(), *DERIVED_BEAD_STATUS_VALUES),
         "size": PHASE_SIZE_VALUES,
+        "due": BEAD_FLAG_DUE_VALUES,
         "has": BEAD_HAS_VALUES,
         "bug": ("none", "open", "closed", "stale", "drift", "mirrored", "referenced"),
         "since": _DATE_COMPLETIONS,
@@ -71,6 +74,7 @@ class BeadFilterBar(FilterBar):
         "tier": "plan tier",
         "status": "real or derived status",
         "size": "phase or task size",
+        "due": "flag due state",
         "project": "project",
         "assignee": "assignee",
         "owner": "owner",
@@ -87,6 +91,7 @@ class BeadFilterBar(FilterBar):
             "tier",
             "status",
             "size",
+            "due",
             "project",
             "assignee",
             "owner",

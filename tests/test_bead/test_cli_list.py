@@ -261,6 +261,7 @@ def test_handle_bead_list_json_outputs_envelope(
     assert payload["statuses"] == ["open", "claimed", "ready", "snoozed", "in_progress"]
     assert payload["implied_status_closed"] is False
     assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0, "flag": 0}
+    assert payload["due_flags"] == 0
     assert payload["by_status"] == {
         "open": 1,
         "claimed": 0,
@@ -323,6 +324,7 @@ def test_handle_bead_list_json_empty_store_is_valid_envelope(
     assert payload["total"] == 0
     assert payload["implied_status_closed"] is False
     assert payload["by_type"] == {"plan": 0, "phase": 0, "task": 0, "flag": 0}
+    assert payload["due_flags"] == 0
     assert payload["by_status"] == {
         "open": 0,
         "claimed": 0,
@@ -370,6 +372,7 @@ def test_handle_bead_list_json_limit_preserves_total(
     assert payload["count"] == 1
     assert payload["total"] == 2
     assert payload["by_type"] == {"plan": 1, "phase": 0, "task": 0, "flag": 0}
+    assert payload["due_flags"] == 0
     assert payload["by_status"] == {
         "open": 1,
         "claimed": 0,
@@ -491,7 +494,7 @@ def test_list_compact_renders_type_glyph_only_per_type(
 
 
 _STATUS_GLYPHS = "○◎◇◐✓"
-_TYPE_GLYPHS = "▸↳◆"
+_TYPE_GLYPHS = "▸↳◆⚑"
 
 
 def _compact_row_lines(output: str) -> list[str]:
@@ -632,6 +635,39 @@ def test_list_compact_color_modes_override_non_tty(
         presentation = bead_type_presentation(value)
         assert presentation.cli_style in colored
     assert xterm256_foreground_style(PHASE_SIZE_ACCENTS["small"]) in colored
+
+
+def test_list_compact_renders_flag_key_and_due_cells(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.bead_summary_presentation.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_query_render.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+    with BeadProject(project_dir) as proj:
+        issue = proj.create(
+            "Flag Bead",
+            IssueType.FLAG,
+            flag=FlagRecord(
+                key="demo_key",
+                remove_by_date="2026-12-01",
+                remove_by_release="0.19.0",
+            ),
+        )
+
+    bead_cli.handle_bead_list(parse_sase_args(["bead", "list", "--color", "never"]))
+    output = capsys.readouterr().out
+    line = next(line for line in _compact_row_lines(output) if issue.id in line)
+
+    assert "· Flag Bead  ⚑ demo_key DUE ⧗ +6d" in line
+    assert output.endswith("\n\n1 open flag · ⧗ 1 due flag\n")
 
 
 def test_list_compact_no_color_env_suppresses_escapes(

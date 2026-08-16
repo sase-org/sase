@@ -18,6 +18,7 @@ _KIND: dict[IssueType, str] = {
     IssueType.TASK: "task",
     IssueType.PLAN: "epic",
     IssueType.PHASE: "phase",
+    IssueType.FLAG: "flag",
 }
 
 
@@ -123,6 +124,7 @@ class _BeadsRelationSource(RelationSource):
 def _all_beads(snapshot: BeadsSnapshot) -> tuple[ProjectBead, ...]:
     beads: list[ProjectBead] = []
     beads.extend(snapshot.epics)
+    beads.extend(snapshot.flags)
     for key in sorted(snapshot.phases_by_epic):
         beads.extend(snapshot.phases_by_epic[key])
     beads.extend(snapshot.tasks)

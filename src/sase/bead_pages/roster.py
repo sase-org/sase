@@ -24,7 +24,12 @@ def _render_bead_pages_roster(
         if issue.issue_type is IssueType.PHASE
     )
     roots = sorted(
-        (issue for issue in issues if issue.id == bead_lineage_root(issue.id)),
+        (
+            issue
+            for issue in issues
+            if issue.id == bead_lineage_root(issue.id)
+            and issue.issue_type is not IssueType.PHASE
+        ),
         key=lambda issue: issue.id,
     )
     lines = [
@@ -32,8 +37,8 @@ def _render_bead_pages_roster(
         "",
         "Generated pages for every bead lineage in this project.",
         "",
-        "| Bead | Title | Type | Tier | Status | Created | +1 | ↺ | Phases | Agents | Commits |",
-        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        "| Bead | Title | Type | Flag | Tier | Status | Created | +1 | ↺ | Phases | Agents | Commits |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for issue in roots:
         associations = association_index.for_bead(issue.id)
@@ -44,6 +49,7 @@ def _render_bead_pages_roster(
             f"[{md_cell(issue.id)}]({issue.id}/README.md) | "
             f"{md_cell(issue.title)} | "
             f"{type_glyph} {issue.issue_type.value} | "
+            f"{_flag_roster_cell(issue)} | "
             f"{tier} | "
             f"{issue.status.value} | "
             f"{bead_date_label(issue.created_at)} | "
@@ -54,6 +60,17 @@ def _render_bead_pages_roster(
             f"{len(associations.commits)} |"
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _flag_roster_cell(issue: Issue) -> str:
+    record = issue.flag
+    if record is None:
+        return "—"
+    return (
+        f"{md_cell(record.key)}<br>"
+        f"{md_cell(record.remove_by_date)}<br>"
+        f"v{md_cell(record.remove_by_release)}"
+    )
 
 
 def render_bead_pages_roster_bytes(

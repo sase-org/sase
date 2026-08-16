@@ -124,13 +124,23 @@ def test_derived_surfaces_accept_type_flag_from_the_type_table() -> None:
     assert "flag" in BEAD_TYPE_VALUES
     parsed = parse_bead_filter_query("type:flag")
     assert parsed.types == ("flag",)
+    due = parse_bead_filter_query("due:soon -due:live")
+    assert due.due == ("soon",)
+    assert due.excluded_due == ("live",)
 
     type_field = next(
         field for field in beads_query_schema().fields if field.key == "type"
     )
+    due_field = next(
+        field for field in beads_query_schema().fields if field.key == "due"
+    )
     assert type_field.static_values == BEAD_TYPE_VALUES
     assert "flag" in type_field.static_values
     assert type_field.hint == ", ".join(BEAD_TYPE_VALUES)
+    assert due_field.static_values == ("live", "soon", "due")
+    assert due_field.hint == "live, soon, or due"
 
     assert BeadFilterBar.STATIC_VALUE_COMPLETIONS["type"] == BEAD_TYPE_VALUES
+    assert BeadFilterBar.STATIC_VALUE_COMPLETIONS["due"] == ("live", "soon", "due")
     assert dict(BeadFilterBar.KEY_COMPLETIONS)["type"] == ", ".join(BEAD_TYPE_VALUES)
+    assert dict(BeadFilterBar.KEY_COMPLETIONS)["due"] == "live, soon, or due"

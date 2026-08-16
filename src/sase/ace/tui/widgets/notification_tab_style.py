@@ -29,6 +29,7 @@ from sase.ace.tui.modals.notification_modal_tags import (
     SNOOZED_TAB_KEY,
     shorten_notification_tag,
 )
+from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
 from sase.config import load_merged_config
 from sase.config.core import current_config_token
 from sase.notification_gates.model_validation import GateError, validate_icon
@@ -102,6 +103,7 @@ _EMPTY_TAB_STYLE = _ConfiguredTabStyle(color="", icon="")
 class _IconRung(Enum):
     CONFIGURED = "configured"
     DECLARED = "declared"
+    BEAD_TYPE = "bead_type"
     BUILTIN = "builtin"
     KIND = "kind"
     LAST_RESORT = "last_resort"
@@ -143,6 +145,8 @@ def resolve_notification_tab_color(tab: NotificationTagTab) -> str:
     declared = _sanitize_color(tab.color)
     if declared:
         return declared
+    if config_key in BEAD_TYPE_VALUES:
+        return bead_type_presentation(config_key).accent_color
     return _default_notification_tab_color(config_key)
 
 
@@ -180,6 +184,8 @@ def _resolve_tab_icon(tab: NotificationTagTab) -> tuple[str, _IconRung]:
     declared = _sanitize_icon(tab.icon)
     if declared:
         return declared, _IconRung.DECLARED
+    if config_key in BEAD_TYPE_VALUES:
+        return bead_type_presentation(config_key).glyph, _IconRung.BEAD_TYPE
     builtin = _BUILTIN_TAB_ICONS.get(config_key)
     if builtin is not None:
         return builtin, _IconRung.BUILTIN

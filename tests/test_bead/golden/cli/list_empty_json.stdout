@@ -19,5 +19,6 @@
     "in_progress": 0,
     "closed": 0
   },
+  "due_flags": 0,
   "results": []
 }

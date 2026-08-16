@@ -173,7 +173,15 @@ class ArtifactsBeadsPane(
 
     def _snapshot_row_count(self) -> int:
         snapshot = self._snapshot
-        return 0 if snapshot is None else len(snapshot.tasks) + len(snapshot.epics)
+        if snapshot is None:
+            return 0
+        phase_count = sum(len(phases) for phases in snapshot.phases_by_epic.values())
+        return (
+            len(snapshot.tasks)
+            + len(snapshot.flags)
+            + len(snapshot.epics)
+            + phase_count
+        )
 
     def external_links_for_row(self, row: BeadRow) -> tuple[ExternalIssueLink, ...]:
         """Return cached external issue links for *row*."""

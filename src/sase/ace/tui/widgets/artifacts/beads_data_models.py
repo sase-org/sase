@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from sase.ace.patch.models import Patch
+from sase.bead_flag_presentation import FlagDuePresentation
 from sase.bead.model import Issue
 from sase.vcs_provider import IssueWire
 
@@ -120,6 +121,8 @@ class BeadsSnapshot:
     )
     external_unmirrored_counts: dict[str, int] = field(default_factory=dict)
     external_source_key: tuple[object, ...] = ()
+    flags: tuple[ProjectBead, ...] = ()
+    flag_due: dict[tuple[str, str], FlagDuePresentation] = field(default_factory=dict)
 
 
 __all__ = [

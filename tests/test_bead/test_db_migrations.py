@@ -33,7 +33,8 @@ _EXTERNAL_REF_COLUMN_DEFINITION = "    external_ref TEXT,\n"
 _EXTERNAL_REF_INDEX_DEFINITION = """\
 CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
     ON issues(external_ref)
-    WHERE external_ref IS NOT NULL AND external_ref != '';
+    WHERE external_ref IS NOT NULL AND external_ref != ''
+      AND issue_type != 'flag';
 """
 
 
@@ -103,6 +104,7 @@ class TestMigrationAddsColumn:
             updated = get_issue(conn, "e-old")
             assert updated is not None
             assert updated.resolution is Resolution.CANCELED
+            conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "UPDATE issues SET resolution='abandoned' WHERE id='e-old'"
@@ -214,6 +216,22 @@ class TestMigrationAddsColumn:
                 "UPDATE issues SET external_ref='bug:sase#42' WHERE id='e-old'"
             )
             conn.commit()
+            conn.execute(
+                "INSERT INTO issues "
+                "(id, title, status, issue_type, tier, created_at, updated_at, "
+                " flag, external_ref) "
+                "VALUES ('e-flag', 'Flag', 'open', 'flag', NULL, ?, ?, ?, ?)",
+                (
+                    NOW,
+                    NOW,
+                    (
+                        '{"key":"demo_key","remove_by_date":"2026-12-01",'
+                        '"remove_by_release":"0.19.0"}'
+                    ),
+                    "bug:sase#42",
+                ),
+            )
+            conn.commit()
             with pytest.raises(sqlite3.IntegrityError):
                 conn.execute(
                     "INSERT INTO issues "
@@ -222,6 +240,65 @@ class TestMigrationAddsColumn:
                     "VALUES ('e-dupe', 'Dupe', 'open', 'plan', 'epic', ?, ?, ?)",
                     (NOW, NOW, "bug:sase#42"),
                 )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_existing_external_ref_index_stops_reserving_flag_refs(
+        self, tmp_path
+    ) -> None:
+        db_path = tmp_path / "old_external_ref_index.db"
+        old = sqlite3.connect(str(db_path))
+        old_index = """\
+CREATE UNIQUE INDEX IF NOT EXISTS idx_issues_external_ref
+    ON issues(external_ref)
+    WHERE external_ref IS NOT NULL AND external_ref != '';
+"""
+        old.executescript(SCHEMA_SQL.replace(_EXTERNAL_REF_INDEX_DEFINITION, old_index))
+        old.execute(
+            "INSERT INTO issues "
+            "(id, title, status, issue_type, tier, created_at, updated_at, "
+            " external_ref) "
+            "VALUES ('e-old', 'Old', 'open', 'plan', 'epic', ?, ?, ?)",
+            (NOW, NOW, "bug:sase#42"),
+        )
+        old.commit()
+        old.close()
+
+        conn = init_db(db_path)
+        try:
+            conn.execute(
+                "INSERT INTO issues "
+                "(id, title, status, issue_type, tier, created_at, updated_at, "
+                " flag, external_ref) "
+                "VALUES ('e-flag', 'Flag', 'open', 'flag', NULL, ?, ?, ?, ?)",
+                (
+                    NOW,
+                    NOW,
+                    (
+                        '{"key":"demo_key","remove_by_date":"2026-12-01",'
+                        '"remove_by_release":"0.19.0"}'
+                    ),
+                    "bug:sase#42",
+                ),
+            )
+            conn.commit()
+            with pytest.raises(sqlite3.IntegrityError):
+                conn.execute(
+                    "INSERT INTO issues "
+                    "(id, title, status, issue_type, tier, created_at, updated_at, "
+                    " external_ref) "
+                    "VALUES ('e-dupe', 'Dupe', 'open', 'plan', 'epic', ?, ?, ?)",
+                    (NOW, NOW, "bug:sase#42"),
+                )
+        finally:
+            conn.close()
+
+        conn = init_db(db_path)
+        try:
+            issue = get_issue(conn, "e-flag")
+            assert issue is not None
+            assert issue.external_ref == "bug:sase#42"
         finally:
             conn.close()
 

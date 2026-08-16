@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from sase.agent.bead_display import (
     BeadIssueLookupSession,
@@ -18,6 +18,7 @@ from sase.agent.bead_display import (
     normalize_bead_text,
 )
 from sase.bead.model import BeadTier, Issue, IssueType
+from sase.bead_type_presentation import BeadTypeValue
 from sase.phase_size_presentation import normalize_phase_size
 from sase.sdd.plan_validate import validate_plan
 
@@ -119,6 +120,8 @@ def resolve_agent_plan_enrichment(
             )
         if association is not None and association.role == "task":
             return _task_plan_enrichment(agent, association)
+        if association is not None and association.role == "flag":
+            return _flag_bead_enrichment(association)
     if initial_role == "ambiguous":
         bead_id = derive_agent_bead_id_from_name(
             agent.presented_agent_name or agent.agent_name
@@ -132,6 +135,8 @@ def resolve_agent_plan_enrichment(
             )
         if association is not None and association.role == "task":
             return _task_plan_enrichment(agent, association)
+        if association is not None and association.role == "flag":
+            return _flag_bead_enrichment(association)
         if association is None or association.role != "land":
             if association is None or association.path is None:
                 # A confirmed legacy phase without an epic-plan association
@@ -256,6 +261,18 @@ def _task_plan_enrichment(
         association.bead_summary,
         summary,
         () if path is None else (str(path),),
+    )
+
+
+def _flag_bead_enrichment(
+    association: _ResolvedPlanAssociation,
+) -> _AgentPlanEnrichment:
+    """Project a standalone flag bead into the BEAD lane."""
+    return _AgentPlanEnrichment(
+        "flag",
+        association.bead_summary,
+        None,
+        (),
     )
 
 
@@ -394,13 +411,22 @@ def _resolve_bead_plan_association(
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
     is_task = issue.issue_type is IssueType.TASK
-    role: Literal["phase", "task", "land"] | None = (
-        "phase" if is_phase else ("task" if is_task else ("land" if is_epic else None))
+    is_flag = issue.issue_type is IssueType.FLAG
+    role: Literal["phase", "task", "flag", "land"] | None = (
+        "phase"
+        if is_phase
+        else "task"
+        if is_task
+        else "flag"
+        if is_flag
+        else "land"
+        if is_epic
+        else None
     )
     epic_bead_id = issue.parent_id if is_phase else (issue.id if is_epic else None)
     phase_bead_id = issue.id if is_phase else None
     known_epic = is_phase or is_epic
-    bead_summary = _task_bead_summary(issue) if is_task else None
+    bead_summary = _plan_free_bead_summary(issue) if is_task or is_flag else None
     design = issue.design.strip()
     if not design and issue.parent_id:
         parent = _lookup_issue(agent, issue.parent_id, lookup_session=lookup_session)
@@ -445,8 +471,17 @@ def _resolve_bead_issue_association(
     is_phase = issue.issue_type is IssueType.PHASE
     is_epic = issue.issue_type is IssueType.PLAN and issue.tier is BeadTier.EPIC
     is_task = issue.issue_type is IssueType.TASK
-    role: Literal["phase", "task", "land"] | None = (
-        "phase" if is_phase else ("task" if is_task else ("land" if is_epic else None))
+    is_flag = issue.issue_type is IssueType.FLAG
+    role: Literal["phase", "task", "flag", "land"] | None = (
+        "phase"
+        if is_phase
+        else "task"
+        if is_task
+        else "flag"
+        if is_flag
+        else "land"
+        if is_epic
+        else None
     )
     return _ResolvedPlanAssociation(
         None,
@@ -455,13 +490,14 @@ def _resolve_bead_issue_association(
         epic_bead_id=issue.parent_id if is_phase else (issue.id if is_epic else None),
         phase_bead_id=issue.id if is_phase else None,
         created_at=issue.created_at if is_phase else "",
-        bead_summary=_task_bead_summary(issue) if is_task else None,
+        bead_summary=_plan_free_bead_summary(issue) if is_task or is_flag else None,
         notes=_normalize_bead_notes(issue.notes),
     )
 
 
-def _task_bead_summary(issue: Issue) -> BeadSummary:
-    """Project one task issue into render-ready, plan-free BEAD metadata."""
+def _plan_free_bead_summary(issue: Issue) -> BeadSummary:
+    """Project one task or flag issue into render-ready BEAD metadata."""
+    flag = issue.flag
     return BeadSummary(
         id=issue.id,
         phase_title=normalize_bead_text(issue.title) or None,
@@ -473,9 +509,12 @@ def _task_bead_summary(issue: Issue) -> BeadSummary:
         epic_title=None,
         size=normalize_phase_size(issue.size),
         created_at=issue.created_at,
-        bead_type="task",
+        bead_type=cast(BeadTypeValue, issue.issue_type.value),
         notes=_normalize_bead_notes(issue.notes),
         plus_one_evidence=tuple(issue.plus_one_evidence),
+        flag_key=None if flag is None else flag.key,
+        flag_remove_by_date=None if flag is None else flag.remove_by_date,
+        flag_remove_by_release=None if flag is None else flag.remove_by_release,
     )
 
 

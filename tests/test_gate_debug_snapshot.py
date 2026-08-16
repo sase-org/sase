@@ -328,6 +328,23 @@ def test_missing_bundle_and_non_gate_notification_have_explicit_empty_states(
     assert '"id": "ordinary-row"' in non_gate.row.body
 
 
+def test_flag_triage_snapshot_uses_the_flag_action_icon(gate_home: Path) -> None:
+    del gate_home
+    spec = _spec(request_id="debug-flag")
+    spec["kind"] = "flag_triage"
+    created = create_gate(spec)
+    [notification] = load_notifications(include_dismissed=True)
+
+    snapshot = build_gate_debug_snapshot(notification, notification.action_data)
+
+    assert notification.action == "FlagTriage"
+    assert snapshot.kind == "flag_triage"
+    assert snapshot.bundle_path == created.bundle_path
+    assert snapshot.icon == "⚑"
+    assert "Kind                flag_triage" in snapshot.overview.body
+    assert "No gate bundle attached" not in snapshot.overview.body
+
+
 def test_legacy_hitl_bundle_is_inspected_best_effort(gate_home: Path) -> None:
     legacy = gate_home / "legacy-hitl"
     legacy.mkdir()

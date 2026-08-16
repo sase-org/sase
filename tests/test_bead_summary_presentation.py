@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import pytest
 
 from sase.ansi_style import ANSI_RESET, ansi_sgr
-from sase.bead.model import IssueType, Status
+from sase.bead.model import FlagRecord, IssueType, Status
 from sase.bead_status_presentation import (
     BEAD_STATUS_VALUES,
     bead_status_display_order,
@@ -26,6 +27,7 @@ from sase.bead_type_presentation import BEAD_TYPE_VALUES, bead_type_presentation
 class Row:
     issue_type: object
     status: object
+    flag: FlagRecord | None = None
 
 
 def test_summary_counts_all_buckets_and_renders_nonzero_groups() -> None:
@@ -54,6 +56,43 @@ def test_summary_counts_all_buckets_and_renders_nonzero_groups() -> None:
         bead_list_summary_line(summary, use_color=False, implicit_limit=False)
         == "4 beads · ▸ 2  ↳ 1  ◆ 1 · ○ 2  ◇ 1  ◐ 1"
     )
+
+
+def test_summary_counts_due_flags_and_renders_the_urgency_clause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.__version__", "0.19.0")
+    monkeypatch.setattr(
+        "sase.bead_summary_presentation.core_time.local_now",
+        lambda: datetime(2026, 12, 7, 12, 0, 0),
+    )
+    due = FlagRecord(
+        key="plugins_enabled",
+        remove_by_date="2026-12-01",
+        remove_by_release="0.19.0",
+    )
+    live = FlagRecord(
+        key="new_checkout",
+        remove_by_date="2027-12-01",
+        remove_by_release="9.99.0",
+    )
+
+    summary = summarize_bead_rows(
+        [
+            Row(IssueType.FLAG, Status.OPEN, due),
+            Row(IssueType.FLAG, Status.OPEN, live),
+        ],
+        matched=2,
+    )
+
+    assert summary.due_flags == 1
+    assert (
+        bead_list_summary_line(summary, use_color=False, implicit_limit=False)
+        == "2 open flags · ⧗ 1 due flag"
+    )
+
+    colored = bead_list_summary_line(summary, use_color=True, implicit_limit=False)
+    assert "\x1b[1;7m⧗\x1b[0m 1 due flag" in colored
 
 
 @pytest.mark.parametrize(

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.llm_provider.model_alias_policy import SMALL_MODEL_ALIAS_NAME
+from sase.llm_provider.model_alias_policy import XSMALL_MODEL_ALIAS_NAME
 from sase.llm_provider.provider_disable import (
     disable_provider,
     get_active_provider_disable,
@@ -170,7 +170,7 @@ class TestHandlePossibleUsageLimit:
         assert result is None
         assert get_active_provider_disable("fakey") is None
 
-    def test_agy_captured_failure_disables_small_pool_member(
+    def test_agy_captured_failure_disables_xsmall_pool_member(
         self,
         monkeypatch: pytest.MonkeyPatch,
         registered_providers: None,
@@ -183,7 +183,12 @@ class TestHandlePossibleUsageLimit:
         )
 
         monkeypatch.setattr(registry, "_provider_cli_available", lambda _provider: True)
-        agy_target = "agy/gemini-3.7-flash-high"
+        details = model_alias_selector_details(XSMALL_MODEL_ALIAS_NAME)
+        assert details is not None
+        agy_member = next(
+            member for member in details.members if member.provider == "agy"
+        )
+        agy_target = agy_member.target
         assert resolved_target_is_available(agy_target) is True
 
         result = handle_possible_usage_limit(
@@ -197,7 +202,7 @@ class TestHandlePossibleUsageLimit:
         assert disable.source == "usage_limit"
         assert resolved_target_is_available(agy_target) is False
 
-        details = model_alias_selector_details(SMALL_MODEL_ALIAS_NAME)
+        details = model_alias_selector_details(XSMALL_MODEL_ALIAS_NAME)
         assert details is not None
         agy_member = next(
             member for member in details.members if member.target == agy_target

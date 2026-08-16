@@ -189,6 +189,22 @@ def render_snooze(issue: Issue) -> list[str]:
     return lines
 
 
+def render_flag(issue: Issue) -> list[str]:
+    """Render stable feature-flag identity for published bead pages."""
+    record = issue.flag
+    if record is None:
+        return []
+    return [
+        "",
+        "## Flag",
+        "",
+        f"- **Key:** `{md_code(record.key)}`",
+        f"- **Remove by date:** `{md_code(record.remove_by_date)}`",
+        f"- **Remove by release:** `v{md_code(record.remove_by_release)}`",
+        "- **Due states:** `live`, `soon`, `due`",
+    ]
+
+
 def render_close_history(issue: Issue) -> list[str]:
     """Render bounded, structurally safe archived close callouts."""
 
@@ -230,6 +246,9 @@ def _primary_facts(issue: Issue) -> str:
     ]
     if issue.tier is not None:
         values.append(f"**Tier:** {issue.tier.value}")
+    if issue.flag is not None:
+        glyph = bead_type_presentation("flag").glyph
+        values.append(f"**Flag:** {glyph} `{md_code(issue.flag.key)}`")
     if badge := plus_one_badge(issue.plus_one_count):
         values.append(f"**+1 reports:** {badge}")
     if badge := post_close_plus_one_badge(post_close_plus_one_count(issue)):
@@ -351,6 +370,7 @@ def _neutralize_structural_line(line: str) -> str:
 __all__ = [
     "MAX_RENDERED_PROSE_CHARS",
     "PlanLinkResolver",
+    "render_flag",
     "render_close_history",
     "render_identity",
     "render_plus_one_evidence",

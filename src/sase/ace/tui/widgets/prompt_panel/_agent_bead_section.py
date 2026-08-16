@@ -12,6 +12,7 @@ from rich.text import Text
 
 from sase.bead_time_presentation import BEAD_TIME_RICH_STYLE, bead_created_label
 from sase.bead_type_presentation import bead_type_presentation
+from sase.bead_flag_presentation import flag_key_chip
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
     plus_one_badge,
@@ -42,10 +43,13 @@ BEAD_SECTION_MAX_WIDTH = 80
 BEAD_FOLD_HINT = "zz to show"
 _BEAD_FIELD_LABELS = (
     "Phase Title",
+    "Flag Title",
     "Description",
     "Notes",
     "Epic Plan",
     "Epic Title",
+    "Flag Key",
+    "Remove By",
     "Size",
     "+1 Reports",
     "+1 Evidence",
@@ -149,6 +153,19 @@ class ResponsiveBeadSection:
                         self._label("+1 Evidence"),
                         self._foldable_value(self._plus_one_evidence_value()),
                     )
+                )
+            rows.append((self._label("Created"), self._created_value()))
+            return tuple(rows)
+        if self.summary.bead_type == "flag":
+            rows = [
+                (self._label("Flag Title"), self._bead_title_value()),
+                (self._label("Description"), self._description_value()),
+                (self._label("Flag Key"), self._flag_key_value()),
+                (self._label("Remove By"), self._flag_removal_value()),
+            ]
+            if self.summary.notes and self.summary.notes.strip():
+                rows.append(
+                    (self._label("Notes"), self._foldable_value(self._notes_value()))
                 )
             rows.append((self._label("Created"), self._created_value()))
             return tuple(rows)
@@ -266,3 +283,18 @@ class ResponsiveBeadSection:
             if evidence.refs:
                 text.append(f"\nRefs: {', '.join(evidence.refs)}", style="dim #87AFFF")
         return text
+
+    def _flag_key_value(self) -> Text:
+        if self.summary.flag_key:
+            return flag_key_chip(self.summary.flag_key)
+        return Text("unavailable", style=COLOR_EMPTY)
+
+    def _flag_removal_value(self) -> Text:
+        parts = []
+        if self.summary.flag_remove_by_date:
+            parts.append(self.summary.flag_remove_by_date)
+        if self.summary.flag_remove_by_release:
+            parts.append(f"v{self.summary.flag_remove_by_release}")
+        if parts:
+            return Text(" · ".join(parts), style=COLOR_REASON)
+        return Text("unavailable", style=COLOR_EMPTY)

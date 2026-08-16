@@ -168,13 +168,14 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
             action = "back" if self.jump_back_stack else "first"
             return f"JUMP ' {action}  <esc> cancel"
         row = self._selected_row()
+        history_hint = _history_footer_hint(row)
         if self._active_bucket is None and isinstance(row, BucketView):
             return (
                 "[green]ctrl+e[/green]=Effort  "
                 "[green]ctrl+r[/green]=Limit  "
                 "[green]p[/green]=Providers\n"
                 "[green]l/enter[/green]=Open  "
-                "[green]H[/green]=History  "
+                f"{history_hint}"
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]'[/dim]=Jump  "
                 "[dim]esc[/dim]=Close"
@@ -222,13 +223,9 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
             "[green]e[/green]=Edit  "
             "[green]r[/green]=Reset"
         )
-        if isinstance(row, AliasView) or (
-            isinstance(row, LaunchModelSettingRow)
-            and row.snapshot.referenced_alias is not None
-        ):
-            footer += "  [green]H[/green]=History"
         if self._active_bucket is not None:
             footer += "  [green]h[/green]=Back"
+        footer += f"  {history_hint.rstrip()}" if history_hint else ""
         return footer + (
             "  [dim]j/k[/dim]=Navigate  [dim]'[/dim]=Jump  [dim]esc[/dim]=Close"
         )
@@ -438,3 +435,11 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
         def action_manage_runner_limit(self) -> None: ...
 
         def action_edit_big_epic_phase_threshold(self) -> None: ...
+
+
+def _history_footer_hint(row: ModelsPanelDisplayRow | None) -> str:
+    if isinstance(row, AliasView | BucketView):
+        return "[green]H[/green]=History  "
+    if isinstance(row, LaunchModelSettingRow) and row.snapshot.referenced_alias:
+        return "[green]H[/green]=History  "
+    return ""

@@ -5,10 +5,15 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import date
 from enum import Enum
 from typing import Protocol, cast
 
+import sase
 from sase.ansi_style import ansi_sgr, apply_ansi
+from sase.bead.flag_due import flag_removal_due
+from sase.bead.model import FlagRecord
+from sase.bead_flag_presentation import FLAG_DUE_GLYPH, FLAG_DUE_STYLES
 from sase.bead_status_presentation import (
     BeadStatusValue,
     bead_status_display_order,
@@ -19,6 +24,7 @@ from sase.bead_type_presentation import (
     BeadTypeValue,
     bead_type_presentation,
 )
+from sase.core import time as core_time
 
 BEAD_TYPE_NOUNS: dict[BeadTypeValue, tuple[str, str]] = {
     "plan": ("plan", "plans"),
@@ -55,6 +61,7 @@ class BeadListSummary:
     matched: int
     by_type: Mapping[BeadTypeValue, int]
     by_status: Mapping[BeadStatusValue, int]
+    due_flags: int = 0
 
     @property
     def hidden(self) -> int:
@@ -67,9 +74,13 @@ def summarize_bead_rows(
     type_counts: Counter[BeadTypeValue] = Counter()
     status_counts: Counter[BeadStatusValue] = Counter()
     shown = 0
+    due_flags = 0
+    today = core_time.local_now().date()
     for row in rows:
         type_counts[_normalize_bead_type_value(row.issue_type)] += 1
         status_counts[_normalize_bead_status_value(row.status)] += 1
+        if _row_flag_is_due(row, today=today):
+            due_flags += 1
         shown += 1
 
     return BeadListSummary(
@@ -79,6 +90,7 @@ def summarize_bead_rows(
         by_status={
             value: status_counts[value] for value in bead_status_display_order()
         },
+        due_flags=due_flags,
     )
 
 
@@ -104,6 +116,8 @@ def bead_list_summary_line(
         status_group := _status_group(summary, use_color=use_color)
     ):
         groups.append(status_group)
+    if summary.due_flags:
+        groups.append(_due_flags_clause(summary.due_flags, use_color=use_color))
     if summary.hidden:
         groups.append(
             _hidden_clause(
@@ -123,6 +137,13 @@ def _normalize_bead_status_value(value: object) -> BeadStatusValue:
     bead_status_presentation(value)
     candidate = value.value if isinstance(value, Enum) else value
     return cast(BeadStatusValue, candidate)
+
+
+def _row_flag_is_due(row: BeadSummaryRow, *, today: date) -> bool:
+    record = getattr(row, "flag", None)
+    if not isinstance(record, FlagRecord):
+        return False
+    return flag_removal_due(record, today=today, release=sase.__version__) == "due"
 
 
 def _nonzero_type_values(summary: BeadListSummary) -> list[BeadTypeValue]:
@@ -193,6 +214,16 @@ def _status_group(summary: BeadListSummary, *, use_color: bool) -> str:
         )
         entries.append(f"{glyph} {count}")
     return _COUNT_SEPARATOR.join(entries)
+
+
+def _due_flags_clause(count: int, *, use_color: bool) -> str:
+    label = "due flag" if count == 1 else "due flags"
+    glyph = apply_ansi(
+        FLAG_DUE_GLYPH,
+        FLAG_DUE_STYLES["due"].cli,
+        enabled=use_color,
+    )
+    return f"{glyph} {count} {label}"
 
 
 def _hidden_clause(hidden: int, *, use_color: bool, implicit_limit: bool) -> str:

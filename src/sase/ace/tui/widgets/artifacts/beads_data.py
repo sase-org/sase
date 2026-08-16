@@ -6,14 +6,17 @@ import time
 from collections.abc import Iterable
 from pathlib import Path
 
+import sase
 from sase.ace.patch.models import Patch
 from sase.ace.tui.external_issues import (
     issue_tracker_capabilities,
     list_project_issues,
     resolve_issue_tracker_scope,
 )
+from sase.bead_flag_presentation import FlagDuePresentation, flag_due_presentation
 from sase.bead.model import IssueType
 from sase.bug_links import find_external_ref_links, normalize_external_ref
+from sase.core import time as core_time
 from sase.vcs_provider import IssueWire
 
 from .beads_data_models import (
@@ -53,6 +56,8 @@ def load_beads_snapshot(
     """Load one or all projects; callers must run this on a worker thread."""
     resolved = _resolve_projects(project)
     now = time.monotonic()
+    today = core_time.local_now().date()
+    release = sase.__version__
     project_names = tuple(item.project for item in resolved)
     beads_by_project: dict[str, Path | None] = {}
     plans_roots: dict[str, Path | None] = {}
@@ -71,6 +76,8 @@ def load_beads_snapshot(
         ),
         tuple(store_keys),
         _notifications_mtime_key(),
+        today.isoformat(),
+        release,
     )
     if (
         not force
@@ -82,6 +89,8 @@ def load_beads_snapshot(
 
     tasks: list[ProjectBead] = []
     epics: list[ProjectBead] = []
+    flags: list[ProjectBead] = []
+    flag_due: dict[tuple[str, str], FlagDuePresentation] = {}
     phases_by_epic: dict[tuple[str, str], tuple[ProjectBead, ...]] = {}
     local_beads: list[ProjectBead] = []
     ready_ids: set[tuple[str, str]] = set()
@@ -113,6 +122,17 @@ def load_beads_snapshot(
             issue for issue in issues if issue.issue_type is IssueType.PLAN
         )
         epics.extend(ProjectBead(project_name, issue) for issue in project_epics)
+        project_flags = tuple(
+            issue for issue in issues if issue.issue_type is IssueType.FLAG
+        )
+        for issue in project_flags:
+            flags.append(ProjectBead(project_name, issue))
+            if issue.flag is not None:
+                flag_due[(project_name, issue.id)] = flag_due_presentation(
+                    issue.flag,
+                    today=today,
+                    release=release,
+                )
         for epic in project_epics:
             phases = tuple(
                 ProjectBead(project_name, issue)
@@ -202,8 +222,20 @@ def load_beads_snapshot(
             item.project,
         )
 
+    def flag_order(item: ProjectBead) -> tuple[object, ...]:
+        due_order = {"due": 0, "soon": 1, "live": 2}
+        due = flag_due.get((item.project, item.issue.id))
+        state = getattr(due, "state", "")
+        return (
+            due_order.get(state, 3),
+            _timestamp_recency_key(item.issue.updated_at or item.issue.created_at),
+            _hierarchical_id_key(item.issue.id),
+            item.project,
+        )
+
     tasks.sort(key=task_order)
     epics.sort(key=epic_order)
+    flags.sort(key=flag_order)
     return BeadsSnapshot(
         project=project,
         projects=project_names,
@@ -226,6 +258,8 @@ def load_beads_snapshot(
         external_links=external_links,
         external_unmirrored_counts=external_unmirrored_counts,
         external_source_key=external_source_key,
+        flags=tuple(flags),
+        flag_due=flag_due,
     )
 
 
@@ -389,6 +423,10 @@ def _local_external_refs(
     item: ProjectBead,
 ) -> tuple[tuple[str, ExternalIssueRelation], ...]:
     issue = item.issue
+    if issue.issue_type is IssueType.FLAG:
+        # Temporary feature-flag hygiene is internal-only; flag beads must not
+        # cover, create, or reconcile external tracker issues.
+        return ()
     values: list[tuple[str, ExternalIssueRelation]] = []
     mirrored = normalize_external_ref(issue.external_ref, project=item.project)
     if mirrored:

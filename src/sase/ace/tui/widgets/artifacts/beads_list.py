@@ -21,6 +21,7 @@ from .beads_rendering import (
     LAUNCHED_STATE_GLYPH,
     READY_STATE_GLYPH,
     epic_text,
+    flag_text,
     phase_text,
     project_badge,
     single_line_text,
@@ -28,7 +29,7 @@ from .beads_rendering import (
 )
 from .types import ARTIFACTS_ACCENTS
 
-BeadRowKind = Literal["task", "epic", "phase"]
+BeadRowKind = Literal["task", "flag", "epic", "phase"]
 
 
 @dataclass(frozen=True)
@@ -94,11 +95,19 @@ def build_bead_options(
         if not filter_active
         or row_option_id(snapshot, "task", item.project, item.issue.id) in matched_ids
     )
+    visible_flags = tuple(
+        item
+        for item in snapshot.flags
+        if not filter_active
+        or row_option_id(snapshot, "flag", item.project, item.issue.id) in matched_ids
+    )
     visible_epics: list[ProjectBead] = []
     visible_phases_by_epic: dict[tuple[str, str], tuple[ProjectBead, ...]] = {}
+    visible_epic_matches: dict[tuple[str, str], bool] = {}
     for item in snapshot.epics:
         project = item.project
         epic = item.issue
+        epic_key = (project, epic.id)
         epic_option_id = row_option_id(snapshot, "epic", project, epic.id)
         epic_matches = not filter_active or epic_option_id in matched_ids
         phase_items = snapshot.phases_by_epic.get((project, epic.id), ())
@@ -116,7 +125,8 @@ def build_bead_options(
         )
         if epic_matches or visible_phases:
             visible_epics.append(item)
-            visible_phases_by_epic[(project, epic.id)] = visible_phases
+            visible_phases_by_epic[epic_key] = visible_phases
+            visible_epic_matches[epic_key] = epic_matches
     triage_count = sum(
         (task.project, task.issue.id) in snapshot.triage_gates for task in visible_tasks
     )
@@ -170,6 +180,46 @@ def build_bead_options(
 
     options.append(
         _section_option(
+            "Flags",
+            len(visible_flags),
+            total=len(snapshot.flags) if filter_active else None,
+        )
+    )
+    for item in visible_flags:
+        issue = item.issue
+        option_id = row_option_id(snapshot, "flag", item.project, issue.id)
+        row = BeadRow("flag", option_id, item.project, issue)
+        rows[option_id] = row
+        target = bead_row_target(row)
+        options.append(
+            Option(
+                prepend_jump_hint(
+                    prepend_mark_glyph(
+                        flag_text(
+                            issue,
+                            due=snapshot.flag_due.get((item.project, issue.id)),
+                            project_badge=project_badge(snapshot, item.project),
+                        ),
+                        target in active_marks,
+                    ),
+                    (jump_hints or {}).get(target),
+                ),
+                id=option_id,
+            )
+        )
+    if not visible_flags:
+        options.append(
+            Option(
+                single_line_text(
+                    "  No matching flag beads" if filter_active else "  No flag beads",
+                    style="dim",
+                ),
+                disabled=True,
+            )
+        )
+
+    options.append(
+        _section_option(
             "Epics",
             len(visible_epics),
             total=len(snapshot.epics) if filter_active else None,
@@ -184,6 +234,8 @@ def build_bead_options(
         rows[option_id] = row
         target = bead_row_target(row)
         phases = snapshot.phases_by_epic.get(epic_key, ())
+        epic_matches = visible_epic_matches.get(epic_key, False)
+        visible_phases = visible_phases_by_epic.get(epic_key, ())
         expanded = epic_key in expanded_epics or (
             filter_active and not epic_matches and bool(visible_phases)
         )

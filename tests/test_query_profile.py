@@ -386,6 +386,7 @@ def test_beads_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "tier": "epic",
         "status": "open",
         "size": "medium",
+        "due": "soon",
         "project": "myproj",
         "assignee": "alice",
         "owner": "alice@example.com",
@@ -415,7 +416,7 @@ def test_beads_profile_every_field_is_repeatable_and_negatable() -> None:
 def test_beads_profile_enum_fields_reject_out_of_vocabulary_values() -> None:
     profile = compile_query_profile(beads_query_schema())
     enum_keys = {item.key for item in profile.fields if item.value_kind == "enum"}
-    assert enum_keys == {"type", "tier", "status", "size", "has"}
+    assert enum_keys == {"type", "tier", "status", "size", "due", "has"}
     for key in enum_keys:
         with pytest.raises(BeadFilterQueryError):
             parse_bead_filter_query(f"{key}:not-a-real-value")
