@@ -321,7 +321,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-nb(encode_feature_flags_env)" \
         --epic-symbol "sase-nb(feature_flags_schema_block)" \
         --epic-symbol "sase-nb(feature_flags_schema_drift)" \
-        --epic-symbol "sase-nb(flag_due_chip)" \
         --epic-symbol "sase-nb(FlagDueStyle)" \
         --epic-symbol "sase-n4(find_matching_pattern)" \
         --epic-symbol "sase-n4(get_usage_limit_config)" \

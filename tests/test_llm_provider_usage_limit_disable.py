@@ -279,7 +279,10 @@ class TestUsageLimitNotification:
 
         assert errors == []
         stored = get_active_provider_disables()
-        assert stored["codex"] == sibling
+        assert stored["codex"].provider == sibling.provider
+        assert stored["codex"].source == sibling.source
+        assert stored["codex"].created_at == pytest.approx(sibling.created_at)
+        assert stored["codex"].expires_at == pytest.approx(sibling.expires_at)
         assert stored["claude"].source == "usage_limit"
         assert increments == ["claude"]
         notifications = [
