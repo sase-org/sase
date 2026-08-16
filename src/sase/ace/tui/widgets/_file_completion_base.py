@@ -234,6 +234,7 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             artifact_ref_payload_total=self._artifact_ref_completion_stats[1],
             artifact_ref_truncated_payloads=self._artifact_ref_completion_stats[2],
             artifact_ref_files_suppressed=self._artifact_ref_files_suppressed,
+            word_ranking_signals=self._prompt_completion_settings().word_ranking_signals,
         )
 
     def _completion_group_rule_reserved(self) -> bool:

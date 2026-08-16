@@ -4657,7 +4657,8 @@ token under the cursor:
   are skipped before history fallback is considered; the default is `5`, and the
   threshold applies to the complete candidate rather than the typed prefix. This
   provider scans only the current prompt pane and takes precedence over history words
-  when it has an eligible match.
+  when it has an eligible match. Candidates are ordered nearest-first: the word you just
+  wrote is the one you are most likely repeating.
 - **History-word completion**: When prompt-local words have no match, `Ctrl+T` filters
   recently used words derived from recorded prompt history using that same
   left-of-cursor prefix; any suffix under the cursor is never consulted to include or
@@ -4665,15 +4666,29 @@ token under the cursor:
   described above. Hyphenated identifier-like spellings are indexed, matched,
   length-filtered, and replaced as one word, with only the typed prefix replaced so a
   preserved suffix survives acceptance. Matching remains case-insensitive and keeps
-  exact spelling, while rows are ordered by most recent use. ACE retains up to
-  `ace.prompt_completion.history_word_count` unique words that meet the shared
-  `ace.prompt_completion.word_min_length` (defaults: `10000` and `5`); set
-  `history_word_count: 0` to disable only this final fallback. History is loaded
-  off-thread, so a cold cache briefly shows `loading history words…` without blocking
-  input. `Ctrl+D` deletes the highlighted word and records it in
-  `~/.sase/prompt_word_deletions.json`, so future history derivations continue to filter
-  it out; remove that file to reset all history-word deletions. The former
-  `history_word_min_length` configuration key has been replaced by `word_min_length`.
+  exact spelling. ACE retains up to `ace.prompt_completion.history_word_count` unique
+  words that meet the shared `ace.prompt_completion.word_min_length` (defaults: `10000`
+  and `5`); set `history_word_count: 0` to disable only this final fallback. History is
+  loaded off-thread, so a cold cache briefly shows `loading history words…` without
+  blocking input. `Ctrl+D` deletes the highlighted word instantly, without rebuilding
+  the index, and records it in `~/.sase/prompt_word_deletions.json`, so future history
+  derivations continue to filter it out; remove that file to reset all history-word
+  deletions. The former `history_word_min_length` configuration key has been replaced by
+  `word_min_length`.
+
+  By default (`ace.prompt_completion.word_ranking: smart`) rows are ranked by a weighted
+  composite of three signals rather than plain recency: how strongly a word relates to
+  the words already in the prompt (weight `0.50`), how recently it was used (`0.30`),
+  and how often it has been used (`0.20`). Each row shows a 5-cell stacked meter whose
+  filled length is the composite score and whose cell colors show each signal's share,
+  plus a dominant-reason chip — `⇄ <word>` for the context word it relates to, `◷ <age>`
+  for recency, or `✦ <count>×` for frequency — and the panel's border subtitle carries a
+  matching `⇄ related · ◷ recent · ✦ frequent` color legend. The meter and chip are
+  dropped (leaving the word alone) on panels too narrow to fit them, and the legend
+  falls back to the plain `[^L] accept  [^D] delete` hint under the same width pressure.
+  Set `word_ranking: recent` to restore the previous most-recent-use ordering with no
+  signal column, or `word_ranking_signals: false` to keep smart ranking but hide the
+  meter, chip, and legend.
 
 | Key                | Action                                                               |
 | ------------------ | -------------------------------------------------------------------- |

@@ -4,6 +4,10 @@ Implementations live in domain-specific modules. This module preserves the
 original import surface for the completion panel and focused rendering tests.
 """
 
+from sase.ace.tui.widgets._history_word_rows import (
+    append_history_word_completion_row,
+    history_word_label_width,
+)
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows_agents import (
     append_agent_completion_row,
     is_agent_completion_candidate,
@@ -41,6 +45,7 @@ __all__ = [
     "append_at_reference_group_rule",
     "append_directive_arg_completion_row",
     "append_directive_completion_row",
+    "append_history_word_completion_row",
     "append_jinja_completion_row",
     "append_model_completion_row",
     "append_placeholder_completion_row",
@@ -51,6 +56,7 @@ __all__ = [
     "append_xprompt_completion_row",
     "artifact_ref_kind_label_width",
     "at_reference_directory_display",
+    "history_word_label_width",
     "is_agent_completion_candidate",
     "model_completion_column_widths",
     "vcs_project_label_width",

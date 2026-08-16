@@ -18,6 +18,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_at_reference_group_rule,
     append_directive_arg_completion_row,
     append_directive_completion_row,
+    append_history_word_completion_row,
     append_jinja_completion_row,
     append_model_completion_row,
     append_placeholder_completion_row,
@@ -27,6 +28,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_vcs_repo_completion_row,
     append_xprompt_completion_row,
     artifact_ref_kind_label_width,
+    history_word_label_width,
     model_completion_column_widths,
     vcs_project_label_width,
     vcs_ref_label_width,
@@ -37,9 +39,6 @@ from sase.ace.tui.widgets.artifact_ref_completion import (
 )
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.ace.tui.widgets.history_word_completion import (
-    HistoryWordCompletionPlaceholder,
-)
 
 
 @dataclass(frozen=True)
@@ -51,6 +50,7 @@ class _RowLayout:
     vcs_repo: int
     model: tuple[int, int]
     artifact_kind: int
+    history_word: int
     tribe_colors: dict[str, str] | None
 
 
@@ -64,6 +64,7 @@ def build_completion_panel_content(
     group_rule: bool,
     group_directory: str,
     inner_width: int,
+    word_ranking_signals: bool = True,
 ) -> Text:
     """Render the panel body for the *visible* slice of a completion menu.
 
@@ -77,6 +78,8 @@ def build_completion_panel_content(
             artifact and file groups, claiming one of the panel's lines.
         group_directory: Resolved directory named by an ``@`` group rule.
         inner_width: Content width available inside the panel border.
+        word_ranking_signals: Whether history-word rows render their score
+            meter and reason chip.
     """
     layout = _row_layout(kinds, visible)
     content = Text()
@@ -106,6 +109,7 @@ def build_completion_panel_content(
             kinds=kinds,
             layout=layout,
             inner_width=inner_width,
+            word_ranking_signals=word_ranking_signals,
         )
 
         if i < len(visible) - 1:
@@ -136,6 +140,9 @@ def _row_layout(
         model=model_completion_column_widths(visible) if kinds.model else (0, 0),
         artifact_kind=(
             artifact_ref_kind_label_width(visible) if kinds.artifact_ref else 0
+        ),
+        history_word=_max_label_width(
+            visible, history_word_label_width, kinds.history_word
         ),
         tribe_colors=_tribe_colors(kinds, visible),
     )
@@ -178,6 +185,7 @@ def _append_candidate_row(
     kinds: CompletionPanelKinds,
     layout: _RowLayout,
     inner_width: int,
+    word_ranking_signals: bool = True,
 ) -> None:
     """Append the provider-specific rendering of a single candidate."""
     if kinds.xprompt:
@@ -240,10 +248,14 @@ def _append_candidate_row(
     elif kinds.prompt_word:
         append_prompt_word_completion_row(content, candidate, is_selected)
     elif kinds.history_word:
-        if isinstance(candidate.metadata, HistoryWordCompletionPlaceholder):
-            content.append(candidate.display, style="dim italic")
-        else:
-            append_prompt_word_completion_row(content, candidate, is_selected)
+        append_history_word_completion_row(
+            content,
+            candidate,
+            is_selected,
+            label_width=layout.history_word,
+            inner_width=inner_width,
+            signals_enabled=word_ranking_signals,
+        )
     elif candidate.is_dir:
         content.append("\U0001f4c1 ")
         content.append(candidate.display, style="bold cyan" if is_selected else "cyan")

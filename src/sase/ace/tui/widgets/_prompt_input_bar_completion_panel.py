@@ -31,6 +31,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     artifact_ref_completion_subtitle,
     completion_delete_subtitle,
     completion_panel_title,
+    history_word_completion_subtitle,
     model_completion_subtitle,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
@@ -112,6 +113,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         artifact_ref_payload_total: int = 0,
         artifact_ref_truncated_payloads: int = 0,
         artifact_ref_files_suppressed: bool = False,
+        word_ranking_signals: bool = True,
     ) -> None:
         """Show the shared manual-completion panel with Rich styling.
 
@@ -124,6 +126,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             group_rule: True when a group rule line is drawn between groups,
                 which claims one of the panel's content lines.
             group_directory: Resolved directory named by an ``@`` group rule.
+            word_ranking_signals: Whether smart-ranked history-word rows show
+                their score meter, reason chip, and legend.
         """
         panel = self._completion_panel()
         if panel is None:
@@ -150,6 +154,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
             group_rule=group_rule,
             group_directory=group_directory,
             inner_width=panel_inner_width,
+            word_ranking_signals=word_ranking_signals,
         )
 
         panel.border_title = completion_panel_title(
@@ -160,7 +165,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
         )
 
         delete_subtitle = completion_delete_subtitle(completion_kind, visible)
-        if delete_subtitle:
+        if kinds.history_word and word_ranking_signals:
+            panel.border_subtitle = history_word_completion_subtitle(
+                visible,
+                panel_inner_width,
+            )
+        elif delete_subtitle:
             panel.border_subtitle = delete_subtitle
         elif kinds.artifact_ref:
             panel.border_subtitle = artifact_ref_completion_subtitle(

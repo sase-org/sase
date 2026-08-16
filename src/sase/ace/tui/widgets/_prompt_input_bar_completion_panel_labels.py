@@ -5,6 +5,14 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui._agent_completion_models import AgentCompletionCandidate
+from sase.ace.tui.widgets._history_word_rows import (
+    FREQUENCY_COLOR,
+    FREQUENCY_GLYPH,
+    RECENCY_COLOR,
+    RECENCY_GLYPH,
+    RELATION_COLOR,
+    RELATION_GLYPH,
+)
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
     CompletionPanelKinds,
 )
@@ -21,6 +29,7 @@ from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
+    HistoryWordCompletionMetadata,
     HistoryWordCompletionPlaceholder,
 )
 from sase.ace.tui.widgets.placeholder_completion import (
@@ -271,6 +280,43 @@ def artifact_ref_completion_subtitle(
     if inner_width > 0:
         subtitle.truncate(inner_width, overflow="ellipsis")
     return subtitle
+
+
+def history_word_completion_subtitle(
+    visible: list[CompletionCandidate],
+    inner_width: int,
+) -> Text | str:
+    """Return the signal-color legend for a smart-ranked history-word menu.
+
+    Falls back to the plain ``[^L] accept  [^D] delete`` hint when the panel
+    is too narrow for the legend or no visible row carries ranking metadata
+    (``recent`` ranking, the loading placeholder, or an empty menu).
+    """
+    plain_hint = completion_delete_subtitle(HISTORY_WORD_COMPLETION_KIND, visible)
+    if not plain_hint:
+        return plain_hint
+    has_metadata = any(
+        isinstance(candidate.metadata, HistoryWordCompletionMetadata)
+        for candidate in visible
+    )
+    if not has_metadata:
+        return plain_hint
+
+    legend = Text(no_wrap=True)
+    legend.append(RELATION_GLYPH, style=f"bold {RELATION_COLOR}")
+    legend.append(" related", style="dim")
+    legend.append(" · ", style="dim")
+    legend.append(RECENCY_GLYPH, style=f"bold {RECENCY_COLOR}")
+    legend.append(" recent", style="dim")
+    legend.append(" · ", style="dim")
+    legend.append(FREQUENCY_GLYPH, style=f"bold {FREQUENCY_COLOR}")
+    legend.append(" frequent", style="dim")
+    legend.append("   ", style="dim")
+    legend.append(plain_hint, style="dim")
+
+    if inner_width > 0 and legend.cell_len > inner_width:
+        return plain_hint
+    return legend
 
 
 def completion_delete_subtitle(
