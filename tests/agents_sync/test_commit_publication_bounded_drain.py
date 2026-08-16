@@ -81,7 +81,7 @@ def test_blocked_render_is_bounded_and_leaves_the_request_queued(
     monkeypatch.setattr(commit_publication, "publish_agent_hood", blocked_render)
     monkeypatch.setattr(
         commit_publication,
-        "configured_publication_drain_timeout",
+        "_configured_publication_drain_timeout",
         lambda: 0.2,
     )
 
@@ -123,7 +123,7 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
     monkeypatch.setattr(commit_publication, "publish_agent_hood", blocked_render)
     monkeypatch.setattr(
         commit_publication,
-        "configured_publication_drain_timeout",
+        "_configured_publication_drain_timeout",
         lambda: 0.2,
     )
 
@@ -141,7 +141,7 @@ def test_after_a_blocked_render_a_later_drain_retries_and_succeeds(
     )
     monkeypatch.setattr(
         commit_publication,
-        "configured_publication_drain_timeout",
+        "_configured_publication_drain_timeout",
         lambda: 5.0,
     )
 

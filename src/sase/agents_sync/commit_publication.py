@@ -60,11 +60,11 @@ _DRAIN_TIMEOUT_ENV = "SASE_AGENTS_PUBLICATION_DRAIN_TIMEOUT"
 DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS = 120.0
 
 
-class PublicationDrainTimedOut(Exception):
+class _PublicationDrainTimedOut(Exception):
     """Raised when a synchronous agent-hood drain exceeds its wall-clock bound."""
 
 
-def configured_publication_drain_timeout() -> float:
+def _configured_publication_drain_timeout() -> float:
     """Return the configured bound on a synchronous post-push drain attempt."""
 
     raw = os.environ.get(_DRAIN_TIMEOUT_ENV)
@@ -99,7 +99,7 @@ def _bounded_publication_drain(timeout_seconds: float) -> Iterator[None]:
         return
 
     def _on_alarm(_signum: int, _frame: object) -> None:
-        raise PublicationDrainTimedOut(
+        raise _PublicationDrainTimedOut(
             f"agent-hood publication did not complete within {timeout_seconds:.0f}s"
         )
 
@@ -277,9 +277,9 @@ def _drain_agent_publications(
         if not acquired:
             return _record_failure(target, "agents sync lock is busy")
         try:
-            with _bounded_publication_drain(configured_publication_drain_timeout()):
+            with _bounded_publication_drain(_configured_publication_drain_timeout()):
                 result = _publish_queued_locked(target, owner, git_runner)
-        except PublicationDrainTimedOut as exc:
+        except _PublicationDrainTimedOut as exc:
             return _record_failure(target, str(exc))
     if result.error is not None:
         return _record_failure(target, result.error, result.error_keys)

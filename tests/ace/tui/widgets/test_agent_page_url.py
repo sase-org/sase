@@ -14,10 +14,10 @@ from rich.console import Console
 from sase.agent.names.registry_freshness import (
     invalidate_agent_name_registry_freshness,
 )
+from sase.ace.tui.models import agent_page_url
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_page_url import (
     agent_publishes_page,
-    clear_agent_page_url_registry_cache,
     resolve_agent_page_url,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
@@ -45,9 +45,9 @@ _META_COMMITS = [
 
 @pytest.fixture(autouse=True)
 def _clear_page_url_registry_cache() -> Iterator[None]:
-    clear_agent_page_url_registry_cache()
+    agent_page_url._AGENT_PAGE_REGISTRY_SNAPSHOTS.clear()
     yield
-    clear_agent_page_url_registry_cache()
+    agent_page_url._AGENT_PAGE_REGISTRY_SNAPSHOTS.clear()
 
 
 def _committed_agent(**overrides: object) -> Agent:

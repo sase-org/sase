@@ -29,7 +29,7 @@ class BeadStreamIntegrityError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class StreamIntegrityResult:
+class _StreamIntegrityResult:
     """Outcome of preparing changed stream files for a commit."""
 
     restored_paths: tuple[str, ...] = ()
@@ -47,7 +47,7 @@ class _StreamAnalysis:
     rewrite_diagnosis: str | None = None
 
 
-def is_event_stream_relpath(path: str) -> bool:
+def _is_event_stream_relpath(path: str) -> bool:
     """Return whether *path* is a canonical ``events/streams/*.jsonl`` file."""
     parts = Path(path).parts
     if len(parts) < 3 or not parts[-1].endswith(".jsonl"):
@@ -60,7 +60,7 @@ def prepare_event_streams_for_commit(
     changed_files: list[str],
     *,
     ancestor_rev: str = "HEAD",
-) -> StreamIntegrityResult:
+) -> _StreamIntegrityResult:
     """Restore recoverable shrinks; raise on a prefix rewrite.
 
     Local files that are a valid superset of *ancestor_rev* are left alone.
@@ -69,9 +69,9 @@ def prepare_event_streams_for_commit(
     the ancestor bytes and raises :class:`BeadStreamIntegrityError` so the
     caller does not publish corruption.
     """
-    stream_paths = [path for path in changed_files if is_event_stream_relpath(path)]
+    stream_paths = [path for path in changed_files if _is_event_stream_relpath(path)]
     if not stream_paths:
-        return StreamIntegrityResult()
+        return _StreamIntegrityResult()
 
     worktree_streams = _worktree_streams(repo_root, stream_paths)
     new_stream_ids = {
@@ -86,7 +86,7 @@ def prepare_event_streams_for_commit(
         if ancestor_text is None:
             continue
         try:
-            ancestor_events = parse_stream_text(ancestor_text)
+            ancestor_events = _parse_stream_text(ancestor_text)
         except json.JSONDecodeError:
             continue
         if not (repo_root / path).is_file():
@@ -101,7 +101,7 @@ def prepare_event_streams_for_commit(
                 f"cannot publish unreadable bead event stream {Path(path).stem}"
             )
             continue
-        analysis = analyze_stream_against_ancestor(
+        analysis = _analyze_stream_against_ancestor(
             ancestor_events,
             local_events,
             ancestor_text=ancestor_text,
@@ -145,7 +145,7 @@ def prepare_event_streams_for_commit(
 
     if errors:
         raise BeadStreamIntegrityError("; ".join(errors))
-    return StreamIntegrityResult(restored_paths=tuple(restored_exact))
+    return _StreamIntegrityResult(restored_paths=tuple(restored_exact))
 
 
 def refuse_unpublished_event_stream_shrink(
@@ -171,7 +171,7 @@ def refuse_unpublished_event_stream_shrink(
     changed = _diff_names(repo_root, merge_base, "HEAD", f"{stream_dir}/")
     if changed is None:
         return
-    stream_paths = [path for path in changed if is_event_stream_relpath(path)]
+    stream_paths = [path for path in changed if _is_event_stream_relpath(path)]
     if not stream_paths:
         return
 
@@ -185,20 +185,20 @@ def refuse_unpublished_event_stream_shrink(
         if ancestor_text is None:
             continue
         try:
-            ancestor_events = parse_stream_text(ancestor_text)
+            ancestor_events = _parse_stream_text(ancestor_text)
         except json.JSONDecodeError:
             continue
         head_text = _show_text(repo_root, "HEAD", path)
         if head_text is None:
             continue
         try:
-            head_events = parse_stream_text(head_text)
+            head_events = _parse_stream_text(head_text)
         except json.JSONDecodeError:
             if ignore_unreadable:
                 continue
             errors.append(f"cannot publish unreadable bead event stream {stream_id}")
             continue
-        analysis = analyze_stream_against_ancestor(
+        analysis = _analyze_stream_against_ancestor(
             ancestor_events,
             head_events,
             ancestor_text=ancestor_text,
@@ -257,15 +257,15 @@ def diagnose_event_stream_history(
         if parent_text is None or commit_text is None:
             continue
         try:
-            parent_events = parse_stream_text(parent_text)
+            parent_events = _parse_stream_text(parent_text)
             commit_events = (
-                [] if commit_text is None else parse_stream_text(commit_text)
+                [] if commit_text is None else _parse_stream_text(commit_text)
             )
         except json.JSONDecodeError:
             continue
         commit_streams = _streams_at_rev(repo_root, record.sha, stream_dir)
         parent_streams = _streams_at_rev(repo_root, record.parent, stream_dir)
-        analysis = analyze_stream_against_ancestor(
+        analysis = _analyze_stream_against_ancestor(
             parent_events,
             commit_events,
             ancestor_text=parent_text,
@@ -299,7 +299,7 @@ def diagnose_event_stream_history(
     return messages
 
 
-def parse_stream_text(text: str) -> list[dict[str, Any]]:
+def _parse_stream_text(text: str) -> list[dict[str, Any]]:
     """Parse one JSONL event stream into objects."""
     events: list[dict[str, Any]] = []
     for line in text.splitlines():
@@ -311,7 +311,7 @@ def parse_stream_text(text: str) -> list[dict[str, Any]]:
     return events
 
 
-def encode_stream_events(events: list[dict[str, Any]]) -> str:
+def _encode_stream_events(events: list[dict[str, Any]]) -> str:
     """Encode events the way the Rust store writer emits JSONL."""
     return "".join(
         json.dumps(event, separators=(",", ":"), ensure_ascii=False) + "\n"
@@ -319,7 +319,7 @@ def encode_stream_events(events: list[dict[str, Any]]) -> str:
     )
 
 
-def analyze_stream_against_ancestor(
+def _analyze_stream_against_ancestor(
     ancestor: list[dict[str, Any]],
     local: list[dict[str, Any]],
     *,
@@ -363,7 +363,7 @@ def analyze_stream_against_ancestor(
         )
     restored = list(ancestor)
     restored.extend(extras)
-    suffix = encode_stream_events(extras)
+    suffix = _encode_stream_events(extras)
     prefix = ancestor_text if ancestor_text.endswith("\n") else ancestor_text + "\n"
     return _StreamAnalysis(
         kind="restore_superset",
@@ -509,7 +509,7 @@ def _worktree_streams(
         seen_dirs.add(stream_dir)
         for candidate in sorted(stream_dir.glob("*.jsonl")):
             try:
-                streams[candidate.stem] = parse_stream_text(
+                streams[candidate.stem] = _parse_stream_text(
                     candidate.read_text(encoding="utf-8")
                 )
             except (OSError, json.JSONDecodeError):
@@ -521,7 +521,7 @@ def _read_worktree_events(repo_root: Path, relpath: str) -> list[dict[str, Any]]
     path = repo_root / relpath
     if not path.is_file():
         return []
-    return parse_stream_text(path.read_text(encoding="utf-8"))
+    return _parse_stream_text(path.read_text(encoding="utf-8"))
 
 
 def _write_stream_text(repo_root: Path, relpath: str, text: str) -> None:
@@ -621,13 +621,13 @@ def _streams_at_rev(
     streams: dict[str, list[dict[str, Any]]] = {}
     for relpath in result.stdout.splitlines():
         path = relpath.strip()
-        if not path or not is_event_stream_relpath(path):
+        if not path or not _is_event_stream_relpath(path):
             continue
         text = _show_text(repo_root, rev, path)
         if text is None:
             continue
         try:
-            streams[Path(path).stem] = parse_stream_text(text)
+            streams[Path(path).stem] = _parse_stream_text(text)
         except json.JSONDecodeError:
             continue
     return streams
@@ -693,7 +693,7 @@ def _stream_history_records(
         if len(parts) != 3 or not current_sha or not current_parent:
             continue
         added, deleted, path = parts
-        if not is_event_stream_relpath(path):
+        if not _is_event_stream_relpath(path):
             continue
         if deleted in {"0", "-"} and added != "-":
             continue
@@ -785,12 +785,7 @@ def _subject(subject: str) -> str:
 
 __all__ = [
     "BeadStreamIntegrityError",
-    "StreamIntegrityResult",
-    "analyze_stream_against_ancestor",
     "diagnose_event_stream_history",
-    "encode_stream_events",
-    "is_event_stream_relpath",
-    "parse_stream_text",
     "prepare_event_streams_for_commit",
     "refuse_unpublished_event_stream_shrink",
 ]

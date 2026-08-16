@@ -148,8 +148,7 @@ def _capture_resolver_spans(
 
 def _resolver_cost_table(agents: list[Agent], trace_path: Path) -> dict[str, Any]:
     records = _capture_resolver_spans(agents, trace_path)
-    chunk_size = len(_RESOLVER_SPAN_SUFFIXES) + 1  # + the parent span
-    chunks = [records[i : i + chunk_size] for i in range(0, len(records), chunk_size)]
+    chunks = _resolver_trace_calls(records)
 
     cold_by_suffix: dict[str, list[float]] = {s: [] for s in _RESOLVER_SPAN_SUFFIXES}
     warm_by_suffix: dict[str, list[float]] = {s: [] for s in _RESOLVER_SPAN_SUFFIXES}
@@ -188,6 +187,20 @@ def _resolver_cost_table(agents: list[Agent], trace_path: Path) -> dict[str, Any
         "warm_max_ms": commit_group_summary.get("max_ms", 0.0),
     }
     return table
+
+
+def _resolver_trace_calls(records: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Group variable resolver spans by their enclosing parent span."""
+    calls: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for row in records:
+        current.append(row)
+        if row.get("span") == _TRACE_SPAN_PREFIX:
+            calls.append(current)
+            current = []
+    if current:
+        calls.append(current)
+    return calls
 
 
 def _time_calls(fn: Callable[[], Any], *, runs: int) -> dict[str, float]:
@@ -333,6 +346,36 @@ def test_bench_detail_header_summary_smoke(tmp_path: Path) -> None:
     assert _STANDALONE_SCENARIO in workload["resolver_table"]
     assert "list_artifact_files (total)" in workload["artifact_file_paths_breakdown"]
     assert (tmp_path / "bench.json").exists()
+
+
+def test_resolver_cost_table_groups_missing_optional_spans(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Absent resolver spans must not shift later calls into the wrong bucket."""
+    records = [
+        {
+            "span": f"{_TRACE_SPAN_PREFIX}.skill_uses",
+            "duration_ms": 10.0,
+        },
+        {"span": _TRACE_SPAN_PREFIX, "duration_ms": 11.0},
+        {
+            "span": f"{_TRACE_SPAN_PREFIX}.agent_page_url",
+            "duration_ms": 2.0,
+        },
+        {"span": _TRACE_SPAN_PREFIX, "duration_ms": 3.0},
+    ]
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_capture_resolver_spans",
+        lambda _agents, _trace_path: records,
+    )
+
+    table = _resolver_cost_table([_make_agent(0)], tmp_path / "trace.jsonl")
+
+    assert table["skill_uses"]["cold_p50_ms"] == 10.0
+    assert table["skill_uses"]["warm_p50_ms"] == 0.0
+    assert table["agent_page_url"]["cold_p50_ms"] == 0.0
+    assert table["agent_page_url"]["warm_p50_ms"] == 2.0
 
 
 def main(argv: list[str] | None = None) -> int:

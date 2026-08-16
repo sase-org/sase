@@ -105,13 +105,7 @@ def _snapshot_agent_name_registry(
         _AGENT_PAGE_REGISTRY_SNAPSHOTS.pop(oldest, None)
 
 
-def clear_agent_page_url_registry_cache() -> None:
-    """Clear cached hosted-link registry snapshots for tests and explicit refreshes."""
-    _AGENT_PAGE_REGISTRY_SNAPSHOTS.clear()
-
-
 __all__ = [
     "agent_publishes_page",
-    "clear_agent_page_url_registry_cache",
     "resolve_agent_page_url",
 ]
