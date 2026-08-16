@@ -20,6 +20,15 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SRC_DIR = _REPO_ROOT / "src"
 
+#: The module that defines the sensitive helpers, plus the ``ownership``
+#: facade that re-exports them as the contract's public entry point.
+_DEFINING_MODULES = frozenset(
+    {
+        "sase/workspace_provider/_ownership_paths.py",
+        "sase/workspace_provider/ownership.py",
+    }
+)
+
 _SENSITIVE_NAMES = frozenset(
     {
         "writable_beads_dir",
@@ -48,7 +57,7 @@ def _sensitive_writable_store_importers() -> frozenset[str]:
     importers: set[str] = set()
     for path in sorted(_SRC_DIR.rglob("*.py")):
         relative = path.relative_to(_SRC_DIR).as_posix()
-        if relative == "sase/workspace_provider/ownership.py":
+        if relative in _DEFINING_MODULES:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
         for node in ast.walk(tree):
@@ -57,9 +66,14 @@ def _sensitive_writable_store_importers() -> frozenset[str]:
             module = node.module or ""
             is_absolute_match = module in {
                 "sase.workspace_provider.ownership",
+                "sase.workspace_provider._ownership_paths",
                 "sase.workspace_provider",
             }
-            is_relative_match = node.level > 0 and module in {"ownership", ""}
+            is_relative_match = node.level > 0 and module in {
+                "ownership",
+                "_ownership_paths",
+                "",
+            }
             if not (is_absolute_match or is_relative_match):
                 continue
             names = {alias.name for alias in node.names}
