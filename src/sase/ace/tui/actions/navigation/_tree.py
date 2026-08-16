@@ -394,19 +394,25 @@ class TreeNavigationMixin(NavigationMixinBase):
 
     def _change_query_for_navigation(
         self,
-        target_name: str,
-        is_ancestor: bool,
-        is_sibling: bool = False,
-    ) -> None:
-        """Change query to navigate to a target not in current list.
+        target: ArtifactEntryTarget,
+        role: RelationRole,
+    ) -> bool:
+        """Rewrite the composed Patch query to reveal a filtered-out target.
 
-        Uses appropriate query based on navigation type:
-        - For sibling navigation: sibling:<base_name> (strips __<N> suffix)
-        - For ancestor navigation: ancestor:<ancestor_name>
-        - For child navigation: ancestor:<current_name>
+        The rewrite itself is driven by the active contract's relation
+        declarations plus the compiled Patch query profile
+        (:func:`~sase.ace.relation_reveal.build_relation_reveal_query`)
+        rather than a hard-coded ``ancestor:``/``sibling:`` token, and is
+        wrapped in a :class:`~sase.ace.relation_reveal.RelationReveal` lens
+        so the shell can advertise a way back through the existing
+        `prev_query` (``^``) history stack. Returns whether the rewrite
+        happened; a relation with no matching query-profile field reports
+        ``False`` so the caller can fall back to a dangling notice instead
+        of writing an unparseable query.
         """
-        from sase.core.patch import strip_reverted_suffix
+        from sase.core.artifact_relation_layout import assign_relation_roles
 
+        from ...widgets.artifacts.patch_entry import patch_row_target
         from ....query import to_canonical_string
         from ....query_history import (
             QueryHistoryStacks,
@@ -414,30 +420,42 @@ class TreeNavigationMixin(NavigationMixinBase):
             save_query_history,
         )
         from ....query_record import QueryRecord
+        from ....relation_reveal import (
+            build_relation_reveal_query,
+            make_relation_reveal,
+        )
 
-        if is_sibling:
-            # For sibling navigation: use sibling:<base_name>
-            current_cs = self.patches[self.current_idx]
-            base_name = strip_reverted_suffix(current_cs.name)
-            new_query = f"sibling:{base_name}"
-        elif is_ancestor:
-            # Going to ancestor: use ancestor's name
-            new_query = f"ancestor:{target_name}"
-        else:
-            # Going to child: use current Patch's name
-            # This shows all descendants of current
-            current_cs = self.patches[self.current_idx]
-            new_query = f"ancestor:{current_cs.name}"
+        if not self.patches or not 0 <= self.current_idx < len(self.patches):
+            return False
+        origin_patch = self.patches[self.current_idx]
+        target_name = target.parts[-1] if target.parts else ""
+        if not target_name:
+            return False
+
+        new_query = build_relation_reveal_query(
+            self._patch_profile(),  # type: ignore[attr-defined]
+            role,
+            origin_name=origin_patch.name,
+            target_name=target_name,
+        )
+        if new_query is None:
+            return False
+
+        contract = self._relation_contract()
+        relations = contract.relations if contract is not None else ()
+        roles = assign_relation_roles(relations)
+        decl = next((item for item in relations if roles.get(item.name) is role), None)
 
         try:
             new_parsed = self._parse_patch_query(new_query)  # type: ignore[attr-defined]
             new_canonical = to_canonical_string(new_parsed)
             current_canonical = self.canonical_query_string  # type: ignore[attr-defined]
+            origin_source = self.query_string
 
-            # Push to history (this navigation is Patches-only)
             if new_canonical != current_canonical:
+                self._save_selection_for_current_query()  # type: ignore[attr-defined]
                 current_record = QueryRecord(
-                    source=self.query_string, canonical=current_canonical
+                    source=origin_source, canonical=current_canonical
                 )
                 stacks = self._query_history.setdefault(
                     "patches", QueryHistoryStacks(prev=[], next=[])
@@ -454,6 +472,25 @@ class TreeNavigationMixin(NavigationMixinBase):
             target_idx = self._find_in_current_list(target_name)
             if target_idx is not None:
                 self.current_idx = target_idx
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"{target_name} is not reachable through {new_query}",
+                    severity="warning",
+                )
+
+            if decl is not None:
+                self._relation_reveals["patches"] = make_relation_reveal(
+                    pane_id="patches",
+                    relation=decl.name,
+                    role=role,
+                    label=decl.label,
+                    origin_source=origin_source,
+                    origin_canonical=current_canonical,
+                    origin_target=patch_row_target(origin_patch),
+                    revealed_canonical=new_canonical,
+                )
+            return True
 
         except Exception as e:
             self.notify(f"Navigation error: {e}", severity="error")  # type: ignore[attr-defined]
+            return False

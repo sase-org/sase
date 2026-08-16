@@ -11,6 +11,7 @@ from sase.ace.tui.widgets.artifacts.shell import (
     build_degraded_card,
     build_empty_card,
     build_footer_hints,
+    build_reveal_chip,
     build_shell_scope,
     build_state_badge,
     resolve_pane_state,
@@ -140,6 +141,15 @@ def test_build_shell_scope_uses_non_plan_provider_accent() -> None:
     assert any("#5FAFFF" in str(style) for style in styles)
     assert "#AF87FF" not in text.plain
     assert not any("#AF87FF" in str(style) for style in styles)
+
+
+def test_build_reveal_chip_names_relation_and_return_key() -> None:
+    text = build_reveal_chip(label="Ancestors", accent="#87D7FF", return_hint="^")
+    assert "Ancestors" in text.plain
+    assert "^" in text.plain
+    assert "to return" in text.plain
+    styles = {str(span.style) for span in text.spans}
+    assert any("#87D7FF" in style for style in styles)
 
 
 @pytest.mark.parametrize(

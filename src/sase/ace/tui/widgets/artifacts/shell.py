@@ -114,6 +114,27 @@ def build_shell_scope(
     return text
 
 
+def build_reveal_chip(
+    *,
+    label: str,
+    accent: str,
+    return_hint: str,
+) -> Text:
+    """Build the reversible relation-reveal lens chip.
+
+    Shown only while a pane's live query is exactly the rewrite a relation
+    jump produced (:func:`sase.ace.relation_reveal.is_relation_reveal_active`
+    decides that, not this renderer). Names the relation that caused the
+    rewrite and the existing key that returns to the composed query the
+    jump left behind -- no new binding, this reuses `prev_query`.
+    """
+
+    text = Text()
+    text.append(f" ↩ {label} ", style=f"bold #1a1a1a on {accent}")
+    text.append(f"  {return_hint} to return", style="dim")
+    return text
+
+
 def build_state_badge(
     pane_state: ArtifactsPaneState,
     *,
@@ -230,6 +251,7 @@ __all__ = [
     "build_degraded_card",
     "build_empty_card",
     "build_footer_hints",
+    "build_reveal_chip",
     "build_shell_scope",
     "build_state_badge",
     "resolve_pane_state",

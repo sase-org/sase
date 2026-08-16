@@ -200,17 +200,9 @@ class ArtifactsPatchesPane(
         *,
         role: RelationRole,
     ) -> bool:
-        """Preserve the legacy Patch query rewrite for filtered relation targets."""
+        """Rewrite the composed query to reveal a filtered relation target."""
         app = cast(Any, self.app)
-        target_name = target.parts[-1] if target.parts else ""
-        if not target_name:
-            return False
-        app._change_query_for_navigation(
-            target_name,
-            role is RelationRole.ANCESTOR,
-            role is RelationRole.FAMILY,
-        )
-        return True
+        return bool(app._change_query_for_navigation(target, role))
 
     def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
         del origin

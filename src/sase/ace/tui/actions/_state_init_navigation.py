@@ -164,6 +164,7 @@ def init_navigation_state(self: Any) -> None:
     from sase.core.artifact_relation_layout import EMPTY_RELATION_KEYMAP
 
     self._relation_keymap = EMPTY_RELATION_KEYMAP
+    self._relation_reveals = {}  # Reversible lens state, keyed by pane id
     from ...patch import Patch
 
     self._all_patches = []  # Cache for ancestry lookup

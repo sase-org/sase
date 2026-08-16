@@ -54,6 +54,8 @@ class PatchInfoPanel(Static):
         self._fold_deltas: FoldLevel = FoldLevel.COLLAPSED
         self._grouping_label: str = "by project"
         self._registry: KeymapRegistry = load_keymap_registry({})
+        self._reveal_label: str | None = None
+        self._reveal_accent: str = "#87D7FF"
 
     @property
     def _fold_commits(self) -> FoldLevel:
@@ -76,6 +78,21 @@ class PatchInfoPanel(Static):
         """
         if self._grouping_label != label:
             self._grouping_label = label
+            self._refresh_content()
+
+    def update_reveal(self, label: str | None, *, accent: str = "#87D7FF") -> None:
+        """Show or clear the reversible relation-reveal lens chip.
+
+        Args:
+            label: The relation label to name in the chip (e.g.
+                ``"Ancestors"``), or ``None`` while no relation reveal is
+                active for this pane.
+            accent: The relation's declared accent; defaults to Patch's own
+                relation-panel accent.
+        """
+        if self._reveal_label != label or self._reveal_accent != accent:
+            self._reveal_label = label
+            self._reveal_accent = accent
             self._refresh_content()
 
     def update_position(self, position: int, total: int, marked_count: int = 0) -> None:
@@ -209,6 +226,18 @@ class PatchInfoPanel(Static):
         if second_line.plain:
             text.append("\n")
             text.append_text(second_line)
+
+        if self._reveal_label is not None:
+            from .artifacts.shell import build_reveal_chip
+
+            text.append("\n")
+            text.append_text(
+                build_reveal_chip(
+                    label=self._reveal_label,
+                    accent=self._reveal_accent,
+                    return_hint=key_display_name(self._registry.app.prev_query),
+                )
+            )
 
         return text
 

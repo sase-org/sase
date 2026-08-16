@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ....query.types import QueryExpr
+    from ....relation_reveal import RelationReveal
     from ...models.fold_state import FoldLevel
     from ...util.debounce import DetailPanelDebouncer
 
@@ -55,6 +56,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
     _entry_jump_index_to_hint: dict[int, str]
     _all_patches: list[Patch]
     _relation_keymap: Any
+    _relation_reveals: dict[str, RelationReveal]
     _hidden_reverted_count: int
     _hidden_submitted_count: int
     _patch_detail_debouncer: DetailPanelDebouncer
@@ -500,3 +502,13 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         )
         info_panel.update_grouping_mode(_PATCH_GROUPING_BADGE_LABELS[cs_mode])
         info_panel.update_countdown(self._countdown_remaining, self.refresh_interval)  # type: ignore[attr-defined]
+
+        from ....relation_reveal import is_relation_reveal_active
+
+        reveal = self._relation_reveals.get("patches")  # type: ignore[attr-defined]
+        active = is_relation_reveal_active(
+            reveal,
+            pane_id="patches",
+            current_canonical=self.canonical_query_string,  # type: ignore[attr-defined]
+        )
+        info_panel.update_reveal(reveal.label if active and reveal else None)
