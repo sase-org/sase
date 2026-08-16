@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
+from sase.ace.tui._artifact_tab_model import PanePresentation, PaneSortField
 from sase.bead.model import Issue
 
 from . import plans_data_documents as _documents
@@ -44,6 +46,7 @@ from .plans_data_sources import (
     timestamp_recency_key as _timestamp_recency_key,
     yaml_value_to_string as _yaml_value_to_string,
 )
+from .provider_documents import provider_document_field_value
 
 # Preserve loader seams patched by focused tests and external integrations.
 _linked_plan_signature = _documents._linked_plan_signature
@@ -56,6 +59,8 @@ def load_plans_snapshot(
     *,
     provider_kind: str = "plan",
     provider_label: str | None = None,
+    provider_presentation: PanePresentation | None = None,
+    provider_presentation_digest: str = "",
     previous: PlansSnapshot | None = None,
     force: bool = False,
 ) -> PlansSnapshot:
@@ -65,6 +70,7 @@ def load_plans_snapshot(
     contribute only their plan-link projection; no bead becomes a Plans row.
     """
     resolved = _resolve_projects(project)
+    presentation = provider_presentation or PanePresentation()
     project_names = tuple(item.project for item in resolved)
     enabled_projects = frozenset(project_names)
     proposals = (
@@ -100,6 +106,7 @@ def load_plans_snapshot(
 
     base_source_key = (
         provider_kind,
+        provider_presentation_digest,
         project,
         tuple(
             (item.project, item.display_name, item.workspace_dir) for item in resolved
@@ -226,7 +233,10 @@ def load_plans_snapshot(
         for entry in archive_candidates
         if entry.match.plan.path not in active_by_path
     ]
-    archive.sort(key=_archive_recency_key, reverse=True)
+    if provider_kind == "plan" or not presentation.default_sort:
+        archive.sort(key=_archive_recency_key, reverse=True)
+    else:
+        archive.sort(key=lambda entry: _provider_archive_sort_key(entry, presentation))
     merged_archive_truncated = len(archive) > _ARCHIVE_MERGED_LIMIT
     archive_truncated = archive_truncated or merged_archive_truncated
     if merged_archive_truncated:
@@ -256,7 +266,49 @@ def load_plans_snapshot(
         archive_truncated=archive_truncated,
         provider_kind=provider_kind,
         provider_label=provider_label or _provider_label(provider_kind),
+        provider_presentation_digest=provider_presentation_digest,
+        provider_presentation=presentation,
     )
+
+
+def _provider_archive_sort_key(
+    entry: ProjectArchive,
+    presentation: PanePresentation,
+) -> tuple[object, ...]:
+    parts: list[object] = []
+    for item in presentation.default_sort:
+        value = provider_document_field_value(entry, item.field).strip()
+        parts.append((not value, _sort_value(value, item)))
+    plan = entry.match.plan
+    parts.append((plan.path, entry.project, plan.relpath))
+    return tuple(parts)
+
+
+def _sort_value(value: str, sort: PaneSortField) -> object:
+    parsed = _parse_sort_timestamp(value)
+    desc = sort.direction == "desc"
+    if parsed is not None:
+        timestamp = parsed.timestamp()
+        return (0, -timestamp if desc else timestamp)
+    folded = value.casefold()
+    if desc:
+        return (1, tuple(-ord(char) for char in folded))
+    return (1, folded)
+
+
+def _parse_sort_timestamp(value: str) -> datetime | None:
+    raw = value.strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        from sase.core.time import get_timezone
+
+        parsed = parsed.replace(tzinfo=get_timezone())
+    return parsed
 
 
 def _active_timestamp(entry: ActivePlanDocument) -> str:

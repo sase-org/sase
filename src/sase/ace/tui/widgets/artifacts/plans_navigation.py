@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from textual.widgets import Markdown, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui._artifact_tab_model import PanePresentation
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
 from sase.sidecar_ref_config import sidecar_role_ref_kind
@@ -20,11 +21,14 @@ from .entry_navigation import (
     schedule_option_list_highlight_reveal,
 )
 from .plans_data import PlansSnapshot
+from .plans_data_models import ProjectArchive
 from .plans_detail import (
     active_plan_properties_header,
     archive_preview_markdown,
     archive_properties_header,
     provider_detail_fields,
+    provider_document_preview_markdown,
+    provider_document_properties_header,
     proposal_properties_header,
 )
 from .plans_list import PlanRow, plan_row_target
@@ -298,6 +302,18 @@ class PlansNavigationMixin(_MixinBase):
         if row.archive is not None:
             plan = row.archive.plan
             role = sidecar_role_ref_kind(row.archive_role or PLAN_REFERENCE_KIND)
+            if row.ref_kind != "plan":
+                entry = ProjectArchive(row.project, row.archive, role)
+                return PreviewPayload(
+                    content=provider_document_preview_markdown(entry),
+                    lexer="markdown",
+                    title=plan.title or plan.name,
+                    kind_label=row.ref_kind,
+                    icon="▤",
+                    source_path=plan.path,
+                    reference=f"{role}:{plan.relpath}",
+                    default_view="rendered",
+                )
             return PreviewPayload(
                 content=archive_preview_markdown(row.archive, role=role),
                 lexer="markdown",
@@ -351,17 +367,46 @@ class PlansNavigationMixin(_MixinBase):
             self.refresh_relation_panel()
         elif row.archive is not None:
             properties.display = True
-            properties.update(
-                archive_properties_header(
-                    row.archive,
-                    project_name=self._project_name(row.project),
-                    role=sidecar_role_ref_kind(row.archive_role or PLAN_REFERENCE_KIND),
-                    owner=row.bead_link,
-                    detail_fields=detail_fields,
+            if row.ref_kind == "plan":
+                properties.update(
+                    archive_properties_header(
+                        row.archive,
+                        project_name=self._project_name(row.project),
+                        role=sidecar_role_ref_kind(
+                            row.archive_role or PLAN_REFERENCE_KIND
+                        ),
+                        owner=row.bead_link,
+                        detail_fields=detail_fields,
+                    )
                 )
+            else:
+                role = sidecar_role_ref_kind(row.archive_role or row.ref_kind)
+                presentation = self._provider_presentation()
+                properties.update(
+                    provider_document_properties_header(
+                        ProjectArchive(row.project, row.archive, role),
+                        project_name=self._project_name(row.project),
+                        detail_fields=detail_fields,
+                        title_field=presentation.row.title,
+                    )
+                )
+            fallback = (
+                "_No plan body._"
+                if row.ref_kind == "plan"
+                else f"_No {row.ref_kind} body._"
             )
-            body.update(row.archive.plan.body or "_No plan body._")
+            body.update(row.archive.plan.body or fallback)
             self.refresh_relation_panel()
+
+    def _provider_presentation(self) -> PanePresentation:
+        contract = getattr(self, "contract", None)
+        if contract is not None:
+            return contract.presentation
+        snapshot = self._snapshot
+        if snapshot is not None:
+            return snapshot.provider_presentation
+
+        return PanePresentation()
 
     def _project_name(self, project: str) -> str:
         snapshot = self._snapshot

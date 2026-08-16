@@ -8,12 +8,17 @@ from pathlib import Path
 
 from rich.text import Text
 
+from sase.ace.tui._artifact_tab_model import PaneEmptyState, PanePresentation
 from sase.bead_status_presentation import bead_status_presentation
 from sase.core.time import parse_local
 from sase.plan_search.model import PlanSearchMatch
 
 from ...keymaps import KeymapRegistry, key_display_name
-from .plans_data import ActivePlanDocument, PlanProposal, PlansSnapshot
+from .plans_data import ActivePlanDocument, PlanProposal, PlansSnapshot, ProjectArchive
+from .provider_documents import (
+    provider_document_field_value,
+    provider_document_field_values,
+)
 from .shell import (
     ArtifactsPaneState,
     build_footer_hints,
@@ -73,6 +78,21 @@ def build_plans_status(
         if snapshot.project is None:
             text.append(f"{len(snapshot.projects)} projects", style="bold white")
             text.append("  ·  ", style="dim")
+        if snapshot.provider_kind != "plan":
+            text.append(
+                _matched_count_label(
+                    matched_counts,
+                    "archive",
+                    len(snapshot.archive) if archive_total is None else archive_total,
+                    f"{snapshot.provider_label.lower()} docs",
+                ),
+                style=accent,
+            )
+            if snapshot.archive_truncated:
+                text.append(" (newest shown)", style="dim")
+            if snapshot.errors:
+                _append_snapshot_errors(text, snapshot)
+            return text
         text.append(
             _matched_count_label(
                 matched_counts, "proposal", len(snapshot.proposals), "proposals"
@@ -100,12 +120,7 @@ def build_plans_status(
             archive_label += " (newest shown)"
         text.append(archive_label, style="#00D7AF")
         if snapshot.errors:
-            text.append("  ·  ", style="dim")
-            error_projects = ", ".join(
-                snapshot.display_names.get(project, project)
-                for project in sorted(snapshot.errors)
-            )
-            text.append(f"Load errors: {error_projects}", style="bold #FF5F5F")
+            _append_snapshot_errors(text, snapshot)
     return text
 
 
@@ -135,17 +150,21 @@ def build_empty_plan_detail(
     load_error: str | None,
     has_active_filter: bool = False,
     matched_total: int | None = None,
+    empty_state: PaneEmptyState | None = None,
+    provider_label: str = "Plan",
 ) -> str:
     if loading and snapshot is None:
-        return "# Plans\n\nLoading plan documents…"
+        return f"# {provider_label}s\n\nLoading {provider_label.lower()} documents…"
     if load_error and snapshot is None:
-        return f"# Plans unavailable\n\n{load_error}"
+        return f"# {provider_label}s unavailable\n\n{load_error}"
     if has_active_filter and matched_total == 0:
         return (
             "# No matches\n\n"
-            "No plan documents match the active filter. Press the filter key "
+            f"No {provider_label.lower()} documents match the active filter. Press the filter key "
             "to edit or clear it."
         )
+    if empty_state is not None:
+        return f"# {empty_state.title}\n\n{empty_state.body}"
     message = (
         "Select a proposal, active plan, or archived plan from all enabled projects."
         if project_scope is None
@@ -229,6 +248,37 @@ def archive_text(
     return text
 
 
+def provider_document_text(
+    entry: ProjectArchive,
+    *,
+    presentation: PanePresentation,
+    project_badge: str | None = None,
+    accent: str = ARTIFACTS_ACCENTS["plans"],
+) -> Text:
+    """Render one generic provider document from declared row fields."""
+
+    row = presentation.row
+    title = (
+        provider_document_field_value(entry, row.title)
+        or entry.match.plan.title
+        or entry.match.plan.name
+    )
+    text = single_line_text("▤ ", style=f"bold {accent}")
+    text.append(title, style="white")
+    for field in row.badges:
+        _append_provider_badge(text, entry, field, accent=accent)
+    for field in row.secondary:
+        value = provider_document_field_value(entry, field).strip()
+        if value:
+            text.append(f"  {value}", style="dim")
+    for field in row.list_fields:
+        values = provider_document_field_values(entry, field)
+        if values:
+            text.append(f"  {', '.join(values[:3])}", style="dim")
+    _append_project_badge(text, project_badge)
+    return text
+
+
 def single_line_text(text: str = "", *, style: str = "") -> Text:
     return Text(text, style=style, no_wrap=True, overflow="ellipsis")
 
@@ -251,9 +301,31 @@ def _matched_count_label(
     return f"{count} {noun}"
 
 
+def _append_snapshot_errors(text: Text, snapshot: PlansSnapshot) -> None:
+    text.append("  ·  ", style="dim")
+    error_projects = ", ".join(
+        snapshot.display_names.get(project, project)
+        for project in sorted(snapshot.errors)
+    )
+    text.append(f"Load errors: {error_projects}", style="bold #FF5F5F")
+
+
 def _append_project_badge(text: Text, project_badge: str | None) -> None:
     if project_badge:
         text.append(f"  [{project_badge}]", style="dim")
+
+
+def _append_provider_badge(
+    text: Text,
+    entry: ProjectArchive,
+    field: str,
+    *,
+    accent: str,
+) -> None:
+    values = provider_document_field_values(entry, field)
+    if not values:
+        return
+    text.append(f"  {', '.join(values[:2])}", style=f"bold {accent}")
 
 
 def _document_title(path: str, frontmatter: dict[str, str]) -> str:
@@ -314,6 +386,7 @@ __all__ = [
     "build_plans_scope",
     "build_plans_status",
     "project_badge",
+    "provider_document_text",
     "proposal_text",
     "single_line_text",
 ]

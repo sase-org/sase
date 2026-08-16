@@ -21,9 +21,11 @@ from .plans_rendering import (
     active_plan_text,
     archive_text,
     project_badge,
+    provider_document_text,
     proposal_text,
     single_line_text,
 )
+from .provider_documents import provider_document_field_value
 from .types import ARTIFACTS_ACCENTS
 
 PlanRowKind = Literal["proposal", "active", "archive"]
@@ -87,7 +89,13 @@ def _plan_status_value(row: PlanRow) -> str:
     return ""
 
 
-def _plan_row_key_values(row: PlanRow, mode_id: str) -> tuple[str, ...]:
+def _plan_row_key_values(row: PlanRow, mode: PaneGroupingModeDecl) -> tuple[str, ...]:
+    mode_id = mode.id
+    if row.ref_kind != "plan" and row.archive is not None:
+        entry = ProjectArchive(
+            row.project, row.archive, row.archive_role or row.ref_kind
+        )
+        return tuple(provider_document_field_value(entry, key) for key in mode.keys)
     if mode_id == "by_kind":
         return (row.kind, _plan_tier_value(row))
     if mode_id == "by_status":
@@ -128,7 +136,7 @@ def build_grouped_plan_rows(
         pane_id=f"ref:{snapshot.provider_kind}",
         mode_id=mode.id,
         keys=mode.keys,
-        key_values=lambda row: _plan_row_key_values(row, mode.id),
+        key_values=lambda row: _plan_row_key_values(row, mode),
         label_for=lambda level, value: _plan_group_label(
             mode.id, level, value, display_names=snapshot.display_names
         ),
@@ -258,11 +266,19 @@ def build_plan_options(
         )
         rows[row.row_id] = row
         ordered_rows.append(row)
-        row_texts[row.row_id] = archive_text(
-            project_archive.match,
-            project_badge=project_badge(snapshot, project_archive.project),
-            accent=accent,
-        )
+        if snapshot.provider_kind == "plan":
+            row_texts[row.row_id] = archive_text(
+                project_archive.match,
+                project_badge=project_badge(snapshot, project_archive.project),
+                accent=accent,
+            )
+        else:
+            row_texts[row.row_id] = provider_document_text(
+                project_archive,
+                presentation=snapshot.provider_presentation,
+                project_badge=project_badge(snapshot, project_archive.project),
+                accent=accent,
+            )
 
     options: list[Option] = []
     known_group_keys: tuple[tuple[str, ...], ...] = ()
@@ -304,12 +320,17 @@ def build_plan_options(
                 marks=active_marks,
             )
 
-    if not visible_proposals:
-        options.append(_empty_option("proposals", filter_active, pending=True))
-    if not visible_active:
-        options.append(_empty_option("active plans", filter_active))
-    if not visible_archive:
-        options.append(_empty_option("committed plans", filter_active))
+    if snapshot.provider_kind == "plan":
+        if not visible_proposals:
+            options.append(_empty_option("proposals", filter_active, pending=True))
+        if not visible_active:
+            options.append(_empty_option("active plans", filter_active))
+        if not visible_archive:
+            options.append(_empty_option("committed plans", filter_active))
+    elif not visible_archive:
+        options.append(
+            _empty_option(f"{snapshot.provider_label.lower()} documents", filter_active)
+        )
     return options, rows, known_group_keys
 
 

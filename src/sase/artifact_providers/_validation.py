@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import Any
 
 from sase.core.rust import require_rust_binding
-from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON
+from sase.sidecar_ref_config import DEFAULT_DOCUMENT_TAB_ICON, REF_PANE_CONFIG_KEY
 
 from ._models import (
     ArtifactProviderDiagnostic,
@@ -24,8 +24,9 @@ ProviderCandidate = tuple[Mapping[str, Any], ArtifactProviderProvenance]
 def validate_ref_provider_spec(spec: Mapping[str, Any]) -> str:
     """Validate *spec* through Rust and return its stable digest."""
 
-    require_rust_binding("artifact_ref_provider_spec_validate")(dict(spec))
-    return str(require_rust_binding("artifact_ref_provider_spec_digest")(dict(spec)))
+    rust_spec = _rust_ref_provider_spec(spec)
+    require_rust_binding("artifact_ref_provider_spec_validate")(rust_spec)
+    return str(require_rust_binding("artifact_ref_provider_spec_digest")(rust_spec))
 
 
 def validate_ref_providers(
@@ -336,6 +337,16 @@ def _plain_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:
         else:
             result[text_key] = item
     return result
+
+
+def _rust_ref_provider_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the schema-v1 wire spec, excluding Python-only pane metadata."""
+
+    plain = _plain_mapping(spec)
+    ref = plain.get("ref")
+    if isinstance(ref, dict):
+        ref.pop(REF_PANE_CONFIG_KEY, None)
+    return plain
 
 
 __all__ = [

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from sase.ace.tui._artifact_tab_model import PanePresentation
 from sase.notifications.models import Notification
 from sase.plan_search.model import PlanSearchMatch
 
@@ -85,6 +86,8 @@ class PlansSnapshot:
     archive_truncated: bool = False
     provider_kind: str = "plan"
     provider_label: str = "Plan"
+    provider_presentation_digest: str = ""
+    provider_presentation: PanePresentation = field(default_factory=PanePresentation)
 
 
 @dataclass(frozen=True)

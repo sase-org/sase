@@ -115,7 +115,7 @@ def provider_descriptors(
         "files",
     )
     descriptors: list[ArtifactsTabDescriptor] = []
-    for kind in sorted(kinds, key=_natural_label_key):
+    for kind in kinds:
         records = by_kind.get(kind, [])
         kind_issues = issues_by_kind.get(kind, [])
         descriptors.append(
@@ -126,7 +126,7 @@ def provider_descriptors(
                 configured_pane_ids=configured_pane_ids,
             )
         )
-    return tuple(descriptors)
+    return tuple(sorted(descriptors, key=_provider_descriptor_sort_key))
 
 
 def assign_artifacts_digit_shortcuts(
@@ -320,6 +320,17 @@ def _natural_label_key(value: str) -> tuple[object, ...]:
     return tuple(
         int(part) if part.isdigit() else part.casefold()
         for part in re.split(r"(\d+)", value)
+    )
+
+
+def _provider_descriptor_sort_key(
+    descriptor: ArtifactsTabDescriptor,
+) -> tuple[int, tuple[object, ...], tuple[object, ...]]:
+    contract = descriptor.contract
+    return (
+        0 if contract is None else contract.order,
+        _natural_label_key(descriptor.label),
+        _natural_label_key(descriptor.provider_kind or descriptor.id),
     )
 
 

@@ -16,7 +16,7 @@ binding and CLI explainability surfaces.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, get_args
 
 from sase.ace.query.tokenizer import STATUS_SHORTHANDS
@@ -364,6 +364,7 @@ _PROVIDER_TYPE_KINDS: dict[str, FieldValueKind] = {
     "boolean": "bool",
     "int": "int",
     "integer": "int",
+    "enum": "enum",
 }
 
 
@@ -385,11 +386,12 @@ def provider_query_schema(
     if isinstance(properties, Mapping):
         for name in sorted(str(key) for key in properties if str(key)):
             declared = properties[name]
-            value_kind, repeatable = _provider_value_kind(declared)
+            value_kind, repeatable, static_values = _provider_value_kind(declared)
             fields.append(
                 QueryFieldSpec(
                     key=name,
                     value_kind=value_kind,
+                    static_values=static_values,
                     searchable=_provider_searchable(declared, value_kind),
                     repeatable=repeatable,
                     negatable=True,
@@ -408,15 +410,27 @@ def provider_query_schema(
     )
 
 
-def _provider_value_kind(declared: object) -> tuple[FieldValueKind, bool]:
+def _provider_value_kind(
+    declared: object,
+) -> tuple[FieldValueKind, bool, tuple[str, ...]]:
     if not isinstance(declared, Mapping):
-        return "string", False
+        return "string", False, ()
     raw_type = declared.get("type")
     if raw_type == "string_list":
-        return "string", True
+        return "string", True, ()
     if isinstance(raw_type, str):
-        return _PROVIDER_TYPE_KINDS.get(raw_type, "string"), False
-    return "string", False
+        value_kind = _PROVIDER_TYPE_KINDS.get(raw_type, "string")
+        return value_kind, False, _enum_values(declared) if value_kind == "enum" else ()
+    return "string", False, ()
+
+
+def _enum_values(declared: Mapping[str, Any]) -> tuple[str, ...]:
+    values = declared.get("values")
+    if not isinstance(values, Sequence) or isinstance(values, (str, bytes, bytearray)):
+        return ()
+    return tuple(
+        dict.fromkeys(item.strip() for item in values if isinstance(item, str) and item)
+    )
 
 
 def _provider_searchable(declared: object, value_kind: FieldValueKind) -> bool:

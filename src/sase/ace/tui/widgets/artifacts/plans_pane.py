@@ -248,6 +248,12 @@ class ArtifactsDocumentsPane(
             request.project,
             provider_kind=self.provider_kind,
             provider_label=self.provider_label,
+            provider_presentation=(
+                self.contract.presentation if self.contract is not None else None
+            ),
+            provider_presentation_digest=(
+                self.contract.presentation_digest if self.contract is not None else ""
+            ),
             previous=previous,
             force=request.force,
         )

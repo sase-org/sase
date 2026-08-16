@@ -56,6 +56,7 @@ class PlansFilterSessionMixin(_MixinBase):
     _query_profile: Any
     _query_index: Any
     _query_session: Any
+    contract: Any
     _load_generation: int
 
     if TYPE_CHECKING:
@@ -193,13 +194,22 @@ class PlansFilterSessionMixin(_MixinBase):
 
     def _set_filter_completion_sources(self) -> None:
         if self._query_profile.pane_id != "ref:plan" and self._query_index is not None:
-            self.query_one(PlanFilterBar).set_observed_facets(
-                {
-                    key: values
-                    for key, values in self._query_index.facets.items()
-                    if key not in {"since", "until"}
-                }
+            declared_facets = (
+                self.contract.presentation.facets
+                if getattr(self, "contract", None) is not None
+                else ()
             )
+            facets = {
+                key: values
+                for key, values in self._query_index.facets.items()
+                if key not in {"since", "until"}
+            }
+            if declared_facets:
+                allowed = set(declared_facets)
+                facets = {
+                    key: values for key, values in facets.items() if key in allowed
+                }
+            self.query_one(PlanFilterBar).set_observed_facets(facets)
             return
         snapshot = self._snapshot
         index = self._ensure_filter_index(needed=True)

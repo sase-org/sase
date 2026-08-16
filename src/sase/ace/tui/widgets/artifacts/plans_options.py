@@ -431,6 +431,12 @@ class PlansOptionsMixin(_MixinBase):
             load_error=self._load_error,
             has_active_filter=not self.filters.is_empty,
             matched_total=matched_total,
+            empty_state=(
+                self.contract.empty_state
+                if self.contract is not None and not self.contract.is_plan_adapter()
+                else None
+            ),
+            provider_label=self.provider_label,
         )
 
     def _update_status(self) -> None:

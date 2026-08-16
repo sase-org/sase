@@ -242,11 +242,59 @@ class PaneEmptyState:
 
 
 @dataclass(frozen=True, slots=True)
+class PaneRowPresentation:
+    """Provider-safe fields used to render one generic document row."""
+
+    title: str = "title"
+    badges: tuple[str, ...] = ()
+    secondary: tuple[str, ...] = ()
+    list_fields: tuple[str, ...] = ()
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "badges": list(self.badges),
+            "secondary": list(self.secondary),
+            "list_fields": list(self.list_fields),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PaneSortField:
+    """One safe provider-declared default sort key."""
+
+    field: str
+    direction: Literal["asc", "desc"] = "asc"
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"field": self.field, "direction": self.direction}
+
+
+@dataclass(frozen=True, slots=True)
+class PanePresentation:
+    """Normalized Python-owned presentation data for provider panes."""
+
+    description: str = ""
+    row: PaneRowPresentation = field(default_factory=PaneRowPresentation)
+    default_sort: tuple[PaneSortField, ...] = ()
+    facets: tuple[str, ...] = ()
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "description": self.description,
+            "row": self.row.to_payload(),
+            "default_sort": [item.to_payload() for item in self.default_sort],
+            "facets": list(self.facets),
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ArtifactsPaneContract:
     """Immutable, widget-free behavioral contract for one Artifacts pane."""
 
     id: str
     label: str
+    description: str
     icon: str
     accent: str
     order: int
@@ -260,6 +308,7 @@ class ArtifactsPaneContract:
     query_profile: CompiledQueryProfile
     relations: tuple[PaneRelationDecl, ...]
     grouping: PaneGroupingDecl
+    presentation: PanePresentation
     detail_fields: tuple[str, ...]
     status_counters: tuple[PaneStatusCounter, ...]
     empty_state: PaneEmptyState
@@ -291,6 +340,7 @@ class ArtifactsPaneContract:
         return {
             "id": self.id,
             "label": self.label,
+            "description": self.description,
             "icon": self.icon,
             "accent": self.accent,
             "order": self.order,
@@ -311,6 +361,7 @@ class ArtifactsPaneContract:
             "query_profile": self.query_profile.to_wire(),
             "relations": [item.to_payload() for item in self.relations],
             "grouping": self.grouping.to_payload(),
+            "presentation": self.presentation.to_payload(),
             "status_counters": [
                 {"name": item.name, "field": item.field}
                 for item in self.status_counters
@@ -328,6 +379,7 @@ class ArtifactsTabDescriptor:
     label: str
     accent: str
     pane_id: str
+    description: str = ""
     icon: str = ""
     provider_kind: str | None = None
     provider_spec_digest: str | None = None

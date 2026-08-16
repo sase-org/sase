@@ -92,6 +92,7 @@ def _document_spec(
     capabilities: dict[str, object] | None = None,
     relations: list[object] | None = None,
     grouping: dict[str, object] | None = None,
+    pane: dict[str, object] | None = None,
 ) -> dict[str, object]:
     ref: dict[str, object] = {
         "kind": kind,
@@ -117,6 +118,8 @@ def _document_spec(
         ref["relations"] = relations
     if grouping is not None:
         ref["grouping"] = grouping
+    if pane is not None:
+        ref["pane"] = pane
     return {
         "schema_version": 1,
         "provider": kind,

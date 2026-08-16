@@ -111,6 +111,58 @@ def test_sidecar_ref_use_and_equivalent_inline_normalize_identically(
     assert use_policy.path_globs == ("2026/**/*.md",)
 
 
+def test_sidecar_ref_pane_normalizes_without_changing_provider_digest(
+    tmp_path: Path,
+) -> None:
+    pane = {
+        "label": "Plans",
+        "row": {"badges": ["status"], "secondary": ["updated_time"]},
+        "empty_state": {"body": "No matching plans."},
+    }
+    base_report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {"plans": {"ref": {"use": "plan"}}},
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans",),
+    )
+    use_report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {"plans": {"ref": {"use": "plan", "pane": pane}}},
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans",),
+    )
+    inline_ref = {**builtin_plan_ref_provider_spec()["ref"], "pane": pane}
+    inline_report = _sidecar_ref_policy_report(
+        {
+            "repos": {
+                "sidecar": {
+                    "builtin": {"plans": {"ref": inline_ref}},
+                }
+            }
+        },
+        primary_workspace_dir=tmp_path / "workspace",
+        roles=("plans",),
+    )
+
+    base_policy = base_report.policies["plans"]
+    use_policy = use_report.policies["plans"]
+    inline_policy = inline_report.policies["plans"]
+    assert use_policy.spec == inline_policy.spec
+    assert use_policy.digest == inline_policy.digest == base_policy.digest
+    assert use_policy.spec is not None
+    assert use_policy.spec["ref"]["pane"] == pane
+
+
 def test_sidecar_ref_icon_override_beats_provider_icon(tmp_path: Path) -> None:
     report = _sidecar_ref_policy_report(
         {

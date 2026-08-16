@@ -17,7 +17,8 @@ from sase.sdd.plan_properties import ordered_plan_property_items, plan_property_
 from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
 
 from .bead_plan_links import BeadPlanLink
-from .plans_data import ActivePlanDocument, PlanProposal
+from .plans_data import ActivePlanDocument, PlanProposal, ProjectArchive
+from .provider_documents import provider_document_field_value
 
 DetailProperty = tuple[str, str | Text]
 
@@ -125,6 +126,51 @@ def archive_preview_markdown(
     return "\n".join(lines)
 
 
+def provider_document_properties_header(
+    entry: ProjectArchive,
+    *,
+    project_name: str,
+    detail_fields: Sequence[str] | None = None,
+    title_field: str = "title",
+) -> RenderableType:
+    """Build a generic provider document title and property grid."""
+
+    title = Text("▤ ", style="bold white")
+    title.append(
+        provider_document_field_value(entry, title_field)
+        or entry.match.plan.title
+        or entry.match.plan.name,
+        style="bold white",
+    )
+    plan = entry.match.plan
+    properties = list(_frontmatter_properties(plan.frontmatter, detail_fields))
+    properties.extend(
+        [
+            ("Project", project_name),
+            ("Reference", _archive_reference(entry.match, role=entry.role)),
+            ("Path", plan.path),
+        ]
+    )
+    return _properties_header(title, properties)
+
+
+def provider_document_preview_markdown(entry: ProjectArchive) -> str:
+    """Build full-screen preview content for a generic provider document."""
+
+    plan = entry.match.plan
+    lines = [
+        f"# {plan.title or plan.name}",
+        "",
+        f"**Reference:** {_archive_reference(entry.match, role=entry.role)}  ",
+        f"**Path:** {plan.path}",
+        "",
+    ]
+    if plan.summary:
+        lines.extend(["> " + plan.summary.replace("\n", "\n> "), ""])
+    lines.append(plan.body or "_No document body._")
+    return "\n".join(lines)
+
+
 def _document_title(path: str, frontmatter: dict[str, str]) -> str:
     return (
         frontmatter.get("title")
@@ -213,5 +259,7 @@ __all__ = [
     "archive_preview_markdown",
     "archive_properties_header",
     "provider_detail_fields",
+    "provider_document_preview_markdown",
+    "provider_document_properties_header",
     "proposal_properties_header",
 ]

@@ -50,7 +50,9 @@ from ._artifact_tab_model import (
     PaneEmptyState,
     PaneGroupingDecl,
     PaneRelationDecl,
+    PanePresentation,
 )
+from ._artifact_tab_presentation import compile_provider_pane_presentation
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +99,7 @@ def compile_builtin_contract(
     return _assemble_contract(
         pane_id=adapter.pane_id,
         label=label,
+        description="",
         icon=icon,
         accent=accent,
         order=order,
@@ -110,6 +113,7 @@ def compile_builtin_contract(
         detail_fields=adapter.detail_fields,
         detail_scroll_id=adapter.detail_scroll_id,
         empty_state=adapter.empty_state,
+        presentation=PanePresentation(),
         relations=adapter.relations,
         grouping=adapter.grouping,
         adapter=adapter.adapter,
@@ -133,9 +137,30 @@ def compile_provider_contract(
 ) -> ContractCompileResult:
     """Compile a document-provider contract from a normalized schema-v1 spec."""
 
-    suppressions, compiler_error, compiler_code = extract_provider_suppressions(spec)
-    if compiler_error is not None:
+    pane_result = compile_provider_pane_presentation(
+        spec,
+        default_label=label,
+    )
+    if pane_result.error is not None:
         is_degraded = True
+        compiler_error = pane_result.error
+        compiler_code = pane_result.error_code
+    else:
+        compiler_error = None
+        compiler_code = None
+        if pane_result.label is not None:
+            label = pane_result.label
+        if pane_result.order is not None:
+            order = pane_result.order
+
+    suppressions, suppressions_error, suppressions_code = extract_provider_suppressions(
+        spec
+    )
+    if suppressions_error is not None:
+        is_degraded = True
+        if compiler_error is None:
+            compiler_error = suppressions_error
+            compiler_code = suppressions_code
     relations, relations_error, relations_code = extract_provider_relations(
         kind,
         spec,
@@ -152,6 +177,18 @@ def compile_provider_contract(
         if compiler_error is None:
             compiler_error = grouping_error
             compiler_code = grouping_code
+    if (
+        pane_result.error is None
+        and grouping.modes
+        and pane_result.grouping.modes
+        and not is_degraded
+    ):
+        is_degraded = True
+        if compiler_error is None:
+            compiler_error = "ref.pane.group_by duplicates ref.grouping declarations"
+            compiler_code = "invalid_ref_pane"
+    elif not grouping.modes and pane_result.grouping.modes:
+        grouping = pane_result.grouping
     if kind == "plan" and not is_degraded:
         relations = relations or PLAN_ADAPTER.relations
         grouping = grouping if grouping.modes else PLAN_ADAPTER.grouping
@@ -204,10 +241,13 @@ def compile_provider_contract(
             body=compiler_error or "This document provider failed to load.",
         )
         copy_targets = ()
+    elif pane_result.empty_state is not None:
+        empty_state = pane_result.empty_state
     detail_fields = provider_detail_fields(spec)
     contract = _assemble_contract(
         pane_id=f"ref:{kind}",
         label=label,
+        description=pane_result.presentation.description,
         icon=icon,
         accent=accent,
         order=order,
@@ -221,6 +261,7 @@ def compile_provider_contract(
         detail_fields=detail_fields,
         detail_scroll_id="plans-detail-scroll",
         empty_state=empty_state,
+        presentation=pane_result.presentation,
         relations=facts.relations,
         grouping=facts.grouping,
         adapter=adapter,
@@ -255,6 +296,7 @@ def attach_contract(
     return replace(
         descriptor,
         label=contract.label,
+        description=contract.description,
         icon=contract.icon,
         accent=contract.accent,
         digit_shortcut=contract.digit,
@@ -268,6 +310,7 @@ def _presentation_digest(contract: ArtifactsPaneContract) -> str:
     payload = {
         "id": contract.id,
         "label": contract.label,
+        "description": contract.description,
         "icon": contract.icon,
         "accent": contract.accent,
         "order": contract.order,
@@ -286,6 +329,7 @@ def _presentation_digest(contract: ArtifactsPaneContract) -> str:
         "query_profile_digest": contract.query_profile.digest,
         "relations": [item.to_payload() for item in contract.relations],
         "grouping": contract.grouping.to_payload(),
+        "presentation": contract.presentation.to_payload(),
         "status_counters": [
             {"name": item.name, "field": item.field}
             for item in contract.status_counters
@@ -303,6 +347,7 @@ def _presentation_digest_for(
     *,
     pane_id: str,
     label: str,
+    description: str,
     icon: str,
     accent: str,
     order: int,
@@ -316,6 +361,7 @@ def _presentation_digest_for(
     verdicts: tuple[CapabilityVerdict, ...],
     facts: PaneDeclaredFacts,
     empty_state: PaneEmptyState,
+    presentation: PanePresentation,
     detail_scroll_id: str | None,
     query_profile: CompiledQueryProfile,
     relations: tuple[PaneRelationDecl, ...],
@@ -326,6 +372,7 @@ def _presentation_digest_for(
     payload = {
         "id": pane_id,
         "label": label,
+        "description": description,
         "icon": icon,
         "accent": accent,
         "order": order,
@@ -337,6 +384,7 @@ def _presentation_digest_for(
         "detail_fields": list(detail_fields),
         "detail_scroll_id": detail_scroll_id,
         "empty_state": {"title": empty_state.title, "body": empty_state.body},
+        "presentation": presentation.to_payload(),
         "query_profile_digest": query_profile.digest,
         "relations": [item.to_payload() for item in relations],
         "grouping": grouping.to_payload(),
@@ -353,6 +401,7 @@ def _assemble_contract(
     *,
     pane_id: str,
     label: str,
+    description: str,
     icon: str,
     accent: str,
     order: int,
@@ -366,6 +415,7 @@ def _assemble_contract(
     detail_fields: tuple[str, ...],
     detail_scroll_id: str | None,
     empty_state: PaneEmptyState,
+    presentation: PanePresentation,
     relations: tuple[PaneRelationDecl, ...],
     grouping: PaneGroupingDecl,
     adapter: str | None,
@@ -377,6 +427,7 @@ def _assemble_contract(
     digest = _presentation_digest_for(
         pane_id=pane_id,
         label=label,
+        description=description,
         icon=icon,
         accent=accent,
         order=order,
@@ -390,6 +441,7 @@ def _assemble_contract(
         verdicts=verdicts,
         facts=facts,
         empty_state=empty_state,
+        presentation=presentation,
         detail_scroll_id=detail_scroll_id,
         query_profile=query_profile,
         relations=relations,
@@ -398,6 +450,7 @@ def _assemble_contract(
     return ArtifactsPaneContract(
         id=pane_id,
         label=label,
+        description=description,
         icon=icon,
         accent=accent,
         order=order,
@@ -411,6 +464,7 @@ def _assemble_contract(
         query_profile=query_profile,
         relations=relations,
         grouping=grouping,
+        presentation=presentation,
         detail_fields=detail_fields,
         status_counters=(),
         empty_state=empty_state,
