@@ -261,6 +261,45 @@ The workspace provider and VCS provider are complementary plugin systems:
 A single plugin package (e.g., `sase-github`) typically provides both a VCS plugin and a
 workspace plugin.
 
+## Ownership Boundary
+
+SASE-initiated host, runner, and scheduled work never mutates the user's primary
+checkout (`#0`, including the legacy `#1` spelling). Automation may read it to resolve
+config, remotes, branches, project identity, and sidecar metadata, but every automated
+write goes through one of these mechanisms instead:
+
+- **Operational workspace leases** (`sase.workspace_provider.lease`) claim a numbered
+  workspace from the unified pool (`#10`+), materialize and prepare its checkout from
+  the configured primary remote, and expose a leased `OperationContext`. The lease is
+  released exactly once on success, failure, timeout, cancellation, or reboot recovery,
+  and acquisition never falls back to the primary checkout. Plan approval, epic
+  launches, task launches, and background bead writers (claim acquisition, periodic
+  reconciliation, external issue mirroring) all acquire a lease — or reuse an already
+  claimed workspace when its store is a separate workspace-local sidecar — rather than
+  resolving a canonical primary store for writing.
+- **Reset-and-replay conflict recovery** (`sase.workspace_provider.reset_replay`)
+  recovers a stale rebase, merge conflict, or non-fast-forward publication race by
+  hard-resetting only a live, leased, machine-owned checkout to its verified upstream
+  tip and replaying the idempotent operation from durable inputs. It refuses to touch
+  primary `#0`, an unclaimed checkout, or a user-directed/read-only context; remote
+  unavailability and lock contention are retried or deferred, never reset.
+- **Primary-sidecar auto-sync** (`sase._sidecar_auto_sync`, the `auto_sync` sidecar
+  setting) is the one exception that touches a clone reachable from the primary
+  checkout: it may fetch and fast-forward an already-materialized sidecar clone — not
+  the primary repository itself — and only while that clone is clean, attached, and
+  strictly behind its configured remote. Dirty, detached, diverged, remote-mismatched,
+  or missing clones are left untouched and reported. See
+  [`auto_sync` vs. `auto_clone`](configuration.md#repos) for the config-level
+  distinction; sync runs both from a durable per-project/role hint recorded right after
+  a workspace-sidecar publication and from a scheduled backstop chop.
+
+`sase.workspace_provider.ownership.authorize_store_mutation` and the `writable_*`
+helpers are the shared enforcement point close to every store mutation seam, so a new
+background caller cannot bypass the boundary by importing a lower-level commit helper
+directly. Explicit foreground commands the user runs in their own chosen cwd — including
+an agent's own git operations inside its already-claimed workspace — remain unaffected;
+the boundary applies to SASE resolving and writing to _primary_ on the user's behalf.
+
 ## Workspace Directory Layout
 
 SASE resolves every workspace through a per-project store rather than by

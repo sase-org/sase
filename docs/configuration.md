@@ -1631,6 +1631,19 @@ per-repository `*_DIR` environment variables are not exported until the clone ex
 Repositories with `auto_clone: true` are omitted from generated agent instructions
 because agents do not need to open them manually.
 
+`auto_clone` and `auto_sync` are independent settings on a sidecar entry. `auto_clone`
+controls whether a numbered workspace materializes its own clone of the sidecar before
+each agent launch; that clone is disposable and owned by the launched agent's workspace.
+`auto_sync` instead opts the _primary checkout's_ already-materialized sidecar clone
+into conservative background convergence: SASE fetches and fast-forwards it only while
+it is clean, attached, and non-diverged, and never rebases, commits, hard-resets, or
+removes user state. A dirty, detached, diverged, remote-mismatched, or
+not-yet-materialized primary sidecar clone is left untouched and reported rather than
+repaired. Managed projects enable `auto_sync` for the generated `plans`, `beads`, and
+`research` entries; custom roles default to `false` and opt in with the same property.
+See [Ownership Boundary](workspace.md#ownership-boundary) for the underlying
+primary/leased distinction and how sync is scheduled.
+
 `repos.sidecar` is a two-bucket mapping keyed by role: `builtin` holds overrides of the
 reserved `plans`, `beads`, and `agents` roles, and `custom` holds user-declared document
 sidecars such as `research`. The map key _is_ the role, so an entry never carries a
@@ -1725,30 +1738,31 @@ repos:
             globs: ["reports/**/*.md", "!drafts/**"]
 ```
 
-| Field                                         | Type           | Default                             | Description                                                                         |
-| --------------------------------------------- | -------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
-| `github_orgs`                                 | string or list | -                                   | GitHub user/org namespaces available to provider completion and PR workflows.       |
-| `default_linked_repos`                        | boolean        | `true`                              | Inject managed-project `--plans` and hidden `--agents` sidecars.                    |
-| `repos.linked[].auto_clone`                   | boolean        | `false`                             | Materialize and prepare the repository automatically before each agent launch.      |
-| `repos.linked[].name`                         | string         | required                            | Stable alias used in generated environment variable names and memory summaries.     |
-| `repos.linked[].path`                         | string         | required                            | Primary checkout path. Relative paths resolve from the project's primary workspace. |
-| `repos.linked[].description`                  | string         | required                            | Human-readable purpose used when generating agent memory for the linked repository. |
-| `repos.sidecar.builtin.<role>`                | object         | -                                   | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.        |
-| `repos.sidecar.custom.<role>`                 | object         | -                                   | User-declared document sidecar; the key is the role and must not be a reserved one. |
-| `repos.sidecar.*.<role>.repo`                 | string         | derived                             | Optional bare slug or `owner/repo` pin.                                             |
-| `repos.sidecar.*.<role>.description`          | string         | -                                   | Purpose shown in inventory; required in generated instructions for lazy entries.    |
-| `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                             | Materialize before agent launch; intrinsically ignored for `agents`.                |
-| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                            | Remote visibility; project-local `private` overrides the `agents` default.          |
-| `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.      |
-| `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent             | Installed artifact-reference provider ID to use as the base policy.                 |
-| `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)      | Prompt kind exposed as `@<kind>:<path>`.                                            |
-| `repos.sidecar.*.<role>.ref.icon`             | string         | role/provider dependent             | Artifacts tab mark shown beside the pane label.                                     |
-| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `@{checkout_path}`                  | Provider expansion format; see [Expansion](artifact_references.md#expansion).       |
-| `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                | Typed metadata fields extracted by the provider.                                    |
-| `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                | Metadata fields shown by completion and detail surfaces.                            |
-| `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                | Optional provider identity rule.                                                    |
-| `repos.sidecar.*.<role>.ref.inventory.globs`  | list[string]   | `["**/*.md"]` for document sidecars | Repo-relative POSIX includes and `!` exclusions.                                    |
-| `repos.sidecar.*.<role>.ref.publication`      | object         | VCS permalink / Markdown references | Publication link and reverse-reference policy.                                      |
+| Field                                         | Type           | Default                             | Description                                                                          |
+| --------------------------------------------- | -------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| `github_orgs`                                 | string or list | -                                   | GitHub user/org namespaces available to provider completion and PR workflows.        |
+| `default_linked_repos`                        | boolean        | `true`                              | Inject managed-project `--plans` and hidden `--agents` sidecars.                     |
+| `repos.linked[].auto_clone`                   | boolean        | `false`                             | Materialize and prepare the repository automatically before each agent launch.       |
+| `repos.linked[].name`                         | string         | required                            | Stable alias used in generated environment variable names and memory summaries.      |
+| `repos.linked[].path`                         | string         | required                            | Primary checkout path. Relative paths resolve from the project's primary workspace.  |
+| `repos.linked[].description`                  | string         | required                            | Human-readable purpose used when generating agent memory for the linked repository.  |
+| `repos.sidecar.builtin.<role>`                | object         | -                                   | Override for a reserved role; the key must be `plans`, `beads`, or `agents`.         |
+| `repos.sidecar.custom.<role>`                 | object         | -                                   | User-declared document sidecar; the key is the role and must not be a reserved one.  |
+| `repos.sidecar.*.<role>.repo`                 | string         | derived                             | Optional bare slug or `owner/repo` pin.                                              |
+| `repos.sidecar.*.<role>.description`          | string         | -                                   | Purpose shown in inventory; required in generated instructions for lazy entries.     |
+| `repos.sidecar.*.<role>.auto_clone`           | boolean        | `false`                             | Materialize before agent launch; intrinsically ignored for `agents`.                 |
+| `repos.sidecar.*.<role>.auto_sync`            | boolean        | `false`                             | Fetch/fast-forward the primary clone when clean; intrinsically ignored for `agents`. |
+| `repos.sidecar.*.<role>.visibility`           | public/private | `public`                            | Remote visibility; project-local `private` overrides the `agents` default.           |
+| `repos.sidecar.*.<role>.disabled`             | boolean        | `false`                             | Disable the entry and suppress matching implicit sidecars, including `agents`.       |
+| `repos.sidecar.*.<role>.ref.use`              | string         | role/provider dependent             | Installed artifact-reference provider ID to use as the base policy.                  |
+| `repos.sidecar.*.<role>.ref.kind`             | string         | role name (`plan` for `plans`)      | Prompt kind exposed as `@<kind>:<path>`.                                             |
+| `repos.sidecar.*.<role>.ref.icon`             | string         | role/provider dependent             | Artifacts tab mark shown beside the pane label.                                      |
+| `repos.sidecar.*.<role>.ref.expansion_format` | string         | `@{checkout_path}`                  | Provider expansion format; see [Expansion](artifact_references.md#expansion).        |
+| `repos.sidecar.*.<role>.ref.properties`       | object         | `{}`                                | Typed metadata fields extracted by the provider.                                     |
+| `repos.sidecar.*.<role>.ref.detail`           | object         | `{}`                                | Metadata fields shown by completion and detail surfaces.                             |
+| `repos.sidecar.*.<role>.ref.identity`         | object         | `{}`                                | Optional provider identity rule.                                                     |
+| `repos.sidecar.*.<role>.ref.inventory.globs`  | list[string]   | `["**/*.md"]` for document sidecars | Repo-relative POSIX includes and `!` exclusions.                                     |
+| `repos.sidecar.*.<role>.ref.publication`      | object         | VCS permalink / Markdown references | Publication link and reverse-reference policy.                                       |
 
 Every enabled document sidecar exposes one compact `@<kind>:<path>` reference. Plans use
 the built-in `plan` provider, and `sase repo init` records `ref: {use: plan}`. Other
