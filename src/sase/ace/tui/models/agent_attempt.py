@@ -27,6 +27,7 @@ class AttemptRecord:
     error_full: str
     live_reply_path: str
     timestamps_path: str
+    reason: str | None = None
 
     def get_reply_content(self) -> str | None:
         """Return the live_reply.md captured for this attempt."""
@@ -131,6 +132,7 @@ def load_attempt_history(artifacts_dir: str | None) -> list[AttemptRecord]:
                     error_full=str(data.get("error_full", "")),
                     live_reply_path=os.path.join(sub, "live_reply.md"),
                     timestamps_path=os.path.join(sub, "live_reply_timestamps.jsonl"),
+                    reason=data.get("reason"),
                 )
             )
         except (KeyError, TypeError, ValueError):

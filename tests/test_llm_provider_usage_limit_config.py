@@ -9,6 +9,7 @@ from sase.llm_provider.usage_limit_config import (
     UsageLimitSettings,
     detect_usage_limit,
     find_matching_pattern,
+    find_usage_limit_detection_for_error,
     get_usage_limit_config,
     get_usage_limit_settings,
     is_usage_limit_error,
@@ -565,3 +566,57 @@ class TestDetectUsageLimit:
         )
         assert detection is not None
         assert detection.disable_seconds == 42
+
+
+class TestFindUsageLimitDetectionForError:
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_returns_none_when_no_provider_matches(
+        self, mock_config: object, mock_built_in: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        assert find_usage_limit_detection_for_error("all good") is None
+
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_finds_match_among_built_in_only_providers(
+        self, mock_config: object, mock_built_in: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "provider-a": ProviderUsageLimitConfig(patterns=["never matches"]),
+            "provider-b": ProviderUsageLimitConfig(patterns=["usage limit reached"]),
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        detection = find_usage_limit_detection_for_error(
+            "usage limit reached", now=1000.0
+        )
+        assert detection is not None
+        assert detection.provider == "provider-b"
+
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_prefers_user_configured_providers_first(
+        self, mock_config: object, mock_built_in: object
+    ) -> None:
+        # Both providers match; user-configured "gemini" must be checked
+        # (and returned) before the built-in-only "provider-b".
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "provider-b": ProviderUsageLimitConfig(patterns=["usage limit reached"]),
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "usage_limit": {
+                    "providers": {
+                        "gemini": {"patterns": ["usage limit reached"]},
+                    }
+                }
+            }
+        }
+        detection = find_usage_limit_detection_for_error(
+            "usage limit reached", now=1000.0
+        )
+        assert detection is not None
+        assert detection.provider == "gemini"

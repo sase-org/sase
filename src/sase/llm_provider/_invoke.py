@@ -39,6 +39,7 @@ from .registry import (
     get_provider,
     resolve_execution_provider_name,
 )
+from .usage_limit_disable import handle_possible_usage_limit
 from .types import (
     LLMInvocationError,
     LLMInvocationOptions,
@@ -363,6 +364,13 @@ def invoke_agent(
             parts.append(f"output: {e.output.strip()}")
         error_content = "\n".join(parts)
 
+        handle_possible_usage_limit(
+            provider=execution_provider_label,
+            error_text=error_content,
+            model=context.metadata_model,
+            artifacts_dir=artifacts_dir,
+        )
+
         postprocess_error(
             prompt=query,
             error_content=error_content,
@@ -384,6 +392,14 @@ def invoke_agent(
         ).inc()
 
         error_content = str(e)
+
+        handle_possible_usage_limit(
+            provider=execution_provider_label,
+            error_text=error_content,
+            model=context.metadata_model,
+            artifacts_dir=artifacts_dir,
+        )
+
         postprocess_error(
             prompt=query,
             error_content=error_content,

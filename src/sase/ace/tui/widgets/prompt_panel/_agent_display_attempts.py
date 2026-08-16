@@ -172,6 +172,8 @@ def render_attempt_banner(record: AttemptRecord, *, total: int) -> Text:
     )
     if record.used_fallback and record.model:
         banner.append(f"Fallback model: {record.model}\n", style="dim #FF8700")
+    if record.reason:
+        banner.append(f"{record.reason}\n", style="dim #FFAF00")
     banner.append("\n")
     append_section_heading(
         banner,

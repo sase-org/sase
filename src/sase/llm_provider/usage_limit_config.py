@@ -453,3 +453,39 @@ def detect_usage_limit(
         reset_hint=reset_hint,
         used_reset_hint=used_reset_hint,
     )
+
+
+def _usage_limit_provider_order() -> list[str]:
+    """Return provider names to try, user-configured first, then built-ins."""
+    providers_section = _load_llm_usage_limit_section().get("providers", {}) or {}
+    order: list[str] = []
+    if isinstance(providers_section, dict):
+        order.extend(providers_section.keys())
+    order.extend(_built_in_defaults().keys())
+    return order
+
+
+def find_usage_limit_detection_for_error(
+    error_output: str, *, now: float | None = None
+) -> UsageLimitDetection | None:
+    """Find a usage-limit detection that matches the error from any provider.
+
+    Mirrors ``retry_config.find_retry_config_for_error``: iterates
+    user-configured providers first (preserving insertion order), then any
+    built-in-only providers, and returns the first provider whose config
+    matches. Used when the caller does not know which provider actually
+    produced the error (e.g. a multi-step workflow that may have invoked
+    more than one LLM provider).
+    """
+    checked: set[str] = set()
+    for provider_name in _usage_limit_provider_order():
+        if provider_name in checked:
+            continue
+        checked.add(provider_name)
+        try:
+            detection = detect_usage_limit(provider_name, error_output, now=now)
+        except Exception:
+            continue
+        if detection is not None:
+            return detection
+    return None

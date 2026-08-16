@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -12,6 +13,7 @@ from sase.axe.run_agent_exec_attempts import snapshot_attempt
 from sase.axe.run_agent_helpers import append_meta_list_field
 from sase.axe.runner_signals import was_killed
 from sase.axe.runner_workspace import prepare_workspace
+from sase.llm_provider.provider_disable import get_active_provider_disable
 from sase.telemetry.metrics import LLM_RETRIES
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
@@ -21,9 +23,16 @@ from sase.llm_provider.retry_config import (
     is_retryable_error,
     truncate_error_snippet,
 )
+from sase.llm_provider.usage_limit_config import (
+    UsageLimitDetection,
+    detect_usage_limit,
+    find_usage_limit_detection_for_error,
+)
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
+
+logger = logging.getLogger(__name__)
 
 _RetryAction = Literal["continue", "break", "raise"]
 
@@ -37,6 +46,11 @@ class RetryTracker:
     retry_count: int = 0
     using_fallback: bool = False
     attempt_start_epoch: float = field(default_factory=time.time)
+    # The provider resolved to actually execute the agent's LLM calls (after
+    # load-balancing / SASE_LLM_EXEC_PROVIDER override), used to scope
+    # usage-limit detection to the provider that ran. None when the caller
+    # never resolved one (e.g. no provider requested and no override set).
+    execution_provider: str | None = None
 
 
 def _maybe_prepend_continuation(state: LoopState, cfg: ProviderRetryConfig) -> None:
@@ -51,6 +65,81 @@ def _maybe_prepend_continuation(state: LoopState, cfg: ProviderRetryConfig) -> N
     if state.current_prompt.startswith(nudge):
         return
     state.current_prompt = f"{nudge}\n\n{state.current_prompt}"
+
+
+def _resolve_fallback_provider(fallback_model: str | None) -> str | None:
+    """Return the provider a configured ``fallback_model`` resolves to, if any."""
+    if not fallback_model:
+        return None
+    from sase.llm_provider.registry import resolve_model_provider
+
+    try:
+        provider, _ = resolve_model_provider(fallback_model)
+    except Exception:
+        return None
+    return provider
+
+
+def _detect_usage_limit_for_error(
+    error_str: str, execution_provider: str | None
+) -> UsageLimitDetection | None:
+    """Detect a usage-limit match, preferring the known execution provider.
+
+    Falls back to scanning every configured provider when the execution
+    provider is unknown at this level (e.g. a multi-step workflow that may
+    have invoked more than one LLM provider), mirroring
+    ``find_retry_config_for_error``.
+    """
+    if execution_provider:
+        detection = detect_usage_limit(execution_provider, error_str)
+        if detection is not None:
+            return detection
+    return find_usage_limit_detection_for_error(error_str)
+
+
+def _usage_limit_retry_precedence(
+    error_str: str,
+    tracker: RetryTracker,
+    active_retry_cfg: ProviderRetryConfig,
+) -> tuple[UsageLimitDetection | None, bool]:
+    """Return ``(detection, fallback_blocked)`` for a possible usage-limit error.
+
+    A usage-limit match means the wait-and-retry branch must never run for
+    the provider that hit it — sleeping through a retry window helps nobody
+    when the provider itself just reported it is out of quota.
+    ``fallback_blocked`` reports whether the configured fallback is also
+    unusable (none configured, already used, or it resolves to the same
+    now-disabled provider), in which case the caller must raise immediately.
+
+    Detection failures fail open (returns ``(None, False)``) so a bug in
+    this subsystem can never block an otherwise-healthy retry.
+    """
+    try:
+        detection = _detect_usage_limit_for_error(error_str, tracker.execution_provider)
+        if detection is None:
+            return None, False
+        fallback_provider = _resolve_fallback_provider(active_retry_cfg.fallback_model)
+        fallback_ok = (
+            bool(active_retry_cfg.fallback_model)
+            and not tracker.using_fallback
+            and fallback_provider is not None
+            and fallback_provider != detection.provider
+            and get_active_provider_disable(fallback_provider) is None
+        )
+        return detection, not fallback_ok
+    except Exception:
+        logger.debug(
+            "usage-limit retry precedence check failed; retrying normally",
+            exc_info=True,
+        )
+        return None, False
+
+
+def _usage_limit_skip_reason(detection: UsageLimitDetection) -> str:
+    return (
+        f"usage limit: {detection.provider} hit its usage limit and was "
+        "disabled; retry skipped instead of waiting through a futile window"
+    )
 
 
 def handle_workflow_error(
@@ -86,7 +175,9 @@ def handle_workflow_error(
     attempt_number_of_failed = tracker.retry_count + 1
     attempt_end_epoch = time.time()
 
-    def _snapshot(status: Literal["failed", "raised"]) -> None:
+    def _snapshot(
+        status: Literal["failed", "raised"], *, reason: str | None = None
+    ) -> None:
         snapshot_attempt(
             state.current_artifacts_dir or ctx.artifacts_dir,
             attempt_number_of_failed,
@@ -97,9 +188,23 @@ def handle_workflow_error(
             error_snippet=snippet,
             model=ctx.agent_model,
             used_fallback=tracker.using_fallback,
+            reason=reason,
         )
 
-    if tracker.retry_count < active_retry_cfg.max_retries:
+    # A usage-limit failure takes precedence over ordinary retry
+    # classification: even if the error also matches a configured retry
+    # pattern (e.g. codex's "rate limit" / "429" patterns), sleeping
+    # through wait_times to re-hit an account-wide usage limit only holds
+    # the workspace claim hostage for no benefit.
+    usage_limit_detection, fallback_blocked_by_usage_limit = (
+        _usage_limit_retry_precedence(error_str, tracker, active_retry_cfg)
+    )
+
+    can_wait_and_retry = (
+        usage_limit_detection is None
+        and tracker.retry_count < active_retry_cfg.max_retries
+    )
+    if can_wait_and_retry:
         _snapshot("failed")
         # Retry with wait
         tracker.retry_count += 1
@@ -198,7 +303,11 @@ def handle_workflow_error(
         tracker.attempt_start_epoch = time.time()
         return "continue"
 
-    elif active_retry_cfg.fallback_model and not tracker.using_fallback:
+    elif (
+        active_retry_cfg.fallback_model
+        and not tracker.using_fallback
+        and not fallback_blocked_by_usage_limit
+    ):
         _snapshot("failed")
         # Fallback to alternate model
         tracker.using_fallback = True
@@ -241,5 +350,8 @@ def handle_workflow_error(
         tracker.attempt_start_epoch = time.time()
         return "continue"
 
-    _snapshot("raised")
+    if usage_limit_detection is not None:
+        _snapshot("raised", reason=_usage_limit_skip_reason(usage_limit_detection))
+    else:
+        _snapshot("raised")
     return "raise"

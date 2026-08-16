@@ -33,6 +33,10 @@ class _AttemptMeta:
     used_fallback: bool
     error_snippet: str
     error_full: str
+    # Set when a "raised" attempt skipped retry for a reason other than
+    # exhausting max_retries (e.g. a usage-limit failure), so the ACE
+    # attempts view can explain why no retry was attempted.
+    reason: str | None = None
 
 
 def _attempt_dir(artifacts_dir: str, attempt_number: int) -> Path:
@@ -54,6 +58,7 @@ def snapshot_attempt(
     error_snippet: str,
     model: str | None,
     used_fallback: bool,
+    reason: str | None = None,
 ) -> None:
     """Move current reply artifacts into ``attempts/<N>/`` and record metadata.
 
@@ -92,6 +97,7 @@ def snapshot_attempt(
         used_fallback=used_fallback,
         error_snippet=error_snippet,
         error_full=error_full,
+        reason=reason,
     )
     meta_path = tmp_dir / ATTEMPT_META_FILENAME
     with open(meta_path, "w", encoding="utf-8") as f:

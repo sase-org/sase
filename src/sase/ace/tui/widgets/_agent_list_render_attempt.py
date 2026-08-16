@@ -27,6 +27,8 @@ def format_attempt_option(
     text.append(f" · {record.status}", style="dim #FF8700")
     if record.error_snippet:
         text.append(f": {record.error_snippet}", style="dim italic #FF5F5F")
+    if record.reason:
+        text.append(f" ({record.reason})", style="dim italic #FFAF00")
     suffix = build_attempt_runtime_suffix(record)
     option_id = f"attempt:{agent.raw_suffix}:{record.attempt_number}"
     return text, suffix, option_id

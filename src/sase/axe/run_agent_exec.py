@@ -208,6 +208,7 @@ def run_execution_loop(
             else None
         ),
         attempt_start_epoch=time.time(),
+        execution_provider=execution_provider,
     )
     state = LoopState(
         current_prompt=prompt,

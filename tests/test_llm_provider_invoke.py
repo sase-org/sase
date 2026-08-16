@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -48,6 +49,91 @@ def test_invoke_agent_handles_error(
         )
 
     mock_postprocess_error.assert_called_once()
+
+
+@patch("sase.llm_provider._invoke.handle_possible_usage_limit")
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_error")
+def test_invoke_agent_does_not_detect_usage_limit_on_generic_exception(
+    mock_postprocess_error: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_handle_usage_limit: MagicMock,
+) -> None:
+    """An arbitrary internal error is not provider-attributable evidence of a
+    usage limit, so detection must not run on the generic Exception path."""
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
+    mock_provider = MagicMock()
+    mock_provider.invoke.side_effect = Exception("test error")
+    mock_get_provider.return_value = mock_provider
+
+    with pytest.raises(LLMInvocationError):
+        invoke_agent("raw prompt", agent_type="test", suppress_output=True)
+
+    mock_handle_usage_limit.assert_not_called()
+
+
+@patch("sase.llm_provider._invoke.handle_possible_usage_limit")
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_error")
+def test_invoke_agent_detects_usage_limit_on_called_process_error(
+    mock_postprocess_error: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_handle_usage_limit: MagicMock,
+) -> None:
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
+    mock_provider = MagicMock()
+    mock_provider.invoke.side_effect = subprocess.CalledProcessError(
+        1, ["cmd"], output="", stderr="You've hit your usage limit."
+    )
+    mock_get_provider.return_value = mock_provider
+
+    with pytest.raises(LLMInvocationError):
+        invoke_agent(
+            "raw prompt",
+            agent_type="test",
+            provider_name="claude",
+            suppress_output=True,
+        )
+
+    mock_handle_usage_limit.assert_called_once()
+    kwargs = mock_handle_usage_limit.call_args.kwargs
+    assert kwargs["provider"] == "claude"
+    assert "You've hit your usage limit." in kwargs["error_text"]
+
+
+@patch("sase.llm_provider._invoke.handle_possible_usage_limit")
+@patch("sase.llm_provider._invoke.get_provider")
+@patch("sase.llm_provider._invoke.preprocess_prompt")
+@patch("sase.llm_provider._invoke.postprocess_error")
+def test_invoke_agent_detects_usage_limit_on_llm_invocation_error(
+    mock_postprocess_error: MagicMock,
+    mock_preprocess: MagicMock,
+    mock_get_provider: MagicMock,
+    mock_handle_usage_limit: MagicMock,
+) -> None:
+    """Providers that fail through a parsed stream (not a nonzero exit) reach
+    this path, so detection must run here too."""
+    mock_preprocess.return_value = _PreprocessResult(prompt="preprocessed prompt")
+    mock_provider = MagicMock()
+    mock_provider.invoke.side_effect = LLMInvocationError("usage limit reached")
+    mock_get_provider.return_value = mock_provider
+
+    with pytest.raises(LLMInvocationError):
+        invoke_agent(
+            "raw prompt",
+            agent_type="test",
+            provider_name="codex",
+            suppress_output=True,
+        )
+
+    mock_handle_usage_limit.assert_called_once()
+    kwargs = mock_handle_usage_limit.call_args.kwargs
+    assert kwargs["provider"] == "codex"
+    assert kwargs["error_text"] == "usage limit reached"
 
 
 @patch("sase.llm_provider._invoke.get_provider")

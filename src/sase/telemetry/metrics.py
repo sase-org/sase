@@ -29,6 +29,7 @@ LLM_INVOCATIONS: StubCounter = StubCounter()
 LLM_INVOCATION_DURATION: StubHistogram = StubHistogram()
 LLM_ERRORS: StubCounter = StubCounter()
 LLM_RETRIES: StubCounter = StubCounter()
+LLM_PROVIDER_AUTO_DISABLES: StubCounter = StubCounter()
 RETRY_SPAWNS_TOTAL: StubCounter = StubCounter()
 LLM_INPUT_TOKENS: StubCounter = StubCounter()
 LLM_OUTPUT_TOKENS: StubCounter = StubCounter()
@@ -138,6 +139,14 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "counter",
         "sase_llm_retries_total",
         "Total LLM retries",
+        ["provider"],
+        {},
+    ),
+    (
+        "LLM_PROVIDER_AUTO_DISABLES",
+        "counter",
+        "sase_llm_provider_auto_disables_total",
+        "Total automatic provider disables written after a detected usage-limit error",
         ["provider"],
         {},
     ),
