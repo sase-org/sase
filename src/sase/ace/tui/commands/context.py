@@ -23,6 +23,7 @@ from sase.ace.tui.models.agent_status import (
     is_stopped_agent_status,
     is_unread_completed_status,
 )
+from sase.ace.tui.models.agent_nodes import is_agents_tab_agent_node
 from sase.ace.tui.commands.types import CommandContext, CommandTab
 from sase.ace.tui.widgets.bgcmd_list import BgCmdItem, ChopItem
 
@@ -160,6 +161,7 @@ def _unread_completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untype
         1
         for a in agents
         if is_unread_completed_status(a.status)
+        and is_agents_tab_agent_node(a)
         and getattr(a, "identity", None) in unread_ids
     )
 

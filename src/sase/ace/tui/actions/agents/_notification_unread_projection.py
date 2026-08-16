@@ -8,6 +8,11 @@ from ._notification_utils import (
     active_completion_agent_keys,
     loaded_real_agent_roster as loaded_real_agent_roster,
 )
+from ...models.agent_nodes import (
+    agent_node_projection_index,
+    normalize_agent_node_identities,
+    projection_has_active_completion,
+)
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -45,14 +50,19 @@ class AgentNotificationUnreadMixin:
         if getattr(self, "current_tab", None) != "agents":
             return True
 
-        roster_by_identity = {
-            agent.identity: agent for agent in loaded_real_agent_roster(self)
-        }
+        roster = loaded_real_agent_roster(self)
+        node_index = agent_node_projection_index(roster)
+        roster_by_identity = {agent.identity: agent for agent in roster}
         changed_members = [
             roster_by_identity[identity]
             for identity in changed
             if identity in roster_by_identity
         ]
+        changed_node_identities = {
+            projection.identity
+            for identity in changed
+            if (projection := node_index.owner_for_identity(identity)) is not None
+        }
         affected_clans = {
             clan_key
             for member in changed_members
@@ -62,7 +72,9 @@ class AgentNotificationUnreadMixin:
         patch_agents: list[Agent] = []
         patch_keys: set[object] = set()
         for agent in getattr(self, "_agents", ()):
-            should_patch = agent.identity in changed
+            should_patch = (
+                agent.identity in changed or agent.identity in changed_node_identities
+            )
             if agent.is_clan_container:
                 should_patch = (
                     agent.agent_clan,
@@ -153,24 +165,38 @@ class AgentNotificationUnreadMixin:
         )
         before = set(unread_ids)
         roster = loaded_real_agent_roster(self)
-        loaded_ids = {agent.identity for agent in roster}
-        unread_ids.intersection_update(loaded_ids)
-        manual_ids.intersection_update(loaded_ids)
+        node_index = agent_node_projection_index(roster)
+        prior_unread_ids = set(unread_ids)
+        prior_manual_ids = set(manual_ids)
+        unread_node_ids = normalize_agent_node_identities(
+            prior_unread_ids,
+            node_index,
+        )
+        manual_ids.clear()
+        manual_ids.update(
+            normalize_agent_node_identities(
+                prior_manual_ids,
+                node_index,
+            )
+        )
+        next_unread: set[tuple[AgentType, str, str | None]] = set()
 
-        for agent in roster:
+        for projection in node_index.projections:
+            agent = projection.node
             if not is_unread_completed_status(agent.status):
                 continue
-            has_notification = (agent.cl_name, agent.raw_suffix) in active_keys or (
-                agent.cl_name,
-                None,
-            ) in active_keys
+            if agent.identity in manual_ids:
+                if agent.identity in unread_node_ids:
+                    next_unread.add(agent.identity)
+                continue
+            has_notification = projection_has_active_completion(
+                projection,
+                active_keys,
+            )
             if has_notification:
-                if agent.identity not in manual_ids:
-                    unread_ids.add(agent.identity)
-            else:
-                # Manual unread guards a row even without a notification.
-                if agent.identity not in manual_ids:
-                    unread_ids.discard(agent.identity)
+                next_unread.add(agent.identity)
+        unread_ids.clear()
+        unread_ids.update(next_unread)
         if unread_ids - before:
             invalidate_bulk_undo = getattr(self, "_invalidate_bulk_read_undo", None)
             if callable(invalidate_bulk_undo):

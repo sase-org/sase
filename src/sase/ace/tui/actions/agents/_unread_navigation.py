@@ -12,6 +12,7 @@ from ...models.agent_status import (
     is_stopped_agent_status,
     is_unread_completed_status,
 )
+from ...models.agent_nodes import is_agents_tab_agent_node
 from ._unread_jump_candidates import (
     AgentUnreadJumpCandidatesMixin,
     TimedAgentJumpCandidate,
@@ -89,8 +90,10 @@ class AgentUnreadNavigationMixin(
                 self._acknowledge_agent_unread(agent)
 
         def predicate(agent: Agent) -> bool:
-            return agent.identity in unread_ids and is_unread_completed_status(
-                agent.status
+            return (
+                is_agents_tab_agent_node(agent)
+                and agent.identity in unread_ids
+                and is_unread_completed_status(agent.status)
             )
 
         return self._jump_to_next_matching_agent_by_time(

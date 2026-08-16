@@ -21,11 +21,9 @@ from sase.agent.status_buckets import (
 )
 
 from ..agent_count_chip import format_agent_count_chip
-from ..models._agent_clan import (
-    ClanStatusCounts as ParallelFamilyStatusCounts,
-    clan_member_counts as parallel_family_member_counts,
-)
+from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models._agent_tree import agent_is_tree_child, agent_tree_depth
+from ..models.agent_nodes import is_agents_tab_agent_node
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import (
     Agent,
@@ -149,7 +147,7 @@ def format_agent_option(
     wait_deps_satisfied: bool | None = None,
     has_missing_wait_target: bool = False,
     has_unresolvable_wait_target: bool = False,
-    parallel_family_counts: ParallelFamilyStatusCounts | None = None,
+    clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
@@ -448,27 +446,28 @@ def format_agent_option(
         text.append(" ")
         text.append(_FOLD_RESTORE_GLYPH, style=_FOLD_RESTORE_GLYPH_STYLE)
 
-    family_counts = (
-        (
-            parallel_family_member_counts(agent, unread_agent_ids)
-            if unread_agent_ids
-            else parallel_family_member_counts(agent)
+    if agent.is_clan_container:
+        visible_clan_counts = (
+            (
+                clan_member_counts(agent, unread_agent_ids)
+                if unread_agent_ids
+                else clan_member_counts(agent)
+            )
+            if clan_counts is None
+            else clan_counts
         )
-        if parallel_family_counts is None
-        else parallel_family_counts
-    )
-    family_chip = format_agent_count_chip(
-        stopped=family_counts.awaiting,
-        running=family_counts.running,
-        queued=family_counts.queued,
-        waiting=family_counts.waiting,
-        failed=family_counts.failed,
-        unread=family_counts.unread,
-        done=family_counts.done,
-    )
-    if family_chip:
-        text.append(" ")
-        text.append_text(family_chip)
+        clan_chip = format_agent_count_chip(
+            stopped=visible_clan_counts.awaiting,
+            running=visible_clan_counts.running,
+            queued=visible_clan_counts.queued,
+            waiting=visible_clan_counts.waiting,
+            failed=visible_clan_counts.failed,
+            unread=visible_clan_counts.unread,
+            done=visible_clan_counts.done,
+        )
+        if clan_chip:
+            text.append(" ")
+            text.append_text(clan_chip)
 
     # Authoritative-only: modern phase launch metadata renders immediately;
     # legacy candidates render after an O(1) confirmed-cache read warmed off
@@ -523,7 +522,8 @@ def format_agent_option(
             text.append("▼", style="bold #D7AF5F")
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
-    runtime_suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
+    node_unread = is_unread and is_agents_tab_agent_node(agent)
+    runtime_suffix = build_runtime_suffix(agent, now=now, is_unread=node_unread)
     if not agent.is_clan_container and _has_file_change_hint(agent):
         runtime_with_file_change = Text()
         if runtime_suffix.cell_len:
@@ -570,10 +570,14 @@ def cached_format_agent_option(
     our purposes (we don't mutate them after assemble); returning the
     cached object avoids rebuilding an O(rows) Text tree on each refresh.
     """
-    family_counts = (
-        parallel_family_member_counts(agent, unread_agent_ids)
-        if unread_agent_ids
-        else parallel_family_member_counts(agent)
+    visible_clan_counts = (
+        (
+            clan_member_counts(agent, unread_agent_ids)
+            if unread_agent_ids
+            else clan_member_counts(agent)
+        )
+        if agent.is_clan_container
+        else None
     )
     key = agent_render_key(
         agent,
@@ -593,7 +597,7 @@ def cached_format_agent_option(
         wait_deps_satisfied=wait_deps_satisfied,
         has_missing_wait_target=has_missing_wait_target,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
-        parallel_family_counts=family_counts,
+        clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
     )
     hit = cache.get_agent(key)
@@ -617,7 +621,7 @@ def cached_format_agent_option(
         wait_deps_satisfied=wait_deps_satisfied,
         has_missing_wait_target=has_missing_wait_target,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
-        parallel_family_counts=family_counts,
+        clan_counts=visible_clan_counts,
         unread_agent_ids=unread_agent_ids,
     )
     cache.put_agent(key, parts)

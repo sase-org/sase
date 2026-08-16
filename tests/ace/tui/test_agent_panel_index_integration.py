@@ -477,10 +477,9 @@ def test_info_panel_projects_parallel_family_member_statuses() -> None:
     info_panel = _run_info_panel(bare)
 
     assert info_panel.position == (1, 5)
-    # Family STARTING contributes to running, terminal members split by their
-    # own unread identities, and each family's members replace its root in the
-    # headline lane total. The serial child is excluded from both projections.
-    assert info_panel.counts == (1, 0, 0, 7, 7, 0, 1, 16)
+    # Family roots count once as agent nodes; member and serial-child shell
+    # identities do not widen the headline totals or unread count.
+    assert info_panel.counts == (0, 0, 0, 2, 2, 0, 1, 5)
 
 
 def test_info_panel_parallel_root_without_loaded_members_falls_back_to_root() -> None:

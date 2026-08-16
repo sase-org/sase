@@ -56,11 +56,29 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         app._manual_unread_agent_ids = manual_ids  # type: ignore[attr-defined]
 
     from ._notification_unread_projection import loaded_real_agent_roster
+    from ...models.agent_nodes import (
+        agent_node_projection_index,
+        normalize_agent_node_identities,
+    )
 
     loaded_agents = loaded_real_agent_roster(app)
-    loaded_ids = {agent.identity for agent in loaded_agents}
-    unread_ids.intersection_update(loaded_ids)
-    manual_ids.intersection_update(loaded_ids)
+    node_index = agent_node_projection_index(loaded_agents)
+    prior_unread_ids = set(unread_ids)
+    prior_manual_ids = set(manual_ids)
+    unread_ids.clear()
+    unread_ids.update(
+        normalize_agent_node_identities(
+            prior_unread_ids,
+            node_index,
+        )
+    )
+    manual_ids.clear()
+    manual_ids.update(
+        normalize_agent_node_identities(
+            prior_manual_ids,
+            node_index,
+        )
+    )
 
     snapshot = getattr(app, "_notification_snapshot_cache", None)
     if snapshot is None:

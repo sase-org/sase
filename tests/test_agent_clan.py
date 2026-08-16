@@ -30,6 +30,7 @@ def _agent(name: str, status: str, *, suffix: str | None) -> Agent:
 
 def test_clan_aggregation_keys_members_on_agent_clan() -> None:
     container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
     running = _agent("research.one", "RUNNING", suffix="one")
     done = _agent("research.two", "DONE", suffix="two")
     outsider = _agent("other.one", "FAILED", suffix="other")
@@ -84,7 +85,7 @@ def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:
     assert counts == ClanStatusCounts(failed=1, unread=2, done=1)
 
 
-def test_clan_queue_count_projects_parallel_member_behind_family() -> None:
+def test_clan_queue_count_uses_parallel_family_root() -> None:
     container = _agent("research", "WAITING", suffix=None)
     container.is_clan_container = True
     family = _agent("research.family", "WAITING", suffix="family")
@@ -100,7 +101,7 @@ def test_clan_queue_count_projects_parallel_member_behind_family() -> None:
 
     counts = clan_member_counts(container)
 
-    assert (counts.queued, counts.waiting) == (1, 0)
+    assert (counts.queued, counts.waiting) == (0, 1)
 
 
 def test_clan_member_counts_ignores_slot_queued_leaf() -> None:

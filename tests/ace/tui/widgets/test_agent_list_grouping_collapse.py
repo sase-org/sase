@@ -234,5 +234,5 @@ def test_banner_summary_chips_render_in_text() -> None:
     options = list(widget._options)
     plain = options[0].prompt.plain  # type: ignore[union-attr]
     assert "projA" in plain
-    assert "2 agents" in plain
-    assert "2 running" in plain
+    assert "1 agent" in plain
+    assert "1 running" in plain

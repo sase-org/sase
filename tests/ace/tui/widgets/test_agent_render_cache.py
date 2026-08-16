@@ -8,7 +8,7 @@ from rich.text import Text
 from sase.ace.tui.models._agent_tree import agent_fold_key
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_status import RUNNING_COLOR
-from sase.ace.tui.models._agent_parallel_family import ParallelFamilyStatusCounts
+from sase.ace.tui.models._agent_clan import ClanStatusCounts
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
@@ -216,16 +216,27 @@ def test_cached_family_root_invalidates_when_first_real_member_is_added() -> Non
     assert "[agent]" not in after[0].plain
 
 
-def test_cached_family_root_recolors_when_member_status_changes() -> None:
-    cache = AgentRenderCache()
-    root = _agent(status="RUNNING")
+def _clan_with_member(*, member_status: str = "RUNNING") -> tuple[Agent, Agent]:
+    clan = _agent(cl_name="research", status=member_status, raw_suffix=None)
+    clan.agent_name = "research"
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.agent_clan_generation = "generation"
     member = _agent(
-        cl_name="demo.phase",
-        status="RUNNING",
+        cl_name="research.phase",
+        status=member_status,
         raw_suffix="20260425143100",
     )
-    member.agent_family_parallel = True
-    root.runtime_children.append(member)
+    member.agent_name = "research.phase"
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    clan.runtime_children.append(member)
+    return clan, member
+
+
+def test_cached_clan_row_recolors_when_member_status_changes() -> None:
+    cache = AgentRenderCache()
+    root, member = _clan_with_member(member_status="RUNNING")
 
     running_parts = cached_format_agent_option(
         cache, root, 0, is_selected=False, now=None
@@ -239,20 +250,11 @@ def test_cached_family_root_recolors_when_member_status_changes() -> None:
     assert "[R1]" not in done_parts[0].plain
 
 
-def test_cached_family_root_invalidates_when_member_joins_global_queue() -> None:
+def test_cached_clan_row_invalidates_when_member_joins_global_queue() -> None:
     cache = AgentRenderCache()
-    root = _agent(status="WAITING")
-    root.agent_family_parallel = True
-    member = _agent(
-        cl_name="demo.phase",
-        status="WAITING",
-        raw_suffix="20260425143100",
-    )
-    member.agent_family_parallel = True
-    member.parent_timestamp = root.raw_suffix
+    root, member = _clan_with_member(member_status="WAITING")
     member.pid = 100
     member.waiting_for = ["dependency"]
-    root.runtime_children.append(member)
 
     dependency_wait = cached_format_agent_option(
         cache,
@@ -278,33 +280,62 @@ def test_cached_family_root_invalidates_when_member_joins_global_queue() -> None
     assert "[Q1]" in global_wait[0].plain
 
 
-def test_cached_family_root_aggregates_members_once_per_render_attempt(
+def test_cached_clan_row_aggregates_members_once_per_render_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.ace.tui.widgets import _agent_list_render_agent as render_agent
 
     cache = AgentRenderCache()
-    root = _agent(status="RUNNING")
-    member = _agent(
-        cl_name="demo.phase",
-        status="RUNNING",
-        raw_suffix="20260425143100",
-    )
-    member.agent_family_parallel = True
-    root.runtime_children.append(member)
-    original = render_agent.parallel_family_member_counts
+    root, _member = _clan_with_member(member_status="RUNNING")
+    original = render_agent.clan_member_counts
     calls = 0
 
-    def counting_counts(agent: Agent) -> ParallelFamilyStatusCounts:
+    def counting_counts(agent: Agent) -> ClanStatusCounts:
         nonlocal calls
         calls += 1
         return original(agent)
 
-    monkeypatch.setattr(render_agent, "parallel_family_member_counts", counting_counts)
+    monkeypatch.setattr(render_agent, "clan_member_counts", counting_counts)
 
     cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
 
     assert calls == 1
+
+
+def test_cached_family_root_ignores_member_unread_count_changes() -> None:
+    cache = AgentRenderCache()
+    root = _agent(cl_name="build", agent_name="build", raw_suffix="family")
+    root.agent_family = "build"
+    root.agent_family_role = "root"
+    member = _agent(
+        cl_name="build--code",
+        agent_name="build--code",
+        raw_suffix="code",
+    )
+    member.parent_timestamp = root.raw_suffix
+    member.agent_family = "build"
+    member.agent_family_role = "code"
+    root.followup_agents = [member]
+    root.runtime_children = [member]
+
+    read = cached_format_agent_option(
+        cache,
+        root,
+        0,
+        is_selected=False,
+        unread_agent_ids=(),
+    )
+    stale_shell_unread = cached_format_agent_option(
+        cache,
+        root,
+        0,
+        is_selected=False,
+        unread_agent_ids={member.identity},
+    )
+
+    assert read[0] is stale_shell_unread[0]
+    assert read[1] is stale_shell_unread[1]
+    assert "[U1]" not in stale_shell_unread[0].plain
 
 
 def test_cached_clan_row_invalidates_on_projection_and_tribe_changes() -> None:

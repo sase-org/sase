@@ -258,14 +258,13 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    # Loaded legacy parallel-family members remain individual lanes and replace
-    # the aggregate root status in each chip. Serial descendants add neither a
-    # lane nor a concrete status projection.
+    # Family roots count once as agent nodes. Loaded member shells and serial
+    # descendants do not widen panel title totals or chips.
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 6 [R3 W1 U1 D1]"
+        "@apple · 2 [R1 W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "@banana · 3 [S1 F1 D1]"
+        "@banana · 1 [R1]"
     )
 
 

@@ -128,7 +128,7 @@ def test_sase_agent_statuses_dedupe_terminal_owner_and_unread_state() -> None:
     assert counts.done == 0
 
 
-def test_sase_agents_preserve_legacy_parallel_family_projection() -> None:
+def test_sase_agents_keep_legacy_parallel_family_as_one_lane() -> None:
     root = _agent("parallel", "WAITING", role="root", parallel=True)
     members = [
         _agent(
@@ -144,8 +144,8 @@ def test_sase_agents_preserve_legacy_parallel_family_projection() -> None:
     unloaded = _agent("unloaded", "WAITING", role="root", parallel=True)
 
     loaded_counts = sase_agent_status_counts((root,), ())
-    assert loaded_counts.total == 3
-    assert loaded_counts.running == 3
+    assert loaded_counts.total == 1
+    assert loaded_counts.waiting == 1
     assert agent_summary_status_counts((root,), ()).total == 3
     unloaded_counts = sase_agent_status_counts((unloaded,), ())
     assert unloaded_counts.total == 1

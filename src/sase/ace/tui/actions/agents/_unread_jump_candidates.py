@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from ...models.agent_nodes import is_agents_tab_agent_node
 from ...models.agent_status import is_unread_completed_status
 
 if TYPE_CHECKING:
@@ -80,7 +81,8 @@ class AgentUnreadJumpCandidatesMixin:
 
         candidates = self._timed_agent_jump_candidates(
             predicate=lambda agent: (
-                agent.identity in unread_ids
+                is_agents_tab_agent_node(agent)
+                and agent.identity in unread_ids
                 and is_unread_completed_status(agent.status)
             ),
             time_for_agent=None,

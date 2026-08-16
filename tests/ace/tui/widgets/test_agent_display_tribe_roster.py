@@ -233,7 +233,7 @@ def test_tribe_family_children_use_effective_status_glyphs() -> None:
     )
 
     assert "Composition: 1 family · 1 lane · 2 nested" in detail.plain
-    assert "[R1 D1]" in detail.plain
+    assert "[R1]" in detail.plain
     assert "--plan-step · step · ✓ TALE APPROVED" in detail.plain
     assert "--code · agent · ▶ WORKING TALE" in detail.plain
 

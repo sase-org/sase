@@ -9,7 +9,7 @@ from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
 from ..agent import Agent
-from .._agent_clan import agent_status_projections
+from .._agent_clan import sase_agent_status_counts
 from .._agent_tree import (
     agent_is_tree_child,
     presentation_anchor_lookup,
@@ -447,10 +447,6 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
     derived from the shared concrete-agent projection so family handoffs and
     container counts agree with the other summary surfaces.
     """
-    count = 0
-    running = 0
-    failed = 0
-    awaiting = 0
     roots: list[Agent] = []
     for idx in group.agent_indices:
         if idx < 0 or idx >= len(agents):
@@ -460,18 +456,12 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
             continue
         roots.append(agent)
 
-    for root in roots:
-        for projection in agent_status_projections((root,)):
-            count += 1
-            bucket = projection.bucket
-            if bucket == "Running":
-                running += 1
-            elif bucket == "Failed":
-                failed += 1
-            elif bucket == "Stopped":
-                awaiting += 1
+    projected = sase_agent_status_counts(roots, ())
     return _BannerSummary(
-        count=count, running=running, failed=failed, awaiting=awaiting
+        count=projected.total,
+        running=projected.running,
+        failed=projected.failed,
+        awaiting=projected.stopped,
     )
 
 

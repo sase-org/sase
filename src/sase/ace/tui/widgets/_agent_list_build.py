@@ -29,6 +29,7 @@ from ..models._agent_tree import (
     agent_is_tree_child,
     agent_parent_fold_key,
 )
+from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
@@ -286,7 +287,7 @@ def build_list(
             fold_key is not None and fold_key in parents_with_visible_children
         )
         is_marked = agent.identity in marked
-        is_unread = agent.identity in unread
+        is_unread = agent.identity in unread and is_agents_tab_agent_node(agent)
         restore_marked = bool(fold_key and fold_key in restore_marked_keys)
         annotation = compute_fold_annotation(
             agent,
@@ -614,7 +615,7 @@ def patch_row(
     )
     if unread_agents is not None:
         widget._unread_agents = set(unread_agents)
-    is_unread = agent.identity in effective_unread
+    is_unread = agent.identity in effective_unread and is_agents_tab_agent_node(agent)
     sel = ctx["is_selected"] if is_selected is None else is_selected
     # Bust the cached entry for this agent so we re-render from
     # current field values; the patch path is the only writer of

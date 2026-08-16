@@ -14,10 +14,8 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from ..models._agent_clan import (
-    ClanStatusCounts as ParallelFamilyStatusCounts,
-    clan_member_counts as parallel_family_member_counts,
-)
+from ..models._agent_clan import ClanStatusCounts, clan_member_counts
+from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
@@ -152,7 +150,7 @@ def agent_render_key(
     wait_deps_satisfied: bool | None = None,
     has_missing_wait_target: bool = False,
     has_unresolvable_wait_target: bool = False,
-    parallel_family_counts: ParallelFamilyStatusCounts | None = None,
+    clan_counts: ClanStatusCounts | None = None,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
@@ -163,15 +161,16 @@ def agent_render_key(
     field is a deliberate edit here rather than a silent cache desync.
     """
     wait_agent = wait_display_agent(agent)
-    family_counts = (
+    visible_clan_counts = (
         (
-            parallel_family_member_counts(agent, unread_agent_ids)
+            clan_member_counts(agent, unread_agent_ids)
             if unread_agent_ids
-            else parallel_family_member_counts(agent)
+            else clan_member_counts(agent)
         )
-        if parallel_family_counts is None
-        else parallel_family_counts
+        if agent.is_clan_container and clan_counts is None
+        else clan_counts
     )
+    node_unread = is_unread and is_agents_tab_agent_node(agent)
     semantic_tribes = tuple(
         dict.fromkeys(
             (
@@ -199,7 +198,7 @@ def agent_render_key(
         is_expanded,
         is_marked,
         fold_restore_marked,
-        is_unread,
+        node_unread,
         hint_char,
         tribe_label,
         panel_tribe,
@@ -237,7 +236,7 @@ def agent_render_key(
         agent.reverted,
         agent_has_confirmed_bead(agent),
         ordered_row_providers(agent),
-        family_counts,
+        visible_clan_counts,
         agent.hidden,
         agent.retry_attempt,
         agent.is_workflow_child,

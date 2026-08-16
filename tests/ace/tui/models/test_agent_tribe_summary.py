@@ -195,6 +195,7 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         "epic",
         [root, planner, coder],
         panel_collapsed=True,
+        unread_ids={root.identity, coder.identity},
         now=_NOW,
     )
 
@@ -213,9 +214,9 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         "claude/opus",
         "codex/gpt-5",
     ]
-    assert family.status_counts is not None
-    assert family.status_counts.running == 1
-    assert family.status_counts.done == 1
+    assert family.status_counts is None
+    assert family.is_unread is True
+    assert [child.is_unread for child in family.children] == [False, False]
     assert [child.effective_bucket for child in family.children] == [
         "Done",
         "Running",
@@ -344,9 +345,7 @@ def test_finished_family_projects_all_members_to_done() -> None:
     )
 
     family = snapshot.units[0]
-    assert family.status_counts is not None
-    assert family.status_counts.running == 0
-    assert family.status_counts.done == 2
+    assert family.status_counts is None
     assert snapshot.counts.running == 0
     assert snapshot.counts.done == 1
     assert snapshot.lane_count == 1

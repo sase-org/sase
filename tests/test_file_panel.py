@@ -205,6 +205,9 @@ def _make_render_panel() -> MagicMock:
     )
     panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
     panel._timestamp_header = types.MethodType(AgentFilePanel._timestamp_header, panel)
+    panel._update_body = types.MethodType(AgentFilePanel._update_body, panel)
+    panel._capture_scroll_anchor = MagicMock()
+    panel._schedule_scroll_anchor_restore = MagicMock()
     panel._render_full_content = types.MethodType(
         AgentFilePanel._render_full_content, panel
     )

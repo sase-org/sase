@@ -429,7 +429,7 @@ def test_dismiss_workflow_parent_removes_child_completion_notifications(
     append_notification(_completion_notification(parent, n_id="n-parent"))
     append_notification(_completion_notification(child, n_id="n-child"))
     _sync_from_store(app, on_agents_tab=False)
-    assert app._unread_completed_agent_ids == {parent.identity, child.identity}
+    assert app._unread_completed_agent_ids == {parent.identity}
 
     app._dismiss_done_agent(parent)
 

@@ -10,6 +10,7 @@ from ._agent_unread_helpers import make_agent
 from ._agent_unread_navigation_helpers import UnreadJumpApp
 from sase.ace.tui.actions.agents._unread_state import BulkUnreadToggleOutcome
 from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.notifications import Notification
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +21,19 @@ def notification_dismiss(monkeypatch: pytest.MonkeyPatch) -> Mock:
         dismiss,
     )
     return dismiss
+
+
+def _completion_notification(agent, *, notification_id: str) -> Notification:
+    return Notification(
+        id=notification_id,
+        timestamp="2026-08-16T12:00:00",
+        sender="user-agent",
+        action="JumpToAgent",
+        action_data={
+            "cl_name": agent.cl_name,
+            "raw_suffix": agent.raw_suffix or "",
+        },
+    )
 
 
 def test_toggle_agent_unread_marks_selected_row_without_moving(
@@ -125,6 +139,72 @@ def test_keyboard_navigation_onto_clan_never_acknowledges_member() -> None:
     assert app.patch_calls == []
 
 
+def test_family_member_completion_notifications_project_to_one_node(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 2
+    family = make_agent(name="build", status="DONE", raw_suffix="family")
+    family.agent_name = "build"
+    family.agent_family = "build"
+    family.agent_family_role = "root"
+    plan = make_agent(name="build--plan", status="DONE", raw_suffix="plan")
+    plan.agent_name = "build--plan"
+    plan.agent_family = "build"
+    plan.agent_family_role = "plan"
+    plan.parent_timestamp = family.raw_suffix
+    code = make_agent(name="build--code", status="DONE", raw_suffix="code")
+    code.agent_name = "build--code"
+    code.agent_family = "build"
+    code.agent_family_role = "code"
+    code.parent_timestamp = family.raw_suffix
+    family.runtime_children = [plan, code]
+    family.followup_agents = [plan, code]
+    app = UnreadJumpApp([family, plan, code], current_idx=1)
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _completion_notification(plan, notification_id="plan"),
+            _completion_notification(code, notification_id="code"),
+        ]
+    )
+
+    assert app._unread_completed_agent_ids == {family.identity}
+    assert plan.identity not in app._unread_completed_agent_ids
+    assert code.identity not in app._unread_completed_agent_ids
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app.current_idx == 0
+    assert app._unread_completed_agent_ids == set()
+    notification_dismiss.assert_called_once_with(
+        [
+            {"cl_name": plan.cl_name, "raw_suffix": plan.raw_suffix},
+            {"cl_name": code.cl_name, "raw_suffix": code.raw_suffix},
+        ]
+    )
+    assert app.patch_calls == [family]
+
+
+def test_manual_toggle_rejects_family_member_shell() -> None:
+    family = make_agent(name="build", status="DONE", raw_suffix="family")
+    family.agent_name = "build"
+    family.agent_family = "build"
+    family.agent_family_role = "root"
+    child = make_agent(name="build--code", status="DONE", raw_suffix="code")
+    child.agent_name = "build--code"
+    child.agent_family = "build"
+    child.agent_family_role = "code"
+    child.parent_timestamp = family.raw_suffix
+    family.followup_agents = [child]
+    app = UnreadJumpApp([family, child], current_idx=1)
+
+    app._toggle_agent_unread()
+
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+    assert app.patch_calls == []
+
+
 def test_has_unread_completed_agent_includes_plan_done() -> None:
     agent = make_agent(status="PLAN DONE")
     app = UnreadJumpApp([agent])
@@ -213,6 +293,7 @@ def test_bulk_unread_toggle_marks_restores_and_marks_again(
     app._reconcile_unread_from_completion_notifications([])
     assert first.identity in app._unread_completed_agent_ids
     assert second.identity in app._unread_completed_agent_ids
+    assert running.identity not in app._unread_completed_agent_ids
 
     app.patch_calls.clear()
 
@@ -220,7 +301,7 @@ def test_bulk_unread_toggle_marks_restores_and_marks_again(
 
     assert result.outcome is BulkUnreadToggleOutcome.MARKED_READ
     assert result.count == 2
-    assert app._unread_completed_agent_ids == {running.identity}
+    assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
     assert app._pending_bulk_read_agent_ids == {first.identity, second.identity}
     assert dismiss.call_count == 2

@@ -303,7 +303,7 @@ def test_compute_banner_summary_excludes_workflow_children() -> None:
     assert summary.running == 1
 
 
-def test_compute_banner_summary_projects_sequential_family_members() -> None:
+def test_compute_banner_summary_counts_sequential_families_once() -> None:
     agents: list[Agent] = []
     for family in ("alpha", "beta"):
         planner = _agent(
@@ -331,7 +331,7 @@ def test_compute_banner_summary_projects_sequential_family_members() -> None:
     group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1, 2, 3))
     summary = compute_banner_summary(group, agents)
 
-    assert summary.count == 4
+    assert summary.count == 2
     assert summary.running == 2
     assert summary.failed == 0
     assert summary.awaiting == 0

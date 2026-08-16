@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, cast
 
+from ...models.agent_nodes import (
+    AgentCompletionKey,
+    agent_node_completion_keys,
+    agent_node_projection_index,
+    is_agents_tab_agent_node,
+)
 from ...models.agent_status import is_unread_completed_status
 
 if TYPE_CHECKING:
@@ -38,6 +44,47 @@ class AgentUnreadStateMixin:
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _pending_bulk_read_agent_ids: set[tuple[AgentType, str, str | None]] | None
     _agent_info_metrics_cache: tuple[Any, ...] | None
+
+    def _notification_keys_for_agents(
+        self,
+        agents: Iterable[Agent],
+    ) -> list[AgentCompletionKey]:
+        """Return unique completion-notification keys for agent nodes."""
+        requested_agents = tuple(agents)
+        loaded_source = cast(
+            "Iterable[Agent]",
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", ()),
+        )
+        loaded_agents = tuple(loaded_source)
+        roster = [*requested_agents, *loaded_agents]
+        node_index = agent_node_projection_index(roster)
+        keys: list[AgentCompletionKey] = []
+        seen: set[AgentCompletionKey] = set()
+        for agent in requested_agents:
+            projection = node_index.owner_for_identity(agent.identity)
+            if projection is not None and projection.identity == agent.identity:
+                node_keys = projection.completion_keys
+            elif is_agents_tab_agent_node(agent):
+                node_keys = agent_node_completion_keys(agent)
+            else:
+                node_keys = ((agent.cl_name, agent.raw_suffix),)
+            for key in node_keys:
+                if key in seen:
+                    continue
+                seen.add(key)
+                keys.append(key)
+        return keys
+
+    def _notification_key_dicts_for_agents(
+        self,
+        agents: Iterable[Agent],
+    ) -> list[dict[str, str | None]]:
+        """Return notification API key dicts for agent nodes."""
+        return [
+            {"cl_name": cl_name, "raw_suffix": raw_suffix}
+            for cl_name, raw_suffix in self._notification_keys_for_agents(agents)
+        ]
 
     def _repaint_changed_unread_rows(
         self,
@@ -80,7 +127,7 @@ class AgentUnreadStateMixin:
             target_agents = [
                 agent
                 for agent in roster
-                if not agent.is_clan_container
+                if is_agents_tab_agent_node(agent)
                 and agent.identity in unread_ids
                 and is_unread_completed_status(agent.status)
             ]
@@ -114,10 +161,7 @@ class AgentUnreadStateMixin:
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
-        agent_keys = [
-            {"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}
-            for agent in target_agents
-        ]
+        agent_keys = self._notification_key_dicts_for_agents(target_agents)
 
         from sase.notifications import (
             dismiss_agent_completion_notifications_matching_agents,
@@ -152,7 +196,7 @@ class AgentUnreadStateMixin:
         target_agents = [
             agent
             for agent in roster
-            if not agent.is_clan_container
+            if is_agents_tab_agent_node(agent)
             and agent.identity in restore_ids
             and is_unread_completed_status(agent.status)
         ]
@@ -204,7 +248,7 @@ class AgentUnreadStateMixin:
 
         from ._notification_utils import agent_completion_notification_matches_agent
 
-        agent_keys = [(agent.cl_name, agent.raw_suffix) for agent in agents]
+        agent_keys = self._notification_keys_for_agents(agents)
         filtered = []
         removed_ids: set[str] = set()
         for notification in notifications:
@@ -263,7 +307,17 @@ class AgentUnreadStateMixin:
         if not dismissed_agents:
             return 0
 
+        roster = [
+            *dismissed_agents,
+            *(getattr(self, "_agents_with_children", None) or self._agents),
+        ]
+        node_index = agent_node_projection_index(roster)
         identities = {agent.identity for agent in dismissed_agents}
+        identities.update(
+            projection.identity
+            for agent in dismissed_agents
+            if (projection := node_index.owner_for_identity(agent.identity)) is not None
+        )
         before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
         changed_unread_state = False
 
@@ -287,10 +341,7 @@ class AgentUnreadStateMixin:
         )
 
         dismissed_count = dismiss_agent_completion_notifications_matching_agents(
-            [
-                {"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}
-                for agent in dismissed_agents
-            ]
+            self._notification_key_dicts_for_agents(dismissed_agents)
         )
         removed_count = self._remove_agent_completion_notifications_from_cache(
             dismissed_agents
@@ -312,7 +363,10 @@ class AgentUnreadStateMixin:
         notification indicator is refreshed so the one-to-one row/notification
         contract holds.
         """
-        if agent.is_clan_container or agent.identity in self._manual_unread_ids():
+        if (
+            not is_agents_tab_agent_node(agent)
+            or agent.identity in self._manual_unread_ids()
+        ):
             return False
 
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
@@ -331,7 +385,7 @@ class AgentUnreadStateMixin:
         )
 
         dismissed_count = dismiss_agent_completion_notifications_matching_agents(
-            [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+            self._notification_key_dicts_for_agents([agent])
         )
         self._remove_agent_completion_notifications_from_cache([agent])
         if dismissed_count:
@@ -345,7 +399,7 @@ class AgentUnreadStateMixin:
 
         Returns True when the visible row was patched or refreshed.
         """
-        if agent.is_clan_container:
+        if not is_agents_tab_agent_node(agent):
             return False
         before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
         if not self._clear_agent_unread_and_dismiss_notification(agent):
@@ -360,7 +414,7 @@ class AgentUnreadStateMixin:
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None or agent.is_clan_container:
+        if agent is None or not is_agents_tab_agent_node(agent):
             return
 
         before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))

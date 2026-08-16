@@ -38,6 +38,7 @@ from .agent_family_members import (
     concrete_family_member_rows,
     is_sequential_family_container,
 )
+from .agent_nodes import is_agents_tab_agent_node
 from .agent_panels import PanelKey, agent_panel_label
 from . import agent_time
 
@@ -370,6 +371,7 @@ def _unit_snapshot(
 ) -> _TribeUnitSnapshot:
     rows = tribe_unit_real_rows(unit)
     nested_rows = tuple(row for row in rows if row.identity != unit.identity)
+    unit_is_family = is_sequential_family_container(unit)
     effective_bucket_by_identity = {
         projection.agent.identity: projection.bucket
         for projection in agent_status_projections((unit,))
@@ -394,7 +396,11 @@ def _unit_snapshot(
                 family_depth=1,
             ),
             is_marked=row.identity in marked_ids,
-            is_unread=row.identity in unread_ids,
+            is_unread=(
+                row.identity in unread_ids
+                and is_agents_tab_agent_node(row)
+                and not unit_is_family
+            ),
         )
         for row in nested_rows
     )
@@ -415,16 +421,13 @@ def _unit_snapshot(
         model=_model_label(rows or (unit,)),
         duration=_duration(unit, now=now),
         status_counts=(
-            _status_counts((unit,), unread_ids)
-            if unit.is_clan_container or is_sequential_family_container(unit)
-            else None
+            _status_counts((unit,), unread_ids) if unit.is_clan_container else None
         ),
         digest=root_digest,
         children=children,
         is_marked=any(row.identity in marked_ids for row in rows)
         or (unit.identity in marked_ids),
-        is_unread=any(row.identity in unread_ids for row in rows)
-        or (unit.identity in unread_ids),
+        is_unread=unit.identity in unread_ids,
     )
 
 

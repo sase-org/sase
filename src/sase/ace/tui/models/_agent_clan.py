@@ -25,6 +25,7 @@ from .agent_family_members import (
     concrete_agent_statuses,
     is_sequential_family_container,
 )
+from .agent_nodes import is_agents_tab_agent_node
 
 _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
     "Failed": 0,
@@ -107,22 +108,15 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
             child
             for child in agent.runtime_children
             if not child.is_clan_container
-            and child.presented_clan_reference_name() == clan_reference
-            and child.agent_clan_generation == agent.agent_clan_generation
-        )
-    clan = agent.agent_clan
-    if clan:
-        return tuple(
-            child
-            for child in agent.runtime_children
-            if child is not agent
-            and not child.is_clan_container
+            and is_agents_tab_agent_node(child)
             and child.presented_clan_reference_name() == clan_reference
             and child.agent_clan_generation == agent.agent_clan_generation
         )
     # Legacy archives project parallel-family metadata into a clan at the wire
     # boundary, but directly constructed compatibility fixtures may still carry
     # only the old marker.
+    if not agent.agent_family_parallel:
+        return ()
     return tuple(
         child
         for child in agent.runtime_children
@@ -141,10 +135,7 @@ def clan_member_counts(
         if member.identity in seen:
             continue
         seen.add(member.identity)
-        projected_statuses = agent_status_projections((member,))
-        bucket = aggregate_agent_group_bucket(
-            (status.agent.status, status.bucket) for status in projected_statuses
-        ) or agent_status_bucket(member)
+        bucket = agent_status_bucket(member)
         is_unread = member.identity in unread_ids
         if is_unread:
             unread += 1
@@ -188,7 +179,7 @@ def sase_agent_status_counts(
     agents: Iterable[Agent],
     unread_ids: Collection[tuple[AgentType, str, str | None]],
 ) -> _AgentSummaryStatusCounts:
-    """Project containers into deduplicated sase-agent status counts."""
+    """Count deduplicated Agents-tab agent nodes by status."""
     projected = _dedupe_summary_projections(
         projection
         for agent in agents
@@ -262,20 +253,8 @@ def _lane_summary_projections(
                 projected_from_container=True,
             )
         )
-    if agent.agent_family_parallel:
-        members = clan_members(agent)
-        if members:
-            return tuple(
-                _ProjectedSummaryAgent(
-                    status=ConcreteAgentStatus(
-                        agent=member,
-                        bucket=agent_status_bucket(member),
-                    ),
-                    projected_from_container=True,
-                    is_unread=member.identity in unread_ids,
-                )
-                for member in members
-            )
+    if not is_agents_tab_agent_node(agent):
+        return ()
     return (
         _ProjectedSummaryAgent(
             status=ConcreteAgentStatus(

@@ -18,7 +18,6 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
-    assert_page_svg_styled_text_contains,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -153,7 +152,7 @@ async def test_renamed_generic_family_root_png_snapshot(
         )
 
 
-async def test_parallel_family_root_counts_png_snapshot(
+async def test_parallel_family_root_omits_counts_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -168,13 +167,14 @@ async def test_parallel_family_root_counts_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "visual-parallel-family")
-        assert_page_svg_styled_text_contains(page, "[R2 D1]")
+        svg_plain = page.export_svg(title="ACE visual assertion").replace("&#160;", " ")
+        assert "[R2 D1]" not in svg_plain
         # (unread, stopped, running, waiting, failed, done, total, starting)
-        assert page.app._agent_info_metrics() == (0, 0, 2, 0, 0, 1, 3, 0)
+        assert page.app._agent_info_metrics() == (0, 0, 1, 0, 0, 0, 1, 0)
         ace_png_visual.assert_page_png(
             page,
-            "agents_parallel_family_counts_120x40",
-            title="ACE parallel family aggregate counts",
+            "agents_parallel_family_no_counts_120x40",
+            title="ACE parallel family without aggregate counts",
         )
 
 
