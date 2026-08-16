@@ -24,15 +24,17 @@ def fake_operational_lease(
     holder: str = "test",
     workspace_num: int = 10,
     claim_pid: int = 4321,
+    primary_checkout: Path | None = None,
 ) -> OperationalLease:
     """Return an :class:`OperationalLease` whose checkout is *checkout*."""
+    primary = primary_checkout or checkout
     context = OperationContext(
         project=project,
         access_kind=AccessKind.LEASED_OPERATIONAL,
         mutation_origin=MutationOrigin.MACHINE,
         workspace_num=workspace_num,
         checkout_dir=checkout,
-        primary_checkout_dir=checkout,
+        primary_checkout_dir=primary,
         claim_pid=claim_pid,
         claim_workflow=workflow,
     )
@@ -52,6 +54,7 @@ def fake_operational_lease(
 def patched_operational_lease(
     checkout: Path,
     *,
+    primary_checkout: Path | None = None,
     seen: list[tuple[str, str]] | None = None,
 ) -> Any:
     """Patch target for ``operational_workspace_lease`` that reuses *checkout*.
@@ -66,7 +69,12 @@ def patched_operational_lease(
     ) -> Iterator[OperationalLease]:
         if seen is not None:
             seen.append((project, workflow))
-        yield fake_operational_lease(checkout, project=project, workflow=workflow)
+        yield fake_operational_lease(
+            checkout,
+            project=project,
+            workflow=workflow,
+            primary_checkout=primary_checkout,
+        )
 
     return patch(
         "sase.workspace_provider.lease.operational_workspace_lease",
