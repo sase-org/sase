@@ -34,11 +34,12 @@ CollectibleNodeIdOracle = Callable[[str], bool]
 #: uncommitted edit rather than intermittency: each scans the listed source
 #: root(s) with an AST/text walk and compares the result against a checked-in
 #: reviewed inventory (see ``tests/_agent_artifact_marker_audit_helpers.py``
-#: and its siblings). Editing a file under a listed root without updating the
-#: inventory breaks the audit in that workspace by design — see sase-lc.
-#: Deliberately hand-maintained rather than sniffed from each file's own
-#: `rglob` call: a wrong guess here would silently discard real flake
-#: evidence, so a new source-tree audit must be added deliberately.
+#: and its siblings) or against a fixed invariant the scan must never violate.
+#: Editing a file under a listed root without updating the inventory, or in a
+#: way the invariant forbids, breaks the audit in that workspace by design —
+#: see sase-lc. Deliberately hand-maintained rather than sniffed from each
+#: file's own `rglob` call: a wrong guess here would silently discard real
+#: flake evidence, so a new source-tree audit must be added deliberately.
 _SOURCE_AUDIT_SCAN_ROOTS: dict[str, tuple[str, ...]] = {
     "tests/test_agent_artifact_marker_path_passing_audit.py": ("src/sase/",),
     "tests/test_agent_artifact_marker_mutation_audit.py": ("src/sase/",),
@@ -47,6 +48,7 @@ _SOURCE_AUDIT_SCAN_ROOTS: dict[str, tuple[str, ...]] = {
     "tests/test_agent_tribe_terminology.py": ("src/", "docs/"),
     "tests/test_markdown_print_width.py": ("src/sase/",),
     "tests/test_sdd_canonical_layout.py": ("src/sase/sdd/", "docs/", "tests/"),
+    "tests/test_proc_submission_static_invariants.py": ("src/sase/",),
 }
 
 

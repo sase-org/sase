@@ -30,6 +30,7 @@ from tests._test_selection_health import (
     stale_flake_nodeids,
     unresolved_commit_order_count,
 )
+from tests._test_selection_health_correlation import _SOURCE_AUDIT_SCAN_ROOTS
 from tests._test_selection_health_records import FullRunRecord, load_records
 
 
@@ -915,3 +916,68 @@ def test_attributable_dirty_failures_respects_max_failures_per_run() -> None:
     assert attributable_dirty_failures(runs, max_failures_per_run=2) == (
         (_MARKER_AUDIT_NODEID, "broken"),
     )
+
+
+_PROC_INVARIANT_NODEID = (
+    "tests/test_proc_submission_static_invariants.py"
+    "::test_production_proc_writers_do_not_emit_legacy_kinds"
+)
+
+
+def test_an_invariant_style_source_audit_is_also_attributable_when_dirty() -> None:
+    # The proc-submission static invariants walk every src/sase/ module and
+    # assert the scan finds no offender, so an agent's own uncommitted edit
+    # breaks them in that workspace exactly the way an inventory audit breaks:
+    # deterministically and correctly. Registered after the fact because this
+    # audit landed while sase-mi was still open.
+    runs = (
+        FullRunRecord(
+            name="a",
+            recorded_at=None,
+            head="aaa",
+            mode="fast",
+            failures=(_PROC_INVARIANT_NODEID,),
+            workspace="/workspaces/sase_3",
+            changed_files=frozenset({"src/sase/ace/tui/durable_submit.py"}),
+            tree_dirty=True,
+        ),
+        FullRunRecord(
+            name="pass",
+            recorded_at=None,
+            head="pass",
+            mode="fast",
+            failures=(),
+            workspace=WORKSPACE,
+            changed_files=frozenset({"src/sase/unrelated.py"}),
+            tree_dirty=False,
+        ),
+        FullRunRecord(
+            name="b",
+            recorded_at=None,
+            head="bbb",
+            mode="fast",
+            failures=(_PROC_INVARIANT_NODEID,),
+            workspace="/workspaces/sase_9",
+            changed_files=frozenset({"src/sase/procs/submit.py"}),
+            tree_dirty=True,
+        ),
+    )
+
+    assert reproducible_flake_nodeids(runs) == frozenset()
+    assert {nodeid for nodeid, _record in attributable_dirty_failures(runs)} == {
+        _PROC_INVARIANT_NODEID
+    }
+
+
+def test_every_registered_source_audit_file_still_exists() -> None:
+    # The registry is keyed by test-file path, so renaming or splitting a
+    # registered audit silently stops excluding its dirty-tree failures and
+    # regresses sase-lc without any test going red. Fail loudly instead.
+    repo_root = Path(__file__).resolve().parents[1]
+    missing = sorted(
+        relpath
+        for relpath in _SOURCE_AUDIT_SCAN_ROOTS
+        if not (repo_root / relpath).is_file()
+    )
+
+    assert missing == []
