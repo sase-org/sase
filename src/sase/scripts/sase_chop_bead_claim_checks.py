@@ -62,9 +62,34 @@ class _ProjectClaimReconciliation:
     held: frozenset[tuple[str, str]]
 
 
+@dataclass(frozen=True)
+class _ProjectClaimTick:
+    """One project's snapshot-plus-reconcile outcome for a single chop tick."""
+
+    snapshot_ok: bool
+    scanned: bool
+    claimed_count: int
+    reconciliation: _ProjectClaimReconciliation
+
+
+_NO_RELEASE_ERRORS: frozenset[tuple[str, str]] = frozenset()
+
+
+def _empty_reconciliation(
+    release_errors: frozenset[tuple[str, str]] = _NO_RELEASE_ERRORS,
+) -> _ProjectClaimReconciliation:
+    return _ProjectClaimReconciliation(
+        released=frozenset(),
+        release_errors=release_errors,
+        held=frozenset(),
+    )
+
+
 def _reconcile_project_claims(
     project_name: str,
     *,
+    beads_dir: Path,
+    operation_context: Any,
     releases: list[tuple[str, str]],
     acquisitions: list[tuple[str, str]],
     log: ChopLogger,
@@ -74,83 +99,63 @@ def _reconcile_project_claims(
     release_errors: set[tuple[str, str]] = set()
     held: set[tuple[str, str]] = set()
     try:
-        from sase.bead.background_store import (
-            schedule_beads_sidecar_convergence,
-            writable_bead_store_for_machine,
-        )
+        from sase.bead.background_store import schedule_beads_sidecar_convergence
 
-        with writable_bead_store_for_machine(
-            project_name,
-            workflow="chop:bead_claim_checks",
-            holder=f"bead_claim_checks:{project_name}",
-        ) as store:
-            beads_dir = store.beads_dir
-            try:
-                refresh_bead_store(beads_dir)
-            except Exception as exc:  # noqa: BLE001 - write the leased snapshot anyway.
-                log.warning(
-                    f"[bead_claim_checks] Failed to refresh writable bead store "
-                    f"for {project_name}: {exc}"
+        committed = False
+        with bead_store_write_lock(beads_dir) as already_locked:
+            changed = False
+            with open_bead_project_for_beads_dir(beads_dir) as project:
+                for bead_id, agent_name in releases:
+                    try:
+                        _issue, item_changed = project.release_agent_claim(
+                            bead_id, agent_name
+                        )
+                    except Exception as exc:  # noqa: BLE001 - reconcile siblings.
+                        release_errors.add((bead_id, agent_name))
+                        log.warning(
+                            f"[bead_claim_checks] Failed to release bead claim "
+                            f"{bead_id} for {agent_name}: {exc}"
+                        )
+                        continue
+                    if item_changed:
+                        released.add((bead_id, agent_name))
+                        changed = True
+
+                for bead_id, agent_name in acquisitions:
+                    try:
+                        issue, item_changed = project.claim_for_agent_wait(
+                            bead_id, agent_name
+                        )
+                    except Exception as exc:  # noqa: BLE001 - reconcile siblings.
+                        log.warning(
+                            f"[bead_claim_checks] Failed to acquire bead claim "
+                            f"{bead_id} for {agent_name}: {exc}"
+                        )
+                        continue
+                    if (
+                        issue.status in {Status.CLAIMED, Status.IN_PROGRESS}
+                        and issue.assignee == agent_name
+                    ):
+                        held.add((bead_id, agent_name))
+                    changed |= item_changed
+
+            if changed:
+                committed = commit_bead_claim_reconciliation(
+                    beads_dir,
+                    already_locked=already_locked,
+                    mutation_origin="machine",
+                    operation_context=operation_context,
                 )
-            committed = False
-            with bead_store_write_lock(beads_dir) as already_locked:
-                changed = False
-                with open_bead_project_for_beads_dir(beads_dir) as project:
-                    for bead_id, agent_name in releases:
-                        try:
-                            _issue, item_changed = project.release_agent_claim(
-                                bead_id, agent_name
-                            )
-                        except Exception as exc:  # noqa: BLE001 - reconcile siblings.
-                            release_errors.add((bead_id, agent_name))
-                            log.warning(
-                                f"[bead_claim_checks] Failed to release bead claim "
-                                f"{bead_id} for {agent_name}: {exc}"
-                            )
-                            continue
-                        if item_changed:
-                            released.add((bead_id, agent_name))
-                            changed = True
-
-                    for bead_id, agent_name in acquisitions:
-                        try:
-                            issue, item_changed = project.claim_for_agent_wait(
-                                bead_id, agent_name
-                            )
-                        except Exception as exc:  # noqa: BLE001 - reconcile siblings.
-                            log.warning(
-                                f"[bead_claim_checks] Failed to acquire bead claim "
-                                f"{bead_id} for {agent_name}: {exc}"
-                            )
-                            continue
-                        if (
-                            issue.status in {Status.CLAIMED, Status.IN_PROGRESS}
-                            and issue.assignee == agent_name
-                        ):
-                            held.add((bead_id, agent_name))
-                        changed |= item_changed
-
-                if changed:
-                    committed = commit_bead_claim_reconciliation(
-                        beads_dir,
-                        already_locked=already_locked,
-                        mutation_origin="machine",
-                        operation_context=store.context,
-                    )
-            if committed:
-                publish_bead_claim(beads_dir, "reconciliation", project_name)
-                schedule_beads_sidecar_convergence(project_name)
+        if committed:
+            publish_bead_claim(beads_dir, "reconciliation", project_name)
+            schedule_beads_sidecar_convergence(project_name)
     except Exception as exc:  # noqa: BLE001 - one project must not stop the chop.
         log.warning(
             f"[bead_claim_checks] Failed to reconcile bead claims for "
             f"{project_name}: {exc}"
         )
         release_errors.update(releases)
-        return _ProjectClaimReconciliation(
-            released=frozenset(),
-            release_errors=frozenset(release_errors),
-            held=frozenset(),
-        )
+        return _empty_reconciliation(frozenset(release_errors))
 
     return _ProjectClaimReconciliation(
         released=frozenset(released),
@@ -243,26 +248,139 @@ def _claim_owner_is_alive(record: _ClaimArtifact) -> bool:
     return is_process_alive(meta, record.artifact_dir)
 
 
-def _read_claimed_issues(project_name: str) -> list[Issue] | None:
-    """Read claimed issues from a refreshed writable store, not the primary.
+def _read_claimed_issues(beads_dir: Path) -> list[Issue] | None:
+    """List CLAIMED issues from an already-refreshed leased store.
 
     Tombstones treat an empty snapshot as proof there is nothing left to
     release. That is only safe after integrating the same remote the
     writers publish to; the canonical primary sidecar may still be stale
     until auto-sync consumes the post-publication hint.
     """
-    from sase.bead.background_store import writable_bead_store_for_machine
+    return rust_beads.list_issues(beads_dir, statuses=[Status.CLAIMED])
 
-    with writable_bead_store_for_machine(
-        project_name,
-        workflow="chop:bead_claim_checks",
-        holder=f"bead_claim_checks-read:{project_name}",
-    ) as store:
-        try:
-            refresh_bead_store(store.beads_dir)
-        except Exception:
-            pass
-        return rust_beads.list_issues(store.beads_dir, statuses=[Status.CLAIMED])
+
+def _release_targets_from_snapshot(
+    project_name: str,
+    issues: list[Issue],
+    authoritative: dict[tuple[str, str], _ClaimArtifact],
+) -> list[tuple[str, str]]:
+    targets: list[tuple[str, str]] = []
+    for issue in issues:
+        owner = authoritative.get((project_name, issue.assignee))
+        if (
+            owner is None
+            or owner.bead_id != issue.id
+            or owner.bead_claim_promoted is not False
+            or _claim_owner_is_alive(owner)
+        ):
+            continue
+        targets.append((issue.id, issue.assignee))
+    return targets
+
+
+def _process_project_claims(
+    project_name: str,
+    *,
+    need_claimed_snapshot: bool,
+    acquisitions: list[tuple[str, str]],
+    projects_root: Path,
+    log: ChopLogger,
+) -> _ProjectClaimTick:
+    """Refresh, snapshot, and reconcile one project under one operational lease.
+
+    Periodic claim-check work must not churn leases: the authoritative
+    CLAIMED snapshot and the repair batch share one
+    ``writable_bead_store_for_machine`` block, one refresh, one write lock,
+    and at most one publication.
+    """
+    snapshot_ok = False
+    scanned = False
+    claimed_count = 0
+    snapshot_complete = not need_claimed_snapshot
+    releases: list[tuple[str, str]] = []
+    reconciliation = _empty_reconciliation()
+
+    try:
+        from sase.bead.background_store import writable_bead_store_for_machine
+
+        with writable_bead_store_for_machine(
+            project_name,
+            workflow="chop:bead_claim_checks",
+            holder=f"bead_claim_checks:{project_name}",
+        ) as store:
+            beads_dir = store.beads_dir
+            try:
+                refresh_bead_store(beads_dir)
+            except Exception as exc:  # noqa: BLE001 - use the leased snapshot anyway.
+                log.warning(
+                    f"[bead_claim_checks] Failed to refresh writable bead store "
+                    f"for {project_name}: {exc}"
+                )
+
+            if need_claimed_snapshot:
+                try:
+                    issues = _read_claimed_issues(beads_dir)
+                except Exception as exc:  # noqa: BLE001 - still try acquisitions.
+                    log.warning(
+                        f"[bead_claim_checks] Failed to read bead store for "
+                        f"{project_name}: {exc}"
+                    )
+                    snapshot_complete = True
+                else:
+                    snapshot_ok = True
+                    if issues is not None:
+                        scanned = True
+                        claimed_count = len(issues)
+                        # Ordering invariant: collect the authoritative bead
+                        # snapshot before re-scanning artifacts. Agent metadata
+                        # is written before the claim event, so this order
+                        # cannot mistake a fresh live claim for an ownerless one.
+                        authoritative = _latest_owner_records(
+                            _scan_claim_artifacts(projects_root)
+                        )
+                        releases = _release_targets_from_snapshot(
+                            project_name, issues, authoritative
+                        )
+                    snapshot_complete = True
+
+            if releases or acquisitions:
+                reconciliation = _reconcile_project_claims(
+                    project_name,
+                    beads_dir=beads_dir,
+                    operation_context=store.context,
+                    releases=releases,
+                    acquisitions=acquisitions,
+                    log=log,
+                )
+    except Exception as exc:  # noqa: BLE001 - one project must not stop the chop.
+        if need_claimed_snapshot and not snapshot_complete:
+            log.warning(
+                f"[bead_claim_checks] Failed to read bead store for "
+                f"{project_name}: {exc}"
+            )
+            return _ProjectClaimTick(
+                snapshot_ok=False,
+                scanned=False,
+                claimed_count=0,
+                reconciliation=_empty_reconciliation(),
+            )
+        log.warning(
+            f"[bead_claim_checks] Failed to reconcile bead claims for "
+            f"{project_name}: {exc}"
+        )
+        return _ProjectClaimTick(
+            snapshot_ok=snapshot_ok,
+            scanned=scanned,
+            claimed_count=claimed_count,
+            reconciliation=_empty_reconciliation(frozenset(releases)),
+        )
+
+    return _ProjectClaimTick(
+        snapshot_ok=snapshot_ok,
+        scanned=scanned,
+        claimed_count=claimed_count,
+        reconciliation=reconciliation,
+    )
 
 
 def _latest_owner_records(
@@ -306,50 +424,10 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             reason="no_claim_reconciliation_candidates",
         )
 
-    # Ordering invariant: collect the authoritative bead snapshot before
-    # re-scanning artifacts. Agent metadata is written before the claim event,
-    # so this order cannot mistake a fresh live claim for an ownerless one.
-    candidate_projects = {record.project_name for record in release_candidates}
-    claimed_by_project: dict[str, list[Issue]] = {}
-    # Projects whose authoritative read succeeded; only their release candidates
-    # can be declared terminal below.
-    read_projects: set[str] = set()
-    for project_name in sorted(candidate_projects):
-        try:
-            issues = _read_claimed_issues(project_name)
-        except Exception as exc:  # noqa: BLE001 - one bad store must not stop the chop.
-            runtime.log.warning(
-                f"[bead_claim_checks] Failed to read bead store for "
-                f"{project_name}: {exc}"
-            )
-            continue
-        read_projects.add(project_name)
-        if issues is not None:
-            claimed_by_project[project_name] = issues
-
-    examined = 0
-    release_targets: dict[str, list[tuple[str, str]]] = {}
-    if claimed_by_project:
-        authoritative = _latest_owner_records(_scan_claim_artifacts(projects_root))
-        for project_name, issues in claimed_by_project.items():
-            for issue in issues:
-                examined += 1
-                owner = authoritative.get((project_name, issue.assignee))
-                if (
-                    owner is None
-                    or owner.bead_id != issue.id
-                    or owner.bead_claim_promoted is not False
-                    or _claim_owner_is_alive(owner)
-                ):
-                    continue
-                release_targets.setdefault(project_name, []).append(
-                    (issue.id, issue.assignee)
-                )
-
+    release_projects = {record.project_name for record in release_candidates}
     acquisitions_by_project: dict[str, list[tuple[str, str]]] = {}
     acquisition_records: dict[tuple[str, str, str], _ClaimArtifact] = {}
     for record in acquire_candidates:
-        examined += 1
         acquisitions_by_project.setdefault(record.project_name, []).append(
             (record.bead_id, record.agent_name)
         )
@@ -357,23 +435,34 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             (record.project_name, record.bead_id, record.agent_name)
         ] = record
 
+    examined = len(acquire_candidates)
     released = 0
     acquired = 0
     release_errors: set[tuple[str, str]] = set()
-    reconciliation_projects = set(release_targets).union(acquisitions_by_project)
-    for project_name in sorted(reconciliation_projects):
-        result = _reconcile_project_claims(
+    # Projects whose authoritative read succeeded; only their release candidates
+    # can be declared terminal below.
+    read_projects: set[str] = set()
+    scanned_projects: set[str] = set(acquisitions_by_project)
+    for project_name in sorted(release_projects.union(acquisitions_by_project)):
+        tick = _process_project_claims(
             project_name,
-            releases=release_targets.get(project_name, []),
+            need_claimed_snapshot=project_name in release_projects,
             acquisitions=acquisitions_by_project.get(project_name, []),
+            projects_root=projects_root,
             log=runtime.log,
         )
-        released += len(result.released)
+        if tick.snapshot_ok:
+            read_projects.add(project_name)
+        if tick.scanned:
+            scanned_projects.add(project_name)
+            examined += tick.claimed_count
+        released += len(tick.reconciliation.released)
         release_errors.update(
-            (project_name, agent_name) for _bead_id, agent_name in result.release_errors
+            (project_name, agent_name)
+            for _bead_id, agent_name in tick.reconciliation.release_errors
         )
-        acquired += len(result.held)
-        for bead_id, agent_name in result.held:
+        acquired += len(tick.reconciliation.held)
+        for bead_id, agent_name in tick.reconciliation.held:
             record = acquisition_records[(project_name, bead_id, agent_name)]
             write_bead_claim_marker(
                 record.artifact_dir,
@@ -395,9 +484,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     reason = None if released or acquired else "no_claims_reconciled"
     return runtime.emit_summary(
         {
-            "projects_scanned": len(
-                set(claimed_by_project).union(acquisitions_by_project)
-            ),
+            "projects_scanned": len(scanned_projects),
             "claims_examined": examined,
             "claims_released": released,
             "claims_acquired": acquired,
