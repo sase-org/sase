@@ -75,10 +75,12 @@ _agent_owner_config_cache_value: AgentOwnerConfigSnapshot | None = None
 # Explicit clears increment the generation so rapid same-size edits cannot
 # retain an otherwise-identical filesystem token.
 _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 0.75
+CONFIG_TOKEN_REFRESH_THREAD_NAME = "sase-config-token-refresh"
 _config_cache_generation = 0
 _current_config_token_cache_value: tuple[Any, ...] | None = None
 _current_config_token_cache_deadline = 0.0
 _current_config_token_cache_epoch = 0
+_current_config_token_cache_dir: Path | None = None
 _current_config_token_cache_lock = threading.RLock()
 _current_config_token_refresh_thread: threading.Thread | None = None
 
@@ -86,9 +88,10 @@ _current_config_token_refresh_thread: threading.Thread | None = None
 def _reset_current_config_token_cache_locked() -> None:
     """Reset the config-token cache while its lock is held."""
     global _current_config_token_cache_value, _current_config_token_cache_deadline
-    global _current_config_token_cache_epoch
+    global _current_config_token_cache_epoch, _current_config_token_cache_dir
     _current_config_token_cache_value = None
     _current_config_token_cache_deadline = 0.0
+    _current_config_token_cache_dir = None
     _current_config_token_cache_epoch += 1
 
 
@@ -170,15 +173,24 @@ def current_config_token() -> tuple[Any, ...]:
     The first lookup after process start or explicit invalidation is
     synchronous.  An expired cached token is returned stale while a single
     daemon worker revalidates it off-thread.
+
+    The cached token is bound to the ``CONFIG_DIR`` object it was computed
+    against. Rebinding that source root (tests patch it; production never
+    does) is a cache-generation change, the same class of event as
+    :func:`set_include_local_config`. Stale-while-revalidate timing is
+    unchanged when ``CONFIG_DIR`` keeps its identity.
     """
     global _current_config_token_cache_value, _current_config_token_cache_deadline
-    global _current_config_token_refresh_thread
+    global _current_config_token_refresh_thread, _current_config_token_cache_dir
 
     with _current_config_token_cache_lock:
         cached = _current_config_token_cache_value
-        if cached is None:
+        if cached is None or _current_config_token_cache_dir is not CONFIG_DIR:
+            if cached is not None:
+                _reset_current_config_token_cache_locked()
             token = _compute_current_config_token()
             _current_config_token_cache_value = token
+            _current_config_token_cache_dir = CONFIG_DIR
             _current_config_token_cache_deadline = (
                 time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
             )
@@ -191,7 +203,7 @@ def current_config_token() -> tuple[Any, ...]:
             refresh_thread = threading.Thread(
                 target=_refresh_current_config_token,
                 args=(_current_config_token_cache_epoch,),
-                name="sase-config-token-refresh",
+                name=CONFIG_TOKEN_REFRESH_THREAD_NAME,
                 daemon=True,
             )
             _current_config_token_refresh_thread = refresh_thread

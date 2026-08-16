@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections import Counter
 
+from tests._global_state_leaks.fingerprints import (
+    LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL,
+)
 from tests._global_state_leaks.models import (
     _CacheFingerprint,
     _Change,
@@ -91,6 +94,10 @@ def _classify_global_change(
 ) -> str:
     if before == after:
         return "none"
+    if name == LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL:
+        if after is None or _is_canonical_cold(after):
+            return "cooling"
+        return "live-config-token-refresh-thread"
     if before is None:
         return "warming"
     if before.kind == "none" and after is None:

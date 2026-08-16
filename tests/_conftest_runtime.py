@@ -3,9 +3,12 @@
 from collections.abc import Iterator
 import os
 from pathlib import Path
+import threading
 from unittest.mock import patch
 
 import pytest
+
+_CONFIG_TOKEN_REFRESH_JOIN_TIMEOUT_SECONDS = 2.0
 
 
 @pytest.fixture(scope="session")
@@ -90,31 +93,75 @@ def _mock_system_clipboard(request: pytest.FixtureRequest):
         yield
 
 
-@pytest.fixture(autouse=True)
-def _clear_config_caches() -> None:
-    """Drop the merged-config / mentor-profile caches before each test.
+def _drain_config_token_refresh(
+    *, timeout: float = _CONFIG_TOKEN_REFRESH_JOIN_TIMEOUT_SECONDS
+) -> None:
+    """Invalidate the token generation and join a live refresh worker."""
+    from sase.config import core as config_core
 
-    The runtime caches live at module scope and would otherwise carry parsed
-    config across tests that patch ``load_merged_config`` or rewrite tmp_path
-    sase.yml files between runs.
+    with config_core._current_config_token_cache_lock:
+        config_core._reset_current_config_token_cache_locked()
+        thread = config_core._current_config_token_refresh_thread
+    if thread is not None and thread is not threading.current_thread():
+        thread.join(timeout=timeout)
+    with config_core._current_config_token_cache_lock:
+        if config_core._current_config_token_refresh_thread is thread:
+            config_core._current_config_token_refresh_thread = None
+
+
+def _clear_function_cache(cached: object) -> None:
+    """Clear a functools cache when the object still exposes ``cache_clear``.
+
+    Yield teardown of ``_clear_config_caches`` runs while the test's
+    ``monkeypatch`` is still active (it is owned by ``_isolate_sase_home``).
+    Tests often replace these helpers with lambdas, so the live module
+    attribute cannot be assumed to be the original cached function.
     """
+    cache_clear = getattr(cached, "cache_clear", None)
+    if callable(cache_clear):
+        cache_clear()
+
+
+def _capture_derived_config_cache_helpers() -> tuple[object, object, object]:
+    """Bind the real cached helpers before tests replace their names."""
+    from sase.llm_provider import config as llm_provider_config
+    from sase.llm_provider import launch_alias_overrides
+    from sase.llm_provider.registry import _provider_cli_available
+
+    return (
+        llm_provider_config._get_model_aliases_for_token,
+        launch_alias_overrides._parse_env_value,
+        _provider_cli_available,
+    )
+
+
+_DERIVED_CONFIG_CACHE_HELPERS: tuple[object, object, object] | None = None
+
+
+def _derived_config_cache_helpers() -> tuple[object, object, object]:
+    """Return the original cached helpers captured on first isolation setup."""
+    global _DERIVED_CONFIG_CACHE_HELPERS
+    if _DERIVED_CONFIG_CACHE_HELPERS is None:
+        _DERIVED_CONFIG_CACHE_HELPERS = _capture_derived_config_cache_helpers()
+    return _DERIVED_CONFIG_CACHE_HELPERS
+
+
+def _reset_derived_config_caches() -> None:
+    """Drop process-global config, identity, and derived layer caches."""
     from sase.config import core as config_core
     from sase.config import file_hooks as file_hooks_config
     from sase.artifact_providers import reset_artifact_provider_registry_cache
     from sase.config import mentor as mentor_config
-    from sase.llm_provider import config as llm_provider_config
-    from sase.llm_provider import launch_alias_overrides
-    from sase.llm_provider.registry import _provider_cli_available
     from sase._linked_repo_identity import reset_repo_identity_caches
     from sase.feature_flags.snapshot import reset_process_feature_flags
 
     reset_repo_identity_caches()
     reset_artifact_provider_registry_cache()
     reset_process_feature_flags()
+    _drain_config_token_refresh()
     config_core.clear_config_cache()
-    llm_provider_config._get_model_aliases_for_token.cache_clear()
-    launch_alias_overrides._parse_env_value.cache_clear()
-    _provider_cli_available.cache_clear()
+    for cached in _derived_config_cache_helpers():
+        _clear_function_cache(cached)
 
     mentor_config._mentor_profiles_cache_token = None
     mentor_config._mentor_profiles_cache_value = None
@@ -123,6 +170,20 @@ def _clear_config_caches() -> None:
 
     file_hooks_config._file_hooks_cache_token = None
     file_hooks_config._file_hooks_cache_value = None
+
+
+@pytest.fixture(autouse=True)
+def _clear_config_caches(_isolate_sase_home: None) -> Iterator[None]:
+    """Isolate the process-global config cache around each test.
+
+    Setup runs after ``_isolate_sase_home`` has redirected ``CONFIG_DIR`` so
+    a leftover reader cannot install a host-path token into the successor's
+    generation. Teardown drains ``sase-config-token-refresh`` and clears
+    derived caches again before monkeypatch restores host paths.
+    """
+    _reset_derived_config_caches()
+    yield
+    _reset_derived_config_caches()
 
 
 @pytest.fixture(autouse=True)

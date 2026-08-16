@@ -6,6 +6,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 import re
+import threading
 
 import pytest
 
@@ -19,6 +20,12 @@ from tests._global_state_leak_detector import (
     _diff_snapshots,
     _fingerprint_environment,
     _global_fingerprint,
+)
+from tests._global_state_leaks.fingerprints import (
+    LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL,
+    _fingerprint_list,
+    _live_config_token_refresh_threads,
+    _snapshot as capture_process_snapshot,
 )
 
 
@@ -41,6 +48,49 @@ def _snapshot(
 
 def _missing_fingerprint() -> _ValueFingerprint:
     return _ValueFingerprint("missing", None, "missing", "missing")
+
+
+def test_live_config_refresh_thread_is_poisoning_not_warming() -> None:
+    """A leftover sase-config-token-refresh worker is a poisoning change."""
+    live = _fingerprint_list(["123:sase-config-token-refresh"])
+    appeared = _diff_snapshots(
+        _snapshot(),
+        _snapshot(globals={LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL: live}),
+    )
+    assert [change.name for change in appeared.poisoning] == [
+        LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL
+    ]
+    assert appeared.poisoning[0].reason == "live-config-token-refresh-thread"
+    assert appeared.warming_counts == {}
+
+    cooled = _diff_snapshots(
+        _snapshot(globals={LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL: live}),
+        _snapshot(),
+    )
+    assert cooled.poisoning == ()
+    assert cooled.cooling_counts == {"global": 1}
+
+
+def test_snapshot_includes_live_config_token_refresh_threads() -> None:
+    started = threading.Event()
+    hold = threading.Event()
+
+    def _run() -> None:
+        started.set()
+        hold.wait(timeout=2.0)
+
+    from sase.config.core import CONFIG_TOKEN_REFRESH_THREAD_NAME
+
+    thread = threading.Thread(target=_run, name=CONFIG_TOKEN_REFRESH_THREAD_NAME)
+    thread.start()
+    assert started.wait(timeout=1.0)
+    try:
+        assert _live_config_token_refresh_threads()
+        snap = capture_process_snapshot()
+        assert LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL in snap.globals
+    finally:
+        hold.set()
+        thread.join(timeout=2.0)
 
 
 def test_none_to_pattern_is_warming_but_pattern_change_is_poisoning() -> None:

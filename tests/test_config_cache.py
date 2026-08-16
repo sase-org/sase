@@ -1,7 +1,8 @@
 """Tests for the merged-config and mentor-profile caches.
 
-The autouse ``_clear_config_caches`` fixture in conftest already drops both
-caches before each test, so individual tests don't need to clear manually.
+The autouse ``_clear_config_caches`` fixture isolates both caches around
+each test (setup after ``CONFIG_DIR`` redirect, teardown drain before
+monkeypatch restore), so individual tests don't need to clear manually.
 """
 
 import threading
@@ -9,6 +10,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 import yaml
 from sase import _yaml_safe
 from sase.config import core as config_core
@@ -16,11 +18,16 @@ from sase.config import mentor as mentor_config
 from sase.config.core import (
     clear_config_cache,
     current_config_token,
+    get_agent_owner_config_snapshot,
     load_merged_config,
     set_include_local_config,
 )
 from sase.config.mentor import _load_mentor_profiles
 from sase.core.paths import machine_name_path
+from tests._conftest_runtime import (
+    _drain_config_token_refresh,
+    _reset_derived_config_caches,
+)
 
 
 def _write_user_config(global_dir: Path, content: dict) -> None:
@@ -368,19 +375,22 @@ def test_current_config_token_serves_stale_while_refreshing() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
-        first = current_config_token()
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
-        assert current_config_token() is first
-        assert calls == 1
+        try:
+            first = current_config_token()
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
+            assert current_config_token() is first
+            assert calls == 1
 
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
-        assert current_config_token() is first
-        assert refresh_started.wait(timeout=1.0)
-        assert current_config_token() is first
-        assert calls == 2
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+            assert current_config_token() is first
+            assert refresh_started.wait(timeout=1.0)
+            assert current_config_token() is first
+            assert calls == 2
 
-        release_refresh.set()
-        _wait_for_config_token(("token", 2))
+            release_refresh.set()
+            _wait_for_config_token(("token", 2))
+        finally:
+            release_refresh.set()
 
 
 def test_current_config_token_refresh_is_single_flight() -> None:
@@ -405,27 +415,30 @@ def test_current_config_token_refresh_is_single_flight() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
-        first = current_config_token()
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-        assert current_config_token() is first
-        assert refresh_started.wait(timeout=1.0)
+        try:
+            first = current_config_token()
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() is first
+            assert refresh_started.wait(timeout=1.0)
 
-        results: list[tuple] = []
-        readers = [
-            threading.Thread(target=lambda: results.append(current_config_token()))
-            for _ in range(12)
-        ]
-        for reader in readers:
-            reader.start()
-        for reader in readers:
-            reader.join(timeout=1.0)
+            results: list[tuple] = []
+            readers = [
+                threading.Thread(target=lambda: results.append(current_config_token()))
+                for _ in range(12)
+            ]
+            for reader in readers:
+                reader.start()
+            for reader in readers:
+                reader.join(timeout=1.0)
 
-        assert len(results) == len(readers)
-        assert all(token is first for token in results)
-        assert calls == 2
+            assert len(results) == len(readers)
+            assert all(token is first for token in results)
+            assert calls == 2
 
-        release_refresh.set()
-        _wait_for_config_token(("token", 2))
+            release_refresh.set()
+            _wait_for_config_token(("token", 2))
+        finally:
+            release_refresh.set()
 
 
 def test_first_config_token_read_does_not_start_worker() -> None:
@@ -474,20 +487,195 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
-        assert current_config_token() == ("token", 1)
-        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-        assert current_config_token() == ("token", 1)
-        assert refresh_started.wait(timeout=1.0)
+        try:
+            assert current_config_token() == ("token", 1)
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() == ("token", 1)
+            assert refresh_started.wait(timeout=1.0)
 
-        clear_config_cache()
-        assert current_config_token() == ("token", 3)
+            clear_config_cache()
+            assert current_config_token() == ("token", 3)
 
-        release_refresh.set()
-        deadline = time.perf_counter() + 2.0
-        while config_core._current_config_token_refresh_thread is not None:
-            assert time.perf_counter() < deadline
-            time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
-        assert current_config_token() == ("token", 3)
+            release_refresh.set()
+            deadline = time.perf_counter() + 2.0
+            while config_core._current_config_token_refresh_thread is not None:
+                assert time.perf_counter() < deadline
+                time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
+            assert current_config_token() == ("token", 3)
+        finally:
+            release_refresh.set()
+
+
+def test_rebound_config_dir_cold_reads_successor_paths(tmp_path: Path) -> None:
+    """A leftover host-root populate cannot seed the successor's first reads."""
+    host_dir = tmp_path / "host"
+    successor_dir = tmp_path / "successor"
+    _write_user_config(host_dir, {"marker": "host"})
+    (host_dir / "sase_athena.yml").write_text(
+        "id:\n  username: hostuser\n  machine_name: athena\n",
+        encoding="utf-8",
+    )
+    _write_user_config(successor_dir, {"marker": "successor"})
+    (successor_dir / "sase_athena.yml").write_text(
+        "id:\n  username: successoruser\n  machine_name: athena\n",
+        encoding="utf-8",
+    )
+    machine_name_path().write_text("athena\n", encoding="utf-8")
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", host_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        leftover_token = current_config_token()
+        leftover_merged = load_merged_config()
+        leftover_owner = get_agent_owner_config_snapshot()
+    assert leftover_merged["marker"] == "host"
+    assert leftover_owner.owner is not None
+    assert leftover_owner.owner.username == "hostuser"
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", successor_dir),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+    ):
+        token = current_config_token()
+        merged = load_merged_config()
+        owner = get_agent_owner_config_snapshot()
+
+    assert token is not leftover_token
+    assert merged is not leftover_merged
+    assert merged["marker"] == "successor"
+    assert owner is not leftover_owner
+    assert owner.owner is not None
+    assert owner.owner.username == "successoruser"
+
+
+def test_reset_derived_caches_tolerates_monkeypatched_cached_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Yield teardown must not assume live names still expose cache_clear."""
+    monkeypatch.setattr(
+        "sase.llm_provider.registry._provider_cli_available",
+        lambda _provider: True,
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.config._get_model_aliases_for_token",
+        lambda _token: {},
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.launch_alias_overrides._parse_env_value",
+        lambda _raw: {},
+    )
+    _reset_derived_config_caches()
+
+
+def test_reset_derived_caches_clears_originals_while_names_are_patched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Isolation must still drain the real functools caches under a patch."""
+    from sase.llm_provider.registry import _provider_cli_available
+
+    original = _provider_cli_available
+    original.cache_clear()
+    original("claude")
+    assert original.cache_info().currsize >= 1
+
+    monkeypatch.setattr(
+        "sase.llm_provider.registry._provider_cli_available",
+        lambda _provider: True,
+    )
+    _reset_derived_config_caches()
+    assert original.cache_info().currsize == 0
+
+
+def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:
+    """Drain invalidates the generation and waits for the daemon to exit."""
+    now = [10.0]
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("token", call_number)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        try:
+            assert current_config_token() == ("token", 1)
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() == ("token", 1)
+            assert refresh_started.wait(timeout=1.0)
+            epoch_before = config_core._current_config_token_cache_epoch
+            worker = config_core._current_config_token_refresh_thread
+            assert worker is not None
+
+            def _release() -> None:
+                time.sleep(0.02)
+                release_refresh.set()
+
+            threading.Thread(target=_release, daemon=True).start()
+            _drain_config_token_refresh()
+
+            assert config_core._current_config_token_cache_epoch > epoch_before
+            assert config_core._current_config_token_refresh_thread is None
+            assert not worker.is_alive()
+            assert current_config_token() == ("token", 3)
+        finally:
+            release_refresh.set()
+
+
+def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
+    """A drained worker cannot install a token into the successor generation."""
+    now = [10.0]
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+            return ("stale-worker", call_number)
+        return ("inline", call_number)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        try:
+            assert current_config_token() == ("inline", 1)
+            now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+            assert current_config_token() == ("inline", 1)
+            assert refresh_started.wait(timeout=1.0)
+
+            def _release() -> None:
+                time.sleep(0.02)
+                release_refresh.set()
+
+            threading.Thread(target=_release, daemon=True).start()
+            _drain_config_token_refresh()
+            assert current_config_token() == ("inline", 3)
+            deadline = time.perf_counter() + 2.0
+            while config_core._current_config_token_refresh_thread is not None:
+                assert time.perf_counter() < deadline
+                time.sleep(min(0.01, max(0.0, deadline - time.perf_counter())))
+            assert current_config_token() == ("inline", 3)
+        finally:
+            release_refresh.set()
 
 
 def test_mentor_profiles_cache_returns_same_list() -> None:

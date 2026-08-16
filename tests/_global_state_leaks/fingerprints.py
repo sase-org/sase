@@ -7,12 +7,18 @@ import hashlib
 import os
 import re
 import sys
+import threading
 from types import ModuleType
 
+from sase.config.core import CONFIG_TOKEN_REFRESH_THREAD_NAME
 from tests._global_state_leaks.models import (
     _CacheFingerprint,
     _Snapshot,
     _ValueFingerprint,
+)
+
+LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL = (
+    "sase.config.core._live_config_token_refresh_threads"
 )
 
 
@@ -37,6 +43,11 @@ def _snapshot() -> _Snapshot:
             cache = _cache_fingerprint(value)
             if cache is not None:
                 caches.setdefault(f"{module_name}.{attr_name}", cache)
+    live_refresh_threads = _live_config_token_refresh_threads()
+    if live_refresh_threads:
+        global_values[LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL] = _fingerprint_list(
+            live_refresh_threads
+        )
     return _Snapshot(
         globals=global_values,
         caches=caches,
@@ -57,6 +68,15 @@ def _safe_getcwd() -> str:
         return os.getcwd()
     except FileNotFoundError:
         return "<deleted>"
+
+
+def _live_config_token_refresh_threads() -> list[str]:
+    """Return live ``sase-config-token-refresh`` workers for leak snapshots."""
+    return sorted(
+        f"{thread.ident}:{thread.name}"
+        for thread in threading.enumerate()
+        if thread.name == CONFIG_TOKEN_REFRESH_THREAD_NAME and thread.is_alive()
+    )
 
 
 def _loaded_sase_modules() -> list[tuple[str, ModuleType]]:
