@@ -44,10 +44,10 @@ class MirrorReport:
 class MirrorBudget:
     """Per-pass bounds shared by the chop and CLI so both converge alike.
 
-    Unlike ``bead_store_refresh``/``bead_claim_checks``, this reconciler
-    handles exactly one project per invocation (the ``for_each`` fan-out
-    already isolates projects into separate script runs), so there is no
-    shared lock-wait budget to slice across competing projects in one pass.
+    Unlike ``bead_claim_checks``, this reconciler handles exactly one project
+    per invocation (the ``for_each`` fan-out already isolates projects into
+    separate script runs), so there is no shared lock-wait budget to slice
+    across competing projects in one pass.
     """
 
     #: Derived from ``LANE_CHOP_TIMEOUT_SECONDS``, the ``external_mirror``

@@ -7,6 +7,12 @@ and arbitrary custom roles), preferring roles with a pending sync hint but
 otherwise re-checking each role only every ``_BACKSTOP_INTERVAL_SECONDS``.
 Only ``sase._sidecar_auto_sync.sync_primary_sidecar_role`` touches a clone,
 and only to fetch and fast-forward a clean, attached, non-diverged checkout.
+
+Projects with a live, unresolved bead waiter are hinted into the ``beads``
+role every tick, unblocking waiters even when a project has not opted that
+role into ``auto_sync``: the sync performed is still the same conservative
+fetch/fast-forward, so this implicit coverage is strictly less invasive than
+the managed-integration waiter refresh path it replaces.
 """
 
 from __future__ import annotations
@@ -24,12 +30,24 @@ from sase._sidecar_auto_sync import (
     auto_sync_roles,
     sync_primary_sidecar_role,
 )
-from sase._sidecar_sync_hints import clear_sidecar_sync_hint, pending_sidecar_sync_roles
+from sase._sidecar_sync_hints import (
+    clear_sidecar_sync_hint,
+    mark_sidecar_sync_hint,
+    pending_sidecar_sync_roles,
+)
+from sase.agent.names import is_process_alive
+from sase.bead.sync import bead_refresh_mode
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
+from sase.core.agent_scan_facade import scan_agent_artifacts
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+)
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.sdd._store_types import BEADS_SIDECAR_ROLE
 
 _BACKOFF_STATE_FILENAME = "sidecar_auto_sync_schedule.json"
 # Keep in sync with the ``sidecar_auto_sync`` chop timeout in default_config.yml.
@@ -41,6 +59,14 @@ _MAX_BACKOFF_SECONDS = 30 * 60
 # A role with no pending hint is only re-checked this often, so scanning
 # every enabled project each tick stays cheap even at fleet scale.
 _BACKSTOP_INTERVAL_SECONDS = 5 * 60
+_BEAD_WAIT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
+    only_workflow_dirs=("ace-run",),
+    include_prompt_step_markers=False,
+    include_raw_prompt_snippets=False,
+    include_done_markers=False,
+    include_workflow_state=False,
+    include_waiting=True,
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +82,7 @@ class _Target:
     primary_workspace_dir: str
     role: str
     hinted: bool
+    require_auto_sync_opt_in: bool = True
 
     @property
     def schedule_key(self) -> str:
@@ -179,9 +206,43 @@ def _enabled_project_records() -> list[ProjectRecordWire]:
     ]
 
 
+def _waiting_agent_is_alive(record: AgentArtifactRecordWire) -> bool | None:
+    meta: dict[str, object] = {}
+    if record.agent_meta is not None:
+        if record.agent_meta.pid is not None:
+            meta["pid"] = record.agent_meta.pid
+        if record.agent_meta.stopped_at is not None:
+            meta["stopped_at"] = record.agent_meta.stopped_at
+    try:
+        return is_process_alive(meta, Path(record.artifact_dir))
+    except Exception:  # noqa: BLE001 - uncertain liveness must fail open.
+        return None
+
+
+def _projects_with_live_bead_waits(projects_root: Path) -> frozenset[str]:
+    """Return projects with a live agent parked on an unresolved bead wait."""
+    snapshot = scan_agent_artifacts(projects_root, _BEAD_WAIT_SCAN_OPTIONS)
+    projects: set[str] = set()
+    for record in snapshot.records:
+        waiting = record.waiting
+        artifact_dir = Path(record.artifact_dir)
+        if (
+            waiting is None
+            or not waiting.wait_for_beads
+            or (artifact_dir / "ready.json").exists()
+        ):
+            continue
+        if _waiting_agent_is_alive(record) is False:
+            continue
+        projects.add(record.project_name)
+    return frozenset(projects)
+
+
 def _targets_for_project(
     runtime: BuiltinChopRuntime,
     record: ProjectRecordWire,
+    *,
+    live_bead_wait_projects: frozenset[str],
 ) -> list[_Target]:
     primary = record.workspace_dir
     assert primary is not None
@@ -192,11 +253,20 @@ def _targets_for_project(
             f"[sidecar_auto_sync] Failed to resolve auto_sync roles for "
             f"{record.project_name}: {exc}"
         )
+        roles = ()
+
+    # A live bead waiter must converge the beads role even when the project
+    # has not opted it into auto_sync: this is the one implicit-coverage
+    # carve-out described in the module docstring.
+    force_beads = (
+        record.project_name in live_bead_wait_projects
+        and BEADS_SIDECAR_ROLE not in roles
+    )
+    if not roles and not force_beads:
         return []
-    if not roles:
-        return []
+
     hinted = set(pending_sidecar_sync_roles(record.project_name))
-    return [
+    targets = [
         _Target(
             project_key=record.project_name,
             project_file=record.project_file,
@@ -206,6 +276,18 @@ def _targets_for_project(
         )
         for role in roles
     ]
+    if force_beads:
+        targets.append(
+            _Target(
+                project_key=record.project_name,
+                project_file=record.project_file,
+                primary_workspace_dir=primary,
+                role=BEADS_SIDECAR_ROLE,
+                hinted=True,
+                require_auto_sync_opt_in=False,
+            )
+        )
+    return targets
 
 
 def _summary(
@@ -239,9 +321,20 @@ def _summary(
 @builtin_chop("sidecar_auto_sync")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     records = _enabled_project_records()
+
+    live_bead_wait_projects: frozenset[str] = frozenset()
+    if bead_refresh_mode() != "off":
+        live_bead_wait_projects = _projects_with_live_bead_waits(sase_projects_dir())
+        for project_name in live_bead_wait_projects:
+            mark_sidecar_sync_hint(project_name, BEADS_SIDECAR_ROLE)
+
     targets: list[_Target] = []
     for record in records:
-        targets.extend(_targets_for_project(runtime, record))
+        targets.extend(
+            _targets_for_project(
+                runtime, record, live_bead_wait_projects=live_bead_wait_projects
+            )
+        )
 
     if not targets:
         return _summary(runtime, targets=0, reason="no_auto_sync_roles")
@@ -273,6 +366,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             target.project_key,
             target.role,
             project_file=target.project_file,
+            require_auto_sync_opt_in=target.require_auto_sync_opt_in,
         )
 
         if target.hinted:

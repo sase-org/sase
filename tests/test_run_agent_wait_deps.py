@@ -7,48 +7,50 @@ import pytest
 
 from sase.axe.run_agent_wait_deps import (
     initial_dependencies_resolved,
-    refresh_bead_wait_store,
+    mark_bead_wait_sync_hint,
     waiting_marker_dependencies_resolved,
 )
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent
 
 
-def test_refresh_bead_wait_store_honors_off_mode(
+def test_mark_bead_wait_sync_hint_honors_off_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    locate = MagicMock(return_value=tmp_path / "beads")
-    refresh = MagicMock()
+    mark = MagicMock()
     monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "off")
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        locate,
-    )
-    monkeypatch.setattr("sase.bead.sync.refresh_bead_store", refresh)
+    monkeypatch.setattr("sase._sidecar_sync_hints.mark_sidecar_sync_hint", mark)
 
-    refresh_bead_wait_store("proj")
+    mark_bead_wait_sync_hint("proj")
 
-    locate.assert_not_called()
-    refresh.assert_not_called()
+    mark.assert_not_called()
 
 
-def test_refresh_bead_wait_store_contains_refresh_exceptions(
+def test_mark_bead_wait_sync_hint_marks_the_beads_role(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    beads_dir = tmp_path / "beads"
+    monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
+    mark = MagicMock()
+    monkeypatch.setattr("sase._sidecar_sync_hints.mark_sidecar_sync_hint", mark)
+
+    mark_bead_wait_sync_hint("proj")
+
+    mark.assert_called_once_with("proj", "beads")
+
+
+def test_mark_bead_wait_sync_hint_contains_hint_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
     monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
+        "sase._sidecar_sync_hints.mark_sidecar_sync_hint",
+        MagicMock(side_effect=RuntimeError("disk full")),
     )
-    refresh = MagicMock(side_effect=RuntimeError("integration failed"))
-    monkeypatch.setattr("sase.bead.sync.refresh_bead_store", refresh)
 
-    refresh_bead_wait_store("proj")
-
-    refresh.assert_called_once_with(beads_dir)
+    mark_bead_wait_sync_hint("proj")  # must not raise
 
 
 @pytest.mark.parametrize(

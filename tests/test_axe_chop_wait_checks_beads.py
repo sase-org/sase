@@ -3,13 +3,15 @@
 import json
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 
 import sase.bead.store_locator as bead_store_locator
-import sase.scripts.sase_chop_bead_store_refresh as store_refresh
+import sase.scripts.sase_chop_sidecar_auto_sync as sidecar_auto_sync_chop
 import sase.scripts.sase_chop_wait_checks as wait_checks_module
+from sase._sidecar_auto_sync import SidecarSyncResult
 from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
@@ -197,47 +199,74 @@ def test_wait_checks_reads_each_project_bead_store_once_per_cycle(
     lookup.assert_called_once_with("proj")
 
 
-def test_wait_checks_observes_closed_bead_after_store_refresh(
+def test_wait_checks_observes_closed_bead_after_sidecar_auto_sync(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A live bead waiter's project is hinted and its beads role synced.
+
+    This covers the waiter-driven refresh path retired in favor of
+    ``sidecar_auto_sync`` (sase-mq.8.1): a project with a live agent parked
+    on ``%wait(bead=...)`` gets its ``beads`` role converged even though it
+    has not opted that role into ``auto_sync``.
+    """
     root, open_bead, _ = _seed_wait_bead_store(tmp_path)
-    beads_dir = root / "sdd/beads"
     _point_waits_at_bead_store(monkeypatch, root)
     waiter_dir = make_waiting_agent(tmp_path, wait_for_beads=[open_bead])
     run_wait_checks(tmp_path, monkeypatch)
     assert not (waiter_dir / "ready.json").exists()
 
-    monkeypatch.setattr(store_refresh, "bead_refresh_mode", lambda: "background")
     monkeypatch.setattr(
-        store_refresh,
+        sidecar_auto_sync_chop, "bead_refresh_mode", lambda: "background"
+    )
+    monkeypatch.setattr(
+        sidecar_auto_sync_chop,
         "_projects_with_live_bead_waits",
-        lambda _root: {"proj"},
+        lambda _root: frozenset({"proj"}),
     )
-    monkeypatch.setattr(store_refresh, "sase_projects_dir", lambda: tmp_path)
+    monkeypatch.setattr(sidecar_auto_sync_chop, "sase_projects_dir", lambda: tmp_path)
     monkeypatch.setattr(
-        store_refresh,
-        "canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
+        sidecar_auto_sync_chop, "mark_sidecar_sync_hint", lambda *_a: None
+    )
+    monkeypatch.setattr(
+        sidecar_auto_sync_chop,
+        "_enabled_project_records",
+        lambda: [
+            SimpleNamespace(
+                is_project=True,
+                workspace_dir=str(tmp_path / "proj"),
+                project_name="proj",
+                project_file=None,
+            )
+        ],
+    )
+    monkeypatch.setattr(sidecar_auto_sync_chop, "auto_sync_roles", lambda _primary: ())
+    monkeypatch.setattr(
+        sidecar_auto_sync_chop, "pending_sidecar_sync_roles", lambda _project_key: ()
     )
 
-    def close_bead_during_refresh(
-        refreshed_dir: Path,
+    def close_bead_during_sync(
+        project: str,
+        role: str,
         *,
-        lock_timeout: float | None = None,
-    ) -> None:
-        assert refreshed_dir == beads_dir
-        assert lock_timeout is not None
-        with BeadProject(root) as project:
-            project.close([open_bead])
+        project_file: str | None = None,
+        require_auto_sync_opt_in: bool = True,
+    ) -> SidecarSyncResult:
+        assert project == "proj"
+        assert role == "beads"
+        # A live bead waiter unblocks even without an auto_sync opt-in.
+        assert require_auto_sync_opt_in is False
+        with BeadProject(root) as bead_project:
+            bead_project.close([open_bead])
+        return SidecarSyncResult(project, role, "refreshed", "closed")
 
     monkeypatch.setattr(
-        store_refresh,
-        "refresh_bead_store",
-        close_bead_during_refresh,
+        sidecar_auto_sync_chop,
+        "sync_primary_sidecar_role",
+        close_bead_during_sync,
     )
     runtime = BuiltinChopRuntime(
-        name="bead_store_refresh",
+        name="sidecar_auto_sync",
         context=ChopScriptContext(
             max_hook_runners=1,
             max_agent_runners=1,
@@ -251,8 +280,8 @@ def test_wait_checks_observes_closed_bead_after_store_refresh(
         log=ChopLogger(stdout=StringIO(), stderr=StringIO()),
     )
 
-    refresh_result = store_refresh._run(runtime)
+    sync_result = sidecar_auto_sync_chop._run(runtime)
     run_wait_checks(tmp_path, monkeypatch)
 
-    assert refresh_result.counters["stores_refreshed"] == 1
+    assert sync_result.counters["refreshed"] == 1
     assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}

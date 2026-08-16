@@ -245,7 +245,8 @@ def _atomic_json_write(path: Path, payload: dict[str, Any]) -> None:
 
 ISSUE_SCHEMA_VERSION = 1
 
-#: Capped exponential backoff ceiling, matching the ``bead_store_refresh`` chop.
+#: Capped exponential backoff ceiling, the same pattern the ``sidecar_auto_sync``
+#: chop uses for its own per-role schedule state.
 ISSUE_MAX_BACKOFF_SECONDS = 60 * 60
 
 
@@ -369,8 +370,8 @@ def read_mirror_state(path: Path, *, project: str) -> _MirrorState:
     """Tolerantly read one project's mirror state.
 
     A missing, truncated, corrupt, or wrong-schema-version file returns a
-    fresh empty state rather than raising, following ``_read_backoff_state``
-    in ``sase.scripts.sase_chop_bead_store_refresh``.
+    fresh empty state rather than raising, following ``_read_schedule_state``
+    in ``sase.scripts.sase_chop_sidecar_auto_sync``.
     """
     try:
         with path.open(encoding="utf-8") as stream:

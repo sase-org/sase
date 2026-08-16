@@ -2021,16 +2021,6 @@ axe:
             Scans pre-launch agent artifacts, backfills a missing claim for a live waiting agent, and releases a
             claimed bead when its unpromoted owner has died. Reconciled dead records are tombstoned so later ticks avoid
             reopening their stores, while a failed project read is retried safely.
-        - name: bead_store_refresh
-          script: sase_chop_bead_store_refresh
-          run_every: "30s"
-          timeout: "2m"
-          description: |-
-            Integrate the canonical bead store for projects with agents waiting on beads
-
-            Finds projects with a live agent waiting on bead completion and refreshes each canonical store at most
-            every 30 seconds. The two-minute timeout is protected by bounded per-project lock waits, a whole-pass work
-            budget, and persistent exponential backoff so one contended store cannot stall all waiters.
         - name: epic_launch_flush
           script: sase_chop_epic_launch_flush
           run_every: "30s"
@@ -2039,6 +2029,20 @@ axe:
 
             Preserves deferrals while a matching detached epic-launch task is active, flushes unowned deferrals after
             a 90-second grace period with a resume command, and reaps unclaimed settle markers after one hour.
+        - name: sidecar_auto_sync
+          script: sase_chop_sidecar_auto_sync
+          run_every: "30s"
+          timeout: "2m"
+          description: |-
+            Fetch and fast-forward opted-in primary sidecar clones (plans, beads, research, custom)
+
+            Scans every enabled project's auto_sync sidecar roles, syncing a role immediately when a publisher left a
+            pending hint and otherwise backstopping it at most every five minutes. Projects with a live agent waiting
+            on bead completion also hint the beads role every tick, even when that role has not opted into auto_sync,
+            so waiters unblock promptly instead of relying on the runner's coarser fallback. Only a clean, attached,
+            non-diverged clone with a matching remote is fetched and fast-forwarded; dirty, detached, diverged,
+            mismatched, missing, or busy clones are left untouched and reported. Bounded work budget and persistent
+            per-role backoff keep one unhealthy clone from stalling the rest.
         - name: wait_checks
           script: sase_chop_wait_checks
           description: |-
@@ -2871,12 +2875,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                                                                            |
-| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables remote refresh, including the `bead_store_refresh` chop and the refresh step in the runner's bead-wait fallback. Local dependency rechecks continue. |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                                                                                    |
-| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.                                                                  |
-| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                               |
+| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | ----------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables remote refresh, including the live-bead-waiter hint the `sidecar_auto_sync` chop marks and the equivalent hint in the runner's bead-wait fallback. Local dependency rechecks continue. |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                                                                                                                      |
+| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.                                                                                                    |
+| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                                                                 |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD
 under `sdd/`. Managed GitHub projects use a `--plans` sidecar cloned at

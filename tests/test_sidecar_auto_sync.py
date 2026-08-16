@@ -105,6 +105,51 @@ class TestSyncPrimarySidecarRole:
 
         assert result.status == "not_configured"
 
+    def test_disabled_entry_is_still_reported_when_auto_sync_opt_in_is_bypassed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        primary = tmp_path / "proj"
+        primary.mkdir()
+        project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
+        monkeypatch.setattr(
+            sidecar_auto_sync,
+            "_resolved_sidecar_entries",
+            lambda *_a, **_kw: [_entry("beads", auto_sync=False, disabled=True)],
+        )
+
+        result = sync_primary_sidecar_role(
+            "demo",
+            "beads",
+            project_file=project_file,
+            config=_adjacent_config(),
+            require_auto_sync_opt_in=False,
+        )
+
+        assert result.status == "not_configured"
+
+    def test_auto_sync_opt_in_can_be_bypassed_to_unblock_a_bead_waiter(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        primary, project_file, sidecar, _old, new_head, remote = (
+            _behind_sidecar_checkout(tmp_path, "beads")
+        )
+        monkeypatch.setattr(
+            sidecar_auto_sync,
+            "_resolved_sidecar_entries",
+            lambda *_a, **_kw: [_entry("beads", auto_sync=False, remote_url=remote)],
+        )
+
+        result = sync_primary_sidecar_role(
+            "demo",
+            "beads",
+            project_file=project_file,
+            config=_adjacent_config(),
+            require_auto_sync_opt_in=False,
+        )
+
+        assert result.status == "refreshed"
+        assert git(["rev-parse", "HEAD"], sidecar).stdout.strip() == new_head
+
     def test_missing_clone_is_reported_and_not_created(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -20,8 +20,8 @@ from typing import Any
 
 from sase.axe.run_agent_wait_deps import (
     initial_dependencies_resolved,
+    mark_bead_wait_sync_hint,
     read_ready_result,
-    refresh_bead_wait_store,
     waiting_marker_dependencies_resolved,
 )
 from sase.axe.run_agent_wait_markers import (
@@ -34,7 +34,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 
 _WAIT_DEPENDENCY_FALLBACK_INTERVAL = 60.0
-_WAIT_BEAD_REFRESH_FALLBACK_INTERVAL = 600.0
+_WAIT_BEAD_HINT_FALLBACK_INTERVAL = 600.0
 
 
 def remaining_until(wait_until: str) -> float:
@@ -176,8 +176,8 @@ def wait_for_dependencies(
             if project_name
             else None
         )
-        next_bead_refresh_at = (
-            time.monotonic() + _WAIT_BEAD_REFRESH_FALLBACK_INTERVAL
+        next_bead_hint_at = (
+            time.monotonic() + _WAIT_BEAD_HINT_FALLBACK_INTERVAL
             if project_name and wait_beads
             else None
         )
@@ -190,9 +190,9 @@ def wait_for_dependencies(
                 break
             now = time.monotonic()
             if next_fallback_at is not None and now >= next_fallback_at:
-                if next_bead_refresh_at is not None and now >= next_bead_refresh_at:
-                    refresh_bead_wait_store(project_name)
-                    next_bead_refresh_at = now + _WAIT_BEAD_REFRESH_FALLBACK_INTERVAL
+                if next_bead_hint_at is not None and now >= next_bead_hint_at:
+                    mark_bead_wait_sync_hint(project_name)
+                    next_bead_hint_at = now + _WAIT_BEAD_HINT_FALLBACK_INTERVAL
                 if waiting_marker_dependencies_resolved(
                     Path(waiting_path),
                     project_name=project_name,

@@ -196,11 +196,11 @@ High-frequency hook lifecycle management:
 
 Fast-polling agent dependency resolution:
 
-| Chop                 | Description                                                                |
-| -------------------- | -------------------------------------------------------------------------- |
-| `bead_store_refresh` | Integrate canonical stores for projects with live, unresolved bead waiters |
-| `epic_launch_flush`  | Flush planner completions orphaned by unsettled epic launches              |
-| `wait_checks`        | Resolve successful agent and closed-bead waits; write `ready.json`         |
+| Chop                | Description                                                            |
+| ------------------- | ---------------------------------------------------------------------- |
+| `epic_launch_flush` | Flush planner completions orphaned by unsettled epic launches          |
+| `sidecar_auto_sync` | Fetch/fast-forward opted-in primary sidecar clones (plans, beads, ...) |
+| `wait_checks`       | Resolve successful agent and closed-bead waits; write `ready.json`     |
 
 `wait_checks` unblocks a named dependency when the newest matching agent, or the newest
 matching workflow root and all of its children, has a successful terminal `done.json`
@@ -224,19 +224,13 @@ Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`.
 the marker only when every named bead is closed as well as every agent or artifact
 dependency being satisfied. Missing beads, unavailable stores, and read failures
 deliberately fail closed and leave the agent parked; ACE's run-now action remains the
-manual escape hatch. While live bead waits are outstanding, `bead_store_refresh`
-integrates their projects' canonical stores every 30 seconds, with the waiting runner
-providing a coarser outage backstop. Setting `sdd.bead_refresh.mode: off` disables both
-refresh paths.
-
-Each cycle has to fit inside the chop's own 2-minute timeout, so the refresh bounds
-itself rather than waiting out the default 180-second store-write-lock timeout: every
-waiting project gets an equal slice of the lock-wait budget (at least 10 seconds each),
-a project whose store lock is held elsewhere is declined instead of blocked, and
-projects still unattempted once the work budget is spent are deferred to the next cycle.
-A declined or failed refresh records the project's exponential backoff _before_ the
-attempt starts, so a timeout kill leaves the backoff behind instead of erasing it and
-re-attacking the same contended lock 30 seconds later.
+manual escape hatch. While live bead waits are outstanding, `sidecar_auto_sync` hints
+their projects' `beads` role every 30 seconds — even when that role has not opted into
+`auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
+promptly instead of a competing managed-integration refresh path. The waiting runner
+also marks the same hint on a coarser ten-minute cadence as an outage backstop, in case
+a chop failure ever leaves the tick-driven hint unconsumed. Setting
+`sdd.bead_refresh.mode: off` disables both hint paths.
 
 ### checks (5-minute interval)
 

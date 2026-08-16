@@ -18,20 +18,26 @@ from sase.core.wait_dependency_resolution import (
 )
 
 
-def refresh_bead_wait_store(project_name: str | None) -> None:
-    """Best-effort refresh of the canonical store used by bead waits."""
+def mark_bead_wait_sync_hint(project_name: str | None) -> None:
+    """Best-effort hint that this project's beads sidecar should sync soon.
+
+    The runner no longer integrates the canonical primary bead sidecar
+    directly; it marks the same durable sync hint a workspace-sidecar
+    publication would, so the generic ``sidecar_auto_sync`` chop converges
+    the beads role on its next tick instead of the project waiting out that
+    chop's five-minute backstop.
+    """
     if not project_name:
         return
     try:
-        from sase.bead.store_locator import canonical_beads_dir_for_project
-        from sase.bead.sync import bead_refresh_mode, refresh_bead_store
+        from sase._sidecar_sync_hints import mark_sidecar_sync_hint
+        from sase.bead.sync import bead_refresh_mode
+        from sase.sdd._store_types import BEADS_SIDECAR_ROLE
 
         if bead_refresh_mode() == "off":
             return
-        beads_dir = canonical_beads_dir_for_project(project_name)
-        if beads_dir is not None:
-            refresh_bead_store(beads_dir)
-    except Exception:  # noqa: BLE001 - runner waits must survive refresh failures.
+        mark_sidecar_sync_hint(project_name, BEADS_SIDECAR_ROLE)
+    except Exception:  # noqa: BLE001 - runner waits must survive hint failures.
         pass
 
 

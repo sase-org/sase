@@ -61,6 +61,8 @@ def _configure(
     records: list[SimpleNamespace],
     roles_by_project: dict[str, tuple[str, ...]],
     hinted_by_project: dict[str, tuple[str, ...]] | None = None,
+    live_bead_wait_projects: frozenset[str] = frozenset(),
+    bead_refresh_mode: str = "background",
 ) -> None:
     monkeypatch.setattr(sidecar_sync_chop, "sase_projects_dir", lambda: tmp_path)
     monkeypatch.setattr(
@@ -77,6 +79,15 @@ def _configure(
         "pending_sidecar_sync_roles",
         lambda project_key: hinted.get(project_key, ()),
     )
+    monkeypatch.setattr(
+        sidecar_sync_chop, "bead_refresh_mode", lambda: bead_refresh_mode
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "_projects_with_live_bead_waits",
+        lambda _root: live_bead_wait_projects,
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "mark_sidecar_sync_hint", MagicMock())
 
 
 def test_no_auto_sync_roles_short_circuits(
@@ -353,3 +364,172 @@ def test_corrupt_schedule_state_is_treated_as_empty(
 
     sync.assert_called_once()
     assert result.counters["refreshed"] == 1
+
+
+def test_live_bead_wait_forces_a_beads_target_without_auto_sync_opt_in(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[_project(tmp_path)],
+        roles_by_project={},
+        live_bead_wait_projects=frozenset({"proj"}),
+    )
+    sync = MagicMock(
+        return_value=SidecarSyncResult("proj", "beads", "refreshed", "fast-forwarded")
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "sync_primary_sidecar_role", sync)
+
+    result = sidecar_sync_chop._run(_runtime(tmp_path))
+
+    sync.assert_called_once()
+    args, kwargs = sync.call_args
+    assert args[0] == "proj"
+    assert args[1] == "beads"
+    assert kwargs["require_auto_sync_opt_in"] is False
+    assert result.counters["targets"] == 1
+    assert result.counters["refreshed"] == 1
+    sidecar_sync_chop.mark_sidecar_sync_hint.assert_called_once_with("proj", "beads")
+
+
+def test_live_bead_wait_does_not_duplicate_an_already_opted_in_beads_role(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[_project(tmp_path)],
+        roles_by_project={"proj": ("beads",)},
+        live_bead_wait_projects=frozenset({"proj"}),
+    )
+    sync = MagicMock(
+        return_value=SidecarSyncResult("proj", "beads", "up_to_date", "already fresh")
+    )
+    monkeypatch.setattr(sidecar_sync_chop, "sync_primary_sidecar_role", sync)
+
+    result = sidecar_sync_chop._run(_runtime(tmp_path))
+
+    sync.assert_called_once()
+    _args, kwargs = sync.call_args
+    assert kwargs["require_auto_sync_opt_in"] is True
+    assert result.counters["targets"] == 1
+
+
+def test_bead_refresh_mode_off_skips_the_live_wait_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure(
+        monkeypatch,
+        tmp_path,
+        records=[_project(tmp_path)],
+        roles_by_project={},
+        bead_refresh_mode="off",
+    )
+    monkeypatch.setattr(
+        sidecar_sync_chop,
+        "_projects_with_live_bead_waits",
+        lambda _root: pytest.fail("disabled bead refresh scanned artifacts"),
+    )
+
+    result = sidecar_sync_chop._run(_runtime(tmp_path))
+
+    assert result.reason == "no_auto_sync_roles"
+    sidecar_sync_chop.mark_sidecar_sync_hint.assert_not_called()
+
+
+class TestProjectsWithLiveBeadWaits:
+    """Unit coverage for the scan folded in from the retired waiter-refresh chop."""
+
+    def _record(
+        self,
+        tmp_path: Path,
+        *,
+        project_name: str = "proj",
+        suffix: str = "waiter",
+        wait_for_beads: list[str] | None = None,
+        ready: bool = False,
+    ) -> SimpleNamespace:
+        artifact_dir = tmp_path / project_name / suffix
+        artifact_dir.mkdir(parents=True)
+        if ready:
+            (artifact_dir / "ready.json").write_text("{}\n", encoding="utf-8")
+        return SimpleNamespace(
+            project_name=project_name,
+            artifact_dir=str(artifact_dir),
+            waiting=SimpleNamespace(
+                wait_for_beads=(
+                    ["sase-1"] if wait_for_beads is None else wait_for_beads
+                )
+            ),
+            agent_meta=SimpleNamespace(pid=123, stopped_at=None),
+        )
+
+    def _scan(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        records: list[SimpleNamespace],
+    ) -> None:
+        monkeypatch.setattr(
+            sidecar_sync_chop,
+            "scan_agent_artifacts",
+            lambda _root, _options: SimpleNamespace(records=records),
+        )
+        monkeypatch.setattr(
+            sidecar_sync_chop, "is_process_alive", lambda _meta, _p: True
+        )
+
+    def test_live_bead_wait_is_reported(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._scan(monkeypatch, [self._record(tmp_path)])
+
+        assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {"proj"}
+
+    def test_multiple_waiters_in_one_project_are_deduplicated(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._scan(
+            monkeypatch,
+            [
+                self._record(tmp_path, suffix="one"),
+                self._record(tmp_path, suffix="two"),
+            ],
+        )
+
+        assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {"proj"}
+
+    def test_ready_bead_wait_is_excluded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._scan(monkeypatch, [self._record(tmp_path, ready=True)])
+
+        assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == frozenset()
+
+    def test_non_bead_wait_is_excluded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._scan(monkeypatch, [self._record(tmp_path, wait_for_beads=[])])
+
+        assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == frozenset()
+
+    def test_dead_waiter_is_dropped_but_uncertain_liveness_fails_open(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dead = self._record(tmp_path, project_name="dead")
+        uncertain = self._record(tmp_path, project_name="uncertain")
+        self._scan(monkeypatch, [dead, uncertain])
+
+        def liveness(_meta: dict[str, object], artifact_dir: Path) -> bool:
+            if artifact_dir == Path(dead.artifact_dir):
+                return False
+            raise PermissionError("liveness unavailable")
+
+        monkeypatch.setattr(sidecar_sync_chop, "is_process_alive", liveness)
+
+        assert sidecar_sync_chop._projects_with_live_bead_waits(tmp_path) == {
+            "uncertain"
+        }

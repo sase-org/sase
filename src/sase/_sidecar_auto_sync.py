@@ -130,8 +130,16 @@ def sync_primary_sidecar_role(
     project_file: str | Path | None = None,
     config: Mapping[str, Any] | None = None,
     env: Mapping[str, str] | None = None,
+    require_auto_sync_opt_in: bool = True,
 ) -> SidecarSyncResult:
-    """Fetch and fast-forward one opted-in primary sidecar clone, if safe."""
+    """Fetch and fast-forward one opted-in primary sidecar clone, if safe.
+
+    ``require_auto_sync_opt_in=False`` lets a caller converge a role the
+    project has not opted into ``auto_sync`` for, e.g. unblocking a live bead
+    waiter. The role must still resolve to a non-``disabled`` sidecar entry;
+    the sync itself stays exactly as conservative (clean/attached/behind
+    only) either way.
+    """
 
     try:
         context = primary_sidecar_sync_context(
@@ -157,7 +165,7 @@ def sync_primary_sidecar_role(
     if (
         entry is None
         or entry.get("disabled") is True
-        or entry.get("auto_sync") is not True
+        or (require_auto_sync_opt_in and entry.get("auto_sync") is not True)
     ):
         return SidecarSyncResult(
             project,
