@@ -36,7 +36,10 @@ from .temporary_override_defaults import (
     resolve_effective_default_provider_model,
     resolve_effective_default_provider_model_with_effort,
 )
-from .temporary_override_peek import peek_active_alias_overrides
+from .temporary_override_peek import (
+    peek_active_alias_overrides,
+    peek_active_temporary_override,
+)
 from .temporary_override_state import (
     TemporaryLLMOverride,
     load_active_overrides,
@@ -53,6 +56,7 @@ __all__ = [
     "get_active_temporary_override",
     "parse_override_duration",
     "peek_active_alias_overrides",
+    "peek_active_temporary_override",
     "resolve_effective_default_provider_model",
     "resolve_effective_default_provider_model_with_effort",
     "set_alias_override",

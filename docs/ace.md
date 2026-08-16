@@ -2799,6 +2799,17 @@ Overrides are per-alias and independent:
   means until cleared. Hover either pill for full target and expiry details, or click it
   to open Launch Control.
 
+When no override is active, the same top-bar pill instead names the current launch
+default — `PROVIDER(model)`, in a calmer dim-cyan tone — and stays live for the whole
+ACE session. If `llm_provider.default_model` (directly or through a referenced alias,
+such as the shipped `@large`) is a load-balanced `|` pool, the pill follows the pool's
+round-robin cursor as it advances: a launch consumes one member, and within a few
+seconds the pill flips to name whichever member runs next. It never resolves on the UI
+thread and never advances the cursor itself — it only reflects state that a real launch
+already changed. Hover the pill for a
+`<alias> rotates across N models; PROVIDER(model) is next` line whenever the default
+routes through such a pool.
+
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit
 `provider_name` argument always win, already-running agents keep their current

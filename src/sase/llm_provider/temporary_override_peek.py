@@ -14,6 +14,10 @@ import threading
 import time
 from pathlib import Path
 
+from .model_launch_settings import (
+    DEFAULT_MODEL_FIELD,
+    launch_model_setting_override_key,
+)
 from .temporary_override_state import (
     TemporaryLLMOverride,
     entry_from_dict,
@@ -77,6 +81,20 @@ def peek_active_alias_overrides(
         for alias, override in cached.items()
         if override.expires_at is None or current < override.expires_at
     }
+
+
+def peek_active_temporary_override(
+    now: float | None = None,
+) -> TemporaryLLMOverride | None:
+    """Return the active default-launch override through the display cache.
+
+    Lock-free counterpart of
+    :func:`sase.llm_provider.temporary_override.get_active_temporary_override`,
+    for keystroke and top-bar paths that must not take the shared state lock.
+    """
+    return peek_active_alias_overrides(now).get(
+        launch_model_setting_override_key(DEFAULT_MODEL_FIELD)
+    )
 
 
 def _read_peek_entries(path: Path) -> dict[str, TemporaryLLMOverride]:

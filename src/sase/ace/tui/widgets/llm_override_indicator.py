@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from rich.text import Text
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
+from sase.llm_provider.launch_default_peek import peek_launch_default_change_token
+from sase.llm_provider.model_launch_settings import (
+    DEFAULT_MODEL_FIELD,
+    build_launch_model_setting_snapshot,
+)
 from sase.llm_provider.registry import format_provider_model_label
 from sase.llm_provider.temporary_override import (
     TemporaryLLMOverride,
     get_active_temporary_override,
+    peek_active_temporary_override,
     resolve_effective_default_provider_model,
 )
 
@@ -29,6 +36,24 @@ _PLACEHOLDER_TEXT = " ... "
 _UNAVAILABLE_TEXT = " unavailable "
 _DEFAULT_WORKER_GROUP = "llm-indicator-default"
 
+# Only affordable because the periodic tick is now pure peek (a time-gated
+# config-token read plus a few os.stat calls) instead of the locking,
+# self-cleaning override read this widget used to perform every tick. Do not
+# "optimize" the tick back into a locking read on the theory that fewer,
+# heavier calls beat more, cheaper ones -- see launch_default_peek.py.
+_POLL_INTERVAL_SECONDS = 5.0
+
+
+@dataclass(frozen=True, slots=True)
+class _LaunchDefaultSnapshot:
+    """Resolved launch default plus rotation context for the tooltip."""
+
+    provider: str
+    model: str
+    referenced_alias: str | None
+    selector_mode: str | None
+    member_count: int
+
 
 class LLMOverrideIndicator(Static):
     """Shows the default model or active temporary override in the top bar."""
@@ -36,25 +61,43 @@ class LLMOverrideIndicator(Static):
     def __init__(self, **kwargs: Any) -> None:
         self._cached_default: tuple[str, str] | None = None
         self._cached_default_failed = False
+        self._cached_snapshot: _LaunchDefaultSnapshot | None = None
+        self._cached_default_token: tuple[object, ...] | None = None
+        self._pending_resolve_token: tuple[object, ...] | None = None
+        self._resolve_in_flight = False
+        self._override_active_last_tick = False
         super().__init__(self._build_initial_content(), **kwargs)
-        self.tooltip = self._build_tooltip(get_active_temporary_override())
+        self.tooltip = self._build_tooltip(peek_active_temporary_override())
 
     def on_mount(self) -> None:
         """Resolve the default provider off the UI thread, then poll."""
         self._apply_content()
+        self._override_active_last_tick = peek_active_temporary_override() is not None
         self._schedule_default_resolution_if_needed()
-        self.set_interval(30.0, self.refresh)
+        self.set_interval(_POLL_INTERVAL_SECONDS, self.refresh)
 
     def refresh(self, *args: Any, **kwargs: Any) -> Any:
         """Refresh indicator content, preserving Widget.refresh kwargs."""
         if args or kwargs:
             return super().refresh(*args, **kwargs)
-        # Avoid the cold-resolve path on the UI thread: if we still need a
-        # default value, kick off a worker rather than blocking here.
-        primary_override = get_active_temporary_override()
-        if self._cached_default is None and not self._cached_default_failed:
-            if primary_override is None:
+
+        override_active = peek_active_temporary_override() is not None
+        override_lapsed = self._override_active_last_tick and not override_active
+        self._override_active_last_tick = override_active
+
+        if not override_active:
+            cold_start = self._cached_default is None and not self._resolve_in_flight
+            token_changed = (
+                peek_launch_default_change_token() != self._cached_default_token
+            )
+            if (
+                cold_start
+                or self._cached_default_failed
+                or token_changed
+                or override_lapsed
+            ):
                 self._schedule_default_resolution_if_needed()
+
         self._apply_content()
         return super().refresh()
 
@@ -64,21 +107,29 @@ class LLMOverrideIndicator(Static):
         if worker.group != _DEFAULT_WORKER_GROUP:
             return
         if event.state == WorkerState.SUCCESS:
+            self._resolve_in_flight = False
             result = worker.result
-            if isinstance(result, tuple) and len(result) == 2:
-                self._cached_default = (str(result[0]), str(result[1]))
+            if isinstance(result, _LaunchDefaultSnapshot):
+                self._cached_default = (result.provider, result.model)
+                self._cached_snapshot = result
                 self._cached_default_failed = False
+                self._cached_default_token = self._pending_resolve_token
             else:
                 self._cached_default_failed = True
             self._apply_content()
         elif event.state == WorkerState.ERROR:
+            self._resolve_in_flight = False
             self._cached_default_failed = True
             self._apply_content()
+        elif event.state == WorkerState.CANCELLED:
+            self._resolve_in_flight = False
 
     def invalidate_cached_default(self) -> None:
         """Drop the cached launch default after provider routing changes."""
         self._cached_default = None
         self._cached_default_failed = False
+        self._cached_snapshot = None
+        self._cached_default_token = None
         self._schedule_default_resolution_if_needed()
         self._apply_content()
 
@@ -88,14 +139,26 @@ class LLMOverrideIndicator(Static):
 
     def _schedule_default_resolution_if_needed(self) -> None:
         """Launch the off-thread default-resolution worker, if appropriate."""
-        if get_active_temporary_override() is not None:
+        if peek_active_temporary_override() is not None:
             return
 
-        def task() -> tuple[str, str] | None:
+        self._resolve_in_flight = True
+        self._pending_resolve_token = peek_launch_default_change_token()
+
+        def task() -> _LaunchDefaultSnapshot | None:
             try:
-                return resolve_effective_default_provider_model()
+                snapshot = build_launch_model_setting_snapshot(
+                    DEFAULT_MODEL_FIELD, consume=False
+                )
             except Exception:
                 return None
+            return _LaunchDefaultSnapshot(
+                provider=snapshot.provider,
+                model=snapshot.model,
+                referenced_alias=snapshot.referenced_alias,
+                selector_mode=snapshot.selector_mode,
+                member_count=len(snapshot.selector_members),
+            )
 
         self.run_worker(
             task,
@@ -106,7 +169,7 @@ class LLMOverrideIndicator(Static):
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render content from cached state without cold provider resolution."""
-        override = get_active_temporary_override()
+        override = peek_active_temporary_override(now)
         if override is not None:
             override_content = self._build_override_content(override, now=now)
             if override_content is not None:
@@ -115,7 +178,7 @@ class LLMOverrideIndicator(Static):
 
     def _apply_content(self, *, now: float | None = None) -> None:
         """Update content and tooltip from one current override snapshot."""
-        override = get_active_temporary_override()
+        override = peek_active_temporary_override(now)
         if override is not None:
             override_content = self._build_override_content(override, now=now)
             if override_content is not None:
@@ -197,13 +260,22 @@ class LLMOverrideIndicator(Static):
             default_label = "unavailable"
         else:
             default_label = "resolving..."
-        return "\n".join(
-            (
-                f"Launch default: {default_label}",
-                "No temporary override active.",
-                "Press ,m for Launch Control.",
+
+        lines = [f"Launch default: {default_label}"]
+        snapshot = self._cached_snapshot
+        if snapshot is not None and snapshot.selector_mode == "round_robin":
+            subject = (
+                f"@{snapshot.referenced_alias}"
+                if snapshot.referenced_alias
+                else "This launch default"
             )
-        )
+            lines.append(
+                f"{subject} rotates across {snapshot.member_count} models; "
+                f"{default_label} is next."
+            )
+        lines.append("No temporary override active.")
+        lines.append("Press ,m for Launch Control.")
+        return "\n".join(lines)
 
     @staticmethod
     def _build_default_content() -> Text:

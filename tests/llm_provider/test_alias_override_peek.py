@@ -120,6 +120,32 @@ def test_peek_stats_at_most_once_within_floor(
     assert stat_calls == 1
 
 
+def test_peek_active_temporary_override_reads_the_default_launch_key(
+    reset_peek_cache: Path,
+) -> None:
+    path = reset_peek_cache
+    _write_state(
+        path,
+        {
+            "setting:default_model": _entry(
+                provider="codex", model="gpt-5.6-sol", expires_at=None
+            ),
+            "some_other_alias": _entry(
+                provider="claude", model="opus", expires_at=None
+            ),
+        },
+    )
+
+    override = override_store.peek_active_temporary_override(now=100.0)
+
+    assert override is not None
+    assert (override.provider, override.model) == ("codex", "gpt-5.6-sol")
+
+
+def test_peek_active_temporary_override_is_none_when_absent() -> None:
+    assert override_store.peek_active_temporary_override(now=100.0) is None
+
+
 def _write_state(path: Path, overrides: dict[str, dict[str, object]]) -> None:
     path.write_text(
         json.dumps({"version": 2, "overrides": overrides}),

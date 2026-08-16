@@ -120,7 +120,7 @@ def parse_model_alias_selector(value: str) -> ModelAliasSelector | None:
     return ModelAliasSelector(mode=mode, members=members)
 
 
-def _state_path() -> Path:
+def rotation_state_path() -> Path:
     """Return the lazily-resolved machine-global rotation state path."""
     return sase_home() / _STATE_FILENAME
 
@@ -160,7 +160,7 @@ def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
 
 def _delete_state_best_effort() -> None:
     try:
-        _state_path().unlink()
+        rotation_state_path().unlink()
     except (FileNotFoundError, OSError):
         pass
 
@@ -168,7 +168,7 @@ def _delete_state_best_effort() -> None:
 def _read_entries_unlocked() -> tuple[dict[str, dict[str, Any]], bool]:
     """Return valid cursor entries and whether corrupt data was discarded."""
     try:
-        raw = _state_path().read_text(encoding="utf-8")
+        raw = rotation_state_path().read_text(encoding="utf-8")
     except FileNotFoundError:
         return {}, False
     except OSError:
@@ -250,7 +250,9 @@ def _write_entries_unlocked(entries: dict[str, dict[str, Any]]) -> None:
     if not entries:
         _delete_state_best_effort()
         return
-    _atomic_write_json(_state_path(), {"version": _STATE_VERSION, "entries": entries})
+    _atomic_write_json(
+        rotation_state_path(), {"version": _STATE_VERSION, "entries": entries}
+    )
 
 
 def _selection_index(cursor: int, availability: Sequence[bool]) -> int:

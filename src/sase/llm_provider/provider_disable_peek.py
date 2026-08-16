@@ -49,7 +49,7 @@ def peek_active_provider_disables(
         if current_monotonic < _peek_cache_deadline:
             cached = dict(_peek_cache_entries)
         else:
-            path = _state_path()
+            path = provider_disable_state_path()
             _peek_cache_deadline = current_monotonic + _PEEK_STAT_FLOOR_SECONDS
             try:
                 stat = path.stat()
@@ -74,7 +74,7 @@ def peek_active_provider_disables(
     }
 
 
-def _state_path() -> Path:
+def provider_disable_state_path() -> Path:
     return sase_home() / _STATE_FILENAME
 
 
@@ -100,4 +100,4 @@ def _read_peek_entries(path: Path) -> dict[str, TemporaryProviderDisable]:
         return {}
 
 
-__all__ = ["peek_active_provider_disables"]
+__all__ = ["peek_active_provider_disables", "provider_disable_state_path"]
