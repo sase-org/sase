@@ -1,0 +1,400 @@
+{
+  "panes": {
+    "patches": {
+      "rows": [
+        {
+          "stable_id": "patch-alpha",
+          "fields": {
+            "project": "sase",
+            "status": "READY",
+            "name": "alpha",
+            "ancestor": ["alpha"],
+            "sibling": "alpha",
+            "origin": "unknown"
+          },
+          "searchable_text": "Alpha feature query work",
+          "predicates": ["running_agent"]
+        },
+        {
+          "stable_id": "patch-beta",
+          "fields": {
+            "project": "sase-core",
+            "status": "WIP",
+            "name": "beta",
+            "ancestor": ["beta", "alpha"],
+            "sibling": "beta",
+            "origin": "unknown"
+          },
+          "searchable_text": "Beta feature rust engine",
+          "predicates": ["running_process"]
+        },
+        {
+          "stable_id": "patch-gamma",
+          "fields": {
+            "project": "sase",
+            "status": "DRAFT",
+            "name": "gamma",
+            "ancestor": ["gamma"],
+            "sibling": "gamma",
+            "origin": "external"
+          },
+          "searchable_text": "Gamma migration docs",
+          "predicates": ["error_suffix"]
+        }
+      ],
+      "queries": {
+        "+sase AND %y": {
+          "canonical": "project:sase AND status:READY",
+          "matches": ["patch-alpha"]
+        },
+        "*": {
+          "canonical": "!!! OR @@@ OR $$$",
+          "matches": ["patch-alpha", "patch-beta", "patch-gamma"]
+        },
+        "ancestor:alpha AND NOT status:DRAFT": {
+          "canonical": "ancestor:alpha AND NOT status:DRAFT",
+          "matches": ["patch-alpha", "patch-beta"]
+        }
+      },
+      "errors": {
+        "unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: ancestor, name, origin, project, sibling, status) (at position 0)"
+        },
+        "+": {
+          "position": 1,
+          "message": "Expected property value (at position 1)"
+        },
+        "%q": {
+          "position": 0,
+          "message": "Invalid % shorthand (use %d, %m, %r, %s, %w, %y) (at position 0)"
+        }
+      }
+    },
+    "stitches": {
+      "rows": [
+        {
+          "stable_id": "commit-alpha",
+          "fields": {
+            "project": "sase",
+            "repo": "app",
+            "author": "Ada Lovelace",
+            "origin": "stitch",
+            "sidecar": "false",
+            "merges": "hide",
+            "subject": "unified query engine"
+          }
+        },
+        {
+          "stable_id": "commit-beta",
+          "fields": {
+            "project": "sase",
+            "repo": "docs",
+            "author": "Grace Hopper",
+            "origin": "manual",
+            "sidecar": "true",
+            "merges": "show",
+            "subject": "migration docs"
+          }
+        },
+        {
+          "stable_id": "commit-gamma",
+          "fields": {
+            "project": "other",
+            "repo": "app",
+            "author": "Ada Byron",
+            "origin": "auto",
+            "sidecar": "false",
+            "merges": "hide",
+            "subject": "cache fix"
+          }
+        }
+      ],
+      "queries": {
+        "project:sase repo:app query": {
+          "canonical": "project:sase repo:app query",
+          "matches": ["commit-alpha"]
+        },
+        "origin:stitch,auto -repo:docs": {
+          "canonical": "origin:stitch,auto -repo:docs",
+          "matches": ["commit-alpha", "commit-gamma"]
+        },
+        "-author:Grace": {
+          "canonical": "-author:Grace",
+          "matches": ["commit-alpha", "commit-gamma"]
+        }
+      },
+      "errors": {
+        "project:a,b": {
+          "position": 0,
+          "message": "project: does not accept comma-separated values (at position 0)"
+        },
+        "-project:sase": {
+          "position": 0,
+          "message": "project: may not be negated (at position 0)"
+        },
+        "origin:not-real": {
+          "position": 0,
+          "message": "origin: value 'not-real' must be one of stitch, auto, manual (at position 0)"
+        }
+      }
+    },
+    "beads": {
+      "rows": [
+        {
+          "stable_id": "bead-task",
+          "fields": {
+            "type": "task",
+            "status": "open",
+            "project": "sase",
+            "assignee": "Ada",
+            "title": "Load filter profile",
+            "body": "reference evaluator"
+          }
+        },
+        {
+          "stable_id": "bead-phase",
+          "fields": {
+            "type": "phase",
+            "status": "closed",
+            "project": "sase",
+            "assignee": "Grace",
+            "title": "Load filter profile",
+            "body": "migration safety"
+          }
+        },
+        {
+          "stable_id": "bead-plan",
+          "fields": {
+            "type": "plan",
+            "status": "open",
+            "project": "other",
+            "assignee": "Linus",
+            "title": "Unrelated",
+            "body": "reference evaluator"
+          }
+        }
+      ],
+      "queries": {
+        "type:task,phase -status:closed load": {
+          "canonical": "-status:closed type:task,phase load",
+          "matches": ["bead-task"]
+        },
+        "assignee:Ada reference": {
+          "canonical": "assignee:Ada reference",
+          "matches": ["bead-task"]
+        },
+        "project:sase -type:phase": {
+          "canonical": "project:sase -type:phase",
+          "matches": ["bead-task"]
+        }
+      },
+      "errors": {
+        "status:not-real": {
+          "position": 0,
+          "message": "status: value 'not-real' must be one of open, claimed, ready, snoozed, in_progress, closed, blocked, launched, triage (at position 0)"
+        },
+        "unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: assignee, bug, has, label, model, owner, project, since, size, status, tier, type, until) (at position 0)"
+        },
+        "type:": {
+          "position": 0,
+          "message": "type: requires a value (at position 0)"
+        }
+      }
+    },
+    "ref:plan": {
+      "rows": [
+        {
+          "stable_id": "plan-proposal",
+          "fields": {
+            "kind": "proposal",
+            "status": "proposed",
+            "tier": "epic",
+            "project": "sase",
+            "title": "Unified query proposal",
+            "body": "profile migration",
+            "path": "plans/one.md"
+          }
+        },
+        {
+          "stable_id": "plan-active",
+          "fields": {
+            "kind": "active",
+            "status": "wip",
+            "tier": "epic",
+            "project": "sase",
+            "title": "Active artifacts work",
+            "body": "selection restore",
+            "path": "plans/two.md"
+          }
+        },
+        {
+          "stable_id": "plan-archive",
+          "fields": {
+            "kind": "archive",
+            "status": "done",
+            "tier": "plan",
+            "project": "other",
+            "title": "Archived docs",
+            "body": "old migration",
+            "path": "archive/three.md"
+          }
+        }
+      ],
+      "queries": {
+        "kind:proposal status:proposed migration": {
+          "canonical": "kind:proposal status:proposed migration",
+          "matches": ["plan-proposal"]
+        },
+        "project:sase restore": {
+          "canonical": "project:sase restore",
+          "matches": ["plan-active"]
+        },
+        "-project:other migration": {
+          "canonical": "-project:other migration",
+          "matches": ["plan-proposal"]
+        }
+      },
+      "errors": {
+        "since:1d since:2d": {
+          "position": 9,
+          "message": "since: may only appear once (at position 9)"
+        },
+        "unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: kind, project, since, status, tier, until) (at position 0)"
+        },
+        "kind:": {
+          "position": 0,
+          "message": "kind: requires a value (at position 0)"
+        }
+      }
+    },
+    "files": {
+      "rows": [
+        {
+          "stable_id": "file-report",
+          "fields": {
+            "kind": "file",
+            "origin": "created",
+            "project": "sase",
+            "agent": "agent-a",
+            "workflow": "review",
+            "label": "verification report",
+            "stored_path": "artifacts/report.md",
+            "source_path": "src/report.md"
+          }
+        },
+        {
+          "stable_id": "file-ref",
+          "fields": {
+            "kind": "file",
+            "origin": "ref",
+            "project": "sase",
+            "agent": "agent-b",
+            "workflow": "research",
+            "label": "reference note",
+            "stored_path": "artifacts/ref.md",
+            "source_path": "docs/ref.md"
+          }
+        },
+        {
+          "stable_id": "chat-created",
+          "fields": {
+            "kind": "chat",
+            "origin": "created",
+            "project": "other",
+            "agent": "agent-a",
+            "workflow": "review",
+            "label": "chat transcript",
+            "stored_path": "artifacts/chat.md",
+            "source_path": "chat.md"
+          }
+        }
+      ],
+      "queries": {
+        "kind:file -origin:ref report": {
+          "canonical": "kind:file -origin:ref report",
+          "matches": ["file-report"]
+        },
+        "agent:agent-a workflow:review": {
+          "canonical": "agent:agent-a workflow:review",
+          "matches": ["file-report", "chat-created"]
+        },
+        "-kind:chat": {
+          "canonical": "-kind:chat",
+          "matches": ["file-report", "file-ref"]
+        }
+      },
+      "errors": {
+        "kind:not-real": {
+          "position": 0,
+          "message": "kind: value 'not-real' must be one of chat, plan, image, markdown, pdf, file (at position 0)"
+        },
+        "unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: agent, kind, origin, project, since, until, workflow) (at position 0)"
+        },
+        "kind:": {
+          "position": 0,
+          "message": "kind: requires a value (at position 0)"
+        }
+      }
+    },
+    "ref:notes": {
+      "rows": [
+        {
+          "stable_id": "note-alpha",
+          "properties": {
+            "title": "Alpha Note",
+            "status": "draft"
+          }
+        },
+        {
+          "stable_id": "note-beta",
+          "properties": {
+            "title": "Beta Note",
+            "status": "done"
+          }
+        },
+        {
+          "stable_id": "note-gamma",
+          "properties": {
+            "title": "Gamma Reference",
+            "status": "draft"
+          }
+        }
+      ],
+      "queries": {
+        "title:Alpha status:draft": {
+          "canonical": "status:draft title:Alpha",
+          "matches": ["note-alpha"]
+        },
+        "status:draft -title:Gamma": {
+          "canonical": "status:draft -title:Gamma",
+          "matches": ["note-alpha"]
+        },
+        "title:Note": {
+          "canonical": "title:Note",
+          "matches": ["note-alpha", "note-beta"]
+        }
+      },
+      "errors": {
+        "unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: status, title) (at position 0)"
+        },
+        "title:": {
+          "position": 0,
+          "message": "title: requires a value (at position 0)"
+        },
+        "-unknown:value": {
+          "position": 0,
+          "message": "Unknown filter key 'unknown' (valid keys: status, title) (at position 0)"
+        }
+      }
+    }
+  }
+}

@@ -23,7 +23,7 @@ else:
 
 
 @dataclass(frozen=True, slots=True)
-class FilesQueryIndexResult:
+class _FilesQueryIndexResult:
     """One completed index rebuild, tagged with the state it was built from."""
 
     generation: int
@@ -74,8 +74,8 @@ class FilesQueryIndexMixin(_MixinBase):
         display_generation = self._project_ref_display_generation
         display = self._project_ref_display
 
-        def task() -> FilesQueryIndexResult:
-            return FilesQueryIndexResult(
+        def task() -> _FilesQueryIndexResult:
+            return _FilesQueryIndexResult(
                 generation=generation,
                 display_generation=display_generation,
                 query_index=build_files_query_index(
@@ -108,7 +108,7 @@ class FilesQueryIndexMixin(_MixinBase):
         if event.state != WorkerState.SUCCESS:
             return
         result = event.worker.result
-        if not isinstance(result, FilesQueryIndexResult):
+        if not isinstance(result, _FilesQueryIndexResult):
             return
         if (
             result.generation != self._load_generation
@@ -119,4 +119,4 @@ class FilesQueryIndexMixin(_MixinBase):
         self._refresh_options(preferred_target=self.selected_entry_target())
 
 
-__all__ = ["FilesQueryIndexMixin", "FilesQueryIndexResult"]
+__all__ = ["FilesQueryIndexMixin"]
