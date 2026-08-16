@@ -11,6 +11,8 @@ from collections.abc import Callable, Iterator
 
 from sase.ace.tui._artifact_tab_actions import (
     CAPABILITY_HOST_ACTIONS,
+    action_applies_to_contract,
+    keymap_actions_by_key,
     registered_host_actions,
 )
 from sase.ace.tui._app_action_availability import check_app_action
@@ -22,6 +24,8 @@ from sase.ace.tui.artifact_tabs import (
     PaneCapability,
     resolve_artifacts_subtabs,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
+from sase.ace.tui.keymaps.key_validation import is_unbound_key, split_key_alternatives
 from sase.ace.tui.copy_targets import copy_target_for
 from sase.ace.tui.models.artifact_groups import build_grouped_rows
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
@@ -92,13 +96,18 @@ def check_descriptor_owns_contract(descriptor: ArtifactsTabDescriptor) -> None:
     assert [verdict.capability for verdict in contract.verdicts] == list(PaneCapability)
 
 
+_PRESENTATION_ONLY_CAPABILITIES = frozenset(
+    {PaneCapability.STATUS_COUNTERS, PaneCapability.SHELL}
+)
+
+
 def check_declared_actions_are_registered(descriptor: ArtifactsTabDescriptor) -> None:
-    """Every ON capability maps to a registered host action or later-phase empty."""
+    """Every ON capability maps to a registered host action or is presentation-only."""
     contract = descriptor.resolved_contract
     registered = registered_host_actions()
     for capability in contract.capabilities:
         actions = CAPABILITY_HOST_ACTIONS[capability]
-        if capability in {PaneCapability.STATUS_COUNTERS, PaneCapability.SHELL}:
+        if capability in _PRESENTATION_ONLY_CAPABILITIES:
             assert actions == ()
             continue
         assert actions
@@ -219,12 +228,53 @@ def check_declared_relation_and_grouping_actions_are_reachable(
         if not contract.has(capability):
             continue
         for action in CAPABILITY_HOST_ACTIONS[capability]:
-            if action not in actions or not _action_applies_to_contract(
+            if action not in actions or not action_applies_to_contract(
                 contract, action
             ):
                 continue
             available = check_app_action(app, action, (), lambda _a, _p: True)
             assert available is not False, f"{contract.id}:{action}"
+
+
+def check_declared_keys_resolve_to_named_actions(
+    descriptor: ArtifactsTabDescriptor,
+) -> None:
+    """Every contract-declared key resolves to the action the contract names.
+
+    This is the binding-level check that would have caught ``o`` being
+    double-booked between grouping-cycle and an open-external action.
+    """
+    contract = descriptor.resolved_contract
+    if descriptor.is_degraded:
+        return
+    registry = load_keymap_registry({})
+    by_key = keymap_actions_by_key(registry.app)
+    app = _ActionAvailabilityApp(contract)
+    declared = tuple(
+        action
+        for capability in contract.capabilities
+        for action in CAPABILITY_HOST_ACTIONS[capability]
+        if action_applies_to_contract(contract, action)
+    )
+    for action in declared:
+        assert hasattr(registry.app, action), f"{contract.id}:{action} missing keymap"
+        key = getattr(registry.app, action)
+        assert not is_unbound_key(key), f"{contract.id}:{action} is unbound"
+        for part in split_key_alternatives(key):
+            owners = by_key.get(part, ())
+            available = tuple(
+                owner
+                for owner in owners
+                if check_app_action(app, owner, (), lambda _a, _p: True) is not False
+            )
+            assert action in available, (
+                f"{contract.id}:{action} key {part!r} unavailable"
+            )
+            conflicts = tuple(owner for owner in available if owner != action)
+            assert not conflicts, (
+                f"{contract.id} key {part!r} maps to {available}; "
+                f"contract names {action}"
+            )
 
 
 def check_unavailable_actions_have_off_verdicts(
@@ -299,17 +349,6 @@ class _ActionAvailabilityApp:
         return False
 
 
-def _action_applies_to_contract(
-    contract: ArtifactsPaneContract,
-    action: str,
-) -> bool:
-    if action == "beads_open_plan":
-        return contract.id == "beads"
-    if action == "plans_open_bead":
-        return contract.is_plan_adapter()
-    return True
-
-
 PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     ("descriptor_identity", check_descriptor_identity),
     ("provider_accent_is_declared", check_provider_accent_is_declared),
@@ -324,6 +363,10 @@ PANE_CONFORMANCE_CHECKS: tuple[tuple[str, ConformanceCheck], ...] = (
     (
         "declared_relation_and_grouping_actions_are_reachable",
         check_declared_relation_and_grouping_actions_are_reachable,
+    ),
+    (
+        "declared_keys_resolve_to_named_actions",
+        check_declared_keys_resolve_to_named_actions,
     ),
     (
         "declared_copy_targets_are_registered",

@@ -11,7 +11,6 @@ from ._artifact_tab_model import (
 )
 
 _RULE_DEGRADED = "degraded_safe_host"
-_RULE_LATER_PHASE = "later_phase_reserved"
 _RULE_SUPPRESSED = "provider_suppressed"
 
 
@@ -439,20 +438,41 @@ def _rule_plan_open_bead(facts: PaneDeclaredFacts) -> CapabilityVerdict:
     )
 
 
-def _rule_later_phase(
-    capability: PaneCapability,
-) -> Callable[[PaneDeclaredFacts], CapabilityVerdict]:
-    def _rule(facts: PaneDeclaredFacts) -> CapabilityVerdict:
-        del facts
+def _rule_status_counters(facts: PaneDeclaredFacts) -> CapabilityVerdict:
+    if facts.is_degraded:
         return _verdict(
-            capability,
+            PaneCapability.STATUS_COUNTERS,
             enabled=False,
-            rule=_RULE_LATER_PHASE,
-            fact="undeclared",
-            reason=f"{capability.value} is reserved for a later Artifacts phase",
+            rule=_RULE_DEGRADED,
+            fact="is_degraded",
+            reason="degraded panes expose only safe host behavior",
         )
+    if facts.status_counters:
+        return _verdict(
+            PaneCapability.STATUS_COUNTERS,
+            enabled=True,
+            rule="status_counters_from_declaration",
+            fact="status_counters",
+            reason="at least one status counter is declared",
+        )
+    return _verdict(
+        PaneCapability.STATUS_COUNTERS,
+        enabled=False,
+        rule="status_counters_from_declaration",
+        fact="status_counters",
+        reason="no status counters are declared",
+    )
 
-    return _rule
+
+def _rule_shell(facts: PaneDeclaredFacts) -> CapabilityVerdict:
+    del facts
+    return _verdict(
+        PaneCapability.SHELL,
+        enabled=True,
+        rule="shell_from_host",
+        fact="host",
+        reason="every Artifacts pane renders through the shared host shell",
+    )
 
 
 def _rule_relations(facts: PaneDeclaredFacts) -> CapabilityVerdict:
@@ -525,6 +545,6 @@ _RULES = {
     PaneCapability.PLAN_OPEN_BEAD: _rule_plan_open_bead,
     PaneCapability.RELATIONS: _rule_relations,
     PaneCapability.GROUPING: _rule_grouping,
-    PaneCapability.STATUS_COUNTERS: _rule_later_phase(PaneCapability.STATUS_COUNTERS),
-    PaneCapability.SHELL: _rule_later_phase(PaneCapability.SHELL),
+    PaneCapability.STATUS_COUNTERS: _rule_status_counters,
+    PaneCapability.SHELL: _rule_shell,
 }

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
+from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher, Static
 
+from ...artifact_tabs import artifacts_provider_diagnostics
 from ...artifacts_split import (
     ARTIFACTS_SPLIT_CLASSES,
     DEFAULT_ARTIFACTS_SPLIT_MODE,
@@ -93,6 +95,7 @@ class ArtifactsView(Vertical):
 
     def on_mount(self) -> None:
         self.apply_split_mode(cast("AceApp", self.app).artifacts_split_mode)
+        self._refresh_provider_diagnostics()
         if getattr(self.app, "current_tab", None) == ARTIFACTS_TAB:
             self._pane(self._current_subtab).activate()
 
@@ -136,10 +139,20 @@ class ArtifactsView(Vertical):
                 descriptor.label,
                 descriptor.accent,
                 shortcut=descriptor.digit_shortcut,
-                icon=descriptor.icon,
+                icon="⚠" if descriptor.is_degraded else descriptor.icon,
             )
             for descriptor in self._descriptors
         )
+
+    def _refresh_provider_diagnostics(self) -> None:
+        """Show a header warning when any provider tab is degraded."""
+
+        degraded = artifacts_provider_diagnostics(self._descriptors)
+        spacer = self.query_one("#artifacts-split-spacer", Static)
+        if not degraded:
+            spacer.update("")
+            return
+        spacer.update(Text("⚠", style="bold #FF5F5F", justify="center"))
 
     def _compose_pane(self, descriptor: ArtifactsTabDescriptor) -> ComposeResult:
         if descriptor.is_degraded:

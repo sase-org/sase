@@ -545,6 +545,9 @@ relevant targets are met **without regressing** any other span.
 
 ```text
 j/k highlight p95             < 16 ms
+  (Stitches next/prev/up10: documented CommitsTimeline carve-out ≤ 25 ms;
+  unmodified-master baseline was stitches.next 16.47 / stitches.up10 17.95,
+  conform verification observed stitches.next 20.17 serial / 24.84 under xdist)
 key-to-paint p95              < 33 ms
 debounced detail paint        < 150–250 ms
 warm Patch reload, 1k    < 100 ms

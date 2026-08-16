@@ -153,8 +153,8 @@ def test_every_closed_capability_has_a_named_verdict() -> None:
         (PaneCapability.PLAN_OPEN_BEAD, "plan_open_bead_from_plan_adapter"),
         (PaneCapability.RELATIONS, "relations_from_declared_edges"),
         (PaneCapability.GROUPING, "grouping_from_declared_modes"),
-        (PaneCapability.STATUS_COUNTERS, "later_phase_reserved"),
-        (PaneCapability.SHELL, "later_phase_reserved"),
+        (PaneCapability.STATUS_COUNTERS, "status_counters_from_declaration"),
+        (PaneCapability.SHELL, "shell_from_host"),
     ],
 )
 def test_named_derivation_rules(capability: PaneCapability, rule: str) -> None:
@@ -203,7 +203,7 @@ def test_undeclared_relation_and_grouping_capabilities_stay_off() -> None:
     assert PaneCapability.RELATIONS not in earned
     assert PaneCapability.GROUPING not in earned
     assert PaneCapability.STATUS_COUNTERS not in earned
-    assert PaneCapability.SHELL not in earned
+    assert PaneCapability.SHELL in earned
 
 
 def test_declared_relations_and_grouping_earn_capabilities() -> None:
@@ -244,9 +244,9 @@ def test_valid_suppression_turns_earned_capability_off() -> None:
     assert verdict.suppression == "notes are browsed, not queried"
 
 
-def test_degraded_facts_keep_only_refresh() -> None:
+def test_degraded_facts_keep_only_refresh_and_shell() -> None:
     earned = _enabled(_facts(is_degraded=True, is_plan_adapter=True, can_mutate=True))
-    assert earned == {PaneCapability.REFRESH}
+    assert earned == {PaneCapability.REFRESH, PaneCapability.SHELL}
 
 
 @pytest.mark.parametrize("adapter", ["stitches", "patches", "beads", "files"])
@@ -267,6 +267,7 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
     assert contract.adapter == adapter
     assert contract.has(PaneCapability.ENTRY_NAVIGATION)
     assert contract.has(PaneCapability.REFRESH)
+    assert contract.has(PaneCapability.SHELL)
     assert contract.has(PaneCapability.STABLE_REFERENCE_COPY)
     assert contract.has(PaneCapability.FILTER_SESSION)
     assert contract.has(PaneCapability.RELATIONS)
@@ -290,6 +291,11 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
         assert not contract.has(PaneCapability.VERSIONS)
     assert contract.has(PaneCapability.PROJECT_SCOPE)
     assert contract.relations
+    if adapter in {"patches", "beads"}:
+        assert contract.has(PaneCapability.STATUS_COUNTERS)
+        assert contract.status_counters
+    else:
+        assert not contract.has(PaneCapability.STATUS_COUNTERS)
     if adapter == "beads":
         assert not contract.grouping.modes
     else:

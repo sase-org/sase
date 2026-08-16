@@ -13,6 +13,7 @@ from sase.ace.tui._artifact_tab_model import (
     PaneGroupingDecl,
     PaneGroupingModeDecl,
     PaneRelationDecl,
+    PaneStatusCounter,
     RelationKind,
 )
 from sase.ace.query_profile import (
@@ -128,6 +129,7 @@ def provider_facts_from_spec(
     )
     has_revisions = _has_revision_facts(identity, properties)
     is_plan_adapter = kind == "plan"
+    status_counters = _extract_provider_status_counters(spec)
     if is_degraded:
         has_inventory = False
         has_fields = False
@@ -136,6 +138,7 @@ def provider_facts_from_spec(
         is_plan_adapter = False
         relations = ()
         grouping = PaneGroupingDecl()
+        status_counters = ()
     return PaneDeclaredFacts(
         source="provider",
         adapter="plan" if is_plan_adapter else None,
@@ -150,8 +153,21 @@ def provider_facts_from_spec(
         has_detail=not is_degraded,
         relations=relations,
         grouping=grouping or PaneGroupingDecl(),
+        status_counters=status_counters,
         suppressions=dict(suppressions),
     )
+
+
+def _extract_provider_status_counters(
+    spec: Mapping[str, Any] | None,
+) -> tuple[PaneStatusCounter, ...]:
+    """Return a status counter when the provider declares a ``status`` field."""
+
+    ref = _ref_mapping(spec) or {}
+    properties = ref.get("properties")
+    if isinstance(properties, Mapping) and "status" in properties:
+        return (PaneStatusCounter(name="status", field="status"),)
+    return ()
 
 
 def _ref_mapping(spec: Mapping[str, Any] | None) -> Mapping[str, Any] | None:

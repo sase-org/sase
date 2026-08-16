@@ -24,23 +24,42 @@ from sase.core.artifact_relation_layout import (
 from sase.core.artifact_relations import RelationIndex
 
 
+_BEAD_STATUS_INDICATORS: dict[str, tuple[str, str]] = {
+    "open": ("O", "#87D7FF"),
+    "in_progress": ("P", "#FFD700"),
+    "claimed": ("W", "#87CEEB"),
+    "ready": ("R", "#87D700"),
+    "snoozed": ("Z", "#808080"),
+    "closed": ("C", "#00AF00"),
+    "done": ("C", "#00AF00"),
+}
+
+
 def _get_simple_status_indicator(status: str) -> tuple[str, str]:
-    """Get a simple Patch status indicator character and color."""
+    """Return a compact status glyph for a relation row.
+
+    Patch statuses keep their historical prefix table. Bead statuses use
+    the closed host vocabulary. Any other declared status falls back to
+    its first letter so a provider counter is never Patch-only.
+    """
     if not status:
         return "", ""
     if status.startswith("Draft"):
         return "D", "#FFD700"
-    elif status.startswith("Ready"):
+    if status.startswith("Ready"):
         return "R", "#87D700"
-    elif status.startswith("Mailed"):
+    if status.startswith("Mailed"):
         return "M", "#00D787"
-    elif status.startswith("Submitted"):
+    if status.startswith("Submitted"):
         return "S", "#00AF00"
-    elif status.startswith("Reverted"):
+    if status.startswith("Reverted"):
         return "X", "#808080"
-    elif status.startswith("Archived"):
+    if status.startswith("Archived"):
         return "A", "#606060"
-    return "W", "#87CEEB"
+    bead = _BEAD_STATUS_INDICATORS.get(status.casefold())
+    if bead is not None:
+        return bead
+    return status[0].upper(), "#87CEEB"
 
 
 class RelationPanel(Static):

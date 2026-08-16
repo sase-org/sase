@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
+from sase.ace.tui._artifact_tab_model import ArtifactsTabDescriptor
 from sase.ace.tui.widgets.artifacts.panes import ArtifactsDegradedPane
+from sase.ace.tui.widgets.artifacts.view import ArtifactsView
 
 
 class _DegradedApp(App[None]):
@@ -58,3 +61,27 @@ async def test_degraded_pane_stays_mounted_and_named_without_error_source() -> N
         assert pane.provider_label == "Unknown"
         card = pane.query_one(".artifacts-degraded-card", Static)
         assert "source:" not in str(card.render())
+
+
+def test_degraded_tab_uses_warning_icon_in_artifacts_strip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = ArtifactsTabDescriptor(
+        id="ref:research",
+        label="Research",
+        accent="#058D1D",
+        pane_id="artifacts-ref-research-pane",
+        icon="R",
+        provider_kind="research",
+        error="artifact ref provider 'research-docs' is not installed",
+        error_code="missing_ref_provider",
+        error_source="/tmp/proj/.sase.yml",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.view.resolve_artifacts_subtabs",
+        lambda: (descriptor,),
+    )
+    view = ArtifactsView()
+    tabs = view._panel_tabs()
+    assert tabs[0].icon == "⚠"
+    assert tabs[0].label == "Research"

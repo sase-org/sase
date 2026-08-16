@@ -219,7 +219,10 @@ def check_app_action(
         if app.current_tab != "agents":
             return False
     if action in {"change_status", "bulk_change_status", "mark_pr_origin"}:
-        if app.current_tab != ARTIFACTS_TAB:
+        if (
+            app.current_tab != ARTIFACTS_TAB
+            or app.current_artifacts_pane_key != "patches"
+        ):
             return False
     if action == "save_marked_agents":
         if app.current_tab != "agents":
@@ -252,6 +255,9 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
         return False
     if action in _ARTIFACT_RELATION_NAV_ACTIONS:
         return contract.has(PaneCapability.RELATIONS)
+    if action == "expand_all_folds" and contract.has(PaneCapability.PLAN_OPEN_BEAD):
+        # Bare ``L`` is artifacts_link_jump on Plan. Fold-snap lives on ``zL``.
+        return False
     if action in _ARTIFACT_GROUP_FOLD_ACTIONS | _ARTIFACT_GROUP_CYCLE_ACTIONS:
         return contract.has(PaneCapability.GROUPING)
     return True

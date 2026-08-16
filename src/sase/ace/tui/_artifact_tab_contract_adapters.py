@@ -9,6 +9,7 @@ from ._artifact_tab_model import (
     PaneGroupingDecl,
     PaneGroupingModeDecl,
     PaneRelationDecl,
+    PaneStatusCounter,
     RelationKind,
 )
 
@@ -67,6 +68,7 @@ class _BuiltinAdapter:
     has_detail: bool
     relations: tuple[PaneRelationDecl, ...]
     grouping: PaneGroupingDecl
+    status_counters: tuple[PaneStatusCounter, ...]
     copy_group: str
     copy_targets: tuple[str, ...]
     copy_keymap_group: str
@@ -141,6 +143,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
             ),
             default_mode="by_date",
         ),
+        status_counters=(),
         copy_group="artifacts_stitches",
         copy_targets=(
             "snapshot",
@@ -226,6 +229,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
             ),
             default_mode="by_project",
         ),
+        status_counters=(PaneStatusCounter(name="status", field="status"),),
         copy_group="patches",
         copy_targets=(
             "raw",
@@ -311,6 +315,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
         # (sase-m6.9). See that bead's PROPOSED FOLLOW-UP for real
         # by_epic/by_status/by_type support.
         grouping=PaneGroupingDecl(),
+        status_counters=(PaneStatusCounter(name="status", field="status"),),
         copy_group="artifacts_beads",
         copy_targets=(
             "snapshot",
@@ -377,6 +382,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
             ),
             default_mode="by_source",
         ),
+        status_counters=(),
         copy_group="artifacts_other",
         copy_targets=(
             "snapshot",
@@ -464,6 +470,7 @@ PLAN_ADAPTER = _BuiltinAdapter(
         ),
         default_mode="by_kind",
     ),
+    status_counters=(PaneStatusCounter(name="status", field="status"),),
     copy_group="artifacts_plans",
     copy_targets=PLAN_COPY_TARGETS,
     copy_keymap_group="artifacts_plans",

@@ -65,11 +65,11 @@ can still be selected and recovered.
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab           | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| **Agents**    | View running and completed agents, their files and prompts          |
-| **Artifacts** | Browse Stitch, Patch, Bead, configured document providers, and File |
-| **Axe**       | Monitor the Axe daemon and background commands                      |
+| Tab           | Description                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Agents**    | View running and completed agents, their files and prompts                                                                                                                                 |
+| **Artifacts** | Browse Stitch, Patch, Bead, configured document providers, and File. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
+| **Axe**       | Monitor the Axe daemon and background commands                                                                                                                                             |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press
 `,?` (leader mode) to open the Help modal on its **Keymaps** view, then `]` to switch to

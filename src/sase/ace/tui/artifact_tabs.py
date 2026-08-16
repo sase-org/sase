@@ -140,6 +140,29 @@ def configured_artifacts_pane_ids() -> tuple[str, ...]:
     return tuple(descriptor.id for descriptor in resolve_artifacts_subtabs())
 
 
+def artifacts_provider_diagnostics(
+    descriptors: tuple[ArtifactsTabDescriptor, ...] | None = None,
+) -> tuple[tuple[str, str, str], ...]:
+    """Return ``(pane_id, error_code, message)`` for every degraded tab.
+
+    This is the ACE-facing view of the same ``missing_ref_provider`` (and
+    sibling) diagnostics ``sase doctor`` already records, so a broken
+    provider is visible where the user is looking. Pass *descriptors* to
+    avoid a second discovery pass when the caller already has them.
+    """
+
+    rows = resolve_artifacts_subtabs() if descriptors is None else descriptors
+    return tuple(
+        (
+            descriptor.id,
+            descriptor.error_code or "provider_error",
+            descriptor.error or "",
+        )
+        for descriptor in rows
+        if descriptor.is_degraded
+    )
+
+
 def is_document_artifacts_pane(pane_id: str) -> bool:
     """Return whether *pane_id* is a compiled document-provider pane."""
 
@@ -283,6 +306,7 @@ __all__ = [
     "PaneDeclaredFacts",
     "artifacts_pane_contract",
     "artifacts_pane_key",
+    "artifacts_provider_diagnostics",
     "artifacts_subtab_order",
     "configured_artifacts_pane_ids",
     "copy_group_for_artifacts_pane",

@@ -204,6 +204,7 @@ class PaneDeclaredFacts:
     has_detail: bool
     relations: tuple[PaneRelationDecl, ...] = ()
     grouping: PaneGroupingDecl = field(default_factory=PaneGroupingDecl)
+    status_counters: tuple[PaneStatusCounter, ...] = field(default_factory=tuple)
     suppressions: Mapping[str, str] = field(default_factory=dict)
 
     def to_payload(self) -> dict[str, Any]:
@@ -221,16 +222,20 @@ class PaneDeclaredFacts:
             "has_detail": self.has_detail,
             "relations": [item.to_payload() for item in self.relations],
             "grouping": self.grouping.to_payload(),
+            "status_counters": [item.to_payload() for item in self.status_counters],
             "suppressions": dict(self.suppressions),
         }
 
 
 @dataclass(frozen=True, slots=True)
 class PaneStatusCounter:
-    """Later-phase status-counter placeholder. Unused this phase."""
+    """One declared status vocabulary used by relation rows and count lanes."""
 
     name: str
     field: str
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"name": self.name, "field": self.field}
 
 
 @dataclass(frozen=True, slots=True)

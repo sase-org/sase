@@ -14,6 +14,11 @@ from sase.ace.tui.artifact_tabs import (
     configured_artifacts_pane_ids,
     reset_artifacts_subtabs_cache,
 )
+from sase.ace.tui._artifact_tab_actions import (
+    CAPABILITY_HOST_ACTIONS,
+    action_applies_to_contract,
+    keymap_actions_by_key,
+)
 from sase.ace.tui._artifact_tab_model import (
     ArtifactsPaneContract,
     PaneGroupingModeDecl,
@@ -21,6 +26,8 @@ from sase.ace.tui._artifact_tab_model import (
     PaneRelationDecl,
     PaneStatusCounter,
 )
+from sase.ace.tui.keymaps import load_keymap_registry
+from sase.ace.tui.keymaps.key_validation import is_unbound_key
 
 
 PANE_SHOW_SCHEMA_VERSION = 2
@@ -64,6 +71,7 @@ def _payload(contract: ArtifactsPaneContract) -> dict[str, object]:
     return {
         "schema_version": PANE_SHOW_SCHEMA_VERSION,
         **explanation,
+        "keys": _declared_key_payload(contract),
     }
 
 
@@ -96,6 +104,7 @@ def _print_text(contract: ArtifactsPaneContract, payload: dict[str, object]) -> 
 
     _print_relations(console, contract.relations)
     _print_grouping(console, contract.grouping.modes)
+    _print_keys(console, contract)
 
     table = Table(
         show_header=True,
@@ -197,6 +206,52 @@ def _print_grouping(
     table.add_column("KEYS")
     for mode in modes:
         table.add_row(mode.id, mode.label, ", ".join(mode.keys))
+    console.print(table)
+    console.print()
+
+
+def _declared_key_payload(contract: ArtifactsPaneContract) -> list[dict[str, str]]:
+    registry = load_keymap_registry({})
+    by_key = keymap_actions_by_key(registry.app)
+    rows: list[dict[str, str]] = []
+    for capability in contract.capabilities:
+        for action in CAPABILITY_HOST_ACTIONS[capability]:
+            if not action_applies_to_contract(contract, action):
+                continue
+            if not hasattr(registry.app, action):
+                continue
+            key = getattr(registry.app, action)
+            if not isinstance(key, str) or is_unbound_key(key):
+                continue
+            owners = by_key.get(key, (action,))
+            rows.append(
+                {
+                    "action": action,
+                    "key": key,
+                    "owners": ",".join(owners),
+                }
+            )
+    return rows
+
+
+def _print_keys(console: Console, contract: ArtifactsPaneContract) -> None:
+    rows = _declared_key_payload(contract)
+    if not rows:
+        console.print("[dim]Keys: none declared[/]")
+        console.print()
+        return
+    table = Table(
+        show_header=True,
+        header_style="bold",
+        box=None,
+        pad_edge=False,
+        title="Keys",
+        title_style="bold",
+    )
+    table.add_column("ACTION")
+    table.add_column("KEY")
+    for row in rows:
+        table.add_row(row["action"], row["key"])
     console.print(table)
     console.print()
 

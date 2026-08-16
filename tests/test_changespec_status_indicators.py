@@ -86,10 +86,16 @@ def test_get_simple_status_indicator_draft_returns_d() -> None:
     assert indicator == "D"
 
 
-def test_get_simple_status_indicator_unknown_returns_w() -> None:
-    """Test that unknown status returns 'W' indicator (treated as WIP)."""
+def test_get_simple_status_indicator_unknown_uses_first_letter() -> None:
+    """Non-Patch statuses use the first letter instead of the WIP glyph."""
     indicator, _ = _get_simple_status_indicator("Unknown Status")
-    assert indicator == "W"
+    assert indicator == "U"
+
+
+def test_get_simple_status_indicator_bead_open() -> None:
+    indicator, color = _get_simple_status_indicator("open")
+    assert indicator == "O"
+    assert color == "#87D7FF"
 
 
 # --- Draft with Running Agent/Process Prefix Tests ---

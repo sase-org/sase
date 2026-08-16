@@ -58,6 +58,10 @@ def test_pane_show_json_explains_verdicts(
     assert by_name["mutation"]["state"] == "ON"
     assert by_name["versions"]["state"] == "OFF"
     assert by_name["relations"]["state"] == "ON"
+    assert by_name["shell"]["state"] == "ON"
+    assert by_name["status_counters"]["state"] == "ON"
+    assert by_name["shell"]["rule"] == "shell_from_host"
+    assert by_name["status_counters"]["rule"] == "status_counters_from_declaration"
     # Beads never had real grouping modes; sase-m6.9 corrected its previously
     # false GROUPING capability declaration to OFF with no modes.
     assert by_name["grouping"]["state"] == "OFF"
@@ -69,6 +73,10 @@ def test_pane_show_json_explains_verdicts(
     ]
     assert payload["grouping"]["default_mode"] is None
     assert payload["grouping"]["modes"] == []
+    key_actions = {item["action"] for item in payload["keys"]}
+    assert "beads_next" in key_actions
+    assert "refresh" in key_actions
+    assert "plans_next" not in key_actions
 
 
 def test_pane_show_unknown_id_lists_configured(monkeypatch, capsys) -> None:

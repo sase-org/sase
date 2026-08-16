@@ -19,6 +19,8 @@ nav:
   - The Basics:
       - Memory: memory.md
       - ACE TUI: ace.md
+      - Artifacts Pane Contract: artifacts_pane_contract.md
+      - Artifacts Visual Grammar: artifacts_pane_visual_grammar.md
       - AXE Automation: axe.md
       - Spec-Driven Development: sdd.md
       - SDD Storage: sdd_storage.md

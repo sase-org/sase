@@ -59,6 +59,8 @@ def test_synthetic_provider_earns_generic_document_capabilities() -> None:
     assert contract.has(PaneCapability.SAVED_QUERIES)
     assert contract.has(PaneCapability.ENTRY_NAVIGATION)
     assert contract.has(PaneCapability.REFRESH)
+    assert contract.has(PaneCapability.SHELL)
+    assert contract.has(PaneCapability.STATUS_COUNTERS)
     assert contract.has(PaneCapability.STABLE_MARKS)
     assert contract.has(PaneCapability.DETAIL_SCROLL)
     assert contract.has(PaneCapability.PROJECT_SCOPE)

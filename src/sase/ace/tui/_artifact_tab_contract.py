@@ -51,6 +51,7 @@ from ._artifact_tab_model import (
     PaneGroupingDecl,
     PaneRelationDecl,
     PanePresentation,
+    PaneStatusCounter,
 )
 from ._artifact_tab_presentation import compile_provider_pane_presentation
 
@@ -90,6 +91,7 @@ def compile_builtin_contract(
         has_detail=adapter.has_detail,
         relations=adapter.relations,
         grouping=adapter.grouping,
+        status_counters=adapter.status_counters,
         suppressions={},
     )
     query_profile = compiled_profile_for_builtin_pane(adapter.pane_id)
@@ -366,6 +368,7 @@ def _presentation_digest_for(
     query_profile: CompiledQueryProfile,
     relations: tuple[PaneRelationDecl, ...],
     grouping: PaneGroupingDecl,
+    status_counters: tuple[PaneStatusCounter, ...],
 ) -> str:
     """Digest host presentation plus the provider spec digest."""
 
@@ -388,7 +391,9 @@ def _presentation_digest_for(
         "query_profile_digest": query_profile.digest,
         "relations": [item.to_payload() for item in relations],
         "grouping": grouping.to_payload(),
-        "status_counters": [],
+        "status_counters": [
+            {"name": item.name, "field": item.field} for item in status_counters
+        ],
         "verdicts": [item.to_payload() for item in verdicts],
         "facts": facts.to_payload(),
         "provider_spec_digest": provider_spec_digest or "",
@@ -446,6 +451,7 @@ def _assemble_contract(
         query_profile=query_profile,
         relations=relations,
         grouping=grouping,
+        status_counters=facts.status_counters,
     )
     return ArtifactsPaneContract(
         id=pane_id,
@@ -466,7 +472,7 @@ def _assemble_contract(
         grouping=grouping,
         presentation=presentation,
         detail_fields=detail_fields,
-        status_counters=(),
+        status_counters=facts.status_counters,
         empty_state=empty_state,
         copy_group=copy_group,
         copy_targets=copy_targets,

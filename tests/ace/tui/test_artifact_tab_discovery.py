@@ -13,6 +13,7 @@ from sase.ace.tui._artifact_tab_model import (
 )
 from sase.ace.tui.artifact_tabs import (
     ARTIFACTS_ACCENTS,
+    artifacts_provider_diagnostics,
     reset_artifacts_subtabs_cache,
     resolve_artifacts_subtabs,
 )
@@ -43,6 +44,30 @@ def test_missing_ref_provider_creates_degraded_tab() -> None:
     assert descriptor.error_code == "missing_ref_provider"
     assert descriptor.error_source == "/tmp/proj/.sase.yml"
     assert "research-docs" in (descriptor.error or "")
+
+
+def test_missing_ref_provider_is_listed_in_ace_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptors = provider_descriptors(
+        [],
+        (
+            ProviderDiscoveryIssue(
+                message="artifact ref provider 'research-docs' is not installed",
+                code="missing_ref_provider",
+                kind="research",
+                role="research",
+                source="/tmp/proj/.sase.yml",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.artifact_tabs.resolve_artifacts_subtabs",
+        lambda: descriptors,
+    )
+    assert artifacts_provider_diagnostics() == (
+        ("ref:research", "missing_ref_provider", descriptors[0].error or ""),
+    )
 
 
 def test_healthy_kind_is_not_removed_by_a_sibling_failure() -> None:

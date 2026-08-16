@@ -1,9 +1,6 @@
 """Artifact-pane keybinding sections for the Patches help tab."""
 
-from ..._artifact_tab_actions import (
-    host_actions_for_capability,
-    registered_host_actions,
-)
+from ..._artifact_tab_actions import action_applies_to_contract
 from ...artifact_tabs import PaneCapability, resolve_artifacts_subtabs
 from ...keymaps import KeymapRegistry, key_display_name
 from sase.core.artifact_relation_layout import (
@@ -243,21 +240,16 @@ def _document_contract_sections(
                     ("bare text", "Title/body/id/metadata (AND)"),
                 )
             )
-        if (
-            contract.has(PaneCapability.PLAN_APPROVE)
-            and "plans_approve" in registered_host_actions()
-            and "plans_approve"
-            in host_actions_for_capability(PaneCapability.PLAN_APPROVE)
+        if contract.has(PaneCapability.PLAN_APPROVE) and action_applies_to_contract(
+            contract, "plans_approve"
         ):
             rows.append((d(a.plans_approve), "Approve selected proposal"))
-        if contract.has(
-            PaneCapability.PLAN_REJECT
-        ) and "plans_reject" in host_actions_for_capability(PaneCapability.PLAN_REJECT):
+        if contract.has(PaneCapability.PLAN_REJECT) and action_applies_to_contract(
+            contract, "plans_reject"
+        ):
             rows.append((d(a.plans_reject), "Reject selected proposal"))
-        if contract.has(
-            PaneCapability.PLAN_OPEN_BEAD
-        ) and "plans_open_bead" in host_actions_for_capability(
-            PaneCapability.PLAN_OPEN_BEAD
+        if contract.has(PaneCapability.PLAN_OPEN_BEAD) and action_applies_to_contract(
+            contract, "plans_open_bead"
         ):
             rows.append((d(a.plans_open_bead), "Go to linked bead"))
         rows.extend(_relation_rows(km, contract))
