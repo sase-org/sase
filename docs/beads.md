@@ -286,7 +286,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    status is `ready`. This scan currently does not apply the dependency filter used by
    `sase bead ready`, so a blocked ready task can still receive a gate. The reviewed
    preview contains the task's title, description, and notes. **Launch** accepts
-   optional feedback and submits one global detached proc that runs
+   optional feedback and submits one global unattributed proc that runs
    `sase bead work <task-id> --yes-to-all`; **Close** requires feedback and closes the
    bead with `resolution=canceled` and that feedback as the reason. The detached launch
    survives ACE, CLI, Telegram, or mobile client exit and appears in `sase proc list`
@@ -557,7 +557,7 @@ presentation-contract refresh.
 
 The gate offers three decisions:
 
-- **Launch** (default) submits a detached proc that runs
+- **Launch** (default) submits an unattributed proc that runs
   `sase bead work <task-id> --yes-to-all`. Optional feedback is appended to the worker
   prompt.
 - **Close** requires feedback and closes the task with that reason and
@@ -1569,8 +1569,8 @@ single worker prompt without changing the bead or agent registry. A real launch:
 5. Restores the prior task state if dispatch fails before any runner starts; a live
    runner keeps the checkpoint.
 
-The `TaskTriage` gate's default Launch branch submits this command as a detached proc
-with `--yes-to-all`; optional gate feedback is appended to the worker prompt.
+The `TaskTriage` gate's default Launch branch submits this command as an unattributed
+proc with `--yes-to-all`; optional gate feedback is appended to the worker prompt.
 
 Plan-file mode is the canonical epic-approval entry point. It:
 

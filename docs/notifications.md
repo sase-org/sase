@@ -315,7 +315,7 @@ when known, appears as a **Filed by** line in the Markdown preview above the tas
 description and notes; the notes section is present only when the bead has notes. The
 gate offers three branches:
 
-- **Launch** is the default. It submits a detached proc that runs
+- **Launch** is the default. It submits an unattributed proc that runs
   `sase bead work <task-id> --yes-to-all`; optional feedback is appended to the worker
   prompt.
 - **Close** requires feedback and closes the bead with that reason and
@@ -968,11 +968,11 @@ map kinds to notification actions:
 | `custom`      | `CustomGate`        | `sase gate create`                                |
 
 `TaskTriage` uses `launch OR close OR snooze`, with Launch as the primary branch. Launch
-accepts optional feedback and submits or reuses one globally visible detached proc whose
-command is `sase bead work <bead-id> --yes-to-all`; the gate response records that proc
-ID. Close requires feedback, closes the task bead with `resolution=canceled`, and uses
-the feedback as its close reason. Snooze requires a wake-time expression and moves the
-task to `snoozed`, after which reconciliation replaces this gate with a `BeadSnooze`
+accepts optional feedback and submits or reuses one globally visible unattributed proc
+whose command is `sase bead work <bead-id> --yes-to-all`; the gate response records that
+proc ID. Close requires feedback, closes the task bead with `resolution=canceled`, and
+uses the feedback as its close reason. Snooze requires a wake-time expression and moves
+the task to `snoozed`, after which reconciliation replaces this gate with a `BeadSnooze`
 gate. The gate preview is generated from the bead's title, description, and notes, with
 the notes section present only when the bead has notes. Automatic resolution is
 forbidden, and all client surfaces use the same host-side side effects.

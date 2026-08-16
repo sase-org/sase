@@ -290,13 +290,14 @@ unmute.
 
 The `TaskTriage` gate presents the task title, description, and notes, and offers three
 options. **Launch** (the primary branch) accepts optional feedback and submits a
-deduplicated global detached proc for `sase bead work <task-id> --yes-to-all`; **Close**
-requires a reason and closes the bead as `canceled`; **Snooze** collects one required
-`duration` line and defers the task, moving it to `snoozed` so the next tick reconciles
-it into a `BeadSnooze` gate instead. The line takes the same `"<wake-time> [+<N>]"`
-vocabulary the ACE snooze modal takes — for example `3d`, `2026-08-09T09:00:00-04:00`,
-or `3d +2` — combining the CLI's `-u` duration and `-p` +1 target into one expression.
-See [TaskTriage notifications](notifications.md#command-backed-interaction-gates), the
+deduplicated global unattributed proc for `sase bead work <task-id> --yes-to-all`;
+**Close** requires a reason and closes the bead as `canceled`; **Snooze** collects one
+required `duration` line and defers the task, moving it to `snoozed` so the next tick
+reconciles it into a `BeadSnooze` gate instead. The line takes the same
+`"<wake-time> [+<N>]"` vocabulary the ACE snooze modal takes — for example `3d`,
+`2026-08-09T09:00:00-04:00`, or `3d +2` — combining the CLI's `-u` duration and `-p` +1
+target into one expression. See
+[TaskTriage notifications](notifications.md#command-backed-interaction-gates), the
 [snooze workflow](beads.md#snoozing-a-task-bead) for what a `BeadSnooze` gate then asks,
 and the [standalone task workflow](beads.md#standalone-task-workflow) for the
 human-facing lifecycle.

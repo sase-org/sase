@@ -313,11 +313,10 @@ The names you'll keep bumping into, in one place:
 - **[SDD](sdd.md)** — Spec-Driven Development. Plans and epics as first-class artifacts
   on disk.
 - **Procs** — durable records for background operations such as a sync, an accept, or a
-  detached task launch. Supervisor-backed `command` and `detached` procs can outlive the
-  client that submitted them. ACE-owned `tui` work is instead owned by that ACE process,
-  but its output and outcome are mirrored durably. Inspect either kind with
-  `sase proc list` / `sase proc show`, or on the Admin Center's
-  [Procs tab](ace.md#procs-tab).
+  detached task launch. Every proc runs under its own supervisor and outlives the client
+  that submitted it; a session is attribution only, and historical `tui` and `detached`
+  rows stay readable. Inspect them with `sase proc list` / `sase proc show`, or on the
+  Admin Center's [Procs tab](ace.md#procs-tab).
 - **[Monitors](monitors.md)** — agent-family members used to hand off a slow command
   (`just check-full`, a CI wait, a deploy) at the end of an agent turn. A detached
   supervisor runs the command, and an optional follow-up agent shell returns under the
