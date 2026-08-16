@@ -363,6 +363,15 @@ jobs:
         with:
           name: view-hints-perf-floor-report
           path: sdd/plans/202607/perf_artifacts/view_hints_regression_check.json
+      - name: Run agents disk-load operation-count floor
+        if: always()
+        run: just agent-disk-load-ops-check
+      - name: Upload agents disk-load floor-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-disk-load-ops-floor-report
+          path: sdd/plans/202608/perf_artifacts/agent_disk_load_ops_regression_check.json
       - name: Run bead performance smoke
         if: always()
         run: just bead-perf-smoke
