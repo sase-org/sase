@@ -61,6 +61,7 @@ from .models_panel_edit_helpers import (
     build_alias_commit_offer,
     build_model_setting_commit_offer,
 )
+from .models_panel_history import ModelsPanelHistoryMixin
 from .models_panel_override import ModelsPanelOverrideMixin
 from .models_panel_providers import ModelsPanelProvidersMixin
 from .models_panel_runner_limit import ModelsPanelRunnerLimitMixin
@@ -106,6 +107,7 @@ class ModelsPanel(
     ModelsPanelOverrideMixin,
     ModelsPanelThresholdMixin,
     ModelsPanelAliasEditMixin,
+    ModelsPanelHistoryMixin,
     ModelsPanelJumpMixin,
     OptionListNavigationMixin,
     ModalScreen[ModelsPanelResult],
@@ -132,6 +134,7 @@ class ModelsPanel(
         ("x", "clear", "Clear"),
         ("e", "edit", "Edit"),
         ("r", "reset", "Reset"),
+        ("H", "alias_history", "History"),
         ("ctrl+e", "manage_default_effort", "Effort"),
         ("ctrl+r", "manage_runner_limit", "Limit"),
         ("p", "providers", "Providers"),

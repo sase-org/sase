@@ -2631,6 +2631,7 @@ Navigation, and jump hints, skip headers, spacer rows, and the empty-custom hint
 | `e`                   | **Edit** — change the persistent configured value                                                                   |
 | `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                                                  |
 | `p`                   | **Providers** — disable, extend, or re-enable registered providers for future routing                               |
+| `H`                   | **History** — view recorded prior runs for the highlighted alias, alias-backed launch setting, or bucket            |
 | `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                            |
 | `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                               |
 | `Esc` / `q`           | Close the panel                                                                                                     |
@@ -2747,6 +2748,56 @@ override indicators. One disabled provider renders like `CLAUDE off 42m`; severa
 as the alphabetically first provider plus a count, such as `CLAUDE +2`. Hover lists
 every active provider, provenance, and expiry, and clicking the pill opens Launch
 Control.
+
+### Alias History
+
+Press `H` on an alias row, an alias-backed launch setting (`launch model`,
+`epic lander`, `big epic lander` when configured as a raw `@alias` reference), or a
+collapsed bucket to open **Alias History** — bounded prior runs for that alias or, for a
+bucket, every member alias. A concrete (non-alias) launch setting and the
+`default effort`, `running agents`, and `big epic starts at` scalar settings are not
+aliases; pressing `H` on one of those rows only shows a warning toast. The panel loads
+off-thread and never changes Launch Control's own state.
+
+The title names the alias or bucket, keeps the tan ownership accent for a user-owned
+source, shows the effective provider/model/effort badge when a single alias supplied it,
+and reports the total recorded, returned (currently visible), and done/failed/running
+counts. A bucket's runs are grouped under a disabled header per member alias, separated
+by the same single-spacer convention used elsewhere in Launch Control; headers, spacers,
+and per-group empty hints are never jump targets. Rows render newest first exactly as
+recorded, with a status marker, relative time, agent/workflow identity, the configured
+project display name, a provider-themed model badge with effort, and one of four
+provenance chips:
+
+| Chip         | Meaning                                                                   |
+| ------------ | ------------------------------------------------------------------------- |
+| `direct`     | An explicit `%model` directive named this alias.                          |
+| `default`    | The configured default model resolved to this alias.                      |
+| `via @<...>` | This alias was reached indirectly, through an earlier alias in the chain. |
+| `unrecorded` | No alias origin was captured for this run — recording predates it.        |
+
+The fixed detail strip below the list explains the highlighted run: the recorded alias
+trail resolved to its concrete provider/model/effort, the same origin explanation as the
+chip (an honest, non-speculative note for `unrecorded` rather than a guessed reason),
+and the prompt snippet plus whichever of project, workspace, bead, Patch, start time and
+duration, retry attempt, hidden state, and xprompt context are actually present —
+nothing is invented for a field the query did not return. The returned window is a
+display limit, not the full retention history; the title's recorded/shown counts and the
+footer's "more available" hint make the difference visible.
+
+| Key                                 | Action                                                                             |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `j`/`k` (arrows, `Ctrl+N`/`Ctrl+P`) | Navigate                                                                           |
+| `'`                                 | **Jump** — adaptive hints over selectable runs only                                |
+| `Enter`                             | Open the highlighted run's full prompt in the preview panel                        |
+| `y`                                 | Copy the highlighted run's durable `@agent:...` reference                          |
+| `Ctrl+K`                            | **Load more** — double the per-alias limit and reload, keeping the highlighted run |
+| `r`                                 | **Refresh** — revalidate this load, bypassing the cache once                       |
+| `.`                                 | Toggle hidden runs in or out of the results                                        |
+| `Esc` / `q`                         | Close and return to Launch Control, unchanged                                      |
+
+A run without a durable agent name warns instead of copying a guessed reference, and a
+missing or unreadable `raw_xprompt.md` warns instead of closing the panel.
 
 ### Temporary overrides
 

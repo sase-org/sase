@@ -1,0 +1,401 @@
+"""Mounted Textual tests for AliasHistoryModal (load lifecycle, jump, actions)."""
+
+from __future__ import annotations
+
+import threading
+from unittest.mock import MagicMock
+
+from textual.widgets import OptionList, Static
+from textual.worker import WorkerState
+
+import sase.ace.tui.modals.alias_history_modal as alias_history_modal
+from sase.ace.tui.modals.alias_history_modal import AliasHistoryModal
+from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
+from tests._alias_history_helpers import make_entry, make_group, make_run, make_view
+from tests._models_panel_helpers import ModelsPanelTestApp, wait_for
+
+
+def _stub_load(monkeypatch, result_view) -> MagicMock:
+    call = MagicMock(return_value=result_view)
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", call)
+    return call
+
+
+def _blocking_load(monkeypatch, result_view):
+    started = threading.Event()
+    release = threading.Event()
+
+    def load(*args, **kwargs):
+        started.set()
+        assert release.wait(timeout=5)
+        return result_view
+
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", load)
+    return started, release
+
+
+# -- loading state ------------------------------------------------------
+
+
+async def test_modal_paints_loading_option_before_worker_completes(monkeypatch) -> None:
+    started, release = _blocking_load(monkeypatch, make_view([make_group("large", [])]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, started.is_set)
+
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        assert option_list.option_count == 1
+        assert option_list.get_option_at_index(0).disabled is True
+        assert "Loading" in str(option_list.get_option_at_index(0).prompt)
+
+        release.set()
+        await wait_for(pilot, lambda: modal._view is not None)
+
+
+async def test_modal_cancels_worker_on_unmount(monkeypatch) -> None:
+    started, release = _blocking_load(monkeypatch, make_view([make_group("large", [])]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, started.is_set)
+        worker = modal._load_worker
+        assert worker is not None
+
+        pilot.app.pop_screen()
+        await pilot.pause()
+        release.set()
+
+        assert worker.is_cancelled
+
+
+# -- rendering / grouping -------------------------------------------------
+
+
+async def test_modal_single_alias_renders_runs_without_group_header(
+    monkeypatch,
+) -> None:
+    runs = [make_run(artifact_dir="/tmp/newest"), make_run(artifact_dir="/tmp/oldest")]
+    _stub_load(monkeypatch, make_view([make_group("large", runs)]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        ids = [str(option.id) for option in option_list.options]
+        assert ids == ["large:/tmp/newest", "large:/tmp/oldest"]
+
+
+async def test_modal_bucket_renders_grouped_headers_with_single_spacer(
+    monkeypatch,
+) -> None:
+    view = make_view(
+        [
+            make_group("research_a", [make_run(artifact_dir="/tmp/a1")]),
+            make_group("research_b", [make_run(artifact_dir="/tmp/b1")]),
+        ]
+    )
+    _stub_load(monkeypatch, view)
+    entry = make_entry(("research_a", "research_b"), title_label="research")
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        ids = [str(option.id) for option in option_list.options]
+        assert ids == [
+            "__group__:research_a",
+            "research_a:/tmp/a1",
+            "__spacer__:research_b",
+            "__group__:research_b",
+            "research_b:/tmp/b1",
+        ]
+        assert option_list.get_option(ids[0]).disabled is True
+        assert option_list.get_option("__spacer__:research_b").disabled is True
+
+
+# -- errors -----------------------------------------------------------------
+
+
+async def test_modal_load_error_warns_and_stays_usable(monkeypatch) -> None:
+    def raising(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", raising)
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(modal)
+        await wait_for(
+            pilot,
+            lambda: (
+                modal._load_worker is None
+                or modal._load_worker.state
+                in (WorkerState.SUCCESS, WorkerState.ERROR, WorkerState.CANCELLED)
+            ),
+        )
+        await pilot.pause()
+
+        modal.notify.assert_called_once()
+        assert modal.notify.call_args.kwargs.get("severity") == "warning"
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        assert option_list.option_count == 1
+        assert option_list.get_option_at_index(0).disabled is True
+
+
+# -- selection preservation and re-query actions -----------------------------
+
+
+async def test_modal_preserves_selection_across_refresh(monkeypatch) -> None:
+    runs = [make_run(artifact_dir="/tmp/a"), make_run(artifact_dir="/tmp/b")]
+    call = _stub_load(monkeypatch, make_view([make_group("large", runs)]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        option_list = modal.query_one("#alias-history-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("large:/tmp/b")
+
+        await pilot.press("r")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await pilot.pause()
+
+        assert modal._highlighted_option_id() == "large:/tmp/b"
+
+
+async def test_modal_ctrl_k_doubles_limit_and_reloads_cached(monkeypatch) -> None:
+    call = _stub_load(
+        monkeypatch, make_view([make_group("large", [make_run()])], limit_per_alias=10)
+    )
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+        assert modal._limit == 10
+
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await pilot.pause()
+
+        _, kwargs = call.call_args
+        assert kwargs["limit_per_alias"] == 20
+        assert kwargs["freshness"] == "cached"
+
+
+async def test_modal_r_revalidates_then_next_load_is_cached(monkeypatch) -> None:
+    call = _stub_load(monkeypatch, make_view([make_group("large", [make_run()])]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        await pilot.press("r")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await pilot.pause()
+        assert call.call_args.kwargs["freshness"] == "revalidate"
+
+        await pilot.press("ctrl+k")
+        await wait_for(pilot, lambda: call.call_count == 3)
+        await pilot.pause()
+        assert call.call_args.kwargs["freshness"] == "cached"
+
+
+async def test_modal_dot_toggles_hidden_and_updates_footer(monkeypatch) -> None:
+    def load(aliases, *, include_hidden, **kwargs):
+        return make_view(
+            [make_group("large", [make_run()])], include_hidden=include_hidden
+        )
+
+    call = MagicMock(side_effect=load)
+    monkeypatch.setattr(alias_history_modal, "load_alias_history", call)
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+        footer_before = str(modal.query_one("#alias-history-footer", Static).content)
+        assert "excluded" in footer_before
+
+        await pilot.press(".")
+        await wait_for(pilot, lambda: call.call_count == 2)
+        await pilot.pause()
+
+        assert call.call_args.kwargs["include_hidden"] is True
+        footer_after = str(modal.query_one("#alias-history-footer", Static).content)
+        assert "showing" in footer_after
+
+
+# -- navigation and jump -----------------------------------------------------
+
+
+async def test_modal_navigation_skips_group_headers_and_spacers(monkeypatch) -> None:
+    view = make_view(
+        [
+            make_group("a", [make_run(artifact_dir="/tmp/a1")]),
+            make_group("b", [make_run(artifact_dir="/tmp/b1")]),
+        ]
+    )
+    _stub_load(monkeypatch, view)
+    entry = make_entry(("a", "b"), title_label="research")
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        assert modal._highlighted_option_id() == "a:/tmp/a1"
+        await pilot.press("j")
+        await pilot.pause()
+        assert modal._highlighted_option_id() == "b:/tmp/b1"
+
+
+async def test_modal_jump_targets_only_selectable_runs(monkeypatch) -> None:
+    view = make_view(
+        [
+            make_group("a", [make_run(artifact_dir="/tmp/a1")]),
+            make_group("b", [make_run(artifact_dir="/tmp/b1")]),
+        ]
+    )
+    _stub_load(monkeypatch, view)
+    entry = make_entry(("a", "b"), title_label="research")
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        assert modal._jump_target_keys() == ["a:/tmp/a1", "b:/tmp/b1"]
+
+
+# -- prompt preview -----------------------------------------------------------
+
+
+async def test_modal_enter_opens_prompt_preview(monkeypatch, tmp_path) -> None:
+    prompt_path = tmp_path / "raw_xprompt.md"
+    prompt_path.write_text("# The prompt\n", encoding="utf-8")
+    run = make_run(artifact_dir=str(tmp_path))
+    _stub_load(monkeypatch, make_view([make_group("large", [run])]))
+    entry = make_entry(("large",), title_label="@large")
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        await pilot.press("enter")
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PreviewPanelModal))
+
+        preview = pilot.app.screen
+        assert isinstance(preview, PreviewPanelModal)
+        assert preview._payload.content == "# The prompt\n"
+        assert preview._payload.lexer == "markdown"
+
+
+async def test_modal_enter_warns_when_prompt_missing(monkeypatch, tmp_path) -> None:
+    run = make_run(artifact_dir=str(tmp_path / "does-not-exist"))
+    _stub_load(monkeypatch, make_view([make_group("large", [run])]))
+    entry = make_entry(("large",))
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        await pilot.press("enter")
+        await wait_for(pilot, lambda: modal.notify.called)
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        modal.notify.assert_called_once()
+        assert modal.notify.call_args.kwargs.get("severity") == "warning"
+
+
+# -- copy reference -----------------------------------------------------------
+
+
+async def test_modal_y_copies_durable_agent_reference(monkeypatch) -> None:
+    run = make_run(agent_name="worker_1")
+    _stub_load(monkeypatch, make_view([make_group("large", [run])]))
+    entry = make_entry(("large",))
+
+    monkeypatch.setattr(
+        alias_history_modal, "reference_for_agent_name", lambda name: f"agent:{name}"
+    )
+    copy_mock = MagicMock()
+    monkeypatch.setattr(alias_history_modal, "schedule_copy_delivery", copy_mock)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        copy_mock.assert_called_once()
+        args, kwargs = copy_mock.call_args
+        assert args[1] == "@agent:worker_1"
+        assert kwargs["copied_label"] == "agent reference (agent:worker_1)"
+
+
+async def test_modal_y_warns_when_agent_has_no_durable_name(monkeypatch) -> None:
+    run = make_run(agent_name=None)
+    _stub_load(monkeypatch, make_view([make_group("large", [run])]))
+    entry = make_entry(("large",))
+    copy_mock = MagicMock()
+    monkeypatch.setattr(alias_history_modal, "schedule_copy_delivery", copy_mock)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = AliasHistoryModal(entry)
+        modal.notify = MagicMock()  # type: ignore[method-assign]
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._view is not None)
+
+        await pilot.press("y")
+        await pilot.pause()
+
+        copy_mock.assert_not_called()
+        modal.notify.assert_called_once()
+        assert modal.notify.call_args.kwargs.get("severity") == "warning"
+
+
+# -- close --------------------------------------------------------------------
+
+
+async def test_modal_escape_dismisses_to_none(monkeypatch) -> None:
+    _stub_load(monkeypatch, make_view([make_group("large", [make_run()])]))
+    entry = make_entry(("large",))
+    result: object = "unset"
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+
+        def on_dismiss(value: None) -> None:
+            nonlocal result
+            result = value
+
+        pilot.app.push_screen(AliasHistoryModal(entry), callback=on_dismiss)
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+
+    assert result is None
