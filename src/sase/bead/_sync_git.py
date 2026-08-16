@@ -276,6 +276,13 @@ def _commit_bead_state(
         files = _list_bead_state_changes(beads_dir, repo_root)
         if not files:
             return False
+        from sase.bead._stream_integrity import prepare_event_streams_for_commit
+
+        prepared = prepare_event_streams_for_commit(repo_root, files)
+        if prepared.restored_paths:
+            files = _list_bead_state_changes(beads_dir, repo_root)
+            if not files:
+                return False
         _run_git_write_or_raise(
             ["add", "--", *files],
             cwd=repo_root,

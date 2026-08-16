@@ -134,6 +134,13 @@ def bead_sync_diagnostics(
     if (git_dir / "rebase-merge").is_dir() or (git_dir / "rebase-apply").is_dir():
         messages.append("WARNING: bead store is mid-rebase")
 
+    try:
+        from sase.bead._stream_integrity import diagnose_event_stream_history
+
+        messages.extend(diagnose_event_stream_history(repo_root, beads_dir))
+    except Exception:
+        pass
+
     counts = subprocess.run(
         ["git", "rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
         cwd=repo_root,

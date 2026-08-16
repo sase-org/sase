@@ -172,7 +172,16 @@ def auto_commit_bead_store(
         from sase.sdd._repository_transaction import SddRepositoryHealthError
         from sase.sdd._store_types import SddMaterializationError
 
-        if isinstance(exc, (SddMaterializationError, SddRepositoryHealthError)):
+        from sase.bead._stream_integrity import BeadStreamIntegrityError
+
+        if isinstance(
+            exc,
+            (
+                SddMaterializationError,
+                SddRepositoryHealthError,
+                BeadStreamIntegrityError,
+            ),
+        ):
             raise
         _logger.warning(
             "Failed to auto-commit SDD bead store changes",

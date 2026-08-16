@@ -78,6 +78,16 @@ def commit_sdd_files(
             raise SddGitCommandError.from_error(exc) from exc
         if not changed_files:
             return False
+        from sase.bead._stream_integrity import prepare_event_streams_for_commit
+
+        prepared = prepare_event_streams_for_commit(sdd_dir, changed_files)
+        if prepared.restored_paths:
+            try:
+                changed_files = changed_sdd_files(sdd_dir, pathspecs)
+            except subprocess.CalledProcessError as exc:
+                raise SddGitCommandError.from_error(exc) from exc
+            if not changed_files:
+                return False
         run_sdd_git_write(
             ["add", "--"] + changed_files,
             cwd=sdd_dir,

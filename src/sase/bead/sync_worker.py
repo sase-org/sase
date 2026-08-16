@@ -109,8 +109,21 @@ def _run_locked_sync(
 ) -> _ManagedSyncOutcome:
     _log(log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir))
 
+    from sase.bead._stream_integrity import (
+        BeadStreamIntegrityError,
+        refuse_unpublished_event_stream_shrink,
+    )
     from sase.sdd._git_contention import store_git_write_lock_factory
     from sase.sdd._repository_recovery_markers import clear_failed_integration_marker
+
+    try:
+        refuse_unpublished_event_stream_shrink(
+            repo_root,
+            beads_dir,
+            ignore_unreadable=True,
+        )
+    except BeadStreamIntegrityError as exc:
+        return _failure(log_path, str(exc))
 
     integrated = False
     for push_attempt in range(1, _MAX_PUSH_ATTEMPTS + 1):
@@ -127,6 +140,10 @@ def _run_locked_sync(
                 or f"SDD integration ended with {integration.status.value}",
                 integrated=integrated,
             )
+        try:
+            refuse_unpublished_event_stream_shrink(repo_root, beads_dir)
+        except BeadStreamIntegrityError as exc:
+            return _failure(log_path, str(exc), integrated=integrated)
 
         # Any successful integration ends the clone's failed-integration
         # cooldown, not only the pull path that recorded it.

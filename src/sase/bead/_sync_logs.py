@@ -139,6 +139,13 @@ def read_sync_log_records(path: Path) -> list[dict[str, Any]]:
 def classify_sync_error(error: str) -> str:
     text = error.lower()
     if (
+        "cannot publish non-append-only bead event stream" in text
+        or "is shorter than its own history" in text
+        or "worktree rewrote ancestor event" in text
+        or "HEAD missing ancestor events" in text
+    ):
+        return "event-stream integrity"
+    if (
         "semantic bead conflict resolution failed" in text
         or "non-append-only bead event stream" in text
         or "rewrote base event" in text
