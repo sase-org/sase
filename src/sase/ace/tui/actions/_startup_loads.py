@@ -12,6 +12,26 @@ log = logging.getLogger(__name__)
 class StartupLoadsMixin:
     """Mixin for startup data loading and deferred index maintenance."""
 
+    def _maybe_show_keymap_unification_toast(self: Any) -> None:
+        """Show the sase-m6.9 ``y``/``R`` flip notice once, ever."""
+        from .._keymap_unification_notice import (
+            has_shown_keymap_unification_notice,
+            mark_keymap_unification_notice_shown,
+        )
+
+        if has_shown_keymap_unification_notice():
+            return
+        mark_keymap_unification_notice_shown()
+        self.notify(
+            "Patch keys changed: 'y' now copies the @patch: reference and "
+            "'R' refreshes (every Artifacts pane agrees on this now). "
+            "Rewind moved to '!R', PR-origin to '!o'. Press '?' for the "
+            "full keymap.",
+            title="Artifacts keymap unified",
+            severity="information",
+            timeout=15.0,
+        )
+
     def _invalidate_saved_queries_cache(self: Any) -> None:
         """Reload the active pane's ``_saved_queries`` bucket after a mutation.
 
@@ -102,8 +122,9 @@ class StartupLoadsMixin:
                 schedule_prompt_catalog_rebuild(reason="startup_warm")
             except Exception:
                 log.exception("Failed to schedule prompt catalog warm")
+        just_updated = False
         try:
-            self._maybe_show_post_update_toast()
+            just_updated = self._maybe_show_post_update_toast()
         except Exception:
             log.debug("Failed to show post-update toast", exc_info=True)
         try:
@@ -114,6 +135,11 @@ class StartupLoadsMixin:
             self._schedule_startup_agents_sync_check()
         except Exception:
             log.debug("Failed to schedule startup agents-sync check", exc_info=True)
+        if just_updated:
+            try:
+                self._maybe_show_keymap_unification_toast()
+            except Exception:
+                log.debug("Failed to show keymap unification toast", exc_info=True)
 
     async def _run_mount_state_loads(self: Any) -> None:
         """Load mount-time disk state without occupying the App message pump."""

@@ -40,9 +40,7 @@ FILES_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "files_cycle_kind",
         "files_next_version",
         "files_prev_version",
-        "files_copy_reference",
         "files_copy_path",
-        "files_refresh",
     }
 )
 
@@ -320,22 +318,6 @@ class ArtifactsFilesActionsMixin:
         if pane is not None:
             pane.select_version(-1)
 
-    def action_files_copy_reference(self) -> None:
-        """Copy the selected row's durable ``file:`` reference."""
-
-        pane = self._files_pane()
-        entry = pane.selected_entry if pane is not None else None
-        if entry is None:
-            self._notify_no_file_selected()
-            return
-        reference = f"file:{entry.id}"
-        schedule_copy_delivery(
-            self,
-            reference,
-            copied_label=f"reference {reference}",
-            task_name="sase-copy-artifact-file-reference",
-        )
-
     def action_files_copy_path(self) -> None:
         """Copy the selected row's anchored stored or PDF-source path."""
 
@@ -367,11 +349,6 @@ class ArtifactsFilesActionsMixin:
             copied_label=copied_label,
             task_name="sase-copy-artifact-file-path",
         )
-
-    def action_files_refresh(self) -> None:
-        pane = self._files_pane()
-        if pane is not None:
-            pane.request_refresh()
 
     def _selected_file(
         self,

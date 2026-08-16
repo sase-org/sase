@@ -24,14 +24,14 @@ async def test_default_keys_still_work() -> None:
 
 
 async def test_remapped_navigation_key() -> None:
-    """Remapping next_patch to 'B' makes 'B' navigate and 'j' not."""
-    keymap_cfg = {"app": {"next_patch": "B"}}
+    """Remapping next_patch to 'P' makes 'P' navigate and 'j' not."""
+    keymap_cfg = {"app": {"next_patch": "P"}}
 
-    # 'B' should navigate
+    # 'P' should navigate
     with _patch_config(keymap_cfg):
         async with AcePage() as page:
             await page.press("2")
-            await page.press("B")
+            await page.press("P")
             await page.expect_state("idx", 1)
 
     # 'j' should no longer navigate

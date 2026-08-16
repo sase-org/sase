@@ -82,7 +82,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.accept_proposal), "Open auto-approve menu / answer HITL"),
                 (d(a.rename_cl), "Name agent"),
                 (d(a.edit_hooks), "Fork chat as agent"),
-                (d(a.start_rewind), "Revive dismissed (^k loads more)"),
+                (
+                    key_sequence_display(bm.prefix, sk(bm.keys, "start_rewind")),
+                    "Revive dismissed (^k loads more)",
+                ),
                 (
                     d(a.add_tag),
                     "Start wait; @tribe binds next",

@@ -62,7 +62,3 @@ class ArtifactsBeadsBrowseActionsMixin(ArtifactsBeadsCommonMixin):
             )
             return
         self._navigate_to_relation_target(target, role=RelationRole.LINK)  # type: ignore[attr-defined]
-
-    def action_beads_refresh(self) -> None:
-        if (pane := self._beads_pane()) is not None:
-            pane.request_refresh()

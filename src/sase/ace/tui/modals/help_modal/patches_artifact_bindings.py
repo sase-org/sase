@@ -99,7 +99,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     "Open full commit message and diff",
                 ),
                 ("p (commit view)", "Toggle attached local plan / commit"),
-                (d(a.stitches_copy_sha), "Copy full commit SHA"),
+                (d(a.artifacts_copy_reference), "Copy @stitch: reference"),
                 (
                     f"{d(a.edit_query)} / {d(a.stitches_filters)}",
                     "Focus persistent commit filter",
@@ -124,7 +124,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.stitches_cycle_merges), "Cycle merge visibility"),
                 (
-                    f"{d(a.stitches_fetch)} / {d(a.stitches_refresh)}",
+                    f"{d(a.stitches_fetch)} / {d(a.refresh)}",
                     "Fetch remote refs / refresh from local refs",
                 ),
                 *artifact_list_navigation,
@@ -163,11 +163,12 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.beads_snooze), "Snooze / re-snooze task bead"),
                 (d(a.beads_launch_work), "Launch bead work"),
                 (d(a.beads_open_bug), "Open linked issue"),
-                (d(a.beads_copy_bug), "Copy linked issue ref"),
+                (d(a.artifacts_copy_reference), "Copy @bead: reference"),
                 (d(a.start_bead_issue_mode), "Issue actions"),
                 ("b v/e/s/u/a/c", "View, edit, state, URL, attach, create"),
+                ("% u", "Copy linked issue reference (copy mode)"),
                 (d(a.beads_open_plan), "Go to linked plan"),
-                (d(a.beads_refresh), "Refresh beads"),
+                (d(a.refresh), "Refresh beads"),
                 *artifact_list_navigation,
             ],
         ),
@@ -186,9 +187,9 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.files_open_agent), "Open producing agent"),
                 (d(a.files_filters), "Open artifact-file filters"),
                 (d(a.files_cycle_kind), "Cycle file kind"),
-                (d(a.files_copy_reference), "Copy artifact-file reference"),
+                (d(a.artifacts_copy_reference), "Copy @file: reference"),
                 (d(a.files_copy_path), "Copy stored path"),
-                (d(a.files_refresh), "Refresh artifact files"),
+                (d(a.refresh), "Refresh artifact files"),
                 *_relation_rows(km, contracts.get("files")),
                 *artifact_list_navigation,
             ],
@@ -260,7 +261,10 @@ def _document_contract_sections(
         ):
             rows.append((d(a.plans_open_bead), "Go to linked bead"))
         rows.extend(_relation_rows(km, contract))
-        rows.append((d(a.plans_refresh), f"Refresh {contract.label.lower()}s"))
+        rows.append(
+            (d(a.artifacts_copy_reference), f"Copy {contract.label.lower()} reference")
+        )
+        rows.append((d(a.refresh), f"Refresh {contract.label.lower()}s"))
         rows.extend(artifact_list_navigation)
         title = (
             f"{contract.label} Pane"

@@ -438,6 +438,14 @@ COPY_TARGETS: tuple[_CopyTarget, ...] = (
         "Artifacts snapshots",
     ),
     _target(
+        "artifacts_beads",
+        "bug",
+        "bug",
+        "Copy linked issue reference",
+        "Identity",
+        "linked issue references",
+    ),
+    _target(
         "artifacts_other",
         "contents",
         "contents",

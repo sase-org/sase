@@ -338,12 +338,13 @@ The pane supports the full bead workflow:
 | `c`       | Close with a required reason and optional note, or reopen a closed bead               |
 | `w`       | Launch an epic or launchable task; phase work launches with its epic                  |
 | `o`       | Open a linked external issue                                                          |
-| `y`       | Copy a linked issue reference                                                         |
+| `y`       | Copy the bead's `@bead:` reference                                                    |
+| `% u`     | Copy a linked issue reference (copy mode)                                             |
 | `b`       | Enter issue-action prefix mode                                                        |
 | `L`       | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
 | `R`       | Refresh beads                                                                         |
 
-When a bead has several issue links, `o`, `y`, and the `b`-mode `v`, `e`, `s`, and `u`
+When a bead has several issue links, `o`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
 actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
 `e` to edit supported title/body/label fields, `s` to close or reopen after
 confirmation, `u` to copy the provider URL, `a` to attach an existing numeric issue, or
@@ -530,9 +531,9 @@ provenance.
 | `o`       | Open text in `$EDITOR` (falling back to `nvim`); open media with `xdg-open`     |
 | `a`       | Jump to the producing agent on the Agents tab, reviving it first when dismissed |
 | `f`       | Edit the pane's filter query                                                    |
-| `s`       | Cycle the kind filter through All and the stored kinds present in the snapshot  |
+| `z`       | Cycle the kind filter through All and the stored kinds present in the snapshot  |
 | `(` / `)` | Select previous / next version for the current logical file                     |
-| `y`       | Copy the row's durable `file:<id>` reference                                    |
+| `y`       | Copy the row's `@file:<id>` reference                                           |
 | `Y`       | Copy the row's anchored stored path                                             |
 | `m` / `u` | Mark / unmark the selected file · clear this pane's marks                       |
 | `%`       | Open the Files **Copy as…** palette                                             |
@@ -543,9 +544,10 @@ These are the default keymap values; the Files-pane actions retain their `files_
 configuration names and are remappable under
 [`ace.keymaps.app`](configuration.md#acekeymaps) as `files_next`, `files_prev`,
 `files_view_selected`, `files_open_viewer`, `files_open_external`, `files_open_agent`,
-`files_filters`, `files_cycle_kind`, `files_copy_reference`, `files_copy_path`, and
-`files_refresh`. Version cycling uses the old nested-files sub-tab keys. The pane also
-shares the navigation and jump keys described in
+`files_filters`, `files_cycle_kind`, and `files_copy_path`. `y`/`R` are the shared
+`artifacts_copy_reference`/`refresh` actions every Artifacts pane binds. Version cycling
+uses the old nested-files sub-tab keys. The pane also shares the navigation and jump
+keys described in
 [Navigation in Stitches, Beads, Provider Documents, and Files](#navigation-in-stitches-beads-provider-documents-and-files).
 
 `Y` copies the anchored stored path, except that PDF rows deliberately yield the live
@@ -613,46 +615,49 @@ launch routing uses the same `@small` fallback.
 | `'`                       | Jump by adaptive hint (current tab); hints land on collapsed banners too                     |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                        |
-| `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
+| `B` / `I`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
 | `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
 | `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
 | `{` / `}`                 | Narrow / widen the shared Artifacts list panel (with wraparound)                             |
 
-> **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the
-> Agents tab and the Patches sub-tab (each surface keeps its own in-session mode). On
-> the AXE tab it is a silent no-op. See
-> [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab
-> [Grouping Modes](#grouping-modes) below.
+> **Note:** `B`/`I` cycles the L0 grouping bucket forward / reverse on the Agents tab
+> and every Artifacts pane (each surface keeps its own in-session mode; Beads has no
+> grouping-mode data yet). Not `o`/`O`, which is reserved app-wide for
+> `artifacts_open_external`/bang-mode `mark_pr_origin` — see sase-m6.9. On the AXE tab
+> `B`/`I` is a silent no-op. See [PR Grouping and Folding](#pr-grouping-and-folding) and
+> the Agents-tab [Grouping Modes](#grouping-modes) below.
 
 ### PR Actions
 
-| Key             | Action                                                                        |
-| --------------- | ----------------------------------------------------------------------------- |
-| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                   |
-| `b`             | Rebase PR onto parent                                                         |
-| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                         |
-| `d`             | Show diff (Patches sub-tab only; `d` is the Axe description toggle elsewhere) |
-| `e`             | Edit spec file                                                                |
-| `f`             | Edit hooks (re-run / delete via hint input)                                   |
-| `M`             | Mail PR                                                                       |
-| `m`             | Mark / unmark current PR (auto-advances to next)                              |
-| `n`             | Rename PR (non-Sub/Rev PRs only)                                              |
-| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                  |
-| `R`             | Rewind to previous commit (`!` suffix skips VCS operations)                   |
-| `s`             | Change status (opens status modal)                                            |
-| `S`             | Bulk status change for all marked PRs                                         |
-| `T`             | Checkout + tmux (opens workspace input modal for number)                      |
-| `u`             | Clear all marks                                                               |
-| `v`             | View files (hint mode)                                                        |
-| `w`             | Reword PR description                                                         |
-| `W`             | Add tag to PR description                                                     |
-| `Y`             | Sync workspace                                                                |
+| Key             | Action                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                                  |
+| `b`             | Rebase PR onto parent                                                                        |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                                        |
+| `d`             | Show diff (Patches sub-tab only; `d` is the Axe description toggle elsewhere)                |
+| `e`             | Edit spec file                                                                               |
+| `f`             | Edit hooks (re-run / delete via hint input)                                                  |
+| `M`             | Mail PR                                                                                      |
+| `m`             | Mark / unmark current PR (auto-advances to next)                                             |
+| `n`             | Rename PR (non-Sub/Rev PRs only)                                                             |
+| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                                 |
+| `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                  |
+| `R`             | Refresh (the shared `artifacts_copy_reference`/`refresh` actions every Artifacts pane binds) |
+| `y`             | Copy the PR's `@patch:` reference                                                            |
+| `s`             | Change status (opens status modal)                                                           |
+| `S`             | Bulk status change for all marked PRs                                                        |
+| `T`             | Checkout + tmux (opens workspace input modal for number)                                     |
+| `u`             | Clear all marks                                                                              |
+| `v`             | View files (hint mode)                                                                       |
+| `w`             | Reword PR description                                                                        |
+| `W`             | Add tag to PR description                                                                    |
+| `Y`             | Sync workspace                                                                               |
 
 ### PR Grouping and Folding
 
 The Patches sub-tab is always grouped — the renderer walks one of `BY_PROJECT`,
 `BY_DATE`, or `BY_STATUS` and emits a banner row above each bucket. `BY_PROJECT` is the
-startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current session.
+startup default; `B` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current session.
 
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -669,12 +674,12 @@ parseable TIMESTAMPS entry fall into `(no timestamp)` under `Earlier`.
 The active grouping mode is shown in the Patches sub-tab's info-panel header as a
 `[group: <label>]` badge.
 
-| Key | Action                                                                                                                                 |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
-| `h` | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
-| `L` | Snap to fully expanded — all banners and Patch rows visible                                                                            |
-| `H` | Snap to fully collapsed — collapse every visible banner                                                                                |
+| Key  | Action                                                                                                                                 |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `l`  | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
+| `h`  | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
+| `zL` | Snap to fully expanded — all banners and Patch rows visible (`z` fold-mode prefix; bare `L` is siblings' `artifacts_link_jump`)        |
+| `H`  | Snap to fully collapsed — collapse every visible banner                                                                                |
 
 Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just
 like Patch rows, and `'` jump-hints land on them too. After a fold change that hides the
@@ -856,18 +861,18 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
-| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
+| `B` / `I`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
 | `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
 | `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
 
-> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the
-> Agents tab and the Patches sub-tab (each surface keeps its own in-session selection
-> independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
-> vim-style scroll-to-top/bottom meaning on every tab. See
-> [Grouping Modes](#grouping-modes) below.
+> **Note:** `B`/`I` cycles the grouping mode forward / reverse on the Agents tab and
+> every Artifacts pane (each surface keeps its own in-session selection independently);
+> on the AXE tab it is a silent no-op. `g`/`G` keep their conventional vim-style
+> scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes)
+> below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
 families. Relations are keyed on the name a row presents as its **sase agent** name, so
@@ -904,7 +909,7 @@ rather than landing somewhere stale.
 
 | Key                 | Action                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `R`                 | Revive a previously dismissed agent                                                                           |
+| `!R`                | Revive a previously dismissed agent                                                                           |
 | `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
 | `+`                 | Run custom agent                                                                                              |
 | `A`                 | Open auto-approve menu / answer HITL                                                                          |
@@ -2339,7 +2344,7 @@ These work on all tabs:
 | `Ctrl+L`            | Dismiss all currently-visible toast notifications                                                                                                        |
 | `@`                 | Open the stashed-prompt restore picker                                                                                                                   |
 | `Q`                 | Open the quit / restart menu                                                                                                                             |
-| `y`                 | Refresh current tab                                                                                                                                      |
+| `R`                 | Refresh current tab                                                                                                                                      |
 | `q`                 | Quit                                                                                                                                                     |
 | `?`                 | Show help modal                                                                                                                                          |
 
@@ -3502,7 +3507,7 @@ confirmation from their respective modals.
 
 ### Agent Revival
 
-Press `R` on the Agents tab to revive previously dismissed work. ACE opens the
+Press `!R` on the Agents tab to revive previously dismissed work. ACE opens the
 saved-group revival modal first, showing newest saved groups with a right-hand preview
 of included agents, projects, PRs, statuses, provider/model labels, and revival count.
 Select a group and press Enter to revive it, choose **Load more saved groups...** to

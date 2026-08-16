@@ -63,6 +63,15 @@ def register_config_parser(subparsers: argparse._SubParsersAction) -> None:
         "changespec_name", help="NAME of the ChangeSpec to trace matching for"
     )
 
+    # sase config migrate-keymap-actions
+    config_subparsers.add_parser(
+        "migrate-keymap-actions",
+        help=(
+            "Rewrite ace.keymaps.app overrides that name a keymap action "
+            "retired by sase-m6.9 to their canonical replacement"
+        ),
+    )
+
     # sase config show
     config_show_parser = config_subparsers.add_parser(
         "show", help="Print the final merged config as YAML"

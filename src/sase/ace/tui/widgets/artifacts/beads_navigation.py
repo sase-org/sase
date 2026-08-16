@@ -264,7 +264,6 @@ class BeadsNavigationMixin(_MixinBase):
         external_links_for_row = getattr(self, "external_links_for_row", None)
         if callable(external_links_for_row) and external_links_for_row(row):
             entries.append(("beads_open_bug", "open issue"))
-            entries.append(("beads_copy_bug", "copy issue"))
         entries.append(("start_bead_issue_mode", "issue"))
         relation_footer_entries = getattr(self, "relation_footer_entries", None)
         if callable(relation_footer_entries):

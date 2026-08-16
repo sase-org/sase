@@ -154,7 +154,7 @@ def build_beads_hints(
         (key_display_name(keymap.beads_filters), "filter"),
         (key_display_name(keymap.beads_expand), "expand"),
         (key_display_name(keymap.beads_collapse), "collapse"),
-        (key_display_name(keymap.beads_refresh), "refresh"),
+        (key_display_name(keymap.refresh), "refresh"),
     )
     return build_footer_hints(parts, accent=accent)
 

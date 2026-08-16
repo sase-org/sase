@@ -69,6 +69,7 @@ _DISPATCH_ORDER: dict[str, tuple[str, ...]] = {
         "link",
         "json",
         "id",
+        "bug",
         "title",
         "body",
         "design",

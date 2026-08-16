@@ -114,14 +114,25 @@ def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
 
 
 def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
-    """Default ``s`` is intentionally shared across contextual surfaces."""
+    """Default ``s`` is intentionally shared across contextual surfaces.
+
+    sase-m6.9 kept ``s`` = mutate (Patch's ``change_status``, Beads'
+    ``beads_cycle_status``, which already mutates) and moved the two pure
+    display-facet cycles (``stitches_cycle_merges``, ``files_cycle_kind``)
+    off ``s`` onto ``z`` so ``s`` means the same contract verb everywhere
+    it fires.
+    """
     bindings = build_app_bindings(default_app_keymaps())
     assert [b.action for b in bindings if b.key == "s"] == [
         "change_status",
-        "stitches_cycle_merges",
         "beads_cycle_status",
-        "files_cycle_kind",
         "save_marked_agents",
+    ]
+    assert [b.action for b in bindings if b.key == "z"] == [
+        "start_fold_mode",
+        "stitches_cycle_merges",
+        "beads_snooze",
+        "files_cycle_kind",
     ]
 
 

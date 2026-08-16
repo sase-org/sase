@@ -257,11 +257,11 @@ async def test_filter_bar_kind_cycle_selection_and_empty_copy(
         assert pane.filters.kinds == ("image",)
         assert "filtered 2/3" in pane.query_one("#files-info", Static).content.plain
 
-        await page.press("s")
+        await page.press("z")
         assert pane.filters.kinds == ("markdown",)
         assert pane.selected_entry is not None
         assert pane.selected_entry.id == rows[2].id
-        await page.press("s")
+        await page.press("z")
         assert pane.filters.kinds == ()
 
         pane.filters = replace(pane.filters, text=("missing",))

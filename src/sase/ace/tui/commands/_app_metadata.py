@@ -123,7 +123,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("commit up", "stitches up"),
     ),
     ("stitches_view_selected", "Stitches: view selected", "Display", CL_ONLY, ()),
-    ("stitches_copy_sha", "Stitches: copy SHA", "Display", CL_ONLY, ()),
     ("stitches_filters", "Stitches: filter bar", "Display", CL_ONLY, ()),
     (
         "stitches_toggle_sdd",
@@ -153,13 +152,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         (),
     ),
-    (
-        "stitches_refresh",
-        "Stitches: refresh local refs",
-        "Proposals & Sync",
-        CL_ONLY,
-        ("reload commits", "reload stitches"),
-    ),
     # Plans sub-tab
     ("plans_next", "Plans: next row", "Navigation", CL_ONLY, ("plan down",)),
     ("plans_prev", "Plans: previous row", "Navigation", CL_ONLY, ("plan up",)),
@@ -180,13 +172,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("reject plan",),
     ),
     ("plans_open_bead", "Plans: go to linked bead", "Navigation", CL_ONLY, ()),
-    (
-        "plans_refresh",
-        "Plans: refresh",
-        "Proposals & Sync",
-        CL_ONLY,
-        ("reload plans",),
-    ),
     # Beads sub-tab
     ("beads_next", "Beads: next row", "Navigation", CL_ONLY, ()),
     ("beads_prev", "Beads: previous row", "Navigation", CL_ONLY, ()),
@@ -202,10 +187,8 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("beads_snooze", "Beads: snooze task", "Proposals & Sync", CL_ONLY, ()),
     ("beads_launch_work", "Beads: launch work", "Agents", CL_ONLY, ()),
     ("beads_open_bug", "Beads: open linked issue", "Display", CL_ONLY, ()),
-    ("beads_copy_bug", "Beads: copy linked issue ref", "Display", CL_ONLY, ()),
     ("start_bead_issue_mode", "Beads: issue actions", "Bugs", CL_ONLY, ()),
     ("beads_open_plan", "Beads: go to linked plan", "Navigation", CL_ONLY, ()),
-    ("beads_refresh", "Beads: refresh", "Proposals & Sync", CL_ONLY, ()),
     # Files sub-tab
     ("files_next", "Files: next row", "Navigation", CL_ONLY, ("file down",)),
     ("files_prev", "Files: previous row", "Navigation", CL_ONLY, ("file up",)),
@@ -221,15 +204,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         (),
     ),
-    ("files_copy_reference", "Files: copy reference", "Display", CL_ONLY, ()),
     ("files_copy_path", "Files: copy stored path", "Display", CL_ONLY, ()),
-    (
-        "files_refresh",
-        "Files: refresh",
-        "Proposals & Sync",
-        CL_ONLY,
-        ("reload files",),
-    ),
     # Patch actions
     ("quit", "Quit ace", "Misc", ALL_TABS, ("exit",)),
     ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),
@@ -307,6 +282,13 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     ("sync", "Sync repo", "Proposals & Sync", ALL_TABS, ()),
     ("refresh", "Refresh tab", "Proposals & Sync", ALL_TABS, ("reload",)),
+    (
+        "artifacts_copy_reference",
+        "Artifacts: copy row reference",
+        "Display",
+        CL_ONLY,
+        ("copy reference", "copy sha", "copy bug ref"),
+    ),
     # Folding
     (
         "hooks_or_collapse",

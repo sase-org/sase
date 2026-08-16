@@ -83,7 +83,11 @@ def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
     assert app.footer_refresh_calls == 0
 
 
-def test_capital_l_still_expands_all_folds_on_other_tabs() -> None:
+def test_capital_l_still_expands_all_folds_on_axe_but_not_patches() -> None:
+    """sase-m6.9 moved Patches' fold-snap under the `z` fold-mode prefix (`zL`),
+    freeing the bare `L` key for siblings' `artifacts_link_jump`. A bare `L`
+    on Patches is now a no-op at this layer.
+    """
     axe = _OtherTabExpandApp("axe")
     patches = _OtherTabExpandApp("patches")
 
@@ -92,5 +96,5 @@ def test_capital_l_still_expands_all_folds_on_other_tabs() -> None:
 
     assert axe.axe_expand_calls == 1
     assert axe.refresh_calls == 0
-    assert patches.patch_expand_calls == 1
-    assert patches.refresh_calls == 1
+    assert patches.patch_expand_calls == 0
+    assert patches.refresh_calls == 0

@@ -182,10 +182,10 @@ def build_files_hints(
         (key_display_name(keymap.files_next_version), "next version"),
         (key_display_name(keymap.files_open_agent), "agent"),
         (key_display_name(keymap.files_open_external), "external"),
-        (key_display_name(keymap.files_copy_reference), "copy ref"),
+        (key_display_name(keymap.artifacts_copy_reference), "copy ref"),
         (key_display_name(keymap.files_copy_path), "copy path"),
         (key_display_name(keymap.files_open_viewer), "viewer"),
-        (key_display_name(keymap.files_refresh), "refresh"),
+        (key_display_name(keymap.refresh), "refresh"),
     )
     disabled_labels = frozenset() if has_agent else frozenset({"agent"})
     return build_footer_hints(parts, accent=accent, disabled_labels=disabled_labels)

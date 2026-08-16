@@ -147,6 +147,9 @@ class FoldNavigationMixin(NavigationMixinBase):
             self.mentors_collapsed = new_state
             self.timestamps_collapsed = new_state
             self.deltas_collapsed = new_state
+        elif key == fold_keys.get("expand_all_groups"):
+            # ``zL``: peel one grouping-banner fold layer (was bare ``L``).
+            self._expand_all_patch_group_folds()  # type: ignore[attr-defined]
         elif key == fold_keys["toggle_all"]:
             # Toggle: if not fully collapsed, collapse all; otherwise fully expand
             all_collapsed = (

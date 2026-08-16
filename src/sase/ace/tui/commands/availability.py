@@ -104,6 +104,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.open_command_palette",
         "app.dismiss_toasts",
         "app.refresh",
+        "app.artifacts_copy_reference",
         "projects",
         "logs",
         "tasks",
@@ -119,7 +120,6 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.plans_approve",
         "app.plans_reject",
         "app.plans_open_bead",
-        "app.plans_refresh",
     }
 )
 
@@ -139,10 +139,8 @@ _BEADS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.beads_snooze",
         "app.beads_launch_work",
         "app.beads_open_bug",
-        "app.beads_copy_bug",
         "app.start_bead_issue_mode",
         "app.beads_open_plan",
-        "app.beads_refresh",
     }
 )
 
@@ -156,9 +154,7 @@ _FILES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.files_open_agent",
         "app.files_filters",
         "app.files_cycle_kind",
-        "app.files_copy_reference",
         "app.files_copy_path",
-        "app.files_refresh",
     }
 )
 
@@ -167,13 +163,11 @@ _STITCHES_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.stitches_next",
         "app.stitches_prev",
         "app.stitches_view_selected",
-        "app.stitches_copy_sha",
         "app.stitches_filters",
         "app.stitches_toggle_sdd",
         "app.stitches_cycle_merges",
         "app.stitches_toggle_all_projects",
         "app.stitches_fetch",
-        "app.stitches_refresh",
     }
 )
 

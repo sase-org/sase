@@ -19,7 +19,6 @@ COMMITS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "stitches_cycle_merges",
         "stitches_toggle_all_projects",
         "stitches_fetch",
-        "stitches_refresh",
     }
 )
 
@@ -96,11 +95,6 @@ class ArtifactsCommitsActionsMixin:
         pane = self._commits_pane()
         if self._commits_active() and pane is not None:
             pane.fetch_commits()
-
-    def action_stitches_refresh(self) -> None:
-        pane = self._commits_pane()
-        if self._commits_active() and pane is not None:
-            pane.refresh_commits()
 
 
 __all__ = ["ArtifactsCommitsActionsMixin", "COMMITS_ARTIFACT_ACTIONS"]

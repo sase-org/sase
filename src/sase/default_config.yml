@@ -287,13 +287,11 @@ ace:
       stitches_next: "j"
       stitches_prev: "k"
       stitches_view_selected: "enter"
-      stitches_copy_sha: "y"
       stitches_filters: "f"
       stitches_toggle_sdd: "d"
-      stitches_cycle_merges: "s"
+      stitches_cycle_merges: "z"
       stitches_toggle_all_projects: "a"
       stitches_fetch: "F"
-      stitches_refresh: "R"
       # Plans sub-tab
       plans_next: "j"
       plans_prev: "k"
@@ -302,7 +300,6 @@ ace:
       plans_approve: "A"
       plans_reject: "X"
       plans_open_bead: "L"
-      plans_refresh: "R"
       # Beads sub-tab
       beads_next: "j"
       beads_prev: "k"
@@ -318,10 +315,8 @@ ace:
       beads_snooze: "z"
       beads_launch_work: "w"
       beads_open_bug: "o"
-      beads_copy_bug: "y"
       start_bead_issue_mode: "b"
       beads_open_plan: "L"
-      beads_refresh: "R"
       # Files sub-tab
       files_next: "j"
       files_prev: "k"
@@ -330,10 +325,8 @@ ace:
       files_open_external: "o"
       files_open_agent: "a"
       files_filters: "f"
-      files_cycle_kind: "s"
-      files_copy_reference: "y"
+      files_cycle_kind: "z"
       files_copy_path: "Y"
-      files_refresh: "R"
       # PR actions
       patches_filters: "f"
       quit: "q"
@@ -359,9 +352,10 @@ ace:
       # Proposals & sync
       accept_proposal: "A"
       rebase: "b"
-      start_rewind: "R"
+      start_rewind: "unbound"
       sync: "Y"
-      refresh: "y"
+      refresh: "R"
+      artifacts_copy_reference: "y"
       # Fold / collapse (Agents: h navigates member → family → clan → tribe,
       # collapses an explicitly selected expanded panel, and jumps from a
       # collapsed panel to the last expanded panel when one exists. H compacts
@@ -409,9 +403,11 @@ ace:
       # Tribe-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
-      # Grouping mode cycle (agents tab)
-      cycle_grouping_mode: "o"
-      cycle_grouping_mode_reverse: "O"
+      # Grouping mode cycle (agents tab and non-Patches Artifacts panes; not
+      # "o"/"O" because those are reserved app-wide for artifacts_open_external
+      # / bang-mode mark_pr_origin)
+      cycle_grouping_mode: "B"
+      cycle_grouping_mode_reverse: "I"
       # Queries
       search_forward: "slash"
       edit_query: "slash"
@@ -461,6 +457,7 @@ ace:
           toggle_deltas: "D"
           cycle_all: "z"
           toggle_all: "Z"
+          expand_all_groups: "L"
           set_level_1: "1"
           set_level_2: "2"
           set_level_3: "3"
@@ -526,6 +523,7 @@ ace:
             link: "l"
             json: "J"
             snapshot: "s"
+            bug: "u"
           artifacts_other:
             contents: "percent_sign"
             reference: "at"
@@ -582,6 +580,7 @@ ace:
           run_cmd: "exclamation_mark"
           toggle_axe: "x"
           mark_pr_origin: "o"
+          start_rewind: "R"
       bead_issue_mode:
         prefix: "b"
         keys:

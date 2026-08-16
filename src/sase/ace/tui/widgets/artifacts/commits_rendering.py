@@ -152,13 +152,13 @@ def build_commits_hints(
             "navigate",
         ),
         (view_key, "view"),
-        (key_display_name(actions.stitches_copy_sha), "copy"),
+        (key_display_name(actions.artifacts_copy_reference), "copy"),
         (key_display_name(actions.edit_query), "filter"),
         (key_display_name(actions.stitches_toggle_sdd), "sidecars"),
         (key_display_name(actions.stitches_cycle_merges), "merges"),
         (key_display_name(actions.stitches_toggle_all_projects), "all"),
         (key_display_name(actions.stitches_fetch), "fetch"),
-        (key_display_name(actions.stitches_refresh), "refresh"),
+        (key_display_name(actions.refresh), "refresh"),
         (key_display_name(actions.pick_artifacts_project), "project"),
     )
     return build_footer_hints(entries, accent=accent)

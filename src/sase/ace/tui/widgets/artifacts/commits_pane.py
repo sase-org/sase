@@ -373,9 +373,6 @@ class CommitsPane(
             close_session=False,
         )
 
-    def refresh_commits(self) -> None:
-        self._schedule_collection()
-
     def fetch_commits(self) -> None:
         self._schedule_collection(force_fetch=True)
 

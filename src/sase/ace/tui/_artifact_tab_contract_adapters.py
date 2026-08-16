@@ -301,26 +301,16 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
                 transitive=False,
             ),
         ),
-        grouping=PaneGroupingDecl(
-            modes=(
-                PaneGroupingModeDecl(
-                    id="by_epic",
-                    label="Epic",
-                    keys=("parent_id",),
-                ),
-                PaneGroupingModeDecl(
-                    id="by_status",
-                    label="Status",
-                    keys=("status",),
-                ),
-                PaneGroupingModeDecl(
-                    id="by_type",
-                    label="Type",
-                    keys=("type", "tier"),
-                ),
-            ),
-            default_mode="by_epic",
-        ),
+        # Empty: the Beads pane only implements the single-purpose
+        # epic-tree fold (``beads_expand``/``beads_collapse`` over its own
+        # ``_epic_fold_registry``), not the multi-mode
+        # ``ArtifactGroupFoldMixin`` protocol (``group_cycle_mode`` etc.)
+        # that ``PaneCapability.GROUPING`` promises. Declaring modes here
+        # without that implementation is exactly the "claims a feature its
+        # data cannot support" case the contract rules exist to prevent
+        # (sase-m6.9). See that bead's PROPOSED FOLLOW-UP for real
+        # by_epic/by_status/by_type support.
+        grouping=PaneGroupingDecl(),
         copy_group="artifacts_beads",
         copy_targets=(
             "snapshot",
@@ -332,6 +322,7 @@ BUILTIN_ADAPTERS: dict[str, _BuiltinAdapter] = {
             "title",
             "body",
             "design",
+            "bug",
         ),
         copy_keymap_group="artifacts_beads",
         detail_fields=(),

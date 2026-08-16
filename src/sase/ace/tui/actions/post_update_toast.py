@@ -31,15 +31,21 @@ class PostUpdateToastMixin:
 
     _update_toast_shown: bool
 
-    def _maybe_show_post_update_toast(self) -> None:
-        """Consume and render the pending post-update toast receipt, if present."""
+    def _maybe_show_post_update_toast(self) -> bool:
+        """Consume and render the pending post-update toast receipt, if present.
+
+        Returns whether a real update receipt was just consumed, so callers can
+        gate one-shot "explain what changed" notices on an actual update landing
+        rather than on every fresh app mount (which would also fire on brand new
+        installs and, worse, during headless tests that never see this receipt).
+        """
         try:
             receipt = read_and_clear_pending_update_toast()
         except Exception:
             log.debug("Failed to consume pending update toast", exc_info=True)
-            return
+            return False
         if receipt is None:
-            return
+            return False
 
         try:
             config = update_toast._load_update_toast_config()
@@ -47,7 +53,7 @@ class PostUpdateToastMixin:
             log.debug("Failed to load post-update toast config", exc_info=True)
             config = update_toast._UpdateToastConfig()
         if not config.post_update_toast:
-            return
+            return True
 
         self._update_toast_shown = True
         try:
@@ -70,6 +76,7 @@ class PostUpdateToastMixin:
             )
         except Exception:
             log.debug("Failed to show post-update toast", exc_info=True)
+        return True
 
 
 def _format_post_update_toast_title(receipt: UpdateToastReceipt) -> str:

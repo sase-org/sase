@@ -137,7 +137,7 @@ def build_plans_hints(
         (key_display_name(keymap.edit_query), "filter"),
         (key_display_name(keymap.plans_approve), "approve"),
         (key_display_name(keymap.plans_reject), "reject"),
-        (key_display_name(keymap.plans_refresh), "refresh"),
+        (key_display_name(keymap.refresh), "refresh"),
     )
     return build_footer_hints(parts, accent=accent)
 

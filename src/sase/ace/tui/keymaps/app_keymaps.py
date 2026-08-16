@@ -42,13 +42,11 @@ class AppKeymaps:
     stitches_next: str
     stitches_prev: str
     stitches_view_selected: str
-    stitches_copy_sha: str
     stitches_filters: str
     stitches_toggle_sdd: str
     stitches_cycle_merges: str
     stitches_toggle_all_projects: str
     stitches_fetch: str
-    stitches_refresh: str
     # Plans sub-tab
     plans_next: str
     plans_prev: str
@@ -57,7 +55,6 @@ class AppKeymaps:
     plans_approve: str
     plans_reject: str
     plans_open_bead: str
-    plans_refresh: str
     # Beads sub-tab
     beads_next: str
     beads_prev: str
@@ -73,10 +70,8 @@ class AppKeymaps:
     beads_snooze: str
     beads_launch_work: str
     beads_open_bug: str
-    beads_copy_bug: str
     start_bead_issue_mode: str
     beads_open_plan: str
-    beads_refresh: str
     # Files sub-tab
     files_next: str
     files_prev: str
@@ -86,9 +81,7 @@ class AppKeymaps:
     files_open_agent: str
     files_filters: str
     files_cycle_kind: str
-    files_copy_reference: str
     files_copy_path: str
-    files_refresh: str
     # Patch actions
     patches_filters: str
     quit: str
@@ -116,6 +109,7 @@ class AppKeymaps:
     start_rewind: str
     sync: str
     refresh: str
+    artifacts_copy_reference: str
     # Fold / collapse
     hooks_or_collapse: str
     hooks_or_collapse_all: str

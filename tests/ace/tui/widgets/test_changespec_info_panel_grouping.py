@@ -47,7 +47,7 @@ def test_by_project_label_renders_badge_with_key_hint() -> None:
     assert "by project" in plain
     # The configured key for ``cycle_grouping_mode`` is shown in parens
     # so the user can discover the binding without opening the help modal.
-    assert "(o)" in plain
+    assert "(B)" in plain
 
 
 def test_by_status_label_renders_badge() -> None:
@@ -74,7 +74,7 @@ def test_status_and_grouping_render_on_separate_lines() -> None:
     assert "+1S" in lines[0]
     assert "group:" not in lines[0]
     assert "auto-refresh" not in lines[0]
-    assert lines[1].startswith("[group: by project (o)]")
+    assert lines[1].startswith("[group: by project (B)]")
     assert "(auto-refresh in 7s)" in lines[1]
 
 

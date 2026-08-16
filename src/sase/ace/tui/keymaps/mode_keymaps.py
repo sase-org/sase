@@ -30,6 +30,7 @@ class FoldModeKeymaps(ModeKeymaps):
             "toggle_deltas": "D",
             "cycle_all": "z",
             "toggle_all": "Z",
+            "expand_all_groups": "L",
             "set_level_1": "1",
             "set_level_2": "2",
             "set_level_3": "3",
@@ -108,6 +109,7 @@ class CopyModeKeymaps(ModeKeymaps):
                 "link": "l",
                 "json": "J",
                 "snapshot": "s",
+                "bug": "u",
             },
             "artifacts_other": {
                 "contents": "percent_sign",
@@ -184,6 +186,7 @@ class BangModeKeymaps(ModeKeymaps):
             "run_cmd": "exclamation_mark",
             "toggle_axe": "x",
             "mark_pr_origin": "o",
+            "start_rewind": "R",
         }
     )
 

@@ -42,10 +42,10 @@ def test_every_app_keymap_has_a_command_spec() -> None:
 
 def test_app_command_spec_uses_configured_key() -> None:
     """A CommandSpec's key sequence must reflect the merged keymap."""
-    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "B"}}})
+    reg = load_keymap_registry({"keymaps": {"app": {"next_patch": "P"}}})
     by_id = {c.id: c for c in iter_app_commands(reg)}
-    assert by_id["app.next_patch"].key_sequence == ("B",)
-    assert by_id["app.next_patch"].key_display == "B"
+    assert by_id["app.next_patch"].key_sequence == ("P",)
+    assert by_id["app.next_patch"].key_display == "P"
 
 
 def test_open_command_palette_command_uses_default_alternatives() -> None:

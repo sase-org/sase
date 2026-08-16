@@ -17,7 +17,6 @@ PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "plans_approve",
         "plans_reject",
         "plans_open_bead",
-        "plans_refresh",
     }
 )
 
@@ -75,10 +74,6 @@ class ArtifactsPlansActionsMixin:
         from ..modals.preview_panel_modal import PreviewPanelModal
 
         self.push_screen(PreviewPanelModal(payload))  # type: ignore[attr-defined]
-
-    def action_plans_refresh(self) -> None:
-        if (pane := self._active_documents_pane()) is not None:
-            pane.request_refresh()
 
     def action_plans_open_bead(self) -> None:
         pane = self._active_documents_pane()

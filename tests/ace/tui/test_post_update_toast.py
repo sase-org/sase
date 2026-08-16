@@ -12,6 +12,9 @@ from textual.markup import escape
 
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
+from sase.ace.tui._keymap_unification_notice import (
+    mark_keymap_unification_notice_shown,
+)
 from sase.ace.tui.actions import post_update_toast, update_toast
 from sase.ace.tui.actions.post_update_toast import PostUpdateToastMixin
 from sase.ace.update_receipt import (
@@ -404,6 +407,11 @@ async def test_post_update_toast_appears_once_and_suppresses_available_toast(
     tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    # This test's own subject is toast suppression between the post-update and
+    # update-available toasts; pre-seed the unrelated one-shot keymap-unification
+    # notice as already shown so it doesn't ride along on this receipt and add a
+    # third, unrelated notification.
+    mark_keymap_unification_notice_shown()
     receipt_file = tmp_path / "pending_update_toast.json"
     monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
     assert write_pending_update_toast(_receipt()) is True

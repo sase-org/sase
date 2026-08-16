@@ -71,6 +71,7 @@ def test_bead_rows_cover_every_default_target_with_warm_previews() -> None:
         ("json", "J"),
         ("handoff", "!"),
         ("snapshot", "s"),
+        ("bug", "u"),
     ]
     previews = {row.target: row.preview for row in context.rows}
     assert previews["id"] == "sase-copy.1"

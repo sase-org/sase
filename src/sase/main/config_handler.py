@@ -74,6 +74,66 @@ def handle_config_command(args: argparse.Namespace) -> None:
             print()
         sys.exit(0)
 
+    elif config_sub == "migrate-keymap-actions":
+        from pathlib import Path
+
+        import yaml  # type: ignore[import-untyped]
+
+        from sase.ace.tui.keymaps.registry import LEGACY_APP_KEY_ALIASES
+        from sase.config._edit_yaml import set_key, unset_key
+        from sase.config.core import load_config_layers
+
+        migrated_paths: list[str] = []
+        for layer in load_config_layers():
+            if not layer.loaded or not layer.path:
+                continue
+            path = Path(layer.path)
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            data = yaml.safe_load(text) or {}
+            if not isinstance(data, dict):
+                continue
+            ace_cfg = data.get("ace")
+            keymaps_cfg = ace_cfg.get("keymaps") if isinstance(ace_cfg, dict) else None
+            app_overrides = (
+                keymaps_cfg.get("app") if isinstance(keymaps_cfg, dict) else None
+            )
+            if not isinstance(app_overrides, dict):
+                continue
+
+            updated_text = text
+            changed = False
+            for legacy, canonical in LEGACY_APP_KEY_ALIASES.items():
+                if legacy not in app_overrides:
+                    continue
+                if canonical in app_overrides:
+                    print(
+                        f"{path}: skipping {legacy} -> {canonical} "
+                        f"({canonical} is already configured)"
+                    )
+                    continue
+                value = app_overrides[legacy]
+                updated_text = set_key(
+                    updated_text, ("ace", "keymaps", "app", canonical), value
+                )
+                updated_text = unset_key(
+                    updated_text, ("ace", "keymaps", "app", legacy)
+                )
+                changed = True
+            if changed and updated_text != text:
+                path.write_text(updated_text, encoding="utf-8")
+                migrated_paths.append(str(path))
+
+        if migrated_paths:
+            print("Migrated renamed keymap actions in:")
+            for migrated_path in migrated_paths:
+                print(f"  {migrated_path}")
+        else:
+            print("No renamed keymap actions found in any config layer.")
+        sys.exit(0)
+
     elif config_sub == "show":
         from sase.config.core import load_merged_config
 
@@ -92,5 +152,7 @@ def handle_config_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     else:
-        print("Usage: sase config {init,layers,mentor-match,show}")
+        print(
+            "Usage: sase config {init,layers,mentor-match,migrate-keymap-actions,show}"
+        )
         sys.exit(1)

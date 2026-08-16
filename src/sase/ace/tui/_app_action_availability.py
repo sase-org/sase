@@ -35,7 +35,6 @@ _CONTRACT_GATED_ARTIFACT_ACTIONS = (
     | _ARTIFACT_GROUP_FOLD_ACTIONS
     | _ARTIFACT_GROUP_CYCLE_ACTIONS
 )
-_GROUPING_CYCLE_KEY_COLLISION_PANES = frozenset({"beads", "files"})
 
 
 def check_app_action(
@@ -132,14 +131,6 @@ def check_app_action(
             app.current_tab == ARTIFACTS_TAB
             and app.current_artifacts_pane_key == "stitches"
         )
-    if (
-        action == "refresh"
-        and app.current_tab == ARTIFACTS_TAB
-        and app.current_artifacts_pane_key != "patches"
-    ):
-        # ``y`` copies the selected pane entry; explicit pane refresh is
-        # registry-backed and defaults to ``R``.
-        return False
     if action in {
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
@@ -254,10 +245,6 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
     from .artifact_tabs import PaneCapability, artifacts_pane_contract
 
     pane_key = str(app.current_artifacts_pane_key)
-    if action in _ARTIFACT_GROUP_CYCLE_ACTIONS and (
-        pane_key in _GROUPING_CYCLE_KEY_COLLISION_PANES
-    ):
-        return False
     contract = getattr(app, "active_artifacts_contract", None)
     if contract is None or getattr(contract, "id", pane_key) != pane_key:
         contract = artifacts_pane_contract(pane_key)

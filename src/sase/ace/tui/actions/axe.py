@@ -193,6 +193,14 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        start_rewind_key = bang_keys.get("start_rewind")
+        if start_rewind_key == key:
+            # !R → rewind Patch / revive agent (moved off app-level `R` so
+            # unified pane refresh can use it)
+            self.action_start_rewind()  # type: ignore[attr-defined]
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
         # Unknown key - just exit mode and restore footer
         self._refresh_current_tab()  # type: ignore[attr-defined]
         return True

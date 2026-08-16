@@ -430,6 +430,8 @@ class KeybindingModesMixin:
         ]
         if "mark_pr_origin" in keys:
             bindings.append((k("mark_pr_origin"), "mark PR origin"))
+        if "start_rewind" in keys:
+            bindings.append((k("start_rewind"), "rewind / revive"))
         self._update_display(bindings, mode_label="BANG")
 
     def update_saved_query_bindings(self) -> None:

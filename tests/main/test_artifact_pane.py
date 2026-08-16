@@ -58,19 +58,17 @@ def test_pane_show_json_explains_verdicts(
     assert by_name["mutation"]["state"] == "ON"
     assert by_name["versions"]["state"] == "OFF"
     assert by_name["relations"]["state"] == "ON"
-    assert by_name["grouping"]["state"] == "ON"
+    # Beads never had real grouping modes; sase-m6.9 corrected its previously
+    # false GROUPING capability declaration to OFF with no modes.
+    assert by_name["grouping"]["state"] == "OFF"
     assert [item["name"] for item in payload["relations"]] == [
         "parent",
         "children",
         "plans",
         "dependencies",
     ]
-    assert payload["grouping"]["default_mode"] == "by_epic"
-    assert [item["id"] for item in payload["grouping"]["modes"]] == [
-        "by_epic",
-        "by_status",
-        "by_type",
-    ]
+    assert payload["grouping"]["default_mode"] is None
+    assert payload["grouping"]["modes"] == []
 
 
 def test_pane_show_unknown_id_lists_configured(monkeypatch, capsys) -> None:

@@ -66,7 +66,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.mail), "Mail Patch"),
                 (d(a.toggle_mark), "Mark/unmark current Patch"),
                 (d(a.rename_cl), "Rename Patch (non-Sub/Rev)"),
-                (d(a.start_rewind), "Rewind to prev commit (! skip VCS)"),
+                (
+                    key_sequence_display(bm.prefix, sk(bm.keys, "start_rewind")),
+                    "Rewind to prev commit (! skip VCS)",
+                ),
                 (d(a.change_status), "Change status"),
                 (
                     key_sequence_display(bm.prefix, sk(bm.keys, "mark_pr_origin")),
@@ -142,6 +145,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(fm.prefix)} {d(sk(fm.keys, 'toggle_all'))}",
                     "Toggle all collapsed/expanded",
+                ),
+                (
+                    f"{d(fm.prefix)} {d(sk(fm.keys, 'expand_all_groups'))}",
+                    "Expand all grouping banners",
                 ),
             ],
         ),
@@ -264,7 +271,8 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     "Expand/collapse group",
                 ),
                 (
-                    f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
+                    f"{key_sequence_display(fm.prefix, sk(fm.keys, 'expand_all_groups'))}"
+                    f" / {d(a.hooks_or_collapse_all)}",
                     "Expand/collapse all",
                 ),
             ],
@@ -293,6 +301,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),
                 (d(a.refresh), "Refresh"),
+                (d(a.artifacts_copy_reference), "Copy @patch: reference"),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),
             ],

@@ -93,6 +93,22 @@ class ClipboardArtifactsMixin(
 ):
     """Dispatch copy-mode keys using the visible Artifacts entry."""
 
+    def action_artifacts_copy_reference(self) -> None:
+        """Copy the selected row's canonical ``@<kind>:...`` reference.
+
+        The one contract-verb replacement for the per-pane ``y`` actions
+        every Artifacts pane used to bind separately (``stitches_copy_sha``,
+        ``beads_copy_bug``, ``files_copy_reference``): every pane now copies
+        the same paste-ready ``@`` reference on ``y``. Sha/bug/id/etc.
+        copies remain reachable through copy mode (``%``).
+        """
+        if self.current_tab != ARTIFACTS_TAB:  # type: ignore[attr-defined]
+            return
+        if self.current_artifacts_pane_key == "patches":  # type: ignore[attr-defined]
+            self._copy_patch_reference()  # type: ignore[attr-defined]
+            return
+        self._run_artifact_reference_action(handoff=False)
+
     def _non_pr_artifacts_copy_active(self) -> bool:
         return (
             self.current_tab
@@ -146,6 +162,7 @@ class ClipboardArtifactsMixin(
                 str(subtab_keys["title"]): lambda: self._copy_bead_target("title"),
                 str(subtab_keys["body"]): lambda: self._copy_bead_target("body"),
                 str(subtab_keys["design"]): lambda: self._copy_bead_target("design"),
+                str(subtab_keys["bug"]): lambda: self.action_beads_copy_bug(),  # type: ignore[attr-defined]
             }
         else:
             handlers = {

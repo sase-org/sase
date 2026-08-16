@@ -93,7 +93,9 @@ async def test_mark_save_preview_and_revive_saved_agent_group(
         assert group.title == "1 agent from @backend"
         assert group.agent_count == 1
 
-        await page.press("R")
+        # sase-m6.9 unified bare "R" onto the app-wide refresh action, so
+        # reviving a saved group now goes through bang mode ("!R").
+        await page.press("exclamation_mark", "R")
         await page.expect_modal("SavedAgentGroupRevivalModal")
         modal = page.app.screen
         assert isinstance(modal, SavedAgentGroupRevivalModal)
@@ -158,7 +160,9 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
         page.app._load_agents(full_history=True)
         await page.expect_state("agent_count", 0)
 
-        await page.press("R")
+        # sase-m6.9 unified bare "R" onto the app-wide refresh action, so
+        # reviving a saved group now goes through bang mode ("!R").
+        await page.press("exclamation_mark", "R")
         await page.expect_modal("SavedAgentGroupRevivalModal")
         await page.press("enter")
         await page.expect_no_modal()

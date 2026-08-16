@@ -103,7 +103,9 @@ def test_default_zoom_migrates_to_uppercase_z_and_fold_keeps_lowercase() -> None
     assert registry.app.isolate_panels == "="
     assert [binding.action for binding in bindings if binding.key == "z"] == [
         "start_fold_mode",
+        "stitches_cycle_merges",
         "beads_snooze",
+        "files_cycle_kind",
     ]
     assert [binding.action for binding in bindings if binding.key == "Z"] == [
         "zoom_panel",

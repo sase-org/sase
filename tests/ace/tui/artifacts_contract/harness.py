@@ -50,7 +50,6 @@ _GROUPING_REACHABILITY_ACTIONS = frozenset(
         "cycle_grouping_mode_reverse",
     }
 )
-_GROUPING_CYCLE_KEY_COLLISION_PANES = frozenset({"beads", "files"})
 
 
 def check_descriptor_identity(descriptor: ArtifactsTabDescriptor) -> None:
@@ -225,11 +224,6 @@ def check_declared_relation_and_grouping_actions_are_reachable(
             ):
                 continue
             available = check_app_action(app, action, (), lambda _a, _p: True)
-            if action in {"cycle_grouping_mode", "cycle_grouping_mode_reverse"} and (
-                contract.id in _GROUPING_CYCLE_KEY_COLLISION_PANES
-            ):
-                assert available is False
-                continue
             assert available is not False, f"{contract.id}:{action}"
 
 

@@ -31,6 +31,7 @@ _FOLD_LABELS: dict[str, str] = {
     "toggle_deltas": "Toggle deltas fold",
     "cycle_all": "Cycle all folds",
     "toggle_all": "Toggle all folds",
+    "expand_all_groups": "Expand all grouping banners",
     "set_level_1": "Set all folds to level 1",
     "set_level_2": "Set all folds to level 2",
     "set_level_3": "Set all folds to level 3",
@@ -82,6 +83,7 @@ _BANG_LABELS: dict[str, str] = {
     "run_cmd": "Run command (bang)",
     "toggle_axe": "Toggle AXE (bang)",
     "mark_pr_origin": "Mark PR origin (bang)",
+    "start_rewind": "Rewind Patch / revive agent (bang)",
 }
 
 _BEAD_ISSUE_LABELS: dict[str, str] = {

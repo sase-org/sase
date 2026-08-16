@@ -270,7 +270,13 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
     assert contract.has(PaneCapability.STABLE_REFERENCE_COPY)
     assert contract.has(PaneCapability.FILTER_SESSION)
     assert contract.has(PaneCapability.RELATIONS)
-    assert contract.has(PaneCapability.GROUPING)
+    # Beads only implements the single-purpose epic-tree fold, not the
+    # multi-mode ArtifactGroupFoldMixin protocol GROUPING promises, so it
+    # must not claim the capability (sase-m6.9).
+    if adapter == "beads":
+        assert not contract.has(PaneCapability.GROUPING)
+    else:
+        assert contract.has(PaneCapability.GROUPING)
     assert contract.presentation_digest
     assert len(contract.verdicts) == len(PaneCapability)
     if adapter == "files":
@@ -284,7 +290,10 @@ def test_builtin_contract_snapshots(adapter: str) -> None:
         assert not contract.has(PaneCapability.VERSIONS)
     assert contract.has(PaneCapability.PROJECT_SCOPE)
     assert contract.relations
-    assert contract.grouping.modes
+    if adapter == "beads":
+        assert not contract.grouping.modes
+    else:
+        assert contract.grouping.modes
 
 
 def test_patch_contract_names_relation_and_grouping_declarations() -> None:

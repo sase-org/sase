@@ -48,7 +48,7 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
 )
 
 
-_LEGACY_APP_KEY_ALIASES: dict[str, str] = {
+LEGACY_APP_KEY_ALIASES: dict[str, str] = {
     "next_changespec": "next_patch",  # legacy compatibility alias
     "prev_changespec": "prev_patch",  # legacy compatibility alias
     "start_agent_from_changespec": "start_agent_from_patch",  # legacy compatibility alias
@@ -63,6 +63,13 @@ _LEGACY_APP_KEY_ALIASES: dict[str, str] = {
     "commits_toggle_all_projects": "stitches_toggle_all_projects",  # legacy compatibility alias
     "commits_fetch": "stitches_fetch",  # legacy compatibility alias
     "commits_refresh": "stitches_refresh",  # legacy compatibility alias
+    "stitches_refresh": "refresh",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "plans_refresh": "refresh",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "beads_refresh": "refresh",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "files_refresh": "refresh",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "stitches_copy_sha": "artifacts_copy_reference",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "beads_copy_bug": "artifacts_copy_reference",  # legacy compatibility alias (sase-m6.9 keymap unification)
+    "files_copy_reference": "artifacts_copy_reference",  # legacy compatibility alias (sase-m6.9 keymap unification)
 }
 
 
@@ -284,7 +291,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         app_overrides = dict(app_overrides)
         app_overrides = _migrate_key_aliases(
             app_overrides,
-            _LEGACY_APP_KEY_ALIASES,
+            LEGACY_APP_KEY_ALIASES,
             context="app",
         )
         for retired_name in sorted(_RETIRED_APP_KEYS & app_overrides.keys()):

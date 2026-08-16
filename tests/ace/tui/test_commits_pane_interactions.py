@@ -63,7 +63,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         assert "sidecar:" not in info
         assert footer.content.plain == (
             "j/k navigate  ·  enter view  ·  y copy  ·  / filter  ·  d sidecars  ·  "
-            "s merges  ·  a all  ·  F fetch  ·  R refresh  ·  p project"
+            "z merges  ·  a all  ·  F fetch  ·  R refresh  ·  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
         assert "feat(artifacts): keep every commit" in _rendered_text(detail.content)
@@ -80,7 +80,7 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
         await page.wait_for(lambda _state: pane._selected_commit_index == 1)
         assert position.content.plain == "[2/2]  ·  "
         await page.press("y")
-        assert copied == ["b" * 40]
+        assert copied == [f"@commit:sase-core-foundation@{'b' * 40}"]
 
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
@@ -332,7 +332,7 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
         bar = pane.query_one(CommitFilterBar)
         editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
 
-        await page.press("s")
+        await page.press("z")
         await page.wait_for(
             lambda _state: (
                 pane.filters.merges == "show"
@@ -341,7 +341,7 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
         )
         assert editor.text == "sidecar:false merges:show since:24h"
 
-        await page.press("s")
+        await page.press("z")
         await page.wait_for(
             lambda _state: (
                 pane.filters.merges == "only"
@@ -350,6 +350,6 @@ async def test_commits_cycle_merges_updates_query_and_recollects(
         )
         assert editor.text == "sidecar:false merges:only since:24h"
 
-        await page.press("s")
+        await page.press("z")
         await page.wait_for(lambda _state: pane.filters.merges == "hide")
         assert editor.text == "sidecar:false merges:hide since:24h"

@@ -93,11 +93,8 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
         assert page.app.check_action("change_status", ()) is False
         assert page.app.check_action("next_patch", ()) is False
-        assert page.app.check_action("stitches_refresh", ()) is True
+        assert page.app.check_action("refresh", ()) is True
         assert page.app.check_action("start_leader_mode", ()) is not False
-        assert page.app.check_action("beads_refresh", ()) is False
-        assert page.app.check_action("plans_refresh", ()) is False
-        assert page.app.check_action("files_refresh", ()) is False
         footer = page.query_one_widget("#keybinding-content", Static)
         assert footer.content.plain == ""
 
@@ -108,7 +105,6 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         await page.press("]")
         await page.expect_state("artifacts_subtab", "patches")
         assert commits.deactivation_count == 1
-        assert page.app.check_action("stitches_refresh", ()) is False
         assert patches_pane.activation_count == 1
         assert page.app.focused is not None
         assert page.app.focused.id == "list-panel"
@@ -131,13 +127,14 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "files")
-        assert page.app.check_action("plans_refresh", ()) is False
-        assert page.app.check_action("files_refresh", ()) is True
+        assert page.app.check_action("refresh", ()) is True
         await page.press("(")
         await page.expect_state("artifacts_subtab", "files")
         files = page.query_one_widget("#artifacts-files-pane", ArtifactsFilesPane)
         assert files.first_activation_count == 1
-        assert page.app.check_action("refresh", ()) is False
+        # sase-m6.9 unified refresh onto a single app-wide action reachable from
+        # every Artifacts pane (not just Patches), so it stays available here.
+        assert page.app.check_action("refresh", ()) is True
         assert all(
             page.app.check_action(action, ()) is True
             for action in FILES_ARTIFACT_ACTIONS
@@ -155,8 +152,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         if provider is not None and provider.digit_shortcut is not None:
             await page.press(provider.digit_shortcut)
             await page.expect_state("artifacts_subtab", provider.id)
-            assert page.app.check_action("plans_refresh", ()) is True
-            assert page.app.check_action("files_refresh", ()) is False
+            assert page.app.check_action("refresh", ()) is True
 
         await page.press("3")
         await page.expect_state("artifacts_subtab", "beads")
@@ -297,7 +293,7 @@ async def test_first_artifacts_entry_activates_default_without_hidden_collection
         assert switcher.current == ARTIFACTS_PANE_IDS["stitches"]
         assert commits.first_activation_count == 1
         assert commits.artifacts_active is True
-        assert page.app.check_action("stitches_refresh", ()) is True
+        assert page.app.check_action("refresh", ()) is True
         assert page.app.check_action("change_status", ()) is False
         assert page.query_one_widget("#keybinding-content", Static).content.plain == ""
 
@@ -486,20 +482,18 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         assert context.artifacts_subtab == "beads"
         assert is_command_available(by_id["artifacts.patches"], context)
         assert not is_command_available(by_id["app.change_status"], context)
-        assert not is_command_available(by_id["app.stitches_refresh"], context)
+        assert is_command_available(by_id["app.refresh"], context)
 
         execute_command(page.app, by_id["artifacts.stitches"])
         await page.expect_state("artifacts_subtab", "stitches")
         context = extract_command_context(page.app)
-        assert is_command_available(by_id["app.stitches_refresh"], context)
-        assert not is_command_available(by_id["app.beads_refresh"], context)
+        assert is_command_available(by_id["app.refresh"], context)
 
         execute_command(page.app, by_id["artifacts.files"])
         await page.expect_state("artifacts_subtab", "files")
         context = extract_command_context(page.app)
         assert context.artifacts_subtab == "files"
-        assert is_command_available(by_id["app.files_refresh"], context)
-        assert not is_command_available(by_id["app.plans_refresh"], context)
+        assert is_command_available(by_id["app.refresh"], context)
 
         provider = next(
             (descriptor for descriptor in descriptors if descriptor.is_provider),
@@ -510,8 +504,7 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
             await page.expect_state("artifacts_subtab", provider.id)
             context = extract_command_context(page.app)
             assert context.artifacts_subtab == provider.id
-            assert is_command_available(by_id["app.plans_refresh"], context)
-            assert not is_command_available(by_id["app.files_refresh"], context)
+            assert is_command_available(by_id["app.refresh"], context)
 
 
 def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:

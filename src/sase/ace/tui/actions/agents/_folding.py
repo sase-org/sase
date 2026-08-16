@@ -177,7 +177,13 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                 self._route_non_patch_artifacts_group_fold("group_fold_collapse_all")
 
     def action_expand_all_folds(self) -> None:
-        """Toggle a selected-tribe fold or expand all folds on other tabs."""
+        """Toggle a selected-tribe fold or expand all folds on other tabs.
+
+        Patches' own fold-snap moved under the ``z`` fold-mode prefix
+        (``zL``, see ``_handle_fold_key``) so this bare key is free for
+        siblings' ``artifacts_link_jump`` (``plans_open_bead`` /
+        ``beads_open_plan``) — see sase-m6.9.
+        """
         if self.current_tab == "agents":
             self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]
             return
@@ -185,25 +191,10 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             return
         if self.current_tab == "axe":
             self._expand_all_axe_folds()
-        elif self.current_tab == "changespecs":  # legacy compatibility alias
-            expand = getattr(
-                self,
-                "_expand_all_changespec_group_folds",  # legacy compatibility alias
-                None,
-            )
-            if callable(expand) and expand():
-                self._refresh_display()  # type: ignore[attr-defined]
-        elif self.current_tab == "patches":
-            expand = getattr(self, "_expand_all_patch_group_folds", None)
-            if callable(expand) and expand():
-                self._refresh_display()  # type: ignore[attr-defined]
-        elif self.current_tab == "artifacts":
-            if getattr(self, "current_artifacts_pane_key", "patches") == "patches":
-                expand = getattr(self, "_expand_all_patch_group_folds", None)
-                if callable(expand) and expand():
-                    self._refresh_display()  # type: ignore[attr-defined]
-            else:
-                self._route_non_patch_artifacts_group_fold("group_fold_expand_all")
+        elif self.current_tab == "artifacts" and (
+            getattr(self, "current_artifacts_pane_key", "patches") != "patches"
+        ):
+            self._route_non_patch_artifacts_group_fold("group_fold_expand_all")
 
 
 __all__ = ["AgentFoldingMixin"]

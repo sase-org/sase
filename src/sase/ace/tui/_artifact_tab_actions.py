@@ -5,9 +5,11 @@ from __future__ import annotations
 from sase.ace.tui._artifact_tab_model import PaneCapability
 
 
-# Host actions that implement one closed capability. Adapter-specific
-# commands stay listed so the conformance harness can require a registered
-# implementation without forcing a unified keymap this phase.
+# Host actions that implement one closed capability. sase-m6.9 unified
+# ``refresh``/``artifacts_copy_reference`` onto a single contract action per
+# capability; entries still listed per-pane (e.g. ``plans_open_bead``) are
+# adapter-specific because the underlying data/verb genuinely differs by
+# pane, not because a unification is still pending.
 CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
     PaneCapability.ENTRY_NAVIGATION: (
         "plans_next",
@@ -34,16 +36,11 @@ CAPABILITY_HOST_ACTIONS: dict[PaneCapability, tuple[str, ...]] = {
         "stitches_filters",
         "patches_filters",
     ),
-    PaneCapability.REFRESH: (
-        "plans_refresh",
-        "beads_refresh",
-        "files_refresh",
-        "stitches_refresh",
-    ),
+    PaneCapability.REFRESH: ("refresh",),
     PaneCapability.PROJECT_SCOPE: ("pick_artifacts_project",),
     PaneCapability.STABLE_MARKS: ("toggle_mark", "clear_marks"),
     PaneCapability.DETAIL_SCROLL: ("scroll_detail_down", "scroll_detail_up"),
-    PaneCapability.STABLE_REFERENCE_COPY: ("copy_reference",),
+    PaneCapability.STABLE_REFERENCE_COPY: ("artifacts_copy_reference",),
     PaneCapability.QUERY_HISTORY: ("edit_query",),
     PaneCapability.SAVED_QUERIES: ("start_saved_query_mode",),
     PaneCapability.VERSIONS: ("files_prev_version", "files_next_version"),
