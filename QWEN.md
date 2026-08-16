@@ -203,6 +203,7 @@ Read this note before relying on any of these SASE glossary terms and aliases:
 - Proc (aka background task)
 - Proc Shell
 - Sase Agent (aka agent)
+- Sase Monitor (aka monitor)
 - Sase Node (aka node)
 - Sase Project (aka project)
 - Sase Repo (aka repo)

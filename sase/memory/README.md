@@ -108,15 +108,15 @@ always-loaded notes from detailed reference notes that agents read only when rel
   aliases: - Agent Clan - Agent Family - Agent Hood (aka hood, agent neighborhood) -
   Agent Instruction File (aka agents.md file) - Agent Neighbor - Agent Node - Agent
   Shell - Agent Tribe - Artifact Reference (aka ref) - Patch - Proc (aka background
-  task) - Proc Shell - Sase Agent (aka agent) - Sase Node (aka node) - Sase Project (aka
-  project) - Sase Repo (aka repo) - Sase Shell (aka shell) - Sase Workspace (aka
-  workspace) - Stitch - Xprompt - Xprompt Memory (aka memory file) - Xprompt Part -
-  Xprompt Swarm - Xprompt Workflow Read it with `sase memory read glossary.md` whenever
-  one of those terms or aliases appears in a prompt, bead, plan, or code comment and you
-  are not certain what it means in SASE.
+  task) - Proc Shell - Sase Agent (aka agent) - Sase Monitor (aka monitor) - Sase Node
+  (aka node) - Sase Project (aka project) - Sase Repo (aka repo) - Sase Shell (aka
+  shell) - Sase Workspace (aka workspace) - Stitch - Xprompt - Xprompt Memory (aka
+  memory file) - Xprompt Part - Xprompt Swarm - Xprompt Workflow Read it with
+  `sase memory read glossary.md` whenever one of those terms or aliases appears in a
+  prompt, bead, plan, or code comment and you are not certain what it means in SASE.
 - Parent: `AGENTS.md`
-- Lines: 225
-- Approx. tokens: 2176
+- Lines: 238
+- Approx. tokens: 2328
 
 ### `sase/memory/sase_beads.md`
 
@@ -171,8 +171,8 @@ always-loaded notes from detailed reference notes that agents read only when rel
 - Total notes: 12
 - Short notes: 4
 - Long notes: 8
-- Total lines: 976
-- Total approx. tokens: 11866
+- Total lines: 989
+- Total approx. tokens: 12018
 
 ## Commands
 

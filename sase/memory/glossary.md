@@ -17,6 +17,7 @@ description: |-
   - Proc (aka background task)
   - Proc Shell
   - Sase Agent (aka agent)
+  - Sase Monitor (aka monitor)
   - Sase Node (aka node)
   - Sase Project (aka project)
   - Sase Repo (aka repo)
@@ -142,6 +143,18 @@ A sase agent is an agent family or a single agent that does not belong to a fami
 owns an ordered sequence of sase shells, and its name never ends in `--<suffix>` because
 that suffix is reserved for agent shells. A one-shell agent may share its shell name,
 while a family uses the bare name for its container.
+
+## Sase Monitor
+
+ALIASES: monitor
+
+A sase monitor is a family-attached proc shell that runs one long command under a
+detached supervisor, so the command outlives the agent that started it. Starting one
+from inside an agent hands off and kills that agent's turn, and an agent has at most one
+active monitor at a time; monitor members are named `<family>--mon`, then `--mon-0`,
+`--mon-1`. A monitor settles as `completed`, `failed`, `timeout`, `stopped`, or `lost`,
+and only the first three launch the follow-up agent recorded by `--next`. Inspect
+monitors with `sase monitor`.
 
 ## Sase Node
 
