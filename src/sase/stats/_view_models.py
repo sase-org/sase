@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sase.stats.perf_query import PerfGroupBy
 from sase.stats.query import RuntimeGroupBy
+from sase.stats.ranges import StatsRange
+from sase.telemetry.render.palette import Status
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,3 +350,183 @@ class RunnersView:
     user_hidden_skipped: int
     malformed_rows_skipped: int
     invalid_intervals_skipped: int
+
+
+@dataclass(frozen=True, slots=True)
+class PerfHeroTile:
+    """One hero tile: graded value, optional delta, and a secondary detail line."""
+
+    key: str
+    caption: str
+    available: bool
+    value: float | None
+    status: Status | None
+    delta_ratio: float | None
+    lower_is_better: bool
+    sparkline: tuple[float, ...]
+    detail: str
+    sample_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class PerfStartupStageRow:
+    stage: str
+    label: str
+    p50: float | None
+    p95: float | None
+    max: float | None
+    samples: int
+
+
+@dataclass(frozen=True, slots=True)
+class PerfSlowestSession:
+    ts: float
+    visible_ready_seconds: float
+    initial_tab: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PerfStartupSection:
+    available: bool
+    sessions: int
+    stages: tuple[PerfStartupStageRow, ...]
+    sparkline: tuple[float, ...]
+    slowest: PerfSlowestSession | None
+    tile: PerfHeroTile
+
+
+@dataclass(frozen=True, slots=True)
+class PerfStallEventRow:
+    event: str
+    count: int
+    worst_seconds: float | None
+    median_seconds: float | None
+    last_seen_ts: float | None
+    suppressed_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class PerfStallContextRow:
+    name: str
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
+class PerfStallsSection:
+    available: bool
+    stall_count: int
+    hitch_count: int
+    worst_seconds: float | None
+    recovery_count: int
+    events: tuple[PerfStallEventRow, ...]
+    top_contexts: tuple[PerfStallContextRow, ...]
+    tile: PerfHeroTile
+
+
+@dataclass(frozen=True, slots=True)
+class PerfLaunchStage:
+    ts: float
+    stage: str
+    elapsed_ms: float
+    operation: str | None
+    slow_stage: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PerfLaunchesSection:
+    available: bool
+    count: int
+    p50_ms: float | None
+    p95_ms: float | None
+    max_ms: float | None
+    slow_stage_count: int
+    worst_stages: tuple[PerfLaunchStage, ...]
+    tile: PerfHeroTile
+
+
+@dataclass(frozen=True, slots=True)
+class PerfLatencyRow:
+    key: str
+    label: str
+    p50: float | None
+    p95: float | None
+    max: float | None
+    count: int
+    error_rate: float | None
+    retry_rate: float | None
+    share: float
+    tokens_in: int | None
+    tokens_out: int | None
+    cache_read_tokens: int | None
+    cache_read_share: float | None
+    status: Status | None
+
+
+@dataclass(frozen=True, slots=True)
+class PerfLatencySection:
+    available: bool
+    group_by: PerfGroupBy
+    rows: tuple[PerfLatencyRow, ...]
+    agent_tile: PerfHeroTile
+    llm_tile: PerfHeroTile
+
+
+@dataclass(frozen=True, slots=True)
+class PerfLogCoverage:
+    source: str
+    path: str
+    present: bool
+    records_scanned: int
+    records_in_window: int
+    earliest_ts: float | None
+    latest_ts: float | None
+    truncated: bool
+    malformed_skipped: int
+
+
+@dataclass(frozen=True, slots=True)
+class PerfTelemetryCoverage:
+    enabled: bool
+    available: bool
+    store_path: str
+    store_size_bytes: int
+    raw_sample_count: int
+    rollup_5m_count: int
+    rollup_1h_count: int
+    resolution: str | None
+    last_write_ts: int | None
+    last_write_age_seconds: float | None
+    last_write_by_subsystem: tuple[tuple[str, int], ...]
+    earliest_sample_ts: int | None
+    latest_sample_ts: int | None
+    error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PerfProbeStatus:
+    name: str
+    enabled: bool
+    hint: str
+
+
+@dataclass(frozen=True, slots=True)
+class PerfCoverage:
+    telemetry: PerfTelemetryCoverage
+    logs: tuple[PerfLogCoverage, ...]
+    probes: tuple[PerfProbeStatus, ...]
+    notes: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PerfView:
+    """Presentation-ready Perf snapshot. Every section carries ``available``."""
+
+    available: bool
+    selected_range: StatsRange
+    group_by: PerfGroupBy
+    startup: PerfStartupSection
+    stalls: PerfStallsSection
+    launches: PerfLaunchesSection
+    latency: PerfLatencySection
+    coverage: PerfCoverage
+    tiles: tuple[PerfHeroTile, ...]

@@ -10,9 +10,16 @@ from sase.project_display_names import (
     ProjectDisplaySnapshot,
     load_project_display_snapshot,
 )
+from sase.stats import PerfView, build_perf_view
+from sase.stats.perf_query import (
+    PerfGroupBy,
+    query_perf_logs,
+    query_perf_telemetry,
+)
 from sase.stats.query import RuntimeGroupBy, query_activity_stats, query_run_stats
 from sase.stats.ranges import StatsRange
 from sase.stats.views import StatisticsViews, build_statistics_views
+from sase.telemetry._config import HealthThresholds
 
 StatisticsView = Literal[
     "overview",
@@ -22,6 +29,7 @@ StatisticsView = Literal[
     "activity",
     "xprompts",
     "plans_questions",
+    "perf",
 ]
 ProjectsGroupBy = Literal["project", "patch", "drilldown"]
 XPromptsGroupBy = Literal["usage", "model", "project", "pairing"]
@@ -101,6 +109,7 @@ class StatisticsViewData:
     project_display_snapshot: ProjectDisplaySnapshot = field(
         default_factory=ProjectDisplaySnapshot
     )
+    perf: PerfView | None = None
 
 
 def load_statistics_view(
@@ -108,9 +117,11 @@ def load_statistics_view(
     selected_range: StatsRange,
     project_filter: str | None = None,
     xprompt_focus: str | None = None,
+    perf_group_by: PerfGroupBy = "subsystem",
 ) -> StatisticsViewData:
     """Query composite bindings and build all view models off-thread."""
     from sase.config.core import get_max_running_agents
+    from sase.telemetry._config import get_telemetry_config as load_telemetry_config
 
     project_display_snapshot = load_project_display_snapshot()
     current_runner_limit = get_max_running_agents()
@@ -136,10 +147,19 @@ def load_statistics_view(
             top_n=1,
             project=project_filter,
         )
+    generated_at = time.time()
+    perf = None
+    if view == "perf":
+        perf = _load_perf_view(
+            selected_range,
+            group_by=perf_group_by,
+            now=generated_at,
+            health_thresholds=load_telemetry_config().health_thresholds,
+        )
     return StatisticsViewData(
         view=view,
         selected_range=selected_range,
-        generated_at=time.time(),
+        generated_at=generated_at,
         views=build_statistics_views(
             run_payload,
             activity_payload,
@@ -150,6 +170,49 @@ def load_statistics_view(
         project_filter=project_filter,
         xprompt_focus=xprompt_focus,
         project_display_snapshot=project_display_snapshot,
+        perf=perf,
+    )
+
+
+def _load_perf_view(
+    selected_range: StatsRange,
+    *,
+    group_by: PerfGroupBy,
+    now: float,
+    health_thresholds: HealthThresholds,
+) -> PerfView:
+    perf_payload = query_perf_logs(
+        start_ts=selected_range.start_ts,
+        end_ts=selected_range.end_ts,
+    )
+    telemetry_payload = query_perf_telemetry(
+        start_ts=selected_range.start_ts,
+        end_ts=selected_range.end_ts,
+        group_by=group_by,
+    )
+    previous_perf_payload = None
+    previous_telemetry_payload = None
+    if selected_range.start_ts > 0:
+        window_seconds = selected_range.end_ts - selected_range.start_ts
+        previous_start = selected_range.start_ts - window_seconds
+        previous_perf_payload = query_perf_logs(
+            start_ts=previous_start,
+            end_ts=selected_range.start_ts,
+        )
+        previous_telemetry_payload = query_perf_telemetry(
+            start_ts=previous_start,
+            end_ts=selected_range.start_ts,
+            group_by=group_by,
+        )
+    return build_perf_view(
+        perf_payload,
+        telemetry_payload,
+        selected_range=selected_range,
+        previous_perf_payload=previous_perf_payload,
+        previous_telemetry_payload=previous_telemetry_payload,
+        group_by=group_by,
+        now=now,
+        health_thresholds=health_thresholds,
     )
 
 
@@ -164,6 +227,7 @@ __all__ = [
     "StatisticsView",
     "StatisticsViewData",
     "ProjectsGroupBy",
+    "PerfGroupBy",
     "XPromptsGroupBy",
     "load_statistics_view",
     "statistics_view_supports_grouping",
