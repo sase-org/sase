@@ -114,6 +114,10 @@ def test_run_stale_running_cleanup_reconciles_before_releasing(
         calls.append("reconcile")
         return [object()]
 
+    def _reconcile_running_procs() -> list[object]:
+        calls.append("proc_reconcile")
+        return [object(), object()]
+
     def _cleanup(_log: Any, *, skip_monitor_claims: bool = False) -> int:
         calls.append("cleanup")
         assert skip_monitor_claims is False
@@ -122,19 +126,25 @@ def test_run_stale_running_cleanup_reconciles_before_releasing(
     monkeypatch.setattr(
         "sase.monitor.reconcile_dead_supervisors", _reconcile_dead_supervisors
     )
+    monkeypatch.setattr("sase.procs.reconcile_running_procs", _reconcile_running_procs)
     monkeypatch.setattr("sase.axe.hook_jobs.cleanup_stale_running_entries", _cleanup)
 
+    logs: list[str] = []
     runner = HookJobRunner(
         metrics=AxeMetrics(),
         zombie_timeout_seconds=30,
         max_hook_runners=10,
         max_agent_runners=10,
-        log_callback=lambda _msg, _style=None: None,
+        log_callback=lambda msg, _style=None: logs.append(msg),
     )
     runner.run_stale_running_cleanup()
 
-    assert calls == ["reconcile", "cleanup"]
+    assert calls == ["reconcile", "proc_reconcile", "cleanup"]
     assert runner.metrics.stale_running_cleaned == 2
+    assert runner.metrics.total_updates == 5
+    assert logs[-1] == (
+        "stale_running_cleanup: released=2 monitors_reconciled=1 proc_rows_reconciled=2"
+    )
 
 
 def test_run_stale_running_cleanup_blocks_monitor_release_on_reconcile_failure(
@@ -147,6 +157,9 @@ def test_run_stale_running_cleanup_blocks_monitor_release_on_reconcile_failure(
     def _reconcile_dead_supervisors() -> list[object]:
         raise RuntimeError("boom")
 
+    def _reconcile_running_procs() -> list[object]:
+        return []
+
     def _cleanup(_log: Any, *, skip_monitor_claims: bool = False) -> int:
         seen_skip_monitor_claims.append(skip_monitor_claims)
         return 0
@@ -154,6 +167,7 @@ def test_run_stale_running_cleanup_blocks_monitor_release_on_reconcile_failure(
     monkeypatch.setattr(
         "sase.monitor.reconcile_dead_supervisors", _reconcile_dead_supervisors
     )
+    monkeypatch.setattr("sase.procs.reconcile_running_procs", _reconcile_running_procs)
     monkeypatch.setattr("sase.axe.hook_jobs.cleanup_stale_running_entries", _cleanup)
 
     runner = HookJobRunner(
@@ -167,3 +181,32 @@ def test_run_stale_running_cleanup_blocks_monitor_release_on_reconcile_failure(
 
     assert seen_skip_monitor_claims == [True]
     assert any("reconciliation failed" in msg for msg in logs)
+
+
+def test_run_stale_running_cleanup_logs_proc_reconcile_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proc reconciliation failure does not abort workspace cleanup."""
+    logs: list[str] = []
+
+    monkeypatch.setattr("sase.monitor.reconcile_dead_supervisors", lambda: [])
+    monkeypatch.setattr(
+        "sase.procs.reconcile_running_procs",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    monkeypatch.setattr(
+        "sase.axe.hook_jobs.cleanup_stale_running_entries",
+        lambda _log, *, skip_monitor_claims=False: 1,
+    )
+
+    runner = HookJobRunner(
+        metrics=AxeMetrics(),
+        zombie_timeout_seconds=30,
+        max_hook_runners=10,
+        max_agent_runners=10,
+        log_callback=lambda msg, _style=None: logs.append(msg),
+    )
+    runner.run_stale_running_cleanup()
+
+    assert runner.metrics.stale_running_cleaned == 1
+    assert any("proc reconciliation failed" in msg for msg in logs)

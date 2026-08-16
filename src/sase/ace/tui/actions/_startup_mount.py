@@ -101,6 +101,9 @@ class StartupMountMixin:
 
             self._apply_startup_loading_state()
             self.call_after_refresh(self._start_post_mount_background_loads)
+            start_proc_reconciler = getattr(self, "_start_proc_reconciler", None)
+            if callable(start_proc_reconciler):
+                start_proc_reconciler()
 
             from ..util.stall_watchdog import (
                 start_event_loop_stall_watchdog,

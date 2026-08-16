@@ -119,11 +119,10 @@ class ProcsTestApp(App[None]):
     @property
     def _proc_projection(self) -> ProcProjection:
         rows = (*self._proc_queue.get_all(), *_PATCHED_STORE_ROWS)
+        projection = ProcProjection(rows=rows, session_id="session-mine")
         return ProcProjection(
             rows=rows,
-            active_count=sum(
-                1 for row in rows if row.status in {"pending", "running", "settling"}
-            ),
+            active_count=len(projection.active_rows()),
             session_id="session-mine",
         )
 

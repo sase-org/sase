@@ -670,11 +670,12 @@ axe:
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
           description: |-
-            Release workspace claims held by dead processes
+            Release workspace claims and terminalize proc rows held by dead processes
 
             Walks every project, including disabled projects, and releases unpinned workspace claims whose owning
             process has exited. A pinned held claim is preserved while its agent artifacts still exist; this fast-lane
-            placement frees ordinary dead claims within seconds.
+            placement frees ordinary dead claims within seconds. It also terminalizes active proc rows whose supervisor
+            exited without reporting.
     waits:
       description: |-
         Resolve agent wait dependencies and keep bead claims and stores in sync
@@ -756,11 +757,12 @@ axe:
         - name: stale_running_cleanup
           script: sase_chop_stale_running_cleanup
           description: |-
-            Backstop release of workspace claims held by dead processes
+            Backstop release of workspace claims and proc rows held by dead processes
 
             Runs the same all-project dead-process reconciliation as the hooks-lane cleanup, including conservative
-            handling of pinned claims with agent artifacts. This five-minute placement still frees stale workspace
-            claims if the fast hooks lane is disabled, restarting, or repeatedly failing.
+            handling of pinned claims with agent artifacts and terminalization of orphaned active proc rows. This
+            five-minute placement still frees stale workspace claims and proc rows if the fast hooks lane is disabled,
+            restarting, or repeatedly failing.
     external_mirror:
       description: |-
         Mirror external tracker issues and pull requests on a fifteen-minute cadence

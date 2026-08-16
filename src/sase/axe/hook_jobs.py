@@ -375,14 +375,22 @@ class HookJobRunner:
     def run_stale_running_cleanup(self) -> None:
         """Clean up stale RUNNING entries for dead processes."""
         reconciled = self._reconcile_dead_monitor_supervisors()
+        proc_reconciled = self._reconcile_running_procs()
         released = cleanup_stale_running_entries(
             self._log, skip_monitor_claims=reconciled is None
         )
         monitors_reconciled = reconciled or 0
+        proc_rows_reconciled = proc_reconciled or 0
         if reconciled is None:
             self._log(
                 "monitor reconciliation failed; leaving ace-monitor claims "
                 "untouched this sweep",
+                "yellow",
+            )
+        if proc_reconciled is None:
+            self._log(
+                "proc reconciliation failed; leaving active proc rows untouched "
+                "this sweep",
                 "yellow",
             )
         if released > 0:
@@ -390,13 +398,21 @@ class HookJobRunner:
             self.metrics.total_updates += released
         if monitors_reconciled > 0:
             self.metrics.total_updates += monitors_reconciled
+        if proc_rows_reconciled > 0:
+            self.metrics.total_updates += proc_rows_reconciled
         summary = (
             "stale_running_cleanup: "
-            f"released={released} monitors_reconciled={monitors_reconciled}"
+            f"released={released} monitors_reconciled={monitors_reconciled} "
+            f"proc_rows_reconciled={proc_rows_reconciled}"
         )
-        if released == 0 and monitors_reconciled == 0:
+        if released == 0 and monitors_reconciled == 0 and proc_rows_reconciled == 0:
             summary += " reason=no_dead_running_process_claims"
-        self._log(summary, "green" if released or monitors_reconciled else None)
+        self._log(
+            summary,
+            "green"
+            if released or monitors_reconciled or proc_rows_reconciled
+            else None,
+        )
 
     def _reconcile_dead_monitor_supervisors(self) -> int | None:
         """Reconcile dead monitor supervisors, or ``None`` on failure."""
@@ -406,4 +422,14 @@ class HookJobRunner:
             return len(reconcile_dead_supervisors())
         except Exception as exc:
             self._log(f"monitor reconciliation failed: {exc}", "yellow")
+            return None
+
+    def _reconcile_running_procs(self) -> int | None:
+        """Reconcile orphaned active proc rows, or ``None`` on failure."""
+        try:
+            from sase.procs import reconcile_running_procs
+
+            return len(reconcile_running_procs())
+        except Exception as exc:
+            self._log(f"proc reconciliation failed: {exc}", "yellow")
             return None

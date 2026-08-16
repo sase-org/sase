@@ -30,6 +30,8 @@ from .plugins_browser_sase_update_summary import (
     sase_update_success_message,
 )
 
+_RESTART_WAIT_SECONDS = 60.0
+
 
 class SaseUpdateProcMixin:
     """Execute SASE updates through the shared tracked-proc system."""
@@ -270,10 +272,18 @@ class SaseUpdateProcMixin:
         """Notify briefly, then reuse the TUI + axe restart machinery."""
         self._restart_after_update_when_ready(message, deferred=False)
 
-    def _restart_after_update_when_ready(self, message: str, *, deferred: bool) -> None:
+    def _restart_after_update_when_ready(
+        self,
+        message: str,
+        *,
+        deferred: bool,
+        deadline: float | None = None,
+    ) -> None:
         """Restart after tracked background procs have finished."""
+        if deadline is None:
+            deadline = time.monotonic() + _RESTART_WAIT_SECONDS
         running_procs = running_background_procs(self.app)
-        if running_procs:
+        if running_procs and time.monotonic() < deadline:
             if not deferred:
                 count = len(running_procs)
                 noun = "proc" if count == 1 else "procs"
@@ -284,10 +294,19 @@ class SaseUpdateProcMixin:
                 set_timer(
                     1.0,
                     lambda: self._restart_after_update_when_ready(
-                        message, deferred=True
+                        message,
+                        deferred=True,
+                        deadline=deadline,
                     ),
                 )
             return
+
+        if running_procs:
+            self._notify(
+                f"{message} - restart wait expired; restarting with "
+                f"{_blocking_proc_summary(running_procs)} still active.",
+                severity="warning",
+            )
 
         self._notify(f"{message} — restarting ACE to load new code.")
         restart = getattr(self.app, "_restart_tui", None)
@@ -299,8 +318,21 @@ def running_background_procs(app: Any) -> list[Any]:
     """Return observed active procs that must finish before ACE can restart."""
     from sase.ace.tui.proc_observer import proc_projection_for
 
-    return [
-        proc
-        for proc in proc_projection_for(app).rows
-        if getattr(proc, "status", None) == "running"
-    ]
+    return list(proc_projection_for(app).active_rows())
+
+
+def _blocking_proc_summary(procs: list[Any]) -> str:
+    """Return a compact user-facing description of restart blockers."""
+    count = len(procs)
+    noun = "proc" if count == 1 else "procs"
+    names = [_proc_display_name(proc) for proc in procs[:3]]
+    suffix = "" if count <= 3 else f", and {count - 3} more"
+    return f"{count} {noun}: {', '.join(names)}{suffix}"
+
+
+def _proc_display_name(proc: Any) -> str:
+    for attr in ("label", "display_name", "proc_type", "proc_id"):
+        value = getattr(proc, attr, None)
+        if isinstance(value, str) and value:
+            return value
+    return "unknown proc"

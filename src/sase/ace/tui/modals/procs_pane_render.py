@@ -13,7 +13,7 @@ from rich.text import Text
 
 from sase.sessions import session_chip
 from sase.core.time import local_now
-from sase.procs import DETACHED_PROC_KIND
+from sase.procs import ACTIVE_PROC_STATUSES, DETACHED_PROC_KIND
 
 from ..proc_observer import ObservedProc, ProcLogLine
 from ..proc_subprocess import command_display
@@ -26,7 +26,7 @@ _STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "killed": ("⊘", "bold yellow"),
 }
 _SPINNER_FRAMES = ("|", "/", "-", "\\")
-_ACTIVE_STATUSES = frozenset({"pending", "running"})
+_ACTIVE_STATUSES = frozenset(ACTIVE_PROC_STATUSES)
 _MAX_RENDERED_LOG_LINES = 1_200
 
 _RULE = "─" * 60
@@ -37,8 +37,10 @@ BodyCache = dict[str, tuple[int, str | None, Text]]
 
 
 def is_active(task: ObservedProc) -> bool:
-    """Return whether a row is still pending or running."""
-    return task.status in _ACTIVE_STATUSES
+    """Return whether a row is active and owned by a live session."""
+    return task.status in _ACTIVE_STATUSES and (
+        task.session_id is None or task.session_live
+    )
 
 
 def _relative_time(dt: datetime, *, now: datetime | None = None) -> str:

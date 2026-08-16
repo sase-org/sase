@@ -177,7 +177,18 @@ class ProcProjection:
         return [
             row
             for row in self.rows
-            if row.session_id is None or row.session_id == self.session_id
+            if row.session_id is None
+            or row.session_id == self.session_id
+            or not row.session_live
+        ]
+
+    def active_rows(self, *, all_sessions: bool = False) -> list[ObservedProc]:
+        """Return active rows whose session owner can still be live."""
+        return [
+            row
+            for row in self.scoped_rows(all_sessions=all_sessions)
+            if row.status in _ACTIVE_STATUSES
+            and (row.session_id is None or row.session_live)
         ]
 
     def scope_conflict(self, exclusive_scopes: Collection[str]) -> ObservedProc | None:
@@ -209,11 +220,11 @@ def compose_proc_projection(
         return durable
     rows = [*durable.rows, *extra]
     rows.sort(key=lambda item: item.started_at, reverse=True)
-    return ProcProjection(
+    projection = ProcProjection(
         rows=tuple(rows),
-        active_count=sum(1 for row in rows if row.status in _ACTIVE_STATUSES),
         session_id=durable.session_id,
     )
+    return replace(projection, active_count=len(projection.active_rows()))
 
 
 def proc_projection_for(app: Any) -> ProcProjection:
@@ -435,12 +446,11 @@ class ProcObserver:
             rows.append(placeholder)
 
         rows.sort(key=lambda row: row.started_at, reverse=True)
-        active_count = sum(1 for row in rows if row.status in _ACTIVE_STATUSES)
         projection = ProcProjection(
             rows=tuple(rows),
-            active_count=active_count,
             session_id=context.session_id,
         )
+        projection = replace(projection, active_count=len(projection.active_rows()))
         if completions:
             with self._lock:
                 for completion in completions:
@@ -612,6 +622,7 @@ def _snapshot_signature(snapshot: ProcObserverSnapshot) -> tuple[Any, ...]:
             row.phase,
             row.output,
             row.finished_at,
+            row.session_live,
             tuple(row.exclusive_scopes),
         )
         for row in snapshot.projection.rows

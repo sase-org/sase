@@ -124,6 +124,7 @@ async def test_tasks_tab_merges_store_rows_with_in_memory_tasks(
                 session_id="session-other",
             ),
         ],
+        live_session_ids=frozenset({"session-mine", "session-other"}),
     )
 
     async with ProcsTestApp(queue(running)).run_test() as pilot:
@@ -141,7 +142,35 @@ async def test_tasks_tab_merges_store_rows_with_in_memory_tasks(
         assert "Epic launch · auth" in joined
         # Default scope hides other sessions.
         assert "other session task" not in joined
-        assert "this session" in pane._title_text()
+    assert "this session" in pane._title_text()
+
+
+async def test_tasks_tab_default_scope_keeps_dead_session_rows_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_store_loader(
+        monkeypatch,
+        [
+            store_task(
+                "dead-session-row",
+                label="orphaned running task",
+                status="running",
+                session_id="session-dead",
+            ),
+        ],
+        live_session_ids=frozenset(),
+    )
+
+    async with ProcsTestApp(queue()).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        await pilot.pause()
+
+        option_list = pane.query_one("#procs-list", OptionList)
+        assert option_list.option_count == 1
+        assert (
+            "orphaned running task" in option_list.get_option_at_index(0).prompt.plain
+        )
+        assert "[0 running · 1 done]" in pane._title_text()
 
 
 async def test_tasks_tab_shows_session_overlay_rows_in_current_session(
@@ -431,6 +460,7 @@ async def test_tasks_scope_toggle_preserves_store_row_selection(
                 kind="detached",
             ),
         ],
+        live_session_ids=frozenset({"session-other"}),
     )
 
     async with ProcsTestApp(queue()).run_test() as pilot:

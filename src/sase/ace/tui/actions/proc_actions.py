@@ -31,6 +31,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+PROC_RECONCILE_STARTUP_DELAY_SECONDS = 1.0
+PROC_RECONCILE_INTERVAL_SECONDS = 30.0
+
 
 @dataclass(frozen=True)
 class TrackedProcResult[T]:
@@ -93,6 +96,10 @@ class ProcActionsMixin:
         self._session_completion_callbacks: dict[str, Any] = {}
         self._proc_completion_callbacks: dict[str, _ProcCallbackConfig] = {}
         self._proc_pending_scopes: dict[str, frozenset[str]] = {}
+        self._proc_session_id = _resolve_current_session_id()
+        self._proc_reconciler_worker: Worker[Any] | None = None
+        self._proc_reconciler_start_timer = None
+        self._proc_reconciler_interval_timer = None
         self._proc_observer = ProcObserver(
             on_snapshot=self._on_proc_observer_thread_snapshot,
         )
@@ -100,9 +107,62 @@ class ProcActionsMixin:
 
     def _stop_proc_observer(self) -> None:
         """Retire the observer thread without touching proc lifetimes."""
+        self._stop_proc_reconciler()
         observer = getattr(self, "_proc_observer", None)
         if observer is not None:
             observer.stop(timeout=1.0)
+
+    def _start_proc_reconciler(self) -> None:
+        """Start slow best-effort orphaned-proc reconciliation workers."""
+        set_timer = getattr(self, "set_timer", None)
+        set_interval = getattr(self, "set_interval", None)
+        if callable(set_timer):
+            self._proc_reconciler_start_timer = set_timer(
+                PROC_RECONCILE_STARTUP_DELAY_SECONDS,
+                self._run_proc_reconciler,
+                name="proc-reconciler-start",
+            )
+        if callable(set_interval):
+            self._proc_reconciler_interval_timer = set_interval(
+                PROC_RECONCILE_INTERVAL_SECONDS,
+                self._run_proc_reconciler,
+                name="proc-reconciler",
+            )
+
+    def _stop_proc_reconciler(self) -> None:
+        """Stop ACE-side proc reconciliation timers and worker."""
+        for attr in (
+            "_proc_reconciler_start_timer",
+            "_proc_reconciler_interval_timer",
+        ):
+            timer = getattr(self, attr, None)
+            setattr(self, attr, None)
+            if timer is not None:
+                try:
+                    timer.stop()
+                except Exception:
+                    pass
+        worker = getattr(self, "_proc_reconciler_worker", None)
+        self._proc_reconciler_worker = None
+        if worker is not None and getattr(worker, "is_running", False):
+            try:
+                worker.cancel()
+            except Exception:
+                pass
+
+    def _run_proc_reconciler(self) -> None:
+        """Run one orphaned-proc reconciliation pass in a thread worker."""
+        worker = getattr(self, "_proc_reconciler_worker", None)
+        if worker is not None and getattr(worker, "is_running", False):
+            return
+        from ..proc_reconciler import reconcile_running_procs_safely
+
+        self._proc_reconciler_worker = self.run_worker(  # type: ignore[attr-defined]
+            reconcile_running_procs_safely,
+            thread=True,
+            name="proc-reconciler",
+            group="procs",
+        )
 
     def _update_proc_indicator(self) -> None:
         """Update the top-bar proc indicator from the effective projection."""
@@ -248,6 +308,7 @@ class ProcActionsMixin:
                     origin="ace",
                     project=project_identity(project_file) if project_file else None,
                     cl_name=cl_name or None,
+                    session_id=getattr(self, "_proc_session_id", None),
                     workspace_claim=workspace_claim,
                 )
                 return _DurableSubmitWorkerResult(
@@ -698,3 +759,24 @@ class ProcActionsMixin:
         if axe_worker is not None and event.worker is axe_worker:
             if event.state in (WorkerState.SUCCESS, WorkerState.ERROR):
                 self._on_axe_worker_done(event.worker, event.state)  # type: ignore[attr-defined]
+
+        if event.worker is getattr(self, "_proc_reconciler_worker", None):
+            if event.state in (
+                WorkerState.SUCCESS,
+                WorkerState.ERROR,
+                WorkerState.CANCELLED,
+            ):
+                self._proc_reconciler_worker = None
+                observer = getattr(self, "_proc_observer", None)
+                if observer is not None:
+                    observer.request_poll()
+
+
+def _resolve_current_session_id() -> str | None:
+    """Return the current ACE session id if the registry is readable."""
+    try:
+        from sase.sessions import current_session_id
+
+        return current_session_id()
+    except Exception:
+        return None

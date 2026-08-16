@@ -68,9 +68,11 @@ def test_mixin_submits_argv_off_the_event_loop(
     from sase.core.time import local_now
 
     submitted_on: list[str] = []
+    seen: dict[str, Any] = {}
 
     def fake_submit(**kwargs: Any) -> Any:
         submitted_on.append(__import__("threading").current_thread().name)
+        seen["session_id"] = kwargs["session_id"]
         return SimpleNamespace(
             proc_id="proc-off-loop",
             operation=kwargs["operation"],
@@ -87,6 +89,7 @@ def test_mixin_submits_argv_off_the_event_loop(
             self._durable_submit_workers = {}
             self._proc_completion_callbacks = {}
             self._proc_pending_scopes = {}
+            self._proc_session_id = "session-a"
             self._proc_observer = SimpleNamespace(
                 register_pending=self._register_pending,
                 register_submitted=lambda **_kwargs: None,
@@ -135,6 +138,7 @@ def test_mixin_submits_argv_off_the_event_loop(
     assert submitted_on[0] != "MainThread" or True
     # The mixin itself runs the worker body through run_worker(..., thread=True).
     assert host.workers and host.workers[0].thread is True
+    assert seen["session_id"] == "session-a"
 
 
 def test_coerce_request_rejects_payload_callable() -> None:

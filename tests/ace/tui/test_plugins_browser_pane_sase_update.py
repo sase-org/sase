@@ -13,6 +13,7 @@ from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals import plugins_browser_sase_update as pbsu
+from sase.ace.tui.modals import plugins_browser_sase_update_procs as pbsup
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
@@ -48,6 +49,9 @@ def _task(
     proc_id: str,
     proc_type: str,
     status: str = "running",
+    *,
+    session_id: str | None = None,
+    session_live: bool = True,
 ) -> ObservedProc:
     return ObservedProc(
         proc_id=proc_id,
@@ -57,13 +61,18 @@ def _task(
         status=status,
         message=f"{proc_type} task",
         started_at=datetime(2026, 7, 9, 12, 0, 0),
+        session_id=session_id,
+        session_live=session_live,
     )
 
 
 def _projection(*procs: ObservedProc) -> ProcProjection:
+    rows = tuple(procs)
+    projection = ProcProjection(rows=rows, session_id="session-a")
     return ProcProjection(
-        rows=tuple(procs),
-        active_count=sum(1 for proc in procs if proc.status == "running"),
+        rows=rows,
+        active_count=len(projection.active_rows()),
+        session_id="session-a",
     )
 
 
@@ -120,6 +129,70 @@ def test_restart_blockers_fail_open_without_projection_rows() -> None:
         == []
     )
     assert pbsu._running_background_procs(SimpleNamespace()) == []
+
+
+def test_restart_blockers_use_active_session_scoped_projection() -> None:
+    blockers = pbsu._running_background_procs(
+        SimpleNamespace(
+            _proc_projection=_projection(
+                _task("mine-running", "sync", session_id="session-a"),
+                _task(
+                    "mine-settling", "mail", status="settling", session_id="session-a"
+                ),
+                _task(
+                    "dead-running",
+                    "sync",
+                    session_id="dead-session",
+                    session_live=False,
+                ),
+                _task("other-running", "sync", session_id="session-b"),
+                _task("unattributed-pending", "sync", status="pending"),
+            )
+        )
+    )
+
+    assert {proc.proc_id for proc in blockers} == {
+        "mine-running",
+        "mine-settling",
+        "unattributed-pending",
+    }
+
+
+def test_restart_after_update_deadline_expires_with_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    restart_calls: list[bool] = []
+    app = SimpleNamespace(
+        _proc_projection=_projection(_task("run-sync", "sync")),
+        _restart_tui=lambda *, restart_axe: restart_calls.append(restart_axe),
+    )
+
+    class Host(pbsup.SaseUpdateProcMixin):
+        def __init__(self) -> None:
+            self.app = app
+            self.messages: list[tuple[str, str]] = []
+
+        def _notify(
+            self,
+            message: str,
+            *,
+            severity: str = "information",
+        ) -> None:
+            self.messages.append((message, severity))
+
+    monkeypatch.setattr(pbsup.time, "monotonic", lambda: 100.0)
+    host = Host()
+    host._restart_after_update_when_ready(
+        "updated",
+        deferred=True,
+        deadline=99.0,
+    )
+
+    assert restart_calls == [True]
+    assert any(
+        severity == "warning" and "sync" in message
+        for message, severity in host.messages
+    )
 
 
 async def test_updates_pane_sase_update_opens_preview_modal(

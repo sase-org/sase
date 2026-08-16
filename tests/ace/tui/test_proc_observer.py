@@ -145,6 +145,132 @@ def test_proc_projection_for_prefers_effective_method() -> None:
     assert proc_projection_for(type("_Bare", (), {})()) == ProcProjection()
 
 
+def test_projection_scope_keeps_dead_session_rows_visible_but_inactive() -> None:
+    mine = ObservedProc(
+        proc_id="mine",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="mine",
+        started_at=local_now(),
+        session_id="session-a",
+        session_live=True,
+    )
+    dead = ObservedProc(
+        proc_id="dead",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="dead",
+        started_at=local_now(),
+        session_id="session-dead",
+        session_live=False,
+    )
+    unattributed = ObservedProc(
+        proc_id="unattributed",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="settling",
+        message="unattributed",
+        started_at=local_now(),
+        session_id=None,
+    )
+    other = ObservedProc(
+        proc_id="other",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="pending",
+        message="other",
+        started_at=local_now(),
+        session_id="session-b",
+        session_live=True,
+    )
+    projection = ProcProjection(
+        rows=(mine, dead, unattributed, other),
+        session_id="session-a",
+    )
+
+    assert projection.scoped_rows(all_sessions=False) == [mine, dead, unattributed]
+    assert projection.active_rows() == [mine, unattributed]
+    assert projection.active_rows(all_sessions=True) == [mine, unattributed, other]
+
+
+def test_observer_active_count_uses_session_scoped_live_rows(monkeypatch) -> None:
+    procs = [
+        Proc(
+            proc_id="mine",
+            label="mine",
+            kind="command",
+            status="running",
+            command=["true"],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-08-15T12:00:00Z",
+            started_at="2026-08-15T12:00:00Z",
+            log_path="/tmp/mine.log",
+            session_id="session-a",
+        ),
+        Proc(
+            proc_id="dead",
+            label="dead",
+            kind="command",
+            status="running",
+            command=["true"],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-08-15T12:00:00Z",
+            started_at="2026-08-15T12:00:00Z",
+            log_path="/tmp/dead.log",
+            session_id="session-dead",
+        ),
+        Proc(
+            proc_id="other",
+            label="other",
+            kind="command",
+            status="running",
+            command=["true"],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-08-15T12:00:00Z",
+            started_at="2026-08-15T12:00:00Z",
+            log_path="/tmp/other.log",
+            session_id="session-b",
+        ),
+        Proc(
+            proc_id="unattributed",
+            label="unattributed",
+            kind="command",
+            status="pending",
+            command=["true"],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-08-15T12:00:00Z",
+            started_at="2026-08-15T12:00:00Z",
+            log_path="/tmp/unattributed.log",
+            session_id=None,
+        ),
+    ]
+    monkeypatch.setattr(
+        po,
+        "_load_context",
+        lambda: po._ObserverContext("session-a", None, None, None, "/tmp"),
+    )
+    monkeypatch.setattr(po, "_live_session_ids", lambda: frozenset({"session-a"}))
+    monkeypatch.setattr(po, "read_procs", lambda: procs)
+
+    snapshot = ProcObserver(on_snapshot=lambda _snapshot: None)._build_snapshot()
+
+    assert snapshot.projection.active_count == 2
+    assert [row.proc_id for row in snapshot.projection.active_rows()] == [
+        "mine",
+        "unattributed",
+    ]
+
+
 def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
     monkeypatch.setattr(po, "_read_log_tail", lambda proc_id: f"log {proc_id}\n")
     row = po._store_proc_row(
