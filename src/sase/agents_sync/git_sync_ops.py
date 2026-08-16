@@ -19,6 +19,7 @@ from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
 DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS = 10.0
+AGENTS_SYNC_AUTO_COMMIT_TYPE = "agents_sync"
 _LOCK_TIMEOUT_ENV = "SASE_AGENTS_SYNC_LOCK_TIMEOUT"
 _AGENTS_PAYLOAD_PATHS = (
     "README.md",
@@ -83,7 +84,7 @@ def commit_agents_payload_if_dirty(
             "-m",
             apply_auto_commit_type_tag(
                 f"chore(agents): sync from {owner.username}.{owner.machine_name}",
-                "agents_sync",
+                AGENTS_SYNC_AUTO_COMMIT_TYPE,
             ),
         ],
         op="agents_sync.commit",
@@ -350,6 +351,7 @@ def configured_agents_lock_timeout() -> float:
 
 
 __all__ = [
+    "AGENTS_SYNC_AUTO_COMMIT_TYPE",
     "DEFAULT_SYNC_LOCK_TIMEOUT_SECONDS",
     "abort_agents_rebase",
     "agents_ahead_count",

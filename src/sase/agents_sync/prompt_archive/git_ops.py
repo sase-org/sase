@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 from sase.agents_sync.git import GitRunner
+from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
 
 _ARCHIVE_PATHS = ("prompts", "artifacts")
 
@@ -52,7 +53,8 @@ def commit_prompt_archive_if_dirty(
             "commit",
             "-m",
             apply_auto_commit_type_tag(
-                f"chore(agents): archive prompt for {global_agent}", "agents_sync"
+                f"chore(agents): archive prompt for {global_agent}",
+                AGENTS_SYNC_AUTO_COMMIT_TYPE,
             ),
         ],
         op="agents_sync.prompt_archive_commit",

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from sase.linked_repos import (
+    HIDDEN_SIDECAR_ROLES,
     LINKED_REPOS_JSON_ENV,
     SIBLING_REPOS_JSON_ENV,
     linked_repo_metadata_from_env,
@@ -223,6 +224,8 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
         dirty: list[DirtyRepo] = []
         targets = sdd_commit_targets(store, None)
         for target_store, _paths in targets:
+            if target_store.sidecar_role in HIDDEN_SIDECAR_ROLES:
+                continue
             repo_root = target_store.repo_root.expanduser()
             if not (repo_root / ".git").exists():
                 continue

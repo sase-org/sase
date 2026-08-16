@@ -6,6 +6,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from sase.agents_sync.git_sync_ops import AGENTS_SYNC_AUTO_COMMIT_TYPE
+
 from .commit_finalizer_git_status import (
     UNKNOWN_HEAD_SENTINEL,
     git_head_commit_id,
@@ -83,7 +85,7 @@ def discarded_dirty_work_evidence(
             )
             continue
         agent_name = _current_agent_name()
-        if agent_name and not _new_commits_include_agent(
+        if agent_name and not _new_commits_are_attributable(
             repo.path,
             before_head,
             after_head,
@@ -136,7 +138,7 @@ def _current_agent_name() -> str | None:
         return None
 
 
-def _new_commits_include_agent(
+def _new_commits_are_attributable(
     repo_dir: str,
     before_head: str,
     after_head: str,
@@ -147,6 +149,8 @@ def _new_commits_include_agent(
 
         tags = parse_trailing_commit_tags(message)
         if _agent_provenance_matches(tags.get("AGENT"), agent_name):
+            return True
+        if tags.get("TYPE") == AGENTS_SYNC_AUTO_COMMIT_TYPE:
             return True
     return False
 
