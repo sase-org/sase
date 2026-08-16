@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from sase.ace.tui.models._agent_clan import (
+    ClanStatusCounts as ParallelFamilyStatusCounts,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_family_members import running_monitor_count
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_styling import _MONITOR_ROW_STYLE
 
@@ -82,7 +86,7 @@ def test_monitor_row_uses_glyph_and_label_without_the_command() -> None:
         is_selected=False,
     )
 
-    assert "⏱" in left.plain
+    assert "⚙" in left.plain
     assert "just check" in left.plain
     assert "just check-full" not in left.plain
     assert "MONITORING" in left.plain
@@ -95,7 +99,7 @@ def test_monitor_starter_row_uses_agent_rendering_not_monitor_rendering() -> Non
         is_selected=False,
     )
 
-    assert "⏱" not in left.plain
+    assert "⚙" not in left.plain
     assert "starter-row" in left.plain
     assert "just check" not in left.plain
     assert not any(str(span.style) == _MONITOR_ROW_STYLE for span in left.spans)
@@ -220,3 +224,116 @@ def test_monitor_row_without_followup_error_has_no_flag_badge() -> None:
     )
 
     assert "⚑" not in left.plain
+
+
+def _family_container(*, monitor_state: str) -> Agent:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha-root",
+        project_file="/tmp/monitor.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="20260812090000",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha-mon",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING" if monitor_state == "running" else "MONITORED",
+        start_time=started,
+        stop_time=None
+        if monitor_state == "running"
+        else started + timedelta(minutes=3),
+        raw_suffix="20260812090001",
+        parent_timestamp="20260812090000",
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m1",
+        monitor_state=monitor_state,
+        monitor_label="just check",
+    )
+    root.followup_agents = [monitor]
+    return root
+
+
+def test_family_container_with_running_monitor_renders_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _family_container(monitor_state="running"),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚙1" in left.plain
+
+
+def test_family_container_with_only_settled_monitors_renders_no_badge() -> None:
+    left, _suffix, _option_id = format_agent_option(
+        _family_container(monitor_state="completed"),
+        0,
+        is_selected=False,
+    )
+
+    assert "⚙" not in left.plain
+
+
+def test_non_container_row_never_renders_monitor_badge() -> None:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha--0",
+        project_file="/tmp/monitor.sase",
+        status="RUNNING",
+        start_time=started,
+        raw_suffix="20260812090000",
+        agent_name="alpha--0",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+        # A parallel-family root is never a sequential-family container, even
+        # with running-monitor children, so this isolates the container
+        # check itself from ``running_monitor_count`` returning zero.
+        agent_family_parallel=True,
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha-mon",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING",
+        start_time=started,
+        raw_suffix="20260812090001",
+        parent_timestamp="20260812090000",
+        agent_name="alpha--mon",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="m1",
+        monitor_state="running",
+        monitor_label="just check",
+    )
+    agent.followup_agents = [monitor]
+    assert running_monitor_count(agent) == 1
+
+    left, _suffix, _option_id = format_agent_option(agent, 0, is_selected=False)
+
+    assert "⚙" not in left.plain
+
+
+def test_family_container_badge_does_not_alter_status_chip() -> None:
+    counts = ParallelFamilyStatusCounts(running=2, awaiting=1)
+
+    left, _suffix, _option_id = format_agent_option(
+        _family_container(monitor_state="running"),
+        0,
+        is_selected=False,
+        parallel_family_counts=counts,
+    )
+
+    assert "[S1 R2]" in left.plain
+    assert "⚙1" in left.plain

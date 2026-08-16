@@ -315,10 +315,18 @@ class SaseUpdateProcMixin:
 
 
 def running_background_procs(app: Any) -> list[Any]:
-    """Return observed active procs that must finish before ACE can restart."""
-    from sase.ace.tui.proc_observer import proc_projection_for
+    """Return observed active procs that must finish before ACE can restart.
 
-    return list(proc_projection_for(app).active_rows())
+    Excludes monitor shells: a detached ``sase monitor start`` supervisor
+    outlives ACE by design, so it must not block a self-update restart.
+    """
+    from sase.ace.tui.proc_observer import is_monitor_shell_row, proc_projection_for
+
+    return [
+        row
+        for row in proc_projection_for(app).active_rows()
+        if not is_monitor_shell_row(row)
+    ]
 
 
 def _blocking_proc_summary(procs: list[Any]) -> str:

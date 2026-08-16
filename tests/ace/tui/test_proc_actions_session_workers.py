@@ -238,6 +238,31 @@ def test_session_worker_appears_in_effective_projection_and_counts() -> None:
     assert running_background_procs(host) == [submitted]
 
 
+def test_running_background_procs_excludes_monitor_shells() -> None:
+    durable = _durable_row(scope="sase-update")
+    monitor_row = ObservedProc(
+        proc_id="monitor-1",
+        proc_type="detached",
+        cl_name="sase",
+        project_file="",
+        status="running",
+        message="running",
+        started_at=local_now(),
+        origin="monitor",
+    )
+    host = _ProcHost(
+        ProcProjection(
+            rows=(durable, monitor_row),
+            active_count=2,
+            active_monitor_count=1,
+        )
+    )
+
+    # A detached monitor supervisor outlives ACE by design, so it must not
+    # block a self-update restart the way an ordinary blocking proc does.
+    assert running_background_procs(host) == [durable]
+
+
 def test_session_overlay_preserves_rows_across_observer_snapshots() -> None:
     host = _ProcHost(ProcProjection(session_id="session-mine"))
     submitted = host._submit_session_worker("sync", _ok)
@@ -337,3 +362,60 @@ def test_session_overlay_never_registers_observer_or_writes_store(
     assert host.submitted_handles == []
     assert writes == []
     assert submitted.store_backed is False
+
+
+class _FakeIndicator:
+    def __init__(self) -> None:
+        self.counts: list[int] = []
+
+    def set_count(self, count: int) -> None:
+        self.counts.append(count)
+
+
+class _IndicatorHost(ProcActionsMixin):
+    """Exercises the real ``_update_proc_indicator`` split logic."""
+
+    def __init__(
+        self,
+        projection: ProcProjection,
+        *,
+        widgets: dict[str, Any] | None = None,
+    ) -> None:
+        self._proc_projection = projection
+        self._session_completion_callbacks: dict[str, Any] = {}
+        self._widgets = widgets if widgets is not None else {}
+
+    def query_one(self, selector: str, _type: Any = None) -> Any:
+        widget = self._widgets.get(selector)
+        if widget is None:
+            raise LookupError(selector)
+        return widget
+
+
+def test_update_proc_indicator_splits_ace_and_monitor_counts() -> None:
+    proc_indicator = _FakeIndicator()
+    monitor_indicator = _FakeIndicator()
+    host = _IndicatorHost(
+        ProcProjection(active_count=3, active_monitor_count=1),
+        widgets={
+            "#proc-indicator": proc_indicator,
+            "#monitor-indicator": monitor_indicator,
+        },
+    )
+
+    host._update_proc_indicator()
+
+    assert proc_indicator.counts == [2]
+    assert monitor_indicator.counts == [1]
+
+
+def test_update_proc_indicator_missing_widget_does_not_block_the_other() -> None:
+    monitor_indicator = _FakeIndicator()
+    host = _IndicatorHost(
+        ProcProjection(active_count=2, active_monitor_count=1),
+        widgets={"#monitor-indicator": monitor_indicator},
+    )
+
+    host._update_proc_indicator()
+
+    assert monitor_indicator.counts == [1]

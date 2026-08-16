@@ -15,6 +15,7 @@ from rich.text import Text
 from sase.core.time import get_timezone
 from sase.monitor.models import MonitorRecord
 from sase.monitor.naming import short_monitor_id
+from sase.monitor_state import MONITOR_TIMEOUT_GLYPH
 
 # Bumped only when the JSON payloads below change incompatibly.
 MONITOR_JSON_SCHEMA_VERSION = 1
@@ -23,7 +24,7 @@ STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "running": ("●", "bold green"),
     "completed": ("✓", "bold cyan"),
     "failed": ("✗", "bold red"),
-    "timeout": ("⏱", "bold red"),
+    "timeout": (MONITOR_TIMEOUT_GLYPH, "bold red"),
     "stopped": ("⊘", "bold magenta"),
     "lost": ("?", "bold red"),
 }

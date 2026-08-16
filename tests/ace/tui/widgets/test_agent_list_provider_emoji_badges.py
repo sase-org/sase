@@ -179,7 +179,7 @@ class TestAgentListProviderEmojiBadges:
 
         left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "🐚 diff (RUNNING)" in left.plain
+        assert "❯ diff (RUNNING)" in left.plain
         assert "1/2" not in left.plain
         assert "🎭" not in left.plain
         assert suffix.plain == "✏️"
@@ -203,20 +203,20 @@ class TestWorkflowStepTypeGlyph:
             total_steps=3,
         )
 
-    def test_python_step_renders_snake_glyph(self) -> None:
+    def test_python_step_renders_run_glyph(self) -> None:
         agent = self._make_child("python")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "\U0001f40d " in left.plain
+        assert "❯ " in left.plain
         assert "1/3" not in left.plain
 
-    def test_bash_step_renders_shell_glyph(self) -> None:
+    def test_bash_step_renders_run_glyph(self) -> None:
         agent = self._make_child("bash")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "\U0001f41a " in left.plain
+        assert "❯ " in left.plain
         assert "1/3" not in left.plain
 
     def test_agent_step_has_no_step_type_glyph(self) -> None:
@@ -224,13 +224,11 @@ class TestWorkflowStepTypeGlyph:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "\U0001f40d" not in left.plain
-        assert "\U0001f41a" not in left.plain
+        assert "❯" not in left.plain
 
     def test_parallel_step_has_no_step_type_glyph(self) -> None:
         agent = self._make_child("parallel")
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "\U0001f40d" not in left.plain
-        assert "\U0001f41a" not in left.plain
+        assert "❯" not in left.plain

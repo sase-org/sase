@@ -24,6 +24,7 @@ from .widgets import (
     BgCmdList,
     KeybindingFooter,
     LLMOverrideIndicator,
+    MonitorIndicator,
     NotificationIndicator,
     ProviderDisablesIndicator,
     StashedPromptsIndicator,
@@ -64,6 +65,7 @@ class AppLayoutMixin:
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
             yield ProcIndicator(id="proc-indicator")
+            yield MonitorIndicator(id="monitor-indicator")
             yield UpdatesAvailableIndicator(id="updates-indicator")
             yield AgentsSyncIndicator(id="agents-sync-indicator")
             yield LLMOverrideIndicator(id="llm-override-indicator")

@@ -31,6 +31,7 @@ from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERS
 EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
     "proc-indicator",
+    "monitor-indicator",
     "updates-indicator",
     "agents-sync-indicator",
     "llm-override-indicator",

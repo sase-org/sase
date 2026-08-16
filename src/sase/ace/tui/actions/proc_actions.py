@@ -23,7 +23,7 @@ from ..proc_observer import (
     ProcProjection,
     compose_proc_projection,
 )
-from ..widgets.proc_indicator import ProcIndicator
+from ..widgets.proc_indicator import MonitorIndicator, ProcIndicator
 
 if TYPE_CHECKING:
     from ...patch import Patch
@@ -165,10 +165,25 @@ class ProcActionsMixin:
         )
 
     def _update_proc_indicator(self) -> None:
-        """Update the top-bar proc indicator from the effective projection."""
+        """Update the top-bar proc and monitor indicators from the effective projection.
+
+        Each widget is looked up and updated independently so a missing
+        indicator (e.g. during widget setup/teardown) never blocks the other.
+        """
+        try:
+            projection = self._effective_proc_projection()  # type: ignore[attr-defined]
+        except Exception:
+            return
         try:
             indicator = self.query_one("#proc-indicator", ProcIndicator)  # type: ignore[attr-defined]
-            indicator.set_count(self._effective_proc_projection().active_count)
+            indicator.set_count(
+                projection.active_count - projection.active_monitor_count
+            )
+        except Exception:
+            pass
+        try:
+            monitor_indicator = self.query_one("#monitor-indicator", MonitorIndicator)  # type: ignore[attr-defined]
+            monitor_indicator.set_count(projection.active_monitor_count)
         except Exception:
             pass
 

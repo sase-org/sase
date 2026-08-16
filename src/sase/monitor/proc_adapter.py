@@ -15,6 +15,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.history.chat import save_chat_history
+from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.procs.models import (
     ACTIVE_PROC_STATUSES,
     PROC_LIFECYCLE_PROC_SHELL,
@@ -39,7 +40,6 @@ from .settlement import (
 
 MONITOR_ARGV_PREFIX: tuple[str, ...] = ("/bin/sh", "-c")
 MONITOR_FOLLOWUP_KIND = "monitor"
-MONITOR_PROC_ORIGIN = "monitor"
 
 
 def compile_monitor_argv(command: str) -> list[str]:

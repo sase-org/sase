@@ -1,6 +1,7 @@
 """Constants, colors, and icons for the agent list widget."""
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
+from sase.monitor_state import MONITOR_GLYPH
 
 from .._restore_markers import ARMED_RESTORE_STYLE, FOLD_RESTORE_GLYPH
 from ..models.agent import AgentType
@@ -81,14 +82,18 @@ _STEP_TYPE_COLORS: dict[str, str] = {
 # a glyph: agent rows already carry a meaningful display name (and are
 # the common case, so a glyph would be noise), parallel uses its accent
 # + structural fan-out children, and prompt_part is invisible by default.
-_STEP_TYPE_GLYPHS: dict[str, str] = {
-    "python": "🐍",
-    "bash": "🐚",
-}
+#
+# Bash and python steps are both "a command the machine runs"; the
+# per-step-type color carries the distinction, so one prompt chevron is
+# enough — and unlike the old 🐍/🐚 emoji it is one cell wide and takes
+# the row's Rich style.
+_STEP_RUN_GLYPH = "❯"
+_STEP_TYPE_GLYPHS: dict[str, str] = {"python": _STEP_RUN_GLYPH, "bash": _STEP_RUN_GLYPH}
 
-_MONITOR_GLYPH = "⏱"
+_MONITOR_GLYPH = MONITOR_GLYPH
 _MONITOR_GLYPH_STYLE = "bold #FFAF5F"
 _MONITOR_ROW_STYLE = "#FFAF5F"
+_MONITOR_COUNT_GLYPH_STYLE = "bold #FFAF5F"
 
 # A terminal monitor whose supervisor never reported a real exit code (died
 # on arrival, or belongs to a previous boot): the command's outcome is

@@ -250,13 +250,14 @@ recorded as not launched.
 
 ## In the ACE TUI
 
-A monitor row renders with its own amber `⏱` glyph beside the agent list's bash/python
+A monitor row renders with its own amber `⚙` glyph beside the agent list's bash/python
 step glyphs, its configured label as the row title with the command as an annotation,
 and a live elapsed suffix while running or an exit-code / timeout badge once terminal.
 Monitor shells appear in the family roster and contribute to the family's total runtime,
 but — like workflow steps — they are not counted as agents in `sase stats` or tribe/clan
 summaries: a family with one agent and one monitor shell is a one-agent family that ran
-one command.
+one command. A collapsed family or clan container row carries a `⚙N` badge for its
+running monitors, so the count is visible without expanding the subtree.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It shows the shell-highlighted

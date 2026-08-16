@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent_family_members import (
     concrete_agent_statuses,
     concrete_family_member_rows,
     family_member_status_buckets,
+    running_monitor_count,
 )
 
 _STARTED = datetime(2026, 7, 19, 9, 0, 0)
@@ -341,6 +342,92 @@ def test_running_non_final_family_member_keeps_running_bucket() -> None:
         "Running",
         "Waiting",
     )
+
+
+def test_running_monitor_count_counts_only_the_running_monitor() -> None:
+    root = _agent("alpha--0", role="root")
+    running = _agent(
+        "alpha--mon1",
+        role="monitor",
+        parent_timestamp=root.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+    )
+    running.monitor_id = "m1"
+    running.monitor_state = "running"
+    completed = _agent(
+        "alpha--mon2",
+        role="monitor",
+        parent_timestamp=root.raw_suffix,
+        status="MONITORED",
+        status_bucket="Done",
+        stop_offset=5,
+    )
+    completed.monitor_id = "m2"
+    completed.monitor_state = "completed"
+    root.followup_agents = [running, completed]
+
+    assert running_monitor_count(root) == 1
+
+
+def test_running_monitor_count_aggregates_clan_members_at_depth_two() -> None:
+    clan = _agent("workers", role="root")
+    clan.is_clan_container = True
+
+    family_a = _agent("alpha--0", role="root")
+    monitor_a = _agent(
+        "alpha--mon",
+        role="monitor",
+        parent_timestamp=family_a.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+    )
+    monitor_a.monitor_id = "ma"
+    monitor_a.monitor_state = "running"
+    family_a.followup_agents = [monitor_a]
+
+    family_b = _agent("beta--0", role="root")
+    monitor_b = _agent(
+        "beta--mon",
+        role="monitor",
+        parent_timestamp=family_b.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+    )
+    monitor_b.monitor_id = "mb"
+    monitor_b.monitor_state = "running"
+    family_b.followup_agents = [monitor_b]
+
+    clan.runtime_children = [family_a, family_b]
+
+    assert running_monitor_count(clan) == 2
+
+
+def test_running_monitor_count_dedupes_overlap_and_terminates_on_cycles() -> None:
+    root = _agent("alpha--0", role="root")
+    monitor = _agent(
+        "alpha--mon",
+        role="monitor",
+        parent_timestamp=root.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+    )
+    monitor.monitor_id = "m1"
+    monitor.monitor_state = "running"
+    # Real family rows attach the same member to both lists.
+    root.runtime_children = [monitor]
+    root.followup_agents = [monitor]
+    # A cycle back to the root: without a cycle guard this would recurse
+    # forever.
+    monitor.runtime_children = [root]
+
+    assert running_monitor_count(root) == 1
+
+
+def test_running_monitor_count_returns_zero_for_plain_agent() -> None:
+    agent = _agent("alpha--code", role="code")
+
+    assert running_monitor_count(agent) == 0
 
 
 def test_failed_and_question_non_final_members_keep_their_buckets() -> None:

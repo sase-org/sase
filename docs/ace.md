@@ -1793,9 +1793,11 @@ badges instead of verbose text:
 | `❑`   | Patch / Patch row (top-level)                        |
 | `⚡`  | Autonomous (`%auto`) agent                           |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
+| `⚙`   | Monitor shell (row label)                            |
+| `⚙N`  | N running monitors in a family/clan subtree          |
 
 A monitor shell (a family member whose work is a supervised command, started with
-`sase monitor start`) renders its own amber `⏱` glyph beside the bash/python step glyphs
+`sase monitor start`) renders its own amber `⚙` glyph beside the bash/python step glyphs
 below, with its configured label as the row title and a live elapsed suffix or
 exit-code/timeout badge instead of the statuses above. Two extra badges mark a stalled
 monitor handoff: a red `⚠` replaces the exit-code badge when a terminal monitor's
@@ -1842,12 +1844,13 @@ distinct shade from that provider's palette so multi-model fan-outs are easy to 
 Providers without a dedicated palette (anything outside the table above) fall back to a
 neutral purple palette and render no emoji badge.
 
-Workflow child rows for `python` and `bash` steps render a leading 🐍 / 🐚 glyph after
-the `N/M` step number, styled with the matching step-type accent. The glyph is a
-stronger signal than the step-type color alone for colorblind users and for rapid
-scanning. Agent, parallel, and `prompt_part` step rows are left unchanged — agent rows
-already carry a meaningful display name, parallel rows fan out into structural children,
-and `prompt_part` rows are invisible by default.
+Workflow child rows for `python` and `bash` steps render a leading `❯` glyph after the
+`N/M` step number, styled with the matching step-type accent — bash amber, python green.
+The glyph's presence is a stronger signal than the step-type color alone for colorblind
+users and for rapid scanning; color still carries the bash/python distinction. Agent,
+parallel, and `prompt_part` step rows are left unchanged — agent rows already carry a
+meaningful display name, parallel rows fan out into structural children, and
+`prompt_part` rows are invisible by default.
 
 The right-hand edge of each row carries a runtime suffix
 (`<start-timestamp> · <elapsed>`) right-aligned within the panel. Active rows that have
@@ -3259,9 +3262,17 @@ tab — rather than as suffixes on the tab title itself.
 
 ### Proc Indicator
 
-A gear icon (⚙) with a count appears in the top bar when procs are running (e.g., sync,
-mail, accept, and notification-gate operations). The indicator automatically hides when
-all procs complete.
+A blue gear icon (⚙) with a count appears in the top bar when ACE's own procs are
+running (e.g., sync, mail, accept, and notification-gate operations). It excludes
+monitor shells — see [Monitor Indicator](#monitor-indicator) below. The indicator
+automatically hides when all procs complete.
+
+### Monitor Indicator
+
+An amber gear icon (⚙), immediately right of the [Proc Indicator](#proc-indicator),
+shows a count of currently running monitor shells (`sase monitor start` supervised
+commands). It hides at zero. A monitor is a detached supervisor that survives ACE exit,
+so it is counted separately from — and never blocks — ACE's own procs.
 
 ### Runners Modal
 

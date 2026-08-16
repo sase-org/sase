@@ -6,6 +6,7 @@ from rich.text import Text
 
 from sase.ace.hooks.timestamps import format_duration
 from sase.monitor.naming import short_monitor_id
+from sase.monitor_state import MONITOR_TIMEOUT_GLYPH
 
 from ...models.agent import Agent
 from ...models.agent_time import compute_row_runtime
@@ -23,7 +24,7 @@ _STATE_DISPLAY: dict[str, tuple[str, str]] = {
     "running": ("●", "bold green"),
     "completed": ("✓", "bold cyan"),
     "failed": ("✗", "bold red"),
-    "timeout": ("⏱", "bold red"),
+    "timeout": (MONITOR_TIMEOUT_GLYPH, "bold red"),
     "stopped": ("⊘", "bold magenta"),
     "lost": ("?", "bold red"),
 }

@@ -31,6 +31,34 @@ def agent_row_is_in_flight(agent: Agent) -> bool:
     return agent_is_active(agent.status) and agent.stop_time is None
 
 
+def running_monitor_count(agent: Agent) -> int:
+    """Count in-flight monitor shells anywhere beneath one container row.
+
+    ``Agent`` is mutable and unhashable, and ``runtime_children`` /
+    ``followup_agents`` overlap, so traversal cycle-guards on ``id(row)``
+    while the count itself dedupes by ``row.identity``.
+    """
+    visited_ids: set[int] = set()
+    seen_identities: set[tuple[AgentType, str, str | None]] = set()
+    count = 0
+
+    def visit(row: Agent) -> None:
+        nonlocal count
+        if id(row) in visited_ids:
+            return
+        visited_ids.add(id(row))
+        if row.identity not in seen_identities:
+            seen_identities.add(row.identity)
+            if row.is_monitor and agent_row_is_in_flight(row):
+                count += 1
+        for child in (*row.runtime_children, *row.followup_agents):
+            visit(child)
+
+    for child in (*agent.runtime_children, *agent.followup_agents):
+        visit(child)
+    return count
+
+
 def is_sequential_family_container(agent: Agent) -> bool:
     """Return whether ``agent`` represents a loaded sequential family.
 
@@ -238,4 +266,5 @@ __all__ = [
     "family_member_status_buckets",
     "family_roster_container",
     "is_sequential_family_container",
+    "running_monitor_count",
 ]

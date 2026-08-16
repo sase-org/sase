@@ -271,6 +271,118 @@ def test_observer_active_count_uses_session_scoped_live_rows(monkeypatch) -> Non
     ]
 
 
+def test_observer_active_monitor_count_isolates_monitor_origin_rows(
+    monkeypatch,
+) -> None:
+    procs = [
+        Proc(
+            proc_id="ace-proc",
+            label="ace",
+            kind="command",
+            status="running",
+            command=["true"],
+            cwd="/tmp",
+            origin="ace",
+            created_at="2026-08-15T12:00:00Z",
+            started_at="2026-08-15T12:00:00Z",
+            log_path="/tmp/ace.log",
+            session_id=None,
+        ),
+        Proc(
+            proc_id="monitor-proc",
+            label="monitor",
+            kind="detached",
+            status="running",
+            command=["sleep", "120"],
+            cwd="/tmp",
+            origin="monitor",
+            created_at="2026-08-15T12:00:00Z",
+            started_at="2026-08-15T12:00:00Z",
+            log_path="/tmp/monitor.log",
+            session_id=None,
+        ),
+    ]
+    monkeypatch.setattr(
+        po,
+        "_load_context",
+        lambda: po._ObserverContext(None, None, None, None, "/tmp"),
+    )
+    monkeypatch.setattr(po, "_live_session_ids", lambda: frozenset())
+    monkeypatch.setattr(po, "read_procs", lambda: procs)
+
+    snapshot = ProcObserver(on_snapshot=lambda _snapshot: None)._build_snapshot()
+
+    assert snapshot.projection.active_count == 2
+    assert snapshot.projection.active_monitor_count == 1
+    assert [row.proc_id for row in snapshot.projection.active_monitor_rows()] == [
+        "monitor-proc"
+    ]
+
+
+def test_active_monitor_rows_filters_active_rows_by_origin() -> None:
+    ace_row = ObservedProc(
+        proc_id="ace",
+        proc_type="command",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="",
+        started_at=local_now(),
+        origin="ace",
+    )
+    monitor_row = ObservedProc(
+        proc_id="monitor",
+        proc_type="detached",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="",
+        started_at=local_now(),
+        origin="monitor",
+    )
+    projection = ProcProjection(rows=(ace_row, monitor_row))
+
+    assert [row.proc_id for row in projection.active_rows()] == ["ace", "monitor"]
+    assert [row.proc_id for row in projection.active_monitor_rows()] == ["monitor"]
+
+
+def test_compose_proc_projection_counts_monitor_rows_and_keeps_overlay_rows_blue() -> (
+    None
+):
+    durable_monitor = ObservedProc(
+        proc_id="durable-monitor",
+        proc_type="detached",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="",
+        started_at=local_now(),
+        origin="monitor",
+    )
+    durable = ProcProjection(
+        rows=(durable_monitor,),
+        active_count=1,
+        active_monitor_count=1,
+        session_id="session-a",
+    )
+    # Session-local overlay rows are ACE-owned by construction and default to
+    # origin="", so they must stay counted on the blue (non-monitor) side.
+    overlay = ObservedProc(
+        proc_id="overlay",
+        proc_type="command",
+        cl_name="demo",
+        project_file="",
+        status="running",
+        message="",
+        started_at=local_now(),
+    )
+
+    projection = compose_proc_projection(durable, [overlay])
+
+    assert projection.active_count == 2
+    assert projection.active_monitor_count == 1
+
+
 def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
     monkeypatch.setattr(po, "_read_log_tail", lambda proc_id: f"log {proc_id}\n")
     row = po._store_proc_row(
@@ -302,6 +414,7 @@ def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
     assert row.store_backed is True
     assert row.exclusive_scopes == frozenset({"ace:patch:demo"})
     assert row.session_live is True
+    assert row.origin == "ace"
 
 
 def test_observer_delivers_terminal_completion_once(

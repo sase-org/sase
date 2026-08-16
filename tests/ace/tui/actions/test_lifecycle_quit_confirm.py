@@ -81,6 +81,24 @@ def test_running_task_count_includes_session_overlay() -> None:
     assert _OverlayQuitApp()._count_running_tasks() == 1
 
 
+def test_running_task_count_excludes_monitor_shells() -> None:
+    class _MonitorOverlayQuitApp(LifecycleMixin):
+        def __init__(self) -> None:
+            self._proc_projection = ProcProjection()
+
+        def _effective_proc_projection(self) -> ProcProjection:
+            return ProcProjection(
+                rows=(_task("session-1", "sync"), _task("monitor-1", "detached")),
+                active_count=2,
+                active_monitor_count=1,
+                session_id="session-mine",
+            )
+
+    # A detached monitor supervisor survives ACE exit, so it must not count
+    # toward "N procs will be stopped" in the quit-options modal.
+    assert _MonitorOverlayQuitApp()._count_running_tasks() == 1
+
+
 @pytest.mark.asyncio
 async def test_action_quit_with_running_tasks_quits_without_modal() -> None:
     running = _task("run-1", "sync", display_name="Sync visual-auth")

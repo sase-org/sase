@@ -51,6 +51,7 @@ from .artifacts.types import FilesSubTab as FilesSubTab
 from .hint_input_bar import HintInputBar as HintInputBar
 from .keybinding_footer import KeybindingFooter as KeybindingFooter
 from .llm_override_indicator import LLMOverrideIndicator as LLMOverrideIndicator
+from .proc_indicator import MonitorIndicator as MonitorIndicator
 from .notification_indicator import NotificationIndicator as NotificationIndicator
 from .patch_detail import PatchDetail as PatchDetail
 from .artifacts.patch_filter_bar import PatchFilterBar as PatchFilterBar

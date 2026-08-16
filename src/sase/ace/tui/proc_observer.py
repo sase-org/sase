@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from sase.core.state_write_guard import pytest_path_is_sandboxed
 from sase.core.time import local_now, to_local
+from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.ops import DurableOperationResult, OperationIOError, read_operation_result
 from sase.procs import (
     ACTIVE_PROC_STATUSES,
@@ -144,6 +145,7 @@ class ObservedProc:
     session_id: str | None = None
     session_label: str | None = None
     session_live: bool = True
+    origin: str = ""
 
     @property
     def label(self) -> str:
@@ -168,6 +170,7 @@ class ProcProjection:
 
     rows: tuple[ObservedProc, ...] = ()
     active_count: int = 0
+    active_monitor_count: int = 0
     session_id: str | None = None
 
     def scoped_rows(self, *, all_sessions: bool) -> list[ObservedProc]:
@@ -189,6 +192,14 @@ class ProcProjection:
             for row in self.scoped_rows(all_sessions=all_sessions)
             if row.status in _ACTIVE_STATUSES
             and (row.session_id is None or row.session_live)
+        ]
+
+    def active_monitor_rows(self, *, all_sessions: bool = False) -> list[ObservedProc]:
+        """Return active rows that are ``sase monitor start`` proc shells."""
+        return [
+            row
+            for row in self.active_rows(all_sessions=all_sessions)
+            if is_monitor_shell_row(row)
         ]
 
     def scope_conflict(self, exclusive_scopes: Collection[str]) -> ObservedProc | None:
@@ -224,7 +235,11 @@ def compose_proc_projection(
         rows=tuple(rows),
         session_id=durable.session_id,
     )
-    return replace(projection, active_count=len(projection.active_rows()))
+    return replace(
+        projection,
+        active_count=len(projection.active_rows()),
+        active_monitor_count=len(projection.active_monitor_rows()),
+    )
 
 
 def proc_projection_for(app: Any) -> ProcProjection:
@@ -450,7 +465,11 @@ class ProcObserver:
             rows=tuple(rows),
             session_id=context.session_id,
         )
-        projection = replace(projection, active_count=len(projection.active_rows()))
+        projection = replace(
+            projection,
+            active_count=len(projection.active_rows()),
+            active_monitor_count=len(projection.active_monitor_rows()),
+        )
         if completions:
             with self._lock:
                 for completion in completions:
@@ -467,6 +486,11 @@ class ProcObserver:
         if self._context is None:
             self._context = _load_context()
         return self._context
+
+
+def is_monitor_shell_row(row: ObservedProc) -> bool:
+    """Return whether an observed row is a ``sase monitor start`` proc shell."""
+    return row.origin == MONITOR_PROC_ORIGIN
 
 
 def _store_proc_row(
@@ -499,6 +523,7 @@ def _store_proc_row(
         session_label=proc.session_label,
         session_live=bool(proc.session_id and proc.session_id in live_session_ids),
         exclusive_scopes=frozenset(proc.concurrency_keys),
+        origin=proc.origin,
     )
 
 
@@ -641,5 +666,6 @@ __all__ = [
     "ProcProjection",
     "_store_proc_row",
     "compose_proc_projection",
+    "is_monitor_shell_row",
     "proc_projection_for",
 ]

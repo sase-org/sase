@@ -6,6 +6,10 @@ from sase.plan_chain import agent_family_role_for_suffix
 
 DEFAULT_MONITOR_STOP_STATUS = "MONITORED"
 MONITOR_FAMILY_ROLE = "monitor"
+MONITOR_GLYPH = "⚙"
+MONITOR_GLYPH_COLOR = "#FFAF5F"
+MONITOR_PROC_ORIGIN = "monitor"
+MONITOR_TIMEOUT_GLYPH = "⧖"
 
 MONITOR_STATE_BUCKETS: dict[str, str] = {
     "running": "Running",
@@ -45,7 +49,11 @@ def is_monitor_member_role(
 __all__ = [
     "DEFAULT_MONITOR_STOP_STATUS",
     "MONITOR_FAMILY_ROLE",
+    "MONITOR_GLYPH",
+    "MONITOR_GLYPH_COLOR",
+    "MONITOR_PROC_ORIGIN",
     "MONITOR_STATE_BUCKETS",
+    "MONITOR_TIMEOUT_GLYPH",
     "is_monitor_member_role",
     "monitor_state_bucket",
 ]
