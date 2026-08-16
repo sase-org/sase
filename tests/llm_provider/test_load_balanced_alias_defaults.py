@@ -9,11 +9,13 @@ from sase.llm_provider.config import (
     resolve_model_alias,
     resolve_model_alias_with_effort,
 )
+from sase.llm_provider.load_balancing import parse_model_alias_selector
 from sase.llm_provider.model_alias_policy import (
     MEDIUM_MODEL_ALIAS_NAME,
     SMALL_MODEL_ALIAS_NAME,
     XLARGE_MODEL_ALIAS_NAME,
     XSMALL_MODEL_ALIAS_NAME,
+    implicit_alias_targets,
 )
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -78,7 +80,7 @@ def test_size_aliases_use_independent_rotations(
                 "claude/": ("claude/sonnet", "medium"),
                 "codex/": ("codex/gpt-5.5", "medium"),
                 "grok/": ("grok/grok-4.6", "medium"),
-                "agy/": ("agy/gemini-3.7-flash-medium", None),
+                "agy/": ("agy/gemini-3.7-flash-high", None),
             },
         ),
         (
@@ -87,7 +89,6 @@ def test_size_aliases_use_independent_rotations(
                 "claude/": ("claude/sonnet", "high"),
                 "codex/": ("codex/gpt-5.5", "high"),
                 "grok/": ("grok/grok-4.6", "high"),
-                "agy/": ("agy/gemini-3.7-flash-high", None),
             },
         ),
     ],
@@ -111,6 +112,16 @@ def test_packaged_defaults_select_correct_effort_per_provider(
 
         assert selected.target == expected_target
         assert selected.effort == expected_effort
+
+
+def test_small_size_alias_has_no_antigravity_member(
+    real_model_alias_defaults: None,
+) -> None:
+    selector = parse_model_alias_selector(
+        implicit_alias_targets()[SMALL_MODEL_ALIAS_NAME]
+    )
+    assert selector is not None
+    assert not any(member.startswith("agy/") for member in selector.members)
 
 
 @pytest.mark.parametrize(

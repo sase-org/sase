@@ -374,8 +374,8 @@ defaults are:
 All other `agy models` slugs remain reachable through the model picker, configured
 aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. When the
 Antigravity CLI is available, the shipped `@xsmall` pool can select
-`gemini-3.7-flash-medium` automatically, and `@small` can select
-`gemini-3.7-flash-high`.
+`gemini-3.7-flash-high` automatically; no other shipped size alias includes an
+Antigravity member.
 
 ### Environment Variables
 
@@ -1239,13 +1239,13 @@ size-alias defaults are generated from `src/sase/llm_provider/model_alias_defaul
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias     | Description                                                                 | Shipped default                                                                                       |
-| --------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for the smallest direct tasks and tale follow-ups. | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.7-flash-medium` |
-| `@small`  | Small launch alias for straightforward task and phase work.                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high \| agy/gemini-3.7-flash-high`         |
-| `@medium` | Medium launch alias for ordinary implementation work.                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                   |
-| `@large`  | Large launch alias for planning-heavy work and default launches.            | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh`                                                        |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                   |
+| Alias     | Description                                                                 | Shipped default                                                                                     |
+| --------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for the smallest direct tasks and tale follow-ups. | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.7-flash-high` |
+| `@small`  | Small launch alias for straightforward task and phase work.                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
+| `@medium` | Medium launch alias for ordinary implementation work.                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
+| `@large`  | Large launch alias for planning-heavy work and default launches.            | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh`                                                      |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                           | `claude/opus@max \|\| codex/gpt-5.6-sol@max \|\| grok/grok-4.6@max`                                 |
 
 <!-- END GENERATED: model-alias-defaults -->
 
