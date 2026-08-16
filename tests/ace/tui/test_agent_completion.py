@@ -9,6 +9,8 @@ from rich.console import Console
 from rich.style import Style
 from textual.css.query import NoMatches
 
+import sase.ace.tui.models.agent_family_preview_cache as family_preview_cache
+from sase.agent_family_plan_preview import AgentFamilyPlanPreview
 from sase.ace.tui.actions.agents._display_helpers import panel_widget_id
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
@@ -78,6 +80,21 @@ def _agent(tmp_path: Path, **overrides: Any) -> Agent:
     return Agent(**defaults)
 
 
+def _plan_preview(title: str) -> AgentFamilyPlanPreview:
+    return AgentFamilyPlanPreview(
+        kind="epic",
+        title=title,
+        goal="Preview goal",
+        parent_title=None,
+        phase_count=2,
+        wave_count=1,
+        phase_titles=("Preview", "Rows"),
+        phase_ids=("preview", "rows"),
+        phase_sizes=("medium", "medium"),
+        size=None,
+    )
+
+
 def test_build_agent_completion_candidates_enriches_visible_named_agents(
     tmp_path: Path,
     monkeypatch: Any,
@@ -135,6 +152,90 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
     assert candidate.vcs_workflow.workflow_type == "gh"
     assert candidate.vcs_workflow.project == "sase"
     assert candidate.vcs_workflow.provider_display == "GitHub"
+
+
+def test_family_completion_candidate_attaches_cached_plan_preview(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    preview = _plan_preview("Plan-aware family preview")
+    family = _agent(
+        tmp_path,
+        agent_name="completion.plan",
+        agent_family="completion",
+        agent_family_role="root",
+        plan_chain_root=True,
+        raw_prompt="Fallback launch prompt",
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.tui._agent_completion_candidates.cached_family_plan_preview",
+        lambda _agent: preview,
+    )
+
+    candidates = build_agent_completion_candidates([family])
+    candidate = candidates[0]
+
+    assert candidate.plan_preview is preview
+    assert "Plan-aware family preview" in candidate.search_aliases
+    assert filter_agent_completion_candidates(candidates, "Plan-aware") == [candidate]
+    assert "plan-aware family preview" in candidate.search_text
+
+
+def test_family_completion_candidate_uses_first_member_prompt_when_root_is_empty(
+    tmp_path: Path,
+) -> None:
+    family = _agent(
+        tmp_path,
+        agent_name="ship--plan",
+        raw_suffix="20260718110000",
+        agent_family="ship",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    code = _agent(
+        tmp_path,
+        agent_name="ship--code",
+        raw_suffix="20260718110001",
+        agent_family="ship",
+        agent_family_role="code",
+        parent_timestamp=family.raw_suffix,
+        raw_prompt="Implement initial agent prompt fallback",
+    )
+    family.followup_agents.append(code)
+
+    candidates = build_agent_completion_candidates([family, code])
+    candidate = next(candidate for candidate in candidates if candidate.name == "ship")
+
+    assert candidate.prompt_snippet == "Implement initial agent prompt fallback"
+
+
+def test_family_completion_candidate_build_does_not_resolve_plan_or_bead_io(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    family = _agent(
+        tmp_path,
+        agent_name="ship--plan",
+        agent_family="ship",
+        agent_family_role="root",
+        plan_chain_root=True,
+        raw_prompt="Build candidates without resolver I/O",
+    )
+
+    def fail_resolver(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("completion candidate build must not resolve previews")
+
+    monkeypatch.setattr(
+        family_preview_cache,
+        "resolve_agent_plan_enrichment",
+        fail_resolver,
+    )
+
+    candidates = build_agent_completion_candidates([family])
+
+    assert candidates[0].name == "ship"
+    assert candidates[0].plan_preview is None
 
 
 def test_build_agent_completion_candidates_humanizes_vcs_badge_and_searches_raw(

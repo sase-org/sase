@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from rich.text import Text
 
+from sase.agent_family_plan_preview import (
+    AgentFamilyPlanPreview,
+    agent_family_plan_preview_accent,
+    agent_family_plan_preview_label,
+    agent_family_plan_structure_text,
+)
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
     neutral_vcs_workflow,
@@ -33,6 +39,7 @@ def append_agent_completion_row(
     is_selected: bool,
     *,
     tribe_colors: dict[str, str] | None = None,
+    inner_width: int = 0,
 ) -> None:
     """Append one kind-aware wait/fork target row."""
     metadata = (
@@ -50,6 +57,7 @@ def append_agent_completion_row(
             metadata,
             is_selected,
             tribe_colors=tribe_colors,
+            inner_width=inner_width,
         )
         return
 
@@ -73,6 +81,7 @@ def _append_group_completion_row(
     is_selected: bool,
     *,
     tribe_colors: dict[str, str] | None = None,
+    inner_width: int = 0,
 ) -> None:
     """Append one family, clan, or tribe using the shared row anatomy."""
     glyphs = {"family": "F", "clan": "C", "tribe": "@"}
@@ -106,7 +115,10 @@ def _append_group_completion_row(
         badge = truncate_cell(f"tribe · {carrier_counts}", 14)
     else:
         badge = truncate_cell(f"{metadata.kind} · {count}", 14)
-    preview = _member_preview(metadata.member_names, count)
+    if metadata.kind == "family":
+        preview = _family_preview(metadata, _family_preview_budget(inner_width))
+    else:
+        preview = Text(_member_preview(metadata.member_names, count), style="dim")
 
     content.append(f"{glyphs[metadata.kind]} ", style=identity_style)
     content.append(
@@ -124,7 +136,7 @@ def _append_group_completion_row(
         "● ", style=status_style(metadata.aggregate_status or metadata.status)
     )
     if preview:
-        content.append(preview, style="dim")
+        content.append_text(preview)
 
 
 def _member_preview(member_names: tuple[str, ...], member_count: int) -> str:
@@ -134,3 +146,107 @@ def _member_preview(member_names: tuple[str, ...], member_count: int) -> str:
     if hidden:
         preview = f"{preview} +{hidden}" if preview else f"+{hidden}"
     return truncate_cell(preview, 58)
+
+
+def _family_preview_budget(inner_width: int) -> int:
+    if inner_width <= 0:
+        return 58
+    return max(24, inner_width - 50)
+
+
+def _family_preview(
+    metadata: AgentCompletionCandidate,
+    budget: int,
+) -> Text:
+    preview = metadata.plan_preview
+    if preview is None or preview.kind is None:
+        return _truncated_preview_text(metadata.prompt_snippet, budget, style="dim")
+
+    fallback = metadata.prompt_snippet
+    title = preview.title or fallback
+    if not title:
+        return _family_preview_line(
+            preview,
+            structure=agent_family_plan_structure_text(preview, compact=True),
+            title="",
+            title_style="",
+            budget=budget,
+            truncate_title=False,
+        )
+
+    title_style = "" if preview.title else "dim"
+    for structure in _structure_degradation(preview):
+        line = _family_preview_line(
+            preview,
+            structure=structure,
+            title=title,
+            title_style=title_style,
+            budget=budget,
+            truncate_title=False,
+        )
+        if line.cell_len <= budget:
+            return line
+
+    return _family_preview_line(
+        preview,
+        structure="",
+        title=title,
+        title_style=title_style,
+        budget=budget,
+        truncate_title=True,
+    )
+
+
+def _structure_degradation(preview: AgentFamilyPlanPreview) -> tuple[str, ...]:
+    variants: list[str] = []
+    for value in (
+        agent_family_plan_structure_text(preview, compact=False),
+        _phase_count_structure(preview),
+        agent_family_plan_structure_text(preview, compact=True),
+        "",
+    ):
+        if value not in variants:
+            variants.append(value)
+    return tuple(variants)
+
+
+def _phase_count_structure(preview: AgentFamilyPlanPreview) -> str:
+    if preview.phase_count is None:
+        return ""
+    noun = "phase" if preview.phase_count == 1 else "phases"
+    return f"{preview.phase_count} {noun}"
+
+
+def _family_preview_line(
+    preview: AgentFamilyPlanPreview,
+    *,
+    structure: str,
+    title: str,
+    title_style: str,
+    budget: int,
+    truncate_title: bool,
+) -> Text:
+    assert preview.kind is not None
+    text = Text(no_wrap=True, overflow="ellipsis")
+    label = agent_family_plan_preview_label(preview.kind)
+    accent = agent_family_plan_preview_accent(preview.kind)
+    text.append(label, style=f"bold {accent}")
+    if structure:
+        text.append(" · ", style="dim")
+        text.append(structure, style="dim")
+    if not title:
+        return text
+
+    text.append(" · ", style="dim")
+    title_text = Text(title, style=title_style, no_wrap=True, overflow="ellipsis")
+    if truncate_title:
+        title_text.truncate(max(0, budget - text.cell_len), overflow="ellipsis")
+    text.append_text(title_text)
+    return text
+
+
+def _truncated_preview_text(value: str, budget: int, *, style: str) -> Text:
+    text = Text(value, style=style, no_wrap=True, overflow="ellipsis")
+    if budget > 0:
+        text.truncate(budget, overflow="ellipsis")
+    return text

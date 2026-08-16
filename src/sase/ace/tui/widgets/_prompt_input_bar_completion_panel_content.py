@@ -199,6 +199,7 @@ def _append_candidate_row(
                 is_selected,
                 tribe_colors=layout.tribe_colors,
                 model_widths=layout.model,
+                inner_width=inner_width,
             )
     elif kinds.xprompt_arg_agent:
         append_agent_completion_row(
@@ -206,6 +207,7 @@ def _append_candidate_row(
             candidate,
             is_selected,
             tribe_colors=layout.tribe_colors,
+            inner_width=inner_width,
         )
     elif kinds.vcs_project:
         append_vcs_project_completion_row(

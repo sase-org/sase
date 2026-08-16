@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from sase.agent_family_plan_preview import AgentFamilyPlanPreview
+
 
 @dataclass(frozen=True, slots=True)
 class AgentVcsWorkflow:
@@ -35,6 +37,7 @@ class AgentCompletionCandidate:
     role: str | None = None
     tribe: str | None = None
     vcs_workflow: AgentVcsWorkflow | None = None
+    plan_preview: AgentFamilyPlanPreview | None = None
     prompt_snippet: str = ""
     search_aliases: tuple[str, ...] = ()
     kind: Literal["agent", "family", "clan", "tribe"] = "agent"
@@ -56,6 +59,11 @@ class AgentCompletionCandidate:
                 self.name,
                 self.label,
                 self.prompt_snippet,
+                (
+                    self.plan_preview.title or ""
+                    if self.plan_preview is not None
+                    else ""
+                ),
                 *self.member_names,
                 *self.search_aliases,
             )

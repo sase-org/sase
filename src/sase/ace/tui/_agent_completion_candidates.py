@@ -6,11 +6,16 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from sase.agent_family_plan_preview import AgentFamilyPlanPreview
 from sase.ace.tui._agent_completion_models import AgentCompletionCandidate
 from sase.ace.tui._agent_completion_prompt import (
     prompt_snippet,
     raw_vcs_tag_for_prompt,
     vcs_workflow_from_prompt,
+)
+from sase.ace.tui.models.agent_family_preview_cache import (
+    FAMILY_PREVIEW_CACHE_MISS,
+    cached_family_plan_preview,
 )
 
 if TYPE_CHECKING:
@@ -261,6 +266,12 @@ def _build_family_completion_candidates(
             continue
         seen_names.add(name)
         status = _aggregate_completion_status(members)
+        plan_preview = _cached_plan_preview_for_family(agent)
+        preview_aliases = (
+            (plan_preview.title,)
+            if plan_preview is not None and plan_preview.title
+            else ()
+        )
         candidates.append(
             _candidate_from_agent(
                 agent,
@@ -270,9 +281,21 @@ def _build_family_completion_candidates(
                 member_count=len(members),
                 aggregate_status=status,
                 member_names=_member_names(members),
+                plan_preview=plan_preview,
+                extra_search_aliases=preview_aliases,
             )
         )
     return candidates
+
+
+def _cached_plan_preview_for_family(
+    agent: Agent,
+) -> AgentFamilyPlanPreview | None:
+    cached = cached_family_plan_preview(agent)
+    if cached is FAMILY_PREVIEW_CACHE_MISS or cached is None:
+        return None
+    assert isinstance(cached, AgentFamilyPlanPreview)
+    return cached
 
 
 def _build_tribe_completion_candidates(
@@ -387,6 +410,8 @@ def _candidate_from_agent(
     member_count: int | None = None,
     aggregate_status: str | None = None,
     member_names: tuple[str, ...] = (),
+    plan_preview: AgentFamilyPlanPreview | None = None,
+    extra_search_aliases: tuple[str, ...] = (),
 ) -> AgentCompletionCandidate:
     role = agent.agent_family_role or agent.role_suffix
     raw_prompt = _raw_prompt_for_agent(agent, all_agents)
@@ -406,6 +431,7 @@ def _candidate_from_agent(
         role=role,
         tribe=f"@{agent.tribe}" if agent.tribe else None,
         vcs_workflow=vcs_workflow_from_prompt(raw_prompt),
+        plan_preview=plan_preview,
         prompt_snippet=prompt_snippet(raw_prompt),
         search_aliases=tuple(
             alias
@@ -414,6 +440,7 @@ def _candidate_from_agent(
                 agent.agent_family if agent.agent_family != name else None,
                 canonical_snippet,
                 raw_vcs_tag_for_prompt(raw_prompt),
+                *extra_search_aliases,
             )
             if alias
         ),
@@ -450,6 +477,15 @@ def _model_label(agent: Agent) -> str | None:
 
 def _raw_prompt_for_agent(agent: Agent, all_agents: Sequence[Agent]) -> str:
     raw_content = agent.get_raw_xprompt_content() or ""
+    if not raw_content and agent.is_family_root_entry:
+        from sase.ace.tui.models.agent_family_members import concrete_family_member_rows
+
+        for member in concrete_family_member_rows(agent):
+            if member is agent:
+                continue
+            raw_content = member.get_raw_xprompt_content() or ""
+            if raw_content:
+                return raw_content
     if raw_content or not agent.parent_timestamp:
         return raw_content
     for parent in all_agents:

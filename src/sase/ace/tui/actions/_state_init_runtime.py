@@ -138,6 +138,14 @@ def init_runtime_state(
     self._bead_warmup_scan_pending = False
     self._bead_warmup_scan_source = "unknown"
     self._bead_warmup_async_tasks = set()
+    # Deferred agent-family plan-preview warmup coalescing. Completion rows
+    # read family previews from memory only; plan/bead resolution runs after
+    # Agents loads or after a completion menu sees an unresolved family.
+    self._family_preview_scan_scheduled = False
+    self._family_preview_scan_running = False
+    self._family_preview_scan_pending = False
+    self._family_preview_scan_source = "unknown"
+    self._family_preview_async_tasks = set()
     # Deferred persisted diff-badge classification coalescing. Row
     # rendering can only show the badge from its precomputed field, so the
     # per-row diff/commit reads run in a background worker after an

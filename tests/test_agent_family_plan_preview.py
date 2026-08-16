@@ -156,11 +156,13 @@ class TestAgentFamilyPlanPreviewFromBead:
             title="Prompt-input completion rows and panel subtitle",
             parent_title="Plan-aware agent-family completion previews",
             size="medium",
+            description="Render the selected-family subtitle.",
         )
 
         assert preview.kind == "phase"
         assert preview.title == "Prompt-input completion rows and panel subtitle"
         assert preview.parent_title == "Plan-aware agent-family completion previews"
+        assert preview.description == "Render the selected-family subtitle."
         assert preview.size == "medium"
         assert not preview.is_empty
 

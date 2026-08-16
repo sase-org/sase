@@ -62,6 +62,7 @@ def append_directive_arg_completion_row(
     is_selected: bool,
     tribe_colors: dict[str, str] | None = None,
     model_widths: tuple[int, int] | None = None,
+    inner_width: int = 0,
 ) -> None:
     """Append one prompt directive argument completion row."""
     if is_agent_completion_candidate(candidate):
@@ -70,6 +71,7 @@ def append_directive_arg_completion_row(
             candidate,
             is_selected,
             tribe_colors=tribe_colors,
+            inner_width=inner_width,
         )
         return
 

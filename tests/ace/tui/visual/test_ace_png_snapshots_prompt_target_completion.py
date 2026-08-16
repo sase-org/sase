@@ -6,6 +6,7 @@ from typing import Literal
 
 import pytest
 
+from sase.agent_family_plan_preview import AgentFamilyPlanPreview
 from sase.ace.testing import AcePage
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
@@ -33,6 +34,8 @@ def _target(
     kind: Literal["agent", "family", "clan", "tribe"],
     status: str,
     members: tuple[str, ...] = (),
+    plan_preview: AgentFamilyPlanPreview | None = None,
+    prompt_snippet: str = "",
 ) -> CompletionCandidate:
     workflow = (
         AgentVcsWorkflow(
@@ -56,7 +59,14 @@ def _target(
         agent_count=2 if kind == "tribe" else None,
         clan_count=1 if kind == "tribe" else None,
         vcs_workflow=workflow,
-        prompt_snippet="Polish target completion rows" if kind == "agent" else "",
+        plan_preview=plan_preview,
+        prompt_snippet=(
+            prompt_snippet
+            if prompt_snippet
+            else "Polish target completion rows"
+            if kind == "agent"
+            else ""
+        ),
     )
     return CompletionCandidate(
         display=name,
@@ -64,6 +74,29 @@ def _target(
         is_dir=False,
         name=name,
         metadata=metadata,
+    )
+
+
+def _preview(
+    kind: Literal["tale", "epic"],
+    title: str,
+    *,
+    goal: str | None = None,
+    phase_count: int | None = None,
+    wave_count: int | None = None,
+    phase_titles: tuple[str, ...] = (),
+) -> AgentFamilyPlanPreview:
+    return AgentFamilyPlanPreview(
+        kind=kind,
+        title=title,
+        goal=goal,
+        parent_title=None,
+        phase_count=phase_count,
+        wave_count=wave_count,
+        phase_titles=phase_titles,
+        phase_ids=tuple(str(index) for index, _title in enumerate(phase_titles)),
+        phase_sizes=tuple("medium" for _title in phase_titles),
+        size=None,
     )
 
 
@@ -85,6 +118,31 @@ _TARGET_ROWS = [
         kind="family",
         status="DONE",
         members=("ship--plan", "ship--code"),
+        plan_preview=_preview(
+            "epic",
+            "Plan-aware family previews",
+            phase_count=4,
+            wave_count=2,
+            phase_titles=("Preview", "Rows", "Editor", "LSP"),
+        ),
+    ),
+    _target(
+        "common",
+        kind="family",
+        status="RUNNING",
+        members=("common--plan", "common--code"),
+        plan_preview=_preview(
+            "tale",
+            "Complete common words",
+            goal="Complete common words from the middle of a word.",
+        ),
+    ),
+    _target(
+        "fallback",
+        kind="family",
+        status="WAITING",
+        members=("fallback--plan", "fallback--code"),
+        prompt_snippet="Fix the flaky selection-health test",
     ),
     _target("coder", kind="agent", status="RUNNING"),
 ]
@@ -167,7 +225,7 @@ async def test_fork_target_completion_png_snapshot(
         bar.show_file_completions(
             "#fork:",
             _TARGET_ROWS,
-            selected_index=1,
+            selected_index=2,
             completion_kind="xprompt_arg_agent",
         )
         await wait_for_svg_contains(page, "ship--code")

@@ -27,6 +27,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
     at_reference_group_rule_needed,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
+    agent_completion_subtitle,
     artifact_ref_completion_subtitle,
     completion_delete_subtitle,
     completion_panel_title,
@@ -172,6 +173,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
             )
         elif kinds.model:
             panel.border_subtitle = model_completion_subtitle(
+                rows,
+                selected_index,
+                max(0, panel.size.width - 2),
+            )
+        elif kinds.directive_arg_agent or kinds.xprompt_arg_agent:
+            panel.border_subtitle = agent_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),

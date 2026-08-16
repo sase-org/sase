@@ -24,6 +24,7 @@ from ._loading_compute import (
 from ._loading_diff_badges import AgentDiffBadgeMixin
 from ._loading_disk import AgentLoadingDiskMixin
 from ._loading_filter import AgentLoadingFilterMixin
+from ._loading_family_previews import AgentFamilyPreviewMixin
 from ._loading_helpers import (
     DISMISSABLE_STATUSES,
     load_agent_artifact_delta_from_disk_with_state,
@@ -61,6 +62,7 @@ class AgentLoadingMixin(
     AgentLoadingRefreshMixin,
     AgentLoadingFilterMixin,
     AgentLiveHintMixin,
+    AgentFamilyPreviewMixin,
     AgentBeadWarmupMixin,
     AgentDiffBadgeMixin,
 ):

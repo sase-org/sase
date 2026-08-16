@@ -449,6 +449,19 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # candidate.
         self._schedule_bead_confirmation_warmup(source="apply")  # type: ignore[attr-defined]
 
+        # Family completion previews resolve plan/bead context off the render
+        # path. The warmed cache feeds the next prompt-target completion menu.
+        schedule_family_preview_warmup = getattr(
+            self,
+            "_schedule_family_plan_preview_warmup",
+            None,
+        )
+        if callable(schedule_family_preview_warmup) and hasattr(
+            self,
+            "_family_preview_scan_running",
+        ):
+            schedule_family_preview_warmup(source="apply")
+
         arm_index_revalidate = getattr(
             self,
             "_arm_tier1_index_revalidate_reconcile",

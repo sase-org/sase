@@ -46,6 +46,7 @@ class AgentFamilyPlanPreview:
     phase_ids: tuple[str, ...]
     phase_sizes: tuple[PhaseSizeValue, ...]
     size: PhaseSizeValue | None
+    description: str | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -67,6 +68,7 @@ EMPTY_AGENT_FAMILY_PLAN_PREVIEW: Final = AgentFamilyPlanPreview(
     phase_ids=(),
     phase_sizes=(),
     size=None,
+    description=None,
 )
 
 _PLAN_TIER_KINDS: dict[PlanDisplayTier, AgentFamilyPlanPreviewKind] = {
@@ -139,6 +141,7 @@ def agent_family_plan_preview_from_plan(plan: PlanDisplay) -> AgentFamilyPlanPre
         phase_ids=phase_ids,
         phase_sizes=phase_sizes,
         size=plan.size,
+        description=None,
     )
 
 
@@ -148,6 +151,7 @@ def agent_family_plan_preview_from_bead(
     title: str | None,
     parent_title: str | None,
     size: PhaseSizeValue | None,
+    description: str | None = None,
 ) -> AgentFamilyPlanPreview:
     """Project one resolved phase/task bead identity into a family preview."""
     if not title:
@@ -163,6 +167,7 @@ def agent_family_plan_preview_from_bead(
         phase_ids=(),
         phase_sizes=(),
         size=size,
+        description=description,
     )
 
 

@@ -236,6 +236,7 @@ def _preview_from_enrichment(
             title=bead.title,
             parent_title=bead.epic_title,
             size=bead.size,
+            description=bead.description,
         )
         if not preview.is_empty:
             return preview
