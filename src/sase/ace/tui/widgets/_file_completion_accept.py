@@ -329,11 +329,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             }:
                 self._clear_file_completion()
                 return False
-            self._replace_absolute_range(
-                result.replacement_start,
-                result.replacement_end,
-                selected.insertion,
-            )
+            self._commit_word_completion(result, selected.insertion)
             self._clear_file_completion()
             return True
         if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
@@ -352,11 +348,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             if result is None:
                 self._clear_file_completion()
                 return False
-            self._replace_absolute_range(
-                result.replacement_start,
-                result.replacement_end,
-                selected.insertion,
-            )
+            self._commit_word_completion(result, selected.insertion)
             self._clear_file_completion()
             return True
         if self._completion_kind == "file_history":

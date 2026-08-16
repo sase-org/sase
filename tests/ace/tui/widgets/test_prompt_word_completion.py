@@ -61,14 +61,16 @@ def test_multiline_candidates_are_deduplicated_and_sorted() -> None:
     assert result.shared_extension == "p"
 
 
-def test_cursor_in_middle_replaces_the_complete_word() -> None:
+def test_cursor_in_middle_replaces_only_the_left_hand_prefix() -> None:
     text = "publish publication then pubZZZ"
     cursor_offset = text.rindex("pubZZZ") + len("pub")
 
     result = _result(text, cursor_offset)
 
     assert result.prefix == "pub"
-    assert text[result.replacement_start : result.replacement_end] == "pubZZZ"
+    assert text[result.replacement_start : result.replacement_end] == "pub"
+    assert result.replacement_end == cursor_offset
+    assert result.has_word_suffix is True
     assert [candidate.insertion for candidate in result.candidates] == [
         "publication",
         "publish",
@@ -86,14 +88,15 @@ def test_hyphenated_words_are_single_ranges_and_candidates() -> None:
         text.rindex("bob-maZZZ"),
         len(text),
     )
-    assert text[result.replacement_start : result.replacement_end] == "bob-maZZZ"
+    assert text[result.replacement_start : result.replacement_end] == "bob-ma"
+    assert result.has_word_suffix is True
     assert [candidate.insertion for candidate in result.candidates] == [
         "bob-mac-capture"
     ]
 
 
 def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
-    text = "naïve,naïveté snake_case snake_case_extra naï"
+    text = "naïve,naïveté snake_case_extra snake_case naï"
 
     result = _result(text)
 
@@ -102,8 +105,9 @@ def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
         "naïveté",
     ]
 
-    underscore_result = _result(text, text.index("snake_case") + len("snake_"))
+    underscore_result = _result(text, text.rindex("snake_case") + len("snake_"))
     assert underscore_result.prefix == "snake_"
+    assert underscore_result.has_word_suffix is True
     assert [candidate.insertion for candidate in underscore_result.candidates] == [
         "snake_case_extra"
     ]
@@ -114,6 +118,17 @@ def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
         "bob-mac-capture",
         "omega",
     ]
+
+
+def test_candidates_exclude_words_later_in_the_prompt() -> None:
+    text = "alpine zzz alp alpaca"
+    cursor_offset = len("alpine zzz alp")
+
+    result = _result(text, cursor_offset)
+
+    assert result.prefix == "alp"
+    assert result.has_word_suffix is False
+    assert [candidate.insertion for candidate in result.candidates] == ["alpine"]
 
 
 def test_hyphen_only_runs_are_not_prompt_word_candidates() -> None:
@@ -141,6 +156,23 @@ def test_current_word_and_exact_duplicates_are_excluded() -> None:
         "alpha",
         "alpine",
     ]
+
+
+def test_earlier_exact_prefix_spelling_is_suppressed_without_suffix() -> None:
+    text = "title other title"
+
+    assert build_prompt_word_completion_result(text, len(text)) is None
+
+
+def test_earlier_exact_prefix_spelling_is_kept_with_suffix() -> None:
+    text = "title other titleZZZ"
+    cursor_offset = text.rindex("titleZZZ") + len("title")
+
+    result = _result(text, cursor_offset)
+
+    assert result.prefix == "title"
+    assert result.has_word_suffix is True
+    assert [candidate.insertion for candidate in result.candidates] == ["title"]
 
 
 def test_empty_prefix_outside_word_and_no_match_are_noops() -> None:
@@ -175,7 +207,8 @@ def test_candidates_use_shared_minimum_not_typed_prefix_length() -> None:
 
 
 def test_candidate_minimum_is_clamped_to_one() -> None:
-    result = build_prompt_word_completion_result("a al", 1, min_length=0)
+    text = "al a"
+    result = build_prompt_word_completion_result(text, len(text), min_length=0)
 
     assert result is not None
     assert [candidate.insertion for candidate in result.candidates] == ["al"]
@@ -246,7 +279,21 @@ async def test_lowered_minimum_restores_short_prompt_word_completion() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_ctrl_t_mid_word_accept_replaces_right_hand_suffix() -> None:
+async def test_ctrl_t_mid_word_matches_goal_example() -> None:
+    """The plan's motivating example: ``foo<cursor>baz`` -> ``foobar<cursor> baz``."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("foobar foobaz")
+        ta.cursor_location = (0, len("foobar foo"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "foobar foobar baz"
+        assert ta.cursor_location == (0, len("foobar foobar"))
+
+
+async def test_ctrl_t_mid_word_accept_preserves_right_hand_suffix_as_word() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -255,11 +302,61 @@ async def test_ctrl_t_mid_word_accept_replaces_right_hand_suffix() -> None:
 
         await pilot.press("ctrl+t")
 
-        assert ta.text == "publish then publish"
-        assert ta.cursor_location == (0, len(ta.text))
+        assert ta.text == "publish then publish ZZZ"
+        assert ta.cursor_location == (0, len("publish then publish"))
 
 
-async def test_ctrl_t_accepts_hyphenated_prompt_word_and_replaces_suffix() -> None:
+async def test_prompt_word_menu_enter_accept_preserves_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("alpha alpine alpZZZ")
+        ta.cursor_location = (0, ta.text.rindex("alpZZZ") + len("alp"))
+
+        await pilot.press("ctrl+t", "down", "enter")
+
+        assert ta.text == "alpha alpine alpine ZZZ"
+        assert ta.cursor_location == (0, len("alpha alpine alpine"))
+
+
+async def test_prompt_word_menu_ctrl_l_accept_preserves_suffix() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("alpha alpine alpZZZ")
+        ta.cursor_location = (0, ta.text.rindex("alpZZZ") + len("alp"))
+
+        await pilot.press("ctrl+t", "ctrl+l")
+
+        assert ta.text == "alpha alpine alpha ZZZ"
+        assert ta.cursor_location == (0, len("alpha alpine alpha"))
+
+
+async def test_ctrl_t_narrowing_preserves_suffix_without_space_until_commit() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("bob-mac-capture bob-mac-camera bob-maZZZ")
+        ta.cursor_location = (0, ta.text.rindex("bob-maZZZ") + len("bob-ma"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "bob-mac-capture bob-mac-camera bob-mac-caZZZ"
+        assert ta._completion_kind == PROMPT_WORD_COMPLETION_KIND
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["bob-mac-camera", "bob-mac-capture"]
+
+        await pilot.press("enter")
+
+        assert ta.text == "bob-mac-capture bob-mac-camera bob-mac-camera ZZZ"
+        assert ta.cursor_location == (
+            0,
+            len("bob-mac-capture bob-mac-camera bob-mac-camera"),
+        )
+
+
+async def test_ctrl_t_accepts_hyphenated_prompt_word_and_preserves_suffix() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -268,8 +365,8 @@ async def test_ctrl_t_accepts_hyphenated_prompt_word_and_replaces_suffix() -> No
 
         await pilot.press("ctrl+t")
 
-        assert ta.text == "bob-mac-capture then bob-mac-capture"
-        assert ta.cursor_location == (0, len(ta.text))
+        assert ta.text == "bob-mac-capture then bob-mac-capture ZZZ"
+        assert ta.cursor_location == (0, len("bob-mac-capture then bob-mac-capture"))
 
 
 async def test_ctrl_t_scans_all_prompt_lines() -> None:

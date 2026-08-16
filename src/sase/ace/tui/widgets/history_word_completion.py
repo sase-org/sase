@@ -26,13 +26,21 @@ def build_history_word_completion_result(
     cursor_offset: int,
     words: list[str],
 ) -> WordCompletionResult | None:
-    """Return MRU history-word matches for the prefix left of the cursor."""
+    """Return MRU history-word matches for the prefix left of the cursor.
+
+    Only the left-side prefix filters the warm MRU word list; any right-hand
+    suffix under the cursor is neither used to include nor exclude candidates,
+    and the replacement range covers just the typed prefix so that suffix is
+    preserved on acceptance. An MRU word that exactly matches the typed prefix
+    is only offered when the cursor also has a right-hand suffix to separate,
+    since otherwise accepting it would have no effect.
+    """
     word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
         return None
-    replacement_start, replacement_end = word_range
-    prefix = text[replacement_start:cursor_offset]
-    current_word = text[replacement_start:replacement_end]
+    word_start, word_end = word_range
+    prefix = text[word_start:cursor_offset]
+    has_word_suffix = word_end > cursor_offset
     prefix_folded = prefix.casefold()
 
     ordered: list[str] = []
@@ -41,7 +49,9 @@ def build_history_word_completion_result(
         if word in seen:
             continue
         seen.add(word)
-        if word == current_word or not word.casefold().startswith(prefix_folded):
+        if not word.casefold().startswith(prefix_folded):
+            continue
+        if word == prefix and not has_word_suffix:
             continue
         ordered.append(word)
 
@@ -59,10 +69,11 @@ def build_history_word_completion_result(
     ]
     return WordCompletionResult(
         prefix=prefix,
-        replacement_start=replacement_start,
-        replacement_end=replacement_end,
+        replacement_start=word_start,
+        replacement_end=cursor_offset,
         candidates=candidates,
         shared_extension=shared_word_extension(ordered, prefix),
+        has_word_suffix=has_word_suffix,
     )
 
 

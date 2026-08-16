@@ -267,11 +267,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         self._completion_kind = PROMPT_WORD_COMPLETION_KIND
         candidates = result.candidates
         if len(candidates) == 1:
-            self._replace_absolute_range(
-                result.replacement_start,
-                result.replacement_end,
-                candidates[0].insertion,
-            )
+            self._commit_word_completion(result, candidates[0].insertion)
             self._clear_file_completion()
             return True
 
@@ -335,11 +331,7 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
         self._completion_kind = HISTORY_WORD_COMPLETION_KIND
         candidates = result.candidates
         if len(candidates) == 1:
-            self._replace_absolute_range(
-                result.replacement_start,
-                result.replacement_end,
-                candidates[0].insertion,
-            )
+            self._commit_word_completion(result, candidates[0].insertion)
             self._clear_file_completion()
             return True
 

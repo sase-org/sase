@@ -149,6 +149,31 @@ class FileCompletionBaseMixin(FileCompletionWorkerMixin):
             min_length=self._prompt_completion_settings().word_min_length,
         )
 
+    def _commit_word_completion(
+        self,
+        result: WordCompletionResult,
+        insertion: str,
+    ) -> None:
+        """Replace the typed prefix, separating a preserved same-word suffix.
+
+        Shared by prompt-local and history-word acceptance, for both the lone
+        ``Ctrl+T`` shortcut and Enter/Ctrl+L menu acceptance, so committed
+        word insertion follows one unambiguous contract: only the typed
+        prefix is replaced, and a single ASCII space is inserted before any
+        identifier-like suffix that already followed the cursor, with the
+        cursor left immediately after the completed word.
+        """
+        replacement = f"{insertion} " if result.has_word_suffix else insertion
+        self._replace_absolute_range(
+            result.replacement_start,
+            result.replacement_end,
+            replacement,
+        )
+        if result.has_word_suffix:
+            self.cursor_location = self._location_from_absolute(
+                result.replacement_start + len(insertion)
+            )
+
     def _update_file_completion_panel(self, token: str) -> None:
         """Sync completion UI with the current completion state."""
         bar = self._find_prompt_bar()

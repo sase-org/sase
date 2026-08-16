@@ -12,13 +12,21 @@ PROMPT_WORD_COMPLETION_KIND = "prompt_word"
 
 @dataclass(frozen=True, slots=True)
 class WordCompletionResult:
-    """Word completion context at one absolute cursor offset."""
+    """Word completion context for the typed prefix left of one cursor offset.
+
+    ``replacement_start``/``replacement_end`` bound only the typed prefix, so
+    accepting a candidate never touches any identifier-like suffix already
+    sitting to the right of the cursor. ``has_word_suffix`` reports whether
+    such a suffix exists, so acceptance can insert a single separating space
+    between the committed word and that preserved suffix.
+    """
 
     prefix: str
     replacement_start: int
     replacement_end: int
     candidates: list[CompletionCandidate]
     shared_extension: str
+    has_word_suffix: bool
 
 
 def build_prompt_word_completion_result(
@@ -31,31 +39,36 @@ def build_prompt_word_completion_result(
 
     Words use the prompt widget's identifier-like semantics: a maximal run of
     Unicode alphanumeric characters, underscores, or ASCII hyphens. The cursor
-    must have a non-empty word prefix immediately to its left. The result
-    replaces the complete word around that prefix, including any suffix right
-    of the cursor. The minimum applies to complete candidates, not to the typed
-    prefix.
+    must have a non-empty word prefix immediately to its left. Candidates are
+    drawn only from complete words that appear earlier in the prompt, before
+    the active prefix; words later in the prompt (including any right-hand
+    suffix of the current word) are never candidates. An earlier word whose
+    spelling exactly matches the typed prefix is only offered when the cursor
+    also has a right-hand suffix to separate, since otherwise accepting it
+    would have no effect. The minimum applies to complete candidates, not to
+    the typed prefix.
     """
     word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
         return None
-    replacement_start, replacement_end = word_range
-    prefix = text[replacement_start:cursor_offset]
-    current_word = text[replacement_start:replacement_end]
+    word_start, word_end = word_range
+    prefix = text[word_start:cursor_offset]
+    has_word_suffix = word_end > cursor_offset
     prefix_folded = prefix.casefold()
 
     minimum = max(1, min_length)
     spellings: set[str] = set()
     for start, end in word_ranges(text):
-        if start == replacement_start and end == replacement_end:
-            continue
+        if start >= word_start:
+            break
         word = text[start:end]
         if (
             len(word) < minimum
-            or word == current_word
             or not is_prompt_word_candidate(word)
             or not word.casefold().startswith(prefix_folded)
         ):
+            continue
+        if word == prefix and not has_word_suffix:
             continue
         spellings.add(word)
 
@@ -74,10 +87,11 @@ def build_prompt_word_completion_result(
     ]
     return WordCompletionResult(
         prefix=prefix,
-        replacement_start=replacement_start,
-        replacement_end=replacement_end,
+        replacement_start=word_start,
+        replacement_end=cursor_offset,
         candidates=candidates,
         shared_extension=shared_word_extension(ordered, prefix),
+        has_word_suffix=has_word_suffix,
     )
 
 

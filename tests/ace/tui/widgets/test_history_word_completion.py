@@ -69,23 +69,58 @@ def test_history_builder_filters_casefold_prefix_in_mru_order() -> None:
     assert result.shared_extension == "P"
 
 
-def test_history_builder_excludes_current_word_and_replaces_whole_word() -> None:
+def test_history_builder_replaces_only_the_prefix_and_preserves_suffix() -> None:
     text = "pubZZZ"
     result = build_history_word_completion_result(
         text,
         len("pub"),
-        ["pubZZZ", "publish", "publication"],
+        ["pub", "publish", "publication"],
     )
 
     assert result is not None
-    assert text[result.replacement_start : result.replacement_end] == "pubZZZ"
+    assert text[result.replacement_start : result.replacement_end] == "pub"
+    assert result.replacement_end == len("pub")
+    assert result.has_word_suffix is True
+    assert [candidate.insertion for candidate in result.candidates] == [
+        "pub",
+        "publish",
+        "publication",
+    ]
+
+
+def test_history_builder_suppresses_exact_prefix_spelling_without_suffix() -> None:
+    result = build_history_word_completion_result(
+        "pub",
+        len("pub"),
+        ["pub", "publish", "publication"],
+    )
+
+    assert result is not None
+    assert result.has_word_suffix is False
     assert [candidate.insertion for candidate in result.candidates] == [
         "publish",
         "publication",
     ]
 
 
-def test_history_builder_uses_full_hyphenated_prefix_and_range() -> None:
+def test_history_builder_ignores_suffix_when_filtering() -> None:
+    with_suffix = build_history_word_completion_result(
+        "pubZZZ", len("pub"), ["publish", "publication"]
+    )
+    without_suffix = build_history_word_completion_result(
+        "pub", len("pub"), ["publish", "publication"]
+    )
+
+    assert with_suffix is not None
+    assert without_suffix is not None
+    assert (
+        [candidate.insertion for candidate in with_suffix.candidates]
+        == [candidate.insertion for candidate in without_suffix.candidates]
+        == ["publish", "publication"]
+    )
+
+
+def test_history_builder_uses_hyphenated_prefix_and_prefix_only_range() -> None:
     text = "bob-maZZZ"
     result = build_history_word_completion_result(
         text,
@@ -95,7 +130,9 @@ def test_history_builder_uses_full_hyphenated_prefix_and_range() -> None:
 
     assert result is not None
     assert result.prefix == "bob-ma"
-    assert text[result.replacement_start : result.replacement_end] == "bob-maZZZ"
+    assert text[result.replacement_start : result.replacement_end] == "bob-ma"
+    assert result.replacement_end == len("bob-ma")
+    assert result.has_word_suffix is True
     assert [candidate.insertion for candidate in result.candidates] == [
         "bob-mac-capture"
     ]
@@ -209,7 +246,22 @@ async def test_short_local_match_does_not_block_history_fallback() -> None:
         assert ta._file_completion_active is False
 
 
-async def test_history_single_match_auto_accepts_and_replaces_suffix() -> None:
+async def test_history_ctrl_t_mid_word_matches_goal_example() -> None:
+    """The plan's motivating example: ``foo<cursor>baz`` -> ``foobar<cursor> baz``."""
+    app = HistoryCompletionTestApp(["foobar"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("foobaz")
+        ta.cursor_location = (0, len("foo"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "foobar baz"
+        assert ta.cursor_location == (0, len("foobar"))
+        assert ta._file_completion_active is False
+
+
+async def test_history_single_match_auto_accepts_and_preserves_suffix() -> None:
     app = HistoryCompletionTestApp(["publish"])
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -218,7 +270,8 @@ async def test_history_single_match_auto_accepts_and_replaces_suffix() -> None:
 
         await pilot.press("ctrl+t")
 
-        assert ta.text == "publish"
+        assert ta.text == "publish ZZZ"
+        assert ta.cursor_location == (0, len("publish"))
         assert ta._file_completion_active is False
 
 
@@ -235,7 +288,7 @@ async def test_history_hyphenated_prefix_auto_accepts_from_prompt_history() -> N
         assert ta._file_completion_active is False
 
 
-async def test_history_hyphenated_acceptance_replaces_right_hand_suffix() -> None:
+async def test_history_hyphenated_acceptance_preserves_right_hand_suffix() -> None:
     app = HistoryCompletionTestApp(["bob-mac-capture"])
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -244,11 +297,12 @@ async def test_history_hyphenated_acceptance_replaces_right_hand_suffix() -> Non
 
         await pilot.press("ctrl+t")
 
-        assert ta.text == "bob-mac-capture"
+        assert ta.text == "bob-mac-capture ZZZ"
+        assert ta.cursor_location == (0, len("bob-mac-capture"))
         assert ta._file_completion_active is False
 
 
-async def test_history_navigation_accepts_and_replaces_complete_word() -> None:
+async def test_history_navigation_enter_accept_preserves_suffix() -> None:
     app = HistoryCompletionTestApp(["review", "revise"])
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -257,7 +311,22 @@ async def test_history_navigation_accepts_and_replaces_complete_word() -> None:
 
         await pilot.press("ctrl+t", "down", "enter")
 
-        assert ta.text == "revise"
+        assert ta.text == "revise ZZZ"
+        assert ta.cursor_location == (0, len("revise"))
+        assert ta._file_completion_active is False
+
+
+async def test_history_navigation_ctrl_l_accept_preserves_suffix() -> None:
+    app = HistoryCompletionTestApp(["review", "revise"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("revZZZ")
+        ta.cursor_location = (0, len("rev"))
+
+        await pilot.press("ctrl+t", "ctrl+l")
+
+        assert ta.text == "review ZZZ"
+        assert ta.cursor_location == (0, len("review"))
         assert ta._file_completion_active is False
 
 
@@ -307,6 +376,35 @@ async def test_history_refresh_preserves_hyphenated_shared_prefix() -> None:
         await pilot.press("enter")
 
         assert ta.text == "bob-mac-capture"
+        assert ta._file_completion_active is False
+
+
+async def test_history_refresh_preserves_shared_prefix_narrowing_with_suffix() -> None:
+    app = HistoryCompletionTestApp(["bob-mac-capture", "bob-mac-camera"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("bob-maZZZ")
+        ta.cursor_location = (0, len("bob-ma"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "bob-mac-caZZZ"
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["bob-mac-capture", "bob-mac-camera"]
+
+        await pilot.press("p")
+
+        assert ta.text == "bob-mac-capZZZ"
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["bob-mac-capture"]
+
+        await pilot.press("enter")
+
+        assert ta.text == "bob-mac-capture ZZZ"
+        assert ta.cursor_location == (0, len("bob-mac-capture"))
         assert ta._file_completion_active is False
 
 
