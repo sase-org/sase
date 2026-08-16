@@ -174,7 +174,6 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
                 "[green]ctrl+r[/green]=Limit  "
                 "[green]p[/green]=Providers\n"
                 "[green]l/enter[/green]=Open  "
-                "[green]H[/green]=History  "
                 "[dim]j/k[/dim]=Navigate  "
                 "[dim]'[/dim]=Jump  "
                 "[dim]esc[/dim]=Close"
@@ -222,11 +221,6 @@ class ModelsPanelDisplayMixin(ModelsPanelDisplayOptionsMixin, _MixinBase):
             "[green]e[/green]=Edit  "
             "[green]r[/green]=Reset"
         )
-        if isinstance(row, AliasView) or (
-            isinstance(row, LaunchModelSettingRow)
-            and row.snapshot.referenced_alias is not None
-        ):
-            footer += "  [green]H[/green]=History"
         if self._active_bucket is not None:
             footer += "  [green]h[/green]=Back"
         return footer + (
