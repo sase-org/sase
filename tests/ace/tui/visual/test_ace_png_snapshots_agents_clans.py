@@ -149,7 +149,7 @@ async def test_clan_tree_fold_levels_png_snapshots(
             title="ACE clan member fully expanded",
         )
 
-        await page.press("o", "o")
+        await page.press("B", "B")
         await wait_for_visual_idle(page)
         assert page.app._grouping_mode is GroupingMode.BY_STATUS
         assert page.app._panel_group.panel_keys == [None]
