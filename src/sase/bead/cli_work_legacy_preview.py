@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from sase.bead.cli_work_cleanup import CleanupPreview
+    from sase.bead.cli_work_cleanup_types import CleanupPreview
 
 
 def preview_legacy_bead_work_force_reuse(
@@ -23,7 +23,7 @@ def preview_legacy_bead_work_force_reuse(
         get_live_agent_name_subset,
         lookup_registered_name,
     )
-    from sase.bead.cli_work_cleanup import CleanupPreview, CleanupTarget
+    from sase.bead.cli_work_cleanup_types import CleanupPreview, CleanupTarget
     from sase.bead.cli_work_name_cleanup import ForcedReuseCleanupError
 
     directive_names = force_reuse_owner_names(query.split("\n---\n"))
