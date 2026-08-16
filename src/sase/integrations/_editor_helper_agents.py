@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sase.integrations._editor_helper_agent_plans import FamilyPlanPreviewResult
 
 from sase.agent.status_buckets import aggregate_agent_group_status
 from sase.monitor_state import is_monitor_member_role
@@ -76,7 +79,7 @@ def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
 
 def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str, Any]]:
     members = _catalog_members(snapshot, agents)
-    families = _family_entries(members)
+    families = _family_entries(members, snapshot)
     clans, clan_members = _clan_entries(members)
     tribes = _tribe_entries(members, clan_members)
     return [*families, *clans, *tribes]
@@ -202,27 +205,98 @@ def _record_status(record: Any) -> str:
     return active_status_for_record(record)
 
 
-def _family_entries(members: list[_CatalogMember]) -> list[dict[str, Any]]:
+def _family_entries(
+    members: list[_CatalogMember],
+    snapshot: Any,
+) -> list[dict[str, Any]]:
     grouped: dict[str, list[_CatalogMember]] = {}
     for member in members:
         if member.family:
             grouped.setdefault(member.family, []).append(member)
 
-    entries: list[dict[str, Any]] = []
+    pending: list[tuple[str, list[_CatalogMember]]] = []
     for family, known_members in grouped.items():
         generation = _newest_family_generation(known_members)
-        if not generation:
-            continue
+        if generation:
+            pending.append((family, generation))
+
+    enrichments = _family_plan_enrichments(pending, snapshot)
+    entries: list[dict[str, Any]] = []
+    for family, generation in pending:
         count = len(generation)
-        entries.append(
-            {
-                "name": family,
-                "kind": "family",
-                "member_count": count,
-                "detail": f"family · {count} {_members_label(count)}",
-            }
-        )
+        entry: dict[str, Any] = {
+            "name": family,
+            "kind": "family",
+            "member_count": count,
+            "detail": f"family · {count} {_members_label(count)}",
+        }
+        result = enrichments.get(family)
+        if result is not None:
+            try:
+                _apply_family_plan_preview(
+                    entry,
+                    result,
+                    count=count,
+                    status=_aggregate_status(member.status for member in generation),
+                )
+            except Exception:
+                pass
+        entries.append(entry)
     return entries
+
+
+def _family_plan_enrichments(
+    pending: list[tuple[str, list[_CatalogMember]]],
+    snapshot: Any,
+) -> dict[str, FamilyPlanPreviewResult]:
+    from sase.integrations._editor_helper_agent_plans import enrich_catalog_families
+
+    try:
+        return enrich_catalog_families(
+            snapshot,
+            [
+                (
+                    family,
+                    tuple(
+                        (member.artifact_dir, member.timestamp) for member in generation
+                    ),
+                )
+                for family, generation in pending
+            ],
+        )
+    except Exception:
+        return {}
+
+
+def _apply_family_plan_preview(
+    entry: dict[str, Any],
+    result: FamilyPlanPreviewResult,
+    *,
+    count: int,
+    status: str,
+) -> None:
+    from sase.agent_family_plan_preview import (
+        agent_family_plan_preview_detail,
+        agent_family_plan_preview_documentation,
+    )
+
+    fallback = result.fallback_title
+    detail = agent_family_plan_preview_detail(
+        result.preview,
+        fallback_title=fallback,
+    )
+    if detail:
+        entry["detail"] = detail
+    elif fallback:
+        entry["detail"] = f"family · {count} {_members_label(count)} · {fallback}"
+    documentation = agent_family_plan_preview_documentation(
+        result.preview,
+        fallback_title=fallback,
+    )
+    if not documentation:
+        return
+    footer = f"family · {count} {_members_label(count)} · {status}"
+    entry["documentation"] = f"{documentation}\n\n---\n\n{footer}"
 
 
 def _newest_family_generation(
