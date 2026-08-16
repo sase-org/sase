@@ -28,18 +28,11 @@ def test_task_triage_launch_executes_real_command_translates_and_persists_task_i
     del gate_home
     gate = create_gate(task_triage_spec(request_id="task-triage-launch"))
     task = SimpleNamespace(proc_id="task-bg-123")
-    primary = Path("/canonical/sase")
 
-    with (
-        patch(
-            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
-            return_value=primary,
-        ) as resolve_project,
-        patch(
-            "sase.bead.task_launch.submit_task_launch_task",
-            return_value=task,
-        ) as submit,
-    ):
+    with patch(
+        "sase.bead.task_launch.submit_task_launch_task",
+        return_value=task,
+    ) as submit:
         execution = execute_gate_selection(
             gate.bundle_path,
             ["launch"],
@@ -61,10 +54,9 @@ def test_task_triage_launch_executes_real_command_translates_and_persists_task_i
     assert translated.action == "launch"
     assert translated.feedback == "Keep the compatibility shim."
     assert translated.source == "tui"
-    resolve_project.assert_called_once_with("sase")
     submit.assert_called_once_with(
         "sase-task.1",
-        cwd=primary,
+        project="sase",
         feedback="Keep the compatibility shim.",
         origin="ace",
     )

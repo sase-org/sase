@@ -24,7 +24,7 @@ def prepare_epic_launch(
     *,
     mode: EpicLaunchMode,
     response_dir: Path,
-    resolved_cwd: Path | None = None,
+    resolved_project: str | None = None,
     origin: EpicLaunchOrigin = "api",
 ) -> EpicLaunchSubmission | None:
     """Start the host-owned epic launch, or intentionally skip it."""
@@ -40,15 +40,16 @@ def prepare_epic_launch(
         )
     if mode == "skip":
         return None
-    cwd = resolved_cwd or epic_launch_cwd(notification)
-    if cwd is None:
+    project = resolved_project or epic_launch_project(notification)
+    primary_dir = _epic_launch_primary_checkout_or_none(project)
+    if project is None or primary_dir is None:
         _raise_unclaimable_epic_launch(plan_file)
 
     plan_path = str(plan_file)
     try:
         from sase.bead.cli_work_from_plan import require_epic_launch_store_health
 
-        require_epic_launch_store_health(cwd)
+        require_epic_launch_store_health(primary_dir)
     except Exception as exc:
         from sase.sdd._repository_transaction import SddRepositoryHealthError
         from sase.sdd._store_types import SddMaterializationError
@@ -68,7 +69,7 @@ def prepare_epic_launch(
     try:
         return start_epic_launch_monitor(
             plan_path,
-            cwd=cwd,
+            project=project,
             host_action_data=notification.host_action_data,
             artifacts_dir=resolve_plan_agent_artifacts_dir(
                 notification.host_action_data
@@ -99,8 +100,8 @@ def can_claim_epic_launch(
         )
     if mode == "skip":
         return True
-    cwd = epic_launch_cwd(notification)
-    if cwd is None:
+    project = epic_launch_project(notification)
+    if project is None or _epic_launch_primary_checkout_or_none(project) is None:
         plan_file = notification.host_files[0] if notification.host_files else "plan"
         _raise_unclaimable_epic_launch(plan_file)
     return True
@@ -119,17 +120,32 @@ def _raise_unclaimable_epic_launch(plan_file: str | Path) -> NoReturn:
     )
 
 
-def epic_launch_cwd(notification: PlanApprovalActionContext) -> Path | None:
+def epic_launch_project(notification: PlanApprovalActionContext) -> str | None:
     project_dir = notification.host_action_data.get("project_dir")
     agent_project_file = notification.host_action_data.get("agent_project_file")
     if not project_dir and not agent_project_file:
         return None
     try:
-        from sase.bead.epic_launch import resolve_epic_launch_cwd
+        from sase.bead.epic_launch import resolve_epic_launch_project
 
-        return resolve_epic_launch_cwd(
+        return resolve_epic_launch_project(
             project_dir,
             agent_project_file=agent_project_file,
         )
     except Exception:
         return None
+
+
+def _epic_launch_primary_checkout_or_none(project: str | None) -> Path | None:
+    """Read-only preflight: confirm *project*'s primary checkout exists.
+
+    This never authorizes a mutation; it only fails the launch fast when the
+    primary checkout used to resolve config, remotes, and project identity
+    is missing. The actual launch runs in a leased checkout, never here.
+    """
+    if not project:
+        return None
+    from sase.running_field import get_workspace_directory
+
+    primary = Path(get_workspace_directory(project, 1)).expanduser()
+    return primary if primary.is_dir() else None

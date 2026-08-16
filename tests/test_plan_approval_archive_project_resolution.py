@@ -17,6 +17,7 @@ import pytest
 from sase.notifications import Notification
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
+from tests.workspace_lease_helpers import patched_operational_lease
 
 ArchiveCall = Callable[[Mapping[str, str], Path, str], str | None]
 
@@ -86,24 +87,17 @@ def test_archive_resolves_project_from_agent_project_file(
         # Plan gates write the agent workspace dir, with a trailing slash.
         "project_dir": "/home/agent/workspaces/sase-org/sase/sase_10/",
     }
-    seen: list[tuple[str, int]] = []
-
-    def fake_get_workspace_directory(project: str, workspace_num: int = 1) -> str:
-        seen.append((project, workspace_num))
-        return str(workspace)
+    seen: list[tuple[str, str]] = []
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            side_effect=fake_get_workspace_directory,
-        ),
+        patched_operational_lease(workspace, seen=seen),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202608"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
     ):
         saved = archive(action_data, _plan_file(tmp_path), "tale")
 
-    assert seen == [("gh_sase-org__sase", 1)]
+    assert seen == [("gh_sase-org__sase", "plan-archive")]
     assert saved == str(workspace / "sdd" / "plans" / "202608" / "plan.md")
 
 
@@ -119,24 +113,17 @@ def test_archive_resolves_project_from_trailing_slash_workspace_dir(
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     action_data = {"project_dir": f"{tmp_path / 'workspaces' / 'myproj_10'}/"}
-    seen: list[tuple[str, int]] = []
-
-    def fake_get_workspace_directory(project: str, workspace_num: int = 1) -> str:
-        seen.append((project, workspace_num))
-        return str(workspace)
+    seen: list[tuple[str, str]] = []
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            side_effect=fake_get_workspace_directory,
-        ),
+        patched_operational_lease(workspace, seen=seen),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202608"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
     ):
         saved = archive(action_data, _plan_file(tmp_path), "tale")
 
-    assert seen == [("myproj", 1)]
+    assert seen == [("myproj", "plan-archive")]
     assert saved == str(workspace / "sdd" / "plans" / "202608" / "plan.md")
 
 
@@ -175,7 +162,7 @@ def test_workspace_lookup_failure_is_reported(
 
     with (
         patch(
-            "sase.running_field.get_workspace_directory",
+            "sase.workspace_provider.lease.acquire_operational_lease",
             side_effect=RuntimeError("no workspace plugin"),
         ),
         patch("sase._plan_archive_approval.report_plan_archive_failure") as report,

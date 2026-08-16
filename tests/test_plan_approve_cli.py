@@ -27,6 +27,7 @@ from sase.plan_approval_actions import (
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
+from tests.workspace_lease_helpers import patched_operational_lease
 
 _LIVE_AGENT_TS = "20260613120000"
 
@@ -173,8 +174,12 @@ def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> No
 
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
         ),
         patch(
             "sase.bead.epic_launch.start_epic_launch_monitor",
@@ -215,9 +220,13 @@ def test_cli_epic_approval_starts_monitor_after_claiming_ownership(
 
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
-        ) as resolve_cwd,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ) as resolve_project,
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
         patch(
             "sase.bead.epic_launch.start_epic_launch_monitor",
             side_effect=start_monitor,
@@ -227,14 +236,14 @@ def test_cli_epic_approval_starts_monitor_after_claiming_ownership(
 
     assert result.response_json["epic_launch_owner"] == "host"
     assert result.epic_launch_monitor_id == "mon-cli"
-    assert resolve_cwd.call_count == 2
-    resolve_cwd.assert_called_with(
+    assert resolve_project.call_count == 2
+    resolve_project.assert_called_with(
         str(workspace),
         agent_project_file=str(agent_project_file),
     )
     launch.assert_called_once()
     assert launch.call_args.args == (str(plan),)
-    assert launch.call_args.kwargs["cwd"] == workspace
+    assert launch.call_args.kwargs["project"] == "canonical"
     assert launch.call_args.kwargs["origin"] == "cli"
 
 
@@ -266,8 +275,12 @@ def test_failed_epic_gate_leaves_proposal_pending_and_retryable(
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
         ),
         patch(
             "sase.bead.epic_launch.start_epic_launch_monitor",
@@ -502,9 +515,7 @@ def test_plan_approve_archives_sdd_path_and_refreshes_index(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory", return_value=str(workspace)
-        ),
+        patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202606"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,

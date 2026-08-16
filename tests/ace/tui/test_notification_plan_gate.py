@@ -324,8 +324,12 @@ def test_neutral_epic_submission_records_ace_origin(
 
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
         ),
         patch(
             "sase.bead.cli_work_from_plan.require_epic_launch_store_health",

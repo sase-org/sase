@@ -382,7 +382,9 @@ def _resolve_lane_start(
     )
     transfer_from_pid: int | None = None
     starter_agent: str | None = None
-    if (
+    if request.transfer_claim_from_pid is not None:
+        transfer_from_pid = request.transfer_claim_from_pid
+    elif (
         request.inherit_lane_workspace_claim
         and cwd_matches_lane
         and resolved_workspace_num != 0

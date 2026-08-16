@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase._plan_approval_epic import epic_launch_cwd
+from sase._plan_approval_epic import epic_launch_project
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     PlanApprovalActionError,
@@ -23,6 +23,9 @@ from sase.plan_approval_actions import (
 from sase.sdd._repository_transaction import SddRepositoryHealthError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
+from tests.workspace_lease_helpers import (
+    patched_operational_lease as _patched_operational_lease,
+)
 
 
 def _hold_epic_approval_lock(
@@ -96,10 +99,7 @@ def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        _patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202608"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
@@ -241,10 +241,7 @@ def test_archive_plan_for_approval_uses_canonical_durable_stem(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        _patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202608"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
@@ -280,10 +277,7 @@ def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_tier(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        _patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
         patch(
@@ -345,9 +339,13 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
 
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
-        ) as resolve_cwd,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ) as resolve_project,
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
         patch(
             "sase.bead.epic_launch.start_epic_launch_monitor",
             side_effect=start,
@@ -359,13 +357,13 @@ def test_headless_epic_approval_claims_host_ownership_before_submitting(
     assert result.epic_launch_monitor_id == "mon1"
     assert result.epic_launch_task_id is None
     assert order == ["start"]
-    assert resolve_cwd.call_count == 2
-    resolve_cwd.assert_called_with(
+    assert resolve_project.call_count == 2
+    resolve_project.assert_called_with(
         str(workspace),
         agent_project_file=str(tmp_path / "projects" / "canonical" / "canonical.sase"),
     )
     start_launch.assert_called_once()
-    assert start_launch.call_args.kwargs["cwd"] == workspace
+    assert start_launch.call_args.kwargs["project"] == "canonical"
     assert start_launch.call_args.kwargs["origin"] == expected_origin
 
 
@@ -397,8 +395,12 @@ def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
     try:
         with (
             patch(
-                "sase.bead.epic_launch.resolve_epic_launch_cwd",
-                return_value=workspace,
+                "sase.bead.epic_launch.resolve_epic_launch_project",
+                return_value="canonical",
+            ),
+            patch(
+                "sase.running_field.get_workspace_directory",
+                return_value=str(workspace),
             ),
             patch(
                 "sase.bead.cli_work_from_plan_store.resolve_beads_location",
@@ -421,11 +423,9 @@ def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
     assert process.exitcode == 0
 
 
-def test_epic_launch_cwd_resolves_from_project_file_without_project_dir(
+def test_epic_launch_project_resolves_from_project_file_without_project_dir(
     tmp_path: Path,
 ) -> None:
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
     project_file = tmp_path / "projects" / "canonical" / "canonical.sase"
     context = PlanApprovalActionContext(
         id="plan-approval",
@@ -434,25 +434,25 @@ def test_epic_launch_cwd_resolves_from_project_file_without_project_dir(
     )
 
     with patch(
-        "sase.bead.epic_launch.resolve_epic_launch_cwd",
-        return_value=workspace,
-    ) as resolve_cwd:
-        assert epic_launch_cwd(context) == workspace
+        "sase.bead.epic_launch.resolve_epic_launch_project",
+        return_value="canonical",
+    ) as resolve_project:
+        assert epic_launch_project(context) == "canonical"
 
-    resolve_cwd.assert_called_once_with(
+    resolve_project.assert_called_once_with(
         None,
         agent_project_file=str(project_file),
     )
 
 
-def test_epic_launch_cwd_returns_none_without_project_identity() -> None:
+def test_epic_launch_project_returns_none_without_project_identity() -> None:
     context = PlanApprovalActionContext(
         id="plan-approval",
         host_files=(),
         host_action_data={},
     )
 
-    assert epic_launch_cwd(context) is None
+    assert epic_launch_project(context) is None
 
 
 def test_headless_epic_submit_failure_keeps_durable_host_claim(
@@ -461,8 +461,12 @@ def test_headless_epic_submit_failure_keeps_durable_host_claim(
     context, response_dir, workspace = _epic_context(tmp_path)
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
         ),
         patch(
             "sase.bead.epic_launch.start_epic_launch_monitor",
@@ -482,8 +486,12 @@ def test_headless_epic_refuses_unusable_store_before_task_submit(
     context, response_dir, workspace = _epic_context(tmp_path)
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
         ),
         patch(
             "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
@@ -505,7 +513,7 @@ def test_headless_epic_resolution_failure_is_loud_with_resume_hint(
     context, response_dir, _workspace = _epic_context(tmp_path)
     with (
         patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            "sase.bead.epic_launch.resolve_epic_launch_project",
             side_effect=ValueError("invalid project identity"),
         ),
         patch(

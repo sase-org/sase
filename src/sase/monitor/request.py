@@ -49,6 +49,7 @@ class StartMonitorRequest:
     idle_timeout_seconds: float = 0.0
     next_output: str = DEFAULT_NEXT_OUTPUT
     inherit_lane_workspace_claim: bool = True
+    transfer_claim_from_pid: int | None = None
 
 
 def default_label(command: str) -> str:

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from sase.bead.epic_launch import (
     EpicLaunchOrigin,
     epic_launch_origin_from_gate_source,
-    resolve_epic_launch_cwd,
+    resolve_epic_launch_project,
 )
 
 if TYPE_CHECKING:
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 _TASK_LAUNCH_TAGS = ("task", "launch")
 _TASK_LAUNCH_SUBMIT_LOCK = "task-launch-submit"
+_TASK_LAUNCH_LEASE_WORKFLOW = "task-launch"
 
 type TaskLaunchOrigin = EpicLaunchOrigin
 
@@ -48,11 +49,23 @@ def _resolve_task_launch_cwd(
     *,
     agent_project_file: str | Path | None = None,
 ) -> Path:
-    """Resolve a task bead's canonical project to its primary checkout."""
-    return resolve_epic_launch_cwd(
+    """Resolve a task bead's canonical project to its primary checkout.
+
+    Used only for background bead-store mutations (close/snooze) that still
+    resolve a primary cwd; see sase-mq.5 for moving those off the canonical
+    primary clone. Task-bead *launches* no longer use this -- they resolve
+    project identity and acquire an operational lease instead.
+    """
+    project = resolve_epic_launch_project(
         project_dir,
         agent_project_file=agent_project_file,
     )
+    from sase.running_field import get_workspace_directory
+
+    primary = Path(get_workspace_directory(project, 1)).expanduser()
+    if not primary.is_dir():
+        raise FileNotFoundError(f"primary workspace is missing: {primary}")
+    return primary
 
 
 def resolve_task_launch_cwd_for_project(project: str) -> Path:
@@ -72,29 +85,38 @@ def resolve_task_launch_cwd_for_project(project: str) -> Path:
 def submit_task_launch_task(
     task_id: str,
     *,
-    cwd: str | Path,
+    project: str,
     feedback: str | None = None,
     origin: TaskLaunchOrigin = "api",
 ) -> Proc:
-    """Submit or reuse one unattributed task-bead launch."""
-    from sase.bead.project_name import infer_project_name_from_cwd
+    """Submit or reuse one task-bead launch through a leased checkout."""
     from sase.logs._bounded import log_file_lock
     from sase.procs import procs_dir
-    from sase.procs.runner import submit_proc
+    from sase.procs.request import ProcSubmitRequest
+    from sase.workspace_provider.lease import (
+        acquire_operational_lease,
+        submit_via_lease,
+    )
 
-    resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
-    project = infer_project_name_from_cwd(str(resolved_cwd))
     with log_file_lock(procs_dir() / _TASK_LAUNCH_SUBMIT_LOCK):
         if existing := _active_task_launch(task_id):
             return existing
-        return submit_proc(
-            _build_task_launch_argv(task_id, feedback=feedback),
-            label=f"Task launch · {task_id}",
-            cwd=resolved_cwd,
-            origin=origin,
-            project=project,
-            session_id=None,
-            tags=_TASK_LAUNCH_TAGS,
+        lease = acquire_operational_lease(
+            project,
+            workflow=_TASK_LAUNCH_LEASE_WORKFLOW,
+            holder=f"task-launch:{task_id}",
+        )
+        return submit_via_lease(
+            ProcSubmitRequest(
+                argv=_build_task_launch_argv(task_id, feedback=feedback),
+                label=f"Task launch · {task_id}",
+                cwd=str(lease.checkout_dir),
+                origin=origin,
+                project=project,
+                session_id=None,
+                tags=_TASK_LAUNCH_TAGS,
+            ),
+            lease,
         )
 
 
@@ -105,10 +127,10 @@ def submit_task_launch_for_project(
     feedback: str | None = None,
     origin: TaskLaunchOrigin | None = None,
 ) -> Proc:
-    """Resolve *project* and submit or reuse its task launch."""
+    """Submit or reuse *project*'s task launch through a leased checkout."""
     return submit_task_launch_task(
         bead_id,
-        cwd=resolve_task_launch_cwd_for_project(project),
+        project=project,
         feedback=feedback,
         origin=origin or "api",
     )

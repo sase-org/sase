@@ -71,10 +71,9 @@ def launch_task_triage(
         task_launch_origin_from_gate_source,
     )
 
-    cwd = _resolve_task_triage_project_cwd(decision.project)
     return submit_task_launch_task(
         decision.bead_id,
-        cwd=cwd,
+        project=decision.project,
         feedback=decision.feedback,
         origin=(
             origin

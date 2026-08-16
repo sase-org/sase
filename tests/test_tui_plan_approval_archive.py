@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from sase.notifications import Notification
 from tests.sdd_policy_helpers import patched_sdd_policy
+from tests.workspace_lease_helpers import patched_operational_lease
 
 
 def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
@@ -29,10 +30,7 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
@@ -72,10 +70,7 @@ def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_epic(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
         patch(
@@ -110,10 +105,7 @@ def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_tale(
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        patched_operational_lease(workspace),
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
         patch(
@@ -146,10 +138,7 @@ def test_archive_plan_for_approval_uses_local_sdd_dir(tmp_path: Path) -> None:
     )
 
     with (
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(workspace),
-        ),
+        patched_operational_lease(workspace),
         patched_sdd_policy("local"),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,

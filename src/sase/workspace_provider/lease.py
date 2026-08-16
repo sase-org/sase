@@ -362,41 +362,24 @@ def transfer_operational_lease(lease: OperationalLease, proc: Any) -> None:
         )
 
 
-def submit_leased_proc_request(
+def submit_via_lease(
     request: Any,
+    lease: OperationalLease,
     *,
-    workflow: str,
-    holder: str,
-    project: str | None = None,
-    project_file: str | Path | None = None,
-    cl_name: str | None = None,
     after_ack: Callable[[Any], None] | None = None,
-    config: Mapping[str, Any] | None = None,
-    env: Mapping[str, str] | None = None,
 ) -> Any:
-    """Preclaim a lease, submit *request* in that checkout, then transfer.
+    """Submit *request* inside an already-acquired *lease*, then transfer.
 
     The claim is released on a pre-transfer spawn error. After a successful
-    transfer, proc settlement releases the claim exactly once.
+    transfer, proc settlement releases the claim exactly once. Use this
+    (rather than :func:`submit_leased_proc_request`) when the caller already
+    holds a lease it wants this submission to share -- for example a
+    detached fallback that reuses the same lease a prior monitor-start
+    attempt acquired.
     """
 
     from sase.procs.service import submit_proc_request
 
-    resolved_project = project or getattr(request, "project", None)
-    if not isinstance(resolved_project, str) or not resolved_project:
-        raise OperationalLeaseError(
-            "allocation",
-            "durable leased submission requires a project identity",
-        )
-    lease = acquire_operational_lease(
-        resolved_project,
-        workflow=workflow,
-        holder=holder,
-        project_file=project_file,
-        cl_name=cl_name,
-        config=config,
-        env=env,
-    )
     transferred = False
 
     def _after_ack(proc: Any) -> None:
@@ -415,6 +398,42 @@ def submit_leased_proc_request(
         if not transferred:
             release_operational_lease(lease)
         raise
+
+
+def submit_leased_proc_request(
+    request: Any,
+    *,
+    workflow: str,
+    holder: str,
+    project: str | None = None,
+    project_file: str | Path | None = None,
+    cl_name: str | None = None,
+    after_ack: Callable[[Any], None] | None = None,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> Any:
+    """Preclaim a lease, submit *request* in that checkout, then transfer.
+
+    The claim is released on a pre-transfer spawn error. After a successful
+    transfer, proc settlement releases the claim exactly once.
+    """
+
+    resolved_project = project or getattr(request, "project", None)
+    if not isinstance(resolved_project, str) or not resolved_project:
+        raise OperationalLeaseError(
+            "allocation",
+            "durable leased submission requires a project identity",
+        )
+    lease = acquire_operational_lease(
+        resolved_project,
+        workflow=workflow,
+        holder=holder,
+        project_file=project_file,
+        cl_name=cl_name,
+        config=config,
+        env=env,
+    )
+    return submit_via_lease(request, lease, after_ack=after_ack)
 
 
 @contextmanager
@@ -682,5 +701,6 @@ __all__ = [
     "operational_workspace_lease",
     "release_operational_lease",
     "submit_leased_proc_request",
+    "submit_via_lease",
     "transfer_operational_lease",
 ]

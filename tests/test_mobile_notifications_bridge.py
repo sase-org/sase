@@ -500,10 +500,6 @@ def test_execute_mobile_task_triage_reports_registered_action_kind(
         ),
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
         patch(
-            "sase.bead._task_gate_actions._resolve_task_triage_project_cwd",
-            return_value=Path("/canonical/sase"),
-        ),
-        patch(
             "sase.bead.task_launch.submit_task_launch_task",
             return_value=task,
         ) as submit,
@@ -525,7 +521,7 @@ def test_execute_mobile_task_triage_reports_registered_action_kind(
     assert result.response_json["task_launch_task_id"] == "mobile-task-123"
     submit.assert_called_once_with(
         "sase-task.1",
-        cwd=Path("/canonical/sase"),
+        project="sase",
         feedback="Keep the shim.",
         origin="api",
     )

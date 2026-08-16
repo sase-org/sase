@@ -16,9 +16,41 @@ from sase.bead.epic_launch import (
     build_epic_launch_argv,
     epic_launch_origin_from_gate_source,
     finish_epic_launch,
-    resolve_epic_launch_cwd,
+    resolve_epic_launch_project,
     start_epic_launch_monitor,
 )
+from sase.workspace_provider.lease import OperationalLease
+from sase.workspace_provider.ownership import (
+    AccessKind,
+    MutationOrigin,
+    OperationContext,
+)
+
+
+def _fake_lease(tmp_path: Path, *, claim_pid: int = 4321) -> OperationalLease:
+    checkout = tmp_path / "leased"
+    checkout.mkdir(exist_ok=True)
+    context = OperationContext(
+        project="sase",
+        access_kind=AccessKind.LEASED_OPERATIONAL,
+        mutation_origin=MutationOrigin.MACHINE,
+        workspace_num=10,
+        checkout_dir=checkout,
+        primary_checkout_dir=tmp_path / "primary",
+        claim_pid=claim_pid,
+        claim_workflow="epic-launch",
+    )
+    return OperationalLease(
+        project="sase",
+        workflow="epic-launch",
+        holder="planner",
+        workspace_num=10,
+        checkout_dir=checkout,
+        project_file=tmp_path / "sase.sase",
+        claim_pid=claim_pid,
+        cl_name=None,
+        context=context,
+    )
 
 
 def test_build_epic_launch_argv_carries_approval_linking_options() -> None:
@@ -73,7 +105,7 @@ def test_epic_launch_origin_maps_gate_response_sources(
     assert epic_launch_origin_from_gate_source(source) == expected
 
 
-def test_resolve_epic_launch_cwd_prefers_canonical_project_file(
+def test_resolve_epic_launch_project_prefers_canonical_project_file(
     tmp_path: Path,
 ) -> None:
     project_dir = tmp_path / "sase_10"
@@ -81,65 +113,45 @@ def test_resolve_epic_launch_cwd_prefers_canonical_project_file(
     project_file = (
         tmp_path / "projects" / "gh_sase-org__sase" / "gh_sase-org__sase.sase"
     )
-    primary = tmp_path / "primary"
-    primary.mkdir()
 
-    with (
-        patch("sase.workspace_provider.get_workspace_name") as get_workspace_name,
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(primary),
-        ) as get_workspace_directory,
-    ):
-        resolved = resolve_epic_launch_cwd(
+    with patch("sase.workspace_provider.get_workspace_name") as get_workspace_name:
+        resolved = resolve_epic_launch_project(
             project_dir,
             agent_project_file=project_file,
         )
 
-    assert resolved == primary
+    assert resolved == "gh_sase-org__sase"
     get_workspace_name.assert_not_called()
-    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
 
 
-def test_resolve_epic_launch_cwd_accepts_project_file_without_project_dir(
+def test_resolve_epic_launch_project_accepts_project_file_without_project_dir(
     tmp_path: Path,
 ) -> None:
     project_file = (
         tmp_path / "projects" / "gh_sase-org__sase" / "gh_sase-org__sase.sase"
     )
-    primary = tmp_path / "primary"
-    primary.mkdir()
 
-    with (
-        patch("sase.workspace_provider.get_workspace_name") as get_workspace_name,
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(primary),
-        ) as get_workspace_directory,
-    ):
-        resolved = resolve_epic_launch_cwd(
+    with patch("sase.workspace_provider.get_workspace_name") as get_workspace_name:
+        resolved = resolve_epic_launch_project(
             None,
             agent_project_file=project_file,
         )
 
-    assert resolved == primary
+    assert resolved == "gh_sase-org__sase"
     get_workspace_name.assert_not_called()
-    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
 
 
-def test_resolve_epic_launch_cwd_requires_a_project_signal() -> None:
+def test_resolve_epic_launch_project_requires_a_project_signal() -> None:
     with pytest.raises(ValueError, match="project_dir or agent_project_file"):
-        resolve_epic_launch_cwd(None)
+        resolve_epic_launch_project(None)
 
 
 @pytest.mark.parametrize("provider_name", ["sase", None])
-def test_resolve_epic_launch_cwd_canonicalizes_compatibility_fallback(
+def test_resolve_epic_launch_project_canonicalizes_compatibility_fallback(
     tmp_path: Path,
     provider_name: str | None,
 ) -> None:
     project_dir = tmp_path / "sase_10"
-    primary = tmp_path / "primary"
-    primary.mkdir()
 
     with (
         patch(
@@ -150,33 +162,26 @@ def test_resolve_epic_launch_cwd_canonicalizes_compatibility_fallback(
             "sase.project_aliases.resolve_project_alias_ref",
             return_value="gh_sase-org__sase",
         ) as resolve_alias,
-        patch(
-            "sase.running_field.get_workspace_directory",
-            return_value=str(primary),
-        ) as get_workspace_directory,
     ):
-        resolved = resolve_epic_launch_cwd(project_dir)
+        resolved = resolve_epic_launch_project(project_dir)
 
-    assert resolved == primary
+    assert resolved == "gh_sase-org__sase"
     resolve_alias.assert_called_once_with("sase")
-    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
 
 
-def test_resolve_epic_launch_cwd_rejects_invalid_project_file_identity(
+def test_resolve_epic_launch_project_rejects_invalid_project_file_identity(
     tmp_path: Path,
 ) -> None:
     with (
         patch("sase.workspace_provider.get_workspace_name") as get_workspace_name,
-        patch("sase.running_field.get_workspace_directory") as get_workspace_directory,
         pytest.raises(ValueError, match="does not identify a valid SASE project"),
     ):
-        resolve_epic_launch_cwd(
+        resolve_epic_launch_project(
             tmp_path / "sase_10",
             agent_project_file="project.sase",
         )
 
     get_workspace_name.assert_not_called()
-    get_workspace_directory.assert_not_called()
 
 
 def test_start_epic_launch_monitor_starts_literal_monitor_command(
@@ -184,12 +189,15 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
 ) -> None:
     plan = tmp_path / "auth rewrite.md"
     monitor = SimpleNamespace(monitor_id="m7k2xyz")
+    lease = _fake_lease(tmp_path)
     with (
         patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
         patch(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            return_value="sase",
-        ),
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ) as acquire,
+        patch("sase.workspace_provider.lease.release_operational_lease") as release,
         patch(
             "sase.monitor.start.start_monitor",
             return_value=monitor,
@@ -197,7 +205,7 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     ):
         submitted = start_epic_launch_monitor(
             plan,
-            cwd=tmp_path,
+            project="sase",
             host_action_data={"agent_name": "planner"},
             artifacts_dir=tmp_path / "artifacts",
             cl_name="demo",
@@ -205,6 +213,13 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
         )
 
     assert submitted is monitor
+    acquire.assert_called_once_with(
+        "sase",
+        workflow="epic-launch",
+        holder="planner",
+        cl_name="demo",
+    )
+    release.assert_not_called()
     request = start_monitor.call_args.args[0]
     assert request.command == (
         "sase bead work "
@@ -213,7 +228,7 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
         f"{shlex.quote(str(tmp_path / 'artifacts'))} "
         "--cl-name demo --expect-prompt-snapshot"
     )
-    assert request.cwd == str(tmp_path.resolve())
+    assert request.cwd == str(lease.checkout_dir)
     assert request.project_name == "sase"
     assert request.lane == "planner"
     assert request.label == "Epic launch · auth rewrite"
@@ -223,6 +238,7 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     assert request.stop_status == "EPIC CREATED"
     assert request.timeout_seconds == 4 * 60 * 60
     assert request.inherit_lane_workspace_claim is False
+    assert request.transfer_claim_from_pid == lease.claim_pid
 
 
 def test_start_epic_launch_monitor_uses_clan_member_name_as_lane(
@@ -286,12 +302,15 @@ def _start_epic_launch_monitor_request(
         encoding="utf-8",
     )
     monitor = SimpleNamespace(monitor_id="m7k2xyz")
+    lease = _fake_lease(tmp_path)
     with (
         patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
         patch(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            return_value="sase",
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
         ),
+        patch("sase.workspace_provider.lease.release_operational_lease"),
         patch(
             "sase.monitor.start.start_monitor",
             return_value=monitor,
@@ -299,7 +318,7 @@ def _start_epic_launch_monitor_request(
     ):
         submitted = start_epic_launch_monitor(
             plan,
-            cwd=tmp_path,
+            project="sase",
             host_action_data={"agent_name": "sase-m6.6"},
             artifacts_dir=artifacts,
         )
@@ -308,7 +327,7 @@ def _start_epic_launch_monitor_request(
     return start_monitor.call_args.args[0]
 
 
-def test_start_epic_launch_monitor_falls_back_to_unattributed_proc_when_lane_missing(
+def test_start_epic_launch_monitor_falls_back_to_leased_proc_when_lane_missing(
     tmp_path: Path,
 ) -> None:
     plan = tmp_path / "auth rewrite.md"
@@ -317,28 +336,38 @@ def test_start_epic_launch_monitor_falls_back_to_unattributed_proc_when_lane_mis
         kind="command",
         session_id=None,
     )
+    lease = _fake_lease(tmp_path)
     with (
         patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
         patch("sase.procs.read_procs", return_value=[]),
         patch(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            return_value="sase",
-        ),
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ) as acquire,
+        patch("sase.workspace_provider.lease.release_operational_lease") as release,
         patch(
-            "sase.procs.runner.submit_proc",
+            "sase.workspace_provider.lease.submit_via_lease",
             return_value=task,
-        ) as submit_task,
+        ) as submit_via_lease,
     ):
         submitted = start_epic_launch_monitor(
             plan,
-            cwd=tmp_path,
+            project="sase",
             artifacts_dir=tmp_path / "artifacts",
             cl_name="demo",
             origin="telegram",
         )
 
     assert submitted is task
-    assert submit_task.call_args.args[0] == [
+    release.assert_not_called()
+    acquire.assert_called_once_with(
+        "sase",
+        workflow="epic-launch",
+        holder="epic-launch",
+        cl_name="demo",
+    )
+    request = submit_via_lease.call_args.args[0]
+    assert list(request.argv) == [
         "sase",
         "bead",
         "work",
@@ -350,14 +379,14 @@ def test_start_epic_launch_monitor_falls_back_to_unattributed_proc_when_lane_mis
         "demo",
         "--expect-prompt-snapshot",
     ]
-    kwargs = submit_task.call_args.kwargs
-    assert kwargs["label"] == "Epic launch · auth rewrite"
-    assert kwargs["cwd"] == tmp_path.resolve()
-    assert kwargs["origin"] == "telegram"
-    assert kwargs["project"] == "sase"
-    assert kwargs["cl_name"] == "demo"
-    assert kwargs["session_id"] is None
-    assert sorted(kwargs["tags"]) == ["epic", "launch"]
+    assert request.label == "Epic launch · auth rewrite"
+    assert request.cwd == str(lease.checkout_dir)
+    assert request.origin == "telegram"
+    assert request.project == "sase"
+    assert request.cl_name == "demo"
+    assert request.session_id is None
+    assert sorted(request.tags) == ["epic", "launch"]
+    assert submit_via_lease.call_args.args[1] is lease
 
 
 def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
@@ -373,13 +402,9 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
     with (
         patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
         patch("sase.procs.read_procs", return_value=[existing]) as read_tasks,
-        patch(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            return_value="sase",
-        ),
-        patch("sase.procs.runner.submit_proc") as submit_task,
+        patch("sase.workspace_provider.lease.acquire_operational_lease") as acquire,
     ):
-        submitted = start_epic_launch_monitor(plan, cwd=tmp_path)
+        submitted = start_epic_launch_monitor(plan, project="sase")
 
     assert submitted is existing
     read_tasks.assert_called_once()
@@ -387,7 +412,7 @@ def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(
         {"pending", "running", "settling"}
     )
     assert read_tasks.call_args.kwargs["kind"] == {"command", "detached"}
-    submit_task.assert_not_called()
+    acquire.assert_not_called()
 
 
 def test_update_epic_launch_metadata_backfills_all_host_fields(

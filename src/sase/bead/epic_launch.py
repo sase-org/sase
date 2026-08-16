@@ -17,11 +17,13 @@ from sase.plan_chain import agent_family_base
 if TYPE_CHECKING:
     from sase.procs.models import Proc
     from sase.monitor.models import MonitorRecord
+    from sase.workspace_provider.lease import OperationalLease
 
 
 _EPIC_LAUNCH_TAGS = ("epic", "launch")
 _EPIC_LAUNCH_SUBMIT_LOCK = "epic-launch-submit"
 _EPIC_LAUNCH_TIMEOUT_SECONDS = 4 * 60 * 60
+_EPIC_LAUNCH_LEASE_WORKFLOW = "epic-launch"
 _logger = logging.getLogger(__name__)
 
 type EpicLaunchOrigin = Literal["ace", "telegram", "cli", "axe", "api"]
@@ -61,12 +63,17 @@ def build_epic_launch_argv(
     return argv
 
 
-def resolve_epic_launch_cwd(
+def resolve_epic_launch_project(
     project_dir: str | Path | None,
     *,
     agent_project_file: str | Path | None = None,
-) -> Path:
-    """Resolve an approved epic's canonical project to its primary checkout."""
+) -> str:
+    """Resolve an approved epic's canonical SASE project identity.
+
+    Returns durable project identity only -- never a primary execution cwd.
+    Callers acquire an operational lease for the returned project before
+    doing any mutating launch work.
+    """
     project_file_value = (
         str(agent_project_file).strip() if agent_project_file is not None else ""
     )
@@ -79,38 +86,32 @@ def resolve_epic_launch_cwd(
                 "agent project file does not identify a valid SASE project: "
                 f"{agent_project_file}"
             )
-    else:
-        if project_dir is None or not str(project_dir).strip():
-            raise ValueError(
-                "project_dir or agent_project_file is required to resolve epic "
-                "launch cwd"
-            )
-        project_path = Path(project_dir).expanduser().resolve(strict=False)
-        try:
-            from sase.workspace_provider import get_workspace_name
+        return project_name
 
-            discovered_name = get_workspace_name(str(project_path))
-        except Exception:
-            discovered_name = None
-        if not discovered_name:
-            discovered_name = re.sub(r"_\d+$", "", project_path.name)
+    if project_dir is None or not str(project_dir).strip():
+        raise ValueError(
+            "project_dir or agent_project_file is required to resolve epic "
+            "launch project identity"
+        )
+    project_path = Path(project_dir).expanduser().resolve(strict=False)
+    try:
+        from sase.workspace_provider import get_workspace_name
 
-        from sase.project_aliases import resolve_project_alias_ref
+        discovered_name = get_workspace_name(str(project_path))
+    except Exception:
+        discovered_name = None
+    if not discovered_name:
+        discovered_name = re.sub(r"_\d+$", "", project_path.name)
 
-        project_name = resolve_project_alias_ref(discovered_name)
+    from sase.project_aliases import resolve_project_alias_ref
 
-    from sase.running_field import get_workspace_directory
-
-    primary = Path(get_workspace_directory(project_name, 1)).expanduser()
-    if not primary.is_dir():
-        raise FileNotFoundError(f"primary workspace is missing: {primary}")
-    return primary
+    return resolve_project_alias_ref(discovered_name)
 
 
 def start_epic_launch_monitor(
     plan_file: str | Path,
     *,
-    cwd: str | Path,
+    project: str,
     host_action_data: dict[str, str] | None = None,
     artifacts_dir: str | Path | None = None,
     cl_name: str | None = None,
@@ -118,77 +119,102 @@ def start_epic_launch_monitor(
 ) -> EpicLaunchSubmission:
     """Start one monitor member for an approved epic plan.
 
-    If the planner's lane is no longer resolvable, fall back to an
-    unattributed proc submission so the approved epic still launches.
+    Acquires a durable operational workspace lease for *project* and starts
+    the launch in the leased checkout -- never in the user-owned primary
+    checkout. If the planner's lane is no longer resolvable, fall back to
+    the same leased-workspace proc path instead of an unclaimed one so the
+    approved epic still launches. Any failure before the monitor or proc
+    acknowledges its start releases the preclaim.
 
     Raises:
         MonitorError: The monitor could not be started after lane resolution.
         ProcSubmitError: The fallback task could not be recorded or started.
+        OperationalLeaseError: The workspace lease could not be acquired.
     """
-    from sase.bead.project_name import infer_project_name_from_cwd
     from sase.logs._bounded import log_file_lock
     from sase.procs import procs_dir
+    from sase.workspace_provider.lease import (
+        acquire_operational_lease,
+        release_operational_lease,
+    )
 
-    resolved_cwd = Path(cwd).expanduser().resolve(strict=False)
-    resolved_plan = _resolved_plan_path(plan_file, cwd=resolved_cwd)
+    resolved_plan = Path(plan_file).expanduser().resolve(strict=False)
+    if existing := _active_epic_launch_for_plan(resolved_plan):
+        return existing
+
     argv = build_epic_launch_argv(
         plan_file,
         artifacts_dir=artifacts_dir,
         cl_name=cl_name,
     )
-    project = infer_project_name_from_cwd(str(resolved_cwd)) or (
-        _epic_launch_project(host_action_data or {})
-    )
-    if project is None:
-        raise ValueError(f"could not infer SASE project for epic launch cwd {cwd}")
     command = shlex.join(argv)
     label = f"Epic launch · {Path(plan_file).stem}"
     with log_file_lock(procs_dir() / _EPIC_LAUNCH_SUBMIT_LOCK):
+        if existing := _active_epic_launch_for_plan(resolved_plan):
+            return existing
         lane = _epic_launch_lane(host_action_data or {}, artifacts_dir=artifacts_dir)
-        if lane:
-            try:
-                from sase.monitor.models import MonitorLaneError
-                from sase.monitor.start import StartMonitorRequest, start_monitor
-
-                return start_monitor(
-                    StartMonitorRequest(
-                        command=command,
-                        reason=f"Launch the approved epic from {Path(plan_file).name}",
-                        timeout_seconds=_EPIC_LAUNCH_TIMEOUT_SECONDS,
-                        cwd=str(resolved_cwd),
-                        project_name=project,
-                        lane=lane,
-                        label=label,
-                        next_action=None,
-                        start_status="EPIC APPROVED",
-                        stop_status="EPIC CREATED",
-                        inherit_lane_workspace_claim=False,
-                    )
-                )
-            except MonitorLaneError:
-                _logger.warning(
-                    "Falling back to unattributed epic launch task for %s: "
-                    "planner lane %r is not resolvable",
-                    resolved_plan,
-                    lane,
-                    exc_info=True,
-                )
-        else:
-            _logger.warning(
-                "Falling back to unattributed epic launch task for %s: planner lane "
-                "is unavailable",
-                resolved_plan,
-            )
-        return _submit_epic_launch_task(
-            plan_file,
-            cwd=resolved_cwd,
-            artifacts_dir=artifacts_dir,
+        lease = acquire_operational_lease(
+            project,
+            workflow=_EPIC_LAUNCH_LEASE_WORKFLOW,
+            holder=lane or "epic-launch",
             cl_name=cl_name,
-            origin=origin,
-            project=project,
-            label=label,
-            resolved_plan=resolved_plan,
         )
+        transferred = False
+        try:
+            if lane:
+                try:
+                    from sase.monitor.models import MonitorLaneError
+                    from sase.monitor.start import StartMonitorRequest, start_monitor
+
+                    record = start_monitor(
+                        StartMonitorRequest(
+                            command=command,
+                            reason=(
+                                f"Launch the approved epic from {Path(plan_file).name}"
+                            ),
+                            timeout_seconds=_EPIC_LAUNCH_TIMEOUT_SECONDS,
+                            cwd=str(lease.checkout_dir),
+                            project_name=project,
+                            lane=lane,
+                            label=label,
+                            next_action=None,
+                            start_status="EPIC APPROVED",
+                            stop_status="EPIC CREATED",
+                            inherit_lane_workspace_claim=False,
+                            transfer_claim_from_pid=lease.claim_pid,
+                        )
+                    )
+                    transferred = True
+                    return record
+                except MonitorLaneError:
+                    _logger.warning(
+                        "Falling back to leased epic launch task for %s: "
+                        "planner lane %r is not resolvable",
+                        resolved_plan,
+                        lane,
+                        exc_info=True,
+                    )
+            else:
+                _logger.warning(
+                    "Falling back to leased epic launch task for %s: planner lane "
+                    "is unavailable",
+                    resolved_plan,
+                )
+            result = _submit_epic_launch_task(
+                plan_file,
+                lease=lease,
+                artifacts_dir=artifacts_dir,
+                cl_name=cl_name,
+                origin=origin,
+                project=project,
+                label=label,
+                resolved_plan=resolved_plan,
+            )
+            transferred = True
+            return result
+        finally:
+            if not transferred:
+                release_operational_lease(lease)
 
 
 def _epic_launch_lane(
@@ -227,15 +253,6 @@ def _optional_text(value: object) -> str | None:
     return None
 
 
-def _epic_launch_project(host_action_data: dict[str, str]) -> str | None:
-    try:
-        from sase._plan_approval_artifacts import resolve_plan_action_project_name
-
-        return resolve_plan_action_project_name(host_action_data)
-    except Exception:
-        return None
-
-
 def _read_agent_meta_best_effort(artifacts_dir: str | Path | None) -> dict[str, Any]:
     if artifacts_dir is None:
         return {}
@@ -250,7 +267,7 @@ def _read_agent_meta_best_effort(artifacts_dir: str | Path | None) -> dict[str, 
 def _submit_epic_launch_task(
     plan_file: str | Path,
     *,
-    cwd: Path,
+    lease: OperationalLease,
     artifacts_dir: str | Path | None,
     cl_name: str | None,
     origin: EpicLaunchOrigin,
@@ -258,24 +275,28 @@ def _submit_epic_launch_task(
     label: str,
     resolved_plan: Path,
 ) -> Proc:
-    """Submit the unattributed proc fallback for an approved epic plan."""
-    from sase.procs.runner import submit_proc
+    """Submit the leased-workspace proc fallback for an approved epic plan."""
+    from sase.procs.request import ProcSubmitRequest
+    from sase.workspace_provider.lease import submit_via_lease
 
     if existing := _active_epic_launch_for_plan(resolved_plan):
         return existing
-    return submit_proc(
-        build_epic_launch_argv(
-            plan_file,
-            artifacts_dir=artifacts_dir,
+    return submit_via_lease(
+        ProcSubmitRequest(
+            argv=build_epic_launch_argv(
+                plan_file,
+                artifacts_dir=artifacts_dir,
+                cl_name=cl_name,
+            ),
+            label=label,
+            cwd=str(lease.checkout_dir),
+            origin=origin,
+            project=project,
+            session_id=None,
+            tags=_EPIC_LAUNCH_TAGS,
             cl_name=cl_name,
         ),
-        label=label,
-        cwd=cwd,
-        origin=origin,
-        project=project,
-        session_id=None,
-        tags=_EPIC_LAUNCH_TAGS,
-        cl_name=cl_name,
+        lease,
     )
 
 
@@ -446,6 +467,6 @@ __all__ = [
     "build_epic_launch_argv",
     "epic_launch_origin_from_gate_source",
     "finish_epic_launch",
-    "resolve_epic_launch_cwd",
+    "resolve_epic_launch_project",
     "start_epic_launch_monitor",
 ]

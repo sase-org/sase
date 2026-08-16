@@ -28,6 +28,7 @@ from typing import Literal
 log = logging.getLogger(__name__)
 
 PLAN_ARCHIVE_SENDER = "plan-archive"
+_PLAN_ARCHIVE_LEASE_WORKFLOW = "plan-archive"
 
 
 class _PlanArchiveProjectError(Exception):
@@ -43,6 +44,11 @@ def archive_approved_plan(
 ) -> str:
     """Archive ``src_plan`` into its project's plan store and return the path.
 
+    Runs inside a durable operational workspace lease -- never the user-owned
+    primary checkout -- and publishes the archive commit using
+    reset-and-replay semantics: an unpublished HEAD after commit resets the
+    leased checkout to its verified upstream tip and re-runs the archive.
+
     Raises:
         _PlanArchiveProjectError: If ``action_data`` names no resolvable project.
     """
@@ -50,13 +56,16 @@ def archive_approved_plan(
         resolve_plan_action_project_name,
         resolve_plan_agent_artifacts_dir,
     )
-    from sase.running_field import get_workspace_directory
+    from sase.bead._sync_publication import has_push_remote, head_is_published
     from sase.sdd.files import (
         commit_sdd_store_files,
         ensure_bare_git_sdd_initialized,
     )
     from sase.sdd.plan_archive import archive_plan_file
     from sase.sdd.store import materialize_sdd_store
+    from sase.workspace_provider.lease import operational_workspace_lease
+    from sase.workspace_provider.ownership import MutationOrigin
+    from sase.workspace_provider.reset_replay import ReplayConflict
 
     project_name = resolve_plan_action_project_name(action_data)
     if not project_name:
@@ -65,26 +74,55 @@ def archive_approved_plan(
             f" keys {sorted(action_data)}"
         )
 
-    workspace_dir = get_workspace_directory(project_name, 1)
-    sdd_store = materialize_sdd_store(workspace_dir, 1)
-    if sdd_store.is_in_tree:
-        ensure_bare_git_sdd_initialized(workspace_dir, commit=True, push=False)
-    archived = archive_plan_file(
-        src_plan,
-        sdd_store,
-        tier=tier,
-        preserve_existing=False,
-        expect_prompt_snapshot=(tier == "epic"),
-    )
-    if not sdd_store.is_in_tree:
-        commit_sdd_store_files(
-            sdd_store,
-            f"Archive approved plan {src_plan.stem}",
-            paths=[archived.path],
-            push_after_commit=push_after_commit,
-            artifacts_dir=resolve_plan_agent_artifacts_dir(action_data),
-        )
-    return str(archived.path)
+    # An explicit "async" or `False` keeps the caller's choice (the TUI
+    # background worker deliberately never blocks on a push). Unset defaults
+    # to a synchronous, verified publication instead of the global async
+    # config default, because only a synchronous push can be verified and
+    # replayed within this lease's bounded attempts.
+    resolved_push_mode = True if push_after_commit is None else push_after_commit
+
+    artifacts_dir = resolve_plan_agent_artifacts_dir(action_data)
+    with operational_workspace_lease(
+        project_name,
+        workflow=_PLAN_ARCHIVE_LEASE_WORKFLOW,
+        holder=PLAN_ARCHIVE_SENDER,
+    ) as lease:
+        workspace_dir = str(lease.checkout_dir)
+        sdd_store = materialize_sdd_store(workspace_dir, lease.workspace_num)
+        if sdd_store.is_in_tree:
+            ensure_bare_git_sdd_initialized(workspace_dir, commit=True, push=False)
+
+        def _archive_and_publish() -> str:
+            archived = archive_plan_file(
+                src_plan,
+                sdd_store,
+                tier=tier,
+                preserve_existing=False,
+                expect_prompt_snapshot=(tier == "epic"),
+            )
+            if not sdd_store.is_in_tree:
+                commit_sdd_store_files(
+                    sdd_store,
+                    f"Archive approved plan {src_plan.stem}",
+                    paths=[archived.path],
+                    push_after_commit=resolved_push_mode,
+                    artifacts_dir=artifacts_dir,
+                    mutation_origin=MutationOrigin.MACHINE,
+                    operation_context=lease.operation_context,
+                )
+                if (
+                    resolved_push_mode is True
+                    and has_push_remote(sdd_store.repo_root)
+                    and not head_is_published(sdd_store.repo_root)
+                ):
+                    raise ReplayConflict(
+                        f"{sdd_store.repo_root} HEAD was not published "
+                        "after the archive commit"
+                    )
+            return str(archived.path)
+
+        result = lease.reset_and_replay(_archive_and_publish)
+        return result.value
 
 
 def report_plan_archive_failure(

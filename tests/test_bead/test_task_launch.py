@@ -17,6 +17,38 @@ from sase.bead.task_launch import (
     submit_task_launch_for_project,
     task_launch_origin_from_gate_source,
 )
+from sase.workspace_provider.lease import OperationalLease
+from sase.workspace_provider.ownership import (
+    AccessKind,
+    MutationOrigin,
+    OperationContext,
+)
+
+
+def _fake_lease(tmp_path: Path, *, claim_pid: int = 4321) -> OperationalLease:
+    checkout = tmp_path / "leased"
+    checkout.mkdir(exist_ok=True)
+    context = OperationContext(
+        project="sase",
+        access_kind=AccessKind.LEASED_OPERATIONAL,
+        mutation_origin=MutationOrigin.MACHINE,
+        workspace_num=10,
+        checkout_dir=checkout,
+        primary_checkout_dir=tmp_path / "primary",
+        claim_pid=claim_pid,
+        claim_workflow="task-launch",
+    )
+    return OperationalLease(
+        project="sase",
+        workflow="task-launch",
+        holder="task-launch:sase-42",
+        workspace_num=10,
+        checkout_dir=checkout,
+        project_file=tmp_path / "sase.sase",
+        claim_pid=claim_pid,
+        cl_name=None,
+        context=context,
+    )
 
 
 def test_build_task_launch_argv_carries_optional_feedback() -> None:
@@ -78,31 +110,38 @@ def test_resolve_task_launch_cwd_reuses_canonical_project_resolution(
     get_workspace_directory.assert_called_once_with("sase", 1)
 
 
-def test_submit_task_launch_task_submits_literal_unattributed_command(
+def test_submit_task_launch_task_submits_via_leased_checkout(
     tmp_path: Path,
 ) -> None:
     task = SimpleNamespace(task_id="k7m2xyz")
+    lease = _fake_lease(tmp_path)
     with (
         patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
         patch("sase.procs.read_procs", return_value=[]),
         patch(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            return_value="sase",
-        ),
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ) as acquire,
         patch(
-            "sase.procs.runner.submit_proc",
+            "sase.workspace_provider.lease.submit_via_lease",
             return_value=task,
-        ) as submit_task,
+        ) as submit_via_lease,
     ):
         submitted = submit_task_launch_task(
             "sase-42",
-            cwd=tmp_path,
+            project="sase",
             feedback="Focus on rollback.",
             origin="telegram",
         )
 
     assert submitted is task
-    assert submit_task.call_args.args[0] == [
+    acquire.assert_called_once_with(
+        "sase",
+        workflow="task-launch",
+        holder="task-launch:sase-42",
+    )
+    request = submit_via_lease.call_args.args[0]
+    assert list(request.argv) == [
         "sase",
         "bead",
         "work",
@@ -111,14 +150,13 @@ def test_submit_task_launch_task_submits_literal_unattributed_command(
         "--launch-feedback",
         "Focus on rollback.",
     ]
-    assert submit_task.call_args.kwargs == {
-        "label": "Task launch · sase-42",
-        "cwd": tmp_path,
-        "origin": "telegram",
-        "project": "sase",
-        "session_id": None,
-        "tags": ("task", "launch"),
-    }
+    assert request.label == "Task launch · sase-42"
+    assert request.cwd == str(lease.checkout_dir)
+    assert request.origin == "telegram"
+    assert request.project == "sase"
+    assert request.session_id is None
+    assert request.tags == ("task", "launch")
+    assert submit_via_lease.call_args.args[1] is lease
 
 
 def test_submit_task_launch_task_deduplicates_active_bead_id(
@@ -133,15 +171,11 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
     with (
         patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
         patch("sase.procs.read_procs", return_value=[existing]) as read_tasks,
-        patch(
-            "sase.bead.project_name.infer_project_name_from_cwd",
-            return_value="sase",
-        ),
-        patch("sase.procs.runner.submit_proc") as submit_task,
+        patch("sase.workspace_provider.lease.acquire_operational_lease") as acquire,
     ):
         submitted = submit_task_launch_task(
             "sase-42",
-            cwd=tmp_path,
+            project="sase",
             feedback="New feedback must not duplicate the launch.",
         )
 
@@ -150,7 +184,7 @@ def test_submit_task_launch_task_deduplicates_active_bead_id(
         "status": frozenset({"pending", "running", "settling"}),
         "kind": {"command", "detached"},
     }
-    submit_task.assert_not_called()
+    acquire.assert_not_called()
 
 
 def _task_row(
@@ -203,19 +237,11 @@ def test_active_task_launch_returns_newest_matching_active_row() -> None:
         assert _active_task_launch("sase-42") is newest
 
 
-def test_submit_task_launch_for_project_reuses_project_resolution(
-    tmp_path: Path,
-) -> None:
+def test_submit_task_launch_for_project_passes_project_through() -> None:
     task = SimpleNamespace(task_id="submitted")
-    with (
-        patch(
-            "sase.bead.task_launch.resolve_task_launch_cwd_for_project",
-            return_value=tmp_path,
-        ) as resolve,
-        patch(
-            "sase.bead.task_launch.submit_task_launch_task", return_value=task
-        ) as submit,
-    ):
+    with patch(
+        "sase.bead.task_launch.submit_task_launch_task", return_value=task
+    ) as submit:
         result = submit_task_launch_for_project(
             "sase",
             "sase-42",
@@ -224,10 +250,9 @@ def test_submit_task_launch_for_project_reuses_project_resolution(
         )
 
     assert result is task
-    resolve.assert_called_once_with("sase")
     submit.assert_called_once_with(
         "sase-42",
-        cwd=tmp_path,
+        project="sase",
         feedback="Focus the fix",
         origin="ace",
     )

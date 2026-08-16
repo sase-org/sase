@@ -21,7 +21,7 @@ from sase._plan_approval_artifacts import (
 from sase._plan_approval_epic import (
     can_claim_epic_launch as can_claim_epic_launch,
 )
-from sase._plan_approval_epic import epic_launch_cwd as _epic_launch_cwd
+from sase._plan_approval_epic import epic_launch_project as _epic_launch_project
 from sase._plan_approval_epic import prepare_epic_launch as prepare_epic_launch
 from sase._plan_approval_protocol import (
     PLAN_APPROVAL_ACTIONS as PLAN_APPROVAL_ACTIONS,
@@ -158,11 +158,11 @@ def _execute_legacy_plan_approval_response(
         coder_model=coder_model,
     )
     response_path = response_dir / "plan_response.json"
-    epic_launch_cwd: Path | None = None
+    epic_launch_project: str | None = None
     if choice == "epic":
         can_claim_epic_launch(notification, mode=epic_launch_mode)
         if epic_launch_mode != "skip":
-            epic_launch_cwd = _epic_launch_cwd(notification)
+            epic_launch_project = _epic_launch_project(notification)
         # Transitional compatibility: pre-upgrade agents launch the epic
         # themselves unless the response explicitly assigns ownership here.
         response_json["epic_launch_owner"] = "host"
@@ -177,7 +177,7 @@ def _execute_legacy_plan_approval_response(
             Path(notification.host_files[0]),
             mode=epic_launch_mode,
             response_dir=response_dir,
-            resolved_cwd=epic_launch_cwd,
+            resolved_project=epic_launch_project,
             origin=epic_launch_origin,
         )
         epic_launch_monitor_id, epic_launch_task_id = _epic_launch_submission_ids(
