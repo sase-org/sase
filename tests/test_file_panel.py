@@ -205,9 +205,10 @@ def _make_render_panel() -> MagicMock:
     )
     panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
     panel._timestamp_header = types.MethodType(AgentFilePanel._timestamp_header, panel)
-    panel._update_body = types.MethodType(AgentFilePanel._update_body, panel)
-    panel._capture_scroll_anchor = MagicMock()
-    panel._schedule_scroll_anchor_restore = MagicMock()
+    # Body renders go through ``_update_body`` (the scroll-anchor seam), not
+    # ``update`` directly. Leave the MagicMock in place so tests can inspect
+    # the renderable that production handed the seam.
+    panel._update_body = MagicMock()
     panel._render_full_content = types.MethodType(
         AgentFilePanel._render_full_content, panel
     )
@@ -218,6 +219,13 @@ def _make_render_panel() -> MagicMock:
 
     panel._content_render_cache = LazySyntaxRenderCache(max_entries=2)
     return panel
+
+
+def _last_updated_body(panel: MagicMock) -> Any:
+    """Return the renderable last routed through ``_update_body``."""
+    assert panel._update_body.called
+    assert panel._update_body.call_args is not None
+    return panel._update_body.call_args[0][0]
 
 
 def test_render_static_file_result_renders_content(tmp_path: Any) -> None:
@@ -243,11 +251,10 @@ def test_render_static_file_result_renders_content(tmp_path: Any) -> None:
 
     AgentFilePanel._render_static_file_result(panel, result)
 
-    assert panel.update.called
     from rich.console import Group
     from rich.text import Text
 
-    group = panel.update.call_args[0][0]
+    group = _last_updated_body(panel)
     assert isinstance(group, Group)
     renderables = list(group._renderables)
     assert len(renderables) == 3
@@ -352,7 +359,7 @@ def test_display_linked_diff_renders_banner_and_raw_content() -> None:
     )
     assert visibility.has_file is True
 
-    group = panel.update.call_args[0][0]
+    group = _last_updated_body(panel)
     assert isinstance(group, Group)
     renderables = list(group._renderables)
     assert isinstance(renderables[0], Text)
@@ -374,7 +381,7 @@ def test_live_diff_renders_all_lines_and_posts_line_count() -> None:
 
     assert panel._full_content == diff_text
     assert panel._visible_line_count == panel._total_line_count == 3
-    assert "more lines below" not in str(panel.update.call_args[0][0])
+    assert "more lines below" not in str(_last_updated_body(panel))
     messages = [call.args[0] for call in panel.post_message.call_args_list]
     line_count = next(m for m in messages if isinstance(m, FileLineCountChanged))
     assert line_count.visible_lines == line_count.total_lines == 3
@@ -391,12 +398,12 @@ def test_live_diff_timestamp_refresh_reuses_cached_body() -> None:
         diff_text,
         datetime(2024, 1, 1, 12, 30, 0),
     )
-    first_group = panel.update.call_args[0][0]
+    first_group = _last_updated_body(panel)
     first_body = list(first_group._renderables)[2]
 
     panel._content_fetched_at = datetime(2024, 1, 1, 12, 31, 0)
     AgentFilePanel._render_full_content(panel)
-    second_group = panel.update.call_args[0][0]
+    second_group = _last_updated_body(panel)
     second_body = list(second_group._renderables)[2]
 
     assert second_body is first_body
@@ -422,7 +429,7 @@ def test_file_panel_pathological_cap_posts_explicit_range() -> None:
     messages = [call.args[0] for call in panel.post_message.call_args_list]
     line_count = next(m for m in messages if isinstance(m, FileLineCountChanged))
     assert line_count.capped is True
-    body = list(panel.update.call_args[0][0]._renderables)[2]
+    body = list(_last_updated_body(panel)._renderables)[2]
     assert "… 2 more lines — press E to open in editor" in str(
         body._renderable.renderables[2]
     )
@@ -463,7 +470,7 @@ def test_linked_diff_full_rerender_keeps_banner() -> None:
 
     AgentFilePanel._render_full_content(panel)
 
-    group = panel.update.call_args[0][0]
+    group = _last_updated_body(panel)
     assert isinstance(group, Group)
     renderables = list(group._renderables)
     assert isinstance(renderables[0], Text)
