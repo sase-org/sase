@@ -116,6 +116,73 @@ def test_unknown_and_non_boolean_file_values_warn_and_leave_prior_decision() -> 
     ]
 
 
+def test_legacy_disable_env_maps_to_flag_and_warns() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        layers=[layer("user", {"prettier_enabled": True})],
+        legacy_env={"SASE_DISABLE_PRETTIER": "1"},
+    )
+
+    decision = snapshot.decision("prettier_enabled")
+    assert decision.enabled is False
+    assert decision.source == "env"
+    assert decision.source_detail == "SASE_DISABLE_PRETTIER"
+    assert [diagnostic.code for diagnostic in snapshot.diagnostics] == [
+        "deprecated_env"
+    ]
+    assert "SASE_DISABLE_PRETTIER" in snapshot.diagnostics[0].message
+
+
+def test_override_and_feature_flags_env_beat_legacy_env() -> None:
+    overridden = resolve_feature_flags(
+        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        layers=[],
+        overrides={"prettier_enabled": True},
+        legacy_env={"SASE_DISABLE_PRETTIER": "1"},
+    )
+    assert overridden.enabled("prettier_enabled") is True
+    assert overridden.decision("prettier_enabled").source == "override"
+    assert [diagnostic.code for diagnostic in overridden.diagnostics] == [
+        "deprecated_env"
+    ]
+
+    env_wins = resolve_feature_flags(
+        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        layers=[],
+        legacy_env={"SASE_DISABLE_PRETTIER": "1"},
+        env_value='{"prettier_enabled":true}',
+    )
+    assert env_wins.enabled("prettier_enabled") is True
+    assert env_wins.decision("prettier_enabled").source == "env"
+    assert env_wins.decision("prettier_enabled").source_detail == SASE_FEATURE_FLAGS_ENV
+    assert [diagnostic.code for diagnostic in env_wins.diagnostics] == [
+        "deprecated_env"
+    ]
+
+
+def test_legacy_env_is_ignored_for_unregistered_keys() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag(default=False)),
+        layers=[],
+        legacy_env={"SASE_DISABLE_PRETTIER": "1"},
+    )
+
+    assert snapshot.enabled("demo_flag") is False
+    assert snapshot.diagnostics == ()
+
+
+def test_empty_legacy_env_does_not_apply() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag("prettier_enabled", default=True)),
+        layers=[],
+        legacy_env={"SASE_DISABLE_PRETTIER": ""},
+    )
+
+    assert snapshot.enabled("prettier_enabled") is True
+    assert snapshot.decision("prettier_enabled").source == "default"
+    assert snapshot.diagnostics == ()
+
+
 def test_env_beats_overrides_and_unknown_env_key_warns_only() -> None:
     snapshot = resolve_feature_flags(
         definitions=definitions(demo_flag(default=False)),

@@ -130,6 +130,27 @@ def test_layer_projection_warns_when_feature_flags_is_not_mapping(
     assert resolved.diagnostics[0].source == "user"
 
 
+def test_legacy_env_is_mapped_when_building_the_process_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_snapshot_inputs(
+        monkeypatch,
+        defs=definitions(demo_flag("prettier_enabled", default=True)),
+    )
+    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
+    snapshot_mod.reset_process_feature_flags()
+
+    resolved = snapshot_mod.current_flags()
+
+    assert resolved.enabled("prettier_enabled") is False
+    assert (
+        resolved.decision("prettier_enabled").source_detail == "SASE_DISABLE_PRETTIER"
+    )
+    assert [diagnostic.code for diagnostic in resolved.diagnostics] == [
+        "deprecated_env"
+    ]
+
+
 def test_importing_feature_flags_and_sase_performs_no_resolution() -> None:
     snapshot_mod.reset_process_feature_flags()
 

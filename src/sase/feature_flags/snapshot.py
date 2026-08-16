@@ -74,6 +74,7 @@ def _build_snapshot() -> FeatureFlagSnapshot:
         layers=layers,
         overrides=_current_overrides(),
         env_value=os.environ.get(SASE_FEATURE_FLAGS_ENV),
+        legacy_env=os.environ,
     )
     return FeatureFlagSnapshot(
         decisions=snapshot.decisions,

@@ -38,6 +38,7 @@ from sase.feature_flags.managed import project_is_sase_managed
 from sase.feature_flags.models import (
     FeatureFlagDecision,
     FeatureFlagDefinition,
+    FeatureFlagDiagnostic,
     FeatureFlagError,
     FeatureFlagSnapshot,
     FlagKind,
@@ -96,18 +97,26 @@ def _handle_flag_list_command(
     release: str | None = None,
 ) -> int:
     """Run ``sase flag list``."""
+    resolved_snapshot = current_flags() if snapshot is None else snapshot
     views = _flag_views(
         definitions=definitions,
-        snapshot=snapshot,
+        snapshot=resolved_snapshot,
         beads=beads,
         today=today,
         release=release,
     )
     if bool(getattr(args, "json", False)):
-        print(json.dumps(_list_json(views), indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                _list_json(views, diagnostics=resolved_snapshot.diagnostics),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     _render_list(
         views,
+        diagnostics=resolved_snapshot.diagnostics,
         console=_console(console),
         today=today or core_time.local_now().date(),
         release=release or sase.__version__,
@@ -135,9 +144,10 @@ def _handle_flag_show_command(
     if key not in resolved_definitions:
         print(f"Error: unknown feature flag: {key}", file=sys.stderr)
         return 1
+    resolved_snapshot = current_flags() if snapshot is None else snapshot
     views = _flag_views(
         definitions=resolved_definitions,
-        snapshot=snapshot,
+        snapshot=resolved_snapshot,
         beads=beads,
         today=today,
         release=release,
@@ -149,11 +159,17 @@ def _handle_flag_show_command(
         view.definition,
         layers if layers is not None else current_flag_layers(),
         env_value=_env_value_from_decision(view.decision),
+        env_detail=view.decision.source_detail,
     )
     if bool(getattr(args, "json", False)):
         print(
             json.dumps(
-                _show_json(view, layers=layer_rows, call_sites=sites),
+                _show_json(
+                    view,
+                    layers=layer_rows,
+                    call_sites=sites,
+                    diagnostics=resolved_snapshot.diagnostics,
+                ),
                 indent=2,
                 sort_keys=True,
             )
@@ -163,6 +179,7 @@ def _handle_flag_show_command(
         view,
         layers=layer_rows,
         call_sites=sites,
+        diagnostics=resolved_snapshot.diagnostics,
         console=_console(console),
         today=today or core_time.local_now().date(),
         release=release or sase.__version__,
@@ -328,6 +345,7 @@ def _flag_views(
 def _render_list(
     views: Sequence[_FlagView],
     *,
+    diagnostics: Sequence[FeatureFlagDiagnostic] = (),
     console: Console,
     today: date,
     release: str,
@@ -338,9 +356,11 @@ def _render_list(
             "Create one with `sase flag new <key>` in a SASE-managed checkout "
             "(is_sase_managed: true)."
         )
+        _render_diagnostics(diagnostics, console)
         return
     for view in views:
         console.print(_list_row(view, today=today, release=release))
+    _render_diagnostics(diagnostics, console)
 
 
 def _list_row(
@@ -380,12 +400,25 @@ def _flag_due_text(record: FlagRecord, today: date, release: str) -> Text:
 
 def _source_text(decision: FeatureFlagDecision) -> Text:
     if decision.source == "env":
-        return Text(f"ENV:{SASE_FEATURE_FLAGS_ENV}", style="bold reverse")
+        env_name = decision.source_detail or SASE_FEATURE_FLAGS_ENV
+        return Text(f"ENV:{env_name}", style="bold reverse")
     if decision.source == "default":
         return Text("default", style="dim")
     if decision.source_detail:
         return Text(f"{decision.source}:{decision.source_detail}")
     return Text(decision.source)
+
+
+def _render_diagnostics(
+    diagnostics: Sequence[FeatureFlagDiagnostic],
+    console: Console,
+) -> None:
+    if not diagnostics:
+        return
+    console.print()
+    for diagnostic in diagnostics:
+        style = "bold red" if diagnostic.severity == "error" else "bold yellow"
+        console.print(Text(f"{diagnostic.severity}: {diagnostic.message}", style=style))
 
 
 def _bead_text(bead: FlagBeadSnapshot | None) -> Text:
@@ -403,6 +436,7 @@ def _render_show(
     *,
     layers: Sequence[dict[str, Any]],
     call_sites: Sequence[FlagCallSite],
+    diagnostics: Sequence[FeatureFlagDiagnostic] = (),
     console: Console,
     today: date,
     release: str,
@@ -453,9 +487,10 @@ def _render_show(
     console.print("[bold]CALL SITES[/bold]")
     if not call_sites:
         console.print("  (none found in the installed SASE package)")
-        return
-    for site in call_sites:
-        console.print(f"  {site.path}:{site.line}  {site.text}")
+    else:
+        for site in call_sites:
+            console.print(f"  {site.path}:{site.line}  {site.text}")
+    _render_diagnostics(diagnostics, console)
 
 
 def _layer_rows(
@@ -464,6 +499,7 @@ def _layer_rows(
     layers: Sequence[FeatureFlagLayerInput],
     *,
     env_value: bool | None,
+    env_detail: str = "",
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = [
         {
@@ -488,7 +524,7 @@ def _layer_rows(
             {
                 "name": "env",
                 "value": env_value,
-                "note": SASE_FEATURE_FLAGS_ENV,
+                "note": env_detail or SASE_FEATURE_FLAGS_ENV,
             }
         )
     return rows
@@ -516,9 +552,14 @@ def _env_value_from_decision(decision: FeatureFlagDecision) -> bool | None:
     return None
 
 
-def _list_json(views: Sequence[_FlagView]) -> dict[str, Any]:
+def _list_json(
+    views: Sequence[_FlagView],
+    *,
+    diagnostics: Sequence[FeatureFlagDiagnostic] = (),
+) -> dict[str, Any]:
     return {
         "schema_version": _LIST_JSON_SCHEMA_VERSION,
+        "diagnostics": [_diagnostic_json(item) for item in diagnostics],
         "flags": [_view_json(view) for view in views],
     }
 
@@ -528,6 +569,7 @@ def _show_json(
     *,
     layers: Sequence[dict[str, Any]],
     call_sites: Sequence[FlagCallSite],
+    diagnostics: Sequence[FeatureFlagDiagnostic] = (),
 ) -> dict[str, Any]:
     payload = _view_json(view)
     payload["schema_version"] = _SHOW_JSON_SCHEMA_VERSION
@@ -535,7 +577,17 @@ def _show_json(
     payload["call_sites"] = [
         {"path": site.path, "line": site.line, "text": site.text} for site in call_sites
     ]
+    payload["diagnostics"] = [_diagnostic_json(item) for item in diagnostics]
     return payload
+
+
+def _diagnostic_json(diagnostic: FeatureFlagDiagnostic) -> dict[str, Any]:
+    return {
+        "code": diagnostic.code,
+        "message": diagnostic.message,
+        "severity": diagnostic.severity,
+        "source": diagnostic.source,
+    }
 
 
 def _view_json(view: _FlagView) -> dict[str, Any]:

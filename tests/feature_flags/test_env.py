@@ -5,12 +5,24 @@ from __future__ import annotations
 from sase.feature_flags.env import (
     SASE_FEATURE_FLAGS_ENV,
     apply_feature_flags_env,
+    collect_legacy_env_values,
     encode_feature_flags_env,
     parse_feature_flags_env,
 )
 from sase.feature_flags.resolver import resolve_feature_flags
 
 from ._helpers import definitions, demo_flag, layer
+
+
+def test_collect_legacy_env_values_inverts_disable_prettier() -> None:
+    assert collect_legacy_env_values({}) == {}
+    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": ""}) == {}
+    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": "1"}) == {
+        "prettier_enabled": (False, "SASE_DISABLE_PRETTIER")
+    }
+    assert collect_legacy_env_values({"SASE_DISABLE_PRETTIER": "0"}) == {
+        "prettier_enabled": (False, "SASE_DISABLE_PRETTIER")
+    }
 
 
 def test_env_round_trips_all_registered_keys_stably() -> None:

@@ -20,7 +20,7 @@ from sase.feature_flags.cli import (
     _handle_flag_show_command,
 )
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV
-from sase.feature_flags.models import FeatureFlagError
+from sase.feature_flags.models import FeatureFlagDiagnostic, FeatureFlagError
 from sase.feature_flags.references import FlagCallSite
 from sase.main.parser import create_parser, default_list_delegation_notice
 from tests.feature_flags._helpers import (
@@ -124,6 +124,44 @@ def test_flag_list_row_includes_env_provenance_and_countdown() -> None:
     assert "sase-nb.test" in out
     assert "open" in out
     assert "v0.19.0" in out
+
+
+def test_flag_list_surfaces_deprecated_env_diagnostic() -> None:
+    console, buf = _console()
+    flag = demo_flag("prettier_enabled", default=True, scope="global")
+    args = create_parser().parse_args(["flag", "list"])
+
+    exit_code = _handle_flag_list_command(
+        args,
+        console=console,
+        definitions={str(flag.key): flag},
+        snapshot=snapshot_for(
+            flag,
+            enabled={"prettier_enabled": False},
+            source="env",
+            source_detail="SASE_DISABLE_PRETTIER",
+            diagnostics=(
+                FeatureFlagDiagnostic(
+                    severity="warning",
+                    code="deprecated_env",
+                    message=(
+                        "SASE_DISABLE_PRETTIER is deprecated; set feature flag "
+                        "'prettier_enabled' via SASE_FEATURE_FLAGS or config instead"
+                    ),
+                    source="SASE_DISABLE_PRETTIER",
+                ),
+            ),
+        ),
+        beads=(flag_bead("prettier_enabled"),),
+        today=date(2026, 8, 16),
+        release="0.16.0",
+    )
+
+    assert exit_code == 0
+    out = buf.getvalue()
+    assert "ENV:SASE_DISABLE_PRETTIER" in out
+    assert "deprecated" in out
+    assert "SASE_DISABLE_PRETTIER" in out
 
 
 def test_flag_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:

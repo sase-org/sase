@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.file_references import (
     format_agent_prompt_markdown,
     format_markdown_files_with_prettier,
@@ -95,11 +96,24 @@ def test_format_with_prettier_missing_prettier_returns_text() -> None:
 def test_format_with_prettier_disabled_returns_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The environment switch bypasses prettier even when it is installed."""
+    """The deprecated environment switch still bypasses prettier."""
     monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
     with patch(
         "sase.file_references.shutil.which", return_value="/usr/bin/prettier"
     ) as mock_which:
+        assert format_with_prettier("untouched", print_width=80) == "untouched"
+
+    mock_which.assert_not_called()
+
+
+def test_format_with_prettier_flag_off_returns_text() -> None:
+    """prettier_enabled=false bypasses prettier even when it is installed."""
+    with (
+        override_flags(prettier_enabled=False),
+        patch(
+            "sase.file_references.shutil.which", return_value="/usr/bin/prettier"
+        ) as mock_which,
+    ):
         assert format_with_prettier("untouched", print_width=80) == "untouched"
 
     mock_which.assert_not_called()

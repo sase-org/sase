@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_followup_prompt_helpers import (
     patch_plan_deps,
@@ -77,12 +78,10 @@ class TestPlanFollowupCoderPrompt:
         assert plan_ref in state.current_prompt
         assert state.current_prompt.startswith("%model:@small\n")
 
-    def test_coder_prompt_preserves_resume_when_env_set(
-        self, tmp_path, monkeypatch
-    ) -> None:
-        """SASE_CODER_INHERIT_PLANNER_CHAT=1 restores the old #fork behavior."""
-        monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
-        state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
+    def test_coder_prompt_preserves_resume_when_flag_enabled(self, tmp_path) -> None:
+        """coder_inherits_planner_chat restores the old #fork behavior."""
+        with override_flags(coder_inherits_planner_chat=True):
+            state = run_followup_plan(tmp_path, action="approve", agent_model="opus")
         assert "#fork:test_agent--plan " in state.current_prompt
         assert state.current_prompt.startswith("%model:@small\n#fork:test_agent--plan ")
 
@@ -98,11 +97,8 @@ class TestPlanFollowupCoderPrompt:
         assert "#fork:" not in state.current_prompt
         assert "@plan.md" in state.current_prompt
 
-    def test_coder_prompt_qa_round_resume_env_uses_planner(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_coder_prompt_qa_round_resume_flag_uses_planner(self, tmp_path) -> None:
         """Chat inheritance after Q&A resumes the planner phase, not the Q&A retry."""
-        monkeypatch.setenv("SASE_CODER_INHERIT_PLANNER_CHAT", "1")
         ctx = make_ctx(tmp_path, agent_model="opus")
         state = make_state(tmp_path)
         state.agent_step = 2
@@ -110,7 +106,8 @@ class TestPlanFollowupCoderPrompt:
         plan_file = write_plan_file(tmp_path)
         approval = PlanApprovalResult(action="approve", plan_file=plan_file)
 
-        run_plan_approval(tmp_path, approval=approval, ctx=ctx, state=state)
+        with override_flags(coder_inherits_planner_chat=True):
+            run_plan_approval(tmp_path, approval=approval, ctx=ctx, state=state)
 
         assert "#fork:test_agent--plan " in state.current_prompt
         assert "#fork:test_agent--2 " not in state.current_prompt

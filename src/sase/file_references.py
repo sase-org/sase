@@ -510,13 +510,21 @@ def process_command_substitution(prompt: str) -> str:
     return prompt
 
 
+def _prettier_is_enabled() -> bool:
+    """Return whether markdown prettier formatting is enabled."""
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.prettier_enabled)
+
+
 def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
     """Format text with prettier if available.
 
     Uses the shared ``prettier_markdown_argv()`` policy to format the text as
     markdown with always-on prose wrapping, wrapping prose at *print_width*
     columns. Falls back to returning the original text if prettier is disabled
-    via ``SASE_DISABLE_PRETTIER``, is not installed, or fails.
+    (``prettier_enabled`` flag, or the deprecated ``SASE_DISABLE_PRETTIER``
+    alias), is not installed, or fails.
 
     Args:
         text: The markdown text to format.
@@ -526,7 +534,7 @@ def format_with_prettier(text: str, *, print_width: int | None = None) -> str:
             passed straight through to ``prettier_markdown_argv()`` so there is
             exactly one resolution point.
     """
-    if os.environ.get("SASE_DISABLE_PRETTIER") or shutil.which("prettier") is None:
+    if not _prettier_is_enabled() or shutil.which("prettier") is None:
         return text
 
     try:
@@ -566,7 +574,7 @@ def format_markdown_files_with_prettier(
     selected = tuple(dict.fromkeys(Path(path) for path in paths))
     if not selected:
         return True
-    if os.environ.get("SASE_DISABLE_PRETTIER") or shutil.which("prettier") is None:
+    if not _prettier_is_enabled() or shutil.which("prettier") is None:
         return False
     try:
         subprocess.run(

@@ -6,7 +6,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
+from sase.feature_flags.env import (
+    SASE_FEATURE_FLAGS_ENV,
+    collect_legacy_env_values,
+    parse_feature_flags_env,
+)
 from sase.feature_flags.models import (
     FeatureFlagDecision,
     FeatureFlagDefinition,
@@ -117,6 +121,7 @@ def resolve_feature_flags(
     layers: Sequence[FeatureFlagLayerInput],
     overrides: Mapping[str, bool] | None = None,
     env_value: str | None = None,
+    legacy_env: Mapping[str, str] | None = None,
 ) -> FeatureFlagSnapshot:
     """Resolve feature flags through config layers, overrides, and env."""
     decisions = {
@@ -161,6 +166,30 @@ def resolve_feature_flags(
             diagnostic_source=layer.name,
             diagnostics=diagnostics,
         )
+
+    if legacy_env is not None:
+        for key, (enabled, env_name) in collect_legacy_env_values(legacy_env).items():
+            if key not in definitions:
+                continue
+            diagnostics.append(
+                _diagnostic(
+                    code="deprecated_env",
+                    message=(
+                        f"{env_name} is deprecated; set feature flag {key!r} "
+                        f"via {SASE_FEATURE_FLAGS_ENV} or config instead"
+                    ),
+                    source=env_name,
+                )
+            )
+            _apply_values(
+                decisions=decisions,
+                definitions=definitions,
+                values={key: enabled},
+                source="env",
+                source_detail=env_name,
+                diagnostic_source=env_name,
+                diagnostics=diagnostics,
+            )
 
     if overrides:
         _apply_values(

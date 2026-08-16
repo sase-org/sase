@@ -198,13 +198,16 @@ def override_integrity_findings(
     for decision in snapshot.non_default():
         if decision.source != "env":
             continue
+        env_name = decision.source_detail or SASE_FEATURE_FLAGS_ENV
+        if env_name != SASE_FEATURE_FLAGS_ENV:
+            continue
         findings.append(
             IntegrityFinding(
                 code="env_inherited",
                 severity="warning",
                 message=(
                     f"feature flag {decision.key!r} is inherited from "
-                    f"{SASE_FEATURE_FLAGS_ENV} "
+                    f"{env_name} "
                     f"({decision.key}={str(decision.enabled).lower()})"
                 ),
                 key=decision.key,

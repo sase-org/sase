@@ -256,8 +256,8 @@ def _next_steps(check_id: str, status: CheckStatus) -> tuple[str, ...]:
         )
     if check_id == "flags.overrides":
         return (
-            "Inspect `sase flag list` and clear inherited SASE_FEATURE_FLAGS "
-            "or invalid feature_flags config values.",
+            "Inspect `sase flag list` and clear inherited SASE_FEATURE_FLAGS, "
+            "deprecated env aliases, or invalid feature_flags config values.",
         )
     if check_id == "flags.registry":
         return (

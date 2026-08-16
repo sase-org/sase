@@ -568,12 +568,9 @@ def test_static_main_ignores_exploding_bd_command(
         tmp_path / "bd",
         "#!/usr/bin/env bash\nexit 99\n",
     )
-    src = tmp_path / "src" / "sase"
-    _write(src / "ok.py", "VALUE = 1\n")
-    _write(
-        src / "config" / "sase.schema.json",
-        json.dumps(_schema_document({})) + "\n",
-    )
     monkeypatch.setenv("BD_COMMAND", str(exploding))
 
-    assert tool.main(["--static", "--repo-root", str(tmp_path)]) == 0
+    # main() reads the installed registry, so the fixture must be a real
+    # checkout whose schema and call sites match. Static mode must still
+    # ignore BD_COMMAND even when that command would explode.
+    assert tool.main(["--static", "--repo-root", str(ROOT)]) == 0

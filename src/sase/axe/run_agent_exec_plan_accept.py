@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -462,10 +463,12 @@ def handle_accepted_plan(
         coder_extra = f"\n\nAdditional instructions:\n{plan_result.coder_prompt}"
     _write_followup_model_meta(state, followup_model)
     # By default the coder starts with a fresh context window; the plan file
-    # itself is the hand-off artifact. Set SASE_CODER_INHERIT_PLANNER_CHAT=1 to
+    # itself is the hand-off artifact. Enable coder_inherits_planner_chat to
     # prepend #fork:<base>--plan so the coder inherits the planner's full chat.
     resume_prefix = ""
-    if ctx.agent_name and os.environ.get("SASE_CODER_INHERIT_PLANNER_CHAT") == "1":
+    if ctx.agent_name and current_flags().enabled(
+        FeatureFlag.coder_inherits_planner_chat
+    ):
         planner_name = plan_chain_agent_name(ctx.agent_name, PLAN_CHAIN_PLAN_SUFFIX)
         resume_prefix = f"#fork:{planner_name} "
 
