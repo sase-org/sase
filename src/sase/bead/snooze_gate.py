@@ -591,7 +591,12 @@ def _require_action(decision: _BeadSnoozeResponse, action: BeadSnoozeAction) -> 
 
 
 def _resolve_bead_snooze_project_cwd(project: str) -> Path:
-    """Resolve an explicit ProjectSpec key to its canonical primary checkout."""
+    """Resolve a user-answered bead-snooze gate to the primary checkout.
+
+    Snooze gate actions apply an explicit user answer and commit with the
+    default user mutation origin, so they are foreground user actions rather
+    than background bead writers.
+    """
     from sase.bead.task_launch import resolve_task_launch_cwd_for_project
 
     try:

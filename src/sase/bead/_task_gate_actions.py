@@ -157,7 +157,12 @@ def bead_gate_actor(project: Any) -> str:
 
 
 def _resolve_task_triage_project_cwd(project: str) -> Path:
-    """Resolve an explicit ProjectSpec key to its canonical primary checkout."""
+    """Resolve a user-answered task-triage gate to the primary checkout.
+
+    Task-triage gate actions apply an explicit user answer and commit with the
+    default user mutation origin, so they are foreground user actions rather
+    than background bead writers.
+    """
     from sase.bead.task_launch import resolve_task_launch_cwd_for_project
 
     try:

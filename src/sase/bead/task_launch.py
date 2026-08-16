@@ -51,10 +51,10 @@ def _resolve_task_launch_cwd(
 ) -> Path:
     """Resolve a task bead's canonical project to its primary checkout.
 
-    Used only for background bead-store mutations (close/snooze) that still
-    resolve a primary cwd; see sase-mq.5 for moving those off the canonical
-    primary clone. Task-bead *launches* no longer use this -- they resolve
-    project identity and acquire an operational lease instead.
+    Used only by foreground gate-answer mutations, such as task-triage or
+    snooze responses, that apply a user's explicit decision and commit with
+    the default user mutation origin. Task-bead *launches* no longer use this
+    -- they resolve project identity and acquire an operational lease instead.
     """
     project = resolve_epic_launch_project(
         project_dir,

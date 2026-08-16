@@ -282,6 +282,14 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directory."
         ),
     ),
+    "src/sase/workspace_provider/reset_replay.py:_clear_owned_paths": DirOpReview(
+        exemption=(
+            "Clears only caller-supplied generated paths after reset-and-replay "
+            "has authorized a live leased checkout; every path is refused unless "
+            "it resolves under that leased checkout, so it never clears primary "
+            "or local agent artifact directories outside the lease."
+        ),
+    ),
 }
 
 
