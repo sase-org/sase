@@ -140,10 +140,31 @@ def durable_lane_for_record(record: AgentArtifactRecordWire, *, fallback: str) -
     return fallback
 
 
+class _LazyProcSnapshot:
+    """Read the durable proc store at most once for one lane scan.
+
+    The dead-supervisor guard consults the proc store for every candidate
+    record. Sharing one snapshot keeps a lane scan at a single store read
+    instead of one per candidate, and deferring the read keeps lanes with
+    no monitor member from touching the store at all.
+    """
+
+    def __init__(self) -> None:
+        self._snapshot: ProcStoreSnapshot | None = None
+
+    def get(self) -> ProcStoreSnapshot:
+        if self._snapshot is None:
+            from sase.procs.store import read_proc_snapshot
+
+            self._snapshot = read_proc_snapshot()
+        return self._snapshot
+
+
 def active_monitor_for_lane(
     project_name: str, lane: str
 ) -> AgentArtifactRecordWire | None:
     """Return the not-yet-terminal monitor member for *lane*, if any."""
+    procs = _LazyProcSnapshot()
     candidates: list[AgentArtifactRecordWire] = []
     for record in _monitor_records(project_name):
         meta = record.agent_meta
@@ -153,8 +174,10 @@ def active_monitor_for_lane(
             monitor = MonitorRecord.from_record(record)
         except ValueError:
             continue
-        if should_reconcile_dead_supervisor(monitor):
-            monitor = reconcile_dead_supervisor(monitor, get_monitor=get_monitor)
+        if should_reconcile_dead_supervisor(monitor, snapshot=procs.get()):
+            monitor = reconcile_dead_supervisor(
+                monitor, get_monitor=get_monitor, snapshot=procs.get()
+            )
         if not monitor.is_terminal:
             candidates.append(record)
     if not candidates:
@@ -172,6 +195,7 @@ def monitor_blocking_start_for_lane(
     and do not block replacement. Pre-reboot monitors reconcile to ``lost``
     and do block replacement because the command's effect is unknown.
     """
+    procs = _LazyProcSnapshot()
     candidates: list[MonitorRecord] = []
     for record in _monitor_records(project_name):
         meta = record.agent_meta
@@ -183,8 +207,10 @@ def monitor_blocking_start_for_lane(
             continue
         if monitor.is_terminal:
             continue
-        if should_reconcile_dead_supervisor(monitor):
-            monitor = reconcile_dead_supervisor(monitor, get_monitor=get_monitor)
+        if should_reconcile_dead_supervisor(monitor, snapshot=procs.get()):
+            monitor = reconcile_dead_supervisor(
+                monitor, get_monitor=get_monitor, snapshot=procs.get()
+            )
         if monitor.monitor_state == "lost" or not monitor.is_terminal:
             candidates.append(monitor)
     if not candidates:
