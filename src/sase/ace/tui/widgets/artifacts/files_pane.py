@@ -48,6 +48,7 @@ from .group_fold_navigation import ArtifactGroupFoldMixin
 from ..._artifact_tab_model import ArtifactsPaneContract
 from .query_rows import build_files_query_index
 from .query_session import ArtifactQuerySession
+from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 
@@ -67,6 +68,7 @@ class ArtifactsFilesPane(
     FilesOptionsMixin,
     FilesQueryIndexMixin,
     FilesSelectionMixin,
+    RelationPanelHostMixin,
     ArtifactsSnapshotPane,
 ):
     """Browse date-grouped artifact files without blocking the event loop."""
@@ -122,6 +124,10 @@ class ArtifactsFilesPane(
                 yield Static("No artifact files found.", id="files-empty")
                 yield Static(self._status_text(), id="files-status")
                 yield FilesOptionList(id="files-list")
+                yield RelationPanel(
+                    id="files-relation-panel",
+                    classes="artifacts-relation-panel",
+                )
             detail_panel = Vertical(id="files-detail-panel")
             detail_panel.border_title = "Details"
             with detail_panel:

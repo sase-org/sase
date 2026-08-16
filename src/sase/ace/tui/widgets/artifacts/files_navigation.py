@@ -12,6 +12,7 @@ from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
     prewarm_option_render_cache,
+    reveal_option_list_highlight,
 )
 from .files_list import FileRow, file_row_target
 
@@ -52,7 +53,7 @@ class FilesOptionList(OptionList):
 
     def _assign_highlight(self, index: int | None) -> None:
         self.highlighted = index
-        self.scroll_to_highlight()
+        reveal_option_list_highlight(self)
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         if self._programmatic_update:
@@ -80,6 +81,12 @@ class FilesNavigationMixin(_MixinBase):
             *,
             preferred_target: ArtifactEntryTarget | None = None,
         ) -> None: ...
+
+        def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
+
+        def relation_footer_entries(
+            self, keymap: Any = None
+        ) -> tuple[tuple[str, str], ...]: ...
 
     def _init_files_navigation(self) -> None:
         self._rows = {}
@@ -195,7 +202,16 @@ class FilesNavigationMixin(_MixinBase):
         self._pending_entry_target = None
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
-        return ()
+        keymap = getattr(
+            getattr(self, "app", None),
+            "_relation_footer_keymap_override",
+            None,
+        )
+        if keymap is not None:
+            return self.relation_footer_entries(keymap)
+        return self.relation_footer_entries(
+            self.refresh_relation_panel(refresh_footer=False)
+        )
 
     def apply_entry_jump_hints(
         self,

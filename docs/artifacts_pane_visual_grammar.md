@@ -28,6 +28,24 @@ Bespoke information (Patch fold levels, Stitch repository presence, Bead triage 
 File origin counts) belongs in the state/count lane or the pane's own rows — never in a
 second identity header.
 
+### Relation panel slot
+
+Panes whose contract enables `PaneCapability.RELATIONS` own one host-rendered relation
+panel at the bottom of the content region's list column. The panel is fed the
+snapshot-built `RelationIndex`; widgets never build relation edges on highlight or
+keypress paths.
+
+The host assigns relation key roles from declaration order and relation kind. The first
+declared hierarchy relation is the ancestor mode (`<`), its declared hierarchy inverse
+is the descendant mode (`>`), every family relation participates in sibling/family mode
+(`~`), and link relations render as rows without taking a relation key mode. A pane or
+provider names relation properties; it does not assign keys.
+
+Each visible section uses the declared relation label as its uppercase header, appends
+`(N hidden)` when pane-supplied facts hide targets, and renders dangling same-pane
+targets dimmed with a `(missing)` marker. Cross-pane link rows show their destination
+pane id so the target switch is explicit.
+
 ## State precedence
 
 Visible state is a closed `ArtifactsPaneState` enum, resolved by

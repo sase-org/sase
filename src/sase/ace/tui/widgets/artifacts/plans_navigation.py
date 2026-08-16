@@ -13,7 +13,12 @@ from sase.sdd.plan_refs import PLAN_REFERENCE_KIND
 from sase.sidecar_ref_config import sidecar_role_ref_kind
 
 from .._prompt_preview_target import PreviewPayload
-from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
+from .entry_navigation import (
+    ArtifactEntryNavigator,
+    ArtifactEntryTarget,
+    reveal_option_list_highlight,
+    schedule_option_list_highlight_reveal,
+)
 from .plans_data import PlansSnapshot
 from .plans_detail import (
     active_plan_properties_header,
@@ -57,7 +62,7 @@ class PlansOptionList(OptionList):
 
     def _assign_highlight(self, index: int | None) -> None:
         self.highlighted = index
-        self.scroll_to_highlight()
+        reveal_option_list_highlight(self)
 
     def watch_highlighted(self, highlighted: int | None) -> None:
         if self._programmatic_update:
@@ -89,6 +94,12 @@ class PlansNavigationMixin(_MixinBase):
             preferred_id: str | None = None,
             update_detail: bool = True,
         ) -> None: ...
+
+        def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
+
+        def relation_footer_entries(
+            self, keymap: Any = None
+        ) -> tuple[tuple[str, str], ...]: ...
 
     def _init_plans_navigation(self) -> None:
         self._rows = {}
@@ -173,7 +184,17 @@ class PlansNavigationMixin(_MixinBase):
                 self._update_detail()
             else:
                 self._detail_debouncer.schedule(self._update_detail)
+            relation_panel = None
+            relation_panel_getter = getattr(self, "relation_panel", None)
+            if callable(relation_panel_getter):
+                relation_panel = relation_panel_getter()
+            had_relation_panel = bool(getattr(relation_panel, "display", False))
             self._sync_artifacts_footer()
+            has_relation_panel = bool(getattr(relation_panel, "display", False))
+            schedule_option_list_highlight_reveal(
+                option_list,
+                allow_future_growth=has_relation_panel and not had_relation_panel,
+            )
         return True
 
     def request_entry_target(self, target: ArtifactEntryTarget) -> bool:
@@ -190,9 +211,30 @@ class PlansNavigationMixin(_MixinBase):
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         row = self.selected_row()
-        if row is None or row.bead_link is None:
+        refresh_relation_panel = getattr(self, "refresh_relation_panel", None)
+        keymap = getattr(
+            getattr(self, "app", None),
+            "_relation_footer_keymap_override",
+            None,
+        )
+        if row is None:
+            if keymap is None and callable(refresh_relation_panel):
+                refresh_relation_panel(refresh_footer=False)
             return ()
-        return (("plans_open_bead", "linked bead"),)
+        if keymap is None:
+            keymap = (
+                refresh_relation_panel(refresh_footer=False)
+                if callable(refresh_relation_panel)
+                else None
+            )
+        entries: list[tuple[str, str]] = []
+        first_link_target = getattr(keymap, "first_link_target", None)
+        if callable(first_link_target) and first_link_target("beads") is not None:
+            entries.append(("plans_open_bead", "linked bead"))
+        relation_footer_entries = getattr(self, "relation_footer_entries", None)
+        if callable(relation_footer_entries):
+            entries.extend(relation_footer_entries(keymap))
+        return tuple(entries)
 
     def apply_entry_jump_hints(
         self,
@@ -284,6 +326,7 @@ class PlansNavigationMixin(_MixinBase):
             properties.display = False
             properties.update("")
             body.update(self._empty_detail())
+            self.refresh_relation_panel()
         elif row.proposal is not None:
             properties.display = True
             properties.update(
@@ -294,6 +337,7 @@ class PlansNavigationMixin(_MixinBase):
                 )
             )
             body.update(row.proposal.body or "_No plan body._")
+            self.refresh_relation_panel()
         elif row.active is not None:
             properties.display = True
             properties.update(
@@ -304,6 +348,7 @@ class PlansNavigationMixin(_MixinBase):
                 )
             )
             body.update(row.active.document.body or "_No plan body._")
+            self.refresh_relation_panel()
         elif row.archive is not None:
             properties.display = True
             properties.update(
@@ -316,6 +361,7 @@ class PlansNavigationMixin(_MixinBase):
                 )
             )
             body.update(row.archive.plan.body or "_No plan body._")
+            self.refresh_relation_panel()
 
     def _project_name(self, project: str) -> str:
         snapshot = self._snapshot

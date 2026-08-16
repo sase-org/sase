@@ -68,7 +68,7 @@ def init_navigation_state(self: Any) -> None:
     # (e.g. tests that exercise mixin methods without mounting).
     self._w_patch_list = None
     self._w_patch_detail = None
-    self._w_ancestors_children = None
+    self._w_relation_panel = None
     self._w_patch_info_panel = None
     self._w_footer = None
     self._w_patch_filter_bar = None
@@ -161,9 +161,9 @@ def init_navigation_state(self: Any) -> None:
     self._child_mode_active = False
     self._sibling_mode_active = False
     self._child_key_buffer = ""  # Buffer for multi-key child sequences
-    self._ancestor_keys = {}  # name -> keymap
-    self._children_keys = {}  # key -> name (for navigation)
-    self._sibling_keys = {}  # key -> name (for sibling navigation)
+    from sase.core.artifact_relation_layout import EMPTY_RELATION_KEYMAP
+
+    self._relation_keymap = EMPTY_RELATION_KEYMAP
     from ...patch import Patch
 
     self._all_patches = []  # Cache for ancestry lookup

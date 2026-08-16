@@ -11,7 +11,6 @@ from .agents_sync_indicator import AgentsSyncIndicator as AgentsSyncIndicator
 from .alias_overrides_indicator import (
     AliasOverridesIndicator as AliasOverridesIndicator,
 )
-from .ancestors_children_panel import AncestorsChildrenPanel as AncestorsChildrenPanel
 from .artifacts.panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
 from .artifacts.beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .artifacts.plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
@@ -58,6 +57,7 @@ from .artifacts.patch_filter_bar import PatchFilterBar as PatchFilterBar
 from .patch_info_panel import PatchInfoPanel as PatchInfoPanel
 from .patch_list import PatchList as PatchList
 from .patch_onboarding import PatchOnboarding as PatchOnboarding
+from .artifacts.relation_panel import RelationPanel as RelationPanel
 from .provider_disables_indicator import (
     ProviderDisablesIndicator as ProviderDisablesIndicator,
 )

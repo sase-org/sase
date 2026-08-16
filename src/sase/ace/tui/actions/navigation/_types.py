@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from ...models.fold_state import SectionFoldStateManager
     from ...widgets.bgcmd_list import AxeItem
     from ...widgets.artifacts import ArtifactEntryTarget, ArtifactsPaneKey
+    from sase.core.artifact_relation_layout import RelationKeymap
     from ...widgets.prompt_panel._member_roster import MemberJumpMap
     from ..axe_display._loaders import AxeItemKey
 
@@ -101,9 +102,7 @@ class NavigationMixinBase:
     _artifacts_jump_history: dict[ArtifactsPaneKey, ArtifactEntryTarget]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
-    _ancestor_keys: dict[str, str]
-    _children_keys: dict[str, str]
-    _sibling_keys: dict[str, str]
+    _relation_keymap: RelationKeymap
     _all_patches: list[Patch]
     _query_history: dict[str, QueryHistoryStacks]
     _saved_queries: dict[str, dict[str, QueryRecord]]

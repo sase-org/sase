@@ -15,7 +15,6 @@ from sase.core.artifact_relations import RelationIndex
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..._artifact_tab_model import ArtifactsPaneContract
-from ..ancestors_children_panel import AncestorsChildrenPanel
 from ..patch_detail import PatchDetail
 from ..patch_info_panel import PatchInfoPanel
 from ..patch_list import PatchList
@@ -25,12 +24,19 @@ from .entry_navigation import ArtifactEntryNavigator, ArtifactEntryTarget
 from .patch_filter_bar import PatchFilterBar
 from .patches_filter_session import PatchesFilterSessionMixin
 from .patch_entry import patch_row_target
+from .relation_panel import (
+    RelationEntryFact,
+    RelationPanel,
+    RelationPanelHostMixin,
+    RelationRole,
+)
 from .shell import build_degraded_card
 from .types import ARTIFACTS_ACCENTS, ArtifactsSubTab
 
 
 class ArtifactsPatchesPane(
     PatchesFilterSessionMixin,
+    RelationPanelHostMixin,
     ArtifactEntryNavigator,
     ArtifactsPaneLifecycle,
     Horizontal,
@@ -52,7 +58,10 @@ class ArtifactsPatchesPane(
         with Vertical(id="list-container"):
             yield PatchInfoPanel(id="info-panel")
             yield PatchList(id="list-panel")
-            yield AncestorsChildrenPanel(id="ancestors-children-panel")
+            yield RelationPanel(
+                id="patches-relation-panel",
+                classes="artifacts-relation-panel",
+            )
         with Vertical(id="detail-container"):
             profile = (
                 self.contract.query_profile
@@ -139,6 +148,77 @@ class ArtifactsPatchesPane(
         # shared non-PR footer-entries renderer.
         return ()
 
+    def relation_panel_accent(self) -> str:
+        """Return the legacy Patch relation header color."""
+        return "#87D7FF"
+
+    def relation_entry_facts(self) -> Mapping[ArtifactEntryTarget, RelationEntryFact]:
+        """Return Patch row labels, statuses, and effective hidden flags."""
+        app = cast(Any, self.app)
+        patches = getattr(app, "_all_patches", ())
+        hide_reverted = bool(getattr(app, "_patch_relation_hide_reverted", False))
+        index = self.relation_index()
+        cache_key = (id(patches), id(index), hide_reverted)
+        cached_key = getattr(app, "_patch_relation_facts_key", None)
+        cached = getattr(app, "_patch_relation_facts", None)
+        if cached_key == cache_key and cached is not None:
+            return cast(Mapping[ArtifactEntryTarget, RelationEntryFact], cached)
+        facts: dict[ArtifactEntryTarget, RelationEntryFact] = {}
+        graph_getter = getattr(app, "_get_patch_graph_index", None)
+        graph = graph_getter() if callable(graph_getter) else None
+        if graph is not None and index is not None:
+            for edge in index.edges:
+                for target in (edge.source, edge.target):
+                    if target.pane_id != "patches" or not target.parts:
+                        continue
+                    name = target.parts[-1]
+                    facts.setdefault(
+                        target,
+                        RelationEntryFact(
+                            label=name,
+                            status=graph.get_status(name),
+                        ),
+                    )
+        facts.update(
+            {
+                patch_row_target(patch): RelationEntryFact(
+                    label=patch.name,
+                    status=patch.status,
+                    hidden=hide_reverted
+                    and _patch_relation_status_hidden(patch.status),
+                )
+                for patch in patches
+            }
+        )
+        app._patch_relation_facts_key = cache_key
+        app._patch_relation_facts = facts
+        return facts
+
+    def reveal_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        role: RelationRole,
+    ) -> bool:
+        """Preserve the legacy Patch query rewrite for filtered relation targets."""
+        app = cast(Any, self.app)
+        target_name = target.parts[-1] if target.parts else ""
+        if not target_name:
+            return False
+        app._change_query_for_navigation(
+            target_name,
+            role is RelationRole.ANCESTOR,
+            role is RelationRole.FAMILY,
+        )
+        return True
+
+    def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
+        del origin
+        app = cast(Any, self.app)
+        push = getattr(app, "_push_patch_to_history", None)
+        if callable(push):
+            push()
+
     def relation_index(self) -> RelationIndex | None:
         """Return the app-owned Patch relation index built on the load path."""
         app = cast(Any, self.app)
@@ -146,6 +226,10 @@ class ArtifactsPatchesPane(
         if callable(getter):
             return getter()
         return None
+
+
+def _patch_relation_status_hidden(status: str) -> bool:
+    return status.startswith("Reverted") or status.startswith("Archived")
 
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {

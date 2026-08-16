@@ -10,6 +10,7 @@ from rich.text import Text
 from textual.message_pump import _MessagePumpMeta
 from textual.widgets import OptionList
 
+from sase.core.artifact_relation_layout import RelationEntryFact, RelationRole
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
 
@@ -67,6 +68,31 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
     @abstractmethod
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         """Return action names and labels that depend on the selected row."""
+
+    def relation_entry_facts(
+        self,
+    ) -> Mapping[ArtifactEntryTarget, RelationEntryFact]:
+        """Return presentation facts used by the host relation panel."""
+        return {}
+
+    def reveal_entry_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        role: RelationRole,
+    ) -> bool:
+        """Reveal a same-pane relation target that is not currently visible."""
+        del target, role
+        return False
+
+    def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
+        """Record a jump-back origin before relation navigation leaves it."""
+        app = getattr(self, "app", None)
+        if app is None:
+            return
+        history = getattr(app, "_artifacts_jump_history", None)
+        if isinstance(history, dict):
+            history[origin.pane_id] = origin
 
 
 def select_relative_entry(
@@ -130,6 +156,68 @@ def prewarm_option_render_cache(
     return True
 
 
+def reveal_option_list_highlight(
+    option_list: OptionList,
+    *,
+    allow_future_growth: bool = False,
+) -> None:
+    """Reveal the highlighted option with slack for relation-panel relayout."""
+    option_list.scroll_to_highlight()
+    highlighted = option_list.highlighted
+    if highlighted is None or not option_list.is_mounted:
+        return
+    option_list._update_lines()
+    try:
+        line = option_list._index_to_line[highlighted]
+        row_height = option_list._heights[highlighted]
+    except KeyError:
+        return
+    viewport_height = option_list.scrollable_content_region.height
+    target_y = max(0, line + row_height - viewport_height + 1)
+    if not allow_future_growth:
+        target_y = min(option_list.max_scroll_y, target_y)
+    if target_y > option_list.scroll_y:
+        option_list.scroll_to(y=target_y, animate=False, force=True)
+
+
+def schedule_option_list_highlight_reveal(
+    option_list: OptionList,
+    *,
+    allow_future_growth: bool = False,
+) -> None:
+    """Reveal now and after Textual has applied any relation-panel relayout."""
+    reveal_option_list_highlight(
+        option_list,
+        allow_future_growth=allow_future_growth,
+    )
+
+    def reveal_after_refresh() -> None:
+        reveal_option_list_highlight(
+            option_list,
+            allow_future_growth=allow_future_growth,
+        )
+        option_list.call_after_refresh(
+            lambda: reveal_option_list_highlight(
+                option_list,
+                allow_future_growth=allow_future_growth,
+            )
+        )
+        option_list.call_later(
+            lambda: reveal_option_list_highlight(
+                option_list,
+                allow_future_growth=allow_future_growth,
+            )
+        )
+
+    option_list.call_later(
+        lambda: reveal_option_list_highlight(
+            option_list,
+            allow_future_growth=allow_future_growth,
+        )
+    )
+    option_list.call_after_refresh(reveal_after_refresh)
+
+
 def prepend_jump_hint(prompt: Text, hint: str | None) -> Text:
     """Return a row prompt with the standard compact jump marker."""
     if hint is None:
@@ -153,8 +241,11 @@ def prepend_mark_glyph(prompt: Text, marked: bool) -> Text:
 __all__ = [
     "ArtifactEntryNavigator",
     "ArtifactEntryTarget",
+    "RelationEntryFact",
     "prepend_jump_hint",
     "prepend_mark_glyph",
     "prewarm_option_render_cache",
+    "reveal_option_list_highlight",
+    "schedule_option_list_highlight_reveal",
     "select_relative_entry",
 ]

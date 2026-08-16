@@ -6,6 +6,10 @@ from ..._artifact_tab_actions import (
 )
 from ...artifact_tabs import PaneCapability, resolve_artifacts_subtabs
 from ...keymaps import KeymapRegistry, key_display_name
+from sase.core.artifact_relation_layout import (
+    RelationRole,
+    assign_relation_roles,
+)
 from .binding_common import Sections
 
 
@@ -13,6 +17,9 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
     """Build artifact-pane help sections."""
     d = key_display_name
     a = km.app
+    contracts = {
+        descriptor.id: descriptor.contract for descriptor in resolve_artifacts_subtabs()
+    }
     artifact_list_navigation = [
         (
             f"{d(a.toggle_mark)} / {d(a.clear_marks)}",
@@ -70,6 +77,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ("^NAME / ancestor:NAME", "Patch plus descendants"),
                 ("~NAME / sibling:NAME", "Revert-family siblings"),
                 ("&NAME / name:NAME", "Exact Patch name"),
+                *_relation_rows(km, contracts.get("patches")),
                 ("%w/%d/%y/%m/%s/%r", "Status macros"),
                 ("!!! / !!", "Has / lacks error suffixes"),
                 ("@@@ / !@", "Has / lacks running agents"),
@@ -109,6 +117,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 ),
                 ("bare text", "Match subject words"),
                 ("Enter / Esc", "Commit / restore; row stays"),
+                *_relation_rows(km, contracts.get("stitches")),
                 (
                     f"{d(a.stitches_toggle_sdd)} / {d(a.stitches_toggle_all_projects)}",
                     "Sidecars / project: off/on",
@@ -145,6 +154,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                     f"{d(a.beads_expand)} / {d(a.beads_collapse)}",
                     "Expand / collapse epic",
                 ),
+                *_relation_rows(km, contracts.get("beads")),
                 (d(a.beads_cycle_status), "Cycle selected bead status"),
                 (d(a.beads_edit), "Edit selected bead"),
                 (d(a.beads_add_note), "Append a bead note"),
@@ -179,6 +189,7 @@ def artifact_sections(km: KeymapRegistry) -> Sections:
                 (d(a.files_copy_reference), "Copy artifact-file reference"),
                 (d(a.files_copy_path), "Copy stored path"),
                 (d(a.files_refresh), "Refresh artifact files"),
+                *_relation_rows(km, contracts.get("files")),
                 *artifact_list_navigation,
             ],
         ),
@@ -248,6 +259,7 @@ def _document_contract_sections(
             PaneCapability.PLAN_OPEN_BEAD
         ):
             rows.append((d(a.plans_open_bead), "Go to linked bead"))
+        rows.extend(_relation_rows(km, contract))
         rows.append((d(a.plans_refresh), f"Refresh {contract.label.lower()}s"))
         rows.extend(artifact_list_navigation)
         title = (
@@ -276,3 +288,38 @@ def _document_contract_sections(
             )
         )
     return sections
+
+
+def _relation_rows(
+    km: KeymapRegistry, contract: object | None
+) -> list[tuple[str, str]]:
+    """Return help rows for relation key modes declared by *contract*."""
+    if contract is None or not contract.has(PaneCapability.RELATIONS):  # type: ignore[attr-defined]
+        return []
+    roles = assign_relation_roles(contract.relations)  # type: ignore[attr-defined]
+    action_for_role = {
+        RelationRole.ANCESTOR: "start_ancestor_mode",
+        RelationRole.DESCENDANT: "start_child_mode",
+        RelationRole.FAMILY: "start_sibling_mode",
+    }
+    rows: list[tuple[str, str]] = []
+    for relation in contract.relations:  # type: ignore[attr-defined]
+        role = roles.get(relation.name)
+        if role is None:
+            continue
+        action = action_for_role.get(role)
+        if action is None:
+            continue
+        rows.append(
+            (
+                key_display_name(getattr(km.app, action)),
+                _truncate_relation_description(f"Navigate {relation.label.lower()}"),
+            )
+        )
+    return rows
+
+
+def _truncate_relation_description(description: str) -> str:
+    if len(description) <= 32:
+        return description
+    return f"{description[:31]}…"

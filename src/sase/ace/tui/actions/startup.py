@@ -108,7 +108,7 @@ class StartupMixin(
     _stall_watchdog_suspend_signals_wired: bool
     _w_patch_list: Any
     _w_patch_detail: Any
-    _w_ancestors_children: Any
+    _w_relation_panel: Any
     _w_patch_info_panel: Any
     _w_footer: Any
     _w_patch_filter_bar: Any

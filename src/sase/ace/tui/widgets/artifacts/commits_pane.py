@@ -49,6 +49,7 @@ from .entry_navigation import ArtifactEntryTarget
 from .group_fold_navigation import ArtifactGroupFoldMixin
 from .panes import ArtifactsPaneLifecycle
 from .query_session import ArtifactQuerySession
+from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .types import ARTIFACTS_ACCENTS
 
 STITCHES_DETAIL_DEBOUNCE_S = 0.25
@@ -59,6 +60,7 @@ class CommitsPane(
     CommitsCollectionMixin,
     CommitsFilteringMixin,
     CommitsDetailMixin,
+    RelationPanelHostMixin,
     ArtifactsPaneLifecycle,
     Vertical,
 ):
@@ -114,6 +116,10 @@ class CommitsPane(
                 timeline = CommitsTimeline(id="stitches-timeline")
                 timeline.set_selection_callback(self._sync_timeline_selection)
                 yield timeline
+                yield RelationPanel(
+                    id="stitches-relation-panel",
+                    classes="artifacts-relation-panel",
+                )
                 yield Static(self._hints_text(), id="stitches-footer")
             with Vertical(id="stitches-detail-container"):
                 with VerticalScroll(id="stitches-detail-scroll"):

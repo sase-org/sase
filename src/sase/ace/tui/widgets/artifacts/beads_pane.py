@@ -36,6 +36,7 @@ from .beads_navigation import BeadsNavigationMixin, BeadsOptionList
 from .beads_options import BeadsOptionsMixin
 from .query_rows import build_beads_query_index
 from .query_session import ArtifactQuerySession
+from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .snapshot_pane import ArtifactsSnapshotPane, SnapshotRequest
 
 if TYPE_CHECKING:
@@ -55,6 +56,7 @@ class ArtifactsBeadsPane(
     BeadsFilterSessionMixin,
     BeadsNavigationMixin,
     BeadsOptionsMixin,
+    RelationPanelHostMixin,
     ArtifactsSnapshotPane,
 ):
     """Browse task beads and expandable epic phase trees."""
@@ -99,6 +101,10 @@ class ArtifactsBeadsPane(
             with list_panel:
                 yield Static(self._status_text(), id="beads-status")
                 yield BeadsOptionList(id="beads-list")
+                yield RelationPanel(
+                    id="beads-relation-panel",
+                    classes="artifacts-relation-panel",
+                )
             detail_panel = Vertical(id="beads-detail-panel")
             detail_panel.border_title = "Details"
             with detail_panel:

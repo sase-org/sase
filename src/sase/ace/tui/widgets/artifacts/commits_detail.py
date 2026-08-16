@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import RenderableType
 from textual.widgets import Static
@@ -48,6 +48,12 @@ class CommitsDetailMixin(_MixinBase):
         def _refresh_position_badge(self) -> None: ...
 
         def _sync_timeline_grouping(self, timeline: CommitsTimeline) -> None: ...
+
+        def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
+
+        def relation_footer_entries(
+            self, keymap: Any = None
+        ) -> tuple[tuple[str, str], ...]: ...
 
     def _init_commits_detail(self, diff_loader: CommitDiffLoader) -> None:
         self._diff_loader = diff_loader
@@ -95,7 +101,16 @@ class CommitsDetailMixin(_MixinBase):
         return False
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
-        return ()
+        keymap = getattr(
+            getattr(self, "app", None),
+            "_relation_footer_keymap_override",
+            None,
+        )
+        if keymap is not None:
+            return self.relation_footer_entries(keymap)
+        return self.relation_footer_entries(
+            self.refresh_relation_panel(refresh_footer=False)
+        )
 
     def apply_entry_jump_hints(
         self,
@@ -152,6 +167,7 @@ class CommitsDetailMixin(_MixinBase):
                         severity="warning",
                     )
         self._refresh_info()
+        self.refresh_relation_panel()
         if self._selected_commit_index is not None:
             if live_preview and self._detail_debouncer is not None:
                 index = self._selected_commit_index
@@ -174,6 +190,7 @@ class CommitsDetailMixin(_MixinBase):
             return
         self._selected_commit_index = commit_index
         self._refresh_position_badge()
+        self.refresh_relation_panel()
         if commit_index is None:
             return
         if self._detail_debouncer is None:

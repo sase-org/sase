@@ -125,9 +125,7 @@ Timed spans currently wired (by file):
   `widget.agent_list.try_remove_rows`
 - `widgets/agent_detail.py` — `widget.agent_detail.update_display`,
   `widget.agent_detail.update_display_immediate`
-- `widgets/ancestors_children_panel.py` —
-  `widget.ancestors_children.update_relationships`,
-  `widget.ancestors_children.update_relationships_from_index`
+- `widgets/artifacts/relation_panel.py` — `widget.relation_panel.update_relations`
 - `widgets/prompt_panel/_agent_display.py` — `widget.prompt_panel.update_display`,
   `widget.prompt_panel.update_header_only`
 - `widgets/prompt_panel/_agent_display_header_summary.py` —

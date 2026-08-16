@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from sase.bead.model import Status
+from sase.core.artifact_relation_layout import RelationRole
 
-from ..widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ._artifacts_beads_common import ArtifactsBeadsCommonMixin
 
 
@@ -53,28 +52,16 @@ class ArtifactsBeadsBrowseActionsMixin(ArtifactsBeadsCommonMixin):
             pane.set_selected_epic_expanded(False)
 
     def action_beads_open_plan(self) -> None:
-        selected = self._selected_bead()
-        if selected is None:
+        pane = self._beads_pane()
+        if pane is None:
             return
-        pane, row = selected
-        snapshot = pane.snapshot
-        plan_path = (
-            ""
-            if snapshot is None
-            else snapshot.plan_links.get((row.project, row.issue.id), "")
-        )
-        if not plan_path:
+        target = pane.refresh_relation_panel().first_link_target("plans")
+        if target is None:
             self.notify(  # type: ignore[attr-defined]
                 "This bead links no plan file", severity="warning"
             )
             return
-        plan_kind = "archive" if row.issue.status is Status.CLOSED else "active"
-        self._request_artifacts_entry(  # type: ignore[attr-defined]
-            ArtifactEntryTarget(
-                pane_id="ref:plan",
-                parts=(row.project, plan_kind, plan_path),
-            ),
-        )
+        self._navigate_to_relation_target(target, role=RelationRole.LINK)  # type: ignore[attr-defined]
 
     def action_beads_refresh(self) -> None:
         if (pane := self._beads_pane()) is not None:

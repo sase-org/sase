@@ -8,7 +8,11 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
-from sase.ace.tui.widgets.artifacts import files_pane
+from sase.ace.tui.widgets.artifacts import (
+    files_detail_panel,
+    files_options,
+    files_pane,
+)
 from sase.ace.tui.widgets.artifacts.files_detail import FileDetailData
 from sase.ace.tui.widgets.artifacts.files_pane import ArtifactsFilesPane
 from sase.ace.tui.widgets.artifacts.files_rendering import (
@@ -151,9 +155,9 @@ async def test_artifacts_files_populated_png_snapshot(
         "load_files_snapshot",
         lambda project, _limit: snapshot(rows, project=project),
     )
-    monkeypatch.setattr(files_pane, "load_file_detail", _fixture_detail)
+    monkeypatch.setattr(files_detail_panel, "load_file_detail", _fixture_detail)
     monkeypatch.setattr(
-        files_pane,
+        files_options,
         "local_now",
         lambda: datetime.fromisoformat("2026-07-24T20:00:00-04:00"),
     )

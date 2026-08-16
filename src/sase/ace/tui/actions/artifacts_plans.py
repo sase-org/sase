@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import cast
 
-from sase.bead.model import IssueType
+from sase.core.artifact_relation_layout import RelationRole
 
-from ..widgets.artifacts.bead_plan_links import BeadPlanLink
-from ..widgets.artifacts.entry_navigation import ArtifactEntryTarget
 from ..widgets.artifacts.plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 
 PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
@@ -91,16 +89,15 @@ class ArtifactsPlansActionsMixin:
             )
             return
         row = None if pane is None else pane.selected_row()
-        link = None if row is None else row.bead_link
-        if link is None:
+        target = (
+            None
+            if pane is None or row is None
+            else pane.refresh_relation_panel().first_link_target("beads")
+        )
+        if target is None:
             self.notify("No bead links this plan file", severity="warning")  # type: ignore[attr-defined]
             return
-        self._request_artifacts_entry(  # type: ignore[attr-defined]
-            ArtifactEntryTarget(
-                pane_id="beads",
-                parts=(link.project, _bead_row_kind(link), link.bead_id),
-            ),
-        )
+        self._navigate_to_relation_target(target, role=RelationRole.LINK)  # type: ignore[attr-defined]
 
     def action_plans_approve(self) -> None:
         self._open_selected_plan_approval(intent="approve")
@@ -125,14 +122,6 @@ class ArtifactsPlansActionsMixin:
         opened = handle_plan_approval(self, row.proposal.notification)
         if opened and intent == "reject":
             self.notify("Review the plan, then press r to confirm rejection")  # type: ignore[attr-defined]
-
-
-def _bead_row_kind(link: BeadPlanLink) -> str:
-    if link.bead_type is IssueType.TASK:
-        return "task"
-    if link.bead_type is IssueType.PHASE:
-        return "phase"
-    return "epic"
 
 
 __all__ = ["ArtifactsPlansActionsMixin", "PLANS_ARTIFACT_ACTIONS"]

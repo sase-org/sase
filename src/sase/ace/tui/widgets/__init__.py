@@ -17,10 +17,6 @@ _LAZY_EXPORTS = {
         ".alias_overrides_indicator",
         "AliasOverridesIndicator",
     ),
-    "AncestorsChildrenPanel": (
-        ".ancestors_children_panel",
-        "AncestorsChildrenPanel",
-    ),
     "ARTIFACTS_SUBTAB_ORDER": (".artifacts.types", "ARTIFACTS_SUBTAB_ORDER"),
     "ArtifactPlaceholderPane": (".artifacts.panes", "ArtifactPlaceholderPane"),
     "ArtifactsBeadsPane": (".artifacts.beads_pane", "ArtifactsBeadsPane"),
@@ -68,6 +64,7 @@ _LAZY_EXPORTS = {
     "PatchInfoPanel": (".patch_info_panel", "PatchInfoPanel"),
     "PatchList": (".patch_list", "PatchList"),
     "PatchOnboarding": (".patch_onboarding", "PatchOnboarding"),
+    "RelationPanel": (".artifacts.relation_panel", "RelationPanel"),
     "ProviderDisablesIndicator": (
         ".provider_disables_indicator",
         "ProviderDisablesIndicator",
@@ -115,7 +112,6 @@ __all__ = [
     "AgentOnboarding",
     "AgentsSyncIndicator",
     "AliasOverridesIndicator",
-    "AncestorsChildrenPanel",
     "ActiveXPromptArgHint",
     "AxeDashboard",
     "AxeDescriptionBanner",
@@ -139,6 +135,7 @@ __all__ = [
     "PatchInfoPanel",
     "PatchList",
     "PatchOnboarding",
+    "RelationPanel",
     "ProviderDisablesIndicator",
     "ChangeSpecDetail",  # legacy compatibility alias
     "ChangeSpecInfoPanel",  # legacy compatibility alias

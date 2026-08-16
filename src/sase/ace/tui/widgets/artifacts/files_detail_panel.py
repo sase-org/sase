@@ -51,6 +51,8 @@ class FilesDetailMixin(_MixinBase):
 
         def selected_version_index(self, logical: LogicalFile | None = None) -> int: ...
 
+        def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
+
     def _init_files_detail(self) -> None:
         self._detail_debouncer = None
         self._detail_worker = None
@@ -156,6 +158,7 @@ class FilesDetailMixin(_MixinBase):
                 loading=loading and detail is None,
             )
         )
+        self.refresh_relation_panel()
 
 
 __all__ = ["FilesDetailMixin"]

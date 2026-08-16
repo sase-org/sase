@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...util.debounce import DetailPanelDebouncer
 
 from ....patch import Patch
+from sase.core.artifact_relation_layout import EMPTY_RELATION_KEYMAP
 from ...models.patch_graph_index import (
     PatchGraphIndex,
     build_patch_graph_index,
@@ -53,15 +54,13 @@ class PatchDisplayMixin(PatchOnboardingMixin):
     _entry_jump_mode_active: bool
     _entry_jump_index_to_hint: dict[int, str]
     _all_patches: list[Patch]
-    _ancestor_keys: dict[str, str]
-    _children_keys: dict[str, str]
-    _sibling_keys: dict[str, str]
+    _relation_keymap: Any
     _hidden_reverted_count: int
     _hidden_submitted_count: int
     _patch_detail_debouncer: DetailPanelDebouncer
     _w_patch_list: object
     _w_patch_detail: object
-    _w_ancestors_children: object
+    _w_relation_panel: object
     _w_patch_info_panel: object
     _w_footer: object
     _w_patch_filter_bar: object
@@ -185,9 +184,9 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             return
 
         detail_widget = self._get_patch_detail_widget()
-        ancestors_panel = self._get_ancestors_children_widget()
+        relation_panel = self._get_relation_panel_widget()
         footer_widget = self._get_footer_widget()
-        if detail_widget is None or ancestors_panel is None or footer_widget is None:
+        if detail_widget is None or relation_panel is None or footer_widget is None:
             log.debug("patches detail-only refresh skipped: widget tree unavailable")
             return
 
@@ -200,7 +199,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             patch = self.patches[self.current_idx]
             self._apply_detail_panel_update(
                 detail_widget,
-                ancestors_panel,
+                relation_panel,
                 footer_widget,
                 patch,
                 effective_hide_reverted,
@@ -208,17 +207,15 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         else:
             detail_widget.show_empty(display_query)
             self._apply_empty_footer_update(footer_widget)
-            ancestors_panel.clear()
-            self._ancestor_keys = {}
-            self._children_keys = {}
-            self._sibling_keys = {}
+            relation_panel.clear()
+            self._relation_keymap = EMPTY_RELATION_KEYMAP
 
         self._update_info_panel()
 
     def _apply_detail_panel_update(
         self,
         detail_widget: Any,
-        ancestors_panel: Any,
+        relation_panel: Any,
         footer_widget: Any,
         patch: Patch,
         effective_hide_reverted: bool,
@@ -250,14 +247,12 @@ class PatchDisplayMixin(PatchOnboardingMixin):
                 timestamps_collapsed=self.timestamps_collapsed,
                 deltas_collapsed=self.deltas_collapsed,
             )
-        graph_index = self._get_patch_graph_index()
-        self._ancestor_keys, self._children_keys, self._sibling_keys = (
-            ancestors_panel.update_relationships_from_index(  # type: ignore[attr-defined]
-                patch,
-                graph_index,
-                hide_reverted=effective_hide_reverted,
-            )
-        )
+        del relation_panel
+        self._patch_relation_hide_reverted = effective_hide_reverted
+        pane = self._artifacts_entry_navigator("patches")  # type: ignore[attr-defined]
+        refresh_relation_panel = getattr(pane, "refresh_relation_panel", None)
+        if callable(refresh_relation_panel):
+            self._relation_keymap = refresh_relation_panel()
         # The keybinding footer is shared across tabs; the active tab's
         # display path is the sole writer. When the PR refresh fires
         # off-tab (e.g. inotify-driven reload while the user is on
@@ -337,17 +332,17 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         except NoMatches:
             return None
 
-    def _get_ancestors_children_widget(self) -> Any:
+    def _get_relation_panel_widget(self) -> Any:
         from textual.css.query import NoMatches
 
-        from ...widgets import AncestorsChildrenPanel
+        from ...widgets import RelationPanel
 
-        cached = getattr(self, "_w_ancestors_children", None)
+        cached = getattr(self, "_w_relation_panel", None)
         if cached is not None:
             return cached
         try:
             return self.query_one(  # type: ignore[attr-defined]
-                "#ancestors-children-panel", AncestorsChildrenPanel
+                "#patches-relation-panel", RelationPanel
             )
         except NoMatches:
             return None
@@ -404,13 +399,13 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         list_widget = self._get_patch_list_widget()
         detail_widget = self._get_patch_detail_widget()
         footer_widget = self._get_footer_widget()
-        ancestors_panel = self._get_ancestors_children_widget()
+        relation_panel = self._get_relation_panel_widget()
         if (
             list_widget is None
             or detail_widget is None
             or search_panel is None
             or footer_widget is None
-            or ancestors_panel is None
+            or relation_panel is None
         ):
             log.debug("patches full refresh skipped: widget tree unavailable")
             return
@@ -467,7 +462,7 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             patch = self.patches[self.current_idx]
             self._apply_detail_panel_update(
                 detail_widget,
-                ancestors_panel,
+                relation_panel,
                 footer_widget,
                 patch,
                 effective_hide_reverted,
@@ -475,10 +470,8 @@ class PatchDisplayMixin(PatchOnboardingMixin):
         else:
             detail_widget.show_empty(display_query)
             self._apply_empty_footer_update(footer_widget)
-            ancestors_panel.clear()
-            self._ancestor_keys = {}
-            self._children_keys = {}
-            self._sibling_keys = {}
+            relation_panel.clear()
+            self._relation_keymap = EMPTY_RELATION_KEYMAP
 
         self._update_info_panel()
 

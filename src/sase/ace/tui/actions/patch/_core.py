@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from ....query_history import QueryHistoryStacks
     from ...models.fold_state import FoldLevel
     from ...util.debounce import DetailPanelDebouncer
+    from sase.core.artifact_relation_layout import RelationKeymap
 
 from ....patch import Patch
 
@@ -64,9 +65,7 @@ class PatchMixin(
     _query_history: dict[str, QueryHistoryStacks]
     _query_selections: dict[str, dict[str, str]]
     _all_patches: list[Patch]
-    _ancestor_keys: dict[str, str]
-    _children_keys: dict[str, str]
-    _sibling_keys: dict[str, str]
+    _relation_keymap: RelationKeymap
     _hidden_reverted_count: int
     _hidden_submitted_count: int
     _axe_cmds_hidden: bool

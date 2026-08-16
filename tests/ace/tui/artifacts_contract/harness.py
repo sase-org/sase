@@ -72,11 +72,7 @@ def check_declared_actions_are_registered(descriptor: ArtifactsTabDescriptor) ->
     registered = registered_host_actions()
     for capability in contract.capabilities:
         actions = CAPABILITY_HOST_ACTIONS[capability]
-        if capability in {
-            PaneCapability.RELATIONS,
-            PaneCapability.STATUS_COUNTERS,
-            PaneCapability.SHELL,
-        }:
+        if capability in {PaneCapability.STATUS_COUNTERS, PaneCapability.SHELL}:
             assert actions == ()
             continue
         assert actions

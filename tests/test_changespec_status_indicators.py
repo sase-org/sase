@@ -1,7 +1,7 @@
 """Tests for Patch status indicators in TUI widgets."""
 
 from sase.ace.patch import Patch, CommitEntry, HookEntry, HookStatusLine
-from sase.ace.tui.widgets.ancestors_children_panel import _get_simple_status_indicator
+from sase.ace.tui.widgets.artifacts.relation_panel import _get_simple_status_indicator
 from sase.ace.tui.widgets.changespec_list import _get_status_indicator
 
 

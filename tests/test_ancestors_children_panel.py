@@ -1,10 +1,16 @@
-"""Tests for AncestorsChildrenPanel sibling logic."""
+"""Tests for relation-layout Patch sibling logic."""
 
 from sase.ace.patch import Patch
+from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
 from sase.ace.tui.models.changespec_graph_index import (
     build_patch_graph_index,
 )
-from sase.ace.tui.widgets.ancestors_children_panel import AncestorsChildrenPanel
+from sase.ace.tui.relations import build_patches_relation_index
+from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
+from sase.core.artifact_relation_layout import (
+    RelationEntryFact,
+    build_relation_view,
+)
 from conftest import _PatchFactory
 
 
@@ -13,8 +19,8 @@ def _find_siblings_and_keys(
     current_status: str,
     sibling_specs: list[tuple[str, str]],
     hide_reverted: bool = False,
-) -> tuple[AncestorsChildrenPanel, list[str], dict[str, str]]:
-    """Helper to call _find_siblings and _assign_sibling_keys directly.
+) -> tuple[int, list[str], dict[str, str]]:
+    """Build the shared relation view and return sibling labels and keys.
 
     Args:
         current_name: Name of the currently selected Patch.
@@ -23,18 +29,43 @@ def _find_siblings_and_keys(
         hide_reverted: Whether to hide reverted/archived siblings.
 
     Returns:
-        Tuple of (panel, sibling_names, sibling_keys).
+        Tuple of (hidden_count, sibling_names, sibling_keys).
     """
     current = _PatchFactory.create(name=current_name, status=current_status)
     all_cs: list[Patch] = [current] + [
         _PatchFactory.create(name=n, status=s) for n, s in sibling_specs
     ]
-    panel = AncestorsChildrenPanel.__new__(AncestorsChildrenPanel)
-    panel._hidden_reverted_sibling_count = 0
-    index = build_patch_graph_index(all_cs)
-    siblings = panel._find_siblings(current, index, hide_reverted)
-    keys = panel._assign_sibling_keys(siblings)
-    return panel, siblings, keys
+    graph_index = build_patch_graph_index(all_cs)
+    contract = compile_builtin_contract("patches", label="Patch", icon="", accent="")
+    relation_index = build_patches_relation_index(
+        all_cs,
+        graph_index,
+        contract=contract,
+    )
+    facts = {
+        patch_row_target(patch): RelationEntryFact(
+            label=patch.name,
+            status=patch.status,
+            hidden=hide_reverted
+            and (
+                patch.status.startswith("Reverted")
+                or patch.status.startswith("Archived")
+            ),
+        )
+        for patch in all_cs
+    }
+    view = build_relation_view(
+        index=relation_index,
+        origin=patch_row_target(current),
+        relations=contract.relations,
+        facts=facts,
+    )
+    sibling_section = next(
+        section for section in view.sections if section.relation == "siblings"
+    )
+    siblings = [row.label for row in sibling_section.rows]
+    keys = dict(view.keymap.siblings)
+    return sibling_section.hidden_count, siblings, keys
 
 
 def test_non_suffixed_sibling_sorts_first() -> None:

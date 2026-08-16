@@ -141,20 +141,20 @@ def _patch_acquire_steps(
 
 class TestAuthorizeOperationalLeaseWorkspace:
     def test_legacy_primary_is_not_leasable(self) -> None:
-        with pytest.raises(OperationalLeaseError, match="legacy #1") as exc_info:
-            authorize_operational_lease_workspace(1)
+        with pytest.raises(_OperationalLeaseError, match="legacy #1") as exc_info:
+            _authorize_operational_lease_workspace(1)
         assert "left untouched" in str(exc_info.value)
         assert exc_info.value.resumable is True
 
     def test_reserved_and_out_of_range_are_not_leasable(self) -> None:
-        with pytest.raises(OperationalLeaseError, match="reserved workspace"):
-            authorize_operational_lease_workspace(5)
-        with pytest.raises(OperationalLeaseError, match="unified claim pool"):
-            authorize_operational_lease_workspace(1000)
+        with pytest.raises(_OperationalLeaseError, match="reserved workspace"):
+            _authorize_operational_lease_workspace(5)
+        with pytest.raises(_OperationalLeaseError, match="unified claim pool"):
+            _authorize_operational_lease_workspace(1000)
 
     def test_unified_pool_number_is_accepted(self) -> None:
-        assert authorize_operational_lease_workspace(10) == 10
-        assert authorize_operational_lease_workspace(42) == 42
+        assert _authorize_operational_lease_workspace(10) == 10
+        assert _authorize_operational_lease_workspace(42) == 42
 
 
 class TestAcquireAndContextManager:
@@ -239,7 +239,7 @@ class TestAcquireAndContextManager:
             _claim,
         )
 
-        with pytest.raises(OperationalLeaseError, match="allocation") as exc_info:
+        with pytest.raises(_OperationalLeaseError, match="allocation") as exc_info:
             acquire_operational_lease(
                 "demo",
                 workflow="chop:demo",
@@ -261,7 +261,7 @@ class TestAcquireAndContextManager:
         project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
 
         def _materialize(*_args: object, **_kwargs: object) -> Path:
-            raise OperationalLeaseError("materialization", "clone failed")
+            raise _OperationalLeaseError("materialization", "clone failed")
 
         calls = _patch_acquire_steps(
             monkeypatch,
@@ -270,7 +270,7 @@ class TestAcquireAndContextManager:
             materialize=_materialize,
         )
 
-        with pytest.raises(OperationalLeaseError, match="materialization"):
+        with pytest.raises(_OperationalLeaseError, match="materialization"):
             acquire_operational_lease(
                 "demo",
                 workflow="chop:demo",
@@ -291,7 +291,7 @@ class TestAcquireAndContextManager:
         project_file = _write_project_file(tmp_path / "demo.sase", primary=primary)
 
         def _prepare(_checkout: Path) -> None:
-            raise OperationalLeaseError("preparation", "git fetch failed")
+            raise _OperationalLeaseError("preparation", "git fetch failed")
 
         calls = _patch_acquire_steps(
             monkeypatch,
@@ -300,7 +300,7 @@ class TestAcquireAndContextManager:
             prepare=_prepare,
         )
 
-        with pytest.raises(OperationalLeaseError, match="preparation"):
+        with pytest.raises(_OperationalLeaseError, match="preparation"):
             acquire_operational_lease(
                 "demo",
                 workflow="chop:demo",
@@ -326,7 +326,7 @@ class TestAcquireAndContextManager:
             lambda *_args, **kwargs: released.append(kwargs.get("workspace_num", -1)),
         )
 
-        with pytest.raises(OperationalLeaseError, match="primary workspace"):
+        with pytest.raises(_OperationalLeaseError, match="primary workspace"):
             acquire_operational_lease(
                 "demo",
                 workflow="chop:demo",
@@ -346,7 +346,7 @@ class TestDurableSubmission:
             origin="test",
             project="demo",
         )
-        bound = bind_operational_lease(request, lease)
+        bound = _bind_operational_lease(request, lease)
         assert Path(bound.cwd) == lease.checkout_dir
         assert bound.workspace_num == 10
         assert bound.workspace_claim is not None
@@ -434,8 +434,8 @@ class TestDurableSubmission:
                 success=False, error="workspace #10 with pid 111 was not found"
             ),
         )
-        with pytest.raises(OperationalLeaseError, match="transfer") as exc_info:
-            transfer_operational_lease(
+        with pytest.raises(_OperationalLeaseError, match="transfer") as exc_info:
+            _transfer_operational_lease(
                 lease, SimpleNamespace(proc_id="proc-1", pid=4242)
             )
         assert "left untouched" in str(exc_info.value)
@@ -508,7 +508,7 @@ class TestPrepareFromRemote:
 
         checkout = tmp_path / "empty"
         checkout.mkdir()
-        with pytest.raises(OperationalLeaseError, match="preparation"):
+        with pytest.raises(_OperationalLeaseError, match="preparation"):
             _prepare_from_primary_remote(checkout)
 
     def test_prepare_fast_forwards_to_origin_head(self, tmp_path: Path) -> None:

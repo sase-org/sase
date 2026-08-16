@@ -23,6 +23,7 @@ from .entry_navigation import (
     prepend_jump_hint,
     prepend_mark_glyph,
     prewarm_option_render_cache,
+    reveal_option_list_highlight,
 )
 from .group_banner import format_group_banner_option
 from .types import ARTIFACTS_ACCENTS
@@ -315,7 +316,7 @@ class CommitsTimeline(OptionList):
     def _assign_highlight(self, target: int | None) -> None:
         """Assign a guarded highlight and synchronously reveal its row."""
         self.highlighted = target
-        self.scroll_to_highlight()
+        reveal_option_list_highlight(self)
 
     def _option_for_target(self, target: ArtifactEntryTarget | None) -> int | None:
         if target is None:

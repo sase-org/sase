@@ -998,8 +998,8 @@ IssueEditModal {
     padding: 0 1;
 }
 
-/* Ancestors/Children Panel */
-#ancestors-children-panel {
+/* Artifacts relation panel */
+.artifacts-relation-panel {
     height: auto;
     max-height: 24;  /* Increased from 18 to accommodate reverted children when visible */
     padding: 0 1 1 1;

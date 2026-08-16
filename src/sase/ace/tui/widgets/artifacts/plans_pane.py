@@ -39,6 +39,7 @@ from .plans_options import PlansOptionsMixin
 from .group_fold_navigation import ArtifactGroupFoldMixin
 from .query_rows import build_plans_query_index
 from .query_session import ArtifactQuerySession
+from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .plans_rendering import (
     active_plan_text,
     archive_text,
@@ -72,6 +73,7 @@ class ArtifactsDocumentsPane(
     PlansFilterSessionMixin,
     PlansNavigationMixin,
     PlansOptionsMixin,
+    RelationPanelHostMixin,
     ArtifactsSnapshotPane,
 ):
     """Browse provider-backed markdown documents."""
@@ -138,6 +140,10 @@ class ArtifactsDocumentsPane(
             with list_panel:
                 yield Static(self._status_text(), id="plans-status")
                 yield PlansOptionList(id="plans-list")
+                yield RelationPanel(
+                    id="plans-relation-panel",
+                    classes="artifacts-relation-panel",
+                )
             detail_panel = Vertical(id="plans-detail-panel")
             detail_panel.border_title = "Details"
             with detail_panel:

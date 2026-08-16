@@ -107,10 +107,10 @@ The accuracy bar is whether the diagram matches today's
    `changespecs=#00D7AF` (teal), `agents=#87D7FF` (light blue), `axe=#FF5F5F` (red) —
    all three match the card colours in the image. ✓
 3. **PRs-tab content row "query, group, fold" understates what is on screen.** The PRs
-   view in `app.py:242-250` composes `PatchInfoPanel`, `PatchList`,
-   **`AncestorsChildrenPanel`**, `SearchQueryPanel`, and `PatchDetail`. Ancestor / child
-   / sibling navigation (`<`, `>`, `~` per `docs/ace.md:PRs Tab`) is one of the
-   distinctive features of the tab and is not represented at all in the icon row.
+   view composes `PatchInfoPanel`, `PatchList`, the host-owned **`RelationPanel`**,
+   `SearchQueryPanel`, and `PatchDetail`. Ancestor / child / sibling navigation (`<`,
+   `>`, `~` per `docs/ace.md:PRs Tab`) is one of the distinctive features of the tab and
+   is not represented at all in the icon row.
 4. **PRs-tab grouping is named generically.** Code supports three explicit grouping
    modes — `BY_PROJECT`, `BY_DATE`, `BY_STATUS` — cycled with `o`/`O` (per `docs/ace.md`
    and the `app.py` grouping logic referenced from the AGENTS.md note in

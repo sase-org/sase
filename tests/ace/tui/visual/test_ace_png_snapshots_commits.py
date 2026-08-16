@@ -240,6 +240,7 @@ async def test_commits_merge_row_png_snapshot(
         await wait_for_svg_contains(page, "mmmmmmm")
         await wait_for_svg_contains(page, "◆ merge")
         await wait_for_svg_contains(page, "Changes introduced by this merge")
+        await wait_for_svg_contains(page, "parents")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

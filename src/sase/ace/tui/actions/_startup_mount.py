@@ -21,13 +21,13 @@ class StartupMountMixin:
         from ..widgets import (
             AgentDetail,
             AgentInfoPanel,
-            AncestorsChildrenPanel,
             ArtifactsView,
             PatchDetail,
             PatchFilterBar,
             PatchInfoPanel,
             PatchList,
             KeybindingFooter,
+            RelationPanel,
             TabBar,
         )
 
@@ -86,9 +86,9 @@ class StartupMountMixin:
                 ("_w_patch_list", "#list-panel", PatchList),
                 ("_w_patch_detail", "#detail-panel", PatchDetail),
                 (
-                    "_w_ancestors_children",
-                    "#ancestors-children-panel",
-                    AncestorsChildrenPanel,
+                    "_w_relation_panel",
+                    "#patches-relation-panel",
+                    RelationPanel,
                 ),
                 ("_w_patch_info_panel", "#info-panel", PatchInfoPanel),
                 ("_w_patch_filter_bar", "#patch-filter-bar", PatchFilterBar),

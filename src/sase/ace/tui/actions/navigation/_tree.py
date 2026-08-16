@@ -2,85 +2,99 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
+from sase.ace.tui._artifact_tab_model import PaneCapability
+from sase.core.artifact_entry_target import ArtifactEntryTarget
+from sase.core.artifact_relation_layout import (
+    EMPTY_RELATION_KEYMAP,
+    RelationKeymap,
+    RelationRole,
+)
+
 from ._types import NavigationMixinBase
 
 
 class TreeNavigationMixin(NavigationMixinBase):
     """Mixin providing ancestry/child/sibling tree navigation."""
 
-    def _is_patch_tree_tab(self) -> bool:
-        return self.current_tab in {
-            "artifacts",
+    def _relation_keymap_or_empty(self) -> RelationKeymap:
+        keymap = getattr(self, "_relation_keymap", EMPTY_RELATION_KEYMAP)
+        return keymap if isinstance(keymap, RelationKeymap) else EMPTY_RELATION_KEYMAP
+
+    def _relation_contract(self) -> Any | None:
+        contract = getattr(self, "active_artifacts_contract", None)
+        if contract is not None:
+            return contract
+        if self.current_tab in {
             "patches",
             "changespecs",  # legacy compatibility alias
-        }
+        }:
+            from sase.ace.tui._artifact_tab_contract import compile_builtin_contract
 
-    def _tree_patches(self) -> list[object]:
-        return getattr(
-            self,
-            "patches",
-            getattr(self, "changespecs", []),  # legacy compatibility alias
-        )
-
-    def _navigate_to_patch_compat(
-        self,
-        target_name: str,
-        *,
-        is_ancestor: bool,
-        is_sibling: bool = False,
-    ) -> None:
-        if self.current_tab == "changespecs":  # legacy compatibility alias
-            navigate_changespec = getattr(  # legacy compatibility alias
-                self,
-                "_navigate_to_changespec",  # legacy compatibility alias
-                None,
-            )
-            if callable(navigate_changespec):  # legacy compatibility alias
-                navigate_changespec(  # legacy compatibility alias
-                    target_name, is_ancestor, is_sibling
-                )
-                return
-        legacy_navigate = getattr(self, "_navigate_to_patch", None)
-        patch_navigate = getattr(self, "_navigate_to_patch", None)
-        navigate = (
-            legacy_navigate
-            if self.current_tab
-            in {
+            return compile_builtin_contract(
                 "patches",
-                "changespecs",  # legacy compatibility alias
-            }
-            and callable(legacy_navigate)
-            else patch_navigate or legacy_navigate
-        )
-        if callable(navigate):
-            navigate(target_name, is_ancestor, is_sibling)
+                label="Patch",
+                icon="",
+                accent="",
+            )
+        return None
+
+    def _relation_navigator(self) -> Any | None:
+        getter = getattr(self, "_artifacts_entry_navigator", None)
+        if not callable(getter):
+            return None
+        if self.current_tab in {
+            "patches",
+            "changespecs",  # legacy compatibility alias
+        }:
+            return getter("patches")
+        if self.current_tab != "artifacts":
+            return None
+        return getter()
+
+    def _relation_navigation_available(self, role: RelationRole) -> bool:
+        contract = self._relation_contract()
+        if contract is not None and not contract.has(PaneCapability.RELATIONS):
+            return False
+        keymap = self._relation_keymap_or_empty()
+        if role is RelationRole.ANCESTOR:
+            return bool(keymap.ancestors)
+        if role is RelationRole.DESCENDANT:
+            return bool(keymap.children)
+        if role is RelationRole.FAMILY:
+            return bool(keymap.siblings)
+        return False
 
     # --- Ancestry Navigation Actions ---
 
     def action_start_ancestor_mode(self) -> None:
         """Enter ancestor navigation mode (< key pressed)."""
-        if not self._is_patch_tree_tab() or not self._tree_patches():
+        if not self._relation_navigation_available(RelationRole.ANCESTOR):
             return
+        keymap = self._relation_keymap_or_empty()
 
         # If only one ancestor, navigate directly
-        if len(self._ancestor_keys) == 1:
-            target = list(self._ancestor_keys.keys())[0]
-            self._navigate_to_patch_compat(target, is_ancestor=True)
-        elif len(self._ancestor_keys) > 1:
+        if len(keymap.ancestors) == 1:
+            self._navigate_to_relation_target(
+                keymap.ancestors[0][1],
+                role=RelationRole.ANCESTOR,
+            )
+        elif len(keymap.ancestors) > 1:
             self._ancestor_mode_active = True
 
     def action_start_child_mode(self) -> None:
         """Enter child navigation mode (> key pressed)."""
-        if not self._is_patch_tree_tab() or not self._tree_patches():
+        if not self._relation_navigation_available(RelationRole.DESCENDANT):
             return
-
-        if not self._children_keys:
-            return
+        keymap = self._relation_keymap_or_empty()
 
         # If only one child with key ">" (single leaf child), navigate directly
-        if len(self._children_keys) == 1 and ">" in self._children_keys:
-            target = self._children_keys[">"]
-            self._navigate_to_patch_compat(target, is_ancestor=False)
+        if len(keymap.children) == 1 and keymap.children[0][0] == ">":
+            self._navigate_to_relation_target(
+                keymap.children[0][1],
+                role=RelationRole.DESCENDANT,
+            )
         else:
             self._child_key_buffer = ""
             self._child_mode_active = True
@@ -99,16 +113,16 @@ class TreeNavigationMixin(NavigationMixinBase):
                 start_agent_neighbors()
             return
 
-        if not self._is_patch_tree_tab() or not self._tree_patches():
+        if not self._relation_navigation_available(RelationRole.FAMILY):
             return
+        keymap = self._relation_keymap_or_empty()
 
-        if not self._sibling_keys:
-            return
-
-        # If only one sibling with key "~", navigate directly
-        if len(self._sibling_keys) == 1 and "~" in self._sibling_keys:
-            target = self._sibling_keys["~"]
-            self._navigate_to_patch_compat(target, is_ancestor=False, is_sibling=True)
+        # If only one family row with key "~", navigate directly
+        if len(keymap.siblings) == 1 and keymap.siblings[0][0] == "~":
+            self._navigate_to_relation_target(
+                keymap.siblings[0][1],
+                role=RelationRole.FAMILY,
+            )
         else:
             self._sibling_mode_active = True
 
@@ -128,20 +142,26 @@ class TreeNavigationMixin(NavigationMixinBase):
     def _process_ancestor_key(self, key: str) -> bool:
         """Process key in ancestor mode."""
         self._ancestor_mode_active = False
+        keymap = self._relation_keymap_or_empty()
 
         if key in ("less_than_sign", "<"):
             # << - go to first ancestor (parent)
-            if self._ancestor_keys:
-                target = list(self._ancestor_keys.keys())[0]
-                self._navigate_to_patch_compat(target, is_ancestor=True)
+            if keymap.ancestors:
+                self._navigate_to_relation_target(
+                    keymap.ancestors[0][1],
+                    role=RelationRole.ANCESTOR,
+                )
             return True
         elif len(key) == 1 and key.isalpha() and key.islower():
             # <a, <b, etc. - find matching ancestor
             expected_key = f"<{key}"
-            for name, keybind in self._ancestor_keys.items():
-                if keybind == expected_key:
-                    self._navigate_to_patch_compat(name, is_ancestor=True)
-                    return True
+            target = keymap.target_for(RelationRole.ANCESTOR, expected_key)
+            if target is not None:
+                self._navigate_to_relation_target(
+                    target,
+                    role=RelationRole.ANCESTOR,
+                )
+                return True
         return True  # Consume the key regardless
 
     def _process_child_key(self, key: str) -> bool:
@@ -156,9 +176,14 @@ class TreeNavigationMixin(NavigationMixinBase):
         if key in ("greater_than_sign", ">"):
             # >> - go to first child
             target_key = ">>"
-            if target_key in self._children_keys:
-                self._navigate_to_patch_compat(
-                    self._children_keys[target_key], is_ancestor=False
+            target = self._relation_keymap_or_empty().target_for(
+                RelationRole.DESCENDANT,
+                target_key,
+            )
+            if target is not None:
+                self._navigate_to_relation_target(
+                    target,
+                    role=RelationRole.DESCENDANT,
                 )
             self._child_key_buffer = ""
             self._child_mode_active = False
@@ -167,9 +192,14 @@ class TreeNavigationMixin(NavigationMixinBase):
         if key in ("period", "full_stop", "."):
             # Navigate to non-leaf node
             target_key = ">" + self._child_key_buffer + "."
-            if target_key in self._children_keys:
-                self._navigate_to_patch_compat(
-                    self._children_keys[target_key], is_ancestor=False
+            target = self._relation_keymap_or_empty().target_for(
+                RelationRole.DESCENDANT,
+                target_key,
+            )
+            if target is not None:
+                self._navigate_to_relation_target(
+                    target,
+                    role=RelationRole.DESCENDANT,
                 )
             self._child_key_buffer = ""
             self._child_mode_active = False
@@ -181,9 +211,12 @@ class TreeNavigationMixin(NavigationMixinBase):
 
             # Check if buffer matches a leaf node (no "." suffix)
             target_key = ">" + self._child_key_buffer
-            if target_key in self._children_keys:
-                self._navigate_to_patch_compat(
-                    self._children_keys[target_key], is_ancestor=False
+            keymap = self._relation_keymap_or_empty()
+            target = keymap.target_for(RelationRole.DESCENDANT, target_key)
+            if target is not None:
+                self._navigate_to_relation_target(
+                    target,
+                    role=RelationRole.DESCENDANT,
                 )
                 self._child_key_buffer = ""
                 self._child_mode_active = False
@@ -192,7 +225,7 @@ class TreeNavigationMixin(NavigationMixinBase):
             # Check if buffer could be a prefix for any key
             # If not, cancel the mode
             has_potential_match = any(
-                k.startswith(target_key) for k in self._children_keys
+                k.startswith(target_key) for k, _ in keymap.children
             )
             if not has_potential_match:
                 self._child_key_buffer = ""
@@ -213,22 +246,25 @@ class TreeNavigationMixin(NavigationMixinBase):
         Handles sequences like ~~, ~a, ~b, etc.
         """
         self._sibling_mode_active = False
+        keymap = self._relation_keymap_or_empty()
 
         if key in ("tilde", "~"):
-            # ~~ - go to first sibling
-            if "~~" in self._sibling_keys:
-                target = self._sibling_keys["~~"]
-                self._navigate_to_patch_compat(
-                    target, is_ancestor=False, is_sibling=True
+            # ~~ - go to first family row
+            target = keymap.target_for(RelationRole.FAMILY, "~~")
+            if target is not None:
+                self._navigate_to_relation_target(
+                    target,
+                    role=RelationRole.FAMILY,
                 )
             return True
         elif len(key) == 1 and key.isalpha() and key.islower():
             # ~a, ~b, etc. - find matching sibling
             expected_key = f"~{key}"
-            if expected_key in self._sibling_keys:
-                target = self._sibling_keys[expected_key]
-                self._navigate_to_patch_compat(
-                    target, is_ancestor=False, is_sibling=True
+            target = keymap.target_for(RelationRole.FAMILY, expected_key)
+            if target is not None:
+                self._navigate_to_relation_target(
+                    target,
+                    role=RelationRole.FAMILY,
                 )
             return True
 
@@ -261,26 +297,92 @@ class TreeNavigationMixin(NavigationMixinBase):
             # After letter, expect digit
             return key.isdigit() and "2" <= key <= "9"
 
-    def _navigate_to_patch(
-        self, target_name: str, is_ancestor: bool, is_sibling: bool = False
+    def _navigate_to_relation_target(
+        self,
+        target: ArtifactEntryTarget,
+        *,
+        role: RelationRole,
     ) -> None:
-        """Navigate to a Patch by name.
+        pane = self._relation_navigator()
+        if pane is None:
+            return
+        origin = pane.selected_entry_target()
+        if origin is not None and origin != target:
+            pane.record_relation_origin(origin)
+        contract = self._relation_contract()
+        pane_id = (
+            contract.id
+            if contract is not None
+            else origin.pane_id
+            if origin is not None
+            else target.pane_id
+        )
+        if target.pane_id != pane_id:
+            request = getattr(self, "_request_artifacts_entry", None)
+            if callable(request):
+                request(target)
+            return
+        if pane.select_entry_target(target):
+            sync = getattr(self, "_sync_active_artifacts_entry_state", None)
+            if callable(sync):
+                sync()
+            return
+        if pane.reveal_entry_target(target, role=role):
+            return
+        label = target.parts[-1] if target.parts else target.pane_id
+        notify = getattr(self, "notify", None)
+        if callable(notify):
+            notify(f"{label} is not in the current results", severity="warning")
 
-        If target is in current filtered list, just jump to it.
-        If not, change query to ancestor:<name> or sibling:<base_name> and jump.
-        """
-        # Push current Patch to history before navigating away
-        self._push_patch_to_history()  # type: ignore[attr-defined]
+    def _navigate_to_patch(
+        self,
+        target_name: str,
+        is_ancestor: bool,
+        is_sibling: bool = False,
+    ) -> None:
+        """Legacy Patch-name shim for relation navigation tests and aliases."""
+        role = (
+            RelationRole.FAMILY
+            if is_sibling
+            else RelationRole.ANCESTOR
+            if is_ancestor
+            else RelationRole.DESCENDANT
+        )
+        target = self._resolve_patch_relation_target(target_name)
+        self._navigate_to_relation_target(target, role=role)
 
-        # Check if target is in current filtered list
-        target_idx = self._find_in_current_list(target_name)
+    def _navigate_to_changespec(  # legacy compatibility alias
+        self,
+        target_name: str,
+        is_ancestor: bool,
+        is_sibling: bool = False,
+    ) -> None:
+        """Legacy compatibility alias for old changespec navigation callers."""
+        self._navigate_to_patch(target_name, is_ancestor, is_sibling)
 
-        if target_idx is not None:
-            # Target is visible - just jump to it
-            self.current_idx = target_idx
-        else:
-            # Target not in current list - change query
-            self._change_query_for_navigation(target_name, is_ancestor, is_sibling)
+    def _resolve_patch_relation_target(self, target_name: str) -> ArtifactEntryTarget:
+        name_lower = target_name.lower()
+        index_getter = getattr(self, "relation_index", None)
+        relation_index = index_getter() if callable(index_getter) else None
+        if relation_index is not None:
+            for edge in relation_index.edges:
+                for target in (edge.source, edge.target):
+                    if (
+                        target.pane_id == "patches"
+                        and target.parts
+                        and target.parts[-1].lower() == name_lower
+                    ):
+                        return target
+        from ...widgets.artifacts.patch_entry import patch_row_target
+
+        for patch in getattr(self, "_all_patches", ()):
+            if getattr(patch, "name", "").lower() == name_lower:
+                return patch_row_target(patch)
+        patches = getattr(self, "patches", ())
+        project = ""
+        if patches and 0 <= getattr(self, "current_idx", 0) < len(patches):
+            project = getattr(patches[self.current_idx], "project_name", "")
+        return ArtifactEntryTarget(pane_id="patches", parts=(project, target_name))
 
     def _find_in_current_list(self, name: str) -> int | None:
         """Find a Patch by name in current filtered list."""

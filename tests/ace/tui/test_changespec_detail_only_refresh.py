@@ -18,6 +18,7 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
 from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
+from sase.core.artifact_relation_layout import EMPTY_RELATION_KEYMAP
 
 
 class _Timer:
@@ -84,27 +85,21 @@ class _RecordingDetail:
         self.show_empty_calls += 1
 
 
-class _RecordingAncestors:
+class _RecordingRelationPanel:
     def __init__(self) -> None:
-        self.update_relationships_calls = 0
         self.clear_calls = 0
-
-    def update_relationships(
-        self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-        del args, kwargs
-        self.update_relationships_calls += 1
-        return {}, {}, {}
-
-    def update_relationships_from_index(
-        self, *args: Any, **kwargs: Any
-    ) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-        del args, kwargs
-        self.update_relationships_calls += 1
-        return {}, {}, {}
 
     def clear(self) -> None:
         self.clear_calls += 1
+
+
+class _RecordingPatchPane:
+    def __init__(self) -> None:
+        self.refresh_relation_panel_calls = 0
+
+    def refresh_relation_panel(self) -> Any:
+        self.refresh_relation_panel_calls += 1
+        return EMPTY_RELATION_KEYMAP
 
 
 class _RecordingFooter:
@@ -161,9 +156,7 @@ class _FakeApp(PatchMixin, MarkingMixin):
         self._hint_to_entry_id: dict[int, str] = {}
         self._entry_jump_mode_active = False
         self._entry_jump_index_to_hint: dict[int, str] = {}
-        self._ancestor_keys: dict[str, str] = {}
-        self._children_keys: dict[str, str] = {}
-        self._sibling_keys: dict[str, str] = {}
+        self._relation_keymap = EMPTY_RELATION_KEYMAP
 
         self.hooks_collapsed = FoldLevel.COLLAPSED
         self.commits_collapsed = FoldLevel.COLLAPSED
@@ -173,13 +166,14 @@ class _FakeApp(PatchMixin, MarkingMixin):
 
         self.list_widget = _RecordingList()
         self.detail_widget = _RecordingDetail()
-        self.ancestors_panel = _RecordingAncestors()
+        self.relation_panel = _RecordingRelationPanel()
+        self.patch_pane = _RecordingPatchPane()
         self.footer_widget = _RecordingFooter()
         self.patch_filter_bar = _RecordingPatchFilterBar()
 
         self._w_patch_list: Any = self.list_widget
         self._w_patch_detail: Any = self.detail_widget
-        self._w_ancestors_children: Any = self.ancestors_panel
+        self._w_relation_panel: Any = self.relation_panel
         self._w_footer: Any = self.footer_widget
         self._w_patch_filter_bar: Any = self.patch_filter_bar
         self._w_patch_info_panel: Any = None  # info panel falls through
@@ -202,6 +196,9 @@ class _FakeApp(PatchMixin, MarkingMixin):
     def query_one(self, selector: str, _type: Any = None) -> Any:
         del selector, _type
         raise _NoMatches()
+
+    def _artifacts_entry_navigator(self, pane_key: str | None = None) -> Any:
+        return self.patch_pane if pane_key == "patches" else None
 
     def set_timer(self, delay: float, callback: Callable[[], None]) -> _Timer:
         self.scheduled.append((delay, callback))
@@ -238,7 +235,7 @@ def test_detail_only_refresh_skips_update_list() -> None:
 
     assert app.list_widget.update_list_calls == 0
     assert app.detail_widget.update_display_calls == 1
-    assert app.ancestors_panel.update_relationships_calls == 1
+    assert app.patch_pane.refresh_relation_panel_calls == 1
     assert app.footer_widget.update_bindings_calls == 1
 
 
@@ -251,7 +248,7 @@ def test_full_refresh_still_calls_update_list() -> None:
     assert app.patch_filter_bar.set_query_calls == ['"feature"']
     assert app.patch_filter_bar.set_status_calls == 1
     assert app.detail_widget.update_display_calls == 1
-    assert app.ancestors_panel.update_relationships_calls == 1
+    assert app.patch_pane.refresh_relation_panel_calls == 1
     assert app.footer_widget.update_bindings_calls == 1
 
 
