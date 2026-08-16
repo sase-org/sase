@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+import os
 from pathlib import Path
+import signal
+import threading
 
 from sase.agents_sync.bundles import repository_root
 from sase.agents_sync.commit_publication_transaction import (
@@ -50,6 +55,61 @@ _REPO_KIND_ORDER = {
     "linked": 2,
     "external": 3,
 }
+
+_DRAIN_TIMEOUT_ENV = "SASE_AGENTS_PUBLICATION_DRAIN_TIMEOUT"
+DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS = 120.0
+
+
+class PublicationDrainTimedOut(Exception):
+    """Raised when a synchronous agent-hood drain exceeds its wall-clock bound."""
+
+
+def configured_publication_drain_timeout() -> float:
+    """Return the configured bound on a synchronous post-push drain attempt."""
+
+    raw = os.environ.get(_DRAIN_TIMEOUT_ENV)
+    if raw is None:
+        return DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_PUBLICATION_DRAIN_TIMEOUT_SECONDS
+
+
+@contextmanager
+def _bounded_publication_drain(timeout_seconds: float) -> Iterator[None]:
+    """Bound a synchronous drain so a stalled render cannot wedge the caller.
+
+    A finalizer that never returns keeps holding ``sase-agents-sync.lock``
+    indefinitely (the reported failure mode). ``SIGALRM`` unwinds the *same*
+    call stack that is already inside ``bounded_agents_lock``'s ``with``
+    block, so the existing ``finally`` there still releases the lock -- no
+    second thread or process is left running to mutate the sidecar after
+    this function gives up on it.
+    """
+
+    can_bound = (
+        timeout_seconds > 0
+        and hasattr(signal, "SIGALRM")
+        and threading.current_thread() is threading.main_thread()
+    )
+    if not can_bound:
+        yield
+        return
+
+    def _on_alarm(_signum: int, _frame: object) -> None:
+        raise PublicationDrainTimedOut(
+            f"agent-hood publication did not complete within {timeout_seconds:.0f}s"
+        )
+
+    previous = signal.signal(signal.SIGALRM, _on_alarm)
+    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,7 +276,11 @@ def _drain_agent_publications(
     with git_sync.bounded_agents_lock(lock_path, timeout) as acquired:
         if not acquired:
             return _record_failure(target, "agents sync lock is busy")
-        result = _publish_queued_locked(target, owner, git_runner)
+        try:
+            with _bounded_publication_drain(configured_publication_drain_timeout()):
+                result = _publish_queued_locked(target, owner, git_runner)
+        except PublicationDrainTimedOut as exc:
+            return _record_failure(target, str(exc))
     if result.error is not None:
         return _record_failure(target, result.error, result.error_keys)
 
