@@ -15,7 +15,6 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
-    build_history_word_completion_result,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.placeholder_completion import (
@@ -217,14 +216,11 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             self._update_file_completion_panel("" if result is None else result.prefix)
             return True
         if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
-            words = self._history_prompt_words()
             result = (
                 None
-                if words is None
-                else build_history_word_completion_result(
-                    self.text,
+                if self._history_word_cache_is_cold()
+                else self._build_history_word_result(
                     self._absolute_offset(self.cursor_location),
-                    words,
                 )
             )
             if result is not None:
@@ -336,14 +332,11 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             if isinstance(selected.metadata, HistoryWordCompletionPlaceholder):
                 self._clear_file_completion()
                 return False
-            words = self._history_prompt_words()
-            if words is None:
+            if self._history_word_cache_is_cold():
                 self._clear_file_completion()
                 return False
-            result = build_history_word_completion_result(
-                self.text,
+            result = self._build_history_word_result(
                 self._absolute_offset(self.cursor_location),
-                words,
             )
             if result is None:
                 self._clear_file_completion()

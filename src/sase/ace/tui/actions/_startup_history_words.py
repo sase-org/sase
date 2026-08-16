@@ -7,30 +7,50 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from sase.history.prompt_words import HistoryWordsSourceToken
+    from sase.history.prompt_word_deletions import PromptWordDeletionsSourceToken
+    from sase.history.prompt_word_index import PromptWordIndex, PromptWordIndexToken
 
 log = logging.getLogger(__name__)
+
+# ``(index source token, deletions source token)``. Keeping the two tokens
+# separate lets a deletions-only change skip the far more expensive index
+# rebuild and re-read just the small deletions file.
+HistoryPromptCacheSourceToken = tuple[
+    "PromptWordIndexToken",
+    "PromptWordDeletionsSourceToken",
+]
 
 
 @dataclass(frozen=True, slots=True)
 class _HistoryWordsLoadResult:
     """Off-thread history-word load result."""
 
-    source_token: HistoryWordsSourceToken
-    words: list[str] | None
+    source_token: HistoryPromptCacheSourceToken
+    index: PromptWordIndex | None
+    deletions: frozenset[str] | None
 
 
 class StartupHistoryWordsMixin:
     """Mixin providing an app-global, memory-only prompt-history word cache."""
 
+    _history_prompt_word_index_cache: PromptWordIndex | None
+    _history_prompt_word_deletions_cache: frozenset[str] | None
     _history_prompt_words_cache: list[str] | None
-    _history_prompt_words_source_token: HistoryWordsSourceToken | None
+    _history_prompt_words_source_token: HistoryPromptCacheSourceToken | None
     _history_prompt_words_rebuild_in_flight: bool
     _history_prompt_words_rebuild_pending: bool
 
+    def history_prompt_word_index(self: Any) -> PromptWordIndex | None:
+        """Return the warm prompt-word index without touching disk."""
+        return self._history_prompt_word_index_cache
+
     def history_prompt_words(self: Any) -> list[str] | None:
-        """Return the warm history-word cache without touching disk."""
+        """Return the warm MRU history-word list without touching disk."""
         return self._history_prompt_words_cache
+
+    def history_prompt_word_deletions(self: Any) -> frozenset[str]:
+        """Return the warm suppressed-word set without touching disk."""
+        return self._history_prompt_word_deletions_cache or frozenset()
 
     def warm_history_prompt_words(self: Any) -> None:
         """Schedule an off-thread cache staleness check and rebuild."""
@@ -39,11 +59,9 @@ class StartupHistoryWordsMixin:
         min_length = settings.word_min_length
         if max_words <= 0:
             was_cold = self._history_prompt_words_cache is None
-            self._history_prompt_words_cache = []
+            self._set_empty_history_prompt_cache(min_length=min_length)
             self._history_prompt_words_source_token = (
-                0,
-                min_length,
-                (),
+                (min_length, None, ()),
                 ("", -1, -1),
             )
             if was_cold:
@@ -58,7 +76,7 @@ class StartupHistoryWordsMixin:
         self._history_prompt_words_rebuild_pending = False
         previous_token = (
             self._history_prompt_words_source_token
-            if self._history_prompt_words_cache is not None
+            if self._history_prompt_word_index_cache is not None
             else None
         )
 
@@ -79,30 +97,44 @@ class StartupHistoryWordsMixin:
         except Exception:
             self._history_prompt_words_rebuild_in_flight = False
             log.exception("Failed to schedule prompt-history word rebuild")
-            if self._history_prompt_words_cache is None:
-                self._history_prompt_words_cache = []
+            if self._history_prompt_word_index_cache is None:
+                self._set_empty_history_prompt_cache(min_length=min_length)
                 self._refresh_visible_history_word_surfaces()
 
     def forget_history_prompt_word(self: Any, word: str) -> None:
-        """Optimistically remove *word* and force the next warm to reload."""
-        from sase.history.prompt_word_index import clear_prompt_word_index_cache
+        """Optimistically suppress *word* and refresh visible surfaces.
 
-        clear_prompt_word_index_cache()
+        The index itself is untouched -- deletions are applied at query time,
+        so ``Ctrl+D`` never triggers a full corpus rebuild.
+        """
+        current = self._history_prompt_word_deletions_cache or frozenset()
+        if word in current:
+            return
+        self._history_prompt_word_deletions_cache = current | {word}
         if isinstance(self._history_prompt_words_cache, list):
             self._history_prompt_words_cache = [
                 candidate
                 for candidate in self._history_prompt_words_cache
                 if candidate != word
             ]
-        self._history_prompt_words_source_token = None
         self._refresh_visible_history_word_surfaces()
+
+    def _set_empty_history_prompt_cache(self: Any, *, min_length: int) -> None:
+        from sase.history.prompt_word_index import build_prompt_word_index
+
+        self._history_prompt_word_index_cache = build_prompt_word_index(
+            min_length=min_length,
+            shard_paths=(),
+        )
+        self._history_prompt_word_deletions_cache = frozenset()
+        self._history_prompt_words_cache = []
 
     async def _run_history_prompt_words_rebuild(
         self: Any,
         *,
         max_words: int,
         min_length: int,
-        previous_token: HistoryWordsSourceToken | None,
+        previous_token: HistoryPromptCacheSourceToken | None,
     ) -> None:
         """Build history words off-thread and publish on the UI task."""
         import asyncio
@@ -111,22 +143,32 @@ class StartupHistoryWordsMixin:
         try:
             result = await asyncio.to_thread(
                 _load_history_prompt_words,
-                max_words=max_words,
                 min_length=min_length,
                 previous_token=previous_token,
             )
         except Exception:
             log.exception("Prompt-history word rebuild failed")
-            if self._history_prompt_words_cache is None:
-                self._history_prompt_words_cache = []
+            if self._history_prompt_word_index_cache is None:
+                self._set_empty_history_prompt_cache(min_length=min_length)
                 self._refresh_visible_history_word_surfaces()
         finally:
             self._history_prompt_words_rebuild_in_flight = False
 
         if result is not None:
             self._history_prompt_words_source_token = result.source_token
-            if result.words is not None:
-                self._history_prompt_words_cache = result.words
+            changed = False
+            if result.index is not None:
+                self._history_prompt_word_index_cache = result.index
+                changed = True
+            if result.deletions is not None:
+                self._history_prompt_word_deletions_cache = result.deletions
+                changed = True
+            if changed:
+                self._history_prompt_words_cache = _mru_words_from_index(
+                    self._history_prompt_word_index_cache,
+                    deletions=self._history_prompt_word_deletions_cache or frozenset(),
+                    max_words=max_words,
+                )
                 self._refresh_visible_history_word_surfaces()
 
         if self._history_prompt_words_rebuild_pending:
@@ -163,28 +205,58 @@ class StartupHistoryWordsMixin:
                 )
 
 
+def _mru_words_from_index(
+    index: PromptWordIndex | None,
+    *,
+    deletions: frozenset[str],
+    max_words: int,
+) -> list[str]:
+    """Return exact-spelling words in MRU order, deletions and cap applied."""
+    if index is None or max_words <= 0:
+        return []
+    words: list[str] = []
+    for word_id in index.mru:
+        word = index.spelling(word_id)
+        if word in deletions:
+            continue
+        words.append(word)
+        if len(words) >= max_words:
+            break
+    return words
+
+
 def _load_history_prompt_words(
     *,
-    max_words: int,
     min_length: int,
-    previous_token: HistoryWordsSourceToken | None,
+    previous_token: HistoryPromptCacheSourceToken | None,
 ) -> _HistoryWordsLoadResult:
-    """Read the source token and rebuild only when it is stale."""
-    from sase.history.prompt_words import (
-        collect_recent_prompt_words,
-        history_words_source_token,
+    """Read the source tokens and rebuild only what has gone stale."""
+    from sase.history.prompt_word_deletions import (
+        load_deleted_prompt_words,
+        prompt_word_deletions_source_token,
+    )
+    from sase.history.prompt_word_index import (
+        build_prompt_word_index,
+        prompt_word_index_source_token,
     )
 
-    source_token = history_words_source_token(
-        max_words=max_words,
-        min_length=min_length,
-    )
-    if source_token == previous_token:
-        return _HistoryWordsLoadResult(source_token=source_token, words=None)
+    index_token = prompt_word_index_source_token(min_length=min_length)
+    deletions_token = prompt_word_deletions_source_token()
+    source_token = (index_token, deletions_token)
+
+    previous_index_token = None if previous_token is None else previous_token[0]
+    previous_deletions_token = None if previous_token is None else previous_token[1]
+
+    index: PromptWordIndex | None = None
+    if previous_index_token != index_token:
+        index = build_prompt_word_index(min_length=min_length)
+
+    deletions: frozenset[str] | None = None
+    if previous_deletions_token != deletions_token:
+        deletions = frozenset(load_deleted_prompt_words())
+
     return _HistoryWordsLoadResult(
         source_token=source_token,
-        words=collect_recent_prompt_words(
-            max_words=max_words,
-            min_length=min_length,
-        ),
+        index=index,
+        deletions=deletions,
     )

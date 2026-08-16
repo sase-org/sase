@@ -37,7 +37,8 @@ if TYPE_CHECKING:
     from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
     from sase.history.prompt_placeholders import CommonPlaceholderSourceToken
     from sase.history.prompt_misspellings import MisspellingsSourceToken
-    from sase.history.prompt_words import HistoryWordsSourceToken
+    from sase.history.prompt_word_index import PromptWordIndex
+    from ._startup_history_words import HistoryPromptCacheSourceToken
 
 TabName = Literal["artifacts", "agents", "axe"]
 
@@ -153,8 +154,10 @@ class StartupMixin(
     _prompt_source_debounce_config_dirty: bool
     _prompt_completion_settings: PromptCompletionSettings
     _prompt_spellcheck_settings: PromptSpellcheckSettings
+    _history_prompt_word_index_cache: PromptWordIndex | None
+    _history_prompt_word_deletions_cache: frozenset[str] | None
     _history_prompt_words_cache: list[str] | None
-    _history_prompt_words_source_token: HistoryWordsSourceToken | None
+    _history_prompt_words_source_token: HistoryPromptCacheSourceToken | None
     _history_prompt_words_rebuild_in_flight: bool
     _history_prompt_words_rebuild_pending: bool
     _common_placeholders_cache: list[str] | None

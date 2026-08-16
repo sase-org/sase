@@ -330,11 +330,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n9(agent_family_plan_preview_detail)" \
         --epic-symbol "sase-n9(agent_family_plan_preview_documentation)" \
         --epic-symbol "sase-n9(family_plan_preview_cache_key)" \
-        --epic-symbol "sase-na.2(RankedWord)" \
-        --epic-symbol "sase-na.2(WordRankingContext)" \
-        --epic-symbol "sase-na.2(build_word_ranking_context)" \
-        --epic-symbol "sase-na.2(rank_history_words)" \
-        --epic-symbol "sase-na.2(rank_recent_history_words)" \
+        --epic-symbol "sase-na.4(HistoryWordCompletionMetadata)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

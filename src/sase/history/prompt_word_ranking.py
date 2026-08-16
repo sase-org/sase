@@ -44,7 +44,7 @@ class RankedWord:
 
 
 @dataclass(frozen=True, slots=True)
-class WordRankingContext:
+class _WordRankingContext:
     """Prompt-derived relation scores memoized against one prompt-word index."""
 
     context_key: tuple[int, ...]
@@ -58,11 +58,11 @@ def build_word_ranking_context(
     *,
     exclude_range: tuple[int, int] | None,
     now: float,
-) -> WordRankingContext:
+) -> _WordRankingContext:
     """Return relation scores for the prompt context surrounding the cursor word."""
     context_key = _context_word_key(index, text, exclude_range=exclude_range)
     cached = index._ranking_memo
-    if isinstance(cached, WordRankingContext) and cached.context_key == context_key:
+    if isinstance(cached, _WordRankingContext) and cached.context_key == context_key:
         return cached
 
     relation_by_word_id: dict[int, float] = {}
@@ -74,7 +74,7 @@ def build_word_ranking_context(
             now=now,
         )
 
-    context = WordRankingContext(
+    context = _WordRankingContext(
         context_key=context_key,
         relation_by_word_id=relation_by_word_id,
         related_context_by_word_id=related_context_by_word_id,
@@ -85,7 +85,7 @@ def build_word_ranking_context(
 
 def rank_history_words(
     index: PromptWordIndex,
-    context: WordRankingContext,
+    context: _WordRankingContext,
     *,
     prefix: str,
     deleted: set[str] | frozenset[str],
@@ -292,7 +292,7 @@ def _prefix_candidate_word_ids(
 
 def _ranked_word(
     index: PromptWordIndex,
-    context: WordRankingContext,
+    context: _WordRankingContext,
     word_id: int,
     *,
     now: float,

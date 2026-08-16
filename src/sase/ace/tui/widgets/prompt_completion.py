@@ -30,6 +30,7 @@ from sase.ace.tui.widgets.xprompt_completion import (
 )
 
 PromptCompletionAutoMode = Literal["off", "soft"]
+WordRankingMode = Literal["smart", "recent"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +47,8 @@ class PromptCompletionSettings:
     history_word_count: int = 10000
     common_placeholder_count: int = 100
     word_min_length: int = 5
+    word_ranking: WordRankingMode = "smart"
+    word_ranking_signals: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +156,13 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
             DEFAULT_PROMPT_COMPLETION_SETTINGS.word_min_length,
         ),
     )
+    word_ranking = _parse_word_ranking_mode(raw.get("word_ranking", "smart"))
+    word_ranking_signals = bool(
+        raw.get(
+            "word_ranking_signals",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.word_ranking_signals,
+        )
+    )
     return PromptCompletionSettings(
         auto=auto,
         debounce_ms=debounce_ms,
@@ -164,6 +174,8 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         history_word_count=history_word_count,
         common_placeholder_count=common_placeholder_count,
         word_min_length=word_min_length,
+        word_ranking=word_ranking,
+        word_ranking_signals=word_ranking_signals,
     )
 
 
@@ -353,6 +365,15 @@ def _parse_auto_mode(value: Any) -> PromptCompletionAutoMode:
     if normalized in {"1", "true", "yes", "on", "soft"}:
         return "soft"
     return DEFAULT_PROMPT_COMPLETION_SETTINGS.auto
+
+
+def _parse_word_ranking_mode(value: Any) -> WordRankingMode:
+    normalized = str(value).strip().lower()
+    if normalized == "recent":
+        return "recent"
+    if normalized == "smart":
+        return "smart"
+    return DEFAULT_PROMPT_COMPLETION_SETTINGS.word_ranking
 
 
 def _parse_non_negative_int(value: Any, default: int) -> int:

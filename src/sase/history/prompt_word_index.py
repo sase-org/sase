@@ -137,11 +137,6 @@ def prompt_word_index_source_token(
     )
 
 
-def clear_prompt_word_index_cache() -> None:
-    """Clear cached per-shard prompt word tokenization."""
-    _shard_token_cache.clear()
-
-
 def _build_prompt_word_index_from_paths(
     shard_paths: Iterable[Path],
     *,

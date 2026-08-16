@@ -16,9 +16,9 @@ from sase.history.prompt_store import PromptEntry, save_shard
 from sase.history.prompt_word_index import (
     _PROMPT_WORD_RE,
     _extract_prompt_words,
+    _shard_token_cache,
     PromptWordIndex,
     build_prompt_word_index,
-    clear_prompt_word_index_cache,
 )
 from tests.conftest import redirect_sase_home
 
@@ -29,7 +29,7 @@ def _isolate_prompt_word_index_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    clear_prompt_word_index_cache()
+    _shard_token_cache.clear()
 
 
 def _entry(text: str, last_used: str) -> PromptEntry:

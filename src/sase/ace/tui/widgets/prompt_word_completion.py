@@ -46,7 +46,9 @@ def build_prompt_word_completion_result(
     spelling exactly matches the typed prefix is only offered when the cursor
     also has a right-hand suffix to separate, since otherwise accepting it
     would have no effect. The minimum applies to complete candidates, not to
-    the typed prefix.
+    the typed prefix. Candidates are ordered nearest-first: by the latest
+    offset each distinct spelling starts at before the active word, since the
+    word you just wrote is the one you are most likely repeating.
     """
     word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
@@ -57,7 +59,7 @@ def build_prompt_word_completion_result(
     prefix_folded = prefix.casefold()
 
     minimum = max(1, min_length)
-    spellings: set[str] = set()
+    latest_offset: dict[str, int] = {}
     for start, end in _word_ranges(text):
         if start >= word_start:
             break
@@ -70,12 +72,12 @@ def build_prompt_word_completion_result(
             continue
         if word == prefix and not has_word_suffix:
             continue
-        spellings.add(word)
+        latest_offset[word] = start
 
-    if not spellings:
+    if not latest_offset:
         return None
 
-    ordered = sorted(spellings, key=lambda word: (word.casefold(), word))
+    ordered = sorted(latest_offset, key=lambda word: -latest_offset[word])
     candidates = [
         CompletionCandidate(
             display=word,

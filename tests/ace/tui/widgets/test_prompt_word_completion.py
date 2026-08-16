@@ -101,8 +101,8 @@ def test_punctuation_underscore_and_unicode_word_boundaries() -> None:
     result = _result(text)
 
     assert [candidate.insertion for candidate in result.candidates] == [
-        "naïve",
         "naïveté",
+        "naïve",
     ]
 
     underscore_result = _result(text, text.rindex("snake_case") + len("snake_"))
@@ -142,9 +142,9 @@ def test_case_insensitive_filter_preserves_exact_spellings() -> None:
     result = _result("Alpha ALPINE alphabet aL")
 
     assert [candidate.insertion for candidate in result.candidates] == [
-        "Alpha",
         "alphabet",
         "ALPINE",
+        "Alpha",
     ]
 
 
@@ -153,8 +153,8 @@ def test_current_word_and_exact_duplicates_are_excluded() -> None:
 
     result = _result("alpha alpha alpine al")
     assert [candidate.insertion for candidate in result.candidates] == [
-        "alpha",
         "alpine",
+        "alpha",
     ]
 
 
@@ -192,8 +192,8 @@ def test_candidates_use_shared_minimum_not_typed_prefix_length() -> None:
     result = _result("tiny tiger title ti")
 
     assert [candidate.insertion for candidate in result.candidates] == [
-        "tiger",
         "title",
+        "tiger",
     ]
     assert build_prompt_word_completion_result("tiny ti", len("tiny ti")) is None
 
@@ -228,7 +228,7 @@ async def test_ctrl_t_opens_multiple_prompt_words_and_renders_plain_rows() -> No
         assert ta._completion_kind == PROMPT_WORD_COMPLETION_KIND
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["alpha", "alpine"]
+        ] == ["alpine", "alpha"]
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()
         assert isinstance(rendered, Content)
@@ -315,8 +315,8 @@ async def test_prompt_word_menu_enter_accept_preserves_suffix() -> None:
 
         await pilot.press("ctrl+t", "down", "enter")
 
-        assert ta.text == "alpha alpine alpine ZZZ"
-        assert ta.cursor_location == (0, len("alpha alpine alpine"))
+        assert ta.text == "alpha alpine alpha ZZZ"
+        assert ta.cursor_location == (0, len("alpha alpine alpha"))
 
 
 async def test_prompt_word_menu_ctrl_l_accept_preserves_suffix() -> None:
@@ -328,8 +328,8 @@ async def test_prompt_word_menu_ctrl_l_accept_preserves_suffix() -> None:
 
         await pilot.press("ctrl+t", "ctrl+l")
 
-        assert ta.text == "alpha alpine alpha ZZZ"
-        assert ta.cursor_location == (0, len("alpha alpine alpha"))
+        assert ta.text == "alpha alpine alpine ZZZ"
+        assert ta.cursor_location == (0, len("alpha alpine alpine"))
 
 
 async def test_ctrl_t_narrowing_preserves_suffix_without_space_until_commit() -> None:
@@ -381,7 +381,7 @@ async def test_ctrl_t_scans_all_prompt_lines() -> None:
         assert ta.text == "alpha\nalpine\nalp"
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["alpha", "alpine"]
+        ] == ["alpine", "alpha"]
 
 
 async def test_prompt_word_navigation_and_enter_acceptance() -> None:
@@ -393,7 +393,7 @@ async def test_prompt_word_navigation_and_enter_acceptance() -> None:
 
         await pilot.press("ctrl+t", "down", "enter")
 
-        assert ta.text == "alpha alpine alpine"
+        assert ta.text == "alpha alpine alpha"
         assert ta._file_completion_active is False
 
 
@@ -406,25 +406,25 @@ async def test_prompt_word_candidates_refresh_and_preserve_selection() -> None:
 
         await pilot.press("ctrl+t", "down", "down")
         assert ta._file_completion_candidates[ta._file_completion_index].insertion == (
-            "alpine"
+            "algebra"
         )
 
         await pilot.press("p")
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["alpha", "alpine"]
+        ] == ["alpine", "alpha"]
         assert ta._file_completion_candidates[ta._file_completion_index].insertion == (
-            "alpine"
+            "alpha"
         )
 
         await pilot.press("backspace")
 
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["algebra", "alpha", "alpine"]
+        ] == ["alpine", "alpha", "algebra"]
         assert ta._file_completion_candidates[ta._file_completion_index].insertion == (
-            "alpine"
+            "alpha"
         )
 
         await pilot.press("z")
@@ -444,14 +444,14 @@ async def test_prompt_word_refresh_never_reintroduces_short_candidates() -> None
         assert ta._completion_kind == PROMPT_WORD_COMPLETION_KIND
         assert [
             candidate.insertion for candidate in ta._file_completion_candidates
-        ] == ["tiger", "title"]
+        ] == ["title", "tiger"]
 
 
 async def test_stale_short_candidate_cannot_be_accepted() -> None:
     app = WordCompletionTestApp(word_min_length=5)
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
-        ta.load_text("alpha alpine al")
+        ta.load_text("alpine alpha al")
         ta.cursor_location = (0, len(ta.text))
 
         await pilot.press("ctrl+t")
@@ -460,7 +460,7 @@ async def test_stale_short_candidate_cannot_be_accepted() -> None:
         app.settings = PromptCompletionSettings(word_min_length=6)
         await pilot.press("enter")
 
-        assert ta.text == "alpha alpine alp"
+        assert ta.text == "alpine alpha alp"
         assert ta._file_completion_active is False
 
 

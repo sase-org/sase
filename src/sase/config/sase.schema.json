@@ -1175,6 +1175,17 @@
               "description": "Minimum character length for prompt-local and prompt-history word completion candidates",
               "minimum": 1,
               "default": 5
+            },
+            "word_ranking": {
+              "type": "string",
+              "description": "History-word ordering: 'smart' ranks by relation, recency, and frequency; 'recent' restores plain most-recently-used order",
+              "enum": ["smart", "recent"],
+              "default": "smart"
+            },
+            "word_ranking_signals": {
+              "type": "boolean",
+              "description": "Whether history-word rows render the score meter, dominant-reason chip, and panel legend for smart ranking",
+              "default": true
             }
           }
         },

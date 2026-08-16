@@ -193,6 +193,8 @@ def init_late_startup_state(
     self._prompt_spellcheck_settings = parse_prompt_spellcheck_settings(
         ace_cfg.get("prompt_spellcheck", {}) if isinstance(ace_cfg, dict) else {}
     )
+    self._history_prompt_word_index_cache = None
+    self._history_prompt_word_deletions_cache = None
     self._history_prompt_words_cache = None
     self._history_prompt_words_source_token = None
     self._history_prompt_words_rebuild_in_flight = False

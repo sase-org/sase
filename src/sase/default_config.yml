@@ -223,6 +223,8 @@ ace:
     history_word_count: 10000
     common_placeholder_count: 100
     word_min_length: 5
+    word_ranking: smart
+    word_ranking_signals: true
   prompt_spellcheck:
     highlight: true
     max_remembered_words: 5000

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,7 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
+    HistoryWordCompletionMetadata,
     HistoryWordCompletionPlaceholder,
     build_history_word_completion_result,
 )
@@ -17,8 +19,69 @@ from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
+from sase.history.prompt_store import PromptEntry
+from sase.history.prompt_word_index import (
+    PromptWordIndex,
+    _parse_sase_timestamp_epoch,
+    build_prompt_word_index,
+)
 
 from ._completion_helpers import CompletionTestApp
+
+
+def _seeded_index(entries: list[tuple[str, str]]) -> PromptWordIndex:
+    """Build a real :class:`PromptWordIndex` from ``(text, last_used)`` pairs."""
+    return build_prompt_word_index(
+        min_length=1,
+        shard_limit=None,
+        prompt_limit=None,
+        shard_paths=[Path("history-word-completion-test.json")],
+        load_shard_func=lambda _path: [
+            PromptEntry(text=text, timestamp=last_used, last_used=last_used)
+            for text, last_used in entries
+        ],
+    )
+
+
+class RankedHistoryCompletionTestApp(CompletionTestApp):
+    """Completion harness exercising the smart, index-backed ranking path."""
+
+    def __init__(
+        self,
+        index: PromptWordIndex,
+        *,
+        deletions: frozenset[str] = frozenset(),
+    ) -> None:
+        super().__init__()
+        self.index = index
+        self.deletions = deletions
+        self.settings = PromptCompletionSettings(word_ranking="smart")
+        self.warm_requests = 0
+
+    def get_prompt_completion_settings(self) -> PromptCompletionSettings:
+        return self.settings
+
+    def history_prompt_word_index(self) -> PromptWordIndex | None:
+        return self.index
+
+    def history_prompt_word_deletions(self) -> frozenset[str]:
+        return self.deletions
+
+    def warm_history_prompt_words(self) -> None:
+        self.warm_requests += 1
+
+    def forget_history_prompt_word(self, word: str) -> None:
+        """Mirror the real app's optimistic, index-preserving deletion."""
+        from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+        self.forgotten_history_words.append(word)
+        self.deletions = self.deletions | {word}
+        for text_area in self.query(PromptTextArea):
+            if (
+                text_area._file_completion_active
+                and text_area._completion_kind == HISTORY_WORD_COMPLETION_KIND
+            ):
+                text_area._refresh_file_completion_from_cursor()
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +93,13 @@ def _skip_unrelated_vcs_catalog_warm(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class HistoryCompletionTestApp(CompletionTestApp):
-    """Completion harness with an app-level history-word cache."""
+    """Completion harness with an app-level MRU history-word list cache.
+
+    Exercises the ``word_ranking: recent`` code path -- the plain
+    list-of-spellings overload kept for callers and test harnesses that only
+    have an MRU word list, not a warm :class:`PromptWordIndex`. Smart-ranked
+    behavior is covered separately by ``RankedHistoryCompletionTestApp``.
+    """
 
     def __init__(
         self,
@@ -40,7 +109,7 @@ class HistoryCompletionTestApp(CompletionTestApp):
     ) -> None:
         super().__init__()
         self.words = words
-        self.settings = settings or PromptCompletionSettings()
+        self.settings = settings or PromptCompletionSettings(word_ranking="recent")
         self.warm_requests = 0
 
     def get_prompt_completion_settings(self) -> PromptCompletionSettings:
@@ -541,3 +610,95 @@ async def test_warm_history_with_no_prefix_match_is_a_noop() -> None:
 
         assert ta.text == "rev"
         assert ta._file_completion_active is False
+
+
+async def test_recent_mode_candidates_carry_no_ranking_metadata() -> None:
+    app = HistoryCompletionTestApp(["review", "revise"])
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("re")
+        ta.cursor_location = (0, 2)
+
+        await pilot.press("ctrl+t")
+
+        assert app.settings.word_ranking == "recent"
+        assert all(
+            candidate.metadata is None for candidate in ta._file_completion_candidates
+        )
+
+
+async def test_smart_ranking_prefers_related_word_over_more_recent_unrelated_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mirrors the ranking-engine scenario, wired end to end through Ctrl+T."""
+    now = _parse_sase_timestamp_epoch("260801_000000")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._file_completion_base.time.time",
+        lambda: now,
+    )
+    index = _seeded_index(
+        [
+            ("render fresh0", "260730_000000"),
+            ("monitor reconcile related0", "260701_000000"),
+            ("monitor reconcile related1", "260630_000000"),
+            *[
+                (f"background{i} filler{i}", f"2606{20 - i:02d}_000000")
+                for i in range(9)
+            ],
+        ]
+    )
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("please monitor re")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t")
+
+        assert ta._completion_kind == HISTORY_WORD_COMPLETION_KIND
+        insertions = [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ]
+        assert insertions[:2] == ["reconcile", "render"]
+        top = ta._file_completion_candidates[0]
+        assert isinstance(top.metadata, HistoryWordCompletionMetadata)
+        assert top.metadata.reason == "relation"
+        assert top.metadata.related_to == "monitor"
+
+
+async def test_smart_mode_mid_word_completion_preserves_suffix() -> None:
+    index = _seeded_index([("foobar", "260814_000000")])
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("foobaz")
+        ta.cursor_location = (0, len("foo"))
+
+        await pilot.press("ctrl+t")
+
+        assert ta.text == "foobar baz"
+        assert ta.cursor_location == (0, len("foobar"))
+        assert ta._file_completion_active is False
+
+
+async def test_smart_mode_ctrl_d_deletes_instantly_without_rebuilding_index() -> None:
+    index = _seeded_index([("review", "260814_000000"), ("revise", "260813_000000")])
+    app = RankedHistoryCompletionTestApp(index)
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("re")
+        ta.cursor_location = (0, 2)
+
+        with (
+            patch("sase.ace.tui.util.io_async.schedule_persist"),
+            patch.object(app, "notify"),
+        ):
+            before = app.warm_requests
+            await pilot.press("ctrl+t", "ctrl+d")
+
+        assert app.forgotten_history_words == ["review"]
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == ["revise"]
+        assert app.index is index
+        assert app.warm_requests == before

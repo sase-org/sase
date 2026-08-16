@@ -24,7 +24,6 @@ from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
-    build_history_word_completion_result,
     build_loading_history_words_placeholder,
 )
 from sase.ace.tui.widgets.placeholder_completion import (
@@ -360,12 +359,13 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         result = self._prompt_word_completion_result(cursor_offset)
         if result is None:
             settings = self._prompt_completion_settings()
-            if settings.history_word_count <= 0 or not callable(
-                getattr(self.app, "history_prompt_words", None)
+            if (
+                settings.history_word_count <= 0
+                or not self._history_word_source_ready()
             ):
                 self._clear_file_completion()
                 return
-            history_words_cold = self._history_prompt_words() is None
+            history_words_cold = self._history_word_cache_is_cold()
             self._completion_kind = HISTORY_WORD_COMPLETION_KIND
             self._refresh_history_word_completion()
             if (
@@ -416,9 +416,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             self._update_file_completion_panel(local_result.prefix)
             return
 
-        if words is None:
-            words = self._history_prompt_words()
-        if words is None:
+        if self._history_word_cache_is_cold():
             word_range = word_range_at_cursor(self.text, cursor_offset)
             if word_range is None:
                 self._clear_file_completion()
@@ -435,11 +433,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             self._update_file_completion_panel(self.text[start:cursor_offset])
             return
 
-        result = build_history_word_completion_result(
-            self.text,
-            cursor_offset,
-            words,
-        )
+        result = self._build_history_word_result(cursor_offset, words=words)
         if result is None:
             self._clear_file_completion()
             return
