@@ -9,13 +9,15 @@ import pytest
 
 from sase.bead._stream_integrity import (
     BeadStreamIntegrityError,
-    _analyze_stream_against_ancestor,
     diagnose_event_stream_history,
-    _encode_stream_events,
-    _is_event_stream_relpath,
-    _parse_stream_text,
     prepare_event_streams_for_commit,
     refuse_unpublished_event_stream_shrink,
+)
+from sase.bead._stream_integrity_analysis import analyze_stream_against_ancestor
+from sase.bead._stream_integrity_files import (
+    encode_stream_events,
+    is_event_stream_relpath,
+    parse_stream_text,
 )
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
@@ -43,23 +45,23 @@ def _event(event_id: str, **fields: object) -> dict[str, object]:
 
 def _write_events(path: Path, events: list[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_encode_stream_events(events), encoding="utf-8")
+    path.write_text(encode_stream_events(events), encoding="utf-8")
 
 
 def test_is_event_stream_relpath_accepts_canonical_layouts() -> None:
-    assert _is_event_stream_relpath("events/streams/sase-l1.jsonl")
-    assert _is_event_stream_relpath("sdd/beads/events/streams/sase-l1.jsonl")
-    assert not _is_event_stream_relpath("events/manifest.json")
-    assert not _is_event_stream_relpath("pages/sase-l1/README.md")
+    assert is_event_stream_relpath("events/streams/sase-l1.jsonl")
+    assert is_event_stream_relpath("sdd/beads/events/streams/sase-l1.jsonl")
+    assert not is_event_stream_relpath("events/manifest.json")
+    assert not is_event_stream_relpath("pages/sase-l1/README.md")
 
 
 def test_analyze_allows_ordinary_append() -> None:
     ancestor = [_event("a"), _event("b")]
     local = [_event("a"), _event("b"), _event("c")]
-    analysis = _analyze_stream_against_ancestor(
+    analysis = analyze_stream_against_ancestor(
         ancestor,
         local,
-        ancestor_text=_encode_stream_events(ancestor),
+        ancestor_text=encode_stream_events(ancestor),
         other_streams={},
         new_stream_ids=set(),
         stream_id="sase-l1",
@@ -69,10 +71,10 @@ def test_analyze_allows_ordinary_append() -> None:
 
 def test_analyze_restores_pure_shrink_and_rejects_rewrite() -> None:
     ancestor = [_event("a"), _event("b"), _event("c")]
-    shrink = _analyze_stream_against_ancestor(
+    shrink = analyze_stream_against_ancestor(
         ancestor,
         ancestor[:2],
-        ancestor_text=_encode_stream_events(ancestor),
+        ancestor_text=encode_stream_events(ancestor),
         other_streams={},
         new_stream_ids=set(),
         stream_id="sase-l1",
@@ -82,10 +84,10 @@ def test_analyze_restores_pure_shrink_and_rejects_rewrite() -> None:
     assert shrink.last_event == 3
 
     rewritten = [_event("a"), _event("b", note="mutated"), _event("c")]
-    rewrite = _analyze_stream_against_ancestor(
+    rewrite = analyze_stream_against_ancestor(
         ancestor,
         rewritten,
-        ancestor_text=_encode_stream_events(ancestor),
+        ancestor_text=encode_stream_events(ancestor),
         other_streams={},
         new_stream_ids=set(),
         stream_id="sase-l1",
@@ -107,10 +109,10 @@ def test_analyze_rewrite_diagnosis_names_dropped_and_added_nested_keys() -> None
     local = [
         _event("a", payload={"kind": "issue_updated", "fields": {}}),
     ]
-    rewrite = _analyze_stream_against_ancestor(
+    rewrite = analyze_stream_against_ancestor(
         ancestor,
         local,
-        ancestor_text=_encode_stream_events(ancestor),
+        ancestor_text=encode_stream_events(ancestor),
         other_streams={},
         new_stream_ids=set(),
         stream_id="sase-l1",
@@ -118,10 +120,10 @@ def test_analyze_rewrite_diagnosis_names_dropped_and_added_nested_keys() -> None
     assert rewrite.kind == "rewrite"
     assert rewrite.rewrite_diagnosis == "removed payload.fields.resolution"
 
-    reversed_rewrite = _analyze_stream_against_ancestor(
+    reversed_rewrite = analyze_stream_against_ancestor(
         local,
         ancestor,
-        ancestor_text=_encode_stream_events(local),
+        ancestor_text=encode_stream_events(local),
         other_streams={},
         new_stream_ids=set(),
         stream_id="sase-l1",
@@ -133,10 +135,10 @@ def test_analyze_rewrite_diagnosis_names_dropped_and_added_nested_keys() -> None
 def test_analyze_preserves_local_extras_when_restoring_missing_prefix() -> None:
     ancestor = [_event("a"), _event("b"), _event("c")]
     local = [_event("a"), _event("b"), _event("extra")]
-    analysis = _analyze_stream_against_ancestor(
+    analysis = analyze_stream_against_ancestor(
         ancestor,
         local,
-        ancestor_text=_encode_stream_events(ancestor),
+        ancestor_text=encode_stream_events(ancestor),
         other_streams={},
         new_stream_ids=set(),
         stream_id="sase-l1",
@@ -154,10 +156,10 @@ def test_analyze_allows_relocation_into_a_new_stream() -> None:
     ancestor = [_event("a"), _event("b"), _event("moved")]
     local = [_event("a"), _event("b")]
     relocated = [_event("moved-remap", timestamp="2026-08-13T00:00:00Z")]
-    analysis = _analyze_stream_against_ancestor(
+    analysis = analyze_stream_against_ancestor(
         ancestor,
         local,
-        ancestor_text=_encode_stream_events(ancestor),
+        ancestor_text=encode_stream_events(ancestor),
         other_streams={"sase-l9": relocated},
         new_stream_ids={"sase-l9"},
         stream_id="sase-l1",
@@ -183,7 +185,7 @@ def test_prepare_restores_shrink_and_keeps_unrelated_page_changes(
 ) -> None:
     issue_id, stream = _init_beads_repo(tmp_path / "beads")
     committed = stream.read_text(encoding="utf-8")
-    events = _parse_stream_text(committed)
+    events = parse_stream_text(committed)
     assert len(events) >= 2
     _write_events(stream, events[:-1])
     page = tmp_path / "beads" / "pages" / issue_id / "README.md"
@@ -206,7 +208,7 @@ def test_prepare_restores_shrink_and_keeps_unrelated_page_changes(
 def test_prepare_rejects_rewrite_and_restores_ancestor(tmp_path: Path) -> None:
     issue_id, stream = _init_beads_repo(tmp_path / "beads")
     committed = stream.read_text(encoding="utf-8")
-    events = _parse_stream_text(committed)
+    events = parse_stream_text(committed)
     events[0] = dict(events[0])
     events[0]["actor"] = "rewriter@example.com"
     _write_events(stream, events)
@@ -237,7 +239,7 @@ def test_commit_sdd_files_allows_append_and_refuses_to_commit_a_shrink(
     subject = _git(repo, "log", "-1", "--format=%s").stdout.strip()
     assert "append" in subject
 
-    events = _parse_stream_text(appended)
+    events = parse_stream_text(appended)
     _write_events(stream, events[:-1])
     page = repo / "pages" / issue_id / "README.md"
     page.parent.mkdir(parents=True)
@@ -277,7 +279,7 @@ def test_publication_commit_cannot_delete_a_base_event(
     init_git_repo(plans)
     issue_id, stream = _init_beads_repo(beads)
     committed = stream.read_text(encoding="utf-8")
-    events = _parse_stream_text(committed)
+    events = parse_stream_text(committed)
     _write_events(stream, events[:-1])
 
     store = SddStore(
@@ -327,7 +329,7 @@ def test_commit_epic_graph_checkpoint_restores_exact_starting_stream(
     repo = tmp_path / "repo"
     issue_id, stream = _init_beads_repo(repo)
     committed = stream.read_text(encoding="utf-8")
-    events = _parse_stream_text(committed)
+    events = parse_stream_text(committed)
     _write_events(stream, events[:-1])
     starting = stream.read_text(encoding="utf-8")
 
@@ -361,7 +363,7 @@ def test_managed_sync_worker_refuses_to_push_a_committed_shrink(
     local = tmp_path / "local"
     _clone(remote, local)
     local_stream = local / f"events/streams/{issue_id}.jsonl"
-    _write_events(local_stream, _parse_stream_text(full)[:-1])
+    _write_events(local_stream, parse_stream_text(full)[:-1])
     _commit(local, "chore(beads): sync bead state and pages for sase-l3", "events")
 
     outcome = run_managed_sync_worker(
@@ -411,7 +413,7 @@ def test_diagnostics_name_stream_range_and_offending_commit(
     repo = tmp_path / "beads"
     issue_id, stream = _init_beads_repo(repo)
     parent = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    _write_events(stream, _parse_stream_text(stream.read_text(encoding="utf-8"))[:-1])
+    _write_events(stream, parse_stream_text(stream.read_text(encoding="utf-8"))[:-1])
     _commit(
         repo,
         "chore(beads): sync bead state and pages for sase-l3",
@@ -436,7 +438,7 @@ def test_bead_sync_diagnostics_include_historical_corruption(
 ) -> None:
     repo = tmp_path / "beads"
     issue_id, stream = _init_beads_repo(repo)
-    _write_events(stream, _parse_stream_text(stream.read_text(encoding="utf-8"))[:-1])
+    _write_events(stream, parse_stream_text(stream.read_text(encoding="utf-8"))[:-1])
     _commit(repo, "chore(beads): drop an event", f"events/streams/{issue_id}.jsonl")
 
     messages = bead_sync_diagnostics(repo)
@@ -458,7 +460,7 @@ def test_diagnostics_degrade_when_history_is_unavailable(
         raise OSError("git unavailable")
 
     monkeypatch.setattr(
-        "sase.bead._stream_integrity.run_sdd_git",
+        "sase.bead._stream_integrity_git.run_sdd_git",
         boom,
     )
 
