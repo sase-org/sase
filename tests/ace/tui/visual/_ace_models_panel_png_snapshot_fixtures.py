@@ -444,6 +444,68 @@ def ownership_views() -> list[AliasView]:
     ]
 
 
+LONG_POOL_DESCRIPTION = (
+    "Round-robins across four heterogeneous workers so batch drafting keeps "
+    "flowing even when a single provider is degraded or rate-limited."
+)
+
+LONG_POOL_MEMBERS = (
+    ModelAliasSelectorMember(
+        value="claude/opus@medium",
+        target="claude/opus",
+        effort="medium",
+        provider="claude",
+        available=True,
+        selected=True,
+    ),
+    ModelAliasSelectorMember(
+        value="codex/gpt-5.5",
+        target="codex/gpt-5.5",
+        effort=None,
+        provider="codex",
+        available=True,
+    ),
+    ModelAliasSelectorMember(
+        value="claude/sonnet@high",
+        target="claude/sonnet",
+        effort="high",
+        provider="claude",
+        available=True,
+    ),
+    ModelAliasSelectorMember(
+        value="codex/gpt-5.5-mini",
+        target="codex/gpt-5.5-mini",
+        effort=None,
+        provider="codex",
+        available=True,
+    ),
+)
+
+
+def long_pool_views() -> list[AliasView]:
+    """calm_views() with "cheaper" wired to a 4-member pool that wraps 3+ rows."""
+    return [
+        _view(
+            "cheaper",
+            "role",
+            configured=True,
+            configured_value=(
+                "claude/opus@medium | codex/gpt-5.5 | claude/sonnet@high | "
+                "codex/gpt-5.5-mini"
+            ),
+            provider="codex",
+            model="gpt-5.5",
+            configured_source="builtin",
+            description=LONG_POOL_DESCRIPTION,
+            selector_mode="round_robin",
+            selector_members=LONG_POOL_MEMBERS,
+        )
+        if row.name == "cheaper"
+        else row
+        for row in calm_views()
+    ]
+
+
 def builtin_only_views() -> list[AliasView]:
     """Built-in rows used to exercise the empty Custom section."""
     return [view for view in calm_views() if view.kind != "user"]

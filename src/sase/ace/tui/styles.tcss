@@ -2288,12 +2288,17 @@ ModelsPanel {
     width: 110;
     max-width: 95%;
     height: auto;
-    /* Full-budget: container border (2) + padding (2) + title + margin (2) +
-       list cap (22) + description strip margin + height (1 + 4 = 5) + footer
-       margin + border + padding + text (5) = 39.  Sized so the three-line
-       launch-control title and two-line footer plus the taller
-       description strip cannot push the footer out of the modal when the alias
-       list is at its 22-row cap. */
+    /* Full budget (39 rows): container border (2) + padding (2) + title +
+       margin (up to 3) + list viewport + description strip margin + height
+       (1 + up to 4+) + footer margin + border + padding + text (5).
+       The title, description, and footer always get their intrinsic
+       heights; ModelsPanelDisplayMixin._sync_option_list_viewport()
+       computes the description's wrapped row count each time it changes and
+       lowers #models-panel-list's own max-height below its 22-row default so
+       the total never exceeds this budget. That keeps the title, every
+       wrapped description row, the footer, and the modal border inside the
+       budget without clipping anything; the alias list becomes the flexible,
+       scrollable region instead. */
     max-height: 39;
     border: double $primary;
     background: $surface;
@@ -2308,17 +2313,24 @@ ModelsPanel {
 }
 
 #models-panel-list {
+    /* max-height defaults to the 22-row cap used when space is available;
+       ModelsPanelDisplayMixin._sync_option_list_viewport() lowers it (never
+       raises it) at runtime to keep the title/description/footer budget
+       above from being exceeded. */
     height: auto;
     max-height: 22;
 }
 
 #models-panel-description {
-    /* Border-box height: 1 (border-top) + 1 (padding-top) + 2 content rows = 4.
-       Do NOT lower this back to 2 — that leaves 0 content rows and the strip
-       renders its separator/padding with the description text fully clipped.
-       Fixed (not auto) so navigating j/k between aliases with different
-       description lengths causes zero layout shift. */
-    height: 4;
+    /* Border-box height: 1 (border-top) + 1 (padding-top) + content rows,
+       with a 4-row (2 content row) floor via min-height so short
+       descriptions keep their previous spacing exactly. Auto (not fixed) so
+       a wrapped pool/fallback summary that needs 3+ content rows is shown in
+       full instead of being clipped; _sync_option_list_viewport() shrinks
+       the alias list to make room rather than letting this strip, the
+       footer, or the modal border get clipped. */
+    height: auto;
+    min-height: 4;
     color: $text-muted;
     text-style: italic;
     border-top: solid $secondary;

@@ -20,6 +20,7 @@ from tests.ace.tui.visual._ace_models_panel_png_snapshot_fixtures import (
     calm_views,
     custom_builtin_warning_views,
     effort_snapshot,
+    long_pool_views,
     override_views,
     pool_effort_views,
     provider_disable,
@@ -240,6 +241,34 @@ async def test_models_panel_pool_effort_png_snapshot(
             page,
             "models_panel_pool_effort_120x40",
             title="ACE Launch Control (pool and effort)",
+        )
+
+
+async def test_models_panel_long_pool_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wrapped 4-member pool must show every member without clipping the
+    footer or the modal border."""
+    patch_startup_loaders(monkeypatch)
+    _patch_alias_views(monkeypatch, long_pool_views)
+    monkeypatch.setattr(models_panel, "default_reasoning_effort", lambda: "xhigh")
+    monkeypatch.setattr(models_panel, "_now", lambda: FROZEN_NOW)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("2")
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(ModelsPanel())
+        await page.expect_modal("ModelsPanel")
+        await _wait_for_models_panel_ready(page)
+        _highlight_row(page, "cheaper")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "models_panel_long_pool_120x40",
+            title="ACE Launch Control (long pool wraps 3+ rows)",
         )
 
 

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container
+from textual.geometry import Size
 from textual.widgets import OptionList, Static
 from textual.widgets._option_list import Option
 
@@ -51,6 +52,23 @@ else:
 _SECTION_ID_PREFIX = "__models-section__:"
 _HINT_ID_PREFIX = "__models-hint__:"
 _SPACER_ID_PREFIX = "__models-spacer__:"
+
+# Mirrors the #models-panel-container / #models-panel-description /
+# #models-panel-footer budget documented in styles.tcss. Kept in Python
+# (rather than expressed purely in CSS) because Textual's "auto" and "fr"
+# layout units cannot express "shrink the list only when the other rows
+# actually need the room" without also forcing the list to balloon to its
+# 22-row cap for short lists that never needed the extra space.
+_MODAL_MAX_HEIGHT_ROWS = 39
+_MODAL_CHROME_ROWS = 4  # container border (2) + padding-vertical (2)
+_MODAL_CHROME_COLS = 6  # container border (2) + padding-horizontal (4)
+_MODAL_WIDTH = 110
+_TITLE_MARGIN_ROWS = 1
+_DESCRIPTION_MARGIN_ROWS = 1
+_DESCRIPTION_MIN_BOX_ROWS = 4  # border-top (1) + padding-top (1) + 2 content rows
+_FOOTER_CHROME_ROWS = 3  # border-top (1) + padding-top (1) + margin-top (1)
+_LIST_MIN_VIEWPORT_ROWS = 6  # border (2) + at least 4 visible options
+_LIST_MAX_VIEWPORT_ROWS = 22
 
 
 class ModelsPanelDisplayMixin(_MixinBase):
@@ -541,6 +559,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
         except Exception:
             pass
         self._update_description_strip()
+        self._sync_option_list_viewport()
 
     def _update_description_strip(self) -> None:
         """Refresh the description strip for the currently highlighted row."""
@@ -555,6 +574,48 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 now=self._models_panel_now(),
             )
         )
+
+    def _models_panel_content_width(self) -> int:
+        """Return the resolved content width shared by title/list/description/footer."""
+        container_width = min(_MODAL_WIDTH, int(self.size.width * 0.95))
+        return max(1, container_width - _MODAL_CHROME_COLS)
+
+    def _sync_option_list_viewport(self) -> None:
+        """Shrink the alias list's viewport, never the description or footer.
+
+        The title, description, and footer always render at their intrinsic
+        (wrapped) height. When that combined height plus the list's own
+        22-row default would exceed the modal's height budget, lower the
+        list's max-height just enough to keep everything else fully visible.
+        """
+        try:
+            option_list = self.query_one("#models-panel-list", OptionList)
+            title = self.query_one("#models-panel-title", Static)
+            description = self.query_one("#models-panel-description", Static)
+            footer = self.query_one("#models-panel-footer", Static)
+        except Exception:
+            return
+        width = self._models_panel_content_width()
+        empty = Size(0, 0)
+        title_rows = title.get_content_height(empty, empty, width)
+        description_rows = description.get_content_height(empty, empty, width)
+        footer_rows = footer.get_content_height(empty, empty, width)
+
+        title_budget = title_rows + _TITLE_MARGIN_ROWS
+        description_budget = _DESCRIPTION_MARGIN_ROWS + max(
+            _DESCRIPTION_MIN_BOX_ROWS, 2 + description_rows
+        )
+        footer_budget = _FOOTER_CHROME_ROWS + footer_rows
+
+        available = (
+            _MODAL_MAX_HEIGHT_ROWS
+            - _MODAL_CHROME_ROWS
+            - title_budget
+            - description_budget
+            - footer_budget
+        )
+        list_cap = max(_LIST_MIN_VIEWPORT_ROWS, min(_LIST_MAX_VIEWPORT_ROWS, available))
+        option_list.styles.max_height = list_cap
 
     def _highlighted_row_id(self) -> str | None:
         option_list = self.query_one("#models-panel-list", OptionList)
@@ -611,6 +672,7 @@ class ModelsPanelDisplayMixin(_MixinBase):
                 )
             except Exception:
                 pass
+            self._sync_option_list_viewport()
 
     def action_close(self) -> None:
         if (

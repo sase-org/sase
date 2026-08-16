@@ -106,6 +106,66 @@ def make_pool_members(
     )
 
 
+LONG_POOL_DESCRIPTION = (
+    "Round-robins across four heterogeneous workers so batch drafting keeps "
+    "flowing even when a single provider is degraded or rate-limited."
+)
+
+
+def make_long_pool_members() -> tuple[ModelAliasSelectorMember, ...]:
+    """Four-member pool whose rendered summary wraps to 3+ rows at 110 width."""
+    values = (
+        "claude/opus@medium",
+        "codex/gpt-5.5",
+        "claude/sonnet@high",
+        "codex/gpt-5.5-mini",
+    )
+    targets = ("claude/opus", "codex/gpt-5.5", "claude/sonnet", "codex/gpt-5.5-mini")
+    efforts = ("medium", None, "high", None)
+    providers = ("claude", "codex", "claude", "codex")
+    return tuple(
+        ModelAliasSelectorMember(
+            value=value,
+            target=target,
+            effort=effort,
+            provider=provider,
+            available=True,
+            selected=index == 0,
+        )
+        for index, (value, target, effort, provider) in enumerate(
+            zip(values, targets, efforts, providers, strict=True)
+        )
+    )
+
+
+def make_long_pool_views() -> list[AliasView]:
+    """A saturated, production-style alias list plus a long-wrapping pool.
+
+    Matches the shape of a real Launch Control view (many built-in aliases,
+    at or beyond the option list's 22-row cap) so geometry tests exercise the
+    same list/description budget contention production hits.
+    """
+    views = [
+        make_alias_view(f"worker_{index}", "role", description=f"Worker tier {index}.")
+        for index in range(14)
+    ]
+    views.append(
+        make_alias_view(
+            "cheaper",
+            "role",
+            configured=True,
+            configured_value=(
+                "claude/opus@medium | codex/gpt-5.5 | claude/sonnet@high | "
+                "codex/gpt-5.5-mini"
+            ),
+            description=LONG_POOL_DESCRIPTION,
+            selector_mode="round_robin",
+            selector_members=make_long_pool_members(),
+        )
+    )
+    return views
+
+
 def patch_alias_views(
     monkeypatch,
     views: list[AliasView],
