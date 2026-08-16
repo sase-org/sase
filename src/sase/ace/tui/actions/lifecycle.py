@@ -193,8 +193,9 @@ class LifecycleMixin:
 
     def _count_running_tasks(self) -> int:
         """Return the count of running procs."""
-        projection = getattr(self, "_proc_projection", None)
-        return int(getattr(projection, "active_count", 0))
+        from ..proc_observer import proc_projection_for
+
+        return proc_projection_for(self).active_count
 
     def action_dismiss_toasts(self) -> None:
         """Dismiss all currently-visible toast notifications.

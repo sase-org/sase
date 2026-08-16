@@ -6,7 +6,11 @@ import pytest
 
 from sase.core.agent_scan_wire import AgentMetaWire, DoneMarkerWire
 from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
-from sase.monitor.models import MonitorRecord, monitor_state_bucket
+from sase.monitor.models import (
+    MonitorRecord,
+    is_monitor_member_record,
+    monitor_state_bucket,
+)
 from sase.monitor_state import is_monitor_member_role
 
 
@@ -70,6 +74,41 @@ def test_from_record_rejects_non_monitor_rows() -> None:
 
     with pytest.raises(ValueError):
         MonitorRecord.from_record(_record(agent_meta=AgentMetaWire(name="agent--0")))
+
+    with pytest.raises(ValueError, match="not a monitor member"):
+        MonitorRecord.from_record(
+            _record(
+                agent_meta=AgentMetaWire(
+                    name="02i--7",
+                    agent_family_role="monitor",
+                )
+            )
+        )
+
+
+def test_is_monitor_member_record_requires_role_and_monitor_id() -> None:
+    false_positive = _record(
+        agent_meta=AgentMetaWire(name="02i--7", agent_family_role="monitor")
+    )
+    valid = _record(
+        agent_meta=AgentMetaWire(
+            name="acme--mon",
+            agent_family_role="monitor",
+            monitor_id="abc123",
+        )
+    )
+    other_role = _record(
+        agent_meta=AgentMetaWire(
+            name="acme--0",
+            agent_family_role="root",
+            monitor_id="abc123",
+        )
+    )
+
+    assert is_monitor_member_record(false_positive) is False
+    assert is_monitor_member_record(valid) is True
+    assert is_monitor_member_record(other_role) is False
+    assert is_monitor_member_record(_record(agent_meta=None)) is False
 
 
 def test_from_record_prefers_running_meta_fields() -> None:

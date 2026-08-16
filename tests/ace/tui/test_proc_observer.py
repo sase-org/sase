@@ -9,6 +9,8 @@ from sase.ace.tui.proc_observer import (
     ObservedProc,
     ProcObserver,
     ProcProjection,
+    compose_proc_projection,
+    proc_projection_for,
 )
 from sase.core.time import local_now
 from sase.ops import DurableOperationResult
@@ -93,6 +95,54 @@ def test_projection_scope_includes_unattributed_rows() -> None:
 
     assert projection.scoped_rows(all_sessions=False) == [mine, unattributed]
     assert projection.scoped_rows(all_sessions=True) == [mine, unattributed, other]
+
+
+def test_compose_proc_projection_attributes_and_counts_session_rows() -> None:
+    durable = ObservedProc(
+        proc_id="durable",
+        proc_type="patch",
+        cl_name="demo",
+        project_file="",
+        status="running",
+        message="durable",
+        started_at=local_now(),
+        session_id="session-a",
+    )
+    local = ObservedProc(
+        proc_id="session-1",
+        proc_type="sync",
+        cl_name="",
+        project_file="",
+        status="running",
+        message="local",
+        started_at=local_now(),
+    )
+    projection = compose_proc_projection(
+        ProcProjection(rows=(durable,), active_count=1, session_id="session-a"),
+        (local,),
+    )
+
+    assert projection.active_count == 2
+    assert projection.session_id == "session-a"
+    local_row = next(row for row in projection.rows if row.proc_id == "session-1")
+    assert local_row.session_id == "session-a"
+    assert local_row.session_live is True
+
+
+def test_proc_projection_for_prefers_effective_method() -> None:
+    durable = ProcProjection(session_id="ignored")
+    effective = ProcProjection(session_id="effective", active_count=2)
+    app = type(
+        "_App",
+        (),
+        {
+            "_proc_projection": durable,
+            "_effective_proc_projection": lambda self: effective,
+        },
+    )()
+
+    assert proc_projection_for(app) is effective
+    assert proc_projection_for(type("_Bare", (), {})()) == ProcProjection()
 
 
 def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:

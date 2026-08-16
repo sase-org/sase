@@ -5,9 +5,19 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from sase.ace.tui.actions.proc_actions import ProcActionsMixin, TrackedProcResult
-from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
+from sase.ace.tui.modals.plugins_browser_sase_update_procs import (
+    running_background_procs,
+)
+from sase.ace.tui.proc_observer import (
+    ObservedProc,
+    ProcObserverSnapshot,
+    ProcProjection,
+)
 from sase.core.time import local_now
+from sase.procs import store as proc_store
 
 
 class _ProcHost(ProcActionsMixin):
@@ -18,14 +28,19 @@ class _ProcHost(ProcActionsMixin):
         self._session_completion_callbacks: dict[str, Any] = {}
         self._proc_completion_callbacks: dict[str, Any] = {}
         self._proc_pending_scopes: dict[str, frozenset[str]] = {}
+        self.submitted_handles: list[Any] = []
         self._proc_observer = SimpleNamespace(
             register_pending=self._register_pending,
-            register_submitted=lambda **_kwargs: None,
+            register_submitted=self._register_submitted,
             remove_pending=lambda _placeholder_id: None,
         )
         self.notices: list[tuple[str, str]] = []
         self.workers: list[Any] = []
         self.pending_count = 0
+        self.indicator_counts: list[int] = []
+
+    def _register_submitted(self, **kwargs: Any) -> None:
+        self.submitted_handles.append(kwargs)
 
     def _register_pending(self, **kwargs: Any) -> ObservedProc:
         self.pending_count += 1
@@ -51,7 +66,7 @@ class _ProcHost(ProcActionsMixin):
         return worker
 
     def _update_proc_indicator(self) -> None:
-        return None
+        self.indicator_counts.append(self._effective_proc_projection().active_count)
 
     def _reload_and_reposition(self) -> None:
         return None
@@ -206,3 +221,119 @@ def test_session_claim_releases_after_completion_and_error() -> None:
     assert host._submit_session_worker("update", _ok, dedup_key="same") is not None
     host.fail_session_worker(1)
     assert host._submit_session_worker("update", _ok, dedup_key="same") is not None
+
+
+def test_session_worker_appears_in_effective_projection_and_counts() -> None:
+    host = _ProcHost(ProcProjection(session_id="session-mine"))
+
+    submitted = host._submit_session_worker("sync", _ok, display_name="local sync")
+
+    assert submitted is not None
+    effective = host._effective_proc_projection()
+    assert effective.active_count == 1
+    assert [row.proc_id for row in effective.rows] == [submitted.proc_id]
+    assert submitted.session_id == "session-mine"
+    assert effective.scoped_rows(all_sessions=False) == [submitted]
+    assert host.indicator_counts == [1]
+    assert running_background_procs(host) == [submitted]
+
+
+def test_session_overlay_preserves_rows_across_observer_snapshots() -> None:
+    host = _ProcHost(ProcProjection(session_id="session-mine"))
+    submitted = host._submit_session_worker("sync", _ok)
+    assert submitted is not None
+    durable = _durable_row(scope="other")
+
+    host._apply_proc_observer_snapshot(
+        ProcObserverSnapshot(
+            projection=ProcProjection(
+                rows=(durable,),
+                active_count=1,
+                session_id="session-mine",
+            )
+        )
+    )
+
+    effective = host._effective_proc_projection()
+    assert {row.proc_id for row in effective.rows} == {
+        submitted.proc_id,
+        durable.proc_id,
+    }
+    assert effective.active_count == 2
+    assert host._proc_projection.rows == (durable,)
+
+
+def test_session_overlay_removes_row_after_success_and_error() -> None:
+    host = _ProcHost(ProcProjection(session_id="session-mine"))
+    first = host._submit_session_worker("sync", _ok)
+    assert first is not None
+    host.complete_session_worker()
+
+    assert host._effective_proc_projection().rows == ()
+    assert host.indicator_counts[-1] == 0
+    assert running_background_procs(host) == []
+
+    second = host._submit_session_worker("sync", _ok)
+    assert second is not None
+    host.fail_session_worker(1)
+
+    assert host._effective_proc_projection().rows == ()
+    assert running_background_procs(host) == []
+
+
+def test_session_and_durable_rows_dedup_and_exclude_across_overlay() -> None:
+    host = _ProcHost(
+        ProcProjection(
+            rows=(_durable_row(scope="sase-update"),),
+            active_count=1,
+            session_id="session-mine",
+        )
+    )
+    local = host._submit_session_worker(
+        "agents-sync",
+        _ok,
+        exclusive_scopes=("agents-sync",),
+    )
+    assert local is not None
+
+    blocked_by_local = host._submit_session_worker(
+        "agents-sync",
+        _ok,
+        exclusive_scopes=("agents-sync",),
+        duplicate_message="local already owns it",
+    )
+    blocked_by_durable = host._submit_session_worker(
+        "sase-update",
+        _ok,
+        exclusive_scopes=("sase-update",),
+        duplicate_message="durable already owns it",
+    )
+
+    assert blocked_by_local is None
+    assert blocked_by_durable is None
+    assert host.notices == [
+        ("local already owns it", "warning"),
+        ("durable already owns it", "warning"),
+    ]
+    assert host._effective_proc_projection().scope_conflict({"agents-sync"}) is local
+    assert host._effective_proc_projection().scope_conflict({"sase-update"}) is not None
+
+
+def test_session_overlay_never_registers_observer_or_writes_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writes: list[object] = []
+    monkeypatch.setattr(
+        proc_store,
+        "append_proc",
+        lambda *args, **kwargs: writes.append((args, kwargs)),
+    )
+    host = _ProcHost(ProcProjection(session_id="session-mine"))
+
+    submitted = host._submit_session_worker("sync", _ok)
+
+    assert submitted is not None
+    assert host.pending_count == 0
+    assert host.submitted_handles == []
+    assert writes == []
+    assert submitted.store_backed is False

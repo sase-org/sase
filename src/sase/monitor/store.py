@@ -32,7 +32,12 @@ from sase.core.wire import known_field_kwargs
 from sase.plan_chain import agent_family_base
 
 from .identity import supervisor_is_alive
-from .models import MonitorLaneError, MonitorRecord, MonitorRefError
+from .models import (
+    MonitorLaneError,
+    MonitorRecord,
+    MonitorRefError,
+    is_monitor_member_record,
+)
 from .naming import short_monitor_id
 from .proc_adapter import overlay_proc_on_monitor, proc_shell_owns
 from .reconcile import (
@@ -240,7 +245,10 @@ def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
     """Return the current record for one monitor member's artifacts dir."""
     for record in _monitor_records(project_name):
         if record.artifact_dir == artifacts_dir:
-            return _with_proc_projection(MonitorRecord.from_record(record))
+            converted = _monitor_record_from_wire(record)
+            if converted is None:
+                return None
+            return _with_proc_projection(converted)
     return None
 
 
@@ -302,8 +310,11 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     reconcile_proc_shells()
     reconcile_dead_supervisors(project=project)
     records = [
-        _with_proc_projection(MonitorRecord.from_record(record))
-        for record in _monitor_records(project)
+        _with_proc_projection(converted)
+        for converted in (
+            _monitor_record_from_wire(record) for record in _monitor_records(project)
+        )
+        if converted is not None
     ]
     records.sort(key=lambda record: record.timestamp, reverse=True)
     return records
@@ -385,12 +396,21 @@ def _record_has_name(record: AgentArtifactRecordWire, agent_name: str) -> bool:
     return meta is not None and meta.name == agent_name
 
 
+def _monitor_record_from_wire(
+    record: AgentArtifactRecordWire,
+) -> MonitorRecord | None:
+    """Convert a scan row, skipping historical false-positive monitor roles."""
+    try:
+        return MonitorRecord.from_record(record)
+    except ValueError:
+        return None
+
+
 def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     return [
         record
         for record in _project_records(project_name, only_monitors=True)
-        if record.agent_meta is not None
-        and record.agent_meta.agent_family_role == "monitor"
+        if is_monitor_member_record(record)
     ]
 
 

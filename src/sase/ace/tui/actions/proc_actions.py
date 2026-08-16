@@ -21,6 +21,7 @@ from ..proc_observer import (
     ProcObserver,
     ProcObserverSnapshot,
     ProcProjection,
+    compose_proc_projection,
 )
 from ..widgets.proc_indicator import ProcIndicator
 
@@ -104,13 +105,30 @@ class ProcActionsMixin:
             observer.stop(timeout=1.0)
 
     def _update_proc_indicator(self) -> None:
-        """Update the top-bar proc indicator from the observer projection."""
+        """Update the top-bar proc indicator from the effective projection."""
         try:
             indicator = self.query_one("#proc-indicator", ProcIndicator)  # type: ignore[attr-defined]
-            projection = getattr(self, "_proc_projection", ProcProjection())
-            indicator.set_count(projection.active_count)
+            indicator.set_count(self._effective_proc_projection().active_count)
         except Exception:
             pass
+
+    def _session_overlay_rows(self) -> tuple[ObservedProc, ...]:
+        """Return ObservedProc rows for currently running session workers."""
+        rows: list[ObservedProc] = []
+        for recorded in getattr(self, "_session_completion_callbacks", {}).values():
+            if not isinstance(recorded, tuple) or len(recorded) != 2:
+                continue
+            _on_complete, proc_info = recorded
+            if isinstance(proc_info, ObservedProc):
+                rows.append(proc_info)
+        return tuple(rows)
+
+    def _effective_proc_projection(self) -> ProcProjection:
+        """Compose durable observer rows with live session-local workers."""
+        durable = getattr(self, "_proc_projection", ProcProjection())
+        if not isinstance(durable, ProcProjection):
+            durable = ProcProjection()
+        return compose_proc_projection(durable, self._session_overlay_rows())
 
     def _submit_durable_proc(
         self,
@@ -158,7 +176,7 @@ class ProcActionsMixin:
             self._init_proc_observer()
 
         requested_scopes = frozenset(concurrency_keys)
-        projection = getattr(self, "_proc_projection", ProcProjection())
+        projection = self._effective_proc_projection()
         existing = projection.scope_conflict(requested_scopes)
         if existing is None and requested_scopes:
             for pending_scopes in getattr(self, "_proc_pending_scopes", {}).values():
@@ -302,8 +320,9 @@ class ProcActionsMixin:
             exclusive_scopes=requested_scopes,
         )
         if existing is None:
-            projection = getattr(self, "_proc_projection", ProcProjection())
-            existing = projection.scope_conflict(requested_scopes)
+            existing = self._effective_proc_projection().scope_conflict(
+                requested_scopes
+            )
         if existing is None and requested_scopes:
             for pending_scopes in getattr(self, "_proc_pending_scopes", {}).values():
                 if pending_scopes & requested_scopes:
@@ -329,6 +348,9 @@ class ProcActionsMixin:
             )
             return None
 
+        durable = getattr(self, "_proc_projection", ProcProjection())
+        if not isinstance(durable, ProcProjection):
+            durable = ProcProjection()
         proc_info = ObservedProc(
             proc_id=f"session-{len(self._session_workers)}-{os.getpid()}",
             proc_type=proc_type,
@@ -340,6 +362,8 @@ class ProcActionsMixin:
             display_name=display_name or proc_type,
             dedup_key=dedup_key,
             exclusive_scopes=requested_scopes,
+            session_id=durable.session_id,
+            session_live=True,
         )
 
         def _wrapped() -> _SessionWorkerResult[T]:
@@ -360,6 +384,7 @@ class ProcActionsMixin:
         )
         worker: Worker[Any] = self.run_worker(_wrapped, thread=True)  # type: ignore[attr-defined]
         self._session_workers[proc_info.proc_id] = worker
+        self._update_proc_indicator()
         return proc_info
 
     def _session_worker_conflict(
@@ -583,7 +608,7 @@ class ProcActionsMixin:
             )
 
     def _placeholder_proc(self, proc_id: str) -> ObservedProc:
-        projection = getattr(self, "_proc_projection", ProcProjection())
+        projection = self._effective_proc_projection()
         for row in projection.rows:
             if row.proc_id == proc_id or row.durable_proc_id == proc_id:
                 return row
@@ -608,6 +633,7 @@ class ProcActionsMixin:
         recorded = callbacks.pop(result.proc_id, None)
         workers = getattr(self, "_session_workers", {})
         workers.pop(result.proc_id, None)
+        self._update_proc_indicator()
         if recorded is None:
             return
         on_complete, proc_info = recorded
@@ -635,6 +661,7 @@ class ProcActionsMixin:
         workers.pop(proc_id, None)
         callbacks = getattr(self, "_session_completion_callbacks", {})
         recorded = callbacks.pop(proc_id, None)
+        self._update_proc_indicator()
         if recorded is None:
             return
         on_complete, proc_info = recorded

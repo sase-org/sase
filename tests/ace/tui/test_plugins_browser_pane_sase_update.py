@@ -97,6 +97,21 @@ def test_restart_blockers_include_running_tracked_background_procs() -> None:
     }
 
 
+def test_restart_blockers_include_session_overlay_rows() -> None:
+    local = _task("session-sync", "sync")
+    app = SimpleNamespace(
+        _proc_projection=_projection(_task("done-sync", "sync", status="success")),
+        _effective_proc_projection=lambda: _projection(
+            _task("done-sync", "sync", status="success"),
+            local,
+        ),
+    )
+
+    blockers = pbsu._running_background_procs(app)
+
+    assert [proc.proc_id for proc in blockers] == ["session-sync"]
+
+
 def test_restart_blockers_fail_open_without_projection_rows() -> None:
     assert (
         pbsu._running_background_procs(

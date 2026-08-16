@@ -10,6 +10,7 @@ from .models import (
     MonitorRecord,
     MonitorRefError,
     MonitorState,
+    is_monitor_member_record,
     monitor_state_bucket,
 )
 from .naming import (
@@ -69,6 +70,7 @@ __all__ = [
     "durable_lane_for_record",
     "get_monitor",
     "has_any_monitor",
+    "is_monitor_member_record",
     "list_monitors",
     "monitor_state_bucket",
     "maybe_handoff_monitor_from_agent",

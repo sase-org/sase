@@ -297,6 +297,10 @@ class SaseUpdateProcMixin:
 
 def running_background_procs(app: Any) -> list[Any]:
     """Return observed active procs that must finish before ACE can restart."""
-    projection = getattr(app, "_proc_projection", None)
-    rows = tuple(getattr(projection, "rows", ()) or ())
-    return [proc for proc in rows if getattr(proc, "status", None) == "running"]
+    from sase.ace.tui.proc_observer import proc_projection_for
+
+    return [
+        proc
+        for proc in proc_projection_for(app).rows
+        if getattr(proc, "status", None) == "running"
+    ]

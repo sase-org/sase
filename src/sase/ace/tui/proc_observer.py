@@ -191,6 +191,48 @@ class ProcProjection:
         return None
 
 
+def compose_proc_projection(
+    durable: ProcProjection,
+    session_rows: Sequence[ObservedProc] = (),
+) -> ProcProjection:
+    """Combine the durable observer snapshot with live session-local rows."""
+    if not session_rows:
+        return durable
+    seen = {row.proc_id for row in durable.rows}
+    extra: list[ObservedProc] = []
+    for row in session_rows:
+        if row.proc_id in seen:
+            continue
+        extra.append(_attribute_session_row(row, durable.session_id))
+        seen.add(row.proc_id)
+    if not extra:
+        return durable
+    rows = [*durable.rows, *extra]
+    rows.sort(key=lambda item: item.started_at, reverse=True)
+    return ProcProjection(
+        rows=tuple(rows),
+        active_count=sum(1 for row in rows if row.status in _ACTIVE_STATUSES),
+        session_id=durable.session_id,
+    )
+
+
+def proc_projection_for(app: Any) -> ProcProjection:
+    """Return the UI-effective proc projection for *app*."""
+    compose = getattr(app, "_effective_proc_projection", None)
+    if callable(compose):
+        projection = compose()
+        if isinstance(projection, ProcProjection):
+            return projection
+    projection = getattr(app, "_proc_projection", None)
+    return projection if isinstance(projection, ProcProjection) else ProcProjection()
+
+
+def _attribute_session_row(row: ObservedProc, session_id: str | None) -> ObservedProc:
+    if row.session_id == session_id:
+        return row
+    return replace(row, session_id=session_id, session_live=True)
+
+
 @dataclass(frozen=True)
 class ProcCompletionRecord:
     """One terminal typed completion decoded by the observer thread."""
@@ -587,4 +629,6 @@ __all__ = [
     "ProcObserverSnapshot",
     "ProcProjection",
     "_store_proc_row",
+    "compose_proc_projection",
+    "proc_projection_for",
 ]

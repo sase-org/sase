@@ -66,6 +66,21 @@ def _task(
     )
 
 
+def test_running_task_count_includes_session_overlay() -> None:
+    class _OverlayQuitApp(LifecycleMixin):
+        def __init__(self) -> None:
+            self._proc_projection = ProcProjection()
+
+        def _effective_proc_projection(self) -> ProcProjection:
+            return ProcProjection(
+                rows=(_task("session-1", "sync"),),
+                active_count=1,
+                session_id="session-mine",
+            )
+
+    assert _OverlayQuitApp()._count_running_tasks() == 1
+
+
 @pytest.mark.asyncio
 async def test_action_quit_with_running_tasks_quits_without_modal() -> None:
     running = _task("run-1", "sync", display_name="Sync visual-auth")

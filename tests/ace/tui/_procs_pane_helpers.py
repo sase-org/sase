@@ -18,7 +18,11 @@ from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
 from sase.ace.tui.modals.procs_pane import ProcsPane
-from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
+from sase.ace.tui.proc_observer import (
+    ObservedProc,
+    ProcProjection,
+    compose_proc_projection,
+)
 from sase.ace.testing import wait_for
 from sase.core.time import local_now, to_local
 from sase.procs import Proc
@@ -101,9 +105,14 @@ class ProcQueue:
 class ProcsTestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, proc_queue: ProcQueue) -> None:
+    def __init__(
+        self,
+        proc_queue: ProcQueue,
+        session_rows: tuple[ObservedProc, ...] = (),
+    ) -> None:
         super().__init__()
         self._proc_queue = proc_queue
+        self._session_overlay = session_rows
         self.killed_task_ids: list[str] = []
         self.notifications: list[tuple[str, str | None]] = []
 
@@ -117,6 +126,9 @@ class ProcsTestApp(App[None]):
             ),
             session_id="session-mine",
         )
+
+    def _effective_proc_projection(self) -> ProcProjection:
+        return compose_proc_projection(self._proc_projection, self._session_overlay)
 
     def compose(self) -> ComposeResult:
         yield from ()

@@ -17,6 +17,7 @@ from sase.monitor.store import (
     get_monitor,
     has_any_monitor,
     list_monitors,
+    monitor_blocking_start_for_lane,
     read_monitor_marker,
     resolve_exact_agent,
     resolve_lane,
@@ -343,3 +344,72 @@ def test_list_monitors_scopes_to_one_project(monkeypatch: pytest.MonkeyPatch) ->
     records = list_monitors(project="proj")
 
     assert [record.monitor_id for record in records] == ["aaa"]
+
+
+def _legacy_false_positive_monitor(
+    project: str = "proj",
+    timestamp: str = "20260812110000",
+    *,
+    agent_family: str = "acme",
+) -> str:
+    return make_starter_agent(
+        project,
+        timestamp,
+        "02i--7",
+        agent_family=agent_family,
+        agent_family_role="monitor",
+    )
+
+
+def test_list_monitors_skips_legacy_false_positive_monitor_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    false_positive = _legacy_false_positive_monitor()
+    running = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+        pid=os.getpid(),
+    )
+    terminal = make_starter_agent(
+        "other",
+        "20260812130000",
+        "beta--mon",
+        agent_family="beta",
+        agent_family_role="monitor",
+        monitor_id="bbb",
+        monitor_state="completed",
+        monitor_settled=True,
+    )
+    patch_project_records(monkeypatch, [false_positive, running, terminal])
+
+    all_records = list_monitors()
+    scoped = list_monitors(project="proj")
+
+    assert [record.monitor_id for record in all_records] == ["bbb", "aaa"]
+    assert [record.monitor_id for record in scoped] == ["aaa"]
+    assert has_any_monitor("proj", "acme") is True
+    assert has_any_monitor("proj", "ghost") is False
+    found = active_monitor_for_lane("proj", "acme")
+    assert found is not None
+    assert found.artifact_dir == running
+    assert get_monitor("proj", false_positive) is None
+    blocking = monitor_blocking_start_for_lane("proj", "acme")
+    assert blocking is not None
+    assert blocking.monitor_id == "aaa"
+
+
+def test_has_any_monitor_ignores_false_positive_role_only_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    false_positive = _legacy_false_positive_monitor(agent_family="acme")
+    patch_project_records(monkeypatch, [false_positive])
+
+    assert has_any_monitor("proj", "acme") is False
+    assert list_monitors() == []
+    assert active_monitor_for_lane("proj", "acme") is None
+    assert monitor_blocking_start_for_lane("proj", "acme") is None

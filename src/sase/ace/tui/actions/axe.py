@@ -450,8 +450,9 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 navigate_to_agent_tab(self, result.cl_name, result.pid)
 
         # Collect background procs for the modal
-        projection = getattr(self, "_proc_projection", None)
-        rows = tuple(getattr(projection, "rows", ()) or ())
+        from ..proc_observer import proc_projection_for
+
+        rows = proc_projection_for(self).rows
         bg_procs = [
             BackgroundProcEntry(
                 proc_type=t.proc_type,

@@ -144,6 +144,30 @@ async def test_tasks_tab_merges_store_rows_with_in_memory_tasks(
         assert "this session" in pane._title_text()
 
 
+async def test_tasks_tab_shows_session_overlay_rows_in_current_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_store_loader(monkeypatch, [])
+    local = task(
+        "session-sync",
+        label="session sync",
+        status="running",
+        age_seconds=1,
+        live_output="Working...\n",
+    )
+    local.session_id = "session-other"
+
+    async with ProcsTestApp(queue(), session_rows=(local,)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        await pilot.pause()
+
+        option_list = pane.query_one("#procs-list", OptionList)
+        assert option_list.option_count == 1
+        assert "session sync" in option_list.get_option_at_index(0).prompt.plain
+        assert pane._proc_projection().scoped_rows(all_sessions=False)
+        assert pane._proc_projection().rows[0].session_id == "session-mine"
+
+
 async def test_tasks_tab_scope_toggle_reveals_other_sessions_with_chips(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

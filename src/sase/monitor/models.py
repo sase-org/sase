@@ -57,6 +57,20 @@ class MonitorRefError(ValueError):
     """A monitor reference was empty, unknown, or ambiguous."""
 
 
+def is_monitor_member_record(record: AgentArtifactRecordWire) -> bool:
+    """Return whether *record* is a real monitor family member.
+
+    A row that merely claims ``agent_family_role="monitor"`` but has no
+    durable ``monitor_id`` is a historical false positive, not a monitor.
+    """
+    meta = record.agent_meta
+    return (
+        meta is not None
+        and meta.agent_family_role == "monitor"
+        and bool(meta.monitor_id)
+    )
+
+
 @dataclass(frozen=True)
 class MonitorRecord:
     """Projection of one monitor family member's durable record."""
@@ -209,5 +223,6 @@ __all__ = [
     "MonitorRecord",
     "MonitorRefError",
     "MonitorState",
+    "is_monitor_member_record",
     "monitor_state_bucket",
 ]

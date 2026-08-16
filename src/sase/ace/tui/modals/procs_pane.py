@@ -17,7 +17,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Label, Static
 
 from ..actions.navigation.jump_hints import normalize_jump_key
-from ..proc_observer import ObservedProc, ProcProjection
+from ..proc_observer import ObservedProc, ProcProjection, proc_projection_for
 from ..util.selection import ProgrammaticSelectionGuard
 from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
@@ -148,10 +148,7 @@ class ProcsPane(
             pass
 
     def _proc_projection(self) -> ProcProjection:
-        projection = getattr(self.app, "_proc_projection", None)
-        return (
-            projection if isinstance(projection, ProcProjection) else ProcProjection()
-        )
+        return proc_projection_for(self.app)
 
     def _is_active_tab(self) -> bool:
         try:
