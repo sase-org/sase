@@ -101,11 +101,30 @@ def claim_bead_for_agent_launch(
             from sase.bead.sync import publish_bead_claim
 
             publish_bead_claim(beads_dir, bead_id, agent_name)
+            _schedule_launch_claim_convergence(workspace_dir)
         return issue
     except Exception as exc:
         raise RuntimeError(
             f"Failed to claim bead '{bead_id}' for agent '{agent_name}': {exc}"
         ) from exc
+
+
+def _schedule_launch_claim_convergence(workspace_dir: str) -> None:
+    """Hint primary-sidecar sync after a published launch claim."""
+
+    from sase.bead.background_store import schedule_beads_sidecar_convergence
+    from sase.workspace_provider.marker import find_marker_from_cwd
+
+    try:
+        found = find_marker_from_cwd(workspace_dir)
+    except Exception:
+        return
+    if found is None:
+        return
+    _checkout, marker = found
+    project = marker.project_name or marker.project_key
+    if project:
+        schedule_beads_sidecar_convergence(project)
 
 
 __all__ = ["claim_bead_for_agent_launch"]

@@ -16,7 +16,10 @@ from sase.sdd._repository_transaction import integrate_sdd_repository
 from sase.sdd._repository_types import SddIntegrationOutcome, SddIntegrationStatus
 from sase.sdd.store import SddStore
 
-from .claims_test_helpers import project_with_committed_phase
+from .claims_test_helpers import (
+    install_writable_bead_store,
+    project_with_committed_phase,
+)
 
 
 def test_wait_claim_holds_store_lock_from_materialization_through_commit(
@@ -24,10 +27,7 @@ def test_wait_claim_holds_store_lock_from_materialization_through_commit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     beads_dir, bead_id = project_with_committed_phase(tmp_path)
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     materialized = threading.Event()
     allow_commit = threading.Event()
     integration_finished = threading.Event()

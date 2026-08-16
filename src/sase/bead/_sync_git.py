@@ -6,6 +6,10 @@ import subprocess
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sase.workspace_provider.ownership import OperationContext
 
 
 class BeadWorkLaunchCommitError(RuntimeError):
@@ -111,6 +115,8 @@ def commit_bead_claim(
     agent_name: str,
     *,
     already_locked: bool = False,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
 ) -> bool:
     """Commit a waiting claim locally for post-lock lifecycle publication."""
     return _commit_bead_state(
@@ -119,6 +125,8 @@ def commit_bead_claim(
         auto_commit_type="beads",
         op_prefix="bead.claim",
         already_locked=already_locked,
+        mutation_origin=mutation_origin,
+        operation_context=operation_context,
     )
 
 
@@ -128,6 +136,8 @@ def commit_bead_claim_release(
     agent_name: str,
     *,
     already_locked: bool = False,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
 ) -> bool:
     """Commit a waiting-claim release for post-lock lifecycle publication."""
     return _commit_bead_state(
@@ -136,6 +146,8 @@ def commit_bead_claim_release(
         auto_commit_type="beads",
         op_prefix="bead.claim_release",
         already_locked=already_locked,
+        mutation_origin=mutation_origin,
+        operation_context=operation_context,
     )
 
 
@@ -143,6 +155,8 @@ def commit_bead_claim_reconciliation(
     beads_dir: Path,
     *,
     already_locked: bool = False,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
 ) -> bool:
     """Commit every claim transition from one reconciliation pass."""
     return _commit_bead_state(
@@ -151,6 +165,8 @@ def commit_bead_claim_reconciliation(
         auto_commit_type="beads",
         op_prefix="bead.claim_reconcile",
         already_locked=already_locked,
+        mutation_origin=mutation_origin,
+        operation_context=operation_context,
     )
 
 
@@ -159,6 +175,8 @@ def commit_external_issue_mirror(
     project: str,
     *,
     already_locked: bool = False,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
 ) -> bool:
     """Commit every bead created, noted, closed, or reopened by one issue mirror pass."""
     return _commit_bead_state(
@@ -167,6 +185,8 @@ def commit_external_issue_mirror(
         auto_commit_type="beads",
         op_prefix="bead.external_issue_mirror",
         already_locked=already_locked,
+        mutation_origin=mutation_origin,
+        operation_context=operation_context,
     )
 
 
@@ -247,6 +267,8 @@ def _commit_bead_state(
     auto_commit_type: str,
     op_prefix: str,
     already_locked: bool,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
 ) -> bool:
     """Commit only changed bead-state files with a stage-specific message."""
     from sase.sdd._git import run_sdd_git
@@ -254,12 +276,18 @@ def _commit_bead_state(
         SddRepositoryHealthError,
         require_sdd_repository_health,
     )
+    from sase.workspace_provider.ownership import authorize_store_mutation
 
     if not beads_dir.exists():
         return False
     repo_root = find_git_root(beads_dir)
     if repo_root is None:
         return False
+    authorize_store_mutation(
+        repo_root,
+        mutation_origin=mutation_origin,
+        context=operation_context,
+    )
 
     rel_beads = relative_pathspec(beads_dir, repo_root)
     lock_factory = _bead_worktree_lock_factory(

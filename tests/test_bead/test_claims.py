@@ -20,6 +20,7 @@ from sase.bead.project import BeadProject
 from .claims_test_helpers import (
     commit_count,
     install_claim_attempts,
+    install_writable_bead_store,
     issue,
     project_with_committed_phase,
 )
@@ -78,6 +79,7 @@ def test_wait_claim_publishes_after_store_lock_is_released(
         _agent_name: str,
         *,
         already_locked: bool,
+        **_kwargs: object,
     ) -> bool:
         assert lock_held
         assert already_locked
@@ -88,10 +90,7 @@ def test_wait_claim_publishes_after_store_lock_is_released(
         assert not lock_held
         events.append("publish")
 
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     monkeypatch.setattr(
         "sase.bead.store_locator.open_bead_project_for_beads_dir",
         open_project,
@@ -222,10 +221,7 @@ def test_retained_wait_claim_does_not_commit_preexisting_dirty_state(
             status=Status.CLAIMED.value,
             assignee="worker",
         )
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     monkeypatch.setattr("sase.bead.claims.time.sleep", lambda _delay: None)
 
     commit_calls = 0
@@ -265,9 +261,9 @@ def test_home_wait_claim_is_silently_skipped(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: pytest.fail("home mode must not resolve a bead store"),
+    install_writable_bead_store(
+        monkeypatch,
+        error=AssertionError("home mode must not resolve a bead store"),
     )
 
     assert not claim_bead_for_waiting_agent(
@@ -317,10 +313,7 @@ def test_declined_wait_claim_leaves_in_progress_store_untouched(
         check=True,
         capture_output=True,
     )
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     before = subprocess.run(
         ["git", "status", "--porcelain=v1"],
         cwd=tmp_path,
@@ -377,10 +370,7 @@ def test_force_reuse_replacement_retains_in_progress_wait_without_mutation(
         capture_output=True,
     )
     commits = commit_count(tmp_path)
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     identity = AgentIdentitySnapshot(AgentOwnerIdentity("alice", "athena"), ("athena",))
     monkeypatch.setattr(
         AgentIdentitySnapshot,

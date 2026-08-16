@@ -17,5 +17,8 @@ def bead_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "sase.external_mirror.issues.canonical_beads_dir_for_project",
         lambda _project: beads_dir,
     )
+    from tests.test_bead.claims_test_helpers import install_writable_bead_store
+
+    install_writable_bead_store(monkeypatch, beads_dir)
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     return beads_dir

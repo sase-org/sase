@@ -19,6 +19,7 @@ from sase.sdd._repository_transaction import (
 )
 from sase.sdd._store_link import _pull_sdd_clone
 
+from .claims_test_helpers import install_writable_bead_store
 from .sync_conflict_regression_helpers import (
     _git,
     _seed_claim_soak_remote,
@@ -61,10 +62,7 @@ def test_concurrent_claim_soak_preserves_commits_without_recovery(
         "local-agent-0",
     )
 
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: local / "beads",
-    )
+    install_writable_bead_store(monkeypatch, local / "beads")
     concurrent_materialized = threading.Event()
     original_claim = BeadProject.claim_for_agent_wait
 

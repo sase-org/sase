@@ -30,6 +30,7 @@ from sase.sdd.store import SddStore
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
+from .claims_test_helpers import install_writable_bead_store
 from .cli_work_helpers import seed_diamond
 
 
@@ -132,10 +133,7 @@ def test_rendered_epic_preclaims_make_runner_lifecycle_quiet_noops(
         assert directives.bead_id == env["SASE_BEAD_ID"]
         directives_by_bead[directives.bead_id] = directives
 
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: project_dir / "sdd/beads",
-    )
+    install_writable_bead_store(monkeypatch, project_dir / "sdd/beads")
     store = SddStore(
         storage="separate_repo",
         sdd_dir=project_dir / "sdd",
@@ -219,10 +217,7 @@ def test_wait_claim_survives_publication_lag_and_holds_until_promotion(
     with BeadProject.init(canonical_root):
         pass
     canonical_beads = canonical_root / "sdd" / "beads"
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: canonical_beads,
-    )
+    install_writable_bead_store(monkeypatch, canonical_beads)
 
     integrations: list[Path] = []
 

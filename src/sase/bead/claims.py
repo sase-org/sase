@@ -141,10 +141,12 @@ def claim_bead_for_waiting_agent(
         return False
 
     try:
-        from sase.bead.store_locator import (
-            canonical_beads_dir_for_project,
-            open_bead_project_for_beads_dir,
+        from sase.bead.background_store import (
+            WritableBeadStore,
+            schedule_beads_sidecar_convergence,
+            writable_bead_store_for_machine,
         )
+        from sase.bead.store_locator import open_bead_project_for_beads_dir
         from sase.bead.sync import (
             bead_store_write_lock,
             commit_bead_claim,
@@ -152,58 +154,65 @@ def claim_bead_for_waiting_agent(
             refresh_bead_store,
         )
 
-        beads_dir = canonical_beads_dir_for_project(project_name)
-        if beads_dir is None:
-            raise RuntimeError(f"no canonical bead store for project '{project_name}'")
+        store: WritableBeadStore
+        with writable_bead_store_for_machine(
+            project_name,
+            workflow="bead_claim",
+            holder=f"wait-claim:{agent_name}",
+            prefer_existing_claim=True,
+        ) as store:
+            beads_dir = store.beads_dir
+            refreshed = False
+            for attempt in range(_MAX_CLAIM_ATTEMPTS):
+                try:
+                    committed = False
+                    with bead_store_write_lock(beads_dir) as already_locked:
+                        with open_bead_project_for_beads_dir(beads_dir) as project:
+                            issue, changed = project.claim_for_agent_wait(
+                                bead_id, agent_name
+                            )
 
-        refreshed = False
-        for attempt in range(_MAX_CLAIM_ATTEMPTS):
-            try:
-                committed = False
-                with bead_store_write_lock(beads_dir) as already_locked:
-                    with open_bead_project_for_beads_dir(beads_dir) as project:
-                        issue, changed = project.claim_for_agent_wait(
-                            bead_id, agent_name
+                        held_by_us = (
+                            issue.status in {Status.CLAIMED, Status.IN_PROGRESS}
+                            and issue.assignee == agent_name
                         )
+                        if changed:
+                            committed = commit_bead_claim(
+                                beads_dir,
+                                bead_id,
+                                agent_name,
+                                already_locked=already_locked,
+                                mutation_origin="machine",
+                                operation_context=store.context,
+                            )
 
-                    held_by_us = (
-                        issue.status in {Status.CLAIMED, Status.IN_PROGRESS}
-                        and issue.assignee == agent_name
-                    )
-                    if changed:
-                        committed = commit_bead_claim(
-                            beads_dir,
-                            bead_id,
-                            agent_name,
-                            already_locked=already_locked,
+                    if committed:
+                        publish_bead_claim(beads_dir, bead_id, agent_name)
+                        schedule_beads_sidecar_convergence(store.project)
+                    if held_by_us:
+                        action = "Claimed" if changed else "Retained claim on"
+                        print(f"{action} bead {bead_id} for waiting agent {agent_name}")
+                    else:
+                        holder = issue.assignee or "<unassigned>"
+                        print(
+                            f"Bead {bead_id} claim declined: "
+                            f"status={issue.status.value}, holder={holder}"
                         )
-
-                if committed:
-                    publish_bead_claim(beads_dir, bead_id, agent_name)
-                if held_by_us:
-                    action = "Claimed" if changed else "Retained claim on"
-                    print(f"{action} bead {bead_id} for waiting agent {agent_name}")
-                else:
-                    holder = issue.assignee or "<unassigned>"
-                    print(
-                        f"Bead {bead_id} claim declined: "
-                        f"status={issue.status.value}, holder={holder}"
-                    )
-                return held_by_us
-            except Exception as exc:
-                is_missing = _is_missing_bead_error(exc)
-                is_lock_timeout = is_bead_store_lock_timeout(exc)
-                if (
-                    not (is_missing or is_lock_timeout)
-                    or attempt + 1 >= _MAX_CLAIM_ATTEMPTS
-                ):
-                    raise
-                if is_missing and not refreshed:
-                    refresh_bead_store(beads_dir)
-                    refreshed = True
-                    continue
-                _sleep_before_claim_retry()
-        raise RuntimeError("claim retry budget ended without a terminal outcome")
+                    return held_by_us
+                except Exception as exc:
+                    is_missing = _is_missing_bead_error(exc)
+                    is_lock_timeout = is_bead_store_lock_timeout(exc)
+                    if (
+                        not (is_missing or is_lock_timeout)
+                        or attempt + 1 >= _MAX_CLAIM_ATTEMPTS
+                    ):
+                        raise
+                    if is_missing and not refreshed:
+                        refresh_bead_store(beads_dir)
+                        refreshed = True
+                        continue
+                    _sleep_before_claim_retry()
+            raise RuntimeError("claim retry budget ended without a terminal outcome")
     except Exception as exc:  # noqa: BLE001 - claims are advisory visibility.
         print(
             f"Warning: Failed to claim bead '{bead_id}' for waiting agent "
@@ -225,20 +234,21 @@ def retain_in_progress_bead_for_replacement(
         return False
 
     try:
+        from sase.bead.background_store import writable_bead_store_for_machine
         from sase.bead.force_reuse import issue_retains_force_reuse_owner
-        from sase.bead.store_locator import (
-            canonical_beads_dir_for_project,
-            open_bead_project_for_beads_dir,
-        )
+        from sase.bead.store_locator import open_bead_project_for_beads_dir
         from sase.bead.sync import bead_store_write_lock
 
-        beads_dir = canonical_beads_dir_for_project(project_name)
-        if beads_dir is None:
-            raise RuntimeError(f"no canonical bead store for project '{project_name}'")
-
-        with bead_store_write_lock(beads_dir):
-            with open_bead_project_for_beads_dir(beads_dir) as project:
-                issue = project.show(bead_id)
+        with writable_bead_store_for_machine(
+            project_name,
+            workflow="bead_claim",
+            holder=f"wait-retain:{agent_name}",
+            prefer_existing_claim=True,
+        ) as store:
+            beads_dir = store.beads_dir
+            with bead_store_write_lock(beads_dir):
+                with open_bead_project_for_beads_dir(beads_dir) as project:
+                    issue = project.show(bead_id)
 
         if not issue_retains_force_reuse_owner(
             issue,
@@ -278,38 +288,47 @@ def release_bead_claim_for_agent(
 ) -> BeadClaimReleaseOutcome:
     """Release and publish *agent_name*'s claim without disrupting shutdown."""
     try:
-        from sase.bead.store_locator import (
-            canonical_beads_dir_for_project,
-            open_bead_project_for_beads_dir,
+        from sase.bead.background_store import (
+            schedule_beads_sidecar_convergence,
+            writable_bead_store_for_machine,
         )
+        from sase.bead.store_locator import open_bead_project_for_beads_dir
         from sase.bead.sync import (
             bead_store_write_lock,
             commit_bead_claim_release,
             publish_bead_claim,
         )
 
-        beads_dir = canonical_beads_dir_for_project(project_name)
-        if beads_dir is None:
-            raise RuntimeError(f"no canonical bead store for project '{project_name}'")
+        with writable_bead_store_for_machine(
+            project_name,
+            workflow="bead_claim",
+            holder=f"wait-release:{agent_name}",
+            prefer_existing_claim=True,
+        ) as store:
+            beads_dir = store.beads_dir
+            committed = False
+            with bead_store_write_lock(beads_dir) as already_locked:
+                with open_bead_project_for_beads_dir(beads_dir) as project:
+                    _issue, changed = project.release_agent_claim(bead_id, agent_name)
 
-        committed = False
-        with bead_store_write_lock(beads_dir) as already_locked:
-            with open_bead_project_for_beads_dir(beads_dir) as project:
-                _issue, changed = project.release_agent_claim(bead_id, agent_name)
-
+                if changed:
+                    committed = commit_bead_claim_release(
+                        beads_dir,
+                        bead_id,
+                        agent_name,
+                        already_locked=already_locked,
+                        mutation_origin="machine",
+                        operation_context=store.context,
+                    )
+            if committed:
+                publish_bead_claim(beads_dir, bead_id, agent_name)
+                schedule_beads_sidecar_convergence(store.project)
             if changed:
-                committed = commit_bead_claim_release(
-                    beads_dir,
-                    bead_id,
-                    agent_name,
-                    already_locked=already_locked,
+                print(
+                    f"Released bead claim on {bead_id} from waiting agent {agent_name}"
                 )
-        if committed:
-            publish_bead_claim(beads_dir, bead_id, agent_name)
-        if changed:
-            print(f"Released bead claim on {bead_id} from waiting agent {agent_name}")
-            return BeadClaimReleaseOutcome.RELEASED
-        return BeadClaimReleaseOutcome.NOTHING_TO_RELEASE
+                return BeadClaimReleaseOutcome.RELEASED
+            return BeadClaimReleaseOutcome.NOTHING_TO_RELEASE
     except Exception as exc:  # noqa: BLE001 - shutdown must remain best effort.
         print(
             f"Warning: Failed to release bead claim on '{bead_id}' from agent "

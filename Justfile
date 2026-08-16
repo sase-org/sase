@@ -310,10 +310,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-mq(authorize_operational_lease_workspace)' \
         --epic-symbol 'sase-mq(bind_operational_lease)' \
         --epic-symbol 'sase-mq(operational_lease_settlement_policy)' \
-        --epic-symbol 'sase-mq(operational_workspace_lease)' \
         --epic-symbol 'sase-mq(submit_leased_proc_request)' \
         --epic-symbol 'sase-mq(transfer_operational_lease)' \
-        --epic-symbol "sase-mq.5(mark_sidecar_sync_hint)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

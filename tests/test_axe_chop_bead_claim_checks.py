@@ -15,6 +15,7 @@ from sase.axe.chop_script_context import ChopScriptContext
 from sase.bead.model import Issue, Status
 from sase.chops.builtin import BuiltinChopRuntime
 from sase.chops.sdk import ChopLogger
+from tests.test_bead.claims_test_helpers import install_writable_bead_store
 
 
 def _runtime(tmp_path: Path) -> BuiltinChopRuntime:
@@ -123,11 +124,8 @@ def test_project_reconciliation_batches_mutations_into_one_commit_and_push(
 
     commit = MagicMock(return_value=True)
     publish = MagicMock()
-    monkeypatch.setattr(
-        claim_checks,
-        "canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
+    monkeypatch.setattr(claim_checks, "refresh_bead_store", lambda _path: None)
     monkeypatch.setattr(
         claim_checks,
         "open_bead_project_for_beads_dir",
@@ -153,7 +151,11 @@ def test_project_reconciliation_batches_mutations_into_one_commit_and_push(
         call("sase-1.3", "worker.3"),
         call("sase-1.4", "worker.4"),
     ]
-    commit.assert_called_once_with(beads_dir, already_locked=True)
+    commit.assert_called_once()
+    assert commit.call_args.args == (beads_dir,)
+    assert commit.call_args.kwargs["already_locked"] is True
+    assert commit.call_args.kwargs["mutation_origin"] == "machine"
+    assert commit.call_args.kwargs["operation_context"] is not None
     publish.assert_called_once_with(beads_dir, "reconciliation", "sase")
     assert result.released == frozenset(
         {("sase-1.1", "worker.1"), ("sase-1.2", "worker.2")}

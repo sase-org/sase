@@ -29,7 +29,11 @@ story.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from sase.workspace_provider.ownership import OperationContext
 
 from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.bug_links import normalize_external_ref
@@ -37,7 +41,13 @@ from sase.core import bead_read_facade
 from sase.vcs_provider import IssueWire, get_vcs_provider, supports_issue_listing
 
 from ._issue_apply import apply_issue_mirror
-from ._issue_models import CreateCandidate, MirrorBudget, MirrorReport
+from ._issue_models import (
+    ApplyOutcome,
+    CreateCandidate,
+    MirrorBudget,
+    MirrorReport,
+    TransitionCandidate,
+)
 from ._issue_planning import (
     build_create_candidate,
     build_identity_index,
@@ -222,9 +232,11 @@ def run_issue_mirror_for_project(
             reopened_refs=reopened_refs,
         )
 
-    outcome = apply_issue_mirror(
-        beads_dir=beads_dir,
+    outcome = _apply_issue_mirror_for_source(
+        source=source,
         project_key=project_key,
+        workspace_dir=workspace_dir,
+        planning_beads_dir=beads_dir,
         create_candidates=create_candidates,
         transition_candidates=transition_candidates,
         budget=budget,
@@ -273,6 +285,75 @@ def run_issue_mirror_for_project(
         closed_refs=outcome.closed_refs,
         reopened_refs=outcome.reopened_refs,
     )
+
+
+def _apply_issue_mirror_for_source(
+    *,
+    source: Literal["chop", "cli"],
+    project_key: str,
+    workspace_dir: str,
+    planning_beads_dir: Path,
+    create_candidates: list[CreateCandidate],
+    transition_candidates: list[TransitionCandidate],
+    budget: MirrorBudget,
+) -> ApplyOutcome:
+    """Apply planned mirror writes through a source-appropriate store."""
+
+    if source == "cli":
+        beads_dir, context, origin = _cli_writable_mirror_store(
+            project_key, workspace_dir, planning_beads_dir
+        )
+        return apply_issue_mirror(
+            beads_dir=beads_dir,
+            project_key=project_key,
+            create_candidates=create_candidates,
+            transition_candidates=transition_candidates,
+            budget=budget,
+            mutation_origin=origin,
+            operation_context=context,
+        )
+
+    from sase.bead.background_store import writable_bead_store_for_machine
+
+    with writable_bead_store_for_machine(
+        project_key,
+        workflow="chop:external_issue_mirror",
+        holder=f"external_issue_mirror:{project_key}",
+    ) as store:
+        from sase.bead.sync import refresh_bead_store
+
+        try:
+            refresh_bead_store(store.beads_dir)
+        except Exception:
+            pass
+        return apply_issue_mirror(
+            beads_dir=store.beads_dir,
+            project_key=project_key,
+            create_candidates=create_candidates,
+            transition_candidates=transition_candidates,
+            budget=budget,
+            mutation_origin="machine",
+            operation_context=store.context,
+        )
+
+
+def _cli_writable_mirror_store(
+    project_key: str,
+    workspace_dir: str,
+    planning_beads_dir: Path,
+) -> tuple[Path, OperationContext | None, str]:
+    """Foreground CLI may mutate the user-directed store; never lease away."""
+
+    try:
+        from sase.workspace_provider.ownership import (
+            user_directed_context,
+            writable_beads_dir,
+        )
+
+        context = user_directed_context(cwd=workspace_dir, project=project_key)
+        return writable_beads_dir(context), context, "user"
+    except Exception:
+        return planning_beads_dir, None, "user"
 
 
 __all__ = [

@@ -10,8 +10,14 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.bead.background_store import WritableBeadStore
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
+from sase.workspace_provider.ownership import (
+    AccessKind,
+    MutationOrigin,
+    OperationContext,
+)
 
 from .sync_test_helpers import init_git_repo
 
@@ -48,6 +54,62 @@ def commit_count(repo: Path) -> int:
     return int(result.stdout.strip())
 
 
+def writable_store_for_beads(
+    beads_dir: Path, *, project: str = "proj"
+) -> WritableBeadStore:
+    """Build a leased-looking store whose checkout contains *beads_dir*."""
+
+    checkout = beads_dir
+    for parent in [beads_dir, *beads_dir.parents]:
+        if (parent / ".git").exists() or (parent / ".git").is_file():
+            checkout = parent
+            break
+    return WritableBeadStore(
+        project=project,
+        beads_dir=beads_dir,
+        context=OperationContext(
+            project=project,
+            access_kind=AccessKind.LEASED_OPERATIONAL,
+            mutation_origin=MutationOrigin.MACHINE,
+            workspace_num=10,
+            checkout_dir=checkout,
+            primary_checkout_dir=checkout.parent / "primary-unused",
+            claim_pid=1,
+            claim_workflow="bead_claim",
+        ),
+        reused_existing_claim=False,
+    )
+
+
+def install_writable_bead_store(
+    monkeypatch: pytest.MonkeyPatch,
+    beads_dir: Path | None = None,
+    *,
+    error: Exception | None = None,
+    project: str = "proj",
+) -> None:
+    """Route machine writers to *beads_dir* without acquiring a real lease."""
+
+    @contextmanager
+    def fake_store(
+        requested_project: str, **_kwargs: object
+    ) -> Iterator[WritableBeadStore]:
+        if error is not None:
+            raise error
+        if beads_dir is None:
+            raise RuntimeError("no writable bead store installed")
+        yield writable_store_for_beads(beads_dir, project=requested_project or project)
+
+    monkeypatch.setattr(
+        "sase.bead.background_store.writable_bead_store_for_machine",
+        fake_store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.background_store.schedule_beads_sidecar_convergence",
+        lambda _project: None,
+    )
+
+
 def install_claim_attempts(
     monkeypatch: pytest.MonkeyPatch,
     attempts: list[object],
@@ -75,10 +137,7 @@ def install_claim_attempts(
     def open_project(_beads_dir: Path) -> Iterator[_Project]:
         yield _Project()
 
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     monkeypatch.setattr(
         "sase.bead.store_locator.open_bead_project_for_beads_dir",
         open_project,
@@ -94,6 +153,7 @@ def install_claim_attempts(
         agent_name: str,
         *,
         already_locked: bool,
+        **_kwargs: object,
     ) -> bool:
         commit_calls.append((path, bead_id, agent_name))
         return True

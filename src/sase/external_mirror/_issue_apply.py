@@ -13,6 +13,7 @@ from sase.bead.sync import (
     commit_external_issue_mirror,
     publish_bead_claim,
 )
+from sase.workspace_provider.ownership import OperationContext
 
 from ._issue_models import (
     ApplyOutcome,
@@ -37,6 +38,8 @@ def apply_issue_mirror(
     create_candidates: list[CreateCandidate],
     transition_candidates: list[TransitionCandidate],
     budget: MirrorBudget,
+    mutation_origin: str = "user",
+    operation_context: OperationContext | None = None,
 ) -> ApplyOutcome:
     """Apply planned creates and transitions under one lock, one commit, one publish."""
     if not create_candidates and not transition_candidates:
@@ -155,10 +158,15 @@ def apply_issue_mirror(
                 beads_dir,
                 project_key,
                 already_locked=already_locked,
+                mutation_origin=mutation_origin,
+                operation_context=operation_context,
             )
 
     if committed:
         publish_bead_claim(beads_dir, "external_issue_mirror", project_key)
+        from sase.bead.background_store import schedule_beads_sidecar_convergence
+
+        schedule_beads_sidecar_convergence(project_key)
     settle_closed_task_bead_gates(project_key, closed_task_ids, source="chop")
 
     return ApplyOutcome(

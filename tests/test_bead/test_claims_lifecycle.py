@@ -19,7 +19,11 @@ from sase.bead.project import BeadProject
 from sase.bead.sync import _PushOutcome
 from sase.sdd.store import SddStore
 
-from .claims_test_helpers import commit_count, project_with_committed_phase
+from .claims_test_helpers import (
+    commit_count,
+    install_writable_bead_store,
+    project_with_committed_phase,
+)
 from .sync_test_helpers import init_git_repo
 
 
@@ -27,10 +31,7 @@ def test_claim_reclaim_and_release_use_canonical_store_without_commit_churn(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     beads_dir, bead_id = project_with_committed_phase(tmp_path)
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     initial_commits = commit_count(tmp_path)
 
     assert claim_bead_for_waiting_agent(
@@ -82,10 +83,7 @@ def test_claim_publication_failures_warn_and_preserve_local_transitions(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     beads_dir, bead_id = project_with_committed_phase(tmp_path)
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
     publish_calls: list[Path] = []
     log_path = tmp_path / "managed-sync.log"
 
@@ -177,10 +175,7 @@ def test_wait_claim_release_and_launch_promotion_publish_to_remote(
         capture_output=True,
     )
     beads_dir = canonical / "beads"
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
 
     def observe_remote(name: str) -> tuple[Status, str]:
         clone = tmp_path / name
@@ -237,10 +232,7 @@ def test_wait_claim_release_and_launch_promotion_publish_to_remote(
 def test_claim_helpers_degrade_store_failures_to_warnings(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: (_ for _ in ()).throw(RuntimeError("store unavailable")),
-    )
+    install_writable_bead_store(monkeypatch, error=RuntimeError("store unavailable"))
 
     assert not claim_bead_for_waiting_agent(
         project_name="proj",
@@ -266,10 +258,7 @@ def test_release_claim_distinguishes_nothing_to_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     beads_dir, bead_id = project_with_committed_phase(tmp_path)
-    monkeypatch.setattr(
-        "sase.bead.store_locator.canonical_beads_dir_for_project",
-        lambda _project: beads_dir,
-    )
+    install_writable_bead_store(monkeypatch, beads_dir)
 
     assert (
         release_bead_claim_for_agent(
