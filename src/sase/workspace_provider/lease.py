@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +34,14 @@ from sase.workspace_provider.ownership import (
     OperationContext,
     leased_operational_context,
     normalize_workspace_num,
+)
+from sase.workspace_provider.reset_replay import (
+    DEFAULT_MAX_ATTEMPTS,
+    ReplayConflict,
+    ReplayDeferred,
+    ResetReplayError,
+    ResetReplayResult,
+    reset_and_replay as run_reset_and_replay,
 )
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM, WorkspaceStore
@@ -115,6 +123,32 @@ class OperationalLease:
         """Return the persisted policy that releases this lease once."""
 
         return operational_lease_settlement_policy(self)
+
+    def reset_and_replay(
+        self,
+        operation: Callable[[], Any],
+        *,
+        repo_root: str | Path | None = None,
+        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+        clear_paths: Sequence[str | Path] = (),
+        clock: Callable[[], float] | None = None,
+    ) -> ResetReplayResult:
+        """Reset and replay *operation* inside this lease's checkout.
+
+        Destructive recovery is authorized only for this lease's live
+        operational context. Callers raise :class:`ReplayConflict` or
+        :class:`ReplayDeferred` from *operation*; see
+        :func:`sase.workspace_provider.reset_replay.reset_and_replay`.
+        """
+
+        return run_reset_and_replay(
+            self.context,
+            self.checkout_dir if repo_root is None else repo_root,
+            operation,
+            max_attempts=max_attempts,
+            clear_paths=clear_paths,
+            clock=clock,
+        )
 
 
 def authorize_operational_lease_workspace(workspace_num: int) -> int:
@@ -636,6 +670,10 @@ __all__ = [
     "OPERATIONAL_LEASE_POLICY_KIND",
     "OperationalLease",
     "OperationalLeaseError",
+    "ReplayConflict",
+    "ReplayDeferred",
+    "ResetReplayError",
+    "ResetReplayResult",
     "acquire_operational_lease",
     "authorize_operational_lease_workspace",
     "bind_operational_lease",
