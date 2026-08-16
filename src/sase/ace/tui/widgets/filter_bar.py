@@ -10,6 +10,7 @@ from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from textual.css.query import NoMatches
 from textual.events import Key
 from textual.message import Message
 from textual.widgets import OptionList, Static, TextArea
@@ -186,10 +187,13 @@ class FilterBar(Static):
 
     def open(self, prefill: str) -> None:
         """Show and focus the bar with *prefill* loaded into its editor."""
-        editor = self._editor()
         self._editing = True
         self.display = True
         self._set_closed_display_visible(False)
+        editor = self._editor()
+        if editor is None:
+            self.set_query(prefill)
+            return
         editor.display = True
         editor.can_focus = True
         editor.read_only = False
@@ -204,6 +208,9 @@ class FilterBar(Static):
         self._editing = False
         self._collapse_completion()
         editor = self._editor()
+        if editor is None:
+            self.display = self.PERSISTENT
+            return
         editor._enter_normal_mode()
         editor.read_only = self.PERSISTENT
         if self._set_closed_display_visible(True):
@@ -213,12 +220,20 @@ class FilterBar(Static):
             editor.can_focus = not self.PERSISTENT
         self.display = self.PERSISTENT
 
+    def focus_editor(self) -> bool:
+        """Focus the editor when it has been composed."""
+        editor = self._editor()
+        if editor is None:
+            return False
+        editor.focus()
+        return True
+
     def set_query(self, text: str) -> None:
         """Replace displayed text without emitting a user-edit message."""
         self._completion_signature = None
         self._last_query_text = text
         editor = self._editor()
-        if editor.text != text:
+        if editor is not None and editor.text != text:
             editor.load_text(text)
         self._update_closed_display(text)
 
@@ -232,7 +247,9 @@ class FilterBar(Static):
         lower_bound: bool = False,
     ) -> None:
         """Render the current live-result count, coverage state, or parse error."""
-        status = self.query_one(f"#{self.STATUS_ID}", Static)
+        status = self._status()
+        if status is None:
+            return
         content = Text(no_wrap=True, overflow="ellipsis")
         if error is not None:
             message = getattr(error, "message", str(error))
@@ -311,15 +328,28 @@ class FilterBar(Static):
         if event.option_list.id == self.COMPLETION_ID and self._programmatic_highlight:
             event.stop()
 
-    def _editor(self) -> _FilterBarInput:
-        return self.query_one(f"#{self.INPUT_ID}", _FilterBarInput)
+    def _editor(self) -> _FilterBarInput | None:
+        if not self.is_mounted:
+            return None
+        try:
+            return self.query_one(f"#{self.INPUT_ID}", _FilterBarInput)
+        except NoMatches:
+            return None
+
+    def _status(self) -> Static | None:
+        if not self.is_mounted:
+            return None
+        try:
+            return self.query_one(f"#{self.STATUS_ID}", Static)
+        except NoMatches:
+            return None
 
     def _closed_display(self) -> Static | None:
         if self.DISPLAY_ID is None or not self.is_mounted:
             return None
         try:
             return self.query_one(f"#{self.DISPLAY_ID}", Static)
-        except Exception:
+        except NoMatches:
             return None
 
     def _closed_display_text(self, text: str) -> Text | None:
@@ -328,8 +358,10 @@ class FilterBar(Static):
 
     def _update_closed_display(self, text: str) -> bool:
         display = self._closed_display()
+        if display is None:
+            return False
         rendered = self._closed_display_text(text)
-        if display is None or rendered is None:
+        if rendered is None:
             return False
         display.update(rendered)
         return True
@@ -343,14 +375,22 @@ class FilterBar(Static):
         display.display = visible
         return True
 
-    def _completion_list(self) -> _FilterBarCompletionList:
-        return self.query_one(f"#{self.COMPLETION_ID}", _FilterBarCompletionList)
+    def _completion_list(self) -> _FilterBarCompletionList | None:
+        if not self.is_mounted:
+            return None
+        try:
+            return self.query_one(f"#{self.COMPLETION_ID}", _FilterBarCompletionList)
+        except NoMatches:
+            return None
 
     def _refresh_completion(self) -> None:
         if not self._editing:
             self._collapse_completion()
             return
         editor = self._editor()
+        if editor is None:
+            self._collapse_completion()
+            return
         source_signature = tuple(sorted(self._completion_sources.items()))
         signature = (editor.text, editor.cursor_position, source_signature)
         if signature == self._completion_signature:
@@ -368,6 +408,10 @@ class FilterBar(Static):
         self._completion_candidates = candidates
         options = _candidate_options(candidates, self.CANDIDATE_ID_PREFIX)
         completion = self._completion_list()
+        if completion is None:
+            self._completion_candidates = []
+            self._completion_visible = False
+            return
         self._programmatic_highlight = True
         try:
             completion.clear_options()
@@ -381,11 +425,11 @@ class FilterBar(Static):
         self._completion_visible = True
 
     def _collapse_completion(self) -> None:
-        if not self.is_mounted:
+        completion = self._completion_list()
+        if completion is None:
             self._completion_candidates = []
             self._completion_visible = False
             return
-        completion = self._completion_list()
         self._programmatic_highlight = True
         try:
             completion.highlighted = None
@@ -490,6 +534,8 @@ class FilterBar(Static):
         if not self._completion_visible or not self._completion_candidates:
             return
         completion = self._completion_list()
+        if completion is None:
+            return
         if completion.highlighted is None:
             selectable = [
                 index
@@ -508,6 +554,8 @@ class FilterBar(Static):
         if not self._completion_visible:
             return False
         completion = self._completion_list()
+        if completion is None:
+            return False
         index = completion.highlighted
         if index is None and default_to_first:
             index = next(
@@ -531,6 +579,8 @@ class FilterBar(Static):
             return False
 
         editor = self._editor()
+        if editor is None:
+            return False
         text, cursor = _apply_completion(
             editor.text,
             editor.cursor_position,

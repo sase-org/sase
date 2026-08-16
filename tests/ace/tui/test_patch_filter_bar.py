@@ -75,6 +75,18 @@ def test_patch_filter_bar_macro_rows(patch_profile) -> None:
     assert "%y" in displays
 
 
+def test_patch_filter_bar_unmounted_refresh_updates_are_noops(patch_profile) -> None:
+    bar = PatchFilterBar(profile=patch_profile)
+
+    bar.set_query('"feature"')
+    bar.set_status(1, exact=True, error=None)
+    bar.open('"feature"')
+    bar.close()
+
+    assert bar._last_query_text == '"feature"'  # type: ignore[attr-defined]
+    assert not bar._editing  # type: ignore[attr-defined]
+
+
 @pytest.fixture
 def isolated_query_persistence(
     monkeypatch: pytest.MonkeyPatch,

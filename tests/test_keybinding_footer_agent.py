@@ -4,6 +4,10 @@ from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 from sase.ace.tui.widgets import KeybindingFooter
 
 
+def _edit_hooks_key(footer: KeybindingFooter) -> str:
+    return footer._kd("edit_hooks")
+
+
 def _make_agent(
     status: str = "RUNNING",
     response_path: str | None = None,
@@ -26,7 +30,7 @@ def test_keybinding_footer_agent_bindings_none_agent() -> None:
     bindings = footer._compute_agent_bindings(None)
     binding_keys = [b[0] for b in bindings]
 
-    assert "f" not in binding_keys  # No fork chat
+    assert _edit_hooks_key(footer) not in binding_keys  # No fork chat
     assert "r" not in binding_keys
     assert "x" not in binding_keys  # Kill/dismiss only when agent selected
 
@@ -49,7 +53,7 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
     binding_keys = [b[0] for b in bindings]
 
     assert "x" in binding_keys  # Kill is available
-    assert "f" not in binding_keys  # No fork chat
+    assert _edit_hooks_key(footer) not in binding_keys  # No fork chat
     assert ("r", "retry") in bindings
 
 
@@ -83,7 +87,7 @@ def test_keybinding_footer_agent_bindings_tale_done_with_chat() -> None:
 
     bindings = footer._compute_agent_bindings(agent)
 
-    assert ("f", "fork") in bindings
+    assert (_edit_hooks_key(footer), "fork") in bindings
     assert ("r", "resume") not in bindings
 
 
@@ -171,7 +175,7 @@ def test_keybinding_footer_named_panel_advertises_tribe_fork() -> None:
         focused_panel_key="builders",
     )
 
-    assert ("f", "fork tribe") in bindings
+    assert (_edit_hooks_key(footer), "fork tribe") in bindings
 
 
 def test_keybinding_footer_default_panel_omits_tribe_targets() -> None:
@@ -183,7 +187,7 @@ def test_keybinding_footer_default_panel_omits_tribe_targets() -> None:
         focused_panel_key=None,
     )
 
-    assert ("f", "fork tribe") not in bindings
+    assert (_edit_hooks_key(footer), "fork tribe") not in bindings
     assert ("W", "wait for tribe") not in bindings
 
 
@@ -195,12 +199,12 @@ def test_keybinding_footer_clan_advertises_clan_fork() -> None:
 
     bindings = footer._compute_agent_bindings(clan)
 
-    assert ("f", "fork clan") in bindings
-    assert ("f", "fork clan") in footer._compute_agent_bindings(
+    assert (_edit_hooks_key(footer), "fork clan") in bindings
+    assert (_edit_hooks_key(footer), "fork clan") in footer._compute_agent_bindings(
         clan,
         marked_count=2,
     )
-    assert ("f", "fork clan") not in footer._compute_agent_bindings(
+    assert (_edit_hooks_key(footer), "fork clan") not in footer._compute_agent_bindings(
         clan,
         group_focused=True,
     )

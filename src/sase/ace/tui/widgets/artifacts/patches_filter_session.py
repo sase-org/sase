@@ -40,7 +40,7 @@ class PatchesFilterSessionMixin(_MixinBase):
         bar = self.query_one(PatchFilterBar)
         app = cast(Any, self.app)
         if self._patch_filter_session_open:
-            bar.query_one("#patch-filter-input").focus()
+            bar.focus_editor()
             return
 
         self._patch_filter_session_open = True

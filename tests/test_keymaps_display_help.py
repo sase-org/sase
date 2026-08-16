@@ -158,7 +158,22 @@ def test_prs_help_pins_review_mentors_to_uppercase_c() -> None:
     assert not any(label == "Review mentor comments" for _key, label in agent_pairs)
 
 
-def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
+def test_prs_help_describes_patch_filter_bar_binding() -> None:
+    reg = load_keymap_registry({})
+    cls_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert (
+        f"{key_display_name(reg.app.patches_filters)} / "
+        f"{key_display_name(reg.app.edit_query)}",
+        "Focus persistent Patch filter",
+    ) in cls_pairs
+
+
+def test_agents_help_uses_edit_hooks_for_fork_not_r_for_resume() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {
         (key, label)
@@ -166,7 +181,7 @@ def test_agents_help_uses_f_for_fork_not_r_for_resume() -> None:
         for key, label in bindings
     }
 
-    assert ("f", "Fork chat as agent") in agent_pairs
+    assert (key_display_name(reg.app.edit_hooks), "Fork chat as agent") in agent_pairs
     assert ("r", "Resume chat as agent") not in agent_pairs
     assert ("r", "Retry: edit prompt & relaunch") in agent_pairs
     assert ("e", "Edit chat(s) in editor") in agent_pairs

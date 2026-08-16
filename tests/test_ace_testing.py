@@ -103,11 +103,10 @@ async def test_expect_state_nested_key() -> None:
 
 
 async def test_expect_modal() -> None:
-    """expect_modal succeeds after opening the query modal."""
+    """expect_modal succeeds after opening a modal."""
     async with AcePage() as page:
-        await page.press("2")
-        await page.press("slash")
-        await page.expect_modal("QueryEditModal")
+        await page.press("?")
+        await page.expect_modal("HelpModal")
 
 
 async def test_expect_no_modal() -> None:

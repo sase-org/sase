@@ -9,6 +9,10 @@ from textual.app import App, ComposeResult
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
 
 
+def _edit_hooks_key(footer: KeybindingFooter) -> str:
+    return footer._kd("edit_hooks")
+
+
 class _Host(App):
     def compose(self) -> ComposeResult:
         yield KeybindingFooter(id="keybinding-footer")
@@ -157,7 +161,7 @@ def test_clan_footer_keeps_row_cleanup_and_panel_chooser_labels() -> None:
 
     assert ("x", "kill/dismiss clan") in bindings
     assert ("X", "cleanup (2 done)") in bindings
-    assert ("f", "fork clan") in bindings
+    assert (_edit_hooks_key(footer), "fork clan") in bindings
     assert ("W", "wait for clan") in bindings
 
 
@@ -172,7 +176,7 @@ def test_named_tribe_footer_advertises_fork_and_wait() -> None:
         )
     )
 
-    assert ("f", "fork tribe") in bindings
+    assert (_edit_hooks_key(footer), "fork tribe") in bindings
     assert ("W", "wait for tribe") in bindings
 
 

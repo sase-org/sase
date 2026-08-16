@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.ace.query import parse_query
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._notification_navigation import (
     navigate_to_patch_tab,
@@ -78,6 +79,9 @@ class FakeNavigationApp:
         self.load_count += 1
         if self.reloaded_patches is not None:
             self.patches = self.reloaded_patches
+
+    def _parse_patch_query(self, source: str) -> object:
+        return parse_query(source)
 
     def _save_current_query(self) -> None:
         self.save_count += 1

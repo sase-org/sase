@@ -5,7 +5,9 @@ from sase.ace.testing import (
     AcePage,
     make_changespec as make_patch,  # legacy ACE test helper name
 )
-from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from textual.widgets import Static
+
+from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
 from sase.ace.tui.widgets.patch_detail import PatchDetail
 
 
@@ -14,6 +16,13 @@ def _detail_plain(page: AcePage) -> str:
     content = detail.content
     renderable = getattr(content, "renderable", content)
     return getattr(renderable, "plain", str(renderable))
+
+
+async def _open_patch_filter_bar(page: AcePage) -> PatchFilterBar:
+    await page.press("slash")
+    bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
+    await page.wait_for(lambda _state: bar._editing)  # type: ignore[attr-defined]
+    return bar
 
 
 # --- Navigation Tests ---
@@ -63,30 +72,26 @@ async def test_navigation_prev_at_start() -> None:
         assert page.state["idx"] == 1
 
 
-# --- Query Edit Modal Tests ---
+# --- Patch Inline Filter Tests ---
 
 
-async def test_query_edit_modal_cancel() -> None:
-    """Test pressing Escape cancels query edit modal."""
+async def test_patch_inline_filter_cancel() -> None:
+    """Escape restores the previous Patch query."""
     patches = [make_patch()]
     async with AcePage(query='"original"', patches=patches) as page:
         original_query = page.state["query"]
         await page.press("2")
 
-        # Open modal
-        await page.press("slash")
-        await page.expect_modal("QueryEditModal")
+        bar = await _open_patch_filter_bar(page)
 
-        # Press Escape twice: INSERT -> NORMAL, then modal cancel.
-        await page.press("escape", "escape")
+        await page.press("escape")
 
-        # Modal should be closed and query unchanged
-        await page.expect_no_modal()
+        await page.wait_for(lambda _state: not bar._editing)  # type: ignore[attr-defined]
         assert page.state["query"] == original_query
 
 
-async def test_query_edit_modal_apply() -> None:
-    """Test applying a new query updates query_string."""
+async def test_patch_inline_filter_apply() -> None:
+    """Submitting a new Patch query updates query_string."""
     patches = [
         make_patch(name="feature_a"),
         make_patch(name="other_b"),
@@ -95,42 +100,30 @@ async def test_query_edit_modal_apply() -> None:
         assert page.state["query"] == '"feature"'
         await page.press("2")
 
-        # Open modal
-        await page.press("slash")
-        await page.expect_modal("QueryEditModal")
+        bar = await _open_patch_filter_bar(page)
+        bar.set_query('"other"')
+        bar.post_message(PatchFilterBar.Submitted('"other"'))
+        await page.wait_for(lambda _state: page.state["query"] == '"other"')
 
-        # Get the input widget and set new query value
-        modal = page.app.screen_stack[-1]
-        input_widget = modal.query_one("#query-input", SingleLineVimTextArea)
-        input_widget.text = '"other"'
-
-        # Click Apply button
-        await page.click("#apply")
-
-        # Query should be updated
         assert page.state["query"] == '"other"'
 
 
-async def test_query_edit_modal_invalid_query() -> None:
-    """Test invalid query shows error notification."""
+async def test_patch_inline_filter_invalid_query() -> None:
+    """Invalid submitted Patch query leaves query_string unchanged and shows error."""
     patches = [make_patch()]
     async with AcePage(query='"valid"', patches=patches) as page:
         original_query = page.state["query"]
         await page.press("2")
 
-        # Open modal
-        await page.press("slash")
-        await page.expect_modal("QueryEditModal")
+        bar = await _open_patch_filter_bar(page)
+        bar.set_query('"unclosed')
+        bar.post_message(PatchFilterBar.Submitted('"unclosed'))
+        await page.pause()
 
-        # Set invalid query (unclosed quote)
-        modal = page.app.screen_stack[-1]
-        input_widget = modal.query_one("#query-input", SingleLineVimTextArea)
-        input_widget.text = '"unclosed'
+        status = bar.query_one("#patch-filter-status", Static)
+        assert status.has_class("error")
+        assert status.content.plain
 
-        # Click Apply
-        await page.click("#apply")
-
-        # Query should remain unchanged
         assert page.state["query"] == original_query
 
 

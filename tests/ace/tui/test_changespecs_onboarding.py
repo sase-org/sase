@@ -8,6 +8,7 @@ from textual.widgets import Static
 from sase.ace.saved_queries import save_query
 from sase.ace.testing import AcePage, make_patch
 from sase.ace.tui.actions.patch._onboarding import PatchOnboardingMixin
+from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
 from sase.ace.tui.widgets.tab_quickstart import TabQuickStart
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
@@ -23,8 +24,12 @@ def _mounted_onboarding_plain(page: AcePage) -> str:
 
 
 def _search_query_plain(page: AcePage) -> str:
-    search_query_panel = page.query_one_widget("#search-query-panel")
-    return getattr(search_query_panel.render(), "plain", "")
+    filter_bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
+    display = filter_bar.query_one("#patch-filter-display", Static)
+    status = filter_bar.query_one("#patch-filter-status", Static)
+    return "\n".join(
+        getattr(widget.render(), "plain", "") for widget in (display, status)
+    )
 
 
 async def _open_prs(page: AcePage) -> None:
@@ -35,7 +40,7 @@ async def _open_prs(page: AcePage) -> None:
 def _assert_patches_onboarding_layout(page: AcePage, *, active: bool) -> None:
     patches_view = page.query_one_widget("#artifacts-view")
     list_container = page.query_one_widget("#list-container")
-    search_query_panel = page.query_one_widget("#search-query-panel")
+    filter_bar = page.query_one_widget("#patch-filter-bar", PatchFilterBar)
     detail_container = page.query_one_widget("#detail-container")
     detail_scroll = page.query_one_widget("#detail-scroll")
     expected_chrome_display = not active
@@ -43,7 +48,7 @@ def _assert_patches_onboarding_layout(page: AcePage, *, active: bool) -> None:
     assert patches_view.has_class("-onboarding-active") is active
     assert list_container.display is expected_chrome_display
     assert detail_container.display is True
-    assert search_query_panel.display is True
+    assert filter_bar.display is True
     assert detail_scroll.display is expected_chrome_display
 
 
@@ -112,7 +117,6 @@ async def test_patches_onboarding_visible_after_empty_startup(
         _assert_patches_onboarding_layout(page, active=True)
         assert "Every PR your agents produce" in _mounted_onboarding_plain(page)
         search = _search_query_plain(page)
-        assert "Search Query" in search
         assert '"visual"' in search
 
 

@@ -10,11 +10,13 @@ from typing import Any
 
 from textual.css.query import NoMatches as _NoMatches
 
+from sase.ace.query_profile import compiled_profile_for_builtin_pane
 from sase.ace.testing import make_patch
 from sase.ace.tui.actions.patch import PatchMixin
 from sase.ace.tui.actions.marking import MarkingMixin
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.widgets.artifacts.patch_filter_bar import PatchFilterBar
 from sase.ace.tui.widgets.artifacts.patch_entry import patch_row_target
 
 
@@ -119,9 +121,17 @@ class _RecordingFooter:
         self.show_empty_calls += 1
 
 
-class _RecordingSearchPanel:
-    def update_query(self, *args: Any, **kwargs: Any) -> None:
+class _RecordingPatchFilterBar:
+    def __init__(self) -> None:
+        self.set_query_calls: list[str] = []
+        self.set_status_calls = 0
+
+    def set_query(self, text: str) -> None:
+        self.set_query_calls.append(text)
+
+    def set_status(self, *args: Any, **kwargs: Any) -> None:
         del args, kwargs
+        self.set_status_calls += 1
 
 
 class _FakeApp(PatchMixin, MarkingMixin):
@@ -165,13 +175,13 @@ class _FakeApp(PatchMixin, MarkingMixin):
         self.detail_widget = _RecordingDetail()
         self.ancestors_panel = _RecordingAncestors()
         self.footer_widget = _RecordingFooter()
-        self.search_panel = _RecordingSearchPanel()
+        self.patch_filter_bar = _RecordingPatchFilterBar()
 
         self._w_patch_list: Any = self.list_widget
         self._w_patch_detail: Any = self.detail_widget
         self._w_ancestors_children: Any = self.ancestors_panel
         self._w_footer: Any = self.footer_widget
-        self._w_search_query_panel: Any = self.search_panel
+        self._w_patch_filter_bar: Any = self.patch_filter_bar
         self._w_patch_info_panel: Any = None  # info panel falls through
 
         self.scheduled: list[tuple[float, Callable[[], None]]] = []
@@ -238,9 +248,24 @@ def test_full_refresh_still_calls_update_list() -> None:
     app._refresh_display()
 
     assert app.list_widget.update_list_calls == 1
+    assert app.patch_filter_bar.set_query_calls == ['"feature"']
+    assert app.patch_filter_bar.set_status_calls == 1
     assert app.detail_widget.update_display_calls == 1
     assert app.ancestors_panel.update_relationships_calls == 1
     assert app.footer_widget.update_bindings_calls == 1
+
+
+def test_full_refresh_tolerates_unmounted_patch_filter_bar() -> None:
+    """Refresh may see a cached bar before its children have composed."""
+    app = _FakeApp()
+    profile = compiled_profile_for_builtin_pane("patches")
+    assert profile is not None
+    app._w_patch_filter_bar = PatchFilterBar(id="patch-filter-bar", profile=profile)
+
+    app._refresh_display()
+
+    assert app.list_widget.update_list_calls == 1
+    assert app.detail_widget.update_display_calls == 1
 
 
 def test_mark_toggle_calls_patch_patch_row_once_no_clear_options() -> None:
