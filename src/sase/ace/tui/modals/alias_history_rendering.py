@@ -60,7 +60,7 @@ _PROJECT_COLUMN_WIDTH = 16
 
 
 @dataclass(frozen=True, slots=True)
-class AliasHistoryRowSpec:
+class _AliasHistoryRowSpec:
     """One row the modal should paint — a run, a group header, or a spacer."""
 
     option_id: str
@@ -114,7 +114,7 @@ def _rollup_text(view: AliasHistoryView) -> Text:
     return text
 
 
-def alias_history_group_header_text(group: AliasHistoryGroup) -> Text:
+def _alias_history_group_header_text(group: AliasHistoryGroup) -> Text:
     """Render the disabled header separating one bucket member's runs."""
     text = Text(no_wrap=True, overflow="ellipsis")
     text.append(f"── @{group.alias} ", style=_TITLE_STYLE)
@@ -132,7 +132,7 @@ def _group_count_label(group: AliasHistoryGroup) -> str:
     return label
 
 
-def alias_history_row_text(run: AliasHistoryRun, *, now: float) -> Text:
+def _alias_history_row_text(run: AliasHistoryRun, *, now: float) -> Text:
     """Render one selectable run row."""
     text = Text(no_wrap=True, overflow="ellipsis")
     glyph = _STATUS_GLYPHS.get(run.rollup_status, "?")
@@ -166,7 +166,7 @@ def alias_history_row_text(run: AliasHistoryRun, *, now: float) -> Text:
 
 def build_alias_history_rows(
     view: AliasHistoryView, *, entry: AliasHistoryEntryRequest, now: float
-) -> list[AliasHistoryRowSpec]:
+) -> list[_AliasHistoryRowSpec]:
     """Build the flat, selectable row list for *view*.
 
     Grouped headers and a single spacer between groups appear only when more
@@ -174,28 +174,28 @@ def build_alias_history_rows(
     runs directly. Headers, spacers, and per-group empty hints are always
     disabled and are never jump targets.
     """
-    rows: list[AliasHistoryRowSpec] = []
+    rows: list[_AliasHistoryRowSpec] = []
     multi = not entry.is_single_alias
     for index, group in enumerate(view.groups):
         if multi:
             if index:
                 rows.append(
-                    AliasHistoryRowSpec(
+                    _AliasHistoryRowSpec(
                         f"__spacer__:{group.alias}",
                         render_section_spacer(),
                         disabled=True,
                     )
                 )
             rows.append(
-                AliasHistoryRowSpec(
+                _AliasHistoryRowSpec(
                     f"__group__:{group.alias}",
-                    alias_history_group_header_text(group),
+                    _alias_history_group_header_text(group),
                     disabled=True,
                 )
             )
         if not group.runs:
             rows.append(
-                AliasHistoryRowSpec(
+                _AliasHistoryRowSpec(
                     f"__empty__:{group.alias}",
                     Text(f"No recorded runs for @{group.alias}.", style="dim italic"),
                     disabled=True,
@@ -204,9 +204,9 @@ def build_alias_history_rows(
             continue
         for run in group.runs:
             rows.append(
-                AliasHistoryRowSpec(
+                _AliasHistoryRowSpec(
                     alias_history_run_key(group.alias, run),
-                    alias_history_row_text(run, now=now),
+                    _alias_history_row_text(run, now=now),
                 )
             )
     return rows
@@ -217,7 +217,7 @@ def alias_history_detail_text(
 ) -> Text:
     """Render the fixed detail strip for the highlighted run."""
     if run is None:
-        return alias_history_empty_text(entry)
+        return _alias_history_empty_text(entry)
     text = Text(no_wrap=False)
     text.append_text(_trail_line(run))
     text.append_text(_origin_line(run))
@@ -305,7 +305,7 @@ def _xprompts_line(run: AliasHistoryRun) -> Text:
     return text
 
 
-def alias_history_empty_text(entry: AliasHistoryEntryRequest) -> Text:
+def _alias_history_empty_text(entry: AliasHistoryEntryRequest) -> Text:
     """Render the detail-strip explanation when a group has no selectable run."""
     text = Text(no_wrap=False)
     names = ", ".join(f"@{alias}" for alias in entry.aliases)
@@ -386,12 +386,8 @@ def _format_run_duration(seconds: float) -> str:
 
 
 __all__ = [
-    "AliasHistoryRowSpec",
     "alias_history_detail_text",
-    "alias_history_empty_text",
     "alias_history_footer_markup",
-    "alias_history_group_header_text",
-    "alias_history_row_text",
     "alias_history_title_text",
     "build_alias_history_rows",
 ]

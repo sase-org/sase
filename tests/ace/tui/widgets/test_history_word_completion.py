@@ -11,8 +11,8 @@ from textual.widgets import Static
 
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
-    HistoryWordCompletionMetadata,
     HistoryWordCompletionPlaceholder,
+    _HistoryWordCompletionMetadata,
     build_history_word_completion_result,
 )
 from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
@@ -661,7 +661,7 @@ async def test_smart_ranking_prefers_related_word_over_more_recent_unrelated_wor
         ]
         assert insertions[:2] == ["reconcile", "render"]
         top = ta._file_completion_candidates[0]
-        assert isinstance(top.metadata, HistoryWordCompletionMetadata)
+        assert isinstance(top.metadata, _HistoryWordCompletionMetadata)
         assert top.metadata.reason == "relation"
         assert top.metadata.related_to == "monitor"
 

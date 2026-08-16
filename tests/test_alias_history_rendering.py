@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from sase.ace.tui.modals.alias_history_rendering import (
+    _alias_history_empty_text,
+    _alias_history_group_header_text,
+    _alias_history_row_text,
     alias_history_detail_text,
-    alias_history_empty_text,
     alias_history_footer_markup,
-    alias_history_group_header_text,
-    alias_history_row_text,
     alias_history_title_text,
     build_alias_history_rows,
 )
@@ -63,11 +63,11 @@ def test_title_reports_recorded_returned_and_status_counts() -> None:
 
 
 def test_row_shows_status_glyph_for_each_rollup_status() -> None:
-    done = alias_history_row_text(_run(rollup_status="done"), now=_NOW)
-    failed = alias_history_row_text(
+    done = _alias_history_row_text(_run(rollup_status="done"), now=_NOW)
+    failed = _alias_history_row_text(
         _run(rollup_status="failed", status="failed"), now=_NOW
     )
-    running = alias_history_row_text(
+    running = _alias_history_row_text(
         _run(rollup_status="running", status="running"), now=_NOW
     )
     assert done.plain.startswith("✓")
@@ -76,7 +76,7 @@ def test_row_shows_status_glyph_for_each_rollup_status() -> None:
 
 
 def test_row_shows_hidden_and_retry_markers() -> None:
-    text = alias_history_row_text(_run(hidden=True, retry_attempt=2), now=_NOW)
+    text = _alias_history_row_text(_run(hidden=True, retry_attempt=2), now=_NOW)
     assert "◌" in text.plain
     assert "↻2" in text.plain
 
@@ -91,12 +91,12 @@ def test_row_shows_provenance_chip_for_each_kind() -> None:
         run = _run(
             provenance=AliasHistoryProvenance(kind=kind, label=label, via_alias="coder")
         )
-        text = alias_history_row_text(run, now=_NOW)
+        text = _alias_history_row_text(run, now=_NOW)
         assert label in text.plain
 
 
 def test_row_includes_agent_identity_and_project() -> None:
-    text = alias_history_row_text(
+    text = _alias_history_row_text(
         _run(agent_name="my_agent", project_name="sase"), now=_NOW
     )
     assert "my_agent" in text.plain
@@ -108,7 +108,7 @@ def test_row_includes_agent_identity_and_project() -> None:
 
 def test_group_header_reports_alias_and_counts() -> None:
     group = _group("research_a", [_run(), _run()])
-    text = alias_history_group_header_text(group)
+    text = _alias_history_group_header_text(group)
     assert "@research_a" in text.plain
     assert "2 recorded" in text.plain
 
@@ -252,7 +252,7 @@ def test_detail_falls_back_to_empty_text_when_no_run() -> None:
 
 def test_empty_text_names_every_requested_alias() -> None:
     entry = _entry(aliases=("a", "b"), title_label="research")
-    text = alias_history_empty_text(entry)
+    text = _alias_history_empty_text(entry)
     assert "@a" in text.plain
     assert "@b" in text.plain
 

@@ -12,7 +12,7 @@ import sase.ace.tui.models.agent_family_preview_cache as cache_model
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_family_preview_cache import (
     FAMILY_PREVIEW_CACHE_MISS,
-    _family_plan_preview_cache_key as family_plan_preview_cache_key,
+    _family_plan_preview_cache_key,
     cached_family_plan_preview,
     should_resolve_family_plan_preview,
     warm_family_plan_previews,
@@ -55,13 +55,13 @@ def _family_member(**overrides: object) -> Agent:
 class TestFamilyPlanPreviewCacheKey:
     def test_non_family_agent_has_no_key(self) -> None:
         agent = make_agent(agent_name="lonely")
-        assert family_plan_preview_cache_key(agent) is None
+        assert _family_plan_preview_cache_key(agent) is None
 
     def test_stable_across_a_simulated_reload(self) -> None:
         first = _family_root(epic_bead_id="sase-1", phase_bead_id="sase-1.1")
         second = _family_root(epic_bead_id="sase-1", phase_bead_id="sase-1.1")
 
-        assert family_plan_preview_cache_key(first) == family_plan_preview_cache_key(
+        assert _family_plan_preview_cache_key(first) == _family_plan_preview_cache_key(
             second
         )
 
@@ -69,7 +69,7 @@ class TestFamilyPlanPreviewCacheKey:
         first = _family_root(epic_bead_id="sase-1")
         second = _family_root(epic_bead_id="sase-2")
 
-        assert family_plan_preview_cache_key(first) != family_plan_preview_cache_key(
+        assert _family_plan_preview_cache_key(first) != _family_plan_preview_cache_key(
             second
         )
 
@@ -131,7 +131,7 @@ class TestWarmFamilyPlanPreviews:
         )
 
         changed = warm_family_plan_previews([agent])
-        key = family_plan_preview_cache_key(agent)
+        key = _family_plan_preview_cache_key(agent)
 
         assert key is not None
         preview = changed[key]
@@ -158,7 +158,7 @@ class TestWarmFamilyPlanPreviews:
         )
 
         changed = warm_family_plan_previews([root])
-        key = family_plan_preview_cache_key(root)
+        key = _family_plan_preview_cache_key(root)
 
         assert key is not None
         preview = changed[key]
@@ -192,7 +192,7 @@ class TestWarmFamilyPlanPreviews:
         )
 
         changed = warm_family_plan_previews([agent])
-        key = family_plan_preview_cache_key(agent)
+        key = _family_plan_preview_cache_key(agent)
 
         assert key is not None
         preview = changed[key]
@@ -204,7 +204,7 @@ class TestWarmFamilyPlanPreviews:
         agent = _family_root(workspace_dir=str(tmp_path))
 
         changed = warm_family_plan_previews([agent])
-        key = family_plan_preview_cache_key(agent)
+        key = _family_plan_preview_cache_key(agent)
 
         assert key is not None
         assert key in changed
@@ -241,8 +241,8 @@ class TestWarmFamilyPlanPreviews:
 
         changed = warm_family_plan_previews([bad, good])
 
-        good_key = family_plan_preview_cache_key(good)
-        bad_key = family_plan_preview_cache_key(bad)
+        good_key = _family_plan_preview_cache_key(good)
+        bad_key = _family_plan_preview_cache_key(bad)
         assert good_key is not None
         assert bad_key is not None
         assert changed[good_key] is not None

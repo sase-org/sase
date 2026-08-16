@@ -29,7 +29,7 @@ class HistoryWordCompletionPlaceholder:
 
 
 @dataclass(frozen=True, slots=True)
-class HistoryWordCompletionMetadata:
+class _HistoryWordCompletionMetadata:
     """Ranking evidence carried by one smart-ranked history-word candidate."""
 
     reason: str
@@ -112,7 +112,7 @@ def build_indexed_history_word_completion_result(
     Mirrors :func:`build_history_word_completion_result`'s prefix, replacement
     range, and exact-spelling-suppression rules. When *smart* is set,
     candidates are ordered by the relation/recency/frequency composite score
-    and carry :class:`HistoryWordCompletionMetadata` evidence; otherwise they
+    and carry :class:`_HistoryWordCompletionMetadata` evidence; otherwise they
     reproduce plain MRU order (``word_ranking: recent``) with no metadata, so
     every row downstream is the same :class:`RankedWord`-derived shape either
     way.
@@ -173,7 +173,7 @@ def _indexed_history_word_candidate(
         is_dir=False,
         name=item.word,
         metadata=(
-            HistoryWordCompletionMetadata(
+            _HistoryWordCompletionMetadata(
                 reason=item.reason,
                 related_to=item.related_to,
                 use_count=item.use_count,
