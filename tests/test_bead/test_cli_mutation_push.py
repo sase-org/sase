@@ -184,7 +184,9 @@ def test_handle_bead_close_no_push_commits_without_push(
         issue = project.create("Local close", IssueType.PLAN)
     auto_commit = MagicMock(return_value=True)
     push = MagicMock()
-    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_crud_lifecycle.auto_commit_bead_store", auto_commit
+    )
     monkeypatch.setattr(
         "sase.bead.cli_common._push_committed_bead_store",
         push,
@@ -210,7 +212,9 @@ def test_handle_bead_close_legacy_namespace_still_pushes(
         issue = project.create("Published close", IssueType.PLAN)
     auto_commit = MagicMock(return_value=True)
     push = MagicMock()
-    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_crud_lifecycle.auto_commit_bead_store", auto_commit
+    )
     monkeypatch.setattr(
         "sase.bead.cli_common._push_committed_bead_store",
         push,
@@ -235,7 +239,7 @@ def test_handle_bead_update_multi_id_commits_once_and_pushes_once(
         second = project.create("Second", IssueType.TASK, size="small")
     auto_commit = MagicMock(return_value=True)
     push = MagicMock()
-    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr("sase.bead.cli_crud_update.auto_commit_bead_store", auto_commit)
     monkeypatch.setattr(
         "sase.bead.cli_common._push_committed_bead_store",
         push,

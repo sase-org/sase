@@ -108,7 +108,7 @@ def test_note_rejects_blank_entry_without_writing_or_committing(
 ) -> None:
     issue_id = _create_issue(project_dir)
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_evidence.auto_commit_bead_store") as auto_commit:
         with pytest.raises(SystemExit) as excinfo:
             _run_note([issue_id, "   "], capsys)
 
@@ -157,7 +157,7 @@ def test_note_defaults_author_from_store_owner_without_agent_identity(
 def test_handle_bead_note_auto_commit_message(project_dir: Path) -> None:
     issue_id = _create_issue(project_dir)
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_evidence.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_note(
             create_parser().parse_args(
                 ["bead", "note", issue_id, "--author", "alice", "done"]

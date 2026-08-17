@@ -43,7 +43,7 @@ def test_close_with_note_uses_one_slow_path_commit_and_agent_attribution(
         ]
     )
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(args)
 
     auto_commit.assert_called_once_with(
@@ -177,7 +177,7 @@ def test_reclose_with_note_reports_both_outcomes_and_commits_note(
         ["bead", "close", issue.id, "--note", "second look"]
     )
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(args)
 
     output = capsys.readouterr().out

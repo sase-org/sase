@@ -390,7 +390,7 @@ def test_phase_close_auto_commit_names_expanded_ids(project_dir: Path) -> None:
         force=False,
     )
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(args)
 
     auto_commit.assert_called_once_with(
@@ -437,7 +437,7 @@ def test_force_close_renders_cascade_and_commits_only_requested_id(
         ]
     )
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(args)
 
     assert capsys.readouterr().out == (

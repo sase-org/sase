@@ -225,7 +225,7 @@ def test_batch_snooze_commits_once_with_ids_in_argument_order(
     first = _ready_task(project_dir, "First")
     second = _ready_task(project_dir, "Second")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_snooze.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_snooze(_snooze_args([second.id, first.id], until="1d"))
 
     auto_commit.assert_called_once_with(
@@ -239,7 +239,7 @@ def test_cancel_commits_under_its_own_wake_message(project_dir: Path) -> None:
     task = _ready_task(project_dir)
     bead_cli.handle_bead_snooze(_snooze_args([task.id], until="1d"))
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_snooze.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_snooze(_snooze_args([task.id], cancel=True))
 
     auto_commit.assert_called_once_with(

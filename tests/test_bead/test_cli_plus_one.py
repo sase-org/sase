@@ -137,7 +137,7 @@ def test_plus_one_withheld_reopen_reports_and_leaves_bead_closed(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(
-        "sase.bead.cli_crud.resolve_observation_window_start",
+        "sase.bead.cli_crud_evidence.resolve_observation_window_start",
         lambda: "2020-01-01T00:00:00Z",
     )
     with BeadProject(project_dir) as project:
@@ -377,7 +377,9 @@ def test_plus_one_uses_canonical_commit_and_deferred_push(
         )
     auto_commit = MagicMock(return_value=True)
     push = MagicMock()
-    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_crud_evidence.auto_commit_bead_store", auto_commit
+    )
     monkeypatch.setattr("sase.bead.cli_common._push_committed_bead_store", push)
 
     bead_cli.handle_bead_plus_one(_args(task.id))
@@ -408,7 +410,9 @@ def test_plus_one_idempotent_retry_skips_commit_and_push(
         )
     auto_commit = MagicMock(return_value=True)
     push = MagicMock()
-    monkeypatch.setattr("sase.bead.cli_crud.auto_commit_bead_store", auto_commit)
+    monkeypatch.setattr(
+        "sase.bead.cli_crud_evidence.auto_commit_bead_store", auto_commit
+    )
     monkeypatch.setattr("sase.bead.cli_common._push_committed_bead_store", push)
 
     bead_cli.handle_bead_plus_one(_args(task.id, note="Retry"))

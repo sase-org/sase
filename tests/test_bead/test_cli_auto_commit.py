@@ -204,7 +204,7 @@ def test_handle_bead_create_auto_commit_message(
         model=None,
     )
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_create.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_create(args)
 
     message = auto_commit.call_args.args[0]
@@ -214,7 +214,7 @@ def test_handle_bead_create_auto_commit_message(
 def test_handle_bead_update_auto_commit_message(project_dir: Path) -> None:
     issue = _create_issue(project_dir, "Updated")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(
             argparse.Namespace(
                 ids=[issue.id],
@@ -242,7 +242,7 @@ def test_handle_bead_update_multi_id_auto_commit_message_joins_changed_ids(
     first = _create_issue(project_dir, "First")
     second = _create_issue(project_dir, "Second")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(
             argparse.Namespace(
                 ids=[first.id, second.id],
@@ -279,13 +279,13 @@ def test_redundant_update_and_close_skip_auto_commit(project_dir: Path) -> None:
         size=None,
     )
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(update_args)
     auto_commit.assert_not_called()
 
     with BeadProject(project_dir) as project:
         project.close([issue.id], reason="done")
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(argparse.Namespace(ids=[issue.id], reason="done"))
     auto_commit.assert_not_called()
 
@@ -346,7 +346,7 @@ def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
     with BeadProject(project_dir) as proj:
         proj.close([issue.id], reason="done")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_open(argparse.Namespace(id=issue.id))
 
     auto_commit.assert_called_once_with(
@@ -359,7 +359,7 @@ def test_handle_bead_open_auto_commit_message(project_dir: Path) -> None:
 def test_handle_bead_close_auto_commit_message(project_dir: Path) -> None:
     issue = _create_issue(project_dir, "Closed")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_close(argparse.Namespace(ids=[issue.id], reason="done"))
 
     auto_commit.assert_called_once_with(
@@ -375,7 +375,7 @@ def test_handle_bead_rm_auto_commit_message_includes_all_requested_ids(
     first = _create_issue(project_dir, "Removed first")
     second = _create_issue(project_dir, "Removed second")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_rm(argparse.Namespace(ids=[first.id, second.id]))
 
     auto_commit.assert_called_once_with(
@@ -390,7 +390,7 @@ def test_handle_bead_rm_missing_id_does_not_remove_or_commit(
 ) -> None:
     issue = _create_issue(project_dir, "Preserved")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_lifecycle.auto_commit_bead_store") as auto_commit:
         with pytest.raises(SystemExit, match="1"):
             bead_cli.handle_bead_rm(argparse.Namespace(ids=[issue.id, "missing"]))
 

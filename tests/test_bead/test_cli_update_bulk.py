@@ -71,7 +71,7 @@ def test_multi_id_update_commits_once_with_ids_in_argument_order(
     first = _create_issue(project_dir, "First")
     second = _create_issue(project_dir, "Second")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(_update_args([second.id, first.id], status="ready"))
 
     auto_commit.assert_called_once_with(
@@ -90,7 +90,7 @@ def test_mixed_batch_commits_only_changed_ids_and_prints_unchanged_rows(
         stale = proj.update(stale.id, status="in_progress")
     fresh = _create_issue(project_dir, "Needs the update")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(
             _update_args([stale.id, fresh.id], status="in_progress")
         )
@@ -132,7 +132,7 @@ def test_update_external_ref_conflict_exits_without_writing(
     jsonl_path = _issues_jsonl(project_dir)
     before = jsonl_path.read_bytes()
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         with pytest.raises(SystemExit) as excinfo:
             bead_cli.handle_bead_update(
                 _update_args([second.id], external_ref="bug:sase#42")
@@ -162,7 +162,7 @@ def test_all_no_op_batch_makes_no_commit(
     first = _create_issue(project_dir, "Same title")
     second = _create_issue(project_dir, "Same title")
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(
             _update_args([first.id, second.id], title="Same title")
         )
@@ -182,7 +182,7 @@ def test_unknown_id_in_the_middle_exits_without_writing(
     jsonl_path = _issues_jsonl(project_dir)
     before = jsonl_path.read_bytes()
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         with pytest.raises(SystemExit) as excinfo:
             bead_cli.handle_bead_update(
                 _update_args([first.id, "missing", second.id], status="in_progress")
@@ -202,7 +202,7 @@ def test_invalid_field_value_leaves_every_target_unmodified(
     jsonl_path = _issues_jsonl(project_dir)
     before = jsonl_path.read_bytes()
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         with pytest.raises(SystemExit) as excinfo:
             bead_cli.handle_bead_update(
                 _update_args([first.id, second.id], model="bad\nmodel")
@@ -219,7 +219,7 @@ def test_shorthand_and_full_form_of_same_bead_collapse_to_one_update(
     issue = _create_issue(project_dir, "Collapsible")
     shorthand = issue.id.rsplit("-", 1)[1]
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         bead_cli.handle_bead_update(
             _update_args([issue.id, shorthand], status="in_progress")
         )
@@ -263,7 +263,7 @@ def test_status_closed_rejects_batch_with_out_of_batch_descendant(
     jsonl_path = _issues_jsonl(project_dir)
     before = jsonl_path.read_bytes()
 
-    with patch("sase.bead.cli_crud.auto_commit_bead_store") as auto_commit:
+    with patch("sase.bead.cli_crud_update.auto_commit_bead_store") as auto_commit:
         with pytest.raises(SystemExit) as excinfo:
             bead_cli.handle_bead_update(
                 _update_args([parent.id, in_batch_child.id], status="closed")
