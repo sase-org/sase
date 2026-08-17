@@ -5,20 +5,13 @@ from __future__ import annotations
 from rich.text import Text
 
 from sase.ace.tui._agent_completion_models import AgentCompletionCandidate
-from sase.ace.tui.widgets._history_word_rows import (
-    FREQUENCY_COLOR,
-    FREQUENCY_GLYPH,
-    RECENCY_COLOR,
-    RECENCY_GLYPH,
-    RELATION_COLOR,
-    RELATION_GLYPH,
-)
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_kinds import (
     CompletionPanelKinds,
 )
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     at_reference_directory_display,
 )
+from sase.ace.tui.widgets._ranking_signal_rows import ranking_signal_legend
 from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
     AtReferenceLoadingCompletionMetadata,
@@ -302,15 +295,7 @@ def history_word_completion_subtitle(
     if not has_metadata:
         return plain_hint
 
-    legend = Text(no_wrap=True)
-    legend.append(RELATION_GLYPH, style=f"bold {RELATION_COLOR}")
-    legend.append(" related", style="dim")
-    legend.append(" · ", style="dim")
-    legend.append(RECENCY_GLYPH, style=f"bold {RECENCY_COLOR}")
-    legend.append(" recent", style="dim")
-    legend.append(" · ", style="dim")
-    legend.append(FREQUENCY_GLYPH, style=f"bold {FREQUENCY_COLOR}")
-    legend.append(" frequent", style="dim")
+    legend = ranking_signal_legend()
     legend.append("   ", style="dim")
     legend.append(plain_hint, style="dim")
 
