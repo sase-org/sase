@@ -182,7 +182,7 @@ def register_stitch_parser(subparsers: argparse._SubParsersAction) -> None:
     stitch_parser = subparsers.add_parser(
         "stitch",
         aliases=["vcs"],
-        help="Dispatch a stitch, or show the cross-repository stitch timeline",
+        help="Dispatch a commit, or show the cross-repository timeline",
         description=(
             "Dispatch a commit, proposal, or pull request, or show the "
             "cross-repository stitch timeline for the primary repo and "

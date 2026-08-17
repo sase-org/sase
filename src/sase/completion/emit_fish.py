@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sase.completion.kinds import ValueKind
+from sase.completion.kinds import RUN_PROMPT_SLOT, ValueKind
 from sase.completion.model import (
     CommandSpec,
     CompletionSpec,
@@ -151,7 +151,7 @@ def _emit_completes(spec: CompletionSpec) -> list[str]:
         for positional in command.positionals:
             if positional.is_remainder:
                 continue
-            emitted = _positional_complete(spec.prog, parent, positional)
+            emitted = _positional_complete(spec.prog, parent, command.path, positional)
             if emitted:
                 lines.append(emitted)
     return lines
@@ -178,8 +178,18 @@ def _option_complete(prog: str, parent: str, option: OptionSpec) -> str:
     return " ".join(parts)
 
 
-def _positional_complete(prog: str, parent: str, positional: PositionalSpec) -> str:
-    args = _value_args(positional.choices, positional.kind)
+def _positional_complete(
+    prog: str,
+    parent: str,
+    command_path: tuple[str, ...],
+    positional: PositionalSpec,
+) -> str:
+    if (command_path, positional.dest) == RUN_PROMPT_SLOT:
+        # Force files (like the default, kind-less positional) *and* offer
+        # stored xprompt names -- `-x` would suppress file completion.
+        args = "-rFa '(__sase_candidates xprompt)'"
+    else:
+        args = _value_args(positional.choices, positional.kind)
     if not args:
         return ""
     parts = [f"complete -c {prog}", f"-n '__sase_cmd {parent}'", args]

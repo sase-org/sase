@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.completion.shorten import set_completion_summary
+
 
 def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register repository inventory and workflow commands."""
@@ -165,7 +167,7 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
 
     open_parser = repo_sub.add_parser(
         "open",
-        help="Open a repository checkout without cleaning it and print its path",
+        help="Open a repo checkout without cleaning it; print its path",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Resolve a repository in three tiers: a primary, sidecar, or linked "
@@ -184,13 +186,16 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
             '  sase repo open pallets/click -r "Study upstream parsing"'
         ),
     )
-    open_parser.add_argument(
+    repo_positional = open_parser.add_argument(
         "repo",
         metavar="REPO",
         help=(
             "Inventory name, registered project name, gh:owner/repo, or "
             "owner/repo shorthand"
         ),
+    )
+    set_completion_summary(
+        repo_positional, "Inventory name, project name, or gh:owner/repo"
     )
     open_parser.add_argument(
         "-p",

@@ -155,6 +155,21 @@ def test_static_choices_and_kind_calls() -> None:
     assert "(__fish_complete_directories)" in script
 
 
+def test_run_prompt_positional_combines_files_and_xprompts() -> None:
+    prompt = _positional(
+        metavar="PROMPT",
+        dest="prompt",
+        summary="Prompt text",
+        nargs="?",
+        choices=None,
+        kind=None,
+    )
+    script = emit_fish(
+        _spec(_command(name="run", path=("run",), positionals=(prompt,)))
+    )
+    assert "-rFa '(__sase_candidates xprompt)'" in script
+
+
 def test_aliases_are_matched_but_not_offered() -> None:
     patch = _command(
         name="patch",

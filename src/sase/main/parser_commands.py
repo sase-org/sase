@@ -2,6 +2,8 @@
 
 import argparse
 
+from sase.completion.shorten import set_completion_summary
+
 
 def register_comments_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'comments' subcommand parser."""
@@ -154,7 +156,7 @@ def register_revive_log_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'revive-log' subcommand parser."""
     revive_log_parser = subparsers.add_parser(
         "revive-log",
-        help="Show recent agent revive attempts from ~/.sase/logs/events.jsonl",
+        help="Show recent agent revive attempts from the audit log",
     )
     revive_log_parser.add_argument(
         "--all",
@@ -395,11 +397,14 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    run_parser.add_argument(
+    prompt_positional = run_parser.add_argument(
         "prompt",
         nargs="?",
         metavar="PROMPT",
         help="Prompt, xprompt reference, workflow reference, or '.' for prompt history.",
+    )
+    set_completion_summary(
+        prompt_positional, "Prompt text, xprompt/workflow ref, or '.'"
     )
     from sase.ops.cli import add_operation_io_flags
 

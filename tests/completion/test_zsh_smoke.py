@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.completion.build import build_spec
 from sase.completion.emit_zsh import emit_zsh
 from sase.completion.kinds import ValueKind
 from sase.completion.model import (
@@ -106,6 +107,24 @@ def _write_script(directory: Path) -> Path:
 
 def test_zsh_syntax_accepts_generated_script(tmp_path: Path) -> None:
     script = _write_script(tmp_path)
+    result = subprocess.run(
+        [zsh, "-n", "--", str(script)],  # type: ignore[list-item]
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_zsh_syntax_accepts_the_full_live_script(tmp_path: Path) -> None:
+    """Every quoted description in the real tree parses as valid zsh.
+
+    Complements ``test_live_script_descriptions_fit_column`` (length) with a
+    real-shell parse: any unescaped ``'``, ``[``, ``]``, or ``:`` in a help
+    string would break ``_arguments`` here, not just read oddly.
+    """
+    script = tmp_path / "_sase"
+    script.write_text(emit_zsh(build_spec()), encoding="utf-8")
     result = subprocess.run(
         [zsh, "-n", "--", str(script)],  # type: ignore[list-item]
         check=False,

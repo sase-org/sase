@@ -9882,7 +9882,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9b53e137222c8d18",
+            "description_digest": "6da2fbb173516fc0",
             "hidden": false,
             "mutex_groups": [],
             "name": "skills",
@@ -17456,7 +17456,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ee2efcb436991ed0",
+            "description_digest": "476d1409a389f41a",
             "hidden": false,
             "mutex_groups": [],
             "name": "open",
@@ -17910,7 +17910,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "64093a80497401cb",
+        "description_digest": "d1b40f43c88b11c9",
         "hidden": false,
         "mutex_groups": [
           [
@@ -18011,7 +18011,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "cfbcfe93abb6bcdb",
+        "description_digest": "8e81df2a31e3ce63",
         "hidden": false,
         "mutex_groups": [],
         "name": "run",
@@ -18097,7 +18097,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9e1cf008e9b8e2e5",
+            "description_digest": "1169916db1d96e98",
             "hidden": false,
             "mutex_groups": [],
             "name": "init",
@@ -18414,7 +18414,7 @@
           "vcs"
         ],
         "default_child": "list",
-        "description_digest": "adb116970a395838",
+        "description_digest": "5e068494b4e6409d",
         "hidden": false,
         "mutex_groups": [],
         "name": "stitch",
@@ -19315,7 +19315,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ae1cdbc602f23586",
+            "description_digest": "2f76f5ef93a5a3d8",
             "hidden": false,
             "mutex_groups": [],
             "name": "get",
@@ -19763,7 +19763,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "bf97e86ad4177472",
+            "description_digest": "b3f8748609e33ac7",
             "hidden": false,
             "mutex_groups": [],
             "name": "cleanup",
@@ -19903,7 +19903,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "faaab414fd98e6e8",
+            "description_digest": "f728d8ba4c734f80",
             "hidden": false,
             "mutex_groups": [],
             "name": "migrate",

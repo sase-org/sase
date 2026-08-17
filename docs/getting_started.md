@@ -35,6 +35,10 @@ that's normal, not a hang.
 **What you just did.** Installed the public `sase` CLI and its Rust core extension as a
 user tool, without cloning the repository or setting up a contributor environment.
 
+Also worth doing now: `sase completion install` writes a `<TAB>`-completion script for
+your shell (zsh, bash, or fish) and verifies it actually loads. See
+[Shell Completion](completion.md) for details.
+
 ## Step 2 — Check Provider Readiness
 
 SASE orchestrates a supported provider CLI and still relies on the provider's own

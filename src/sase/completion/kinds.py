@@ -131,6 +131,14 @@ PATH_OVERRIDES: Final[dict[tuple[tuple[str, ...], str], ValueKind]] = (
     _build_path_overrides()
 )
 
+# `sase run`'s PROMPT positional is not a plain kinded slot: it completes as
+# native file paths *plus* stored xprompt names, a combination the ValueKind
+# catalog has no single member for. Each emitter special-cases this exact
+# (command_path, dest) pair directly rather than going through
+# ``resolve_value_kind``. Kept here, not duplicated per emitter, so the three
+# scripts cannot drift on which slot this is.
+RUN_PROMPT_SLOT: Final[tuple[tuple[str, ...], str]] = (("run",), "prompt")
+
 
 def set_completion_kind(action: argparse.Action, kind: ValueKind) -> None:
     """Record an explicit completion-kind override on *action*.
@@ -170,6 +178,7 @@ def resolve_value_kind(
 __all__ = [
     "NAME_TABLE",
     "PATH_OVERRIDES",
+    "RUN_PROMPT_SLOT",
     "ValueKind",
     "resolve_value_kind",
     "set_completion_kind",

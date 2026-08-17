@@ -65,6 +65,17 @@ __sase_candidates() {
   done
   _describe -t "sase-$kind" "$kind" entries
 }
+
+# `sase run`'s PROMPT positional: native file completion plus stored xprompt
+# names, since `sase run` accepts either a free-form prompt (often a path an
+# editor buffer was drafted in) or `#name`-style xprompt references. `#`,
+# `%`, and `@` completion inside the prompt text itself is deferred.
+__sase_run_prompt() {
+  emulate -L zsh
+  _alternative \\
+    'xprompts:xprompt name:__sase_candidates xprompt' \\
+    'files:file:_files'
+}
 """
 
 

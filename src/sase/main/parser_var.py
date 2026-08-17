@@ -15,6 +15,7 @@ from sase.core.agent_output_variable_selector_wire import (
     DEFAULT_OUTPUT_VARIABLE_SELECTOR_LIMIT,
     OutputVariableSelectorWire,
 )
+from sase.completion.shorten import set_completion_summary
 from sase.core.agent_scan_facade import parse_output_variable_selector
 from sase.core.output_variable_values import VarValue, normalize_var_value
 from sase.main.parser_bead_common import bead_date_arg
@@ -256,7 +257,7 @@ def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.set_defaults(limit_explicit=False)
-    parser.add_argument(
+    targets = parser.add_argument(
         "targets",
         nargs="*",
         default=[],
@@ -269,6 +270,7 @@ def _register_var_get_parser(subparsers: argparse._SubParsersAction) -> None:
             "*.status, or results[0]"
         ),
     )
+    set_completion_summary(targets, "Omit, quote '<agent_name>', or pass a selector")
     parser.add_argument(
         "-c",
         "--color",

@@ -97,7 +97,7 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
 
     cleanup_parser = workspace_sub.add_parser(
         "cleanup",
-        help="Remove stale managed checkouts no longer referenced by a claim",
+        help="Remove stale managed checkouts no longer claimed",
     )
     cleanup_parser.add_argument(
         "-p",
@@ -146,7 +146,7 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
 
     migrate_parser = workspace_sub.add_parser(
         "migrate",
-        help="Migrate adjacent workspaces to a managed root or finalize the transition",
+        help="Migrate adjacent workspaces to a managed root",
     )
     migrate_parser.add_argument(
         "-p",

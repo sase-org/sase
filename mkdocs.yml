@@ -53,6 +53,7 @@ nav:
       - LLM Providers: llms.md
       - VCS Providers: vcs.md
       - Rust Backend: rust_backend.md
+      - Shell Completion: completion.md
   - Reference:
       - CLI Reference: cli.md
       - Development: development.md

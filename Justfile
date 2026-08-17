@@ -327,7 +327,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-oc.8(set_completion_summary)" \
         --epic-symbol "sase-op(GlossaryReferrer)" \
         --epic-symbol "sase-op(lookup_glossary_entry)" \
         {{ args }}

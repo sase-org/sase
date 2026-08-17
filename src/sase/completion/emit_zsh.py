@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterator
 
 from sase.completion.emit_zsh_preamble import zsh_preamble
-from sase.completion.kinds import ValueKind
+from sase.completion.kinds import RUN_PROMPT_SLOT, ValueKind
 from sase.completion.model import (
     CommandSpec,
     CompletionSpec,
@@ -209,15 +209,20 @@ def _positional_specs(command: CommandSpec) -> list[str]:
     specs: list[str] = []
     index = 1
     for positional in command.positionals:
-        specs.append(_positional_spec(positional, index))
+        specs.append(_positional_spec(command, positional, index))
         if positional.nargs in {None, 1, "?"}:
             index += 1
     return specs
 
 
-def _positional_spec(positional: PositionalSpec, index: int) -> str:
+def _positional_spec(
+    command: CommandSpec, positional: PositionalSpec, index: int
+) -> str:
     if positional.is_remainder:
         return _sq("*::command:_normal")
+    if (command.path, positional.dest) == RUN_PROMPT_SLOT:
+        prefix = _nargs_prefix(positional.nargs, index)
+        return _sq(f"{prefix}PROMPT:__sase_run_prompt")
     suffix = _value_suffix(
         takes_value=True,
         metavar=positional.metavar,

@@ -2,6 +2,8 @@
 
 import argparse
 
+from sase.completion.shorten import set_completion_summary
+
 
 def add_enable_project_memory_argument(parser: argparse.ArgumentParser) -> None:
     """Add the compatibility flag that marks a repository as SASE-managed."""
@@ -69,12 +71,13 @@ def add_skills_init_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="With use_chezmoi: skip the entire git commit/push/apply sequence",
     )
-    parser.add_argument(
+    no_push = parser.add_argument(
         "-P",
         "--no-push",
         action="store_true",
         help="With use_chezmoi: commit but skip 'git pull --rebase && git push' and 'chezmoi apply'",
     )
+    set_completion_summary(no_push, "With use_chezmoi: commit but skip push and apply")
     parser.add_argument(
         "-p",
         "--provider",

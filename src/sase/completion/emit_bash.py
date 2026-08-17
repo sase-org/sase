@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
-from sase.completion.kinds import ValueKind
+from sase.completion.kinds import RUN_PROMPT_SLOT, ValueKind
 from sase.completion.model import CommandSpec, CompletionSpec
 
 _SAFE_TOKEN = re.compile(r"[-_./A-Za-z0-9]+")
@@ -55,6 +55,18 @@ __sase_candidates() {
     [[ -n ${line} ]] && values+=("${line%%$'\\t'*}")
   done <<< "${__sase_candidates_cache[${kind}]}"
   COMPREPLY=($(compgen -P "${prefix}" -W "${values[*]}" -- "${cur}"))
+}
+
+# `sase run`'s PROMPT positional: native filenames plus stored xprompt
+# names, since `sase run` accepts either a free-form prompt or a `#name`
+# xprompt reference. `#`, `%`, and `@` completion inside the prompt text
+# itself is deferred.
+__sase_run_prompt() {
+  local cur=$1 prefix=$2
+  __sase_candidates xprompt "${cur}" "${prefix}"
+  local -a files
+  files=($(compgen -f -- "${cur}"))
+  COMPREPLY+=("${files[@]}")
 }
 
 _sase() {
@@ -150,6 +162,9 @@ _sase_complete_value() {
       ;;
     kind:*)
       __sase_candidates "${spec#kind:}" "${value_cur}" "${prefix}"
+      ;;
+    run_prompt)
+      __sase_run_prompt "${value_cur}" "${prefix}"
       ;;
   esac
 }
@@ -247,6 +262,8 @@ def _first_positional_spec(command: CommandSpec) -> str:
     for positional in command.positionals:
         if positional.is_remainder:
             continue
+        if (command.path, positional.dest) == RUN_PROMPT_SLOT:
+            return "run_prompt"
         return _value_spec(positional.choices, positional.kind)
     return ""
 

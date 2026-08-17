@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.completion.build import build_spec
 from sase.completion.emit_bash import emit_bash
 from sase.completion.kinds import ValueKind
 from sase.completion.model import (
@@ -107,6 +108,34 @@ def _plus_one_spec() -> CompletionSpec:
     return CompletionSpec(prog="sase", version="0.0-test", root=root)
 
 
+def _run_prompt_spec() -> CompletionSpec:
+    run = _command(
+        name="run",
+        path=("run",),
+        summary="Launch an agent",
+        options=(_option(),),
+        positionals=(
+            PositionalSpec(
+                metavar="PROMPT",
+                dest="prompt",
+                summary="Prompt text",
+                nargs="?",
+                choices=None,
+                kind=None,
+                is_remainder=False,
+            ),
+        ),
+    )
+    root = _command(
+        name="sase",
+        path=(),
+        summary="",
+        options=(_option(),),
+        subcommands=(run,),
+    )
+    return CompletionSpec(prog="sase", version="0.0-test", root=root)
+
+
 def _write_script(directory: Path) -> Path:
     path = directory / "sase.bash"
     path.write_text(emit_bash(_plus_one_spec()), encoding="utf-8")
@@ -139,6 +168,18 @@ printf '%s\\n' "${{COMPREPLY[@]}}"
 
 def test_bash_syntax_accepts_generated_script(tmp_path: Path) -> None:
     script = _write_script(tmp_path)
+    result = subprocess.run(
+        [bash, "-n", "--", str(script)],  # type: ignore[list-item]
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_bash_syntax_accepts_the_full_live_script(tmp_path: Path) -> None:
+    script = tmp_path / "sase.bash"
+    script.write_text(emit_bash(build_spec()), encoding="utf-8")
     result = subprocess.run(
         [bash, "-n", "--", str(script)],  # type: ignore[list-item]
         check=False,
@@ -226,3 +267,48 @@ printf '%s\\n' "${{COMPREPLY[@]}}"
     assert "zzz-fixture-bead" in first, result.stdout
     assert "zzz-fixture-bead" in second, result.stdout
     assert call_count.read_text().strip() == "1"
+
+
+def test_run_prompt_offers_files_and_xprompts(tmp_path: Path) -> None:
+    """`sase run`'s PROMPT positional completes filenames in cwd plus stored
+    xprompt names -- the combination the `#`/`%`/`@`-in-prompt polish item
+    leaves out of scope, but files-or-xprompt is in scope for this phase."""
+    script = tmp_path / "sase.bash"
+    script.write_text(emit_bash(_run_prompt_spec()), encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fixture = bin_dir / "sase"
+    fixture.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
+        "  printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n'\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    fixture.chmod(0o755)
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    (workdir / "zzz-fixture-notes.md").write_text("notes", encoding="utf-8")
+
+    snippet = f"""
+set +e
+cd {shlex.quote(str(workdir))}
+export PATH={shlex.quote(str(bin_dir))}:$PATH
+source {shlex.quote(str(script))}
+COMP_WORDS=(sase run "zzz-fixture-")
+COMP_CWORD=2
+COMP_LINE="sase run zzz-fixture-"
+COMP_POINT=${{#COMP_LINE}}
+_sase
+printf '%s\\n' "${{COMPREPLY[@]}}"
+"""
+    result = subprocess.run(
+        [bash, "--norc", "--noprofile", "-c", snippet],  # type: ignore[list-item]
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    replies = [line for line in result.stdout.splitlines() if line]
+    assert "zzz-fixture-xprompt" in replies, replies
+    assert "zzz-fixture-notes.md" in replies, replies
