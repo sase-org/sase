@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import pytest
+from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals import procs_pane_render as tpr
+from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.proc_observer import ObservedProc
-from textual.widgets import OptionList, Static
+from sase.monitor_state import MONITOR_GLYPH
 from tests.ace.tui.visual._ace_config_center_png_snapshot_helpers import (
     _FIXED_TASK_NOW,
+    _freeze_procs_clock,
     _open_procs_modal,
     _patch_config_view,
     _patch_plugins_catalog,
@@ -27,33 +29,8 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-async def test_config_center_procs_tab_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    patch_startup_loaders(monkeypatch)
-    _patch_xprompt_sources(monkeypatch)
-    _patch_plugins_catalog(monkeypatch)
-    _patch_config_view(monkeypatch, None)
-    original_relative_time = tpr._relative_time
-    monkeypatch.setattr(
-        tpr,
-        "_relative_time",
-        lambda dt: original_relative_time(dt, now=_FIXED_TASK_NOW),
-    )
-    original_elapsed = tpr._elapsed
-    monkeypatch.setattr(
-        tpr,
-        "_elapsed",
-        lambda task, *, now=None: original_elapsed(
-            task,
-            now=_FIXED_TASK_NOW.replace(tzinfo=None),
-        ),
-    )
-    # Freeze the running-task spinner so the status token is byte-stable; the
-    # 0.25s refresh timer would otherwise advance it between runs.
-    monkeypatch.setattr(tpr, "_SPINNER_FRAMES", ("|",))
-    detached = ObservedProc(
+def _detached_nightly_row() -> ObservedProc:
+    return ObservedProc(
         proc_id="detached123",
         proc_type="detached",
         cl_name="",
@@ -68,24 +45,110 @@ async def test_config_center_procs_tab_png_snapshot(
         store_backed=True,
     )
 
+
+def _option_plain(option_list: OptionList, index: int) -> str:
+    return option_list.get_option_at_index(index).prompt.plain
+
+
+def _row_index_containing(option_list: OptionList, needle: str) -> int:
+    for index in range(option_list.option_count):
+        if needle in _option_plain(option_list, index):
+            return index
+    raise AssertionError(f"no proc row contained {needle!r}")
+
+
+async def _open_seeded_procs_tab(page: AcePage) -> ProcsPane:
+    await page.press("2")
+    await page.expect_state("artifacts_subtab", "patches")
+    _seed_tasks_tab_queue(page.app, extra_rows=(_detached_nightly_row(),))
+    _, pane = await _open_procs_modal(page)
+    return pane
+
+
+async def test_config_center_procs_tab_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, None)
+    _freeze_procs_clock(monkeypatch)
+
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
-        await page.press("2")
-        await page.expect_state("artifacts_subtab", "patches")
-        _seed_tasks_tab_queue(page.app, extra_rows=(detached,))
-        _, pane = await _open_procs_modal(page)
+        pane = await _open_seeded_procs_tab(page)
         option_list = pane.query_one("#procs-list", OptionList)
         output = pane.query_one("#procs-output-content", Static)
-        assert "sync sase-42" in option_list.get_option_at_index(0).prompt.plain
+        title = pane._title_text().plain
+        assert "sync sase-42" in _option_plain(option_list, 0)
         assert any(
-            "◆ detached" in option_list.get_option_at_index(index).prompt.plain
+            "◆ detached" in _option_plain(option_list, index)
             for index in range(option_list.option_count)
         )
+        monitor_index = _row_index_containing(option_list, "just check-full")
+        assert MONITOR_GLYPH in _option_plain(option_list, monitor_index)
+        assert "acme--mon" in _option_plain(option_list, monitor_index)
+        finished_index = _row_index_containing(option_list, "pytest -x")
+        assert MONITOR_GLYPH in _option_plain(option_list, finished_index)
+        assert "hotfix--mon-0" in _option_plain(option_list, finished_index)
         assert "remote: Enumerating objects" in output.render().plain
+        assert "⚙ 3" in title
+        assert "⚙ 1" in title
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "config_center_procs_tab_120x40",
             title="ACE SASE Admin Center - Procs tab",
+        )
+
+
+@pytest.mark.parametrize(
+    ("size", "snapshot_name"),
+    [
+        ((120, 40), "config_center_procs_tab_monitors_120x40"),
+        ((90, 40), "config_center_procs_tab_monitors_90x40"),
+    ],
+)
+async def test_config_center_procs_tab_monitors_png_snapshot(
+    size: tuple[int, int],
+    snapshot_name: str,
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    _patch_xprompt_sources(monkeypatch)
+    _patch_plugins_catalog(monkeypatch)
+    _patch_config_view(monkeypatch, None)
+    _freeze_procs_clock(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches(), size=size) as page:
+        await wait_for_startup(page)
+        pane = await _open_seeded_procs_tab(page)
+        option_list = pane.query_one("#procs-list", OptionList)
+        monitor_index = _row_index_containing(option_list, "just check-full")
+        pane._rebuild_list(highlight_index=monitor_index)
+        output = pane.query_one("#procs-output-content", Static)
+        title = pane._title_text().plain
+        hints = pane.query_one("#procs-hints", Static)
+        assert f"{MONITOR_GLYPH} just check-full" in _option_plain(
+            option_list, monitor_index
+        )
+        assert "acme--mon" in _option_plain(option_list, monitor_index)
+        assert MONITOR_GLYPH in _option_plain(
+            option_list, _row_index_containing(option_list, "pytest -x")
+        )
+        assert "agent  acme--mon" in output.render().plain
+        assert "ruff .................. Passed" in output.render().plain
+        assert "pytest tests/ace" in output.render().plain
+        assert "⚙ 3" in title
+        assert "⚙ 1" in title
+        assert "⏎: agent" in hints.render().plain
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot_name,
+            title="ACE SASE Admin Center - Procs tab monitors",
         )

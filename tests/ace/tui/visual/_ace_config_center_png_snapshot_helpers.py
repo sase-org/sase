@@ -27,6 +27,7 @@ from tests.ace.tui.visual._ace_config_center_plugins_helpers import (
 )
 from tests.ace.tui.visual._ace_config_center_procs_helpers import (
     _FIXED_TASK_NOW,
+    _freeze_procs_clock,
     _seed_tasks_tab_queue,
 )
 from tests.ace.tui.visual._ace_config_center_projects_helpers import (
@@ -44,6 +45,7 @@ from tests.ace.tui.visual._ace_config_center_xprompt_helpers import (
 
 __all__ = [
     "_FIXED_TASK_NOW",
+    "_freeze_procs_clock",
     "_PLUGINS_NOW",
     "_agent_cli_history",
     "_build_view",

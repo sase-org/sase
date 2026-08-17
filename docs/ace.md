@@ -5195,7 +5195,7 @@ and writes when the shard directory has not already been created.
 
 ## Procs Tab
 
-Open the SASE Admin Center with `#`, then press `5` (or switch tabs until you reach
+Open the SASE Admin Center with `#`, then press `3` (or switch tabs until you reach
 **Procs**). You can also run the keyless **Open procs panel** command from the command
 palette. The tab shows procs (hook runs, mentor executions, agent launches, plugin
 operations, etc.) with live output for running procs and completed output for finished
@@ -5214,11 +5214,16 @@ shows up on the tab.
 
 The pane defaults to **this session** plus unattributed procs; press `a` to widen it to
 every session. Historical `detached` rows remain visible in both modes. The pane title
-names the active scope, e.g. `Procs · this session  [2 running · 5 done]`. Rows read
-from the store carry a colored session chip (`ace·sase#14 4f2a`) that matches the one
-`sase proc list` prints; a session that has since exited renders dim with a `†`. An
-ordinary unattributed proc renders a dim `—`; a historical detached proc carries a cyan
-`◆ detached` marker that makes the legacy row kind explicit.
+names the active scope and the two running-lane counts, e.g.
+`Procs · this session   ⚙ 2  ⚙ 1   [3 running · 5 done]`. The blue gear is running plain
+procs (excluding monitors); the orange gear is running monitors. Both counts follow the
+tab's current scope, so `a` moves them with the list. A zero lane still renders as a dim
+`⚙ 0` so a missing chip cannot be read as "unknown". The bracketed totals keep their
+current meaning: blue plus orange equals the running count. Rows read from the store
+carry a colored session chip (`ace·sase#14 4f2a`) that matches the one `sase proc list`
+prints; a session that has since exited renders dim with a `†`. An ordinary unattributed
+proc renders a dim `—`; a historical detached proc carries a cyan `◆ detached` marker
+that makes the legacy row kind explicit.
 
 Store reads happen on a worker thread and are revalidated by store mtime about once a
 second, so the tab never stats, reads, or locks the store from a render or keystroke
@@ -5234,18 +5239,42 @@ unattributed command fallback.
 ### Layout
 
 The tab uses a two-panel layout: a proc list on the left and an output pane on the
-right. Running procs refresh their output every second while the Procs tab is visible.
+right. Running procs refresh their output on the pane's 0.25 s tick while the Procs tab
+is visible.
 
 ### Proc Status Icons
 
-| Icon | Color  | Meaning                       |
-| ---- | ------ | ----------------------------- |
-| `◌`  | Dim    | Pending (supervisor starting) |
-| `●`  | Green  | Running                       |
-| `✓`  | Cyan   | Success                       |
-| `✗`  | Red    | Error                         |
-| `⊘`  | Yellow | Killed                        |
-| `?`  | Dim    | Unknown                       |
+| Icon | Color  | Meaning                                                     |
+| ---- | ------ | ----------------------------------------------------------- |
+| `◌`  | Dim    | Pending (supervisor starting)                               |
+| `●`  | Green  | Running                                                     |
+| `✓`  | Cyan   | Success                                                     |
+| `✗`  | Red    | Error                                                       |
+| `⊘`  | Yellow | Killed                                                      |
+| `?`  | Dim    | Unknown                                                     |
+| `⚙`  | Orange | Monitor shell (same mark as the Agents tab and the top bar) |
+
+### Monitors on this tab
+
+A `sase monitor start` supervisor is a durable proc like any other, but this tab marks
+it the same way the rest of ACE does. See [Monitors](monitors.md).
+
+- **Orange `⚙`.** Monitor rows carry the orange gear between the status icon and the
+  label (`● ⚙ just check-full`), matching the Agents tab and the top-bar monitor
+  indicator. The same mark prefixes the output header.
+- **Agent name.** Each monitor names its member agent (`acme--mon`) on the list's
+  secondary line (`acme--mon · Working...`) and on an `agent` line in the output header.
+- **Live `live_reply.md`.** The output pane streams the monitor's artifacts-owned log
+  (`<artifacts_dir>/live_reply.md`) the same way the agent metadata panel does, so a
+  running monitor is not an empty `Working...`.
+- **`<enter>` jumps to the agent.** On a monitor whose agent row is loaded, `<enter>`
+  (or a click) closes Admin Center and reveals that agent on the Agents tab. The hints
+  line shows `⏎: agent` only when that jump is possible. If the agent is not on the
+  Agents tab, ACE says so and stays put.
+- **Visible in both scopes.** Monitor procs are unattributed, so they appear in both
+  **this session** and **all sessions**.
+- **`K` stops the supervisor.** Kill uses the proc-shell stop path: it stops the
+  supervisor, settles the family, and runs any `--next` action.
 
 ### Durable Procs
 
@@ -5319,6 +5348,7 @@ only an unresolvable planner agent family uses an unattributed command proc. See
 | `'`                 | Jump to a proc row via adaptive hints        |
 | `a`                 | Toggle scope: this session / all sessions    |
 | `K`                 | Kill selected running proc (durable or live) |
+| `Enter`             | Open the selected monitor's agent            |
 | `d`                 | Dismiss selected completed proc              |
 | `D`                 | Dismiss all completed procs                  |
 | `e`                 | Open proc output in `$EDITOR`                |
