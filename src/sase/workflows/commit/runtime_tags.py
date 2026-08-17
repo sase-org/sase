@@ -17,6 +17,11 @@ PRODUCED_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT"})
 STALE_RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
 # Compatibility name for callers that use this set specifically for cleanup.
 RUNTIME_COMMIT_TAG_KEYS = STALE_RUNTIME_COMMIT_TAG_KEYS
+#: Footer tags a resumed commit must carry for the discarded-work guard
+#: (``AGENT``) and downstream bead/origin tooling (``TYPE``, ``BEAD``) to
+#: attribute the commit correctly. Re-stamped onto ``HEAD`` during
+#: ``sase stitch create --resume`` when conflict resolution dropped them.
+RUN_OWNED_COMMIT_TAG_KEYS = frozenset({"AGENT", "TYPE", "BEAD"})
 WORKSPACE_ENV_NUM_KEYS = (
     "SASE_AGENT_WORKSPACE_NUM",
     "SASE_GIT_WORKSPACE_NUM",
@@ -183,6 +188,15 @@ def parse_trailing_commit_tags(message: str) -> dict[str, str]:
 def parse_trailing_commit_tag_values(message: str) -> dict[str, CommitTagValue]:
     """Return canonical tag values while retaining optional link targets."""
     return {tag.key: tag.value for tag in parse_commit_footer(message).tags}
+
+
+def run_owned_commit_tags(message: str) -> dict[str, CommitTagValue]:
+    """Return *message*'s footer tags restricted to :data:`RUN_OWNED_COMMIT_TAG_KEYS`."""
+    return {
+        key: value
+        for key, value in parse_trailing_commit_tag_values(message).items()
+        if key in RUN_OWNED_COMMIT_TAG_KEYS
+    }
 
 
 def update_trailing_commit_tags(

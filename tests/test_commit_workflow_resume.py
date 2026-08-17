@@ -32,15 +32,25 @@ def artifacts_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _make_provider(
     *,
     head_subject: str = "fix: bug",
+    head_message: str | None = None,
     is_conflict: bool = False,
     finalize_result: tuple[bool, str | None] = (True, None),
     finalize_raises: bool = False,
+    amend_result: tuple[bool, str | None] = (True, None),
 ) -> MagicMock:
     provider = MagicMock()
     provider._provider_name = "git"
     provider.is_sync_in_progress.return_value = is_conflict
     provider.get_conflicted_files.return_value = ["a.py"] if is_conflict else []
-    provider.get_description.return_value = (True, head_subject)
+    full_message = head_subject if head_message is None else head_message
+
+    def _get_description(
+        _revision: str, _cwd: str, *, short: bool = False
+    ) -> tuple[bool, str]:
+        return (True, head_subject if short else full_message)
+
+    provider.get_description.side_effect = _get_description
+    provider.amend.return_value = amend_result
     if finalize_raises:
         provider.finalize_commit.side_effect = NotImplementedError
     else:
@@ -223,10 +233,10 @@ def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
     artifacts_dir: Path,
     tmp_path: Path,
 ) -> None:
-    provider = _make_provider(head_subject="fix: bug")
+    message = "fix: bug\n\nSASE_BEAD=sase-ai.2"
+    provider = _make_provider(head_subject="fix: bug", head_message=message)
     provider.revision_id.return_value = "a" * 40
     mock_get.return_value = provider
-    message = "fix: bug\n\nSASE_BEAD=sase-ai.2"
     _save_checkpoint(
         cwd=str(tmp_path),
         payload={"message": message, "bead_id": "sase-ai.2"},
@@ -243,9 +253,81 @@ def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
         assert CommitWorkflow.resume() == RunResult.OK
 
     apply_tag.assert_not_called()
+    provider.amend.assert_not_called()
     provider.finalize_commit.assert_called_once()
     assert provider.finalize_commit.call_args.args[0]["message"] == message
     assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_restamps_footer_dropped_during_conflict_resolution(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    """A rewritten HEAD message that lost its SASE_* footer gets it back."""
+    checkpoint_message = (
+        "fix: bug\n\n"
+        "SASE_BEAD=sase-ai.2\n"
+        "SASE_TYPE=stitch\n"
+        "SASE_AGENT=bbugyi200.athena.sase-ai.2"
+    )
+    # Conflict resolution re-authored the body to match reality and, along
+    # with the stale paragraph, dropped the whole footer — but the subject
+    # line survived unchanged, so the resume subject check still passes.
+    head_message_after_conflict = "fix: bug\n\nUpdated to match upstream reality."
+    provider = _make_provider(
+        head_subject="fix: bug", head_message=head_message_after_conflict
+    )
+    mock_get.return_value = provider
+
+    events: list[str] = []
+    provider.amend.side_effect = lambda *_a, **_k: (
+        events.append("amend") or (True, None)
+    )
+    provider.finalize_commit.side_effect = lambda *_a, **_k: (
+        events.append("finalize") or (True, None)
+    )
+
+    _save_checkpoint(cwd=str(tmp_path), payload={"message": checkpoint_message})
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.append_commits_entry",
+            return_value=None,
+        ),
+        patch("sase.workflows.commit.workflow.write_result_marker"),
+    ):
+        assert CommitWorkflow.resume() == RunResult.OK
+
+    # The amend must happen before finalize_commit pushes, not after.
+    assert events == ["amend", "finalize"]
+    amended_message = provider.amend.call_args.args[0]
+    assert "SASE_BEAD=sase-ai.2" in amended_message
+    assert "SASE_TYPE=stitch" in amended_message
+    assert "SASE_AGENT=bbugyi200.athena.sase-ai.2" in amended_message
+    assert "Updated to match upstream reality." in amended_message
+    assert provider.amend.call_args.kwargs.get("no_upload") is True
+    assert not (artifacts_dir / "commit_state.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_resume_fails_loudly_when_footer_restamp_amend_fails(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    """A failed re-stamp aborts resume instead of pushing an unattributed commit."""
+    checkpoint_message = "fix: bug\n\nSASE_AGENT=bbugyi200.athena.sase-ai.2"
+    provider = _make_provider(
+        head_subject="fix: bug",
+        head_message="fix: bug\n\nRewritten body, no footer.",
+        amend_result=(False, "no changes to amend"),
+    )
+    mock_get.return_value = provider
+
+    _save_checkpoint(cwd=str(tmp_path), payload={"message": checkpoint_message})
+
+    assert CommitWorkflow.resume() == RunResult.FAILED
+    provider.finalize_commit.assert_not_called()
+    # Checkpoint preserved so the user can inspect / retry manually.
+    assert (artifacts_dir / "commit_state.json").exists()
 
 
 @patch(_PROVIDER_TARGET)

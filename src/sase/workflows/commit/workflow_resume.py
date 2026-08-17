@@ -9,6 +9,10 @@ from typing import TYPE_CHECKING
 from sase.output import print_status
 from sase.telemetry.metrics import VCS_OPERATIONS
 from sase.workflows.commit.checkpoint import CommitCheckpoint
+from sase.workflows.commit.runtime_tags import (
+    run_owned_commit_tags,
+    update_trailing_commit_tags,
+)
 from sase.workflows.commit.workflow_types import RunResult
 
 if TYPE_CHECKING:
@@ -75,6 +79,9 @@ def resume_commit_workflow(
         cp.method in ("create_commit", "create_pull_request")
         and "dispatch" not in cp.completed_steps
     ):
+        restamp_failure = _restamp_missing_footer_tags(provider, cp, provider_name)
+        if restamp_failure is not None:
+            return restamp_failure
         try:
             ok, err = provider.finalize_commit(  # type: ignore[attr-defined]
                 cp.payload, cp.cwd
@@ -125,6 +132,80 @@ def resume_commit_workflow(
         status="ok",
     ).inc()
     return RunResult.OK
+
+
+def _restamp_missing_footer_tags(
+    provider: object, cp: CommitCheckpoint, provider_name: str
+) -> RunResult | None:
+    """Re-stamp HEAD's SASE_* footer tags dropped during conflict resolution.
+
+    Reaching here means HEAD's subject already matched the checkpointed
+    payload, which conflict resolution can pass even after rewriting the
+    message body and dropping its provenance tags — the dispatch response
+    that would otherwise carry them was also lost to ``CONFLICT``. Re-stamp
+    here, before ``finalize_commit`` pushes, so the run's own commit stays
+    attributable without touching the author's rewritten body. Returns a
+    terminal :class:`RunResult` when the resume must abort with HEAD left
+    unpushed and recoverable, or ``None`` to continue.
+    """
+    expected = run_owned_commit_tags(str(cp.payload.get("message") or ""))
+    if not expected:
+        return None
+
+    try:
+        ok, head_message = provider.get_description(  # type: ignore[attr-defined]
+            "HEAD", cp.cwd
+        )
+    except NotImplementedError:
+        return None
+    if not ok or head_message is None:
+        print_status(
+            "Could not read HEAD's commit message to verify SASE provenance "
+            "tags before resuming. HEAD is left unpushed and recoverable — "
+            "resolve manually and re-run sase stitch create --resume.",
+            "error",
+        )
+        VCS_OPERATIONS.labels(
+            provider=provider_name,
+            operation="commit_resume",
+            status="failed",
+        ).inc()
+        return RunResult.FAILED
+
+    current = run_owned_commit_tags(head_message)
+    missing = {
+        key: value for key, value in expected.items() if current.get(key) != value
+    }
+    if not missing:
+        return None
+
+    new_message = update_trailing_commit_tags(head_message, missing)
+    try:
+        amend_ok, amend_err = provider.amend(  # type: ignore[attr-defined]
+            new_message, cp.cwd, no_upload=True
+        )
+    except NotImplementedError:
+        amend_ok, amend_err = False, "amend is not supported by this VCS provider"
+    if not amend_ok:
+        print_status(
+            "Could not re-stamp SASE provenance tags onto HEAD before "
+            f"resuming: {amend_err}. HEAD is left unpushed and recoverable — "
+            "resolve manually and re-run sase stitch create --resume.",
+            "error",
+        )
+        VCS_OPERATIONS.labels(
+            provider=provider_name,
+            operation="commit_resume",
+            status="failed",
+        ).inc()
+        return RunResult.FAILED
+
+    print_status(
+        "Re-stamped SASE provenance tags onto HEAD after conflict "
+        "resolution dropped them.",
+        "info",
+    )
+    return None
 
 
 def _get_head_subject(provider: object, cwd: str) -> str | None:
