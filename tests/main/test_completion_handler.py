@@ -24,7 +24,7 @@ def _console() -> tuple[Console, StringIO]:
     return Console(file=buf, highlight=False, color_system=None, width=80), buf
 
 
-def test_list_renders_zsh_generator_and_pending_shells() -> None:
+def test_list_renders_all_three_generators() -> None:
     console, buf = _console()
     args = create_parser().parse_args(["completion", "list"])
 
@@ -47,13 +47,13 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema_version"] == 1
     shells = {row["shell"]: row for row in payload["shells"]}
-    assert shells["zsh"] == {
+    expected = {
         "generator": True,
-        "shell": "zsh",
         "status": "not installed",
     }
-    assert shells["bash"]["generator"] is False
-    assert shells["fish"]["generator"] is False
+    assert shells["zsh"] == {**expected, "shell": "zsh"}
+    assert shells["bash"] == {**expected, "shell": "bash"}
+    assert shells["fish"] == {**expected, "shell": "fish"}
 
 
 def test_list_accepts_injected_rows_for_later_columns() -> None:
@@ -83,32 +83,45 @@ def test_spec_prints_structural_snapshot(
     assert "completion" in names
 
 
-def test_spec_and_zsh_write_output_files(
+def test_spec_and_shells_write_output_files(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     spec_path = tmp_path / "spec.json"
+    bash_path = tmp_path / "sase.bash"
+    fish_path = tmp_path / "sase.fish"
     zsh_path = tmp_path / "_sase"
     spec_args = create_parser().parse_args(["completion", "spec", "-o", str(spec_path)])
+    bash_args = create_parser().parse_args(["completion", "bash", "-o", str(bash_path)])
+    fish_args = create_parser().parse_args(["completion", "fish", "-o", str(fish_path)])
     zsh_args = create_parser().parse_args(["completion", "zsh", "-o", str(zsh_path)])
 
     assert handle_completion_command(spec_args) == 0
+    assert handle_completion_command(bash_args) == 0
+    assert handle_completion_command(fish_args) == 0
     assert handle_completion_command(zsh_args) == 0
     assert capsys.readouterr().out == ""
     assert (
         json.loads(spec_path.read_text(encoding="utf-8")) == current_structural_view()
     )
+    bash_text = bash_path.read_text(encoding="utf-8")
+    assert "complete -o default -F _sase sase" in bash_text
+    fish_text = fish_path.read_text(encoding="utf-8")
+    assert "complete -c sase -e" in fish_text
     zsh_text = zsh_path.read_text(encoding="utf-8")
     assert zsh_text.startswith("#compdef sase\n")
     assert "_arguments -C -s -S" in zsh_text
 
 
-def test_zsh_prints_compdef_script(capsys: pytest.CaptureFixture[str]) -> None:
-    args = create_parser().parse_args(["completion", "zsh"])
-
-    assert handle_completion_command(args) == 0
-    script = capsys.readouterr().out
-    assert script.startswith("#compdef sase\n")
-    assert "_sase_run()" in script
+def test_shell_emitters_print_scripts(capsys: pytest.CaptureFixture[str]) -> None:
+    for child, needle in (
+        ("bash", "complete -o default -F _sase sase"),
+        ("fish", "complete -c sase -e"),
+        ("zsh", "#compdef sase"),
+    ):
+        args = create_parser().parse_args(["completion", child])
+        assert handle_completion_command(args) == 0
+        script = capsys.readouterr().out
+        assert needle in script
 
 
 def test_write_output_reports_unwritable_path(

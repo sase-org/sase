@@ -5,13 +5,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
+
+from sase.completion.model import CompletionSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,8 +27,8 @@ class _ShellRow:
 
 # Install later extends these rows with path, `.zwc` freshness, and stamp.
 _SHELL_ROWS: tuple[_ShellRow, ...] = (
-    _ShellRow("bash", False, "pending"),
-    _ShellRow("fish", False, "pending"),
+    _ShellRow("bash", True, "not installed"),
+    _ShellRow("fish", True, "not installed"),
     _ShellRow("zsh", True, "not installed"),
 )
 
@@ -34,13 +36,17 @@ _SHELL_ROWS: tuple[_ShellRow, ...] = (
 def handle_completion_command(args: argparse.Namespace) -> int:
     """Dispatch a parsed ``sase completion ...`` command."""
     sub = getattr(args, "completion_subcommand", None) or "list"
+    if sub == "bash":
+        return _handle_completion_bash(args)
+    if sub == "fish":
+        return _handle_completion_fish(args)
     if sub == "list":
         return _handle_completion_list(args)
     if sub == "spec":
         return _handle_completion_spec(args)
     if sub == "zsh":
         return _handle_completion_zsh(args)
-    print("Usage: sase completion {list,spec,zsh}", file=sys.stderr)
+    print("Usage: sase completion {bash,fish,list,spec,zsh}", file=sys.stderr)
     return 2
 
 
@@ -67,12 +73,33 @@ def _handle_completion_spec(args: argparse.Namespace) -> int:
     return _write_output(getattr(args, "output", None), text)
 
 
+def _handle_completion_bash(args: argparse.Namespace) -> int:
+    """Run ``sase completion bash``."""
+    from sase.completion.emit_bash import emit_bash
+
+    return _handle_completion_script(args, emit_bash)
+
+
+def _handle_completion_fish(args: argparse.Namespace) -> int:
+    """Run ``sase completion fish``."""
+    from sase.completion.emit_fish import emit_fish
+
+    return _handle_completion_script(args, emit_fish)
+
+
 def _handle_completion_zsh(args: argparse.Namespace) -> int:
     """Run ``sase completion zsh``."""
-    from sase.completion.build import build_spec
     from sase.completion.emit_zsh import emit_zsh
 
-    return _write_output(getattr(args, "output", None), emit_zsh(build_spec()))
+    return _handle_completion_script(args, emit_zsh)
+
+
+def _handle_completion_script(
+    args: argparse.Namespace, emit: Callable[[CompletionSpec], str]
+) -> int:
+    from sase.completion.build import build_spec
+
+    return _write_output(getattr(args, "output", None), emit(build_spec()))
 
 
 def _list_json(rows: Sequence[_ShellRow]) -> dict[str, object]:

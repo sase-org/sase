@@ -26,6 +26,11 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase completion                         # same as list\n"
+            "  sase completion bash                    # print a bash script\n"
+            "  sase completion bash -o "
+            "~/.local/share/bash-completion/completions/sase\n"
+            "  sase completion fish                    # print fish complete directives\n"
+            "  sase completion fish -o ~/.config/fish/completions/sase.fish\n"
             "  sase completion list                    # shells and generator status\n"
             "  sase completion spec                    # structural JSON\n"
             "  sase completion spec -j -o spec.json    # write the snapshot artifact\n"
@@ -36,9 +41,11 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     completion_sub = completion_parser.add_subparsers(
         dest="completion_subcommand",
         help="Completion subcommands",
-        metavar="{list,spec,zsh}",
+        metavar="{bash,fish,list,spec,zsh}",
     )
 
+    _register_bash_parser(completion_sub)
+    _register_fish_parser(completion_sub)
     _register_list_parser(completion_sub)
     _register_spec_parser(completion_sub)
     _register_zsh_parser(completion_sub)
@@ -52,8 +59,8 @@ def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "List every supported shell, whether sase can generate a "
             "completion script for it, and the current install status. "
-            "This phase reports generator availability; install later "
-            "fills in path, `.zwc` freshness, and stamp version."
+            "Install later fills in path, `.zwc` freshness, and stamp "
+            "version."
         ),
         epilog=("examples:\n  sase completion list\n  sase completion list --json"),
     )
@@ -99,11 +106,52 @@ def _register_spec_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def _register_bash_parser(subparsers: argparse._SubParsersAction) -> None:
+    _register_script_parser(
+        subparsers,
+        "bash",
+        help_text="Emit a bash completion script",
+        description=(
+            "Print a bash completion script registered with "
+            "`complete -o default -F _sase sase`. Source it from "
+            "bash-completion's completions directory, or write it with "
+            "-o/--output. Kinded value slots call `__sase_candidates` "
+            "(filled in later). Do not eval the output on every shell start."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion bash\n"
+            "  sase completion bash -o "
+            "~/.local/share/bash-completion/completions/sase"
+        ),
+    )
+
+
+def _register_fish_parser(subparsers: argparse._SubParsersAction) -> None:
+    _register_script_parser(
+        subparsers,
+        "fish",
+        help_text="Emit a fish completion script",
+        description=(
+            "Print fish `complete -c sase` directives conditioned on a "
+            "`__sase_cmd` helper that resolves the current command path. "
+            "Descriptions are passed with `-d`. Write the file to "
+            "`~/.config/fish/completions/sase.fish` with -o/--output. "
+            "Do not eval the output on every shell start."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion fish\n"
+            "  sase completion fish -o ~/.config/fish/completions/sase.fish"
+        ),
+    )
+
+
 def _register_zsh_parser(subparsers: argparse._SubParsersAction) -> None:
-    zsh_parser = subparsers.add_parser(
+    _register_script_parser(
+        subparsers,
         "zsh",
-        help="Emit a native zsh compsys completion script",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help_text="Emit a native zsh compsys completion script",
         description=(
             "Print a `#compdef sase` compsys script with `_arguments -C "
             "-s -S`, option descriptions, exclusion lists, mutex groups, "
@@ -114,7 +162,24 @@ def _register_zsh_parser(subparsers: argparse._SubParsersAction) -> None:
             "examples:\n  sase completion zsh\n  sase completion zsh -o ~/.zfunc/_sase"
         ),
     )
-    zsh_parser.add_argument(
+
+
+def _register_script_parser(
+    subparsers: argparse._SubParsersAction,
+    name: str,
+    *,
+    help_text: str,
+    description: str,
+    epilog: str,
+) -> None:
+    parser = subparsers.add_parser(
+        name,
+        help=help_text,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=description,
+        epilog=epilog,
+    )
+    parser.add_argument(
         "-o",
         "--output",
         metavar="FILE",

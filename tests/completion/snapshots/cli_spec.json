@@ -7413,6 +7413,86 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "19a93328b9f9560c",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "bash",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "bash"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "0452164a8405f581",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "fish",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "fish"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "ddcab9b6957da81f",
             "hidden": false,
             "mutex_groups": [],
