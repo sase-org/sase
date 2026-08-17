@@ -562,7 +562,7 @@ PRODUCTION_PRODUCERS: tuple[_ProcProducerSite, ...] = (
 INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
     _site(
         "infra.submit_durable",
-        "src/sase/ace/tui/actions/proc_actions.py",
+        "src/sase/ace/tui/actions/_proc_action_submission.py",
         "_submit_durable_proc",
         "definition",
         "",
@@ -573,7 +573,7 @@ INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
     ),
     _site(
         "infra.submit_session",
-        "src/sase/ace/tui/actions/proc_actions.py",
+        "src/sase/ace/tui/actions/_proc_action_submission.py",
         "_submit_session_worker",
         "definition",
         "",
@@ -595,7 +595,7 @@ INFRASTRUCTURE: tuple[_ProcProducerSite, ...] = (
     ),
     _site(
         "infra.observer_completion",
-        "src/sase/ace/tui/actions/proc_actions.py",
+        "src/sase/ace/tui/actions/_proc_action_completion.py",
         "_apply_proc_observer_snapshot",
         "definition",
         "",
