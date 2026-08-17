@@ -95,6 +95,29 @@ def _make_member(
     return artifacts_dir, project_file
 
 
+def _run_supervisor_subprocess(artifacts_dir: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "sase.monitor.supervise",
+                "--artifacts-dir",
+                artifacts_dir,
+            ],
+            env=os.environ.copy(),
+            capture_output=True,
+            text=True,
+            timeout=_NO_HANG_TIMEOUT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(
+            f"supervisor subprocess did not exit within {_NO_HANG_TIMEOUT:g}s; "
+            f"stdout={exc.stdout!r}; stderr={exc.stderr!r}"
+        )
+
+
 def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
     tmp_path: Path,
 ) -> None:
@@ -432,12 +455,9 @@ def test_run_supervisor_idle_timeout_fires_after_output_stalls(tmp_path: Path) -
         idle_timeout_seconds=0.2,
     )
 
-    started = time.monotonic()
-    exit_status = run_supervisor(artifacts_dir)
-    elapsed = time.monotonic() - started
+    completed = _run_supervisor_subprocess(artifacts_dir)
 
-    assert exit_status == 1
-    assert elapsed < _NO_HANG_TIMEOUT
+    assert completed.returncode == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert meta["monitor_timeout_kind"] == "idle"
@@ -445,6 +465,7 @@ def test_run_supervisor_idle_timeout_fires_after_output_stalls(tmp_path: Path) -
     done = json.loads((Path(artifacts_dir) / "done.json").read_text())
     assert done["monitor_timeout_kind"] == "idle"
     assert done["monitor_timeout_message"] == "no output for 0.2s"
+    assert "started" in (Path(artifacts_dir) / "live_reply.md").read_text()
 
 
 def test_run_supervisor_chatty_command_does_not_hit_idle_timeout(
