@@ -225,6 +225,20 @@ def test_delete_by_exact_term_alias_and_prefix(
     assert "Alpha" not in yaml.safe_load(exact_path.read_text())["memory"]["glossary"]
 
 
+def test_delete_dry_run_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = _install_project(tmp_path, monkeypatch, _SORTED_GLOSSARY)
+    original = config_path.read_bytes()
+
+    outcome = delete_glossary_term("demo", "g", dry_run=True)
+
+    assert outcome.term == "Gamma"
+    assert outcome.aliases == ("g",)
+    assert "sase glossary add" in outcome.restore_command
+    assert config_path.read_bytes() == original
+
+
 def test_delete_unknown_term_raises_lookup_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

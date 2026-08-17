@@ -127,9 +127,10 @@ Two flags matter when calling it by hand: `-l/--limit N` caps the printed candid
 (default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
 
 Glossary terms are a worked example of how a kind is shaped for a shell rather than for
-a report: `sase glossary show <TAB>` offers slug-form references (`agent-hood`), because
-`sase glossary` resolves references case- and separator-insensitively and a slug is the
-one form that never needs quoting on a command line.
+a report: `sase glossary show <TAB>` and `sase glossary del <TAB>` offer slug-form
+references (`agent-hood`), because `sase glossary` resolves references case- and
+separator-insensitively and a slug is the one form that never needs quoting on a command
+line. `sase glossary add`'s `TERM` is new text and is not completed.
 
 That fast path is still a subprocess, so every generated script caches its output rather
 than calling it on every keystroke — necessary once something like

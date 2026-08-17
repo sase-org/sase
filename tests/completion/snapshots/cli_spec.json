@@ -9240,7 +9240,7 @@
       {
         "aliases": [],
         "default_child": "list",
-        "description_digest": "ff1df8fe31933b9c",
+        "description_digest": "092c7f7e83e49896",
         "hidden": false,
         "mutex_groups": [],
         "name": "glossary",
@@ -9275,6 +9275,190 @@
         ],
         "positionals": [],
         "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "9c4a7f3470cae7ed",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "add",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "alias",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-a",
+                  "--alias"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "json",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "no_init",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-I",
+                  "--no-init"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "glossary",
+              "add"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "term",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "TERM",
+                "nargs": null
+              },
+              {
+                "choices": null,
+                "dest": "definition",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "DEFINITION",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "be02ed80096dbe29",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "del",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "json",
+                  "rich"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "no_init",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-I",
+                  "--no-init"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "glossary",
+              "del"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "term",
+                "is_remainder": false,
+                "kind": "glossary",
+                "metavar": "TERM",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
           {
             "aliases": [],
             "default_child": null,

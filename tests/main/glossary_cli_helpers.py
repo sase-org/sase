@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from sase.content_layout import resolve_project_config_write_path
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
+from sase.core.project_lifecycle_wire import (
+    PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+    ProjectRecordWire,
+)
 from sase.glossary.cli_common import ResolvedGlossaryProject
+from sase.glossary.mutation import GlossaryMutationOutcome
+from sase.xprompt import glossary_catalog as catalog_mod
 
 
 class FakeCompiledGlossaryCatalog:
@@ -100,3 +108,82 @@ def diamond_resolved_glossary_project() -> ResolvedGlossaryProject:
     return resolved_glossary_project(
         entries=(alpha, beta, gamma, delta), compiled=compiled
     )
+
+
+def mutation_outcome(
+    *,
+    project_name: str = "demo",
+    config_path: str = "/tmp/demo/sase/sase.yml",
+    workspace_dir: str = "/tmp/demo",
+    term: str = "Widget Box",
+    aliases: tuple[str, ...] = ("box",),
+    definition: str = "A container for widgets.",
+    created_section: bool = False,
+    restore_command: str = (
+        "sase glossary add 'Widget Box' 'A container for widgets.' -a box -p demo"
+    ),
+    referenced_by: tuple[str, ...] = (),
+) -> GlossaryMutationOutcome:
+    return GlossaryMutationOutcome(
+        project_name=project_name,
+        config_path=config_path,
+        workspace_dir=workspace_dir,
+        term=term,
+        aliases=aliases,
+        definition=definition,
+        created_section=created_section,
+        restore_command=restore_command,
+        referenced_by=referenced_by,
+    )
+
+
+_SORTED_GLOSSARY = """# keep this comment
+timezone: UTC  # tz
+memory:
+  h1_title: Demo
+  glossary:
+    Alpha:
+      definition: >-
+        First term stands alone.
+    Gamma:
+      aliases:
+        - g
+      definition: >-
+        Third term mentions Alpha.
+"""
+
+
+def install_writable_glossary_project(
+    tmp_path: Path,
+    monkeypatch: Any,
+    body: str | None = _SORTED_GLOSSARY,
+    *,
+    display_name: str = "demo",
+) -> Path:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(parents=True)
+    config_path = resolve_project_config_write_path(workspace)
+    if body is not None:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(body, encoding="utf-8")
+    record = ProjectRecordWire(
+        schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+        project_name="gh_demo__app",
+        project_dir="/tmp/projects/gh_demo__app",
+        project_file="/tmp/projects/gh_demo__app/gh_demo__app.sase",
+        archive_file=None,
+        workspace_dir=str(workspace),
+        state="enabled",
+        state_explicit=False,
+        system_managed=False,
+        active_claim_count=0,
+        launchable=True,
+        aliases=[],
+        warnings=[],
+        parse_warnings=[],
+        display_name=display_name,
+    )
+    monkeypatch.setattr(
+        catalog_mod, "list_project_records", lambda *_a, **_kw: [record]
+    )
+    return config_path

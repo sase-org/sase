@@ -113,6 +113,7 @@ def _build_path_overrides() -> dict[tuple[tuple[str, ...], str], ValueKind]:
         (("agent", "kill"), "name"): ValueKind.AGENT,
         (("agent", "revert"), "name"): ValueKind.AGENT,
         (("agent", "show"), "name"): ValueKind.AGENT,
+        (("glossary", "del"), "term"): ValueKind.GLOSSARY,
         (("glossary", "log"), "term"): ValueKind.GLOSSARY,
         (("glossary", "read"), "term"): ValueKind.GLOSSARY,
         (("glossary", "show"), "term"): ValueKind.GLOSSARY,

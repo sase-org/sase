@@ -124,6 +124,9 @@ sase glossary show Stitch -d 0 -f markdown
 sase glossary read "Agent Hood" -r "Need the hood/agent distinction"
 sase glossary log
 sase glossary log -t Stitch -a agent-a
+sase glossary add "Test Term" "A test term that references Agent Hood." -a tt
+sase glossary del "Test Term"
+sase glossary del tt -n
 ```
 
 `sase glossary` with no subcommand defaults to `sase glossary list`. Every subcommand
@@ -171,6 +174,25 @@ totals plus by-term and by-agent breakdowns and recent events. `-t/--term` and
 filtered view is never mistaken for the whole log. `-i/--id READ_ID` selects one event
 by id or unambiguous prefix and prints its full detail. `-f/--format json` emits
 deterministic JSON for both the summary and the single-event view.
+
+`sase glossary add TERM DEFINITION [-a ALIAS]...` writes a new entry into the project's
+`sase/sase.yml` after the same Rust validation that rejects duplicate terms and
+colliding aliases. Required values are positionals; `-a/--alias` may be repeated. The
+term is inserted so the glossary map stays sorted. On success the command prints the
+project display name, the term, its aliases, and the config path written.
+`-f/--format json` emits a stable object with the same fields plus `created_section`.
+
+`sase glossary del TERM` resolves `TERM` through the same alias, slug, and unique-prefix
+lookup as `show` and `read`, then removes that entry. It is non-interactive: instead of
+a prompt it prints the exact `sase glossary add …` restore command, the inbound
+reference count, and the written config path. `-n/--dry-run` prints that same block and
+exits without writing. Copy-pasting the restore command is the undo.
+
+Both write commands regenerate the project's agent instruction files in-process after a
+successful write (`AGENTS.md` and the provider shims) so the new or removed term is
+visible to agents. `-I/--no-init` skips that step. A regeneration failure is reported as
+a warning and does not roll back the config write; run `sase memory init` by hand if
+that happens.
 
 ## Propose Memory
 

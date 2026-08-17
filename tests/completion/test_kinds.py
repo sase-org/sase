@@ -93,3 +93,4 @@ def test_path_overrides_cover_shipped_catalog_slots() -> None:
     assert PATH_OVERRIDES[(("glossary", "read"), "term")] is ValueKind.GLOSSARY
     assert PATH_OVERRIDES[(("glossary", "show"), "term")] is ValueKind.GLOSSARY
     assert PATH_OVERRIDES[(("glossary", "log"), "term")] is ValueKind.GLOSSARY
+    assert PATH_OVERRIDES[(("glossary", "del"), "term")] is ValueKind.GLOSSARY

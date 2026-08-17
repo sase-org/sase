@@ -13,12 +13,12 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``glossary`` command group."""
     glossary_parser = subparsers.add_parser(
         "glossary",
-        help="List, show, and audit project glossary terms and their closure",
+        help="Add, delete, list, show, and audit project glossary terms",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Inspect the project glossary configured under memory.glossary in "
-            "sase/sase.yml. Running `sase glossary` defaults to "
-            "`sase glossary list`."
+            "Inspect or update the project glossary configured under "
+            "memory.glossary in sase/sase.yml. Running `sase glossary` "
+            "defaults to `sase glossary list`."
         ),
         epilog=(
             "examples:\n"
@@ -29,7 +29,10 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase glossary -p sase show Stitch\n"
             '  sase glossary read "Agent Hood" -r "Need the hood/agent distinction"\n'
             "  sase glossary log\n"
-            "  sase glossary log -t Stitch -a agent-a"
+            "  sase glossary log -t Stitch -a agent-a\n"
+            '  sase glossary add "Test Term" "A test term." -a tt\n'
+            '  sase glossary del "Test Term"\n'
+            "  sase glossary del tt -n"
         ),
     )
     _add_project_option(glossary_parser, default=None)
@@ -37,6 +40,81 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="glossary_subcommand",
         help="Glossary subcommands",
     )
+
+    add_parser = glossary_subparsers.add_parser(
+        "add",
+        help="Add a glossary term to a project's config",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Insert a glossary term into the target project's sase/sase.yml "
+            "after Rust validation. New terms land in sorted order. Agent "
+            "instruction files are regenerated afterward unless -I/--no-init "
+            "is passed."
+        ),
+        epilog=(
+            "examples:\n"
+            '  sase glossary add "Test Term" '
+            '"A test term that references Agent Hood."\n'
+            '  sase glossary add "Test Term" "A test term." -a tt -a test\n'
+            '  sase glossary add "Test Term" "A test term." -p sase -f json\n'
+            '  sase glossary add "Test Term" "A test term." -I'
+        ),
+    )
+    add_parser.add_argument(
+        "term",
+        metavar="TERM",
+        help="Canonical term to add",
+    )
+    add_parser.add_argument(
+        "definition",
+        metavar="DEFINITION",
+        help="Definition body for the new term",
+    )
+    add_parser.add_argument(
+        "-a",
+        "--alias",
+        action="append",
+        default=None,
+        metavar="ALIAS",
+        help="Display alias to attach (repeatable)",
+    )
+    _add_write_format_option(add_parser)
+    _add_no_init_option(add_parser)
+    _add_project_option(add_parser)
+
+    del_parser = glossary_subparsers.add_parser(
+        "del",
+        help="Delete a glossary term and print its restore command",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Remove a glossary term after resolving TERM through the same "
+            "alias, slug, and unique-prefix lookup as `sase glossary show`. "
+            "Prints the exact `sase glossary add` command that restores the "
+            "entry. -n/--dry-run prints that outcome without writing."
+        ),
+        epilog=(
+            "examples:\n"
+            '  sase glossary del "Test Term"\n'
+            "  sase glossary del tt\n"
+            "  sase glossary del tt -n\n"
+            '  sase glossary del "Test Term" -p sase -f json\n'
+            '  sase glossary del "Test Term" -I'
+        ),
+    )
+    del_parser.add_argument(
+        "term",
+        metavar="TERM",
+        help="Term, alias, or unique prefix to delete",
+    )
+    _add_write_format_option(del_parser)
+    _add_no_init_option(del_parser)
+    del_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Print the outcome without writing",
+    )
+    _add_project_option(del_parser)
 
     list_parser = glossary_subparsers.add_parser(
         "list",
@@ -162,6 +240,25 @@ def register_glossary_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     _add_closure_arguments(show_parser)
+
+
+def _add_write_format_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=("json", "rich"),
+        default="rich",
+        help="Output format (default: rich)",
+    )
+
+
+def _add_no_init_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-I",
+        "--no-init",
+        action="store_true",
+        help="Skip regenerating agent instruction files",
+    )
 
 
 def _add_project_option(

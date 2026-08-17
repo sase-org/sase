@@ -44,6 +44,7 @@ class GlossaryMutationOutcome:
 
     project_name: str
     config_path: str
+    workspace_dir: str
     term: str
     aliases: tuple[str, ...]
     definition: str
@@ -108,6 +109,7 @@ def add_glossary_term(
     return GlossaryMutationOutcome(
         project_name=project.name,
         config_path=str(config_path),
+        workspace_dir=str(project.workspace_dir),
         term=cleaned_term,
         aliases=cleaned_aliases,
         definition=cleaned_definition,
@@ -125,8 +127,14 @@ def add_glossary_term(
 def delete_glossary_term(
     project_ref: str | None,
     reference: str,
+    *,
+    dry_run: bool = False,
 ) -> GlossaryMutationOutcome:
-    """Remove the glossary entry resolved from *reference* after validation."""
+    """Remove the glossary entry resolved from *reference* after validation.
+
+    When *dry_run* is true, resolve, validate, and return the outcome without
+    writing the config file.
+    """
     project = _resolve_project(project_ref, require_catalog=True)
     catalog = project.catalog
     compiled = project.compiled
@@ -149,11 +157,13 @@ def delete_glossary_term(
         raise GlossaryLookupError(reference)
     _validate_candidate(remaining)
     new_text = unset_key(text, (_MEMORY_KEY, _GLOSSARY_KEY, entry.term))
-    _write_config_atomically(config_path, new_text, original_bytes)
+    if not dry_run:
+        _write_config_atomically(config_path, new_text, original_bytes)
     aliases = entry.configured_aliases
     return GlossaryMutationOutcome(
         project_name=project.name,
         config_path=str(config_path),
+        workspace_dir=str(project.workspace_dir),
         term=entry.term,
         aliases=aliases,
         definition=entry.definition,
