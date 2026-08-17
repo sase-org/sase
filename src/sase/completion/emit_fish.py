@@ -13,9 +13,29 @@ from sase.completion.model import (
 )
 
 _FISH_PREAMBLE = """\
+# Resolves `sase` from PATH and skips ephemeral workspace venvs
+# (`…/sase_<N>/.venv/bin/sase`), which vanish when the workspace is reaped.
+function __sase_run
+    for dir in $PATH
+        set -l cmd $dir/sase
+        if test -x $cmd
+            if not string match -qr '/sase_[0-9]+/\\.venv/bin/sase$' $cmd
+                command $cmd $argv
+                return
+            end
+        end
+    end
+    command sase $argv
+end
+
+# Fetches candidates for kind $argv[1] through the pre-argparse fast path.
+# `(...)` command substitutions fork, so state set here never survives to
+# the next keystroke -- unlike zsh and bash, fish relies entirely on the
+# fast path's own disk cache (candidates/cache.py) to absorb repeats, kept
+# to a short TTL. The value/description output is fish's native format for
+# a `-a` completion, so it is printed through unmodified.
 function __sase_candidates
-    # Placeholder filled in by the wire phase.
-    return 1
+    __sase_run completion candidates $argv[1] 2>/dev/null
 end
 
 function __sase_cmd

@@ -91,7 +91,7 @@ def test_emit_zsh_header_and_arguments_flags() -> None:
     script = emit_zsh(_spec())
     assert script.startswith("#compdef sase\n")
     assert "_arguments -C -s -S" in script
-    assert "_sase_run()" in script
+    assert "__sase_run()" in script
     assert '_sase_root "$@"' in script
 
 
@@ -217,7 +217,7 @@ def test_hidden_option_is_not_emitted() -> None:
     assert "--json" in script
 
 
-def test_static_choices_and_kind_placeholders() -> None:
+def test_static_choices_and_kind_calls() -> None:
     fmt = _option(
         strings=("-f", "--format"),
         dest="format",
@@ -248,7 +248,7 @@ def test_static_choices_and_kind_placeholders() -> None:
     )
     script = emit_zsh(_spec(_command(options=(fmt, project, out, directory))))
     assert ":format:(json text)" in script
-    assert ":project:->project" in script
+    assert ":project:{__sase_candidates project}" in script
     assert ":output:_files" in script
     assert ":dir:_files -/" in script
 

@@ -10,13 +10,51 @@ from sase.completion.model import CommandSpec, CompletionSpec
 
 _SAFE_TOKEN = re.compile(r"[-_./A-Za-z0-9]+")
 
-# Hand-written walker. Kinded slots call ``__sase_candidates``; the wire
-# phase replaces that stub. ``complete -o default`` covers path/dir and
-# unknown value slots.
+# Hand-written walker. Kinded slots call ``__sase_candidates``, which caches
+# the fast path's output in a shell associative array keyed by kind so
+# retyping the same word never re-forks ``sase``. ``complete -o default``
+# covers path/dir and unknown value slots.
 _BASH_PREAMBLE = """\
+declare -gA __sase_candidates_cache
+declare -gA __sase_candidates_stamp
+
+# Resolves `sase` from PATH and skips ephemeral workspace venvs
+# (`…/sase_<N>/.venv/bin/sase`), which vanish when the workspace is reaped.
+__sase_run() {
+  local -a dirs
+  local dir cmd
+  IFS=: read -r -a dirs <<< "${PATH}"
+  for dir in "${dirs[@]}"; do
+    cmd="${dir}/sase"
+    if [[ -x ${cmd} && ${cmd} != */sase_[0-9]*/.venv/bin/sase ]]; then
+      command "${cmd}" "$@"
+      return
+    fi
+  done
+  command sase "$@"
+}
+
+# Fetches candidates for kind $1 through the pre-argparse fast path,
+# caching the full set (never the prefix -- that is what lets one cached
+# fetch serve a whole word) for SASE_COMPLETION_CACHE_TTL seconds, then
+# filters by the current word $2 with a prefix $3 via compgen. Bash cannot
+# show descriptions, so only the value column survives.
 __sase_candidates() {
-  # Placeholder filled in by the wire phase.
-  return 1
+  local kind=$1 cur=$2 prefix=$3
+  local ttl=${SASE_COMPLETION_CACHE_TTL:-60}
+  # `${arr[k]+x}` tests key presence rather than value, so a fetch at
+  # SECONDS==0 is never mistaken for the unpopulated default.
+  if [[ -z ${__sase_candidates_stamp[${kind}]+x} ]] ||
+     (( SECONDS - __sase_candidates_stamp[${kind}] >= ttl )); then
+    __sase_candidates_cache[${kind}]=$(__sase_run completion candidates "${kind}" 2>/dev/null)
+    __sase_candidates_stamp[${kind}]=${SECONDS}
+  fi
+  local -a values=()
+  local line
+  while IFS= read -r line; do
+    [[ -n ${line} ]] && values+=("${line%%$'\\t'*}")
+  done <<< "${__sase_candidates_cache[${kind}]}"
+  COMPREPLY=($(compgen -P "${prefix}" -W "${values[*]}" -- "${cur}"))
 }
 
 _sase() {
@@ -111,7 +149,7 @@ _sase_complete_value() {
     kind:path|kind:dir|value)
       ;;
     kind:*)
-      __sase_candidates "${spec#kind:}"
+      __sase_candidates "${spec#kind:}" "${value_cur}" "${prefix}"
       ;;
   esac
 }

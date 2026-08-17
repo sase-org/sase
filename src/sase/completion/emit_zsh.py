@@ -259,7 +259,10 @@ def _value_suffix(
     if kind is ValueKind.DIR:
         return f":{name}:_files -/"
     if kind is not None:
-        return f":{name}:->{kind}"
+        # Braces make `_arguments` eval this literally; the bare-word action
+        # form instead prepends its own `-J`/`-V`/... flags before any
+        # trailing words, which would shadow the kind argument at $1.
+        return f":{name}:{{__sase_candidates {kind}}}"
     return f":{name}:"
 
 

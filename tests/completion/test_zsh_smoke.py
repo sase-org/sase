@@ -10,6 +10,7 @@ import os
 import pty
 import re
 import select
+import shlex
 import shutil
 import subprocess
 import time
@@ -144,6 +145,125 @@ def test_tab_completes_bead_plus_to_plus_one(tmp_path: Path) -> None:
     _write_script(fpath_dir)
     completed = _pty_complete(tmp_path, fpath_dir, "sase bead +")
     assert re.search(r"sase bead \+1\b", completed), completed
+
+
+def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> None:
+    """A kinded positional calls the fast path once, then serves the cache.
+
+    Drives ``sase bead +1 <TAB><TAB>`` against a fixture ``sase`` on PATH
+    that records every invocation. The plus-one spec's ``id`` positional
+    already carries ``ValueKind.BEAD`` (see ``_plus_one_spec``), so no
+    separate spec is needed. Two candidates share a common, non-empty
+    prefix so the first TAB inserts only that prefix (leaving the cursor on
+    the same word) and the second TAB re-triggers completion at the same
+    position -- the scenario where a stale in-shell cache would otherwise
+    cause a second fork of ``sase``.
+    """
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_script(fpath_dir)
+    bin_dir, call_count = _write_fixture_sase(
+        tmp_path,
+        "zzz-fixture-alpha\tAlpha desc",
+        "zzz-fixture-beta\tBeta desc",
+    )
+
+    completed = _pty_dynamic_complete(
+        tmp_path, fpath_dir, bin_dir, "sase bead +1 ", taps=2
+    )
+    assert "zzz-fixture-" in completed, completed
+    assert call_count.read_text().strip() == "1"
+
+
+def _write_fixture_sase(tmp_path: Path, *candidate_lines: str) -> tuple[Path, Path]:
+    """Write a fake ``sase`` that records its call count and answers
+    ``completion candidates`` with fixed lines, for a bin dir put ahead of
+    the real ``sase`` on PATH."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    call_count = tmp_path / "call_count"
+    call_count.write_text("0", encoding="utf-8")
+    prints = "\n".join(
+        f"printf {shlex.quote(line + chr(10))}" for line in candidate_lines
+    )
+    script = bin_dir / "sase"
+    script.write_text(
+        "#!/usr/bin/env bash\n"
+        "count=0\n"
+        f"[[ -f {shlex.quote(str(call_count))} ]] && "
+        f"count=$(cat {shlex.quote(str(call_count))})\n"
+        f"echo $((count + 1)) > {shlex.quote(str(call_count))}\n"
+        'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
+        f"{prints}\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return bin_dir, call_count
+
+
+def _pty_dynamic_complete(
+    tmp_path: Path, fpath_dir: Path, bin_dir: Path, typed: str, *, taps: int
+) -> str:
+    """Drive an interactive zsh through *taps* TAB presses and return the
+    captured screen text, with a fixture ``sase`` ahead on PATH and the
+    completion cache on (the documented recommended zstyle -- without it
+    ``_retrieve_cache`` never consults the cache at all)."""
+    zdot = tmp_path / "zdot"
+    zdot.mkdir()
+    (zdot / ".zshrc").write_text(
+        "unsetopt zle_bracketed_paste beep\n"
+        "PS1='READY>'\n"
+        "PS2=\n"
+        "RPS1=\n"
+        f"fpath=({fpath_dir} $fpath)\n"
+        "autoload -Uz compinit\n"
+        "compinit -u -D\n"
+        "zstyle ':completion:*' insert-tab false\n"
+        "zstyle ':completion:*' menu false\n"
+        "zstyle ':completion:*' list-colors ''\n"
+        "zstyle ':completion:*' use-cache on\n",
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "ZDOTDIR": str(zdot),
+        "TERM": "dumb",
+        "NO_COLOR": "1",
+    }
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execvpe("zsh", ["zsh", "-i"], env)
+    try:
+        _read_until(fd, b"READY>", timeout=8.0)
+        os.write(fd, typed.encode() + b"\t" * taps)
+        buf = _read_for(fd, 3.0)
+        return buf.decode("utf-8", errors="replace")
+    finally:
+        os.close(fd)
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
+
+
+def _read_for(fd: int, seconds: float) -> bytes:
+    buf = b""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        ready, _, _ = select.select([fd], [], [], max(0.0, remaining))
+        if not ready:
+            continue
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:
+            break
+        if not chunk:
+            break
+        buf += chunk
+    return buf
 
 
 def _pty_complete(tmp_path: Path, fpath_dir: Path, typed: str) -> str:

@@ -173,3 +173,56 @@ def test_format_choices_are_offered(tmp_path: Path) -> None:
     replies = _complete(script, ["sase", "bead", "--format", ""])
     assert "json" in replies
     assert "text" in replies
+
+
+def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> None:
+    """A kinded positional calls the fast path once per shell, then serves
+    the in-shell cache. Two ``_sase`` invocations for the same word inside
+    a single bash process -- as repeated TAB presses would produce, since
+    the cache lives in a ``declare -gA`` array scoped to the shell -- must
+    fork the fixture ``sase`` only once.
+    """
+    script = _write_script(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    call_count = tmp_path / "call_count"
+    call_count.write_text("0", encoding="utf-8")
+    fixture = bin_dir / "sase"
+    fixture.write_text(
+        "#!/usr/bin/env bash\n"
+        "count=0\n"
+        f"[[ -f {shlex.quote(str(call_count))} ]] && "
+        f"count=$(cat {shlex.quote(str(call_count))})\n"
+        f"echo $((count + 1)) > {shlex.quote(str(call_count))}\n"
+        'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
+        "  printf 'zzz-fixture-bead\\tA fixture bead\\n'\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    fixture.chmod(0o755)
+
+    snippet = f"""
+set +e
+export PATH={shlex.quote(str(bin_dir))}:$PATH
+source {shlex.quote(str(script))}
+COMP_WORDS=(sase bead +1 "")
+COMP_CWORD=3
+COMP_LINE="sase bead +1 "
+COMP_POINT=${{#COMP_LINE}}
+_sase
+printf '%s\\n' "${{COMPREPLY[@]}}"
+printf '===\\n'
+_sase
+printf '%s\\n' "${{COMPREPLY[@]}}"
+"""
+    result = subprocess.run(
+        [bash, "--norc", "--noprofile", "-c", snippet],  # type: ignore[list-item]
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    first, _, second = result.stdout.partition("===\n")
+    assert "zzz-fixture-bead" in first, result.stdout
+    assert "zzz-fixture-bead" in second, result.stdout
+    assert call_count.read_text().strip() == "1"
