@@ -7,7 +7,9 @@ paths; see ``tests/test_llm_provider_invoke.py`` for the call-site wiring.
 from __future__ import annotations
 
 import threading
+from datetime import datetime
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -25,6 +27,13 @@ _NOW = 1_800_000_000.0
 _AGY_INDIVIDUAL_QUOTA_REACHED = (
     "Error: Individual quota reached. Please upgrade your subscription to increase\n"
     "your limits. Resets in 4h14m50s."
+)
+
+# Verbatim failure from the sase-o8.2 agent that motivated the absolute-
+# reset-timestamp parser fix (see the plan's Background section).
+_CODEX_TRY_AGAIN_AT_DATE = (
+    "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to "
+    "purchase more credits or try again at Aug 20th, 2026 6:38 AM."
 )
 
 
@@ -93,6 +102,36 @@ class TestHandlePossibleUsageLimit:
         assert disable is not None
         assert disable.expires_at == _NOW + 3600.0
         assert disable.source == "usage_limit"
+
+    def test_codex_reset_at_date_failure_writes_until_disable_at_parsed_instant(
+        self, monkeypatch: pytest.MonkeyPatch, registered_providers: None
+    ) -> None:
+        # Enforcement, not just parsing: the absolute reset instant the
+        # Codex failure names must reach the store via try_disable_provider_
+        # until, not the flat now+86400 branch.
+        tz = ZoneInfo("UTC")
+        fixed_now = datetime(2026, 8, 17, 6, 38, 0, tzinfo=tz).timestamp()
+        monkeypatch.setattr(
+            "sase.llm_provider.usage_limit_config.time.time", lambda: fixed_now
+        )
+        monkeypatch.setattr("sase.core.time.get_timezone", lambda: tz)
+
+        result = handle_possible_usage_limit(
+            provider="codex", error_text=_CODEX_TRY_AGAIN_AT_DATE
+        )
+
+        assert result is not None
+        assert result.used_reset_hint is True
+        assert result.expires_at is not None
+
+        disable = get_active_provider_disable("codex", now=fixed_now)
+        assert disable is not None
+        assert disable.source == "usage_limit"
+        expected_expires_at = (
+            datetime(2026, 8, 20, 6, 38, 0, tzinfo=tz).timestamp() + 60
+        )
+        assert disable.expires_at == pytest.approx(expected_expires_at, abs=1)
+        assert disable.expires_at != pytest.approx(fixed_now + 86400, abs=3600)
 
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
     @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")

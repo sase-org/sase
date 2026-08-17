@@ -250,6 +250,16 @@ def test_remaining_subminute_rounds_up_to_one_minute() -> None:
     assert format_remaining_until(130.0, now=100.0) == "1m"
 
 
+def test_remaining_multi_day_renders_day_and_hour_unit() -> None:
+    remaining = 3 * 86400 + 4 * 3600
+    assert format_remaining_until(100.0 + remaining, now=100.0) == "3d4h"
+
+
+def test_remaining_exact_days_renders_day_unit_only() -> None:
+    remaining = 2 * 86400
+    assert format_remaining_until(100.0 + remaining, now=100.0) == "2d"
+
+
 def test_tooltip_describes_inactive_default_states() -> None:
     indicator = LLMOverrideIndicator()
 

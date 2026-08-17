@@ -160,6 +160,21 @@ class ClaudeCodeProvider(LLMProvider):
         # near-miss advisory text the same binary injects into *successful*
         # runs ("approaching", "grace window") and the fast-mode cooldown
         # message, none of which are account-level usage limits.
+        #
+        # The same binary's ``swe(resetsAt, withZone)`` formatter appends a
+        # " · resets <X>" suffix that branches on distance from now: within
+        # 24h it renders a bare zoned clock time ("resets 6:38pm (America/
+        # New_York)"), already handled by the zoned clock-time form; beyond
+        # 24h — which is what the `seven_day` limits produce — it renders
+        # "resets Aug 20, 6:38 am (America/New_York)" (no comma before the
+        # time; minutes omitted when zero: "resets Aug 20, 6 am (...)"; year
+        # inserted across a year boundary: "resets Aug 20, 2027, 6:38 am
+        # (...)"). A separate billing-error body renders "spend limit
+        # reached (monthly; resets 2026-08-20 06:38 UTC)". Both are parsed
+        # by usage_limit_config.py's absolute-timestamp forms. Two label-map
+        # entries (`seven_day_overage_included` → "Fable 5 limit",
+        # `overage` → "usage credit limit") have no corresponding pattern
+        # here yet — not guessed at, since the wording hasn't been captured.
         return ProviderUsageLimitConfig(
             patterns=[
                 "you've hit your usage limit",

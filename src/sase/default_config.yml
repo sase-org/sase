@@ -941,7 +941,8 @@ llm_provider:
   #   disable_seconds: 86400     # 24h fallback when no reset hint is honored
   #   min_disable_seconds: 60    # lower bound for provider-reported reset hints
   #   max_disable_seconds: 604800 # upper bound for reset hints (7d)
-  #   honor_reset_hint: true     # parse provider "resets at/in" hints when possible
+  #   honor_reset_hint: true     # parse provider reset hints (clock time, absolute
+  #                              # date, or duration) when possible
   #   notify: true               # notify once for each new disable window
   #   providers:
   #     claude:

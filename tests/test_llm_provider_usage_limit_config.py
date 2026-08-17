@@ -436,6 +436,141 @@ class TestParseResetHint:
         assert expires_at is None
         assert hint is None
 
+    def test_documented_resets_at_example_now_parses(self) -> None:
+        # docs/configuration.md's example for honor_reset_hint; broadening the
+        # anchor to accept "at"/"on" is what makes this finally true.
+        with patch("sase.core.time.get_timezone", return_value=ZoneInfo("UTC")):
+            expires_at, hint = parse_reset_hint("resets at 8pm", now=1755302400.0)
+        assert expires_at is not None
+        assert hint == "8pm"
+
+    def test_reset_at_with_zone_broadened_anchor(self) -> None:
+        expires_at, hint = parse_reset_hint(
+            "Your limit will reset at 3am (America/New_York)", now=1755302400.0
+        )
+        assert expires_at is not None
+        assert hint == "3am (America/New_York)"
+
+    def test_codex_bare_time_only_uses_broadened_anchor(self) -> None:
+        with patch("sase.core.time.get_timezone", return_value=ZoneInfo("UTC")):
+            expires_at, hint = parse_reset_hint(
+                "Try again at 6:38 AM.", now=1755302400.0
+            )
+        assert expires_at is not None
+        assert hint == "6:38am"
+
+    def test_codex_ordinal_date_with_year_uppercase_meridiem(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()
+        with patch("sase.core.time.get_timezone", return_value=tz):
+            expires_at, hint = parse_reset_hint(
+                "or try again at Aug 20th, 2026 6:38 AM.", now=now
+            )
+        assert expires_at is not None
+        assert hint == "Aug 20th, 2026 6:38 AM"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.year, resolved.month, resolved.day) == (2026, 8, 20)
+        assert (resolved.hour, resolved.minute) == (6, 38)
+
+    def test_claude_weekly_limit_month_name_with_zone_and_minutes(self) -> None:
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "You've hit your weekly limit · resets Aug 20, 6:38 am (America/New_York)",
+            now=now,
+        )
+        assert expires_at is not None
+        assert hint == "Aug 20, 6:38 am (America/New_York)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.year, resolved.month, resolved.day) == (2026, 8, 20)
+        assert (resolved.hour, resolved.minute) == (6, 38)
+
+    def test_claude_month_name_with_zone_no_minutes(self) -> None:
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "resets Aug 20, 6 am (America/New_York)", now=now
+        )
+        assert expires_at is not None
+        assert hint == "Aug 20, 6 am (America/New_York)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.month, resolved.day, resolved.hour, resolved.minute) == (
+            8,
+            20,
+            6,
+            0,
+        )
+
+    def test_claude_month_name_with_zone_and_explicit_year(self) -> None:
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 12, 30, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "resets Aug 20, 2027, 6:38 am (America/New_York)", now=now
+        )
+        assert expires_at is not None
+        assert hint == "Aug 20, 2027, 6:38 am (America/New_York)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.year, resolved.month, resolved.day) == (2027, 8, 20)
+
+    def test_claude_billing_iso_with_bare_utc(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 8, 17, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint(
+            "spend limit reached (monthly; resets 2026-08-20 06:38 UTC)", now=now
+        )
+        assert expires_at is not None
+        assert hint == "2026-08-20 06:38 UTC"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert (resolved.year, resolved.month, resolved.day) == (2026, 8, 20)
+        assert (resolved.hour, resolved.minute) == (6, 38)
+
+    def test_resets_iso_without_zone_uses_local_timezone(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 8, 17, tzinfo=tz).timestamp()
+        with patch("sase.core.time.get_timezone", return_value=tz):
+            expires_at, hint = parse_reset_hint("resets 2026-08-20 06:38", now=now)
+        assert expires_at is not None
+        assert hint == "2026-08-20 06:38"
+
+    def test_month_name_unresolvable_day_returns_none(self) -> None:
+        # A matched-but-invalid payload (day 32) must not fall through to a
+        # lower-priority form.
+        expires_at, hint = parse_reset_hint(
+            "resets Aug 32nd, 2026 6:38 AM", now=1755302400.0
+        )
+        assert expires_at is None
+        assert hint is None
+
+    def test_year_inference_picks_same_year(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 8, 17, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint("resets Aug 20, 6:38 am (UTC)", now=now)
+        assert expires_at is not None
+        assert hint == "Aug 20, 6:38 am (UTC)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert resolved.year == 2026
+
+    def test_year_inference_rolls_to_next_year(self) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 12, 30, 6, 0, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint("resets Jan 2, 6:38 am (UTC)", now=now)
+        assert expires_at is not None
+        assert hint == "Jan 2, 6:38 am (UTC)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert resolved.year == 2027
+
+    def test_year_inference_keeps_recent_past_instead_of_rolling_forward(
+        self,
+    ) -> None:
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 8, 17, 10, 5, 0, tzinfo=tz).timestamp()
+        expires_at, hint = parse_reset_hint("resets Aug 17, 10:00 am (UTC)", now=now)
+        assert expires_at is not None
+        assert hint == "Aug 17, 10:00 am (UTC)"
+        resolved = datetime.fromtimestamp(expires_at - 60, tz=tz)
+        assert resolved == datetime(2026, 8, 17, 10, 0, 0, tzinfo=tz)
+        assert abs(expires_at - now) < 3600
+
 
 # --- detect_usage_limit tests ---
 

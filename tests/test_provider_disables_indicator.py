@@ -47,6 +47,15 @@ def test_single_provider_disable_renders_countdown() -> None:
     assert str(text.style) == _ACTIVE_STYLE
 
 
+def test_multi_day_provider_disable_renders_day_unit() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {"codex": _disable("codex", expires_at=100.0 + 3 * 86400 + 4 * 3600)},
+        now=100.0,
+    )
+
+    assert text.plain == " CODEX off 3d4h "
+
+
 def test_single_provider_disable_until_cleared_renders_infinity() -> None:
     text = ProviderDisablesIndicator._build_content(
         {"claude": _disable(expires_at=None)},
@@ -93,6 +102,26 @@ def test_tooltip_lists_active_provider_disables() -> None:
         "CLAUDE - manual, until cleared\n"
         "CODEX - usage-limit automatic, 1h2m left\n"
         "GROK - external plugin, 1h5m left\n"
+        "New launches route around them; running processes continue.\n"
+        "Press ,m for Launch Control."
+    )
+
+
+def test_tooltip_renders_day_unit_for_multi_day_disable() -> None:
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        {
+            "codex": _disable(
+                "codex",
+                expires_at=100.0 + 3 * 86400 + 4 * 3600,
+                source="usage_limit",
+            ),
+        },
+        now=100.0,
+    )
+
+    assert tooltip == (
+        "Disabled providers:\n"
+        "CODEX - usage-limit automatic, 3d4h left\n"
         "New launches route around them; running processes continue.\n"
         "Press ,m for Launch Control."
     )

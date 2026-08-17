@@ -312,7 +312,14 @@ class CodexProvider(LLMProvider):
         from .usage_limit_config import ProviderUsageLimitConfig
 
         # The literal message family shipped in the @openai/codex native
-        # binary (epic sase-n4 research).
+        # binary (epic sase-n4 research). The same binary also emits a reset
+        # instant with the carrier sentence, in local time with no zone
+        # marker: "Try again at %b %-d<ord>, %Y %-I:%M %p." (ordinal day,
+        # year always present, e.g. "Try again at Aug 20th, 2026 6:38 AM.")
+        # or a bare "%-I:%M %p." once the date rolls over to today. No
+        # pattern change is needed here since "you've hit your usage limit"
+        # already matches the carrier sentence; usage_limit_config.py parses
+        # the reset instant out of it.
         return ProviderUsageLimitConfig(
             patterns=[
                 "you've hit your usage limit",

@@ -55,7 +55,12 @@ def format_remaining_until(
         return ""
 
     total_minutes = max(1, math.ceil(remaining / 60.0))
-    hours, minutes = divmod(total_minutes, 60)
+    total_hours, minutes = divmod(total_minutes, 60)
+    days, hours = divmod(total_hours, 24)
+    if days and hours:
+        return f"{days}d{hours}h"
+    if days:
+        return f"{days}d"
     if hours and minutes:
         return f"{hours}h{minutes}m"
     if hours:

@@ -5,7 +5,9 @@ the epic sase-n4 plan research (apostrophes intact), plus explicit negative
 cases that must NOT trip a disable.
 """
 
+from datetime import datetime
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -20,6 +22,16 @@ from sase.llm_provider.usage_limit_config import (
 
 _CLAUDE_WEEKLY_LIMIT = "You've hit your weekly limit · resets 8pm (America/New_York)"
 
+# The >24h branch of the shipped ``swe(resetsAt, withZone)`` formatter, which
+# is what a `seven_day` limit actually produces (see the comment on
+# ``claude.py``'s ``llm_default_usage_limit_config``). This is the "equivalent
+# fix for other providers" case: before the parser learned the month-name
+# absolute form, this fell back to the flat 24h disable exactly like Codex's
+# captured failure below.
+_CLAUDE_WEEKLY_LIMIT_WITH_RESET_DATE = (
+    "You've hit your weekly limit · resets Aug 20, 6:38 am (America/New_York)"
+)
+
 # U+2019 RIGHT SINGLE QUOTATION MARK in "You’ve", verified by hexdump per the
 # plan's research.
 _GROK_USAGE_LIMIT = (
@@ -32,6 +44,14 @@ _CODEX_UPGRADE_TO_PRO = (
     "You've hit your usage limit. Upgrade to Pro "
     "(https://chatgpt.com/explore/pro), visit "
     "https://chatgpt.com/codex/settings/usage to purchase more credits"
+)
+
+# Verbatim failure from the sase-o8.2 agent that motivated this parser fix
+# (see the plan's Background section): Codex named its reset instant three
+# days out and SASE disabled for the flat 24h fallback instead of honoring it.
+_CODEX_TRY_AGAIN_AT_DATE = (
+    "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to "
+    "purchase more credits or try again at Aug 20th, 2026 6:38 AM."
 )
 
 _AGY_INDIVIDUAL_QUOTA_REACHED = (
@@ -98,6 +118,25 @@ class TestClaudeBuiltInDefaults:
         assert is_usage_limit_error(_CLAUDE_CLOSE_TO_LIMIT_ADVISORY, config) is False
 
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_weekly_limit_with_reset_date_uses_reset_hint_duration(
+        self, mock_config: object
+    ) -> None:
+        # The >24h branch of Claude's own reset-time formatter must resolve
+        # to the real ~3-day gap, not the flat 24h fallback — the same defect
+        # as the Codex regression, proven here rather than merely asserted.
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 17, 6, 38, 0, tzinfo=tz).timestamp()
+        detection = detect_usage_limit(
+            "claude", _CLAUDE_WEEKLY_LIMIT_WITH_RESET_DATE, now=now
+        )
+
+        assert detection is not None
+        assert detection.used_reset_hint is True
+        assert detection.disable_seconds == pytest.approx(3 * 86400, abs=120)
+        assert detection.disable_seconds != 86400
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_user_appends_custom_pattern_to_built_in(self, mock_config: object) -> None:
         mock_config.return_value = {  # type: ignore[union-attr]
             "llm_provider": {
@@ -127,6 +166,23 @@ class TestCodexBuiltInDefaults:
         config = get_usage_limit_config("codex")
         assert config is not None
         assert is_usage_limit_error(_CODEX_UPGRADE_TO_PRO, config) is True
+
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_captured_reset_at_date_failure_uses_reset_hint_duration(
+        self, mock_config: object
+    ) -> None:
+        # The reported bug, end to end: a ~3-day-out reset instant must
+        # disable for ~3 days, not the flat 24h fallback.
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        tz = ZoneInfo("UTC")
+        now = datetime(2026, 8, 17, 6, 38, 0, tzinfo=tz).timestamp()
+        with patch("sase.core.time.get_timezone", return_value=tz):
+            detection = detect_usage_limit("codex", _CODEX_TRY_AGAIN_AT_DATE, now=now)
+
+        assert detection is not None
+        assert detection.used_reset_hint is True
+        assert detection.disable_seconds == pytest.approx(3 * 86400, abs=120)
+        assert detection.disable_seconds != 86400
 
 
 class TestGrokBuiltInDefaults:
