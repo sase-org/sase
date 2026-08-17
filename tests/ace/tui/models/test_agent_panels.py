@@ -337,6 +337,37 @@ def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
     assert agents_for_panel(clan, "quality") == clan
 
 
+def test_nested_monitor_inherits_clan_anchor_panel() -> None:
+    family = _agent(suffix="family", tribe="epic", name="research.family")
+    family.agent_clan = "research"
+    family.agent_clan_generation = "20260817080000"
+    family.agent_family = "research.family"
+    family.agent_family_role = "root"
+    starter = _agent(
+        suffix="starter",
+        name="research.family--2",
+        parent_timestamp="family",
+    )
+    starter.agent_family = family.agent_family
+    starter.agent_family_role = "code"
+    monitor = _agent(
+        suffix="monitor",
+        tribe="review",
+        name="research.family--mon-1",
+        parent_timestamp="starter",
+    )
+    monitor.agent_family = family.agent_family
+    monitor.agent_family_role = "monitor"
+    standalone = _agent(suffix="standalone", tribe="fix", name="standalone")
+
+    clan = project_clan_tree([family, starter, monitor])
+    agents = [*clan, standalone]
+
+    assert panel_key_per_agent(agents) == [None] * len(clan) + ["fix"]
+    assert agents_for_panel(agents, None) == clan
+    assert monitor in agents_for_panel(agents, None)
+
+
 def test_panel_focus_next_skips_multiple_panels_and_wraps() -> None:
     group = AgentPanelGroup([None, "alpha", "beta", "gamma"])
 

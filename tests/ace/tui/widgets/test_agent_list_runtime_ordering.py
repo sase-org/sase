@@ -363,3 +363,36 @@ def test_sort_and_reorder_skips_synthetic_planner_and_parallel_family_rows() -> 
     assert synthetic.family_container is None
     assert parallel.family_container is None
     assert real_child.family_container is parent
+
+
+def test_sort_and_reorder_emits_followup_of_followup_once_after_parent() -> None:
+    parent = agent(
+        status="DONE",
+        start=datetime(2026, 8, 17, 7, 0, 0),
+        raw_suffix="20260817070000",
+        cl_name="family",
+    )
+    child = agent(
+        status="DONE",
+        start=datetime(2026, 8, 17, 7, 8, 0),
+        raw_suffix="20260817070800",
+        cl_name="family--2",
+        role_suffix="--2",
+    )
+    child.parent_timestamp = parent.raw_suffix
+    grandchild = agent(
+        status="MONITORING",
+        start=datetime(2026, 8, 17, 7, 15, 0),
+        raw_suffix="20260817071500",
+        cl_name="family--mon-1",
+        role_suffix="--mon-1",
+    )
+    grandchild.parent_timestamp = child.raw_suffix
+    grandchild.agent_family_role = "monitor"
+
+    ordered = sort_and_reorder([grandchild, child, parent], [])
+
+    assert ordered == [parent, child, grandchild]
+    assert ordered.count(grandchild) == 1
+    assert parent.runtime_children == [child]
+    assert child.runtime_children == [grandchild]

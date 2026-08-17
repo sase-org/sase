@@ -25,6 +25,8 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
         "bead_id": "sase-kp",
         "tribe": "sase",
         "agent_family": "acme",
+        "agent_clan": "acme-clan",
+        "agent_clan_generation": "20260812115000",
     }
 
     artifacts_dir = create_monitor_member(
@@ -55,6 +57,8 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert meta["workflow_name"] == "acme"
     assert meta["agent_family"] == "acme"
     assert meta["agent_family_role"] == "monitor"
+    assert meta["agent_clan"] == "acme-clan"
+    assert meta["agent_clan_generation"] == "20260812115000"
     assert meta["role_suffix"] == "--mon"
     assert meta["parent_timestamp"] == "20260812120000"
     assert meta["workspace_num"] == 3
@@ -115,3 +119,5 @@ def test_create_monitor_member_omits_next_action_when_none() -> None:
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert "monitor_next_action" not in meta
     assert "monitor_idle_timeout_seconds" not in meta
+    assert "agent_clan" not in meta
+    assert "agent_clan_generation" not in meta

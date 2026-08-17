@@ -1,11 +1,10 @@
-"""Tests for the monitor family-root display-parent normalization.
+"""Tests for nested-monitor family-root liveness without display rerooting.
 
 A monitor started by a mid-family continuation persists a direct
 ``parent_timestamp`` back to that continuation (durable data monitor
-settlement relies on to fork the starter safely), not to the family root. The
-Agents tab treats ``parent_timestamp`` as its display-containment link, so
-:func:`normalize_monitor_family_display_parents` rewrites the in-memory link
-only, and only when it can uniquely resolve the monitor's loaded family root.
+settlement relies on to fork the starter safely), not to the family root.
+The Agents tab now keeps that starter link and nests the monitor under the
+starter; family-root liveness is preserved by status propagation.
 """
 
 from datetime import datetime, timedelta
@@ -14,9 +13,8 @@ from sase.ace.tui.models._agent_clan import (
     sase_agent_status_counts,
     agent_summary_status_counts,
 )
-from sase.ace.tui.models._agent_status_family import (
-    normalize_monitor_family_display_parents,
-)
+from sase.ace.tui.models._agent_loader_normalization import normalize_loaded_agents
+from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 
@@ -82,88 +80,46 @@ def _monitor(
     )
 
 
+def test_nested_monitor_keeps_starter_parent_link() -> None:
+    """Display normalization no longer rewrites the durable starter link."""
+    root = _root()
+    coder = _code_child(root, raw_suffix="20260810091000")
+    monitor = _monitor(coder, root, raw_suffix="20260810092000")
+
+    _apply_status_overrides([root, coder, monitor])
+    _apply_status_overrides([root, coder, monitor])
+
+    assert monitor.parent_timestamp == coder.raw_suffix
+    assert coder in root.followup_agents
+    assert monitor not in root.followup_agents
+
+
 def test_direct_root_monitor_is_left_unchanged() -> None:
-    """A monitor already parented to the root is a true no-op."""
+    """A monitor already parented to the root keeps that link."""
     root = _root()
     monitor = _monitor(root, root, raw_suffix="20260810092000")
 
-    normalize_monitor_family_display_parents([root, monitor])
+    _apply_status_overrides([root, monitor])
 
     assert monitor.parent_timestamp == root.raw_suffix
+    assert monitor in root.followup_agents
 
 
-def test_monitor_without_agent_family_is_left_unchanged() -> None:
-    """A monitor with no family metadata cannot be safely rerooted."""
+def test_nested_monitor_renders_under_starter() -> None:
     root = _root()
     coder = _code_child(root, raw_suffix="20260810091000")
     monitor = _monitor(coder, root, raw_suffix="20260810092000")
-    monitor.agent_family = None
 
-    normalize_monitor_family_display_parents([root, coder, monitor])
+    _apply_status_overrides([root, coder, monitor])
+    ordered = sort_and_reorder([root, coder, monitor], [])
 
-    assert monitor.parent_timestamp == coder.raw_suffix
-
-
-def test_monitor_outside_any_loaded_family_is_left_unchanged() -> None:
-    """No loaded root for the family means the starter link is preserved."""
-    coder = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="fam-code",
-        project_file="/tmp/family.sase",
-        status="DONE",
-        start_time=_STARTED + timedelta(minutes=10),
-        raw_suffix="20260810091000",
-    )
-    monitor = _monitor(coder, _root(), raw_suffix="20260810092000")
-
-    normalize_monitor_family_display_parents([coder, monitor])
-
-    assert monitor.parent_timestamp == coder.raw_suffix
-
-
-def test_normalization_is_scoped_per_project() -> None:
-    """Same-named families in different projects never cross-attach."""
-    root_a = _root(project_file="/tmp/a.sase", raw_suffix="20260810090000")
-    coder_a = _code_child(root_a, raw_suffix="20260810091000")
-    monitor_a = _monitor(coder_a, root_a, raw_suffix="20260810092000")
-
-    root_b = _root(project_file="/tmp/b.sase", raw_suffix="20260811090000")
-    coder_b = _code_child(root_b, raw_suffix="20260811091000")
-    monitor_b = _monitor(coder_b, root_b, raw_suffix="20260811092000")
-
-    normalize_monitor_family_display_parents(
-        [root_a, coder_a, monitor_a, root_b, coder_b, monitor_b]
-    )
-
-    assert monitor_a.parent_timestamp == root_a.raw_suffix
-    assert monitor_b.parent_timestamp == root_b.raw_suffix
-
-
-def test_normalization_fails_safe_on_ambiguous_family_root() -> None:
-    """Two loaded roots sharing a project + family identity block rerooting."""
-    root_1 = _root(raw_suffix="20260810090000")
-    root_2 = _root(raw_suffix="20260810090500")
-    coder = _code_child(root_1, raw_suffix="20260810091000")
-    monitor = _monitor(coder, root_1, raw_suffix="20260810092000")
-
-    normalize_monitor_family_display_parents([root_1, root_2, coder, monitor])
-
-    assert monitor.parent_timestamp == coder.raw_suffix
-
-
-def test_normalization_is_idempotent_across_repeated_passes() -> None:
-    """Repeated normalization over the same cached objects is a fixed point."""
-    root = _root()
-    coder = _code_child(root, raw_suffix="20260810091000")
-    monitor = _monitor(coder, root, raw_suffix="20260810092000")
-    agents = [root, coder, monitor]
-
-    normalize_monitor_family_display_parents(agents)
-    first_pass = monitor.parent_timestamp
-    normalize_monitor_family_display_parents(agents)
-    normalize_monitor_family_display_parents(agents)
-
-    assert monitor.parent_timestamp == first_pass == root.raw_suffix
+    assert [agent.raw_suffix for agent in ordered] == [
+        root.raw_suffix,
+        coder.raw_suffix,
+        monitor.raw_suffix,
+    ]
+    assert monitor.tree_parent_key in {None, coder.raw_suffix}
+    assert ordered.index(monitor) == ordered.index(coder) + 1
 
 
 def test_nested_monitor_family_lane_counts_running_without_extra_agent() -> None:
@@ -193,3 +149,117 @@ def test_nested_monitor_family_lane_counts_running_without_extra_agent() -> None
 
     assert lane.total == 1
     assert lane.running == 1
+    assert monitor.parent_timestamp == coder.raw_suffix
+
+
+def test_normalize_loaded_agents_nests_screenshot_monitor_at_depth_three() -> None:
+    """Clan -> family root -> ``--2`` -> disk-shaped monitor at depth 3."""
+    family = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="sase-ns.6.6.6.1",
+        project_file="/tmp/sase.sase",
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 5, 55, 18),
+        raw_suffix="20260817055518",
+        role_suffix="--plan",
+        workflow="ace-run",
+        agent_name="sase-ns.6.6.6.1",
+        agent_family="sase-ns.6.6.6.1",
+        agent_family_role="root",
+        plan_chain_root=True,
+        agent_clan="sase-ns.6.6.6",
+        agent_clan_generation="20260817055518",
+        plan_action="tale",
+    )
+    plan = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="main",
+        project_file=family.project_file,
+        status="TALE APPROVED",
+        start_time=family.start_time,
+        raw_suffix=family.raw_suffix,
+        parent_timestamp=family.raw_suffix,
+        parent_workflow="ace-run",
+        step_type="agent",
+        step_index=0,
+        total_steps=1,
+        role_suffix="--plan",
+        agent_name="sase-ns.6.6.6.1--plan",
+        agent_family=family.agent_family,
+    )
+    code = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--code",
+        project_file=family.project_file,
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 6, 10, 0),
+        stop_time=datetime(2026, 8, 17, 6, 40, 0),
+        raw_suffix="20260817061000",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--code",
+        agent_name="sase-ns.6.6.6.1--code",
+        agent_family=family.agent_family,
+        agent_family_role="code",
+    )
+    one = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--1",
+        project_file=family.project_file,
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 6, 50, 0),
+        stop_time=datetime(2026, 8, 17, 7, 0, 0),
+        raw_suffix="20260817065000",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--1",
+        agent_name="sase-ns.6.6.6.1--1",
+        agent_family=family.agent_family,
+        agent_family_role="code",
+    )
+    two = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--2",
+        project_file=family.project_file,
+        status="TALE DONE",
+        start_time=datetime(2026, 8, 17, 7, 8, 11),
+        stop_time=datetime(2026, 8, 17, 7, 14, 0),
+        raw_suffix="20260817070811",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--2",
+        agent_name="sase-ns.6.6.6.1--2",
+        agent_family=family.agent_family,
+        agent_family_role="code",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-ns.6.6.6.1--mon-1",
+        project_file=family.project_file,
+        status="MONITORING",
+        status_bucket="Running",
+        start_time=datetime(2026, 8, 17, 7, 15, 11),
+        raw_suffix="20260817071511",
+        parent_timestamp=two.raw_suffix,
+        role_suffix="--mon-1",
+        agent_name="sase-ns.6.6.6.1--mon-1",
+        agent_family=family.agent_family,
+        agent_family_role="monitor",
+        monitor_id="m1",
+        monitor_state="running",
+    )
+
+    ordered = normalize_loaded_agents(
+        [family, code, one, two, monitor],
+        [plan],
+        is_process_running=lambda _pid: False,
+    )
+
+    monitors = [row for row in ordered if row.is_monitor]
+    assert len(monitors) == 1
+    nested = monitors[0]
+    starter = next(row for row in ordered if row.raw_suffix == two.raw_suffix)
+    assert nested.agent_clan is None
+    assert nested.agent_clan_generation is None
+    assert nested.parent_timestamp == starter.raw_suffix
+    assert nested.tree_parent_key == starter.raw_suffix
+    assert nested.tree_depth == starter.tree_depth + 1 == 3
+    assert ordered[ordered.index(starter) + 1] is nested
+    assert ordered[0].is_clan_container is True

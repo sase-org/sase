@@ -14,14 +14,29 @@ def filter_agents_by_fold_state(
     ``fold_counts`` maps each owning row's fold key to its immediate ordinary
     and hidden child counts. Synthetic clan folds own only their direct
     members; each member independently owns its workflow/family children.
+    Monitor rows follow their starter's visibility and are omitted from
+    ``fold_counts``.
     """
     owners_by_key: dict[str, Agent] = {}
     for agent in agents:
         key = agent_fold_key(agent)
-        if key is not None and not agent.is_child_row:
-            owners_by_key[key] = agent
+        if key is None:
+            continue
+        existing = owners_by_key.get(key)
+        if existing is not None and (not existing.is_child_row or agent.is_child_row):
+            continue
+        if agent.is_child_row and agent_parent_fold_key(agent) == key:
+            # Legacy workflow children repeat their parent's suffix. They
+            # alias the parent fold and must not own it, including when
+            # that parent is absent.
+            continue
+        # A non-child row wins a repeated key. Uniquely-keyed child rows
+        # still register so a grandchild can resolve its parent.
+        owners_by_key[key] = agent
     children_by_parent: dict[str, list[Agent]] = {}
     for agent in agents:
+        if agent.is_monitor:
+            continue
         parent_key = agent_parent_fold_key(agent)
         if parent_key is None or parent_key not in owners_by_key:
             continue
@@ -79,7 +94,7 @@ def filter_agents_by_fold_state(
             return False
 
         level = fold_manager.get(parent_key)
-        if level == FoldLevel.COLLAPSED:
+        if level == FoldLevel.COLLAPSED and not agent.is_monitor:
             visibility[agent_id] = False
             return False
         if (

@@ -38,7 +38,6 @@ from ._agent_status_family import (
     latest_non_workflow_child_launch_by_parent,
     mark_derived_plan_family_roots,
     merge_feedback_plan_paths,
-    normalize_monitor_family_display_parents,
     pending_plan_status_for_agent,
     pull_plan_metadata_from_family_members,
     root_child_suffix,
@@ -73,6 +72,40 @@ def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:
     return True
 
 
+def _descendant_monitors(
+    roots: list[Agent],
+    children_by_parent: dict[str, list[Agent]],
+) -> list[Agent]:
+    """Return monitor rows beneath *roots*, walking ``parent_timestamp`` links.
+
+    ``Agent`` is mutable and unhashable, so traversal cycle-guards on
+    ``id(row)`` while the collected list dedupes by ``row.identity``.
+    """
+    found: list[Agent] = []
+    seen_ids: set[int] = set()
+    seen_identities: set[tuple[AgentType, str, str | None]] = set()
+
+    def visit(row: Agent) -> None:
+        if id(row) in seen_ids:
+            return
+        seen_ids.add(id(row))
+        if row.is_monitor and row.identity not in seen_identities:
+            seen_identities.add(row.identity)
+            found.append(row)
+        suffix = row.raw_suffix
+        if suffix:
+            for child in children_by_parent.get(suffix, ()):
+                visit(child)
+
+    for root in roots:
+        suffix = root.raw_suffix
+        if not suffix:
+            continue
+        for child in children_by_parent.get(suffix, ()):
+            visit(child)
+    return found
+
+
 def apply_status_overrides(
     agents: list[Agent],
     workflow_agent_steps: list[Agent] | None = None,
@@ -95,14 +128,6 @@ def apply_status_overrides(
     for agent in all_agents:
         agent.followup_agents.clear()
         agent.wait_display_source = None
-
-    # A monitor started by a mid-family continuation persists a direct
-    # parent link back to that continuation, not to the family root (see
-    # normalize_monitor_family_display_parents). Reroot it for display before
-    # any family relationship index or root mirroring below is built, so the
-    # rest of this pass can keep treating parent_timestamp as the sole
-    # display-containment link without further special-casing monitors.
-    normalize_monitor_family_display_parents(all_agents)
 
     completed_statuses = {"DONE", "FAILED", "FAILED (RETRIED)", "PLAN REJECTED"}
 
@@ -397,6 +422,7 @@ def apply_status_overrides(
             continue
 
         is_plan_root = is_root_plan_workflow(parent)
+        descendant_monitors = _descendant_monitors(children, children_by_parent)
         candidates = list(children)
         if not is_plan_root and parent.agent_type == AgentType.RUNNING:
             candidates.append(parent)
@@ -406,6 +432,11 @@ def apply_status_overrides(
             for agent in candidates
             if _is_active_root_mirror_candidate(parent, agent)
         ]
+        for monitor in descendant_monitors:
+            if monitor not in active and _is_active_root_mirror_candidate(
+                parent, monitor
+            ):
+                active.append(monitor)
         if active:
             newest_active = max(active, key=child_launch_time)
             if newest_active is not parent:
@@ -425,7 +456,8 @@ def apply_status_overrides(
             continue
 
         if is_plan_root:
-            newest = max(children, key=child_launch_time)
+            newest_pool = [*children, *descendant_monitors]
+            newest = max(newest_pool, key=child_launch_time)
             _mirror_root_from_child(parent, newest)
 
     # Spawn-on-retry: build the retry-chain linkage. Each retry child has a

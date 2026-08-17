@@ -169,21 +169,36 @@ class AgentStructuralFoldingMixin(AgentPanelFoldingMixin):
 
         # Workflow-step rows in legacy/loader-shaped projections can repeat
         # their root's raw suffix. They alias the root's fold; they are not
-        # competing structural owners. Navigation still requires one exact,
-        # non-child owner and one occurrence of the canonical lookup result.
+        # competing structural owners. A non-child row still wins a repeated
+        # key. When no non-child owns the key (a monitor nested under a
+        # mid-family starter), the unique child-row owner is accepted.
         parent_positions: list[int] = []
-        owner_matches: list[tuple[int, Agent]] = []
+        non_child_owners: list[tuple[int, Agent]] = []
+        child_owners: list[tuple[int, Agent]] = []
         for index, candidate in enumerate(self._agents):
             if candidate is parent:
                 parent_positions.append(index)
-            if not candidate.is_child_row and agent_fold_key(candidate) == parent_key:
-                owner_matches.append((index, candidate))
+            if agent_fold_key(candidate) != parent_key:
+                continue
+            if candidate.is_child_row:
+                child_owners.append((index, candidate))
+            else:
+                non_child_owners.append((index, candidate))
+        owner_matches = non_child_owners or child_owners
         if (
             len(parent_positions) != 1
             or len(owner_matches) != 1
             or owner_matches[0][1] is not parent
             or agent_fold_key(parent) != parent_key
         ):
+            return None
+        if parent.is_child_row and (
+            selected.tree_parent_key != parent_key
+            or selected.tree_depth != parent.tree_depth + 1
+        ):
+            # Child-row parents are only valid on an explicit projected
+            # edge (monitor -> starter). Loader-shaped cycles that share
+            # parent_timestamp links stay rejected.
             return None
         parent_index = parent_positions[0]
 

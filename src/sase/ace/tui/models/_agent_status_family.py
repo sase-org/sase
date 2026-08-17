@@ -19,7 +19,6 @@ from ._agent_status_family_core import (
     latest_non_workflow_child_launch_by_parent,
     mark_derived_plan_family_roots,
     merge_feedback_plan_paths,
-    normalize_monitor_family_display_parents,
     root_child_suffix,
 )
 from ._agent_status_family_planner import (
@@ -84,7 +83,6 @@ __all__ = [
     "latest_non_workflow_child_launch_by_parent",
     "mark_derived_plan_family_roots",
     "merge_feedback_plan_paths",
-    "normalize_monitor_family_display_parents",
     "pending_plan_status_for_agent",
     "planner_child_status",
     "pull_plan_metadata_from_family_members",

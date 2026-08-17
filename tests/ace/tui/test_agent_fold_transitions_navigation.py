@@ -273,6 +273,34 @@ def test_h_workflow_step_jump_history_restores_exact_script_row() -> None:
     assert app._agents[app.current_idx] is selected
 
 
+def test_h_nested_monitor_navigates_to_starter() -> None:
+    family = make_agent(raw_suffix="family", tribe="research")
+    family.plan_chain_root = True
+    family.agent_family = "family"
+    family.agent_clan = "research"
+    family.agent_clan_generation = "generation"
+    member = make_agent(raw_suffix="member")
+    member.parent_timestamp = family.raw_suffix
+    member.agent_family = "family"
+    member.agent_family_role = "code"
+    monitor = make_agent(raw_suffix="monitor")
+    monitor.parent_timestamp = member.raw_suffix
+    monitor.agent_family = "family"
+    monitor.agent_family_role = "monitor"
+    family.followup_agents.append(member)
+    family.runtime_children.append(member)
+    member.runtime_children.append(monitor)
+    projected = project_clan_tree([family, member, monitor])
+    app = StubFoldApp(projected, current_idx=projected.index(monitor))
+    app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
+
+    target = app._resolve_agent_left_navigation_target()
+    assert target is not None and target.kind == "workflow"
+    assert target.agent is member
+    app.action_hooks_or_collapse()
+    assert app.current_idx == projected.index(member)
+
+
 def test_h_direct_clan_member_navigates_to_clan_then_tribe() -> None:
     direct = make_agent(raw_suffix="direct", tribe="research")
     direct.agent_clan = "research"

@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent_family_members import (
     concrete_agent_statuses,
     concrete_family_member_rows,
     family_member_status_buckets,
+    is_sequential_family_container,
     running_monitor_count,
 )
 
@@ -428,6 +429,47 @@ def test_running_monitor_count_returns_zero_for_plain_agent() -> None:
     agent = _agent("alpha--code", role="code")
 
     assert running_monitor_count(agent) == 0
+
+
+def test_monitor_only_child_does_not_make_starter_a_family_container() -> None:
+    starter = _agent("alpha--2", role="code")
+    monitor = _agent(
+        "alpha--mon-1",
+        role="monitor",
+        parent_timestamp=starter.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+    )
+    monitor.monitor_id = "m1"
+    monitor.monitor_state = "running"
+    starter.runtime_children = [monitor]
+    starter.followup_agents = [monitor]
+
+    assert is_sequential_family_container(starter) is False
+
+
+def test_member_plus_monitor_still_makes_a_family_container() -> None:
+    starter = _agent("alpha--2", role="code")
+    continuation = _agent(
+        "alpha--3",
+        role="code",
+        parent_timestamp=starter.raw_suffix,
+        start_offset=1,
+    )
+    monitor = _agent(
+        "alpha--mon-1",
+        role="monitor",
+        parent_timestamp=starter.raw_suffix,
+        status="MONITORING",
+        status_bucket="Running",
+        start_offset=2,
+    )
+    monitor.monitor_id = "m1"
+    monitor.monitor_state = "running"
+    starter.runtime_children = [continuation, monitor]
+    starter.followup_agents = [continuation, monitor]
+
+    assert is_sequential_family_container(starter) is True
 
 
 def test_failed_and_question_non_final_members_keep_their_buckets() -> None:

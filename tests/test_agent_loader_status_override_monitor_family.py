@@ -97,16 +97,16 @@ def _nested_monitor(
     )
 
 
-def test_nested_monitor_reroots_to_family_root_for_display() -> None:
-    """The monitor's in-memory parent becomes the root, not the coder."""
+def test_nested_monitor_keeps_starter_parent_for_display() -> None:
+    """The monitor stays under the coder; the root still lists the coder."""
     root = _plan_root()
     coder = _completed_code_child(root)
     monitor = _nested_monitor(coder, root)
 
     _apply_status_overrides([root, coder, monitor])
 
-    assert monitor.parent_timestamp == root.raw_suffix
-    assert monitor in root.followup_agents
+    assert monitor.parent_timestamp == coder.raw_suffix
+    assert monitor not in root.followup_agents
     assert coder in root.followup_agents
 
 
@@ -124,7 +124,7 @@ def test_nested_running_monitor_root_mirrors_monitoring_and_running_bucket() -> 
 
 
 def test_nested_monitor_remains_in_visible_family_row_order() -> None:
-    """The monitor is not stranded beneath the already-completed coder row."""
+    """The monitor is emitted immediately after the starter that owns it."""
     root = _plan_root()
     coder = _completed_code_child(root)
     monitor = _nested_monitor(coder, root)
@@ -137,6 +137,7 @@ def test_nested_monitor_remains_in_visible_family_row_order() -> None:
         coder.raw_suffix,
         monitor.raw_suffix,
     ]
+    assert monitor.parent_timestamp == coder.raw_suffix
 
 
 def test_nested_terminal_successful_monitor_root_mirrors_stop_label() -> None:
@@ -154,7 +155,7 @@ def test_nested_terminal_successful_monitor_root_mirrors_stop_label() -> None:
 
     _apply_status_overrides([root, coder, monitor])
 
-    assert monitor.parent_timestamp == root.raw_suffix
+    assert monitor.parent_timestamp == coder.raw_suffix
     assert root.status == "MONITORED"
     assert root.status_bucket == "Done"
 

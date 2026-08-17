@@ -163,22 +163,97 @@ def _reset_tree_projection(agent: Agent) -> None:
     agent.clan_tribes = ()
 
 
+def _rows_by_suffix(rows: Iterable[Agent]) -> dict[str, Agent]:
+    """Index rows by ``raw_suffix``, preferring a non-child on collision."""
+    lookup: dict[str, Agent] = {}
+    for row in rows:
+        suffix = row.raw_suffix
+        if not suffix:
+            continue
+        existing = lookup.get(suffix)
+        if existing is None or (existing.is_child_row and not row.is_child_row):
+            lookup[suffix] = row
+    return lookup
+
+
 def _clan_for_row(
     agent: Agent,
     parent_by_suffix: dict[str, Agent],
 ) -> tuple[str, str | None] | None:
-    if agent.agent_clan:
-        return (
-            agent.presented_clan_reference_name() or agent.agent_clan,
-            agent.agent_clan_generation,
-        )
-    if agent.parent_timestamp:
-        parent = parent_by_suffix.get(agent.parent_timestamp)
-        if parent is not None and parent.agent_clan:
+    seen: set[int] = set()
+    current: Agent | None = agent
+    while current is not None:
+        current_id = id(current)
+        if current_id in seen:
+            return None
+        seen.add(current_id)
+        if current.agent_clan:
             return (
-                parent.presented_clan_reference_name() or parent.agent_clan,
-                parent.agent_clan_generation,
+                current.presented_clan_reference_name() or current.agent_clan,
+                current.agent_clan_generation,
             )
+        parent_timestamp = current.parent_timestamp
+        if not parent_timestamp:
+            return None
+        current = parent_by_suffix.get(parent_timestamp)
+    return None
+
+
+def _assign_clan_tree_links(
+    rows: list[Agent],
+    fold_key: str,
+    parent_by_suffix: dict[str, Agent],
+) -> None:
+    """Assign ``tree_parent_key`` / ``tree_depth`` in parent-before-child order."""
+    row_ids = {id(row) for row in rows}
+    assigned: set[int] = set()
+
+    def assign(row: Agent, visiting: set[int]) -> None:
+        row_id = id(row)
+        if row_id in assigned:
+            return
+        if row_id in visiting:
+            row.tree_depth = 1
+            row.tree_parent_key = fold_key
+            assigned.add(row_id)
+            return
+        parent = parent_by_suffix.get(row.parent_timestamp or "")
+        if parent is None or id(parent) not in row_ids:
+            row.tree_depth = 1
+            row.tree_parent_key = fold_key
+            assigned.add(row_id)
+            return
+        visiting.add(row_id)
+        assign(parent, visiting)
+        visiting.discard(row_id)
+        row.tree_parent_key = parent.raw_suffix
+        row.tree_depth = parent.tree_depth + 1
+        assigned.add(row_id)
+
+    for row in rows:
+        assign(row, set())
+
+
+def _nearest_direct_clan_unit(
+    row: Agent,
+    fold_key: str,
+    unit_by_parent_key: dict[str, list[Agent]],
+    row_by_suffix: dict[str, Agent],
+) -> list[Agent] | None:
+    """Return the unit of *row*'s nearest direct clan member, if any."""
+    current_key = row.tree_parent_key
+    seen: set[str] = set()
+    while current_key and current_key != fold_key:
+        if current_key in seen:
+            return None
+        seen.add(current_key)
+        unit = unit_by_parent_key.get(current_key)
+        if unit is not None:
+            return unit
+        parent = row_by_suffix.get(current_key)
+        if parent is None:
+            return None
+        current_key = parent.tree_parent_key
     return None
 
 
@@ -303,6 +378,7 @@ def _sort_clan_member_units(rows: list[Agent], fold_key: str) -> list[Agent]:
     """Stable-sort direct clan-member subtrees by their anchor status."""
     units: list[list[Agent]] = []
     unit_by_parent_key: dict[str, list[Agent]] = {}
+    row_by_suffix = _rows_by_suffix(rows)
 
     # Create every direct-member unit first so descendants remain attached
     # even when a compatibility payload does not place them after the anchor.
@@ -317,7 +393,9 @@ def _sort_clan_member_units(rows: list[Agent], fold_key: str) -> list[Agent]:
     for row in rows:
         if row.tree_parent_key == fold_key:
             continue
-        parent_unit = unit_by_parent_key.get(row.tree_parent_key or "")
+        parent_unit = _nearest_direct_clan_unit(
+            row, fold_key, unit_by_parent_key, row_by_suffix
+        )
         if parent_unit is None:
             # Projection makes rows with missing parents direct members. Keep
             # this defensive fallback atomic if a future tree shape reaches
@@ -354,11 +432,7 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     for agent in real_agents:
         _reset_tree_projection(agent)
 
-    parent_by_suffix = {
-        agent.raw_suffix: agent
-        for agent in real_agents
-        if agent.raw_suffix and not agent.is_child_row
-    }
+    parent_by_suffix = _rows_by_suffix(real_agents)
     row_clans: dict[int, ClanKey] = {}
     for agent in real_agents:
         clan = _clan_for_row(agent, parent_by_suffix)
@@ -377,15 +451,7 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     for clan_key, rows in rows_by_clan.items():
         clan_name, generation = clan_key
         fold_key = _clan_fold_key(clan_name, generation)
-        row_ids = {id(row) for row in rows}
-        for row in rows:
-            parent = parent_by_suffix.get(row.parent_timestamp or "")
-            if parent is not None and id(parent) in row_ids:
-                row.tree_depth = 2
-                row.tree_parent_key = parent.raw_suffix
-            else:
-                row.tree_depth = 1
-                row.tree_parent_key = fold_key
+        _assign_clan_tree_links(rows, fold_key, parent_by_suffix)
         containers[clan_key] = _container_for_clan(
             clan_name,
             rows,

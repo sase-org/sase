@@ -106,6 +106,7 @@ def sort_and_reorder(
         )
 
         result: list[Agent] = []
+        visiting: set[int] = set()
         for agent in sorted_agents:
             result.append(agent)
             suffix = agent.raw_suffix
@@ -119,7 +120,6 @@ def sort_and_reorder(
                 )
             ):
                 steps = steps_by_parent.get(suffix, [])
-                followups = followups_by_parent.pop(suffix, [])
                 # Separate main agent steps from embedded/other steps so
                 # follow-ups (feedback, coder) appear right after the plan.
                 main_agent_steps = [
@@ -139,11 +139,14 @@ def sort_and_reorder(
                     )
                 ]
                 result.extend(main_agent_steps)
-                result.extend(followups)
+                visiting.add(id(agent))
+                _append_followup_subtree(result, suffix, followups_by_parent, visiting)
+                visiting.discard(id(agent))
                 result.extend(other_steps)
             elif suffix in followups_by_parent:
-                # Non-workflow parent with follow-ups
-                result.extend(followups_by_parent.pop(suffix))
+                visiting.add(id(agent))
+                _append_followup_subtree(result, suffix, followups_by_parent, visiting)
+                visiting.discard(id(agent))
         from ._agent_tree import project_clan_tree
 
         ordered = project_clan_tree(result)
@@ -155,6 +158,32 @@ def sort_and_reorder(
     ordered = project_clan_tree(sorted_agents)
     _attach_family_containers(ordered)
     return ordered
+
+
+def _append_followup_subtree(
+    result: list[Agent],
+    parent_suffix: str,
+    followups_by_parent: dict[str, list[Agent]],
+    visiting: set[int],
+) -> None:
+    """Append a parent's follow-ups and their descendants in chrono order.
+
+    Each parent's bucket is popped as it is consumed so a row is emitted at
+    most once. Cycle-guard on ``id(row)`` because ``Agent`` rows are mutable
+    and unhashable, and a malformed ``parent_timestamp`` chain must not loop.
+    """
+    followups = followups_by_parent.pop(parent_suffix, [])
+    for followup in followups:
+        followup_id = id(followup)
+        if followup_id in visiting:
+            continue
+        result.append(followup)
+        child_suffix = followup.raw_suffix
+        if not child_suffix:
+            continue
+        visiting.add(followup_id)
+        _append_followup_subtree(result, child_suffix, followups_by_parent, visiting)
+        visiting.discard(followup_id)
 
 
 def _clear_runtime_children(

@@ -64,7 +64,8 @@ def is_sequential_family_container(agent: Agent) -> bool:
 
     The second branch preserves compatibility with clan projections whose
     direct family root may predate the explicit ``agent_family_role`` marker
-    but still owns loaded, serial family-member children.
+    but still owns loaded, serial family-member children. A monitor child
+    alone does not promote its starter to a container.
     """
     if agent.agent_family_parallel:
         return False
@@ -73,7 +74,9 @@ def is_sequential_family_container(agent: Agent) -> bool:
     return bool(
         agent.agent_family
         and any(
-            child.is_family_member_child and not child.agent_family_parallel
+            child.is_family_member_child
+            and not child.agent_family_parallel
+            and not child.is_monitor
             for child in (*agent.runtime_children, *agent.followup_agents)
         )
     )

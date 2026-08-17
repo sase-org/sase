@@ -86,6 +86,10 @@ def create_monitor_member(
         meta["monitor_next_action"] = next_action
     if starter_agent:
         meta["monitor_starter_agent"] = starter_agent
+    for key in ("agent_clan", "agent_clan_generation"):
+        value = base_meta.get(key)
+        if value:
+            meta[key] = value
     write_agent_meta_atomic(
         artifacts_dir,
         meta,

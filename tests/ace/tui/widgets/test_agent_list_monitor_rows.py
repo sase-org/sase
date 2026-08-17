@@ -8,7 +8,10 @@ from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts as ParallelFamilyStatusCounts,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_family_members import running_monitor_count
+from sase.ace.tui.models.agent_family_members import (
+    is_sequential_family_container,
+    running_monitor_count,
+)
 from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
 from sase.ace.tui.widgets._agent_list_styling import _MONITOR_ROW_STYLE
 
@@ -340,4 +343,110 @@ def test_family_container_badge_does_not_alter_status_chip() -> None:
     )
 
     assert "[S1 R2]" in left.plain
+    assert "⚙1" in left.plain
+
+
+def test_starter_with_only_monitor_child_renders_no_count_badge() -> None:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    starter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha--2",
+        project_file="/tmp/monitor.sase",
+        status="TALE DONE",
+        start_time=started,
+        stop_time=started,
+        raw_suffix="20260812090000",
+        parent_timestamp="20260812085900",
+        agent_name="alpha--2",
+        agent_family="alpha",
+        agent_family_role="code",
+        role_suffix="--2",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha--mon-1",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING",
+        start_time=started,
+        raw_suffix="20260812090001",
+        parent_timestamp=starter.raw_suffix,
+        agent_name="alpha--mon-1",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon-1",
+        monitor_id="m1",
+        monitor_state="running",
+        monitor_label="just check",
+    )
+    starter.runtime_children = [monitor]
+    starter.followup_agents = [monitor]
+    assert running_monitor_count(starter) == 1
+    assert is_sequential_family_container(starter) is False
+
+    left, _suffix, _option_id = format_agent_option(starter, 0, is_selected=False)
+
+    assert "⚙1" not in left.plain
+    assert "⚙" not in left.plain
+
+
+def test_clan_container_with_nested_running_monitor_renders_badge() -> None:
+    started = datetime(2026, 8, 12, 9, 0, 0)
+    clan = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="workers",
+        project_file="/tmp/monitor.sase",
+        status="RUNNING",
+        start_time=started,
+        is_clan_container=True,
+        agent_clan="workers",
+        agent_clan_generation="gen",
+    )
+    family = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha",
+        project_file="/tmp/monitor.sase",
+        status="TALE DONE",
+        start_time=started,
+        raw_suffix="20260812085900",
+        agent_name="alpha",
+        agent_family="alpha",
+        agent_family_role="root",
+        role_suffix="--0",
+    )
+    starter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha--2",
+        project_file="/tmp/monitor.sase",
+        status="TALE DONE",
+        start_time=started,
+        raw_suffix="20260812090000",
+        parent_timestamp=family.raw_suffix,
+        agent_name="alpha--2",
+        agent_family="alpha",
+        agent_family_role="code",
+        role_suffix="--2",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="alpha--mon-1",
+        project_file="/tmp/monitor.sase",
+        status="MONITORING",
+        start_time=started,
+        raw_suffix="20260812090001",
+        parent_timestamp=starter.raw_suffix,
+        agent_name="alpha--mon-1",
+        agent_family="alpha",
+        agent_family_role="monitor",
+        role_suffix="--mon-1",
+        monitor_id="m1",
+        monitor_state="running",
+        monitor_label="just check",
+    )
+    starter.runtime_children = [monitor]
+    family.runtime_children = [starter]
+    family.followup_agents = [starter]
+    clan.runtime_children = [family]
+
+    left, _suffix, _option_id = format_agent_option(clan, 0, is_selected=False)
+
     assert "⚙1" in left.plain

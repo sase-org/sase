@@ -6,6 +6,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
     _filter_agents_by_fold_snapshot,
     prepare_loaded_agents_worker_boundary,
 )
+from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
@@ -288,6 +289,103 @@ def test_worker_boundary_filters_orphans_and_hidden_only_parents() -> None:
 
     assert boundary.fold.visible_agents == expected_agents
     assert boundary.fold.fold_counts == expected_counts
+
+
+def _make_family_starter_monitor() -> tuple[Agent, Agent, Agent, Agent]:
+    """Clan -> family root -> starter -> disk-shaped monitor."""
+    family = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fam",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=None,
+        raw_suffix="family",
+        agent_name="fam",
+        agent_family="fam",
+        agent_family_role="root",
+        agent_clan="clan",
+        agent_clan_generation="gen",
+    )
+    starter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fam--2",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=None,
+        raw_suffix="starter",
+        parent_timestamp=family.raw_suffix,
+        agent_name="fam--2",
+        agent_family="fam",
+        agent_family_role="code",
+        role_suffix="--2",
+    )
+    monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fam--mon-1",
+        project_file="/tmp/test.sase",
+        status="MONITORING",
+        start_time=None,
+        raw_suffix="monitor",
+        parent_timestamp=starter.raw_suffix,
+        agent_name="fam--mon-1",
+        agent_family="fam",
+        agent_family_role="monitor",
+        role_suffix="--mon-1",
+        monitor_id="m1",
+        monitor_state="running",
+    )
+    projected = project_clan_tree([family, starter, monitor])
+    return projected[0], family, starter, monitor
+
+
+def test_monitor_is_visible_whenever_starter_is_visible() -> None:
+    container, family, starter, monitor = _make_family_starter_monitor()
+    clan_key = agent_fold_key(container)
+    family_key = agent_fold_key(family)
+    starter_key = agent_fold_key(starter)
+    assert clan_key is not None
+    assert family_key is not None
+    assert starter_key is not None
+
+    mgr = FoldStateManager()
+    mgr.expand(clan_key)
+    mgr.expand(family_key)
+
+    visible, counts = filter_agents_by_fold_state(
+        [container, family, starter, monitor], mgr
+    )
+
+    assert visible == [container, family, starter, monitor]
+    assert starter_key not in counts
+    assert counts[family_key] == (1, 0)
+
+
+def test_monitor_hides_when_family_or_clan_is_collapsed() -> None:
+    container, family, starter, monitor = _make_family_starter_monitor()
+    clan_key = agent_fold_key(container)
+    family_key = agent_fold_key(family)
+    assert clan_key is not None
+    assert family_key is not None
+
+    mgr = FoldStateManager()
+    collapsed_clan, _ = filter_agents_by_fold_state(
+        [container, family, starter, monitor], mgr
+    )
+    assert collapsed_clan == [container]
+    assert monitor not in collapsed_clan
+
+    mgr.expand(clan_key)
+    collapsed_family, _ = filter_agents_by_fold_state(
+        [container, family, starter, monitor], mgr
+    )
+    assert collapsed_family == [container, family]
+    assert monitor not in collapsed_family
+
+    mgr.expand(family_key)
+    expanded, _ = filter_agents_by_fold_state(
+        [container, family, starter, monitor], mgr
+    )
+    assert monitor in expanded
 
 
 def test_annotation_suppressed_anonymous_single_prompt() -> None:
