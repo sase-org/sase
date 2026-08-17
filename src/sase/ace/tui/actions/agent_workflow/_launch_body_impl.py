@@ -49,46 +49,27 @@ def run_agent_launch_body(
     ) -> LaunchProcOutcome:
         return outcome.with_warning_messages(unresolved_warning_messages)
 
-    from sase.agent.launch_validation import (
-        force_reuse_bead_associations_by_prompt,
-        force_reuse_owner_names,
-        preflight_launch_name_requests,
-        rewrite_force_reuse_name_directives,
-        wipe_names_for_forced_reuse,
+    from sase.agent.force_reuse_launch import (
+        apply_force_reuse_launch,
+        plan_force_reuse_launch,
     )
-    from sase.agent.multi_prompt import parse_multi_prompt
 
     force_reuse_segment_envs: list[dict[str, str] | None] | None = None
-    force_reuse_rewritten_prompt = rewrite_force_reuse_name_directives(prompt)
-    if force_reuse_rewritten_prompt != prompt:
+    try:
         # Parsing and syntax validation are both non-mutating. Complete them
         # before cleanup so malformed prompts and user-entered family phase
         # names cannot erase an existing agent before launch is rejected.
-        force_reuse_prompts = parse_multi_prompt(prompt).segments
-        try:
-            preflight_launch_name_requests(
-                force_reuse_prompts,
-                allow_force_reuse=True,
-            )
-        except RuntimeError as exc:
-            from sase.history.prompt import record_failed_launch_prompt
+        force_reuse_plan = plan_force_reuse_launch(prompt)
+    except RuntimeError as exc:
+        from sase.history.prompt import record_failed_launch_prompt
 
-            record_failed_launch_prompt(original_submitted_prompt)
-            if owns_context:
-                app._prompt_context = None
-            return _with_unresolved_warnings(
-                LaunchProcOutcome(str(exc), severity="error")
-            )
-        force_reuse_names = force_reuse_owner_names(force_reuse_prompts)
-        force_reuse_bead_associations = force_reuse_bead_associations_by_prompt(
-            force_reuse_prompts
-        )
-    else:
-        force_reuse_names = []
-        force_reuse_bead_associations = []
-    if force_reuse_names:
+        record_failed_launch_prompt(original_submitted_prompt)
+        if owns_context:
+            app._prompt_context = None
+        return _with_unresolved_warnings(LaunchProcOutcome(str(exc), severity="error"))
+    if force_reuse_plan is not None:
         try:
-            wipe_names_for_forced_reuse(force_reuse_names)
+            apply_force_reuse_launch(force_reuse_plan)
         except Exception as exc:
             log.exception("Forced agent-name reuse wipe failed")
             from sase.history.prompt import record_failed_launch_prompt
@@ -112,13 +93,8 @@ def run_agent_launch_body(
                     severity="error",
                 )
             )
-        prompt = force_reuse_rewritten_prompt
-        from sase.agent.force_reuse_bead import force_reuse_bead_env
-
-        force_reuse_segment_envs = [
-            force_reuse_bead_env(association) or None
-            for association in force_reuse_bead_associations
-        ]
+        prompt = force_reuse_plan.rewritten_prompt
+        force_reuse_segment_envs = force_reuse_plan.segment_envs
 
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
@@ -186,6 +162,8 @@ def run_agent_launch_body(
     )
 
     with timer.stage("prompt_parse"):
+        from sase.agent.multi_prompt import parse_multi_prompt
+
         multi = parse_multi_prompt(prompt)
         from sase.agent.launch_projects import (
             enable_known_project_vcs_refs_for_launch_prompt,

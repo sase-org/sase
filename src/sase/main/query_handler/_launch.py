@@ -22,6 +22,7 @@ def launch_query(query: str) -> None:
     payload = dict(request.payload)
     if isinstance(payload.get("prompt"), str) and payload["prompt"]:
         query = payload["prompt"]
+    allow_force_reuse = bool(payload.get("allow_force_reuse"))
     from sase.agent.prompt_inputs import missing_required_input_names
 
     missing_inputs = missing_required_input_names(query)
@@ -78,8 +79,40 @@ def launch_query(query: str) -> None:
         print(json.dumps(outcome.to_dict(), sort_keys=True))
         sys.exit(0)
 
+    segment_extra_env = None
+    if allow_force_reuse:
+        from sase.agent.force_reuse_launch import (
+            apply_force_reuse_launch,
+            plan_force_reuse_launch,
+        )
+        from sase.history.prompt import record_failed_launch_prompt
+        from sase.ops.commands.run import emit_run_launch_result
+
+        try:
+            force_reuse_plan = plan_force_reuse_launch(query)
+        except RuntimeError as exc:
+            message = str(exc)
+            record_failed_launch_prompt(query)
+            print(f"Error: {message}", file=sys.stderr)
+            emit_run_launch_result(success=False, message=message)
+            sys.exit(1)
+        if force_reuse_plan is not None:
+            try:
+                apply_force_reuse_launch(force_reuse_plan)
+            except Exception as exc:
+                message = f"Agent name reuse failed: {exc}"
+                record_failed_launch_prompt(query)
+                print(f"Error: {message}", file=sys.stderr)
+                emit_run_launch_result(success=False, message=message)
+                sys.exit(1)
+            query = force_reuse_plan.rewritten_prompt
+            segment_extra_env = force_reuse_plan.segment_envs
+
     try:
-        results = launch_agents_from_cwd(query)
+        if segment_extra_env is not None:
+            results = launch_agents_from_cwd(query, segment_extra_env=segment_extra_env)
+        else:
+            results = launch_agents_from_cwd(query)
     except RuntimeError as e:
         from sase.agent.multi_prompt_launcher import MultiPromptPartialLaunchError
 

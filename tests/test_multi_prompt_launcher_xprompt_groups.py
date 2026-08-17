@@ -210,6 +210,61 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
     ]
 
 
+@patch("sase.history.prompt.add_or_update_prompt")
+@patch(
+    "sase.main.utils.ensure_project_file_and_get_workspace_num",
+    return_value=(None, None, None),
+)
+def test_launch_agents_from_cwd_force_reuse_marker_applies_to_first_swarm_slot_only(
+    mock_project: MagicMock,
+    mock_history: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The one-shot force-reuse bead marker goes to only the first swarm slot.
+
+    Unlike an ordinary segment_extra_env marker (which every xprompt-swarm
+    slot of a segment shares), ``SASE_AGENT_FORCE_REUSE_BEAD`` is a one-shot
+    authorization tied to exactly one killed agent's name. Copying it to every
+    expanded slot would let more than one spawned agent try to consume it.
+    """
+    from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
+    from sase.agent.launcher import launch_agents_from_cwd
+
+    del mock_project, mock_history
+    catalog = {
+        "swarm": XPrompt(
+            name="swarm",
+            content="%id:research.@.cdx\nCDX\n---\n%id:research.@.cld\nCLD",
+        )
+    }
+    marker = {SASE_AGENT_FORCE_REUSE_BEAD_ENV: '{"bead_id":"sase-1","owner_name":"a"}'}
+
+    with (
+        patch.object(Path, "home", return_value=tmp_path),
+        patch("sase.agent.xprompt_swarm.get_all_xprompts", return_value=catalog),
+        patch(
+            "sase.agent.launch_projects.extract_known_project_vcs_launch_ref",
+            return_value=None,
+        ),
+        patch(
+            "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
+            return_value=[],
+        ) as launch_multi,
+    ):
+        launch_agents_from_cwd(
+            "#!swarm\n---\n#!swarm",
+            segment_extra_env=(marker, {"SLOT": "two"}),
+        )
+
+    kwargs = launch_multi.call_args.kwargs
+    assert kwargs["segment_extra_env"] == [
+        marker,
+        None,
+        {"SLOT": "two"},
+        {"SLOT": "two"},
+    ]
+
+
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.core.time.generate_timestamp", return_value="260501_120000")
 @patch(

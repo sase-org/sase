@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable, Sequence
 
+from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
 from sase.agent.launch_cwd_common import (
     internal_agent_name_bypass_for_launch,
     plan_single_agent_name,
@@ -135,7 +136,18 @@ def launch_agents_from_cwd_impl(
                 qualification_counter=xprompt_qualification_counter,
             )
             expanded_segments.extend(record.prompt for record in segment_expansions)
-            expanded_segment_extra_env.extend([env] * len(segment_expansions))
+            if env is not None and SASE_AGENT_FORCE_REUSE_BEAD_ENV in env:
+                # The force-reuse bead marker is a one-shot authorization
+                # (consumed by run_agent_runner_bootstrap.py) tied to exactly
+                # one killed agent's name, so only the first xprompt-swarm
+                # slot of this segment may claim it; other markers (e.g. a
+                # bead epic/task association) apply to every expanded slot.
+                expanded_segment_extra_env.extend(
+                    env if slot_index == 0 else None
+                    for slot_index, _record in enumerate(segment_expansions)
+                )
+            else:
+                expanded_segment_extra_env.extend([env] * len(segment_expansions))
             expanded_segment_template_groups.extend(
                 record.template_group for record in segment_expansions
             )

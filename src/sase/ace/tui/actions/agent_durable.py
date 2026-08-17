@@ -102,8 +102,22 @@ def submit_agent_launch(
     extra_payload: Mapping[str, Any] | None = None,
     on_complete: Callable[[TrackedProcCompletion[Any]], None] | None = None,
 ) -> Any:
-    """Submit ``sase run`` through the durable adapter."""
-    payload = {"prompt": prompt, "workflow": workflow, **dict(extra_payload or {})}
+    """Submit ``sase run`` through the durable adapter.
+
+    ACE is the trusted surface that confirms forced agent-name reuse (the
+    ``%id(!name)`` marker a kill-and-edit relaunch writes), so every launch it
+    submits authorizes the child ``sase run`` to consume that marker via the
+    ``allow_force_reuse`` payload field. A plain ``sase run`` invoked without a
+    request sidecar (a shell, an agent skill) has no such field and keeps the
+    default unauthorized behavior. The field is placed last so it can never be
+    overridden by *extra_payload*.
+    """
+    payload = {
+        "prompt": prompt,
+        "workflow": workflow,
+        **dict(extra_payload or {}),
+        "allow_force_reuse": True,
+    }
     return app._submit_durable_proc(
         sase_command_argv("run"),
         operation=RUN_LAUNCH,

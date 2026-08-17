@@ -59,12 +59,13 @@ class _SubmitLaunchBodyApp(_LaunchBodyApp):
         submitted_prompt: str | None = None,
         extra_payload: Any = None,
     ) -> bool:
-        del prompt, extra_payload
+        del extra_payload
         self.launch_tasks.append(
             {
                 "display_name": display_name,
                 "cl_name": cl_name,
                 "project_file": project_file,
+                "prompt": prompt,
                 "dedup_key": dedup_key,
                 "proc_callable": proc_callable,
                 "submitted_prompt": submitted_prompt,
@@ -228,51 +229,37 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
     assert app.body_calls == ["the prompt"]
 
 
-def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_rewrites() -> (
-    None
-):
-    """``%id:!`` cleanup runs in the tracked launch task, not during submit."""
+def test_finish_agent_launch_force_reuse_submits_raw_prompt_unrewritten() -> None:
+    """The submitted ``%id:!`` prompt reaches the proc queue untouched.
+
+    Rewriting the ``!`` and wiping the reserved name now happen in the
+    durable ``sase run`` child process (see ``sase.agent.force_reuse_launch``
+    and ``launch_query()``), not in this discarded in-process worker body, so
+    the real production submission path
+    (``_launch_resolved_prompt`` -> ``_submit_launch_proc``) must hand off the
+    raw prompt with ``!`` intact rather than pre-rewriting it inline. See
+    ``tests/test_force_reuse_launch_seam.py`` for coverage of the boundary
+    that actually runs: the ``RUN_LAUNCH`` payload's ``allow_force_reuse``
+    field and the child's rewrite/wipe.
+    """
     app = _SubmitLaunchBodyApp()
 
-    with ExitStack() as stack:
-        stack.enter_context(
-            patch(
-                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
-                return_value=["forced-ts"],
-            )
-        )
-        _enter_launch_body_base_patches(stack)
-        wipe_names = stack.enter_context(
-            patch("sase.agent.launch_validation.wipe_names_for_forced_reuse")
-        )
-        validate_names = stack.enter_context(
-            patch("sase.agent.launch_validation.validate_launch_name_requests")
-        )
-        save_history = stack.enter_context(
-            patch("sase.history.prompt.add_or_update_prompt")
-        )
+    with patch(
+        "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+        return_value=["forced-ts"],
+    ):
         app._finish_agent_launch("%id:!foo\nDo work")
 
-        wipe_names.assert_not_called()
-        validate_names.assert_not_called()
-        assert app.scheduled == []
-        assert app.launched == []
-        assert len(app.launch_tasks) == 1
-        task = app.launch_tasks[0]
-        assert task["display_name"] == "launch test"
-        assert task["cl_name"] == "test"
-        assert task["project_file"] == "/tmp/test.sase"
-        assert app.notifications == [("Launching agent for test...", None)]
-        assert app._prompt_context is None
-
-        outcome = task["proc_callable"]()
-
-    wipe_names.assert_called_once_with(["foo"])
-    for call in validate_names.call_args_list:
-        assert call.args == (["%id:foo\nDo work"],)
-    save_history.assert_called_once_with("%id:foo\nDo work")
-    assert app.launched[0]["prompt"] == "%id:foo\nDo work"
-    assert outcome.success is True
+    assert app.scheduled == []
+    assert app.launched == []
+    assert len(app.launch_tasks) == 1
+    task = app.launch_tasks[0]
+    assert task["prompt"] == "%id:!foo\nDo work"
+    assert task["display_name"] == "launch test"
+    assert task["cl_name"] == "test"
+    assert task["project_file"] == "/tmp/test.sase"
+    assert app.notifications == [("Launching agent for test...", None)]
+    assert app._prompt_context is None
 
 
 def test_finish_agent_launch_forced_family_attach_wipes_exact_member() -> None:
