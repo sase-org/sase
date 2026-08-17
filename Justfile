@@ -295,6 +295,10 @@ _lint-flags: _setup
 sync-feature-flags-schema: _setup
     {{ venv_bin }}/python tools/sync_feature_flags_schema --write
 
+# Rewrite the checked-in structural completion spec snapshot from the argparse tree.
+sync-completion-spec: _setup
+    {{ venv_bin }}/python tools/sync_completion_spec --write
+
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260801
@@ -323,6 +327,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-oc.8(set_completion_kind)" \
+        --epic-symbol "sase-oc.8(set_completion_summary)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

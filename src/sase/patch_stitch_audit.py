@@ -62,6 +62,7 @@ _RETAINED_SERIALIZED_MARKERS = (
     "all_changespecs.json",
     "filtered_changespecs.json",
     "changespec_subcommand",
+    '"changespecs"',
 )
 
 _RETAINED_PUBLIC_MARKERS = (
