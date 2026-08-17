@@ -47,6 +47,9 @@ from .init_memory.project_deploy import (
     capture_pre_init_git_state as _capture_git_state,
     deploy_to_project_repo as _deploy_project_repo,
 )
+from .init_memory.staleness import (
+    workspace_pinned_sase_mismatch_warning as _workspace_pinned_sase_mismatch_warning,
+)
 
 
 @dataclass(frozen=True)
@@ -328,6 +331,13 @@ def _memory_root_plan_blockers(
     return tuple(blocker for root_plan in root_plans for blocker in root_plan.blockers)
 
 
+def _memory_plan_warnings(inputs: _MemoryInitInputs) -> tuple[str, ...]:
+    if not inputs.is_project_dir:
+        return ()
+    warning = _workspace_pinned_sase_mismatch_warning(inputs.project_root)
+    return () if warning is None else (warning,)
+
+
 def _summarize_memory_actions(actions: tuple[InitAction, ...]) -> str:
     if not actions:
         return "memory files are current"
@@ -349,12 +359,14 @@ def _summarize_memory_actions(actions: tuple[InitAction, ...]) -> str:
 def plan_init_memory(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for generated memory files."""
     inputs = _load_memory_inputs(args)
+    warnings = _memory_plan_warnings(inputs)
     if inputs.config_errors:
         return InitPlan(
             command="memory",
             label="Memory",
             summary="cannot generate memory until configuration is fixed",
             actions=(),
+            warnings=warnings,
             blockers=inputs.config_errors,
         )
 
@@ -382,6 +394,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
         label="Memory",
         summary=_summarize_memory_actions(actions),
         actions=actions,
+        warnings=warnings,
         blockers=blockers,
     )
 
@@ -408,6 +421,8 @@ def run_init_memory(args: argparse.Namespace) -> int:
         )
 
     inputs = _load_memory_inputs(args)
+    for warning in _memory_plan_warnings(inputs):
+        print(f"{COMMAND_LABEL}: warning: {warning}", file=sys.stderr)
     if inputs.config_errors:
         _print_config_errors(inputs.config_errors)
         return 1
