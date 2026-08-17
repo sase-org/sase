@@ -37,6 +37,22 @@
 # process-wide `os.replace` patch had already recorded.
 # fixed-at: 2026-08-17T01:44:57Z tests/ace/tui/test_config_center_state.py::test_save_atomically_replaces_existing_state
 #
+# sase-mp: fixed by 981106799 "docs: migrate docs and tests off retired
+# model-alias names" (committed 2026-08-16T04:53:04Z).
+# fixed-at: 2026-08-16T04:53:04Z tests/ace/tui/test_top_bar_order.py::test_override_pills_keep_narrow_top_bar_in_bounds
+#
+# sase-m6.7.1.6: fixed by 5d0bcf9e8 "test: expect relation-backed fields in
+# the notes fixture query profile" (committed 2026-08-16T15:00:59Z).
+# fixed-at: 2026-08-16T15:00:59Z tests/test_query_profile.py::test_provider_query_schema_derives_fields_from_the_notes_fixture
+#
+# sase-n8.3: fixed by 57c71d17a "feat(core): mirror alias-history wire
+# contract and add skew probe" (committed 2026-08-16T17:37:24Z).
+# fixed-at: 2026-08-16T17:37:24Z tests/main/test_var_integration.py::test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs
+#
+# sase-nb.8: fixed by 278cc810b "feat(beads): surface flag beads across bead
+# views" (committed 2026-08-16T23:43:38Z).
+# fixed-at: 2026-08-16T23:43:38Z tests/test_bead/test_cli_golden.py::test_bead_cli_golden_contract[stats]
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
