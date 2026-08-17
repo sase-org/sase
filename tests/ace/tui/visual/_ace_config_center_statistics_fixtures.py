@@ -57,6 +57,9 @@ def _xprompts_payload(
                 {"name": "gh", "count": 7},
                 {"name": "sase_plan", "count": 4},
             ],
+            "models_truncated": 2,
+            "projects_truncated": 0,
+            "partners_truncated": 0,
         },
         {
             "name": "gh",
@@ -81,6 +84,9 @@ def _xprompts_payload(
                 {"name": _ENGINE_KEY, "count": 3},
             ],
             "partners": [{"name": "split_file", "count": 7}],
+            "models_truncated": 0,
+            "projects_truncated": 0,
+            "partners_truncated": 0,
         },
         {
             "name": "sase_plan",
@@ -105,6 +111,9 @@ def _xprompts_payload(
                 {"name": _INTEGRATION_KEY, "count": 1},
             ],
             "partners": [{"name": "split_file", "count": 4}],
+            "models_truncated": 0,
+            "projects_truncated": 0,
+            "partners_truncated": 0,
         },
         {
             "name": "sase/reads",
@@ -126,6 +135,9 @@ def _xprompts_payload(
             ],
             "projects": [{"name": _WIDGETS_KEY, "count": 4}],
             "partners": [{"name": "gh", "count": 4}],
+            "models_truncated": 0,
+            "projects_truncated": 0,
+            "partners_truncated": 0,
         },
     ]
     focus: dict[str, object] | None = None

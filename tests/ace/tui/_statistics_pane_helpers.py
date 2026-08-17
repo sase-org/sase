@@ -70,6 +70,7 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
         "commits": {
             "total_commits": 7,
             "committing_agents": 3,
+            "committing_runs": 3,
             "average_per_committing_agent": 7 / 3,
             "distribution": {"zero": 3, "one": 1, "two": 1, "three_plus": 1},
             "top_repos": [{"name": "sase", "count": 7}],
@@ -212,6 +213,9 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                         {"name": "core", "count": 1},
                     ],
                     "partners": [{"name": "gh", "count": 2}],
+                    "models_truncated": 0,
+                    "projects_truncated": 0,
+                    "partners_truncated": 0,
                 },
                 {
                     "name": "gh",
@@ -230,6 +234,9 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                     "models": [],
                     "projects": [{"name": "sase", "count": 1}],
                     "partners": [],
+                    "models_truncated": 0,
+                    "projects_truncated": 0,
+                    "partners_truncated": 0,
                 },
             ],
             "focus": None,

@@ -163,7 +163,8 @@ def test_xprompts_grouping_modes_render_distinctive_columns_and_rows(
         "2 runs without xprompts (33.3%)"
     ) in rendered
     assert all(copy in rendered for copy in distinctive_copy)
-    assert "Scope = launch-boundary references only" in rendered
+    collapsed = " ".join(rendered.split())
+    assert "Scope = launch-boundary references only" in collapsed
 
 
 def test_swarm_rows_and_focus_header_label_the_swarm_kind() -> None:
@@ -228,6 +229,65 @@ def test_xprompt_focus_header_labels_the_swarm_kind() -> None:
     rendered = _render_plain(pane._xprompt_focus_header(focus))
 
     assert "#research_swarm  swarm" in rendered
+
+
+def test_commits_tile_shows_distinct_agents_and_committing_runs() -> None:
+    pane = StatisticsPane(auto_load=False)
+    result = _result("overview", pane._range)
+    captured: dict[str, object] = {}
+    pane._update_static = captured.__setitem__  # type: ignore[method-assign]
+    pane._configure_overview_tile_widgets = lambda: None  # type: ignore[method-assign]
+    pane._tile_width = lambda: 24  # type: ignore[method-assign]
+
+    pane._paint_overview_tiles(result)
+
+    rendered = _render_plain(captured["#statistics-tile-2"])
+    assert "3 agents · 3 runs" in rendered
+    assert "7" in rendered
+
+
+def test_projects_by_project_uses_patches_header_and_spec_footnote() -> None:
+    pane = StatisticsPane(auto_load=False)
+    payload = _run_payload(pane._range, "tribe")
+    payload["work"]["malformed_spec_files_skipped"] = 2
+    views = build_statistics_views(payload, _activity_payload())
+
+    rendered = _render_plain(pane._projects_by_project_renderable(views.projects))
+
+    assert "Patches" in rendered
+    assert "Specs" not in rendered
+    assert "2 unreadable project spec files skipped." in rendered
+    assert "malformed Patch files skipped." not in rendered
+    assert "Patches = distinct attributed Patches" in _render_plain(
+        pane._projects_renderable(views.projects)
+    )
+
+
+def test_xprompts_drilldown_discloses_per_row_truncation() -> None:
+    pane = StatisticsPane(auto_load=False)
+    payload = _run_payload(pane._range, "tribe")
+    payload["xprompts"]["rows"][0]["models_truncated"] = 4
+    views = build_statistics_views(payload, _activity_payload())
+
+    rendered = _render_plain(
+        pane._xprompts_drilldown_renderable(views.xprompts, dimension="model")
+    )
+
+    assert "+4 more not shown" in rendered
+    assert rendered.count("more not shown") == 1
+
+
+def test_xprompts_legend_splits_share_denominators() -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._view = "xprompts"
+    rendered = " ".join(
+        _render_plain(
+            pane._xprompts_renderable(_result("xprompts", pane._range))
+        ).split()
+    )
+
+    assert "Share = share of runs that referenced any xprompt" in rendered
+    assert "Child share = share of that xprompt's own runs" in rendered
 
 
 def test_xprompts_truncation_is_explicit() -> None:

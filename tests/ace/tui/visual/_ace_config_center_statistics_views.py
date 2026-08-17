@@ -78,6 +78,7 @@ def _populated_statistics_view(
         "commits": {
             "total_commits": 41,
             "committing_agents": 19,
+            "committing_runs": 19,
             "average_per_committing_agent": 2.16,
             "distribution": {"zero": 13, "one": 7, "two": 5, "three_plus": 7},
             "top_repos": [

@@ -377,6 +377,16 @@ class StatisticsXPromptsRenderingMixin:
                     "pairing": "partners",
                 }[dimension],
             )
+            truncated = int(
+                getattr(
+                    row,
+                    {
+                        "model": "models_truncated",
+                        "project": "projects_truncated",
+                        "pairing": "partners_truncated",
+                    }[dimension],
+                )
+            )
             if not children:
                 empty_label = {
                     "model": "(no model recorded)",
@@ -390,25 +400,33 @@ class StatisticsXPromptsRenderingMixin:
                     Text("—", style="dim"),
                     style="dim",
                 )
-                continue
-            for child in children:
-                if dimension == "project":
-                    label = Text("  ")
-                    label.append_text(
-                        StatisticsProjectsRenderingMixin._project_cell(
-                            child.key,
-                            child.label,
+            else:
+                for child in children:
+                    if dimension == "project":
+                        label = Text("  ")
+                        label.append_text(
+                            StatisticsProjectsRenderingMixin._project_cell(
+                                child.key,
+                                child.label,
+                            )
                         )
+                    elif dimension == "pairing":
+                        label = self._partner_cell(child.label)
+                    else:
+                        label = Text(f"  {child.label}")
+                    table.add_row(
+                        label,
+                        str(child.count),
+                        self._percent(child.share),
+                        self._share_bar(child.share, 1.0, width=10),
                     )
-                elif dimension == "pairing":
-                    label = self._partner_cell(child.label)
-                else:
-                    label = Text(f"  {child.label}")
+            if truncated:
                 table.add_row(
-                    label,
-                    str(child.count),
-                    self._percent(child.share),
-                    self._share_bar(child.share, 1.0, width=10),
+                    Text(f"  +{truncated} more not shown", style="dim italic"),
+                    Text("—", style="dim"),
+                    Text("—", style="dim"),
+                    Text("—", style="dim"),
+                    style="dim",
                 )
         return Group(
             self._xprompts_summary(xprompts),

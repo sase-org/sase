@@ -76,6 +76,9 @@ def test_xprompts_populated_rows_build_shares_tags_and_project_labels() -> None:
                     {"name": "core", "count": 1},
                 ],
                 "partners": [{"name": "gh", "count": 2}],
+                "models_truncated": 3,
+                "projects_truncated": 1,
+                "partners_truncated": 2,
             },
             {
                 "name": "gh",
@@ -122,6 +125,16 @@ def test_xprompts_populated_rows_build_shares_tags_and_project_labels() -> None:
     )
     assert row.projects[0].share == pytest.approx(2 / 3)
     assert row.partners[0].share == pytest.approx(2 / 3)
+    assert (row.models_truncated, row.projects_truncated, row.partners_truncated) == (
+        3,
+        1,
+        2,
+    )
+    assert (
+        xprompts.rows[1].models_truncated,
+        xprompts.rows[1].projects_truncated,
+        xprompts.rows[1].partners_truncated,
+    ) == (0, 0, 0)
 
 
 def test_xprompt_focus_builds_full_breakdowns_and_bucket_labels() -> None:

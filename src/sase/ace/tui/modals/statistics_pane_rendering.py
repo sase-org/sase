@@ -169,7 +169,8 @@ class StatisticsPanePresentationBase(StatisticsViewsRenderingMixin, Vertical):
                 value_format="percent",
             ),
             render_stat_tile(
-                f"{overview.commits}\n{overview.committing_agents} agents",
+                f"{overview.commits}\n{overview.committing_agents} agents · "
+                f"{overview.committing_runs} runs",
                 caption="Commits",
                 width=tile_width,
                 height=6,

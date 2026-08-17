@@ -141,6 +141,7 @@ class OverviewView:
     success_rate: float
     commits: int
     committing_agents: int
+    committing_runs: int
     plans_proposed: int
     epic_plans: int
     tale_plans: int
@@ -163,6 +164,7 @@ class RunsView:
     retry_kills: int
     commits: int
     committing_agents: int
+    committing_runs: int
     average_commits_per_committing_agent: float
     commit_distribution: tuple[DistributionRow, ...]
     top_repos: tuple[CountRow, ...]
@@ -246,6 +248,9 @@ class XPromptRow:
     models: tuple[XPromptCountRow, ...]
     projects: tuple[XPromptCountRow, ...]
     partners: tuple[XPromptCountRow, ...]
+    models_truncated: int
+    projects_truncated: int
+    partners_truncated: int
 
 
 @dataclass(frozen=True, slots=True)

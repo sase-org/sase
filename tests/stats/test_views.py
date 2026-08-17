@@ -28,6 +28,10 @@ def test_builds_all_presentation_views_from_binding_payloads() -> None:
     assert views.overview.top_projects[0].project_label == "sase"
     assert views.overview.top_projects[0].success_rate == 0.75
     assert views.overview.buckets[1].label == "Thu 01:00"
+    assert views.overview.committing_agents == 3
+    assert views.overview.committing_runs == 3
+    assert views.runs.committing_agents == 3
+    assert views.runs.committing_runs == 3
     assert views.runs.outcomes[0].share == 0.6
     assert views.runs.commit_distribution[-1].label == "3+"
     assert views.projects.project_count == 2
@@ -55,6 +59,19 @@ def test_builds_all_presentation_views_from_binding_payloads() -> None:
     assert views.plans_questions.asking_agents == 2
     assert views.plans_questions.coverage_start_ts == 1_000.0
     assert views.plans_questions.questions_per_session[-1].label == "2"
+
+
+def test_overview_and_runs_read_committing_runs_independently() -> None:
+    payload = run_payload()
+    payload["commits"]["committing_agents"] = 2  # type: ignore[index]
+    payload["commits"]["committing_runs"] = 5  # type: ignore[index]
+
+    views = build_statistics_views(payload, activity_payload())
+
+    assert views.overview.committing_agents == 2
+    assert views.overview.committing_runs == 5
+    assert views.runs.committing_agents == 2
+    assert views.runs.committing_runs == 5
 
 
 def test_models_are_frozen() -> None:

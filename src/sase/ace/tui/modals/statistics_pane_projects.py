@@ -62,7 +62,7 @@ class StatisticsProjectsRenderingMixin:
         table.add_column("Runs", justify="right")
         table.add_column("Success", justify="right", style=_GREEN)
         table.add_column("Commits", justify="right", style=_CYAN)
-        table.add_column("Specs", justify="right")
+        table.add_column("Patches", justify="right")
         table.add_column("Wall", justify="right")
         table.add_column("Share", justify="right")
         table.add_column("Last", justify="right")
@@ -228,8 +228,8 @@ class StatisticsProjectsRenderingMixin:
         if projects.malformed_spec_files_skipped:
             notes.append(
                 Text(
-                    f"{projects.malformed_spec_files_skipped} malformed Patch "
-                    "files skipped.",
+                    f"{projects.malformed_spec_files_skipped} unreadable "
+                    "project spec files skipped.",
                     style="dim italic",
                 )
             )

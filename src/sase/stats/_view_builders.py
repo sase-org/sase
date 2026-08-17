@@ -155,6 +155,7 @@ def build_overview_view(
         success_rate=ratio(integer(totals.get("completed")), terminal_runs),
         commits=integer(commits.get("total_commits")),
         committing_agents=integer(commits.get("committing_agents")),
+        committing_runs=integer(commits.get("committing_runs")),
         plans_proposed=integer(plans.get("proposed")),
         epic_plans=tier_counts.get("epic", 0),
         tale_plans=tier_counts.get("tale", 0),
@@ -191,6 +192,7 @@ def build_runs_view(run_payload: Payload) -> RunsView:
         retry_kills=integer(retries.get("kills")),
         commits=integer(commits.get("total_commits")),
         committing_agents=integer(commits.get("committing_agents")),
+        committing_runs=integer(commits.get("committing_runs")),
         average_commits_per_committing_agent=number(
             commits.get("average_per_committing_agent")
         ),
@@ -489,6 +491,9 @@ def build_xprompts_view(
                     row_runs,
                     display_snapshot,
                 ),
+                models_truncated=integer(row.get("models_truncated")),
+                projects_truncated=integer(row.get("projects_truncated")),
+                partners_truncated=integer(row.get("partners_truncated")),
             )
         )
 

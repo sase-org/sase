@@ -23,6 +23,10 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "Top projects column = completed ÷ all runs",
         ),
         _MetricLegend("Delta", "run change vs the preceding equal-length window"),
+        _MetricLegend(
+            "Commits",
+            "total commits, with distinct committing agents and committing runs",
+        ),
         _MetricLegend("Tiles", "click to open their detail view"),
     ),
     "runners": (
@@ -51,7 +55,7 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         _MetricLegend("Success", "completed ÷ all runs"),
         _MetricLegend("Share", "share of runs in range"),
         _MetricLegend("Wall", "summed agent runtime"),
-        _MetricLegend("Specs", "distinct Patches"),
+        _MetricLegend("Patches", "distinct attributed Patches"),
         _MetricLegend("✓/×", "completed/failed runs"),
         _MetricLegend("Unattributed", "runs with no Patch"),
     ),
@@ -76,6 +80,7 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "references; the same name with different arguments counts twice",
         ),
         _MetricLegend("Share", "share of runs that referenced any xprompt"),
+        _MetricLegend("Child share", "share of that xprompt's own runs"),
         _MetricLegend("Agents", "distinct agent names"),
         _MetricLegend("Used with", "xprompts referenced by the same run"),
         _MetricLegend(
