@@ -65,6 +65,11 @@
 # in-process, which no fork hazard can reach.
 # fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
 #
+# sase-ob: stop exact == on TemporaryProviderDisable timestamps after the
+# JSON store round-trip. The sibling disable is checked by provider/source/
+# duration and pytest.approx on created_at/expires_at.
+# fixed-at: 2026-08-17T15:40:00Z tests/fakey/test_usage_limit_e2e.py::test_usage_limit_failure_disables_only_fakey_and_preserves_error
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6

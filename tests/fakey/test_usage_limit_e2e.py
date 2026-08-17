@@ -36,7 +36,10 @@ def test_usage_limit_failure_disables_only_fakey_and_preserves_error(
         wait_times=[5],
     )
     harness.use_scenario(monkeypatch, [usage_limit_failure()])
-    sibling = disable_provider("claude", 900.0, source="ace")
+    # Freeze the sibling window. Reloaded timestamps can differ by one ULP, so
+    # the later asserts compare identity fields rather than the whole object.
+    sibling_now = 1_800_000_000.0
+    sibling = disable_provider("claude", 900.0, source="ace", now=sibling_now)
 
     increments: list[str] = []
     retry_sleeps: list[float] = []
@@ -73,11 +76,13 @@ def test_usage_limit_failure_disables_only_fakey_and_preserves_error(
 
     disables = get_active_provider_disables()
     assert set(disables) == {"claude", "fakey"}
-    claude = disables["claude"]
-    assert claude.provider == sibling.provider
-    assert claude.source == sibling.source
-    assert claude.created_at == pytest.approx(sibling.created_at)
-    assert claude.expires_at == pytest.approx(sibling.expires_at)
+    stored_claude = disables["claude"]
+    assert stored_claude.provider == sibling.provider == "claude"
+    assert stored_claude.source == sibling.source == "ace"
+    assert stored_claude.created_at == pytest.approx(sibling.created_at)
+    assert stored_claude.expires_at == pytest.approx(sibling.expires_at)
+    assert stored_claude.expires_at is not None
+    assert stored_claude.expires_at - stored_claude.created_at == pytest.approx(900.0)
     assert disables["fakey"].source == "usage_limit"
 
     notifications = [
