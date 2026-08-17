@@ -2002,6 +2002,13 @@ and leaves the set untouched. After confirmation, ACE kills or dismisses the mar
 agents and opens a prompt stack with one editable pane per original prompt in mark
 order. Embedded `---` inside an individual agent prompt stays inside that agent's pane.
 
+Each recovered prompt is rewritten to the forced-reuse `%id:!<name>` form
+(`%id(!name, clan=…)` for a clan or family member) so the relaunch keeps the original
+agent's name instead of claiming `<name>1`. ACE is the surface that confirms that reuse,
+and it carries the authorization through to the launch, so no second confirmation is
+asked for. Forced reuse cannot be combined with alt/fan-out directives in one segment;
+such a prompt is rejected with an explanatory error and preserved in prompt history.
+
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
 before creating git revert commits. For plan/follow-up families, ACE reverts the family
 scope when the row carries family metadata; otherwise it reverts the focused agent name.
@@ -2568,11 +2575,15 @@ move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle project s
 and `r` to refresh. On Overview, Agents Run, Success Rate, and Commits open Projects;
 Plans Proposed and Questions open Plans & Questions.
 
-The **Perf** sub-tab combines five headline measures—Startup, Stalls, Launch, Agent p95,
-and LLM p95—with startup stages, stall/hitch events, grouped latency and reliability,
-and source-coverage diagnostics. Press `g` to group latency by subsystem, provider, or
-workflow. Perf is global: the project chip remains visible but is marked **not
-applied**. See
+The **Perf** sub-tab combines five headline measures—Startup (median visible-ready),
+Stalls (stall count, with hitches named separately in the tile's detail line), Launch
+(p95 total launch time), Agent p95, and LLM p95—with startup stages, stall/hitch events,
+grouped latency and reliability, and source-coverage diagnostics. Press `g` to group
+latency by subsystem, provider, or workflow; the grouping also decides what the count
+column counts (LLM invocations, agent runs, or an ungrouped count) and whether a Share
+column applies. Perf counts come from telemetry and TUI logs, not the artifact index, so
+they are not comparable with the run counts on the other sub-tabs. Perf is global: the
+project chip remains visible but is marked **not applied**. See
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
 for data sources, retention, and probe details.
 

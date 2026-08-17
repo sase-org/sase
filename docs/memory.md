@@ -127,8 +127,16 @@ sase glossary log -t Stitch -a agent-a
 ```
 
 `sase glossary` with no subcommand defaults to `sase glossary list`. Every subcommand
-accepts `-p/--project REF` (default: the project owning the current directory) before or
-after the subcommand name.
+accepts `-p/--project REF` (a project key, display name, or alias) before or after the
+subcommand name.
+
+Without `-p`, the project is inferred from the current directory, and the match is
+currently limited to directories **inside the project's own ProjectSpec workspace path**
+— the primary checkout. A numbered managed workspace checkout
+(`.../workspaces/<key>/<project>_<N>/`) does not match it, and the command exits 1 with
+`no enabled project matched the active workspace`, even though `sase repo` and
+`sase memory` resolve the same directory to a project. Pass `-p/--project` explicitly
+(`sase glossary read Stitch -p sase -r "…"`) when working from a numbered workspace.
 
 `sase glossary list [PATTERN]` prints the terms configured for a project. `PATTERN` is
 an optional case-insensitive substring match against each term and its display aliases;

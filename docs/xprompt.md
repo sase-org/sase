@@ -399,6 +399,16 @@ standalone workflows instead of passing literal `#sync` text to the model. Shell
 examples should use single quotes around `#!...` so `!` is not interpreted by
 interactive shells.
 
+A `#`-shaped token that matches no known xprompt, workspace ref, or plugin-provided
+reference is **not** an error: it is passed to the agent as literal text. Because a typo
+would otherwise be invisible, launching scans the prompt first and reports each
+unresolved name — `sase run` prints one warning per name (with a `did you mean '#…'?`
+suggestion when a close match exists, and a pointer to `sase xprompt list`), and ACE
+raises one aggregated toast,
+`Unknown xprompt reference(s): #foo - passed through as literal text`. The scan is a
+best-effort diagnostic: it never blocks or alters the launch, and references inside
+literal zones (inline code, fenced code, disabled regions) are ignored.
+
 For workspace references, underscores can be used as an alternative to colons:
 `#gh_sase` is equivalent to `#gh:sase`. The underscore is normalized to a colon before
 pattern matching, so both forms work identically. This is useful in contexts where

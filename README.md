@@ -75,6 +75,7 @@ executable names.
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github
 sase doctor                                               # check install, config, and provider authentication
+sase completion install                                   # optional: <TAB> completion for zsh, bash, or fish
 sase run "#git:home summarize what this repository does; do not change files" # auto-detected providers
 # Or, for Muse Code:
 sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
@@ -119,6 +120,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
   integrations
 - [CLI Reference](https://sase.sh/cli/) — every command
+- [Shell Completion](https://sase.sh/completion/) — `<TAB>` completion for zsh, bash,
+  and fish
 - [Blog](https://sase.sh/blog/) — announcements and deep dives
 - [The SASE Handbook (PDF)](https://sase.sh/downloads/sase-handbook.pdf) — the full
   documentation as a single document

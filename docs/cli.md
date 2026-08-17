@@ -89,13 +89,17 @@ falling back to an exact proc id, then a unique id prefix. Active uniqueness is 
 per project, and a name may be reused only after the proc holding it settles.
 `sase proc show REF` accepts the same named proc shell, id, or id-prefix forms.
 
-Command groups with an exact `list` child default to that list view when invoked bare,
-including `sase agent-cli`, `sase bead`, `sase chat`, `sase completion`, `sase file`,
-`sase file-history`, `sase file-hook`, `sase memory`, `sase notify`, `sase plugin`,
-`sase project`, `sase prompt`, `sase proc`, `sase skill`, `sase stitch`,
-`sase telemetry`, `sase var`, `sase workspace`, and `sase xprompt`. Nested groups such
-as `sase agent tribe`, `sase axe chop`, `sase axe lumberjack`, `sase memory agent-docs`,
-and `sase plan links` follow the same rule.
+Every command group with an exact `list` child defaults to that list view when invoked
+bare — `sase agent`, `sase agent-cli`, `sase artifact`, `sase bead`, `sase chat`,
+`sase completion`, `sase file`, `sase file-history`, `sase file-hook`, `sase flag`,
+`sase glossary`, `sase memory`, `sase monitor`, `sase notify`, `sase plan`,
+`sase plugin`, `sase proc`, `sase project`, `sase prompt`, `sase repo`, `sase skill`,
+`sase stitch`, `sase telemetry`, `sase var`, `sase workspace`, and `sase xprompt`.
+Nested groups such as `sase agent prompts`, `sase agent tribe`, `sase artifact trash`,
+`sase axe chop`, `sase axe lumberjack`, `sase bead dep`, `sase bead ref`,
+`sase memory agent-docs`, `sase patch ref`, `sase plan links`, and `sase project alias`
+follow the same rule. A bare invocation prints a short notice naming the delegation, for
+example `No subcommand provided for 'sase repo'; delegating to 'sase repo list'.`
 
 The bare form is only the default view. When you need flags that belong to the list
 command, keep the `list` subcommand explicit, for example `sase notify list -j`,
@@ -460,6 +464,12 @@ The JSON report uses `schema_version: 1` and stable top-level fields such as `st
 `counts`, `selected_checks`, and `checks`. Individual check `data` payloads stay bounded
 and may gain additional keys over time, so scripts should key off check ids and statuses
 rather than assuming every nested field is permanent.
+
+The `completion` group is advisory and never fails a report: `completion.install` reads
+the [shell-completion](completion.md) install stamps, and the deep-only
+`completion.registration` spawns a real shell to confirm the script is actually
+registered (`sase doctor -D -C completion.registration`). Selecting a deep check without
+`-D` is rejected rather than silently skipped.
 
 `project.junk_directories` reports directories under `~/.sase/projects/` that have no
 canonical ProjectSpec and gives a manual-review cleanup hint.

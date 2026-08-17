@@ -87,9 +87,9 @@ only the completion script itself.
 
 `sase completion list` shows every shell's generator availability, install status,
 target path, `.zwc` freshness, and stamp version in one table. `sase doctor` includes
-the same checks as a non-blocking advisory group (`completion.install`,
-`completion.registration`); file presence alone is never treated as evidence of a
-working install.
+the same checks as a non-blocking advisory group: `completion.install` runs by default,
+and `completion.registration` — which spawns a real shell — runs only under `-D/--deep`.
+File presence alone is never treated as evidence of a working install.
 
 ## The Recommended `zstyle` Snippet
 
@@ -118,7 +118,13 @@ names, repo names, plan references, and more) complete through
 that never imports the full CLI, ACE, or Rust extension surface it doesn't need, and
 answers in well under its latency budget for a warm process. `KIND` completes to the
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
-authoritative list.
+authoritative list; today that is `agent`, `artifact`, `bead`, `flag`, `glossary`,
+`memory`, `model`, `monitor`, `patch`, `plan`, `plugin`, `proc`, `project`, `repo`,
+`skill`, `tag`, `workspace`, and `xprompt`. Path and directory slots are deliberately
+not kinds — the shell completes those natively.
+
+Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
+(default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
 
 Glossary terms are a worked example of how a kind is shaped for a shell rather than for
 a report: `sase glossary show <TAB>` offers slug-form references (`agent-hood`), because
@@ -177,14 +183,19 @@ above:
 ```bash
 sase doctor -v                    # human report, including completion checks
 sase doctor -C completion.install
-sase doctor -C completion.registration   # deep check: probes ${_comps[sase]} for real
+sase doctor -D -C completion.registration   # probes ${_comps[sase]} for real
 ```
+
+`completion.registration` is a **deep** check: it runs only under `-D/--deep`, and
+selecting it without that flag is rejected with
+`completion.registration selects deep checks only; rerun with -D/--deep to include them`.
+A plain `sase doctor` therefore reports install status but does not probe registration.
 
 Common issues:
 
 - **Nothing completes in a new shell.** Check `sase completion list` for the install
   status and target path. For zsh specifically, confirm the target directory appears in
-  `fpath` _before_ `compinit` — `sase doctor -C completion.registration` catches this
+  `fpath` _before_ `compinit` — `sase doctor -D -C completion.registration` catches this
   even when the script file is present.
 - **Completion is slow.** A cold first `<TAB>` for a zsh script that was written but
   never `zcompile`d costs 79–84 ms; re-run `sase completion install` to compile it. A

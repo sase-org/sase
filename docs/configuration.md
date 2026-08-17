@@ -997,9 +997,23 @@ structured-query chord and defaults to `,/`; bare `/` on Agents starts inline me
 search. Help remains a leader action controlled by `leader_mode.keys.show_help` and
 defaults to `,?`; the retired `ace.keymaps.app.show_help` override is ignored.
 
-The app-level `edit_query` and Agents-only `search_forward` actions may intentionally
-share a key because their tab scopes do not overlap. Other duplicate app bindings
-continue to be rejected by validation.
+A small allowlist of app actions intentionally shares a key because the two actions can
+never be available on the same surface. Validation permits exactly these pairs and
+rejects every other duplicate app binding:
+
+| Shared key (default) | Pair                                                   | Disjoint because                                       |
+| -------------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| `/`                  | `edit_query` / `search_forward`                        | query editing excludes Agents; search is Agents-only   |
+| `a`                  | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
+| `d`                  | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
+| `L`                  | `beads_open_plan` / `plans_open_bead`                  | Beads vs Plans panes                                   |
+| `E`                  | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
+| `.`                  | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
+| `X`                  | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |
+
+The allowlist is keyed by action pair, not by key, and only overridden actions are
+checked: an override that collides with any action outside its allowed pair is logged as
+a duplicate and reverted to that action's default.
 
 `ace.keymaps.app.start_saved_query_mode` (default `0`) arms direct saved-PR-query slot
 selection: press it, then a slot digit (`1`-`9`, then `0`) to load that slot. Its digit

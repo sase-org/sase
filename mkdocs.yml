@@ -33,6 +33,7 @@ nav:
       - Beads: beads.md
       - Workflows: workflow_spec.md
       - Agent Families: agent_families.md
+      - Agent Hood Synchronization: agents_sidecar.md
       - Monitors: monitors.md
       - Workspaces: workspace.md
       - Mentors: mentors.md

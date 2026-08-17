@@ -1705,6 +1705,17 @@ Once an epic bead exists, the shared launch path:
    name is still reserved afterward), the command aborts before mutating any bead state.
    `--dry-run` performs no cleanup; it only warns which live agents a real launch would
    force-reuse.
+
+   The itemized preview labels each existing agent with the action cleanup would take —
+   `BLOCKED`, `PRESERVE`, `KILL`, `REMOVE`, or `RELEASE`, printed in that order with the
+   agent name, current state, expected bead, and a reason. `BLOCKED` marks a slot whose
+   existing owner cannot be safely classified, usually a conflicting bead association;
+   family and clan members reached without their own bead ids are accepted rather than
+   treated as conflicts. Every blocker is listed instead of aborting on the first one,
+   and a real launch still stops before any wipe, bead mutation, or spawn. `--dry-run`
+   renders the `BLOCKED` rows, reports how many blockers would abort a real launch, and
+   still exits `0`.
+
 3. Flips the epic plan bead's `is_ready_to_work` flag to `True` when it was not already
    ready.
 4. Builds a Kahn-wave schedule from the epic's schedulable open phase children,

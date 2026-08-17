@@ -177,24 +177,49 @@ terminals compact the chips without changing the selection. Project keys remain
 canonical internally even when a configured display name is shown. Perf is global, so
 its project chip stays visible but adds **not applied**.
 
+**All time** has no real start instant, so its absolute span reads
+`through <end> · start bounded by retained data` instead of naming a date. What it
+covers is whatever the agent-artifact index and the telemetry store still retain — see
+[Retention and rollups](perf_runbook.md#retention-and-rollups) for the Perf view's two
+retention rules.
+
 The eight numbered views answer different questions:
 
-| #   | View                  | Contents                                                                                                                                         |
-| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                   |
-| 2   | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context. |
-| 3   | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings.         |
-| 4   | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                        |
-| 5   | **Activity**          | Skill, memory, and workspace use.                                                                                                                |
-| 6   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                             |
-| 7   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                              |
-| 8   | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                   |
+| #   | View                  | Contents                                                                                                                                                                                                       |
+| --- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Overview**          | Run volume over time plus top providers, skills, and projects.                                                                                                                                                 |
+| 2   | **Runners**           | Historical runner occupancy and concurrency trends, with today's effective global limit (including a temporary override) as present-day context.                                                               |
+| 3   | **Projects**          | Project and Patch run counts, success, commits, wall time, and last activity; `g` cycles project, Patch, and project-to-Patch groupings. A bounded Patch list closes with `N additional Patch rows not shown.` |
+| 4   | **Providers**         | Provider, model, and effort usage with success rates and average runtime.                                                                                                                                      |
+| 5   | **Activity**          | Skill, memory, and workspace use; the three panels are titled **Top …** because each is truncated to the highest-volume rows.                                                                                  |
+| 6   | **XPrompts**          | XPrompt use by frequency, model, project, and co-usage, with an optional focused XPrompt drill-down.                                                                                                           |
+| 7   | **Plans & Questions** | Plan lifecycle and tier/phase distributions plus question-session counts and sizes.                                                                                                                            |
+| 8   | **Perf**              | TUI startup and responsiveness, launch and agent/LLM latency, reliability, and the health of each data source.                                                                                                 |
 
 Each populated view ends with a compact legend defining its calculated metrics. Press
 `?` for the complete per-view glossary, control list, active range/group/project scope,
 and freshness notes. On Overview, the Agents Run, Success Rate, and Commits tiles open
 Projects when clicked; Plans Proposed and Questions open Plans & Questions without
 another data load.
+
+Two Overview definitions differ from each other on purpose: the **Success Rate** tile is
+completed ÷ _finished_ runs, while the **Top projects** success column is completed ÷
+_all_ runs in the range. The legend states both.
+
+Overview's **Runs over time** panel is clamped to observed activity. Leading and
+trailing zero-run buckets are dropped, so a wide window does not render years of empty
+rows, while interior zero buckets are kept so gaps in activity stay visible. If more
+than 96 buckets remain, adjacent buckets are merged into equal-width chunks and the
+panel title names the new width (for example `Runs over time · 7-day buckets`); an
+unaggregated panel keeps the plain title.
+
+The empty state is per view rather than global. Overview, Projects, and Providers are
+entirely run-derived, so they report "No agent runs recorded in …". Activity and Plans &
+Questions are timestamped by when their skill/memory/plan/question events happened
+rather than by when the producing agent launched, so they report their own emptiness
+("No skill or memory activity recorded", "No plans or questions recorded") and still
+render data in a window that contains no launches. Runners, XPrompts, and Perf render
+their own empty states inside the view.
 
 The default focused-pane keys are:
 
@@ -229,16 +254,17 @@ remains selected, both keys continue to use that cached list; cycle back to **Al
 let the pane reload to rank projects for the new range. When the selected project has no
 rows in the range, either key clears the filter directly to **All projects**.
 
-The project filter applies to run-backed metrics, project-attributed activity, and—in
-Plans & Questions—the run-backed plan lifecycle, Sessions, and Asking agents summaries.
-Plan tiers and phases, plus total-question counts and questions-per-session
-distributions, come from global documents rather than project-attributed runs. The
-detailed Plans & Questions view labels those fields **all projects** while a project is
-selected. The Overview Plans Proposed and Questions tiles also use all-project document
-aggregates, but their tile faces do not append that scope label. The Projects view
-retains an `(no Patch)` row for runs that have a project but no Patch attribution. Perf
-does not apply the project filter because its telemetry labels and TUI diagnostic logs
-do not carry project attribution. See
+The project filter applies to run-backed metrics, project-attributed activity (including
+the Activity view's skill and memory panels), and—in Plans & Questions—the run-backed
+plan lifecycle, Sessions, and Asking agents summaries. Plan tiers and phases, plus
+total-question counts and questions-per-session distributions, come from global
+documents rather than project-attributed runs. The detailed Plans & Questions view
+labels those fields **all projects** while a project is selected. The Overview Plans
+Proposed and Questions tiles also use all-project document aggregates, but their tile
+faces do not append that scope label. The Projects view retains an `(no Patch)` row for
+runs that have a project but no Patch attribution. Perf does not apply the project
+filter because its telemetry labels and TUI diagnostic logs do not carry project
+attribution. See
 [Reading the Admin Center Perf view](perf_runbook.md#reading-the-admin-center-perf-view)
 for its panels, sources, retention, and probe flags.
 

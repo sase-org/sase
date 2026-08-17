@@ -604,20 +604,40 @@ assessment.
 
 Five headline tiles summarize **Startup**, **Stalls**, **Launch**, **Agent p95**, and
 **LLM p95**. Startup, stalls, and launch timing come from bounded TUI diagnostic logs;
-agent and LLM latency come from the local telemetry store. The detailed body contains:
+agent and LLM latency come from the local telemetry store. Each tile shows one number,
+and they are deliberately not the same statistic:
+
+| Tile          | Value                       | Detail line                             |
+| ------------- | --------------------------- | --------------------------------------- |
+| **Startup**   | median visible-ready time   | sessions in range · slowest initial tab |
+| **Stalls**    | stall count                 | hitch count · worst freeze duration     |
+| **Launch**    | p95 total launch time       | launches · slow stages                  |
+| **Agent p95** | p95 agent-run duration      | agent runs                              |
+| **LLM p95**   | p95 LLM invocation duration | error rate · retry rate                 |
+
+The detailed body contains:
 
 1. **Startup breakdown** — p50, p95, and maximum durations for process→mount,
    mount→first paint, visible ready, and all surfaces ready, plus the slowest session in
    the range. The Startup tile itself reports the _median visible-ready_ time and grades
    it OK below two seconds, warning from two to five seconds, and critical at five
    seconds or more.
-2. **Stalls & hitches** — event counts, worst and median duration, recency, suppressed
-   counts, top contexts, and recoveries. Any hitch makes the Stalls tile warn; any stall
-   makes it critical.
-3. **Latency & reliability** — telemetry-backed p50, p95, maximum, sample count, error
-   rate, retry rate, and share. Provider grouping also shows input/output token and
-   cache data. The configured `telemetry.health_thresholds` grade every row in this
-   panel as well as the Agent p95 and LLM p95 tiles, using the same rules as
+2. **Stalls & hitches** — per-event counts, worst and median duration, recency,
+   suppressed counts, a **Freeze records by context** ranking, and recoveries. A freeze
+   past the stall threshold is also past the (lower) hitch threshold and is recorded by
+   both event kinds, so the two counts overlap and must not be added together. The tile
+   therefore reports stalls only and names hitches separately in its detail line. Any
+   hitch makes the tile warn; any stall makes it critical.
+3. **Latency & reliability** — telemetry-backed p50, p95, maximum, a count, error rate,
+   and retry rate. The count column is labeled by what it actually counts: **LLM
+   invocations** under provider grouping, **Agent runs** under workflow grouping, and a
+   plain **Count** under subsystem grouping. Provider grouping also shows input/output
+   token and cache data, plus a note that provider rows without LLM invocation samples
+   fall back to agent runs (which is why those rows read `—` for Err%/Retry%). Subsystem
+   grouping omits the **Share** column entirely, because its rows measure different
+   things and share no denominator; a subsystem with no counter renders `—` rather than
+   `0`. The configured `telemetry.health_thresholds` grade every row in this panel as
+   well as the Agent p95 and LLM p95 tiles, using the same rules as
    `sase telemetry health`.
 4. **Data & instrumentation** — telemetry enablement, selected resolution, store size,
    raw/rollup counts, write freshness, and one coverage row per diagnostic log. Coverage
@@ -635,10 +655,25 @@ The dashboard reads these files from `~/.sase/logs/` by default:
 - `tui_external_tools.jsonl`
 
 Missing, disabled, truncated, or partially unreadable sources degrade independently, so
-the rest of the view remains usable. Percentiles use the nearest-rank method described
-in the in-app `?` help. Every range except **All time** also loads the immediately
-preceding window of the same length; that second load is what the Startup and Agent p95
-tiles compare against to show a delta. The other three tiles never show one.
+the rest of the view remains usable.
+
+The two data sources compute percentiles differently, and the in-app `?` help names both
+methods:
+
+- **Log-derived numbers** (startup stages, launch timing, stall medians) use
+  nearest-rank on the sorted sample, at index `round(q * (n - 1))` clamped to
+  `[0, n - 1]`.
+- **Telemetry-derived numbers** (the Latency & reliability rows and the Agent p95 / LLM
+  p95 tiles) are estimated by linear interpolation between cumulative histogram bucket
+  bounds. They are bucket estimates, not exact sample percentiles.
+
+Perf counts come from the telemetry store and the TUI logs, never from the
+agent-artifact index, so they are not comparable with the run counts on Overview,
+Projects, or XPrompts.
+
+Every range except **All time** also loads the immediately preceding window of the same
+length; that second load is what the Startup and Agent p95 tiles compare against to show
+a delta. The other three tiles never show one.
 
 ### Retention and rollups
 

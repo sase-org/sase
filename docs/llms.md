@@ -1930,8 +1930,17 @@ Provider plugins supply conservative built-in patterns through
 - `disable_seconds` is the 24-hour fallback duration used when no reset hint is honored.
 - `min_disable_seconds` and `max_disable_seconds` clamp only provider-reported reset
   hints, not the administrator-chosen fallback duration.
-- `honor_reset_hint` allows messages such as "resets at 8pm" or "try again in 2 hours"
-  to choose the expiry, with a small grace buffer.
+- `honor_reset_hint` allows a provider-reported reset time to choose the expiry, with a
+  small grace buffer. Four forms are recognized, in priority order: an ISO-ish absolute
+  timestamp (`resets at 2026-08-18 09:00`, with optional `Z`/`UTC`/`±HH:MM`), a
+  month-name absolute date (`resets Aug 18, 2026 9am (America/New_York)`), a clock time
+  with or without a zone (`resets at 8pm`, `resets at 8pm (UTC)`), and a relative
+  duration (`try again in 2 hours`). Parsing commits to the first form whose keyword
+  matches rather than falling through, so an unrecognized zone name is a failed parse,
+  not a silent substitution of the local zone. A timestamp with no zone marker resolves
+  through the configured SASE `timezone:`, so setting that to something other than the
+  host zone skews these parses. Any failed or ambiguous parse falls back to
+  `disable_seconds` — a hint never blocks the disable.
 - `notify` controls the notification created for a new automatic disable window.
 - `providers.<provider>.patterns` adds positive provider-specific substrings.
 - `providers.<provider>.exclude_patterns` adds suppressing substrings for near misses

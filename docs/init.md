@@ -264,6 +264,15 @@ rebase, and pushes. This path does not run `commit_hooks.after`. Use
 committing. `--no-commit` only skips the project deploy path; home memory deployment
 still follows `use_chezmoi` when it is enabled.
 
+Memory drift is judged against the running build's generator templates, so the build
+that answers matters. When the invoked project carries its own `.venv/bin/sase` but the
+command is running under a different interpreter — the usual case being a bare `sase` on
+`PATH` that resolves to a separate `uv tool` install — both `--check` and apply modes
+print a non-fatal warning naming the foreign interpreter and the pinned invocation to
+use instead (`<project>/.venv/bin/sase memory init --check`, or `just check` in a repo
+that provides it). Phantom drift that disappears under the pinned build is exactly this
+situation.
+
 For managed roots, memory validation is reachability-based: Markdown files under
 `sase/memory/` must be reachable from `AGENTS.md` directly or through transitive
 `@sase/memory/...` or `sase/memory/...` references. Unreferenced memory files make the
