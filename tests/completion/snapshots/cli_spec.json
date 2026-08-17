@@ -5231,6 +5231,74 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "97cfda93726afa04",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "epic-symbols",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "auto",
+                  "always",
+                  "never"
+                ],
+                "dest": "color",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--color"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "compact",
+                  "json"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "bead",
+              "epic-symbols"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "id",
+                "nargs": "?"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "d69c2f50fd5c6e24",
             "hidden": false,
             "mutex_groups": [],
@@ -7315,6 +7383,166 @@
         ],
         "positionals": [],
         "subcommands": []
+      },
+      {
+        "aliases": [],
+        "default_child": "list",
+        "description_digest": "fddd270acf43034a",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "completion",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "completion"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "ddcab9b6957da81f",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "completion",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "7ded1c6b3d2c5726",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "spec",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "spec"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "35bcb7c22bb18538",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "zsh",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "zsh"
+            ],
+            "positionals": [],
+            "subcommands": []
+          }
+        ]
       },
       {
         "aliases": [],

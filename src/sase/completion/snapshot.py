@@ -15,7 +15,6 @@ def _stable_json(value: Any) -> str:
     return json.dumps(value, indent=2, sort_keys=True)
 
 
-# symvision: tools/sync_completion_spec
 def current_structural_view() -> dict[str, Any]:
     """Return the structural view built fresh from the live argparse tree."""
     return build_spec().structural_view()

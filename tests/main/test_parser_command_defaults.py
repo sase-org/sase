@@ -60,6 +60,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase axe lumberjack",
         "sase bead",
         "sase chat",
+        "sase completion",
         "sase file",
         "sase file-history",
         "sase flag",

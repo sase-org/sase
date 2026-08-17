@@ -188,6 +188,12 @@ def main() -> NoReturn:
 
         handle_commit_command(args)
 
+    # --- completion ---
+    if args.command == "completion":
+        from .completion_handler import handle_completion_command
+
+        sys.exit(handle_completion_command(args))
+
     # --- config ---
     if args.command == "config":
         from .config_handler import handle_config_command
