@@ -1,0 +1,56 @@
+"""Rich rendering helpers shared by the ``sase flag`` subcommands."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from rich.console import Console
+from rich.text import Text
+
+from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV
+from sase.feature_flags.models import FeatureFlagDecision, FeatureFlagDiagnostic
+
+
+def resolve_console(console: Console | None) -> Console:
+    """Return the caller's console, or a plain one for real CLI runs."""
+    if console is not None:
+        return console
+    return Console(highlight=False)
+
+
+def on_off(value: bool) -> str:
+    """Render a boolean flag value the way the CLI spells it."""
+    return "on" if value else "off"
+
+
+def source_text(decision: FeatureFlagDecision) -> Text:
+    """Render where a resolved value came from."""
+    if decision.source == "env":
+        env_name = decision.source_detail or SASE_FEATURE_FLAGS_ENV
+        return Text(f"ENV:{env_name}", style="bold reverse")
+    if decision.source == "default":
+        return Text("default", style="dim")
+    if decision.source_detail:
+        return Text(f"{decision.source}:{decision.source_detail}")
+    return Text(decision.source)
+
+
+def render_diagnostics(
+    diagnostics: Sequence[FeatureFlagDiagnostic],
+    console: Console,
+) -> None:
+    """Print resolver diagnostics below whatever the subcommand rendered."""
+    if not diagnostics:
+        return
+    console.print()
+    for diagnostic in diagnostics:
+        style = "bold red" if diagnostic.severity == "error" else "bold yellow"
+        console.print(Text(f"{diagnostic.severity}: {diagnostic.message}", style=style))
+
+
+__all__ = [
+    "on_off",
+    "render_diagnostics",
+    "resolve_console",
+    "source_text",
+]

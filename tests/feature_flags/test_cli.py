@@ -14,13 +14,9 @@ from rich.console import Console
 from sase.bead.model import FlagRecord, Issue, IssueType
 from sase.bead.project import BeadProject
 from sase.feature_flags.beads import create_flag_bead
-from sase.feature_flags.cli import (
-    _LIST_JSON_SCHEMA_VERSION,
-    _build_flag_scaffold,
-    _handle_flag_list_command,
-    _handle_flag_new_command,
-    _handle_flag_show_command,
-)
+from sase.feature_flags.cli_list import _LIST_JSON_SCHEMA_VERSION, handle_flag_list
+from sase.feature_flags.cli_new import _build_flag_scaffold, handle_flag_new
+from sase.feature_flags.cli_show import handle_flag_show
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV
 from sase.feature_flags.models import FeatureFlagDiagnostic, FeatureFlagError
 from sase.feature_flags.references import FlagCallSite
@@ -80,7 +76,7 @@ def test_flag_list_empty_registry_prints_scaffold_hint() -> None:
     console, buf = _console()
     args = create_parser().parse_args(["flag", "list"])
 
-    exit_code = _handle_flag_list_command(
+    exit_code = handle_flag_list(
         args,
         console=console,
         definitions={},
@@ -100,7 +96,7 @@ def test_flag_list_row_includes_env_provenance_and_countdown() -> None:
     flag = demo_flag("demo_flag", scope="global")
     args = create_parser().parse_args(["flag", "list"])
 
-    exit_code = _handle_flag_list_command(
+    exit_code = handle_flag_list(
         args,
         console=console,
         definitions={str(flag.key): flag},
@@ -133,7 +129,7 @@ def test_flag_list_surfaces_deprecated_env_diagnostic() -> None:
     flag = demo_flag("prettier_enabled", default=True, scope="global")
     args = create_parser().parse_args(["flag", "list"])
 
-    exit_code = _handle_flag_list_command(
+    exit_code = handle_flag_list(
         args,
         console=console,
         definitions={str(flag.key): flag},
@@ -170,7 +166,7 @@ def test_flag_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     flag = demo_flag("demo_flag")
     args = create_parser().parse_args(["flag", "list", "--json"])
 
-    _handle_flag_list_command(
+    handle_flag_list(
         args,
         definitions={str(flag.key): flag},
         snapshot=snapshot_for(flag),
@@ -189,7 +185,7 @@ def test_flag_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
 def test_flag_show_unknown_key_errors(capsys: pytest.CaptureFixture[str]) -> None:
     args = create_parser().parse_args(["flag", "show", "missing_flag"])
 
-    exit_code = _handle_flag_show_command(args, definitions={}, snapshot=snapshot_for())
+    exit_code = handle_flag_show(args, definitions={}, snapshot=snapshot_for())
 
     assert exit_code == 1
     assert "unknown feature flag: missing_flag" in capsys.readouterr().err
@@ -200,7 +196,7 @@ def test_flag_show_includes_layers_bead_and_call_sites() -> None:
     flag = demo_flag("demo_flag", scope="global")
     args = create_parser().parse_args(["flag", "show", "demo_flag"])
 
-    exit_code = _handle_flag_show_command(
+    exit_code = handle_flag_show(
         args,
         console=console,
         definitions={str(flag.key): flag},
@@ -236,11 +232,11 @@ def test_flag_new_requires_sase_managed(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(
-        "sase.feature_flags.cli.project_is_sase_managed", lambda _cwd=None: False
+        "sase.feature_flags.cli_new.project_is_sase_managed", lambda _cwd=None: False
     )
     args = create_parser().parse_args(["flag", "new", "demo_key"])
 
-    exit_code = _handle_flag_new_command(args, create_bead=False)
+    exit_code = handle_flag_new(args, create_bead=False)
 
     assert exit_code == 1
     err = capsys.readouterr().err
@@ -252,14 +248,14 @@ def test_flag_new_scaffold_prints_registry_entry_and_checklist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.feature_flags.cli.project_is_sase_managed", lambda _cwd=None: True
+        "sase.feature_flags.cli_new.project_is_sase_managed", lambda _cwd=None: True
     )
     console, buf = _console()
     args = create_parser().parse_args(
         ["flag", "new", "demo_key", "-d", "Opt-in beta", "-k", "beta"]
     )
 
-    exit_code = _handle_flag_new_command(
+    exit_code = handle_flag_new(
         args,
         console=console,
         definitions={},
@@ -306,7 +302,7 @@ def test_flag_new_creates_a_flag_bead(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.feature_flags.cli.project_is_sase_managed", lambda _cwd=None: True
+        "sase.feature_flags.cli_new.project_is_sase_managed", lambda _cwd=None: True
     )
     with BeadProject.init(tmp_path):
         pass
@@ -314,7 +310,7 @@ def test_flag_new_creates_a_flag_bead(
     console, buf = _console()
     args = create_parser().parse_args(["flag", "new", "demo_key"])
 
-    exit_code = _handle_flag_new_command(
+    exit_code = handle_flag_new(
         args,
         console=console,
         definitions={},
@@ -340,7 +336,7 @@ def test_flag_new_reports_the_committed_bead_id_after_remint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.feature_flags.cli.project_is_sase_managed", lambda _cwd=None: True
+        "sase.feature_flags.cli_new.project_is_sase_managed", lambda _cwd=None: True
     )
     with BeadProject.init(tmp_path):
         pass
@@ -367,13 +363,13 @@ def test_flag_new_reports_the_committed_bead_id_after_remint(
         return issue
 
     monkeypatch.setattr(
-        "sase.feature_flags.cli.create_flag_bead", capture_create_flag_bead
+        "sase.feature_flags.cli_new.create_flag_bead", capture_create_flag_bead
     )
 
     console, buf = _console()
     args = create_parser().parse_args(["flag", "new", "demo_key"])
 
-    exit_code = _handle_flag_new_command(
+    exit_code = handle_flag_new(
         args,
         console=console,
         definitions={},
