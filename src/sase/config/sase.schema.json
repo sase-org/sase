@@ -1186,6 +1186,17 @@
               "type": "boolean",
               "description": "Whether history-word rows render the score meter, dominant-reason chip, and panel legend for smart ranking",
               "default": true
+            },
+            "placeholder_ranking": {
+              "type": "string",
+              "description": "Saved-placeholder ordering: 'smart' ranks by relation, recency, and frequency; 'recent' restores stored use-count-then-recency order",
+              "enum": ["smart", "recent"],
+              "default": "smart"
+            },
+            "placeholder_ranking_signals": {
+              "type": "boolean",
+              "description": "Whether saved-placeholder rows render the score meter, dominant-reason chip, and panel legend for smart ranking",
+              "default": true
             }
           }
         },

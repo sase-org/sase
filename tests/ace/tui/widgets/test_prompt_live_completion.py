@@ -109,6 +109,8 @@ def test_prompt_completion_settings_parse_defaults_and_off_modes() -> None:
     assert parse_prompt_completion_settings({}) == PromptCompletionSettings()
     assert parse_prompt_completion_settings({}).auto_directive_menu is True
     assert parse_prompt_completion_settings({}).auto_artifact_menu is True
+    assert parse_prompt_completion_settings({}).placeholder_ranking == "smart"
+    assert parse_prompt_completion_settings({}).placeholder_ranking_signals is True
     assert parse_prompt_completion_settings({"auto": False}).auto == "off"
     assert parse_prompt_completion_settings({"auto": "soft"}).auto == "soft"
     parsed = parse_prompt_completion_settings(

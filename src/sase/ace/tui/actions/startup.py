@@ -35,7 +35,10 @@ if TYPE_CHECKING:
     )
     from ..widgets.xprompt_arg_assist import XPromptAssistEntry
     from sase.xprompt.glossary_catalog import EditorGlossaryCatalog
-    from sase.history.prompt_placeholders import CommonPlaceholderSourceToken
+    from sase.history.prompt_placeholders import (
+        CommonPlaceholderIndex,
+        CommonPlaceholderSourceToken,
+    )
     from sase.history.prompt_misspellings import MisspellingsSourceToken
     from sase.history.prompt_word_index import PromptWordIndex
     from ._startup_history_words import HistoryPromptCacheSourceToken
@@ -160,6 +163,7 @@ class StartupMixin(
     _history_prompt_words_source_token: HistoryPromptCacheSourceToken | None
     _history_prompt_words_rebuild_in_flight: bool
     _history_prompt_words_rebuild_pending: bool
+    _common_placeholder_index_cache: CommonPlaceholderIndex | None
     _common_placeholders_cache: list[str] | None
     _common_placeholders_source_token: CommonPlaceholderSourceToken | None
     _common_placeholders_generation: int

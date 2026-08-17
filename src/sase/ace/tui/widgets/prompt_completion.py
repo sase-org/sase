@@ -31,6 +31,7 @@ from sase.ace.tui.widgets.xprompt_completion import (
 
 PromptCompletionAutoMode = Literal["off", "soft"]
 WordRankingMode = Literal["smart", "recent"]
+PlaceholderRankingMode = WordRankingMode
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,8 @@ class PromptCompletionSettings:
     word_min_length: int = 5
     word_ranking: WordRankingMode = "smart"
     word_ranking_signals: bool = True
+    placeholder_ranking: PlaceholderRankingMode = "smart"
+    placeholder_ranking_signals: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,11 +159,27 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
             DEFAULT_PROMPT_COMPLETION_SETTINGS.word_min_length,
         ),
     )
-    word_ranking = _parse_word_ranking_mode(raw.get("word_ranking", "smart"))
+    word_ranking = _parse_ranking_mode(
+        raw.get("word_ranking", DEFAULT_PROMPT_COMPLETION_SETTINGS.word_ranking),
+        default=DEFAULT_PROMPT_COMPLETION_SETTINGS.word_ranking,
+    )
     word_ranking_signals = bool(
         raw.get(
             "word_ranking_signals",
             DEFAULT_PROMPT_COMPLETION_SETTINGS.word_ranking_signals,
+        )
+    )
+    placeholder_ranking = _parse_ranking_mode(
+        raw.get(
+            "placeholder_ranking",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.placeholder_ranking,
+        ),
+        default=DEFAULT_PROMPT_COMPLETION_SETTINGS.placeholder_ranking,
+    )
+    placeholder_ranking_signals = bool(
+        raw.get(
+            "placeholder_ranking_signals",
+            DEFAULT_PROMPT_COMPLETION_SETTINGS.placeholder_ranking_signals,
         )
     )
     return PromptCompletionSettings(
@@ -176,6 +195,8 @@ def parse_prompt_completion_settings(raw: Any) -> PromptCompletionSettings:
         word_min_length=word_min_length,
         word_ranking=word_ranking,
         word_ranking_signals=word_ranking_signals,
+        placeholder_ranking=placeholder_ranking,
+        placeholder_ranking_signals=placeholder_ranking_signals,
     )
 
 
@@ -367,13 +388,13 @@ def _parse_auto_mode(value: Any) -> PromptCompletionAutoMode:
     return DEFAULT_PROMPT_COMPLETION_SETTINGS.auto
 
 
-def _parse_word_ranking_mode(value: Any) -> WordRankingMode:
+def _parse_ranking_mode(value: Any, *, default: WordRankingMode) -> WordRankingMode:
     normalized = str(value).strip().lower()
     if normalized == "recent":
         return "recent"
     if normalized == "smart":
         return "smart"
-    return DEFAULT_PROMPT_COMPLETION_SETTINGS.word_ranking
+    return default
 
 
 def _parse_non_negative_int(value: Any, default: int) -> int:

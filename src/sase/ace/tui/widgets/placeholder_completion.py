@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.history.prompt_placeholder_ranking import (
+    RankedPlaceholder,
+    build_placeholder_ranking_context,
+    rank_common_placeholders,
+    rank_recent_common_placeholders,
+)
+from sase.history.prompt_placeholders import CommonPlaceholderIndex
 from sase.xprompt.placeholder_completion import (
     PlaceholderCandidateSource,
     PlaceholderPosition,
@@ -17,10 +24,25 @@ PLACEHOLDER_COMPLETION_KIND = "placeholder"
 
 
 @dataclass(frozen=True, slots=True)
+class PlaceholderRankingMetadata:
+    """Ranking evidence carried by one smart-ranked saved placeholder."""
+
+    reason: str
+    related_to: str
+    use_count: int
+    age_seconds: float
+    score: float
+    relation: float
+    recency: float
+    frequency: float
+
+
+@dataclass(frozen=True, slots=True)
 class PlaceholderCompletionMetadata:
     """Row metadata telling the panel which source produced a candidate."""
 
     source: PlaceholderCandidateSource
+    ranking: PlaceholderRankingMetadata | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +87,56 @@ def build_placeholder_completion_result(
     types a prefix, while an explicit ``Ctrl+T`` shows the full list.  That is a
     filter over an already-merged list, not a second matching implementation.
     """
+    return _placeholder_completion_result(
+        text,
+        cursor_offset,
+        common,
+        include_common_when_prefix_empty=include_common_when_prefix_empty,
+        ranking_by_text=None,
+    )
+
+
+def build_indexed_placeholder_completion_result(
+    text: str,
+    cursor_offset: int,
+    index: CommonPlaceholderIndex,
+    *,
+    now: float,
+    smart: bool,
+    include_common_when_prefix_empty: bool = False,
+) -> PlaceholderCompletionResult | None:
+    """Return placeholder completions ranked from a warm store index.
+
+    Ranks the whole store, then hands the ordered texts to the Rust engine as
+    ``common`` so prefix filtering, prompt-group dedup, and the replacement
+    range stay in one place.  Smart mode reattaches ranking evidence to each
+    returned ``common`` candidate by exact text; ``recent`` mode and prompt
+    candidates carry none.
+    """
+    if smart:
+        context = build_placeholder_ranking_context(index, text, now=now)
+        ranked = rank_common_placeholders(index, context, now=now)
+        ranking_by_text = {item.text: item for item in ranked}
+    else:
+        ranked = rank_recent_common_placeholders(index, now=now)
+        ranking_by_text = None
+    return _placeholder_completion_result(
+        text,
+        cursor_offset,
+        [item.text for item in ranked],
+        include_common_when_prefix_empty=include_common_when_prefix_empty,
+        ranking_by_text=ranking_by_text,
+    )
+
+
+def _placeholder_completion_result(
+    text: str,
+    cursor_offset: int,
+    common: Sequence[str],
+    *,
+    include_common_when_prefix_empty: bool,
+    ranking_by_text: Mapping[str, RankedPlaceholder] | None,
+) -> PlaceholderCompletionResult | None:
     position = _editor_position_for_offset(text, cursor_offset)
     if position is None:
         return None
@@ -87,7 +159,14 @@ def build_placeholder_completion_result(
             insertion=candidate.text,
             is_dir=False,
             name=candidate.text,
-            metadata=PlaceholderCompletionMetadata(source=candidate.source),
+            metadata=PlaceholderCompletionMetadata(
+                source=candidate.source,
+                ranking=_ranking_metadata(
+                    candidate.text,
+                    candidate.source,
+                    ranking_by_text,
+                ),
+            ),
         )
         for candidate in payload.candidates
         if not (drop_common and candidate.source == "common")
@@ -100,6 +179,28 @@ def build_placeholder_completion_result(
         replacement_end=replacement_end,
         append_closing_bracket=payload.append_closing_bracket,
         candidates=candidates,
+    )
+
+
+def _ranking_metadata(
+    text: str,
+    source: PlaceholderCandidateSource,
+    ranking_by_text: Mapping[str, RankedPlaceholder] | None,
+) -> PlaceholderRankingMetadata | None:
+    if ranking_by_text is None or source != "common":
+        return None
+    item = ranking_by_text.get(text)
+    if item is None:
+        return None
+    return PlaceholderRankingMetadata(
+        reason=item.reason,
+        related_to=item.related_to,
+        use_count=item.use_count,
+        age_seconds=item.age_seconds,
+        score=item.score,
+        relation=item.relation,
+        recency=item.recency,
+        frequency=item.frequency,
     )
 
 

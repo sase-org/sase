@@ -323,11 +323,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
-        --epic-symbol "sase-o8.3(RankedPlaceholder)" \
-        --epic-symbol "sase-o8.3(build_placeholder_ranking_context)" \
-        --epic-symbol "sase-o8.3(rank_common_placeholders)" \
-        --epic-symbol "sase-o8.3(rank_recent_common_placeholders)" \
-        --epic-symbol "sase-o8.4(load_common_placeholder_index)" \
+        --epic-symbol "sase-o8.4(PlaceholderRankingMetadata)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

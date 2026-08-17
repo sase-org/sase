@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from sase.history.prompt_placeholders import CommonPlaceholderSourceToken
+    from sase.history.prompt_placeholders import (
+        CommonPlaceholderIndex,
+        CommonPlaceholderSourceToken,
+    )
 
 log = logging.getLogger(__name__)
 
@@ -17,20 +20,29 @@ class _CommonPlaceholdersLoadResult:
     """Off-thread common-placeholder load result."""
 
     source_token: CommonPlaceholderSourceToken
-    placeholders: list[str] | None
+    index: CommonPlaceholderIndex | None
 
 
 class StartupCommonPlaceholdersMixin:
     """Mixin providing an app-global, memory-only common-placeholder cache."""
 
+    _common_placeholder_index_cache: CommonPlaceholderIndex | None
     _common_placeholders_cache: list[str] | None
     _common_placeholders_source_token: CommonPlaceholderSourceToken | None
     _common_placeholders_generation: int
     _common_placeholders_rebuild_in_flight: bool
     _common_placeholders_rebuild_pending: bool
 
+    def common_placeholder_index(self: Any) -> CommonPlaceholderIndex | None:
+        """Return the warm common-placeholder index without touching disk."""
+        return self._common_placeholder_index_cache
+
     def common_placeholders(self: Any) -> list[str] | None:
-        """Return the warm common-placeholder cache without touching disk."""
+        """Return the warm common-placeholder texts without touching disk.
+
+        Derived once from the warm index and cached alongside it so existing
+        callers and lightweight test harnesses keep a ``list[str] | None``.
+        """
         return self._common_placeholders_cache
 
     def common_placeholders_generation(self: Any) -> int:
@@ -45,11 +57,11 @@ class StartupCommonPlaceholdersMixin:
         """Schedule an off-thread cache staleness check and reload."""
         limit = self.get_prompt_completion_settings().common_placeholder_count
         if limit <= 0:
-            # Disabled: publish an empty list without ever touching disk. The
+            # Disabled: publish an empty index without ever touching disk. The
             # source token stays unset so that re-enabling the feature still
             # takes the first-warm path, seed included.
-            was_cold = self._common_placeholders_cache is None
-            self._common_placeholders_cache = []
+            was_cold = self._common_placeholder_index_cache is None
+            self._set_empty_common_placeholder_cache()
             self._common_placeholders_source_token = None
             if was_cold:
                 self._publish_common_placeholders()
@@ -63,7 +75,7 @@ class StartupCommonPlaceholdersMixin:
         self._common_placeholders_rebuild_pending = False
         previous_token = (
             self._common_placeholders_source_token
-            if self._common_placeholders_cache is not None
+            if self._common_placeholder_index_cache is not None
             else None
         )
 
@@ -83,17 +95,22 @@ class StartupCommonPlaceholdersMixin:
         except Exception:
             self._common_placeholders_rebuild_in_flight = False
             log.exception("Failed to schedule common-placeholder reload")
-            if self._common_placeholders_cache is None:
-                self._common_placeholders_cache = []
+            if self._common_placeholder_index_cache is None:
+                self._set_empty_common_placeholder_cache()
                 self._publish_common_placeholders()
 
     def forget_common_placeholder(self: Any, text: str) -> None:
         """Optimistically remove *text* and force a store-backed next warm.
 
-        Clearing the source token takes the first-warm path, whose history seed
-        is a no-op while the authoritative store file exists.
+        Drops the entry from the warm index and leaves corpus statistics
+        untouched, matching the durable store.  Clearing the source token
+        takes the first-warm path, whose history seed is a no-op while the
+        authoritative store file exists.
         """
-        if isinstance(self._common_placeholders_cache, list):
+        index = self._common_placeholder_index_cache
+        if index is not None:
+            self._set_common_placeholder_cache(_index_without_text(index, text))
+        elif isinstance(self._common_placeholders_cache, list):
             self._common_placeholders_cache = [
                 candidate
                 for candidate in self._common_placeholders_cache
@@ -101,6 +118,18 @@ class StartupCommonPlaceholdersMixin:
             ]
         self._common_placeholders_source_token = None
         self._publish_common_placeholders()
+
+    def _set_common_placeholder_cache(self: Any, index: CommonPlaceholderIndex) -> None:
+        from sase.history.prompt_placeholders import load_common_placeholders
+
+        self._common_placeholder_index_cache = index
+        self._common_placeholders_cache = load_common_placeholders(
+            len(index.entries),
+            index=index,
+        )
+
+    def _set_empty_common_placeholder_cache(self: Any) -> None:
+        self._set_common_placeholder_cache(_empty_common_placeholder_index())
 
     async def _run_common_placeholders_rebuild(
         self: Any,
@@ -120,16 +149,16 @@ class StartupCommonPlaceholdersMixin:
             )
         except Exception:
             log.exception("Common-placeholder reload failed")
-            if self._common_placeholders_cache is None:
-                self._common_placeholders_cache = []
+            if self._common_placeholder_index_cache is None:
+                self._set_empty_common_placeholder_cache()
                 self._publish_common_placeholders()
         finally:
             self._common_placeholders_rebuild_in_flight = False
 
         if result is not None:
             self._common_placeholders_source_token = result.source_token
-            if result.placeholders is not None:
-                self._common_placeholders_cache = result.placeholders
+            if result.index is not None:
+                self._set_common_placeholder_cache(result.index)
                 self._publish_common_placeholders()
 
         if self._common_placeholders_rebuild_pending:
@@ -177,7 +206,7 @@ def _load_common_placeholders(
     """Seed on first use, then reload only when the store token is stale."""
     from sase.history.prompt_placeholders import (
         common_placeholder_source_token,
-        load_common_placeholders,
+        load_common_placeholder_index,
         seed_common_placeholders_from_history,
     )
 
@@ -191,9 +220,64 @@ def _load_common_placeholders(
     if source_token == previous_token:
         return _CommonPlaceholdersLoadResult(
             source_token=source_token,
-            placeholders=None,
+            index=None,
         )
     return _CommonPlaceholdersLoadResult(
         source_token=source_token,
-        placeholders=load_common_placeholders(limit),
+        index=_limited_common_placeholder_index(
+            load_common_placeholder_index(),
+            limit,
+        ),
+    )
+
+
+def _empty_common_placeholder_index() -> CommonPlaceholderIndex:
+    from sase.history.prompt_placeholders import CommonPlaceholderIndex
+
+    return CommonPlaceholderIndex(
+        entries=(),
+        prompt_count=0,
+        context_frequency={},
+        max_count=0,
+    )
+
+
+def _limited_common_placeholder_index(
+    index: CommonPlaceholderIndex,
+    limit: int,
+) -> CommonPlaceholderIndex:
+    from sase.history.prompt_placeholders import CommonPlaceholderIndex
+
+    if limit <= 0:
+        return CommonPlaceholderIndex(
+            entries=(),
+            prompt_count=index.prompt_count,
+            context_frequency=index.context_frequency,
+            max_count=0,
+        )
+    if len(index.entries) <= limit:
+        return index
+    entries = index.entries[:limit]
+    return CommonPlaceholderIndex(
+        entries=entries,
+        prompt_count=index.prompt_count,
+        context_frequency=index.context_frequency,
+        max_count=max((entry.count for entry in entries), default=0),
+    )
+
+
+def _index_without_text(
+    index: CommonPlaceholderIndex,
+    text: str,
+) -> CommonPlaceholderIndex:
+    from sase.history.prompt_placeholders import CommonPlaceholderIndex
+
+    remaining = tuple(entry for entry in index.entries if entry.text != text)
+    if len(remaining) == len(index.entries):
+        return index
+    return CommonPlaceholderIndex(
+        entries=remaining,
+        prompt_count=index.prompt_count,
+        context_frequency=index.context_frequency,
+        max_count=max((entry.count for entry in remaining), default=0),
     )

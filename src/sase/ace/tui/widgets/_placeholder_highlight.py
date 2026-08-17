@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import time
 from typing import TYPE_CHECKING, Any
 
 from rich.style import Style
@@ -15,9 +16,11 @@ from sase.ace.tui.widgets._jinja_highlight import (
 )
 from sase.ace.tui.widgets.placeholder_completion import (
     PlaceholderCompletionResult,
+    build_indexed_placeholder_completion_result,
     build_placeholder_completion_result,
     editor_range_to_offsets,
 )
+from sase.history.prompt_placeholders import CommonPlaceholderIndex
 from sase.xprompt.placeholder_completion import PlaceholderSpan, placeholder_spans
 
 if TYPE_CHECKING:
@@ -124,6 +127,12 @@ class PlaceholderHighlightMixin(_MixinBase):
         up staring at a stale menu.  The empty-prefix rule selects the slot
         rather than joining the key, so the two rules coexist instead of
         evicting each other.
+
+        Ranking depends on the prompt text and the warm index.  The slot map
+        is already cleared on every text change, and the generation covers a
+        rebuilt index, so the context-dependent result does not need extra
+        key members.  ``now`` is captured per miss and passed explicitly so
+        tests can pin recency.
         """
         text = self.text
         self._invalidate_placeholder_cache_for(text)
@@ -132,15 +141,70 @@ class PlaceholderHighlightMixin(_MixinBase):
         key = (cursor_offset, len(text), self._common_placeholders_generation())
         if self._placeholder_cached_completion_keys.get(slot) != key:
             self._placeholder_cached_completions[slot] = (
-                build_placeholder_completion_result(
+                self._build_placeholder_completion_result(
                     text,
                     cursor_offset,
-                    self._common_placeholders(),
                     include_common_when_prefix_empty=include_common_when_prefix_empty,
                 )
             )
             self._placeholder_cached_completion_keys[slot] = key
         return self._placeholder_cached_completions[slot]
+
+    def _build_placeholder_completion_result(
+        self,
+        text: str,
+        cursor_offset: int,
+        *,
+        include_common_when_prefix_empty: bool,
+    ) -> PlaceholderCompletionResult | None:
+        if self._common_placeholder_index_available():
+            index = self._common_placeholder_index()
+            if index is None:
+                return build_placeholder_completion_result(
+                    text,
+                    cursor_offset,
+                    (),
+                    include_common_when_prefix_empty=include_common_when_prefix_empty,
+                )
+            return build_indexed_placeholder_completion_result(
+                text,
+                cursor_offset,
+                index,
+                now=time.time(),
+                smart=self._placeholder_ranking_is_smart(),
+                include_common_when_prefix_empty=include_common_when_prefix_empty,
+            )
+        return build_placeholder_completion_result(
+            text,
+            cursor_offset,
+            self._common_placeholders(),
+            include_common_when_prefix_empty=include_common_when_prefix_empty,
+        )
+
+    def _common_placeholder_index_available(self) -> bool:
+        """Return whether the app exposes a warm placeholder-index provider."""
+        return callable(getattr(self.app, "common_placeholder_index", None))
+
+    def _common_placeholder_index(self) -> CommonPlaceholderIndex | None:
+        """Return the app's warm placeholder index without touching disk."""
+        provider = getattr(self.app, "common_placeholder_index", None)
+        if not callable(provider):
+            return None
+        try:
+            index = provider()
+        except Exception:
+            return None
+        return index if isinstance(index, CommonPlaceholderIndex) else None
+
+    def _placeholder_ranking_is_smart(self) -> bool:
+        """Return whether saved placeholders use smart ranking."""
+        settings_fn = getattr(self, "_prompt_completion_settings", None)
+        if not callable(settings_fn):
+            return True
+        try:
+            return settings_fn().placeholder_ranking != "recent"
+        except Exception:
+            return True
 
     def _common_placeholders(self) -> list[str]:
         """Return the app's warm saved-placeholder list without touching disk."""

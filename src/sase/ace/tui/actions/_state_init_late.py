@@ -199,6 +199,7 @@ def init_late_startup_state(
     self._history_prompt_words_source_token = None
     self._history_prompt_words_rebuild_in_flight = False
     self._history_prompt_words_rebuild_pending = False
+    self._common_placeholder_index_cache = None
     self._common_placeholders_cache = None
     self._common_placeholders_source_token = None
     self._common_placeholders_generation = 0

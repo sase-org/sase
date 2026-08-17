@@ -119,6 +119,34 @@ def test_config_schema_validates_ace_agents_sync_settings() -> None:
             validator.validate({"ace": {"agents_sync": invalid}})
 
 
+def test_prompt_completion_placeholder_ranking_schema_contract() -> None:
+    public_schema = schema()
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+    prompt_completion = public_schema["properties"]["ace"]["properties"][
+        "prompt_completion"
+    ]
+    ranking = prompt_completion["properties"]["placeholder_ranking"]
+    signals = prompt_completion["properties"]["placeholder_ranking_signals"]
+
+    assert default_config["ace"]["prompt_completion"]["placeholder_ranking"] == "smart"
+    assert (
+        default_config["ace"]["prompt_completion"]["placeholder_ranking_signals"]
+        is True
+    )
+    assert ranking["enum"] == ["smart", "recent"]
+    assert ranking["default"] == "smart"
+    assert signals["default"] is True
+    Draft7Validator(public_schema).validate(
+        {"ace": {"prompt_completion": {"placeholder_ranking": "recent"}}}
+    )
+    with pytest.raises(ValidationError):
+        Draft7Validator(public_schema).validate(
+            {"ace": {"prompt_completion": {"placeholder_ranking": "popular"}}}
+        )
+
+
 def test_prompt_completion_word_min_length_schema_contract() -> None:
     public_schema = schema()
     prompt_completion = public_schema["properties"]["ace"]["properties"][

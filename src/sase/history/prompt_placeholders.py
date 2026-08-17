@@ -198,15 +198,21 @@ def load_common_placeholder_index() -> CommonPlaceholderIndex:
     )
 
 
-def load_common_placeholders(limit: int) -> list[str]:
+def load_common_placeholders(
+    limit: int,
+    *,
+    index: CommonPlaceholderIndex | None = None,
+) -> list[str]:
     """Return up to *limit* saved placeholders in display order.
 
     A missing, empty, corrupt, or unknown-version store yields ``[]``.  The
-    file is written already sorted, so no re-ranking happens here.
+    file is written already sorted, so no re-ranking happens here.  Pass a
+    warm *index* to derive the same list without another disk read.
     """
     if limit <= 0:
         return []
-    return [entry.text for entry in load_common_placeholder_index().entries[:limit]]
+    loaded = index if index is not None else load_common_placeholder_index()
+    return [entry.text for entry in loaded.entries[:limit]]
 
 
 def remove_common_placeholder(text: str) -> bool:

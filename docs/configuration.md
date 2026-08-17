@@ -1113,22 +1113,26 @@ ace:
     word_min_length: 5
     word_ranking: smart
     word_ranking_signals: true
+    placeholder_ranking: smart
+    placeholder_ranking_signals: true
 ```
 
-| Field                      | Type        | Default | Description                                                                                                                 |
-| -------------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `auto`                     | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                   |
-| `debounce_ms`              | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                                      |
-| `auto_file_paths`          | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                |
-| `auto_xprompt_menu`        | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.           |
-| `auto_directive_menu`      | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.                       |
-| `auto_artifact_menu`       | bool        | `true`  | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.          |
-| `max_auto_rows`            | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                  |
-| `history_word_count`       | int         | `10000` | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.               |
-| `common_placeholder_count` | int         | `100`   | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them.          |
-| `word_min_length`          | int         | `5`     | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.                   |
-| `word_ranking`             | string      | `smart` | History-word ordering. `smart` ranks by relation, recency, and frequency; `recent` restores plain most-recently-used order. |
-| `word_ranking_signals`     | bool        | `true`  | Whether smart-ranked history-word rows render the score meter, dominant-reason chip, and panel legend.                      |
+| Field                         | Type        | Default | Description                                                                                                                       |
+| ----------------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `auto`                        | bool/string | `soft`  | Automatic mode. `soft`, `true`, `on`, `yes`, or `1` enable subtitle suggestions; false/off disables them.                         |
+| `debounce_ms`                 | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                                            |
+| `auto_file_paths`             | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                      |
+| `auto_xprompt_menu`           | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                 |
+| `auto_directive_menu`         | bool        | `true`  | Automatically open directive completion while typing `%id` tokens and fixed values such as `%model:`.                             |
+| `auto_artifact_menu`          | bool        | `true`  | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                |
+| `max_auto_rows`               | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                        |
+| `history_word_count`          | int         | `10000` | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.                     |
+| `common_placeholder_count`    | int         | `100`   | Maximum saved `<placeholder>` tags retained and offered after prompt-local placeholder matches; `0` disables them.                |
+| `word_min_length`             | int         | `5`     | Shared minimum length for prompt-local and prompt-history word candidates; values below `1` clamp to `1`.                         |
+| `word_ranking`                | string      | `smart` | History-word ordering. `smart` ranks by relation, recency, and frequency; `recent` restores plain most-recently-used order.       |
+| `word_ranking_signals`        | bool        | `true`  | Whether smart-ranked history-word rows render the score meter, dominant-reason chip, and panel legend.                            |
+| `placeholder_ranking`         | string      | `smart` | Saved-placeholder ordering. `smart` ranks by relation, recency, and frequency; `recent` restores stored count-then-recency order. |
+| `placeholder_ranking_signals` | bool        | `true`  | Whether smart-ranked saved-placeholder rows render the score meter, dominant-reason chip, and panel legend.                       |
 
 The minimum applies to the complete candidate, so a shorter typed prefix can still
 complete an eligible word. Prompt-local words below the threshold are skipped before ACE
@@ -1147,10 +1151,12 @@ Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are
 from complete raw `<foobar>` tags outside literal zones in submitted, failed-launch, and
 cancelled prompt drafts. When the store is first created, ACE seeds it once from bounded
 prompt history so existing tags can appear immediately. Retention evicts
-least-recently-used entries down to `common_placeholder_count`, while display order is
-frecency: use count, then last use, then text. Setting `common_placeholder_count: 0`
-disables recording, loading, and display of saved placeholders; prompt-local placeholder
-completion still works.
+least-recently-used entries down to `common_placeholder_count`. By default
+(`placeholder_ranking: smart`) the `<` menu ranks saved tags by relation to the prompt
+being edited, recency, and frequency; `placeholder_ranking: recent` restores the stored
+count-then-recency order. Setting `common_placeholder_count: 0` disables recording,
+loading, and display of saved placeholders; prompt-local placeholder completion still
+works.
 
 The former `history_word_min_length` key has been replaced by `word_min_length`.
 Existing overrides must rename the key to keep controlling word completion.
