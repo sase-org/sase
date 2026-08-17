@@ -325,6 +325,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-o8.2(CommonPlaceholderIndex)" \
         --epic-symbol "sase-o8.2(load_common_placeholder_index)" \
+        --epic-symbol "sase-o9.2(monitor_row_agent_name)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

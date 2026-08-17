@@ -146,6 +146,13 @@ class ObservedProc:
     session_label: str | None = None
     session_live: bool = True
     origin: str = ""
+    # Authoritative combined-log path (``Proc.log_path``). Store-owned rows
+    # repeat the store path; a monitor carries ``<artifacts_dir>/live_reply.md``.
+    log_path: str = ""
+    # Named proc shell (``Proc.shell_name``). For a monitor row
+    # (``origin == MONITOR_PROC_ORIGIN``) this is the monitor's member agent
+    # name (``acme--mon``).
+    shell_name: str | None = None
 
     @property
     def label(self) -> str:
@@ -493,6 +500,18 @@ def is_monitor_shell_row(row: ObservedProc) -> bool:
     return row.origin == MONITOR_PROC_ORIGIN
 
 
+def monitor_row_agent_name(row: ObservedProc) -> str | None:
+    """Return a monitor row's member agent name, or ``None``.
+
+    For ``origin == MONITOR_PROC_ORIGIN`` this is ``ObservedProc.shell_name``
+    (the named proc shell, e.g. ``acme--mon``). Non-monitor rows — even ones
+    that carry a ``shell_name`` — return ``None``.
+    """
+    if not is_monitor_shell_row(row):
+        return None
+    return row.shell_name or None
+
+
 def _store_proc_row(
     proc: Proc,
     *,
@@ -501,7 +520,7 @@ def _store_proc_row(
 ) -> ObservedProc:
     """Adapt one durable proc row into an observed row."""
     started_at = _local_datetime(proc.started_at or proc.created_at) or local_now()
-    output = _read_log_tail(proc.proc_id) if with_output else ""
+    output = _read_log_tail(proc.proc_id, proc.log_path) if with_output else ""
     return ObservedProc(
         proc_id=proc.proc_id,
         proc_type=proc.kind,
@@ -524,6 +543,8 @@ def _store_proc_row(
         session_live=bool(proc.session_id and proc.session_id in live_session_ids),
         exclusive_scopes=frozenset(proc.concurrency_keys),
         origin=proc.origin,
+        log_path=proc.log_path,
+        shell_name=proc.shell_name,
     )
 
 
@@ -618,9 +639,9 @@ def _live_session_ids() -> frozenset[str]:
         return frozenset()
 
 
-def _read_log_tail(proc_id: str) -> str:
+def _read_log_tail(proc_id: str, log_path: str = "") -> str:
     try:
-        return read_proc_log_tail(proc_id, DETAIL_LOG_LINES)
+        return read_proc_log_tail(proc_id, DETAIL_LOG_LINES, log_path=log_path or None)
     except (OSError, ValueError):
         return ""
 
@@ -667,5 +688,6 @@ __all__ = [
     "_store_proc_row",
     "compose_proc_projection",
     "is_monitor_shell_row",
+    "monitor_row_agent_name",
     "proc_projection_for",
 ]
