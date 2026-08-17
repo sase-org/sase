@@ -327,6 +327,12 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(is_usage_limit_error)" \
         --epic-symbol "sase-n4(normalize_for_match)" \
         --epic-symbol "sase-n4(parse_reset_hint)" \
+        --epic-symbol "sase-p1.4(GlossaryProjectRef)" \
+        --epic-symbol "sase-p1.4(GlossaryProjectSnapshot)" \
+        --epic-symbol "sase-p1.4(build_glossary_project_ring)" \
+        --epic-symbol "sase-p1.4(load_glossary_project_snapshot)" \
+        --epic-symbol "sase-p1.5(glossary_entry_relations)" \
+        --epic-symbol "sase-p1.6(invalidate_glossary_project)" \
         --epic-symbol "sase-p2.2(EditorRepoMentionCatalog)" \
         --epic-symbol "sase-p2.2(EditorRepoMentionCatalogResult)" \
         --epic-symbol "sase-p2.2(RepoMentionSpan)" \

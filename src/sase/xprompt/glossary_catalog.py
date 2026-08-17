@@ -246,6 +246,11 @@ def editor_glossary_lsp_catalog_payload(
 def enabled_project_records(
     projects_root: str | Path | None,
 ) -> tuple[ProjectRecordWire, ...]:
+    """Return enabled, non-system, on-disk project records for glossary use.
+
+    Shared by :func:`editor_glossary_catalog_for_project` and the ACE
+    glossary panel's project ring builder so both apply the same filtering.
+    """
     root = Path(projects_root) if projects_root is not None else sase_projects_dir()
     try:
         records = list_project_records(
@@ -276,14 +281,7 @@ def select_project(
         record = _record_for_ref(project_ref, records)
         return None if record is None else _project_from_record(record)
 
-    workspace = (
-        Path(launch_workspace).expanduser()
-        if launch_workspace is not None
-        else _safe_cwd()
-    )
-    if workspace is None:
-        return None
-    record = _record_for_workspace(workspace, records)
+    record = glossary_project_record_for_workspace(launch_workspace, records)
     return None if record is None else _project_from_record(record)
 
 
@@ -309,6 +307,26 @@ def _record_for_ref(
         (record for record in records if record.project_name == resolved),
         None,
     )
+
+
+def glossary_project_record_for_workspace(
+    launch_workspace: str | Path | None,
+    records: Sequence[ProjectRecordWire],
+) -> ProjectRecordWire | None:
+    """Return the enabled record containing *launch_workspace*, or CWD's.
+
+    Shared by :func:`editor_glossary_catalog_for_project`'s CWD-fallback
+    resolution and the ACE glossary panel's project-ring builder, which
+    needs the launch project even when it declares no glossary.
+    """
+    workspace = (
+        Path(launch_workspace).expanduser()
+        if launch_workspace is not None
+        else _safe_cwd()
+    )
+    if workspace is None:
+        return None
+    return _record_for_workspace(workspace, records)
 
 
 def _record_for_workspace(
@@ -638,5 +656,6 @@ __all__ = [
     "editor_glossary_catalog_for_project",
     "editor_glossary_lsp_catalog_payload",
     "enabled_project_records",
+    "glossary_project_record_for_workspace",
     "select_project",
 ]
