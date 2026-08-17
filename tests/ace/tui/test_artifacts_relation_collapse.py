@@ -6,6 +6,7 @@ from dataclasses import replace as _replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -31,6 +32,7 @@ from sase.core.artifact_relation_layout import (
     build_relation_view,
 )
 from sase.core.artifact_relations import RelationEdge, build_relation_index
+from sase.vcs_log.models import VcsLogResult
 from tests.ace.tui._artifacts_beads_helpers import snapshot as beads_snapshot
 from tests.ace.tui._artifacts_files_helpers import snapshot as files_snapshot
 from tests.ace.tui._artifacts_plans_helpers import _choices
@@ -140,6 +142,39 @@ def test_collapsed_rail_is_one_line_with_declared_labels() -> None:
     assert "< 1 ancestors" in text.plain
     assert "> 2 children" in text.plain
     assert "~ 1 siblings" in text.plain
+
+
+def test_collapsed_rail_leads_with_expand_chip_and_verb() -> None:
+    index, origin, relations = _relation_index()
+    view = build_relation_view(index=index, origin=origin, relations=relations)
+    text = _build_collapsed_rail(
+        view,
+        accent="#87D7FF",
+        mode_keys={
+            RelationRole.ANCESTOR: "<",
+            RelationRole.DESCENDANT: ">",
+            RelationRole.FAMILY: "~",
+        },
+        toggle_key=".",
+    )
+
+    assert text is not None
+    plain = text.plain
+    assert "\n" not in plain
+    chip_at = plain.index("▸")
+    verb_at = plain.index("expand")
+    first_segment_at = plain.index("< 1 ancestors")
+    assert chip_at < verb_at < first_segment_at
+
+
+def test_collapsed_rail_uses_the_passed_toggle_key() -> None:
+    index, origin, relations = _relation_index()
+    view = build_relation_view(index=index, origin=origin, relations=relations)
+    text = _build_collapsed_rail(view, accent="#87D7FF", toggle_key="^r")
+
+    assert text is not None
+    assert "▸ ^r " in text.plain
+    assert "▸ . " not in text.plain
 
 
 def test_collapsed_empty_view_stays_hidden() -> None:
@@ -351,19 +386,26 @@ async def test_dot_collapses_and_expands_on_each_relations_pane(
             await page.pause()
             panel = _relation_panel_for(pane)
             assert panel.display, f"{pane_id} relation panel stayed hidden"
+            assert panel.has_class("-collapsed"), (
+                f"{pane_id} relation panel should start collapsed"
+            )
+            rail = _plain(panel)
+            assert "\n" not in rail
+            assert "▸" in rail
             loads_before = dict(load_counts)
             before_rows = len(getattr(pane, "entry_targets", lambda: ())())
             await page.press(".")
             await page.pause()
-            assert page.app.artifacts_relations_collapsed is True
-            assert panel.has_class("-collapsed")
-            rail = _plain(panel)
-            assert "\n" not in rail
-            assert "▸" in rail
-            await page.press(".")
-            await page.pause()
             assert page.app.artifacts_relations_collapsed is False
             assert not panel.has_class("-collapsed")
+            assert panel.border_title == "▾ RELATIONS"
+            assert panel.border_subtitle.endswith("collapse")
+            await page.press(".")
+            await page.pause()
+            assert page.app.artifacts_relations_collapsed is True
+            assert panel.has_class("-collapsed")
+            assert panel.border_title == ""
+            assert panel.border_subtitle == ""
             if before_rows:
                 assert len(pane.entry_targets()) == before_rows
             assert load_counts == loads_before
@@ -376,6 +418,7 @@ async def test_collapsed_state_persists_across_subtabs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A toggle away from the default-collapsed state persists across sub-tabs."""
     value = beads_snapshot(tmp_path)
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
@@ -397,18 +440,19 @@ async def test_collapsed_state_persists_across_subtabs(
         )
         page.app._sync_active_artifacts_entry_state()
         await page.pause()
+        assert page.app.artifacts_relations_collapsed is True
         await page.press(".")
         await page.pause()
-        assert page.app.artifacts_relations_collapsed is True
+        assert page.app.artifacts_relations_collapsed is False
         await page.press(page.artifacts_digit("beads"))
         await page.expect_state("artifacts_subtab", "beads")
         beads_pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
         await page.wait_for(lambda _state: beads_pane.snapshot is not None)
-        assert page.app.artifacts_relations_collapsed is True
+        assert page.app.artifacts_relations_collapsed is False
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
-        assert page.app.artifacts_relations_collapsed is True
-        assert _relation_panel_for(pane).has_class("-collapsed")
+        assert page.app.artifacts_relations_collapsed is False
+        assert not _relation_panel_for(pane).has_class("-collapsed")
 
 
 @pytest.mark.asyncio
@@ -438,10 +482,6 @@ async def test_collapsed_rail_keeps_keymap_and_footer(
         assert pane.select_entry_target(phase)
         pane.refresh_relation_panel()
         await page.pause()
-        footer = dict(pane.conditional_footer_entries())
-        assert footer["toggle_relation_panel"] == "collapse relations"
-        await page.press(".")
-        await page.pause()
         panel = _relation_panel_for(pane)
         assert panel.has_class("-collapsed")
         rail = _plain(panel)
@@ -452,6 +492,137 @@ async def test_collapsed_rail_keeps_keymap_and_footer(
         await page.press("<")
         await page.pause()
         assert pane.selected_entry_target() == epic
+
+
+def test_relations_expanded_config_true_starts_expanded() -> None:
+    from sase.ace.tui.app import AceApp
+
+    with patch(
+        "sase.config.load_merged_config",
+        return_value={"ace": {"artifacts": {"relations_expanded": True}}},
+    ):
+        app = AceApp(auto_start_axe=False)
+
+    assert app.artifacts_relations_collapsed is False
+
+
+def test_relations_expanded_config_absent_starts_collapsed() -> None:
+    from sase.ace.tui.app import AceApp
+
+    with patch(
+        "sase.config.load_merged_config",
+        return_value={"ace": {}},
+    ):
+        app = AceApp(auto_start_axe=False)
+
+    assert app.artifacts_relations_collapsed is True
+
+
+@pytest.mark.asyncio
+async def test_configured_toggle_key_appears_in_rail_and_rebinding_changes_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = beads_snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_pane.load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"ace": {"keymaps": {"app": {"toggle_relation_panel": "f9"}}}},
+    )
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("beads"))
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+        epic = ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
+        assert pane.select_entry_target(epic)
+        pane.refresh_relation_panel()
+        await page.pause()
+        panel = _relation_panel_for(pane)
+        assert panel.has_class("-collapsed")
+        rail = _plain(panel)
+        assert "▸ f9 " in rail
+        assert "▸ . " not in rail
+
+        await page.press("f9")
+        await page.pause()
+        assert page.app.artifacts_relations_collapsed is False
+
+
+@pytest.mark.asyncio
+async def test_clicking_collapsed_rail_expands_and_expanded_click_is_a_noop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = beads_snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_pane.load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+    async with AcePage(initial_tab="patches") as page:
+        await page.press(page.artifacts_digit("beads"))
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+        epic = ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
+        assert pane.select_entry_target(epic)
+        pane.refresh_relation_panel()
+        await page.pause()
+        panel = _relation_panel_for(pane)
+        assert panel.has_class("-collapsed")
+
+        await page.click("#beads-relation-panel")
+        await page.pause()
+        assert page.app.artifacts_relations_collapsed is False
+        assert not panel.has_class("-collapsed")
+
+        await page.click("#beads-relation-panel")
+        await page.pause()
+        assert page.app.artifacts_relations_collapsed is False
+        assert not panel.has_class("-collapsed")
+
+
+@pytest.mark.asyncio
+async def test_narrow_terminal_keeps_expand_chip_and_verb_visible(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = beads_snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.beads_pane.load_beads_snapshot",
+        lambda _project, **_kwargs: value,
+    )
+    async with AcePage(initial_tab="patches", size=(80, 40)) as page:
+        await page.press(page.artifacts_digit("beads"))
+        pane = page.query_one_widget("#artifacts-beads-pane", ArtifactsBeadsPane)
+        await page.wait_for(lambda _state: pane.snapshot is not None)
+        epic = ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
+        phase = ArtifactEntryTarget(
+            pane_id="beads", parts=("alpha", "phase", "alpha-1.2")
+        )
+        assert pane.select_entry_target(epic)
+        pane.set_selected_epic_expanded(True)
+        assert pane.select_entry_target(phase)
+        pane.refresh_relation_panel()
+        await page.pause()
+        panel = _relation_panel_for(pane)
+        assert panel.has_class("-collapsed")
+        rendered = "".join(segment.text for segment in panel.render_line(0))
+        assert "▸" in rendered
+        assert "expand" in rendered
 
 
 @pytest.mark.asyncio

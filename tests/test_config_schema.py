@@ -218,6 +218,14 @@ def test_config_schema_validates_nested_owner_and_legacy_machine_name() -> None:
     assert schema()["properties"]["machine_name"]["deprecated"] is True
 
 
+def test_config_schema_validates_ace_artifacts_relations_expanded() -> None:
+    validator = Draft7Validator(schema())
+    validator.validate({"ace": {"artifacts": {"relations_expanded": True}}})
+    validator.validate({"ace": {"artifacts": {"relations_expanded": False}}})
+    with pytest.raises(ValidationError):
+        validator.validate({"ace": {"artifacts": {"relations_expanded": "yes"}}})
+
+
 def test_config_schema_accepts_scoped_statistics_keymaps() -> None:
     Draft7Validator(schema()).validate(
         {

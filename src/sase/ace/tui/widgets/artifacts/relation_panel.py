@@ -6,9 +6,14 @@ from collections.abc import Mapping
 from typing import Any
 
 from rich.text import Text
+from textual.message import Message
 from textual.widgets import Static
 
-from sase.ace.tui._artifact_tab_model import PaneRelationDecl, RelationKind
+from sase.ace.tui._artifact_tab_model import (
+    DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
+    PaneRelationDecl,
+    RelationKind,
+)
 from sase.ace.tui.util.trace import tui_trace
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.core.artifact_relation_layout import (
@@ -77,6 +82,9 @@ _DEFAULT_MODE_KEYS: Mapping[RelationRole, str] = {
 class RelationPanel(Static):
     """Panel rendering relations for the currently selected Artifacts entry."""
 
+    class Clicked(Message):
+        """Posted when the collapsed rail is clicked."""
+
     def update_relations(
         self,
         *,
@@ -87,6 +95,7 @@ class RelationPanel(Static):
         accent: str = "#87D7FF",
         collapsed: bool = False,
         mode_keys: Mapping[RelationRole, str] | None = None,
+        toggle_key: str = ".",
     ) -> RelationKeymap:
         """Render the relation view and return its navigation keymap."""
         with tui_trace(
@@ -100,16 +109,25 @@ class RelationPanel(Static):
                 facts=facts or {},
             )
             if collapsed:
-                self._refresh_collapsed(view, accent=accent, mode_keys=mode_keys)
+                self._refresh_collapsed(
+                    view, accent=accent, mode_keys=mode_keys, toggle_key=toggle_key
+                )
             else:
-                self._refresh_content(view, accent=accent)
+                self._refresh_content(view, accent=accent, toggle_key=toggle_key)
             return view.keymap
 
     def clear(self) -> None:
         """Clear the relation panel and hide it."""
         self.set_class(False, "-collapsed")
         self.display = False
+        self.border_title = ""
+        self.border_subtitle = ""
         self.update("")
+
+    def on_click(self) -> None:
+        """Request an expand when the collapsed rail is clicked."""
+        if self.has_class("-collapsed"):
+            self.post_message(self.Clicked())
 
     def _refresh_collapsed(
         self,
@@ -117,21 +135,30 @@ class RelationPanel(Static):
         *,
         accent: str,
         mode_keys: Mapping[RelationRole, str] | None,
+        toggle_key: str,
     ) -> None:
-        text = _build_collapsed_rail(view, accent=accent, mode_keys=mode_keys)
+        text = _build_collapsed_rail(
+            view, accent=accent, mode_keys=mode_keys, toggle_key=toggle_key
+        )
         if text is None:
             self.clear()
             return
         self.set_class(True, "-collapsed")
         self.display = True
+        self.border_title = ""
+        self.border_subtitle = ""
         self.update(text)
 
-    def _refresh_content(self, view: RelationView, *, accent: str) -> None:
+    def _refresh_content(
+        self, view: RelationView, *, accent: str, toggle_key: str
+    ) -> None:
         self.set_class(False, "-collapsed")
         if not view:
             self.clear()
             return
         self.display = True
+        self.border_title = "▾ RELATIONS"
+        self.border_subtitle = f"{toggle_key} collapse"
         text = Text()
         has_previous_section = False
         for section in view.sections:
@@ -259,7 +286,13 @@ class RelationPanelHostMixin:
         accent = accent_getter() if callable(accent_getter) else None
         accent = accent or getattr(contract, "accent", None) or "#87D7FF"
         app = getattr(self, "app", None)
-        collapsed = bool(getattr(app, "artifacts_relations_collapsed", False))
+        collapsed = bool(
+            getattr(
+                app,
+                "artifacts_relations_collapsed",
+                DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
+            )
+        )
         keymap = panel.update_relations(
             index=index,
             origin=origin,
@@ -268,6 +301,7 @@ class RelationPanelHostMixin:
             accent=accent,
             collapsed=collapsed,
             mode_keys=_mode_keys_from_app(app),
+            toggle_key=_toggle_key_from_app(app),
         )
         self._publish_relation_keymap(keymap)
         if refresh_footer:
@@ -313,7 +347,7 @@ class RelationPanelHostMixin:
                 getattr(
                     getattr(self, "app", None),
                     "artifacts_relations_collapsed",
-                    False,
+                    DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
                 )
             )
             entries.append(
@@ -388,6 +422,7 @@ def _build_collapsed_rail(
     *,
     accent: str,
     mode_keys: Mapping[RelationRole, str] | None = None,
+    toggle_key: str = ".",
 ) -> Text | None:
     """Build the one-line collapsed relations rail, or None when empty."""
     summary: RelationSummary = build_relation_summary(view)
@@ -395,11 +430,10 @@ def _build_collapsed_rail(
         return None
     entries: tuple[RelationSummaryEntry, ...] = summary.entries
     text = Text(no_wrap=True, overflow="ellipsis")
-    text.append("▸", style=f"bold {accent}")
-    text.append("  ")
-    for index, entry in enumerate(entries):
-        if index:
-            text.append(_SEPARATOR, style="dim")
+    text.append(f" ▸ {toggle_key} ", style=f"bold #1a1a1a on {accent}")
+    text.append(" expand", style=accent)
+    for entry in entries:
+        text.append(_SEPARATOR, style="dim")
         key = _rail_mode_key(entry.role, mode_keys)
         if key:
             text.append(f"{key} ", style="bold #FFAF00")
@@ -445,6 +479,18 @@ def _mode_keys_from_app(app: Any) -> Mapping[RelationRole, str]:
         RelationRole.DESCENDANT: _display("start_child_mode", ">"),
         RelationRole.FAMILY: _display("start_sibling_mode", "~"),
     }
+
+
+def _toggle_key_from_app(app: Any) -> str:
+    registry = getattr(app, "_keymap_registry", None)
+    app_km = getattr(registry, "app", None) if registry is not None else None
+    if app_km is None:
+        return "."
+    from sase.ace.tui.keymaps import key_display_name
+
+    raw = getattr(app_km, "toggle_relation_panel", ".")
+    displayed = key_display_name(raw) if isinstance(raw, str) else ""
+    return displayed or "."
 
 
 __all__ = [

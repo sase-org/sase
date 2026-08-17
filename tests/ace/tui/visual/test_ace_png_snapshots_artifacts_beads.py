@@ -106,8 +106,8 @@ async def test_artifacts_beads_collapsed_relations_rail_png_snapshot(
             ArtifactEntryTarget(pane_id="beads", parts=("alpha", "epic", "alpha-1"))
         )
         pane.refresh_relation_panel()
-        await page.press(".")
         # alpha-1 is an epic: the rail reports children and plans, not a parent.
+        # The relation panel starts collapsed by default, so no press is needed.
         await wait_for_svg_contains(page, "expand relations")
         await wait_for_visual_idle(page)
 

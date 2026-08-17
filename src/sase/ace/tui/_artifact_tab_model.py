@@ -22,6 +22,7 @@ FilesSubTab = str
 ArtifactsPaneKey = str
 
 DEFAULT_ARTIFACTS_SUBTAB: ArtifactsSubTab = "stitches"
+DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED: bool = True
 FIXED_ARTIFACTS_SUBTAB_ORDER: tuple[ArtifactsSubTab, ...] = (
     "stitches",
     "patches",

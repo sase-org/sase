@@ -28,6 +28,7 @@ from .files_pane import ArtifactsFilesPane
 from .lifecycle import ArtifactsPaneLifecycle
 from .panes import ArtifactPlaceholderPane, ArtifactsDegradedPane, ArtifactsPatchesPane
 from .plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
+from .relation_panel import RelationPanel
 from .split_badge import ArtifactsSplitBadge
 from .types import (
     ArtifactsPaneContract,
@@ -354,6 +355,11 @@ class ArtifactsView(Vertical):
             app.artifacts_split_mode,
             1,
         )
+
+    @on(RelationPanel.Clicked)
+    def _on_relation_panel_clicked(self, event: RelationPanel.Clicked) -> None:
+        event.stop()
+        cast("AceApp", self.app).action_toggle_relation_panel()
 
 
 __all__ = ["ArtifactsView"]

@@ -813,6 +813,11 @@
           "description": "Settings for ACE Artifacts panes",
           "additionalProperties": false,
           "properties": {
+            "relations_expanded": {
+              "type": "boolean",
+              "description": "Whether the Artifacts relation panel starts expanded; the configured toggle key changes this only for the current ACE session.",
+              "default": false
+            },
             "stitches": {
               "type": "object",
               "description": "Settings for the Artifacts Stitches pane",

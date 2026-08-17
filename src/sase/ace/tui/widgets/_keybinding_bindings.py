@@ -14,6 +14,7 @@ from rich.text import Text
 
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 
+from .._artifact_tab_model import DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED
 from ...patch import Patch
 from ...hooks import get_failed_hooks_file_path
 from ...operations import get_available_workflows
@@ -487,7 +488,13 @@ class KeybindingBindingsMixin:
         app = getattr(self, "_app", None)
         keymap = getattr(app, "_relation_keymap", None) if app is not None else None
         if keymap:
-            collapsed = bool(getattr(app, "artifacts_relations_collapsed", False))
+            collapsed = bool(
+                getattr(
+                    app,
+                    "artifacts_relations_collapsed",
+                    DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
+                )
+            )
             bindings.append(
                 (
                     self._kd("toggle_relation_panel"),

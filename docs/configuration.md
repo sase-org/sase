@@ -641,6 +641,7 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 ace:
   axe_description_expanded: true # Axe-tab description panel starts expanded
   artifacts:
+    relations_expanded: false # Relation panel starts collapsed as a rail; . expands it
     commits:
       default_query: "sidecar:false since:24h"
   tribes:
@@ -742,6 +743,12 @@ ace:
 | `snippets`                 | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
 | `tribes`                   | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
 | `updates`                  | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+
+#### `ace.artifacts`
+
+| Field                | Type | Default | Description                                                                                                                                                                                                |
+| -------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `relations_expanded` | bool | `false` | Whether the [Artifacts relation panel](ace.md#navigation-in-stitches-beads-provider-documents-and-files) starts expanded; `.` (`toggle_relation_panel`) toggles it in memory for the current session only. |
 
 #### `ace.artifacts.stitches`
 

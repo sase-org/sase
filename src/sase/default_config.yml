@@ -121,6 +121,8 @@ ace:
   # user's sase.yml (chezmoi source when chezmoi is enabled).
   snippet_config_path: ""
   artifacts:
+    # Press . on an Artifacts pane to toggle this state for the current session.
+    relations_expanded: false
     stitches:
       # Relative date windows re-anchor whenever the pane refreshes. Queries
       # without an explicit positive limit:N are uncapped.

@@ -129,6 +129,16 @@ def init_late_startup_state(
     self._reactive_axe_description_expanded = (
         description_expanded if isinstance(description_expanded, bool) else True
     )
+    artifacts_cfg = ace_cfg.get("artifacts", {}) if isinstance(ace_cfg, dict) else {}
+    relations_expanded = (
+        artifacts_cfg.get("relations_expanded", False)
+        if isinstance(artifacts_cfg, dict)
+        else False
+    )
+    relations_expanded = (
+        relations_expanded if isinstance(relations_expanded, bool) else False
+    )
+    self._reactive_artifacts_relations_collapsed = not relations_expanded
     from ..widgets.artifacts.commit_config import (
         merge_commits_startup_project,
         resolve_commits_default_query,

@@ -1010,6 +1010,9 @@ IssueEditModal {
     padding: 0 1 1 1;
     border: solid $secondary;
     background: $surface;
+    border-title-color: #87D7FF;
+    border-subtitle-color: #808080;
+    border-subtitle-align: right;
 }
 
 .artifacts-relation-panel.-collapsed {
@@ -1018,6 +1021,10 @@ IssueEditModal {
     min-height: 1;
     padding: 0 1;
     border: none;
+}
+
+.artifacts-relation-panel.-collapsed:hover {
+    background: #29293A;
 }
 
 #detail-container {

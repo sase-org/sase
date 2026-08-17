@@ -47,14 +47,29 @@ targets dimmed with a `(missing)` marker. Cross-pane link rows show their destin
 pane id so the target switch is explicit.
 
 `.` (`toggle_relation_panel`) collapses that panel into a one-line relations rail and
-expands it again. The collapsed flag is session-scoped and shared by every relations
-pane, so switching Patches / Beads / Files / Plans / Stitches keeps the same expanded or
-collapsed state. The rail starts with a `▸` glyph in the pane accent, then one
-`{key} {count} {label}` segment per section that has visible rows or a hidden count, in
-declared section order, joined by `  ·  `. Counts include nested descendant children.
-Link sections omit the key. A trailing `({N} hidden)` preserves hidden counts. The
+expands it again; the panel **starts collapsed** by default
+(`ace.artifacts.relations_expanded: false`). The collapsed flag is session-scoped and
+shared by every relations pane, so switching Patches / Beads / Files / Plans / Stitches
+keeps the same expanded or collapsed state.
+
+The collapsed rail leads with a **control chip** — `" ▸ {key} "` rendered bold on the
+pane accent, where `{key}` is the resolved display name of `toggle_relation_panel` (not
+a hardcoded `.`) — followed by the word **expand** at full accent weight (the one thing
+on the rail that must be read). A dim `  ·  ` separator, then the unchanged navigation
+segments follow: one `{key} {count} {label}` per section that has visible rows or a
+hidden count, in declared section order, joined by `  ·  `. The navigation key uses a
+second, distinct color register (amber) so the rail never reads as one undifferentiated
+key soup: chip/dark-on-accent means "acts on this rail," amber means "moves the
+selection." Counts include nested descendant children; link sections omit the key. A
+trailing `({N} hidden)` preserves hidden counts. Because the affordance is leftmost, an
+80-column terminal ellipsizes relation counts before it ever ellipsizes the expand chip.
+Clicking the collapsed rail expands it; clicking the expanded panel is a no-op. The
 relation keymap stays live while collapsed: `<` / `>` / `~` still navigate. A selection
 with no relations keeps the panel hidden, collapsed or not.
+
+The expanded panel carries the reverse affordance at zero row cost:
+`border_title = "▾ RELATIONS"` and `border_subtitle = "{key} collapse"` (bottom-right),
+mirroring the rail's `▸` / expand pairing with the same disclosure vocabulary.
 
 ### Grouping banner rows
 

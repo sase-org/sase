@@ -153,15 +153,19 @@ an invalid hint exits jump mode. These actions use the configured keymap values;
 keys above are the defaults.
 
 When the selected entry has declared relationships, a relation panel appears at the
-bottom of the list column. Its section names come from the pane contract, so examples
-include parents and children, document lifecycle stages, dependencies, linked beads or
-plans, and file-version families. Navigation is two keystrokes: first a relation mode,
-then the key printed in square brackets beside the target row. The modes are `<` for
-ancestors, `>` for descendants, and `~` for family or siblings, and the footer lists
-only the ones the current entry actually has. A section header ending in `(N hidden)`
-means the query is filtering out that many targets, a row ending in `(missing)` points
-at an entry that no longer exists, and a row ending in `→ <pane>` crosses to another
-Artifacts pane.
+bottom of the list column, starting collapsed into a one-line rail that names its own
+expand key (`.` by default) so it is never hidden knowledge. Press `.`
+(`toggle_relation_panel`) or click the rail to expand it; the expanded panel's border
+carries the reverse affordance (`{key} collapse`, bottom-right) so it can be collapsed
+the same way. Its section names come from the pane contract, so examples include parents
+and children, document lifecycle stages, dependencies, linked beads or plans, and
+file-version families. Navigation is two keystrokes: first a relation mode, then the key
+printed in square brackets beside the target row. The modes are `<` for ancestors, `>`
+for descendants, and `~` for family or siblings, and the footer lists only the ones the
+current entry actually has; these keys stay live even while the panel is collapsed. A
+section header ending in `(N hidden)` means the query is filtering out that many
+targets, a row ending in `(missing)` points at an entry that no longer exists, and a row
+ending in `→ <pane>` crosses to another Artifacts pane.
 
 On Patches, choosing a hidden same-pane target rewrites the query to reveal it rather
 than failing. Patches saves the query and selection you started from first and pushes

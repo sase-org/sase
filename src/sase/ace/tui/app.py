@@ -72,6 +72,7 @@ from ._app_layout import (
 from ._app_layout import AppLayoutMixin
 from ._app_watchers import AppWatchersMixin
 from .artifact_tabs import (
+    DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED,
     DEFAULT_ARTIFACTS_SUBTAB,
     DEFAULT_FILES_SUBTAB,
     ArtifactsPaneKey,
@@ -172,7 +173,9 @@ class AceApp(
     axe_running: reactive[bool] = reactive(False, recompose=False)
     axe_description_expanded: reactive[bool] = reactive(True, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
-    artifacts_relations_collapsed: reactive[bool] = reactive(False, recompose=False)
+    artifacts_relations_collapsed: reactive[bool] = reactive(
+        DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED, recompose=False
+    )
     hide_submitted: reactive[bool] = reactive(True, recompose=False)
     hide_non_run_agents: reactive[bool] = reactive(True, recompose=False)
 
