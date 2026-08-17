@@ -232,7 +232,10 @@ def build_projects_view(
             ),
         )
     )
-    truncated = integer(work.get("truncated_patch_rows"))
+    truncated = integer(
+        work.get("truncated_changespec_rows"),  # legacy stats wire key
+        integer(work.get("truncated_patch_rows")),
+    )
     return ProjectsView(
         projects=projects,
         patches=patches,

@@ -36,6 +36,14 @@ _PERF_GROUP_LABELS: dict[str, str] = {
     "provider": "By Provider",
     "workflow": "By Workflow",
 }
+_PERF_COUNT_COLUMN_LABELS: dict[str, str] = {
+    "provider": "LLM invocations",
+    "workflow": "Agent runs",
+}
+_PERF_PROVIDER_COUNT_FALLBACK_NOTE = (
+    "Rows without LLM invocation samples fall back to agent runs, which is "
+    "also why their Err%/Retry% read —."
+)
 _LOG_SOURCE_ORDER: tuple[str, ...] = (
     "startup",
     "stalls",
@@ -219,7 +227,7 @@ class StatisticsPerfRenderingMixin:
         if suppressed:
             extras.append(Text(" · ".join(suppressed), style="dim"))
         if stalls.top_contexts:
-            ranked = Text("Top context  ", style="bold")
+            ranked = Text("Freeze records by context  ", style="bold")
             for index, context in enumerate(stalls.top_contexts):
                 if index:
                     ranked.append("  ·  ", style="dim")
@@ -262,7 +270,10 @@ class StatisticsPerfRenderingMixin:
         table.add_column("p50", justify="right", style=_CYAN)
         table.add_column("p95", justify="right", style=_CYAN)
         table.add_column("max", justify="right")
-        table.add_column("Count", justify="right")
+        table.add_column(
+            _PERF_COUNT_COLUMN_LABELS.get(latency.group_by, "Count"),
+            justify="right",
+        )
         table.add_column("Err%", justify="right")
         table.add_column("Retry%", justify="right")
         if show_tokens:
@@ -294,9 +305,10 @@ class StatisticsPerfRenderingMixin:
                 )
             values.append(self._share_bar(row.share, 1.0, width=bar_width))
             table.add_row(*values)
-        return Panel(
-            table, title=title, border_style=_GOLD, width=width, padding=(0, 1)
-        )
+        body: Any = table
+        if latency.group_by == "provider":
+            body = Group(table, Text(_PERF_PROVIDER_COUNT_FALLBACK_NOTE, style="dim"))
+        return Panel(body, title=title, border_style=_GOLD, width=width, padding=(0, 1))
 
     def _perf_coverage_panel(self, perf: Any, *, width: int) -> Panel:
         coverage = perf.coverage

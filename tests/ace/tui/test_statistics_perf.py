@@ -136,7 +136,7 @@ def test_populated_perf_renderable_covers_every_panel() -> None:
     assert "tui_hitch" in stalls
     assert "tui_pump_stall" in stalls
     assert "tui_hitch +5 suppressed" in stalls
-    assert "Top context" in rendered
+    assert "Freeze records by context" in rendered
     assert "agents" in rendered
     assert "1 recovery" in rendered
     assert "3.2s" in rendered
@@ -172,7 +172,8 @@ def test_populated_perf_renderable_covers_every_panel() -> None:
     assert "450ms" in tiles
     assert "4 launches" in tiles
     assert "2 slow" in tiles
-    assert "worst 3.2s" in tiles
+    assert "2 hitches" in tiles
+    assert "3.2s" in tiles
     assert "20 runs" in tiles
     assert "err 5%" in tiles
     assert "retry 8%" in tiles
@@ -274,11 +275,13 @@ def test_provider_and_workflow_group_modes_change_the_latency_table() -> None:
     assert "800" in provider
     assert "300" in provider
     assert "20.0%" in provider
-    assert "Agent runs" not in provider
+    assert "LLM invocations" in provider
+    assert "Axe cycles" not in provider
 
     assert "Latency & reliability · By Workflow" in workflow
     assert "review" in workflow
-    assert "Agent runs" not in workflow
+    assert "Agent runs" in workflow  # the group-dependent Count column header
+    assert "Axe cycles" not in workflow
 
 
 def test_wide_and_narrow_startup_stalls_switch_without_changing_data() -> None:

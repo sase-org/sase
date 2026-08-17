@@ -17,7 +17,11 @@ class _MetricLegend:
 
 VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     "overview": (
-        _MetricLegend("Success", "completed ÷ finished runs"),
+        _MetricLegend(
+            "Success",
+            "Success Rate tile = completed ÷ finished runs; "
+            "Top projects column = completed ÷ all runs",
+        ),
         _MetricLegend("Delta", "run change vs the preceding equal-length window"),
         _MetricLegend("Tiles", "click to open their detail view"),
     ),
@@ -82,7 +86,8 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
     "plans_questions": (
         _MetricLegend(
             "Project scope",
-            "plans and questions honor the filter; skills and memories remain global",
+            "plans and questions honor the filter; skills and memories honor it "
+            "too, shown on the Activity view",
         ),
     ),
     "perf": (
@@ -93,7 +98,10 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         ),
         _MetricLegend("Startup", "median visible-ready time; ok < 2s, warn < 5s"),
         _MetricLegend("Stall", "event-loop or message-pump freeze"),
-        _MetricLegend("Hitch", "brief stall below the freeze threshold"),
+        _MetricLegend(
+            "Hitch",
+            "freeze ≥ hitch threshold; a stall-level freeze counts as both",
+        ),
         _MetricLegend(
             "Global",
             "Perf ignores the project filter; its sources have no project labels",
@@ -105,6 +113,11 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
         _MetricLegend(
             "Resolution",
             "raw, 5m, 1h, or mixed — what the store served for this range",
+        ),
+        _MetricLegend(
+            "Latency p50/p95",
+            "the Latency table and Agent/LLM tiles are interpolated "
+            "histogram-bucket estimates, not nearest-rank",
         ),
     ),
 }

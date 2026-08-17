@@ -42,6 +42,31 @@ def test_work_rows_tolerate_partial_and_invalid_values() -> None:
     assert views.projects.projects[0].patches[0].has_pr is False
 
 
+def test_truncated_patch_rows_prefers_the_legacy_wire_key_over_the_new_one() -> None:
+    views = build_statistics_views(
+        {
+            "work": {
+                "truncated_changespec_rows": 4,  # legacy wire key; the real key
+                "truncated_patch_rows": 99,  # should never be read when present
+            }
+        },
+        {},
+    )
+
+    assert views.projects.truncated_patch_rows == 4
+    assert views.projects.patch_count == 4
+
+
+def test_truncated_patch_rows_falls_back_to_the_newer_key_name() -> None:
+    views = build_statistics_views(
+        {"work": {"truncated_patch_rows": 3}},
+        {},
+    )
+
+    assert views.projects.truncated_patch_rows == 3
+    assert views.projects.patch_count == 3
+
+
 def test_project_display_snapshot_projects_every_project_bearing_row(
     project_display_case: ProjectDisplayCase,
 ) -> None:

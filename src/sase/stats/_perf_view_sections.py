@@ -134,19 +134,24 @@ def build_stalls(stalls: Payload) -> PerfStallsSection:
         PerfStallContextRow(text(row.get("name"), "unknown"), integer(row.get("count")))
         for row in rows(stalls, "top_contexts")
     )
-    total = stall_count + hitch_count
-    detail = f"worst {worst:.1f}s" if worst is not None else ""
+    detail_parts = []
+    if hitch_count:
+        noun = "hitch" if hitch_count == 1 else "hitches"
+        detail_parts.append(f"{hitch_count} {noun}")
+    if worst is not None:
+        detail_parts.append(f"worst {worst:.1f}s")
+    detail = " · ".join(detail_parts)
     tile = PerfHeroTile(
         key="stalls",
         caption="Stalls",
         available=available,
-        value=float(total) if available else None,
+        value=float(stall_count) if available else None,
         status=_stall_status(stall_count, hitch_count) if available else None,
         delta_ratio=None,
         lower_is_better=True,
         sparkline=(),
         detail=detail,
-        sample_count=total,
+        sample_count=stall_count + hitch_count,
     )
     return PerfStallsSection(
         available=available,

@@ -144,9 +144,9 @@ class StatisticsViewsRenderingMixin(
             )
         return Columns(
             (
-                Panel(skills, title="Skills", border_style=_ACCENT),
-                Panel(memories, title="Memories", border_style=_CYAN),
-                Panel(workspaces, title="Workspaces", border_style=_GOLD),
+                Panel(skills, title="Top skills", border_style=_ACCENT),
+                Panel(memories, title="Top memories", border_style=_CYAN),
+                Panel(workspaces, title="Top workspaces", border_style=_GOLD),
             ),
             equal=True,
             expand=True,

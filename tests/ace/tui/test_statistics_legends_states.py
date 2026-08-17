@@ -51,7 +51,10 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
     result = _result(pane._view, pane._range)
 
     expected = {
-        "overview": "Success = completed ÷ finished runs",
+        "overview": (
+            "Success = Success Rate tile = completed ÷ finished runs; "
+            "Top projects column = completed ÷ all runs"
+        ),
         "runners": "Average = runner-seconds ÷ analyzed wall time",
         "projects": "Success = completed ÷ all runs",
         "providers": "Avg runtime = mean among runs with a valid finish/stop duration",
@@ -61,7 +64,7 @@ def test_view_renderables_include_verified_metric_definitions() -> None:
         ),
         "plans_questions": (
             "Project scope = plans and questions honor the filter; "
-            "skills and memories remain global"
+            "skills and memories honor it too, shown on the Activity view"
         ),
         "perf": (
             "Global = Perf ignores the project filter; "

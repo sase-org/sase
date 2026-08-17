@@ -331,9 +331,16 @@ class StatisticsHelpModal(ModalScreen[None]):
         """Explain percentile method, thresholds, global scope, and coverage."""
         rows = (
             (
-                "Percentiles",
-                "Nearest-rank on the sorted sample at index round(q * (n - 1)), "
-                "clamped to [0, n - 1]; the same method JKPerfTimer.summary() uses.",
+                "Percentiles (logs)",
+                "Startup, Launch, and stall medians: Nearest-rank on the sorted "
+                "sample at index round(q * (n - 1)), clamped to [0, n - 1]; the "
+                "same method JKPerfTimer.summary() uses.",
+            ),
+            (
+                "Percentiles (telemetry)",
+                "Latency & reliability rows and the Agent/LLM p95 tiles: linear "
+                "interpolation between cumulative histogram bucket bounds, not a "
+                "nearest-rank sample.",
             ),
             (
                 "Latency and errors",
@@ -352,6 +359,12 @@ class StatisticsHelpModal(ModalScreen[None]):
                 "provider, workflow, or hook type, never by project, and TUI perf "
                 "logs carry no project. The project chip stays visible but is not "
                 "applied.",
+            ),
+            (
+                "Counts",
+                "Perf counts come from the telemetry store and the TUI logs, not "
+                "the artifact index, so they are not comparable with the run "
+                "counts on Overview, Projects, or XPrompts.",
             ),
             (
                 "Retention",

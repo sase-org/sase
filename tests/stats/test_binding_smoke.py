@@ -7,6 +7,8 @@ from sase.core.agent_scan_facade import rebuild_agent_artifact_index
 from sase.stats.query import query_activity_stats, query_run_stats
 from sase.stats.views import build_statistics_views
 
+_WORK_TOP_N_DEFAULT = 50
+
 
 def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
     extension = pytest.importorskip("sase_core_rs")
@@ -99,3 +101,58 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
         runners.end_ts - runners.start_ts
     )
     assert runners.trend and runners.trend[0].peak_runners == 1
+
+
+def test_projects_view_reports_truncated_patch_rows_through_real_binding(
+    tmp_path: Path,
+) -> None:
+    """Regression test for the legacy truncated_changespec_rows wire-key mismatch (F1).
+
+    ``AgentWorkStatsWire`` pins its serialized key to the legacy
+    ``truncated_changespec_rows`` name (serde ``rename`` only applies to
+    serialization), so a hand-written payload fixture using the newer
+    ``truncated_patch_rows`` spelling can't catch a wire-key rename. This
+    drives the real Rust binding past its default ``work_top_n`` instead.
+    """
+    extension = pytest.importorskip("sase_core_rs")
+    required = {"agent_stats_query_runs", "rebuild_agent_artifact_index"}
+    if not required.issubset(dir(extension)):
+        pytest.skip("installed sase_core_rs predates the agent statistics bindings")
+
+    projects = tmp_path / "projects"
+    project = projects / "proj"
+    total_patches = _WORK_TOP_N_DEFAULT + 10
+    for index in range(total_patches):
+        artifact = project / "artifacts" / "ace-run" / f"{20260710010000 + index:014d}"
+        artifact.mkdir(parents=True)
+        (artifact / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": f"agent-{index}",
+                    "run_started_at": str(100 + index),
+                    "commit_changespec_name": f"patch-{index:03d}",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (artifact / "done.json").write_text(
+            json.dumps({"outcome": "completed", "finished_at": float(160 + index)}),
+            encoding="utf-8",
+        )
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, projects)
+
+    runs = query_run_stats(
+        start_ts=0,
+        end_ts=1_000,
+        bucket_seconds=100,
+        index_path=index_path,
+    )
+    if "work" not in runs:
+        pytest.skip("installed sase_core_rs predates work statistics schema v2")
+
+    views = build_statistics_views(runs, {})
+
+    assert views.projects.truncated_patch_rows == total_patches - _WORK_TOP_N_DEFAULT
+    assert views.projects.patch_count == total_patches
+    assert len(views.projects.patches) == _WORK_TOP_N_DEFAULT

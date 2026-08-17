@@ -44,7 +44,9 @@ def test_build_perf_view_maps_logs_and_telemetry() -> None:
     assert view.stalls.hitch_count == 2
     assert view.stalls.worst_seconds == 3.2
     assert view.stalls.tile.status == "critical"
-    assert view.stalls.tile.detail == "worst 3.2s"
+    assert view.stalls.tile.detail == "2 hitches · worst 3.2s"
+    assert view.stalls.tile.value == 1.0
+    assert view.stalls.tile.sample_count == 3
     assert view.stalls.events[2].suppressed_count == 5
     assert view.stalls.top_contexts[0].name == "agents"
 
