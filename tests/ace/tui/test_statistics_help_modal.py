@@ -148,5 +148,8 @@ def test_help_explains_perf_methodology() -> None:
         "SASE_TUI_PERF",
         "SASE_TUI_TRACE",
         "does not parse the probe files",
+        "Launch p95",
+        "Startup and stall medians",
     ):
         assert phrase in methodology
+    assert "Launch, and stall medians" not in methodology

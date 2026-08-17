@@ -470,7 +470,7 @@ class PerfLatencyRow:
     p50: float | None
     p95: float | None
     max: float | None
-    count: int
+    count: int | None
     error_rate: float | None
     retry_rate: float | None
     share: float

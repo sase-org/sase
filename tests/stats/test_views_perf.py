@@ -68,6 +68,12 @@ def test_build_perf_view_maps_logs_and_telemetry() -> None:
     assert agent.error_rate == pytest.approx(5.0)
     llm = view.latency.rows[1]
     assert llm.retry_rate == pytest.approx(8.0)
+    by_key = {row.key: row for row in view.latency.rows}
+    assert by_key["workflows"].count is None
+    assert by_key["axe"].count is None
+    assert by_key["workflows"].p95 == 30.0
+    assert by_key["axe"].p95 == 5.0
+    assert all(row.share == 0.0 for row in view.latency.rows)
     assert view.latency.agent_tile.detail == "20 runs"
     assert view.latency.llm_tile.detail == "err 5% · retry 8%"
     assert [tile.key for tile in view.tiles] == [
@@ -216,6 +222,30 @@ def test_provider_group_merges_rows_and_tokens() -> None:
     claude = view.latency.rows[1]
     assert claude.error_rate == pytest.approx(20.0)
     assert claude.status == "warning"
+
+
+def test_subsystem_row_without_counter_keeps_histogram_and_unknown_count() -> None:
+    telemetry = {
+        "enabled": True,
+        "histograms": {
+            "sase_workflow_duration_seconds": {
+                "p50": {"series": [{"labels": {}, "value": 12.0}]},
+                "p95": {"series": [{"labels": {}, "value": 30.0}]},
+                "max": {"series": [{"labels": {}, "value": 40.0}]},
+            }
+        },
+        "counters": {},
+    }
+
+    view = build_perf_view({}, telemetry, selected_range=_range())
+
+    workflows = next(row for row in view.latency.rows if row.key == "workflows")
+    assert workflows.count is None
+    assert workflows.share == 0.0
+    assert workflows.p50 == 12.0
+    assert workflows.p95 == 30.0
+    assert workflows.max == 40.0
+    assert view.latency.available is True
 
 
 def test_workflow_group_uses_agent_and_workflow_metrics() -> None:

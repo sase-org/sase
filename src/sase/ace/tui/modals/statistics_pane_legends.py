@@ -97,6 +97,7 @@ VIEW_LEGENDS: dict[StatisticsView, tuple[_MetricLegend, ...]] = {
             "nearest-rank 95th percentile; same method as JKPerfTimer",
         ),
         _MetricLegend("Startup", "median visible-ready time; ok < 2s, warn < 5s"),
+        _MetricLegend("Launch", "p95 total launch time"),
         _MetricLegend("Stall", "event-loop or message-pump freeze"),
         _MetricLegend(
             "Hitch",

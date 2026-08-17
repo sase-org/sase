@@ -265,6 +265,7 @@ class StatisticsPerfRenderingMixin:
                 border_style=_GOLD,
             )
         show_tokens = latency.group_by == "provider"
+        show_share = latency.group_by != "subsystem"
         table = Table(box=box.SIMPLE, expand=True, padding=(0, 1))
         table.add_column("Row", style="bold", ratio=1)
         table.add_column("p50", justify="right", style=_CYAN)
@@ -280,7 +281,8 @@ class StatisticsPerfRenderingMixin:
             table.add_column("Tok in", justify="right")
             table.add_column("Tok out", justify="right")
             table.add_column("Cache", justify="right")
-        table.add_column("Share", ratio=1)
+        if show_share:
+            table.add_column("Share", ratio=1)
         bar_width = max(6, min(14, width - (72 if show_tokens else 48)))
         for row in latency.rows:
             color = (
@@ -291,7 +293,7 @@ class StatisticsPerfRenderingMixin:
                 Text(self._perf_duration(row.p50), style=color),
                 Text(self._perf_duration(row.p95), style=color),
                 Text(self._perf_duration(row.max), style=color),
-                Text(str(row.count), style=color),
+                Text(self._perf_count(row.count), style=color),
                 Text(self._perf_rate(row.error_rate), style=color),
                 Text(self._perf_rate(row.retry_rate), style=color),
             ]
@@ -303,7 +305,8 @@ class StatisticsPerfRenderingMixin:
                         Text(self._perf_cache_share(row), style=color),
                     )
                 )
-            values.append(self._share_bar(row.share, 1.0, width=bar_width))
+            if show_share:
+                values.append(self._share_bar(row.share, 1.0, width=bar_width))
             table.add_row(*values)
         body: Any = table
         if latency.group_by == "provider":
@@ -508,6 +511,10 @@ class StatisticsPerfRenderingMixin:
     @staticmethod
     def _perf_duration(value: float | None) -> str:
         return "—" if value is None else format_duration(value)
+
+    @staticmethod
+    def _perf_count(value: int | None) -> str:
+        return "—" if value is None else str(value)
 
     @staticmethod
     def _perf_rate(value: float | None) -> str:

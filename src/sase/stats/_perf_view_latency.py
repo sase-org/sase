@@ -61,16 +61,6 @@ _SUBSYSTEM_ROWS: tuple[
         None,
     ),
 )
-_PendingLatency = tuple[
-    str,
-    str,
-    float | None,
-    float | None,
-    float | None,
-    int,
-    float | None,
-    float | None,
-]
 
 
 def build_latency(
@@ -89,7 +79,9 @@ def build_latency(
     else:
         built_rows = _subsystem_rows(telemetry, thresholds)
     available = enabled and any(
-        row.count > 0 or row.p95 is not None or row.p50 is not None
+        (row.count is not None and row.count > 0)
+        or row.p95 is not None
+        or row.p50 is not None
         for row in built_rows
     )
     agent_p95, agent_count = _agent_headline(telemetry)
@@ -157,19 +149,14 @@ def _subsystem_rows(
     telemetry: Payload, thresholds: HealthThresholds
 ) -> tuple[PerfLatencyRow, ...]:
     built: list[PerfLatencyRow] = []
-    counts: list[int] = []
-    pending: list[_PendingLatency] = []
     for key, label, hist, count_key, error_key, retry_key in _SUBSYSTEM_ROWS:
         p50, p95, maximum = _histogram_values(telemetry, hist)
-        count = int(_counter_value(telemetry, count_key)) if count_key else 0
+        count = int(_counter_value(telemetry, count_key)) if count_key else None
+        denom = 0.0 if count is None else float(count)
         errors = _counter_value(telemetry, error_key) if error_key else 0.0
         retries = _counter_value(telemetry, retry_key) if retry_key else 0.0
-        error_rate = percent(errors, count) if error_key else None
-        retry_rate = percent(retries, count) if retry_key else None
-        pending.append((key, label, p50, p95, maximum, count, error_rate, retry_rate))
-        counts.append(count)
-    total = sum(counts)
-    for key, label, p50, p95, maximum, count, error_rate, retry_rate in pending:
+        error_rate = percent(errors, denom) if error_key else None
+        retry_rate = percent(retries, denom) if retry_key else None
         built.append(
             PerfLatencyRow(
                 key=key,
@@ -180,7 +167,7 @@ def _subsystem_rows(
                 count=count,
                 error_rate=error_rate,
                 retry_rate=retry_rate,
-                share=share(count, total),
+                share=0.0,
                 tokens_in=None,
                 tokens_out=None,
                 cache_read_tokens=None,
@@ -265,7 +252,7 @@ def _provider_rows(
                 ),
             )
         )
-    built.sort(key=lambda row: (-row.count, row.label.casefold()))
+    built.sort(key=lambda row: (-(row.count or 0), row.label.casefold()))
     return tuple(built)
 
 
@@ -311,7 +298,7 @@ def _workflow_rows(
                 status=latency_status(p95, error_rate, thresholds),
             )
         )
-    built.sort(key=lambda row: (-row.count, row.label.casefold()))
+    built.sort(key=lambda row: (-(row.count or 0), row.label.casefold()))
     return tuple(built)
 
 

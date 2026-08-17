@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -147,6 +148,15 @@ def test_populated_perf_renderable_covers_every_panel() -> None:
     assert "Hooks" in rendered
     assert "Workflows" in rendered
     assert "Axe cycles" in rendered
+    latency = _render_plain(pane._perf_latency_panel(result.perf, width=180))
+    assert "Share" not in latency
+    assert pane._perf_count(None) == "—"
+    workflows = next(row for row in result.perf.latency.rows if row.key == "workflows")
+    axe = next(row for row in result.perf.latency.rows if row.key == "axe")
+    assert pane._perf_count(workflows.count) == "—"
+    assert pane._perf_count(axe.count) == "—"
+    assert workflows.count is None
+    assert axe.count is None
 
     assert "Data & instrumentation" in rendered
     assert "Telemetry" in rendered
@@ -277,11 +287,43 @@ def test_provider_and_workflow_group_modes_change_the_latency_table() -> None:
     assert "20.0%" in provider
     assert "LLM invocations" in provider
     assert "Axe cycles" not in provider
+    assert "Share" in provider
 
     assert "Latency & reliability · By Workflow" in workflow
     assert "review" in workflow
     assert "Agent runs" in workflow  # the group-dependent Count column header
     assert "Axe cycles" not in workflow
+    assert "Share" in workflow
+
+
+def test_subsystem_row_with_histogram_and_no_counter_renders_em_dash() -> None:
+    telemetry = {
+        "enabled": True,
+        "histograms": {
+            "sase_workflow_duration_seconds": {
+                "p50": {"series": [{"labels": {}, "value": 12.0}]},
+                "p95": {"series": [{"labels": {}, "value": 30.0}]},
+                "max": {"series": [{"labels": {}, "value": 40.0}]},
+            }
+        },
+        "counters": {},
+    }
+    result = _perf_result(logs={}, telemetry=telemetry)
+    assert result.perf is not None
+    pane = StatisticsPane(auto_load=False)
+    row = next(item for item in result.perf.latency.rows if item.key == "workflows")
+    isolated = replace(result.perf, latency=replace(result.perf.latency, rows=(row,)))
+    rendered = _render_plain(pane._perf_latency_panel(isolated, width=180), width=180)
+
+    assert row.count is None
+    assert row.p95 == 30.0
+    assert pane._perf_count(row.count) == "—"
+    assert pane._perf_count(0) == "0"
+    assert "Workflows" in rendered
+    assert "Share" not in rendered
+    workflows_line = next(line for line in rendered.splitlines() if "Workflows" in line)
+    assert "—" in workflows_line
+    assert " 0 " not in workflows_line
 
 
 def test_wide_and_narrow_startup_stalls_switch_without_changing_data() -> None:
@@ -333,11 +375,12 @@ def test_missing_perf_snapshot_has_distinct_recovery_guidance() -> None:
     pane = StatisticsPane(auto_load=False)
     pane._view = "perf"
     result = _result("overview", _range())
-    rendered = _render_plain(pane._view_renderable(result))
+    rendered = _render_plain(pane._view_renderable(result), width=500)
 
     assert "No Perf snapshot is available." in rendered
     assert "Press r to retry." in rendered
     assert "Global = Perf ignores the project filter" in rendered
+    assert "Launch = p95 total launch time" in rendered
 
 
 def test_all_time_retention_note_appears_in_the_coverage_strip() -> None:

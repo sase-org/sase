@@ -332,9 +332,9 @@ class StatisticsHelpModal(ModalScreen[None]):
         rows = (
             (
                 "Percentiles (logs)",
-                "Startup, Launch, and stall medians: Nearest-rank on the sorted "
-                "sample at index round(q * (n - 1)), clamped to [0, n - 1]; the "
-                "same method JKPerfTimer.summary() uses.",
+                "Startup and stall medians, and Launch p95: Nearest-rank on the "
+                "sorted sample at index round(q * (n - 1)), clamped to "
+                "[0, n - 1]; the same method JKPerfTimer.summary() uses.",
             ),
             (
                 "Percentiles (telemetry)",
