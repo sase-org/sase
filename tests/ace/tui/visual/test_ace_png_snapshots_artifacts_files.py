@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.graphics._viewer_types import ArtifactViewMode
 from sase.ace.tui.widgets.artifacts import (
     files_detail_panel,
-    files_options,
     files_pane,
 )
 from sase.ace.tui.widgets.artifacts.files_detail import FileDetailData
@@ -156,11 +153,8 @@ async def test_artifacts_files_populated_png_snapshot(
         lambda project, _limit: snapshot(rows, project=project),
     )
     monkeypatch.setattr(files_detail_panel, "load_file_detail", _fixture_detail)
-    monkeypatch.setattr(
-        files_options,
-        "local_now",
-        lambda: datetime.fromisoformat("2026-07-24T20:00:00-04:00"),
-    )
+    # No clock pin: Files no longer date-buckets rows. Default grouping is
+    # by_source (Created / Captured banners), so files_options.local_now is gone.
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await wait_for_startup(page)
@@ -182,7 +176,7 @@ async def test_artifacts_files_populated_png_snapshot(
             assert_page_svg_contains(page, glyph)
         for chip in ("1 images", "2 documents", "1 videos", "1 files"):
             assert_page_svg_contains(page, chip)
-        for token in ("Today", "Yesterday", "[Alpha]", "[Beta]", "live", "Source:"):
+        for token in ("Captured", "Created", "[Alpha]", "[Beta]", "live", "Source:"):
             assert_page_svg_contains(page, token)
         # The even split intentionally ellipsizes long labels; stable row identity
         # prefixes remain visible while full labels stay covered by ``snapshot.rows``.
