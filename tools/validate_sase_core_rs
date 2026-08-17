@@ -467,7 +467,25 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     with tempfile.TemporaryDirectory(prefix="sase-core-rs-stats-probe-") as tmp:
         root = Path(tmp)
         projects_root = root / "projects"
-        projects_root.mkdir()
+        project_dir = projects_root / "probe"
+        artifact_dir = project_dir / "artifacts" / "ace-run" / "20260710010000"
+        artifact_dir.mkdir(parents=True)
+        (project_dir / "probe.sase").write_text("", encoding="utf-8")
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "probe-agent",
+                    "run_started_at": "2026-07-10T01:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (artifact_dir / "xprompts.json").write_text(
+            json.dumps(
+                [{"name": "gh", "kind": "workflow", "tags": ["vcs"]}]
+            ),
+            encoding="utf-8",
+        )
         index_path = root / "agent_artifact_index.sqlite"
         try:
             module.rebuild_agent_artifact_index(
@@ -479,7 +497,7 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
                 str(index_path),
                 {
                     "start_ts": 1,
-                    "end_ts": 2,
+                    "end_ts": 2_000_000_000,
                     "runtime_group_by": "project",
                     "project": None,
                     "work_top_n": 1,
@@ -492,9 +510,9 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     if not isinstance(payload, dict):
         _error("agent statistics work-schema probe returned a non-dict payload")
         return False
-    if payload.get("schema_version") != 5:
+    if payload.get("schema_version") != 6:
         _error(
-            "agent statistics work-schema probe requires schema version 5: "
+            "agent statistics work-schema probe requires schema version 6: "
             f"got {payload.get('schema_version')!r}"
         )
         return False
@@ -508,9 +526,33 @@ def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
     ):
         _error("agent statistics work-schema probe payload has invalid work rows")
         return False
+    commits = payload.get("commits")
+    commit_counters = ("committing_runs", "committing_agents")
+    if not isinstance(commits, dict) or any(
+        not isinstance(commits.get(field), int) for field in commit_counters
+    ):
+        _error("agent statistics work-schema probe payload has invalid commit counters")
+        return False
     xprompts = payload.get("xprompts")
     if not isinstance(xprompts, dict) or not isinstance(xprompts.get("rows"), list):
         _error("agent statistics xprompt-schema probe payload has invalid xprompts")
+        return False
+    if not xprompts["rows"]:
+        _error("agent statistics xprompt-schema probe payload has no xprompt rows")
+        return False
+    truncation_fields = (
+        "models_truncated",
+        "projects_truncated",
+        "partners_truncated",
+    )
+    if any(
+        not isinstance(row, dict)
+        or any(not isinstance(row.get(field), int) for field in truncation_fields)
+        for row in xprompts["rows"]
+    ):
+        _error(
+            "agent statistics xprompt-schema probe payload has invalid truncation counts"
+        )
         return False
     runners = payload.get("runners")
     runner_counters = (

@@ -317,7 +317,7 @@ def test_validate_sase_core_rs_requires_singular_skill_contract() -> None:
     )
 
 
-def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
+def test_validate_sase_core_rs_requires_stats_v6_commit_and_truncation_fields() -> None:
     validator = load_validate_sase_core_rs()
 
     def module_with_payload(payload: object) -> SimpleNamespace:
@@ -325,6 +325,26 @@ def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
             rebuild_agent_artifact_index=lambda *_args: {},
             agent_stats_query_runs=lambda *_args: payload,
         )
+
+    valid_payload = {
+        "schema_version": 6,
+        "work": {"projects": [], "changespecs": []},  # legacy wire key
+        "commits": {"committing_runs": 0, "committing_agents": 0},
+        "xprompts": {
+            "rows": [
+                {
+                    "models_truncated": 0,
+                    "projects_truncated": 0,
+                    "partners_truncated": 0,
+                }
+            ]
+        },
+        "runners": {
+            "lanes_counted": 0,
+            "lanes_without_end_skipped": 0,
+            "user_hidden_skipped": 0,
+        },
+    }
 
     assert not validator._validate_agent_stats_work_schema(
         module_with_payload({"schema_version": 3})
@@ -354,17 +374,22 @@ def test_validate_sase_core_rs_requires_stats_v5_runner_counters() -> None:
             }
         )
     )
-    assert validator._validate_agent_stats_work_schema(
+    assert not validator._validate_agent_stats_work_schema(
         module_with_payload(
             {
-                "schema_version": 5,
-                "work": {"projects": [], "changespecs": []},  # legacy wire key
-                "xprompts": {"rows": []},
-                "runners": {
-                    "lanes_counted": 0,
-                    "lanes_without_end_skipped": 0,
-                    "user_hidden_skipped": 0,
-                },
+                **valid_payload,
+                "commits": {"committing_agents": 0},
             }
         )
+    )
+    assert not validator._validate_agent_stats_work_schema(
+        module_with_payload(
+            {
+                **valid_payload,
+                "xprompts": {"rows": [{"models_truncated": 0}]},
+            }
+        )
+    )
+    assert validator._validate_agent_stats_work_schema(
+        module_with_payload(valid_payload)
     )
