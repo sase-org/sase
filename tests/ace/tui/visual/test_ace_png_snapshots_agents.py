@@ -171,7 +171,7 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
             title="ACE agents runner slot waits",
         )
 
-        await page.press("B", "B")
+        await page.press("o", "o")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Queued")
         assert_page_svg_contains(page, "Waiting")

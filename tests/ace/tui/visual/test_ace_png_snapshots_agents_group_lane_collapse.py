@@ -42,7 +42,7 @@ async def test_group_lane_collapse_precedes_status_banner_png_snapshot(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.press("B", "B")
+        await page.press("o", "o")
         assert page.app._grouping_mode is GroupingMode.BY_STATUS
 
         roots = {

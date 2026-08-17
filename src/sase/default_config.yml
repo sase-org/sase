@@ -314,7 +314,7 @@ ace:
       beads_close: "c"
       beads_snooze: "z"
       beads_launch_work: "w"
-      beads_open_bug: "o"
+      beads_open_bug: "E"
       start_bead_issue_mode: "b"
       beads_open_plan: "L"
       # Files sub-tab
@@ -322,7 +322,7 @@ ace:
       files_prev: "k"
       files_view_selected: "enter"
       files_open_viewer: "Z"
-      files_open_external: "o"
+      files_open_external: "E"
       files_open_agent: "a"
       files_filters: "f"
       files_cycle_kind: "z"
@@ -403,11 +403,11 @@ ace:
       # Tribe-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
-      # Grouping mode cycle (agents tab and non-Patches Artifacts panes; not
-      # "o"/"O" because those are reserved app-wide for artifacts_open_external
-      # / bang-mode mark_pr_origin)
-      cycle_grouping_mode: "B"
-      cycle_grouping_mode_reverse: "I"
+      # Grouping mode cycle: o/O on every surface with a grouping mode. The
+      # Artifacts open-externally verb (beads_open_bug, files_open_external)
+      # shares E. Bang-mode !o still owns mark_pr_origin.
+      cycle_grouping_mode: "o"
+      cycle_grouping_mode_reverse: "O"
       # Queries
       search_forward: "slash"
       edit_query: "slash"

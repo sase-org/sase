@@ -92,7 +92,7 @@ async def test_selected_clan_collapses_before_open_sibling_png_snapshot(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.press("B", "B")
+        await page.press("o", "o")
         assert page.app._grouping_mode is GroupingMode.BY_STATUS
 
         clans = {
@@ -159,7 +159,7 @@ async def test_group_clan_collapse_precedes_status_banner_png_snapshot(
         await wait_for_startup(page)
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
-        await page.press("B", "B")
+        await page.press("o", "o")
         assert page.app._grouping_mode is GroupingMode.BY_STATUS
 
         clans = {

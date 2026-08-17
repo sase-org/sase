@@ -278,18 +278,17 @@ def test_edit_hooks_default_binding() -> None:
 
 
 def test_g_and_o_default_bindings_do_not_collide() -> None:
-    """Guard: ``g`` is scroll_to_top everywhere; ``o``/``O`` are reserved for open.
+    """Guard: ``g`` is scroll_to_top everywhere; grouping-cycle lives on ``o``/``O``.
 
     Re-introducing the old ``cycle_grouping_mode: g`` binding would steal the
     universal scroll-to-top mnemonic on the Agents tab; see
-    sdd/plans/202604/g_keymap_restore.md. sase-m6.9 additionally moved grouping
-    off ``o``/``O`` entirely (now reserved app-wide for the unified open verb)
-    onto its own ``B``/``I`` pair, so neither collides with ``g``.
+    sdd/plans/202604/g_keymap_restore.md. Grouping-cycle is ``o`` / ``O``, which
+    does not collide with ``g``.
     """
     reg = load_keymap_registry({})
     assert reg.app.scroll_to_top == "g"
-    assert reg.app.cycle_grouping_mode == "B"
-    assert reg.app.cycle_grouping_mode_reverse == "I"
+    assert reg.app.cycle_grouping_mode == "o"
+    assert reg.app.cycle_grouping_mode_reverse == "O"
 
 
 def test_partial_app_override() -> None:

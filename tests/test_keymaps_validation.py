@@ -136,6 +136,23 @@ def test_contextual_query_actions_may_share_a_custom_key() -> None:
     assert reg.app.edit_query == "f12"
 
 
+def test_contextual_open_external_actions_may_share_a_custom_key() -> None:
+    """Beads and Files open-externally actions are pane-disjoint."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "beads_open_bug": "f11",
+                    "files_open_external": "f11",
+                }
+            }
+        }
+    )
+
+    assert reg.app.beads_open_bug == "f11"
+    assert reg.app.files_open_external == "f11"
+
+
 def test_both_overrides_duplicate_revert_both() -> None:
     """Two user overrides mapping to the same key both revert."""
     reg = load_keymap_registry(

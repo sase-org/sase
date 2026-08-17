@@ -368,14 +368,14 @@ The pane supports the full bead workflow:
 | `n`       | Create a task bead in the selected project                                            |
 | `c`       | Close with a required reason and optional note, or reopen a closed bead               |
 | `w`       | Launch an epic or launchable task; phase work launches with its epic                  |
-| `o`       | Open a linked external issue                                                          |
+| `E`       | Open a linked external issue                                                          |
 | `y`       | Copy the bead's `@bead:` reference                                                    |
 | `% u`     | Copy a linked issue reference (copy mode)                                             |
 | `b`       | Enter issue-action prefix mode                                                        |
 | `L`       | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
 | `R`       | Refresh beads                                                                         |
 
-When a bead has several issue links, `o`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
+When a bead has several issue links, `E`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
 actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
 `e` to edit supported title/body/label fields, `s` to close or reopen after
 confirmation, `u` to copy the provider URL, `a` to attach an existing numeric issue, or
@@ -559,7 +559,7 @@ provenance.
 | `j` / `k` | Select the next / previous file, skipping day headings                          |
 | `Enter`   | View the file: preview reader for Markdown and text, rich viewer for media      |
 | `Z`       | Hand the marked visible rows — or the selection — to the rich terminal viewer   |
-| `o`       | Open text in `$EDITOR` (falling back to `nvim`); open media with `xdg-open`     |
+| `E`       | Open text in `$EDITOR` (falling back to `nvim`); open media with `xdg-open`     |
 | `a`       | Jump to the producing agent on the Agents tab, reviving it first when dismissed |
 | `f`       | Edit the pane's filter query                                                    |
 | `z`       | Cycle the kind filter through All and the stored kinds present in the snapshot  |
@@ -646,17 +646,18 @@ launch routing uses the same `@small` fallback.
 | `'`                       | Jump by adaptive hint (current tab); hints land on collapsed banners too                     |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk backward / forward through the current-tab jump stack; back falls through to first hint |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                        |
-| `B` / `I`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
+| `o` / `O`                 | Cycle PR grouping mode forward / reverse (`BY_PROJECT` ↔ `BY_DATE` ↔ `BY_STATUS`)            |
 | `g` / `G`                 | Scroll detail panel to top / bottom                                                          |
 | `Ctrl+D` / `Ctrl+U`       | Scroll detail panel down / up (half page)                                                    |
 | `{` / `}`                 | Narrow / widen the shared Artifacts list panel (with wraparound)                             |
 
-> **Note:** `B`/`I` cycles the L0 grouping bucket forward / reverse on the Agents tab
-> and every Artifacts pane (each surface keeps its own in-session mode; Beads has no
-> grouping-mode data yet). Not `o`/`O`, which is reserved app-wide for
-> `artifacts_open_external`/bang-mode `mark_pr_origin` — see sase-m6.9. On the AXE tab
-> `B`/`I` is a silent no-op. See [PR Grouping and Folding](#pr-grouping-and-folding) and
-> the Agents-tab [Grouping Modes](#grouping-modes) below.
+> **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
+> on every Artifacts pane that has a grouping mode (each surface keeps its own
+> in-session mode). Beads and Plans have no grouping-mode data, so the keys are a silent
+> no-op there; the same is true on the AXE tab. The Artifacts open-externally verb moved
+> to `E`; bang-mode `!o` still marks PR origin. See
+> [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab
+> [Grouping Modes](#grouping-modes) below.
 
 ### PR Actions
 
@@ -688,7 +689,7 @@ launch routing uses the same `@small` fallback.
 
 The Patches sub-tab is always grouped — the renderer walks one of `BY_PROJECT`,
 `BY_DATE`, or `BY_STATUS` and emits a banner row above each bucket. `BY_PROJECT` is the
-startup default; `B` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current session.
+startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current session.
 
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -892,18 +893,20 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
-| `B` / `I`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
+| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
 | `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
 | `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
 
-> **Note:** `B`/`I` cycles the grouping mode forward / reverse on the Agents tab and
-> every Artifacts pane (each surface keeps its own in-session selection independently);
-> on the AXE tab it is a silent no-op. `g`/`G` keep their conventional vim-style
-> scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes)
-> below.
+> **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
+> on every Artifacts pane that has a grouping mode (each surface keeps its own
+> in-session mode). Beads and Plans have no grouping-mode data, so the keys are a silent
+> no-op there; the same is true on the AXE tab. The Artifacts open-externally verb moved
+> to `E`; bang-mode `!o` still marks PR origin. `g`/`G` keep their conventional
+> vim-style scroll-to-top/bottom meaning on every tab. See
+> [Grouping Modes](#grouping-modes) below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
 families. Relations are keyed on the name a row presents as its **sase agent** name, so
@@ -1710,9 +1713,9 @@ tree.
 
 ### Grouping Modes
 
-Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The
-Agents tab shows a brief toast (`Grouping: by project` / `by date` / `by status`) on
-each cycle:
+Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes, or `O`
+to cycle it in reverse. The Agents tab shows a brief toast (`Grouping: by project` /
+`by date` / `by status`) on each cycle:
 
 | Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                               |
 | ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
