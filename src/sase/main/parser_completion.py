@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 
 from sase.completion.candidates.protocol import DEFAULT_LIMIT
+from sase.completion.candidates.providers import shipped_kinds
 
 
 def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -82,6 +83,7 @@ def _register_candidates_parser(subparsers: argparse._SubParsersAction) -> None:
     candidates_parser.add_argument(
         "kind",
         metavar="KIND",
+        choices=shipped_kinds(),
         help="Value kind to list candidates for (e.g. project, bead)",
     )
     candidates_parser.add_argument(

@@ -478,6 +478,59 @@ def test_plan_candidates_emit_canonical_references(
     assert result == [Candidate("plan:202608/cli_completion.md", "cli_completion")]
 
 
+def _write_glossary_project(root: Path) -> None:
+    config = root / "sase" / "sase.yml"
+    config.parent.mkdir(parents=True)
+    config.write_text(
+        "memory:\n"
+        "  glossary:\n"
+        "    Agent Hood:\n"
+        "      definition: >-\n"
+        "        An agent hood is a group of agents. It has a second sentence.\n"
+        "      aliases:\n"
+        "        - hood\n"
+        "        - agent neighborhood\n"
+        "    Stitch:\n"
+        "      definition: A stitch is one recorded VCS change\n",
+        encoding="utf-8",
+    )
+
+
+def test_glossary_candidates_use_slug_references_and_first_sentences(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _write_glossary_project(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = candidates_for("glossary", "", project=None, limit=200)
+
+    # Slug form: `sase glossary` resolves references case- and
+    # separator-insensitively, so a hyphenated value never needs quoting.
+    assert result == [
+        Candidate("agent-hood", "An agent hood is a group of agents"),
+        Candidate("hood", "alias of Agent Hood"),
+        Candidate("agent-neighborhood", "alias of Agent Hood"),
+        Candidate("stitch", "A stitch is one recorded VCS change"),
+    ]
+
+
+def test_glossary_candidates_filter_by_prefix_and_survive_missing_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = tmp_path / "project"
+    _write_glossary_project(project)
+    monkeypatch.chdir(project)
+    assert [
+        candidate.value
+        for candidate in candidates_for("glossary", "agent-", project=None, limit=200)
+    ] == ["agent-hood", "agent-neighborhood"]
+
+    empty = tmp_path / "elsewhere"
+    empty.mkdir()
+    monkeypatch.chdir(empty)
+    assert candidates_for("glossary", "", project=None, limit=200) == []
+
+
 def test_provider_errors_return_an_empty_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

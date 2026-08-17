@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+from sase.completion.candidates.providers import shipped_kinds
 from sase.main.parser import create_parser, default_list_delegation_notice
 from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.parser_help_helpers import (
@@ -68,6 +71,18 @@ def test_completion_install_accepts_shell_and_modifiers() -> None:
     assert zsh.dry_run is True
     assert zsh.force is True
     assert zsh.target == "~/.zfunc"
+
+
+def test_completion_candidates_kind_is_limited_to_shipped_kinds() -> None:
+    parsed = parse_sase_args(["completion", "candidates", "glossary", "age"])
+
+    assert parsed.kind == "glossary"
+    assert parsed.prefix == "age"
+    assert {"bead", "glossary", "project"} <= set(shipped_kinds())
+    # path/dir are declared kinds but complete natively in the shell.
+    assert "path" not in shipped_kinds()
+    with pytest.raises(SystemExit):
+        parse_sase_args(["completion", "candidates", "path"])
 
 
 def test_completion_child_help_documents_short_aliases() -> None:

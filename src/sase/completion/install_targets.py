@@ -168,6 +168,89 @@ def _dir_is_writable(path: Path) -> bool:
         return False
 
 
+# Shell frameworks put every enabled plugin's own directory on ``fpath``, and
+# those directories are writable by whoever installed the framework -- on an
+# oh-my-zsh host the first scanned entry is some unrelated plugin's checkout.
+# Dropping ``_sase`` in there hijacks another project's tree and silently
+# unloads sase completion the day that plugin is disabled. Frameworks all
+# publish a drop-in directory named ``completions`` for exactly this purpose,
+# so inside a framework tree that name is the only acceptable target.
+_FRAMEWORK_DIR_NAMES: frozenset[str] = frozenset(
+    {
+        "antidote",
+        "antigen",
+        "bash-it",
+        "oh-my-bash",
+        "oh-my-fish",
+        "oh-my-zsh",
+        "omf",
+        "prezto",
+        "sheldon",
+        "zgen",
+        "zgenom",
+        "zim",
+        "zinit",
+        "znap",
+        "zplug",
+        "zprezto",
+    }
+)
+_DROP_IN_DIR_NAME = "completions"
+
+
+def _cache_managed(parts: tuple[str, ...], environ: Mapping[str, str]) -> bool:
+    """Return whether *parts* names a path inside a cache root."""
+    if ".cache" in parts:
+        return True
+    xdg_cache = environ.get("XDG_CACHE_HOME", "").strip()
+    if not xdg_cache:
+        return False
+    cache_parts = Path(xdg_cache).expanduser().parts
+    return parts[: len(cache_parts)] == cache_parts
+
+
+def _is_framework_drop_in(path: Path, *, environ: Mapping[str, str]) -> bool:
+    """Return whether *path* is a framework's third-party drop-in directory."""
+    if _cache_managed(tuple(path.parts), environ):
+        return False
+    parts = tuple(part.lstrip(".") for part in path.parts)
+    return not _FRAMEWORK_DIR_NAMES.isdisjoint(parts) and path.name == _DROP_IN_DIR_NAME
+
+
+def _is_acceptable_target(path: Path, *, environ: Mapping[str, str]) -> bool:
+    """Return whether a scanned *path* is a sane place to install a script.
+
+    Framework plugin directories and cache roots are scanned and writable but
+    belong to something else; a framework's ``completions`` drop-in directory
+    is the one exception, since publishing third-party scripts is what it is
+    for.
+    """
+    parts = tuple(part.lstrip(".") for part in path.parts)
+    if _cache_managed(tuple(path.parts), environ):
+        return False
+    if not _FRAMEWORK_DIR_NAMES.isdisjoint(parts):
+        return path.name == _DROP_IN_DIR_NAME
+    return True
+
+
+def _drop_in_rank(path: Path) -> int:
+    """Rank drop-in directories, preferring a framework's user-owned area.
+
+    oh-my-zsh's ``$ZSH_CUSTOM`` (``~/.oh-my-zsh/custom``) is the tree it tells
+    users to put their own files in and the one its updater leaves alone, so a
+    ``custom`` component wins over the framework's own checkout.
+    """
+    return 0 if "custom" in (part.lstrip(".") for part in path.parts) else 1
+
+
+def _under_home(path: Path, home: Path) -> bool:
+    """Return whether *path* lives inside *home*, without touching the disk."""
+    try:
+        return path.expanduser().is_relative_to(home.expanduser())
+    except (OSError, ValueError):
+        return False
+
+
 def _probe_zsh_fpath(
     *,
     timeout: float = ZSH_PROBE_TIMEOUT_SECONDS,
@@ -264,7 +347,8 @@ def resolve_target(
 
     1. ``-t/--target``
     2. ``SASE_COMPLETION_DIR``
-    3. the first writable directory the shell actually scans
+    3. the first writable scanned directory that is not owned by a shell
+       framework or a cache, preferring one under the user's home
     4. the conventional user directory
     """
     if shell not in SUPPORTED_SHELLS:
@@ -285,9 +369,35 @@ def resolve_target(
         if scanned is not None
         else _default_scanned_dirs(shell, home=home_path, environ=env)
     )
-    for directory in scanned_dirs:
-        if writable_fn(directory):
+    # A framework's drop-in directory is the only scanned entry whose ordering
+    # is guaranteed: the framework puts it on `fpath` itself, before it runs
+    # `compinit`. A plain user directory such as `~/.zfunc` is often appended
+    # *after* `compinit`, where a script in it is a silent no-op -- and the
+    # fpath probe cannot tell the two apart, since it reads `fpath` once rc
+    # processing has finished. So prefer the drop-in, creating it when the
+    # framework ships the fpath entry without the directory.
+    drop_ins = sorted(
+        (
+            directory
+            for directory in scanned_dirs
+            if _is_framework_drop_in(directory, environ=env)
+            and (writable_fn(directory) or writable_fn(directory.parent))
+        ),
+        key=_drop_in_rank,
+    )
+    if drop_ins:
+        return TargetChoice(drop_ins[0], "framework completions directory")
+
+    usable = [
+        directory
+        for directory in scanned_dirs
+        if writable_fn(directory) and _is_acceptable_target(directory, environ=env)
+    ]
+    for directory in usable:
+        if _under_home(directory, home_path):
             return TargetChoice(directory, "scanned directory")
+    if usable:
+        return TargetChoice(usable[0], "scanned directory")
 
     return TargetChoice(
         _conventional_dir(shell, home=home_path, environ=env),

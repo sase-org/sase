@@ -120,6 +120,134 @@ def test_unwritable_scanned_dir_falls_through_to_conventional(tmp_path: Path) ->
     assert chosen.reason == "conventional directory"
 
 
+def test_framework_plugin_dirs_lose_to_the_drop_in_dir(tmp_path: Path) -> None:
+    # oh-my-zsh puts every enabled plugin's own directory on fpath first, and
+    # they are all writable: installing there hijacks an unrelated project's
+    # tree and unloads sase completion the day that plugin is disabled. Its
+    # $ZSH_CUSTOM drop-in directory is the sanctioned target.
+    home = tmp_path / "home"
+    plugin = home / ".oh-my-zsh" / "plugins" / "z"
+    cached = home / ".cache" / "oh-my-zsh" / "completions"
+    drop_in = home / ".oh-my-zsh" / "completions"
+    custom_drop_in = home / ".oh-my-zsh" / "custom" / "completions"
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(plugin, cached, drop_in, custom_drop_in),
+        writable=lambda _path: True,
+    )
+    assert chosen.directory == custom_drop_in
+    assert chosen.reason == "framework completions directory"
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(plugin, cached, drop_in),
+        writable=lambda _path: True,
+    )
+    assert chosen.directory == drop_in
+
+
+def test_a_creatable_drop_in_beats_a_plain_scanned_dir(tmp_path: Path) -> None:
+    # The fpath probe reads fpath after rc processing, so it cannot tell a
+    # directory scanned before compinit from one appended after it, where a
+    # script is a silent no-op. The framework's own drop-in entry is the one
+    # with guaranteed ordering, so it wins even when it has to be created.
+    home = tmp_path / "home"
+    zfunc = home / ".zfunc"
+    zfunc.mkdir(parents=True)
+    drop_in = home / ".oh-my-zsh" / "custom" / "completions"
+    drop_in.parent.mkdir(parents=True)
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(zfunc, drop_in),
+    )
+    assert chosen.directory == drop_in
+    assert chosen.reason == "framework completions directory"
+
+
+def test_a_drop_in_whose_parent_is_unwritable_is_skipped(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    zfunc = home / ".zfunc"
+    drop_in = home / ".oh-my-zsh" / "custom" / "completions"
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(zfunc, drop_in),
+        writable=lambda path: path == zfunc,
+    )
+    assert chosen.directory == zfunc
+    assert chosen.reason == "scanned directory"
+
+
+def test_framework_only_fpath_falls_through_to_conventional(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    conventional = _conventional_dir("zsh", home=home, environ={})
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(
+            home / ".oh-my-zsh" / "custom" / "plugins" / "zsh-autosuggestions",
+            home / ".zprezto" / "modules" / "completion" / "external" / "src",
+            home / ".local" / "share" / "zinit" / "plugins" / "some---plugin",
+        ),
+        writable=lambda _path: True,
+    )
+    assert chosen.directory == conventional
+    assert chosen.reason == "conventional directory"
+
+
+def test_xdg_cache_scanned_dirs_are_skipped(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    cache_root = tmp_path / "xdg-cache"
+    conventional = _conventional_dir("zsh", home=home, environ={})
+
+    chosen = resolve_target(
+        "zsh",
+        environ={"XDG_CACHE_HOME": str(cache_root)},
+        home=home,
+        scanned=(cache_root / "zsh" / "completions",),
+        writable=lambda _path: True,
+    )
+    assert chosen.directory == conventional
+    assert chosen.reason == "conventional directory"
+
+
+def test_home_scanned_dir_wins_over_a_writable_system_one(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    system = tmp_path / "usr" / "local" / "share" / "zsh" / "site-functions"
+    zfunc = home / ".zfunc"
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(system, zfunc),
+        writable=lambda _path: True,
+    )
+    assert chosen.directory == zfunc
+
+    chosen = resolve_target(
+        "zsh",
+        environ={},
+        home=home,
+        scanned=(system,),
+        writable=lambda _path: True,
+    )
+    assert chosen.directory == system
+    assert chosen.reason == "scanned directory"
+
+
 def test_script_names_and_fpath_hint(tmp_path: Path) -> None:
     assert _script_filename("zsh") == "_sase"
     assert _script_filename("bash") == "sase"

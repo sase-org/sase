@@ -87,4 +87,13 @@ _PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
 }
 
 
-__all__ = ["candidates_for"]
+def shipped_kinds() -> tuple[str, ...]:
+    """Return every value kind this build can answer, in sorted order.
+
+    ``path`` and ``dir`` are deliberately absent: those slots complete
+    natively in the shell and never reach a provider.
+    """
+    return tuple(sorted(kind.value for kind in _PROVIDERS))
+
+
+__all__ = ["candidates_for", "shipped_kinds"]

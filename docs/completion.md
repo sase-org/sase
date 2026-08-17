@@ -36,9 +36,10 @@ sase completion fish  -o ~/.config/fish/completions/sase.fish
 
 For zsh, the directory must be on `fpath` **before** `compinit` runs, or the completion
 silently never loads even though the file is sitting right there.
-`sase completion install` prefers a directory your shell already scans for exactly this
-reason. If it has to fall back to a conventional directory (`~/.zfunc`), it prints the
-exact line to add:
+`sase completion install` prefers a directory your shell already scans — and, when you
+run a framework like oh-my-zsh, its `completions` drop-in directory, which the framework
+guarantees is on `fpath` before `compinit`. If it has to fall back to a conventional
+directory (`~/.zfunc`), it prints the exact line to add:
 
 ```zsh
 fpath=(~/.zfunc $fpath)   # must appear BEFORE compinit
@@ -52,10 +53,26 @@ only the completion script itself.
 1. **Detects the shell** from `$SHELL` and the parent process, unless one is given
    explicitly.
 2. **Chooses a target directory**, in order: `-t/--target`, then `SASE_COMPLETION_DIR`,
-   then the first writable directory the shell actually scans, then a conventional
-   fallback (`~/.zfunc` for zsh, `~/.local/share/bash-completion/completions` for bash,
-   `~/.config/fish/completions` for fish).
-3. **Writes** the script atomically.
+   then a shell framework's `completions` drop-in directory, then the first writable
+   directory the shell actually scans, then a conventional fallback (`~/.zfunc` for zsh,
+   `~/.local/share/bash-completion/completions` for bash, `~/.config/fish/completions`
+   for fish). Two rules shape that middle ground:
+   - **A framework's drop-in directory wins, and is created if the framework ships the
+     `fpath` entry without the directory** — on oh-my-zsh that is
+     `~/.oh-my-zsh/custom/completions`. It is the only scanned entry whose ordering is
+     guaranteed, because the framework puts it on `fpath` itself, before it runs
+     `compinit`. A plain user directory like `~/.zfunc` is frequently appended _after_
+     `compinit`, where a script in it never loads — and the `fpath` probe cannot tell
+     the two apart, since it reads `fpath` once rc processing has already finished.
+   - **Framework plugin directories and caches are never used**, even though they are
+     scanned and writable. An enabled plugin's own directory is on `fpath` only while
+     that plugin is enabled, so a script dropped there hijacks an unrelated project's
+     tree and disappears the day the plugin is turned off.
+
+   Among the remaining candidates, home directories win over system-wide ones.
+
+3. **Writes** the script atomically, and removes the script a previous install stamped
+   somewhere else, so changing targets never leaves a second copy behind.
 4. **`zcompile`s** the zsh script. This is not an optimization — an uncompiled ~300 KB
    script costs 79–84 ms to parse on the first `<TAB>` of every new shell; the compiled
    `.zwc` answers in well under a millisecond.
@@ -99,7 +116,14 @@ Options and positionals whose value can't be enumerated statically (bead ids, pr
 names, repo names, plan references, and more) complete through
 `sase completion candidates <KIND> [PREFIX]` — a pre-argparse fast path in `entry.py`
 that never imports the full CLI, ACE, or Rust extension surface it doesn't need, and
-answers in well under its latency budget for a warm process.
+answers in well under its latency budget for a warm process. `KIND` completes to the
+kinds this build can actually answer, so `sase completion candidates <TAB>` is the
+authoritative list.
+
+Glossary terms are a worked example of how a kind is shaped for a shell rather than for
+a report: `sase glossary show <TAB>` offers slug-form references (`agent-hood`), because
+`sase glossary` resolves references case- and separator-insensitively and a slug is the
+one form that never needs quoting on a command line.
 
 That fast path is still a subprocess, so every generated script caches its output rather
 than calling it on every keystroke — necessary once something like

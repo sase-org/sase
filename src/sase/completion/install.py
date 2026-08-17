@@ -207,6 +207,42 @@ def _zcompile_script(
         raise CompletionInstallError(f"zcompile failed for {path}: {err}")
 
 
+def _remove_superseded_script(
+    previous: InstallStamp | None, script: Path
+) -> InstallStep | None:
+    """Delete the script a prior install stamped at a different path.
+
+    Only the stamped path is touched: the stamp is sase's own record of what
+    it wrote, so a file it names is never a user's or another tool's. Returns
+    ``None`` when there is nothing to clean up.
+    """
+    if previous is None:
+        return None
+    stale = Path(previous.target).expanduser()
+    try:
+        same = stale.resolve() == script.expanduser().resolve()
+    except OSError:
+        same = stale == script
+    if same:
+        return None
+
+    removed: list[Path] = []
+    for path in (stale, zwc_path(stale)):
+        try:
+            if path.is_file():
+                path.unlink()
+                removed.append(path)
+        except OSError as exc:
+            return InstallStep("migrate", "warn", f"could not remove {path}: {exc}")
+    if not removed:
+        return None
+    return InstallStep(
+        "migrate",
+        "ok",
+        "removed superseded " + ", ".join(str(path) for path in removed),
+    )
+
+
 def install_completion(
     *,
     requested: str | None = None,
@@ -237,6 +273,7 @@ def install_completion(
         writable=writable,
     )
     script = script_path(choice.directory, detected.name)
+    previous = read_stamp(detected.name)
     steps: list[InstallStep] = [
         InstallStep("detect", _planned(dry_run), detected.source),
         InstallStep(
@@ -259,7 +296,7 @@ def install_completion(
         )
 
     if dry_run:
-        steps.extend(_dry_run_steps(detected.name))
+        steps.extend(_dry_run_steps(detected.name, previous=previous, script=script))
         return _result(
             detected,
             choice,
@@ -315,6 +352,10 @@ def install_completion(
             exit_code=1,
         )
     steps.append(InstallStep("stamp", "ok", f"{stamp.version} @ {script}"))
+
+    migrate_step = _remove_superseded_script(previous, script)
+    if migrate_step is not None:
+        steps.append(migrate_step)
 
     registered, verify_step, hint, verify_failed = _verify_install(
         detected.name,
@@ -501,7 +542,9 @@ def _hint(shell: str, directory: Path, home: Path) -> str | None:
     return fpath_hint_line(directory, home=home)
 
 
-def _dry_run_steps(shell: str) -> tuple[InstallStep, ...]:
+def _dry_run_steps(
+    shell: str, *, previous: InstallStamp | None, script: Path
+) -> tuple[InstallStep, ...]:
     zcompile = (
         InstallStep("zcompile", "planned", "zcompile the script")
         if shell == "zsh"
@@ -512,12 +555,17 @@ def _dry_run_steps(shell: str) -> tuple[InstallStep, ...]:
         if shell == "zsh"
         else InstallStep("verify", "skip", "zsh registration only")
     )
-    return (
+    steps = [
         InstallStep("write", "planned", "write the script atomically"),
         zcompile,
         InstallStep("stamp", "planned", "write ~/.sase/completion/stamp/<shell>.json"),
-        verify,
-    )
+    ]
+    if previous is not None and Path(previous.target).expanduser() != script:
+        steps.append(
+            InstallStep("migrate", "planned", f"remove superseded {previous.target}")
+        )
+    steps.append(verify)
+    return tuple(steps)
 
 
 def _planned(dry_run: bool) -> str:

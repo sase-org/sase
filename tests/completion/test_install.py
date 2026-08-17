@@ -101,6 +101,59 @@ def test_owned_file_can_be_overwritten_without_force(tmp_path: Path) -> None:
     assert script.read_text(encoding="utf-8") == "# v2 zsh\n"
 
 
+def test_reinstall_removes_the_previously_stamped_script(tmp_path: Path) -> None:
+    plugin_dir = tmp_path / "oh-my-zsh" / "plugins" / "z"
+    plugin_dir.mkdir(parents=True)
+    assert _install(tmp_path, target=plugin_dir).ok
+    stale = plugin_dir / "_sase"
+    assert stale.is_file()
+    assert zwc_path(stale).is_file()
+
+    result = _install(tmp_path)
+
+    assert result.ok
+    assert not stale.exists()
+    assert not zwc_path(stale).exists()
+    assert (tmp_path / "zfunc" / "_sase").is_file()
+    assert any(
+        step.name == "migrate" and step.status == "ok" and str(stale) in step.detail
+        for step in result.steps
+    )
+    stamp = read_stamp("zsh")
+    assert stamp is not None
+    assert stamp.target == str(tmp_path / "zfunc" / "_sase")
+
+
+def test_reinstall_to_the_same_target_reports_no_migration(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+
+    result = _install(tmp_path)
+
+    assert result.ok
+    assert (tmp_path / "zfunc" / "_sase").is_file()
+    assert not any(step.name == "migrate" for step in result.steps)
+
+
+def test_dry_run_announces_a_pending_migration_without_removing_anything(
+    tmp_path: Path,
+) -> None:
+    plugin_dir = tmp_path / "oh-my-zsh" / "plugins" / "z"
+    plugin_dir.mkdir(parents=True)
+    assert _install(tmp_path, target=plugin_dir).ok
+    stale = plugin_dir / "_sase"
+
+    result = _install(tmp_path, dry_run=True)
+
+    assert result.ok
+    assert stale.is_file()
+    assert any(
+        step.name == "migrate"
+        and step.status == "planned"
+        and str(stale) in step.detail
+        for step in result.steps
+    )
+
+
 def test_verify_unset_prints_fpath_hint_and_fails(tmp_path: Path) -> None:
     result = _install(tmp_path, verify_fn=lambda: "UNSET")
 

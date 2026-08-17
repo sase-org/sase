@@ -7525,7 +7525,26 @@
             ],
             "positionals": [
               {
-                "choices": null,
+                "choices": [
+                  "agent",
+                  "artifact",
+                  "bead",
+                  "flag",
+                  "glossary",
+                  "memory",
+                  "model",
+                  "monitor",
+                  "patch",
+                  "plan",
+                  "plugin",
+                  "proc",
+                  "project",
+                  "repo",
+                  "skill",
+                  "tag",
+                  "workspace",
+                  "xprompt"
+                ],
                 "dest": "kind",
                 "is_remainder": false,
                 "kind": null,
@@ -9408,7 +9427,7 @@
                 "choices": null,
                 "dest": "term",
                 "hidden": false,
-                "kind": null,
+                "kind": "glossary",
                 "repeatable": false,
                 "strings": [
                   "-t",
@@ -9506,7 +9525,7 @@
                 "choices": null,
                 "dest": "term",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "glossary",
                 "metavar": "TERM",
                 "nargs": "+"
               }
@@ -9583,7 +9602,7 @@
                 "choices": null,
                 "dest": "term",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "glossary",
                 "metavar": "TERM",
                 "nargs": "+"
               }
