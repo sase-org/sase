@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
+from sase.feature_flags import FeatureFlagEnvError
 from sase.feature_flags.env import (
     SASE_FEATURE_FLAGS_ENV,
     apply_feature_flags_env,
     collect_legacy_env_values,
+    merge_feature_flags_env,
     parse_feature_flags_env,
 )
 from sase.feature_flags.resolver import resolve_feature_flags
@@ -64,3 +68,49 @@ def test_applied_env_pins_child_process_resolution() -> None:
     assert env[SASE_FEATURE_FLAGS_ENV] == '{"demo_flag":true}'
     assert child.enabled("demo_flag") is True
     assert child.decision("demo_flag").source == "env"
+
+
+def test_merge_feature_flags_env_creates_var_when_unset() -> None:
+    env: dict[str, str] = {}
+
+    merge_feature_flags_env({"demo_flag": True}, env)
+
+    assert env[SASE_FEATURE_FLAGS_ENV] == '{"demo_flag":true}'
+
+
+def test_merge_feature_flags_env_merges_over_inherited_keys() -> None:
+    env = {SASE_FEATURE_FLAGS_ENV: '{"alpha_flag":true,"demo_flag":false}'}
+
+    merge_feature_flags_env({"demo_flag": True, "beta_flag": False}, env)
+
+    assert parse_feature_flags_env(env[SASE_FEATURE_FLAGS_ENV]) == {
+        "alpha_flag": True,
+        "beta_flag": False,
+        "demo_flag": True,
+    }
+
+
+def test_merge_feature_flags_env_overwrites_conflicting_inherited_key() -> None:
+    env = {SASE_FEATURE_FLAGS_ENV: '{"demo_flag":false}'}
+
+    merge_feature_flags_env({"demo_flag": True}, env)
+
+    assert env[SASE_FEATURE_FLAGS_ENV] == '{"demo_flag":true}'
+
+
+def test_merge_feature_flags_env_leaves_unrelated_keys_alone() -> None:
+    env = {SASE_FEATURE_FLAGS_ENV: '{"keep_me":true}'}
+
+    merge_feature_flags_env({"demo_flag": False}, env)
+
+    assert parse_feature_flags_env(env[SASE_FEATURE_FLAGS_ENV]) == {
+        "demo_flag": False,
+        "keep_me": True,
+    }
+
+
+def test_merge_feature_flags_env_raises_on_malformed_inherited_value() -> None:
+    env = {SASE_FEATURE_FLAGS_ENV: "not-json"}
+
+    with pytest.raises(FeatureFlagEnvError):
+        merge_feature_flags_env({"demo_flag": True}, env)

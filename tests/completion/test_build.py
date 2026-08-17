@@ -69,6 +69,8 @@ def test_root_help_actions_present() -> None:
     strings = {s for option in spec.root.options for s in option.strings}
     assert {"-h", "--help"} <= strings
     assert {"-H", "--full-help"} <= strings
+    assert {"-f", "--enable-feature"} <= strings
+    assert {"-F", "--disable-feature"} <= strings
 
 
 def test_subparser_auto_help_option_present() -> None:

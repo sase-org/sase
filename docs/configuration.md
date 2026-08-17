@@ -3178,16 +3178,24 @@ can still read a config written by a newer SASE, but the resolver warns and igno
 unknown keys at runtime.
 
 Resolution order is registry default, user config, overlay configs, project-local config
-for `scope: "project"` flags only, explicit in-process test overrides, then
-`SASE_FEATURE_FLAGS`. Plugin config layers never flip first-party flag defaults. A local
-config entry for a global flag is ignored with a warning, because ACE disables
-project-local config and global flags must resolve consistently across frontends.
+for `scope: "project"` flags only, explicit in-process test overrides,
+`SASE_FEATURE_FLAGS`, then the root CLI options. Plugin config layers never flip
+first-party flag defaults. A local config entry for a global flag is ignored with a
+warning, because ACE disables project-local config and global flags must resolve
+consistently across frontends.
+
+Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
+or off for one `sase` invocation. They must appear before the subcommand
+(`sase -f coder_inherits_planner_chat run "..."`). They outrank every config layer and
+an inherited `SASE_FEATURE_FLAGS` value, and they merge into `SASE_FEATURE_FLAGS` so
+launched agents and other child processes inherit the same overrides.
 
 `SASE_FEATURE_FLAGS` is a strict JSON object of booleans, for example
 `{"coder_inherits_planner_chat":true}`. Malformed JSON, a non-object payload, or a
 non-boolean value is a startup error for that process. SASE-launched children inherit a
 resolved snapshot through the same variable, so `sase flag list` marks env provenance
-prominently.
+prominently. CLI overrides are marked the same way (`CLI:--enable-feature` /
+`CLI:--disable-feature`).
 
 Create temporary flags with `sase flag new <key>` rather than editing the registry by
 hand. The command creates the dedicated `flag` removal bead, prints the registry entry,
@@ -3447,7 +3455,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                                                                                                                                        |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                   |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                            |
-| `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Overrides config-layer values.                                                                                                                                                           |
+| `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Overrides config-layer values. Root `-f/--enable-feature` and `-F/--disable-feature` merge into this variable so launched processes inherit those CLI overrides.                         |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                                                                                                                                                         |
 | `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                                                                                                                                             |
 | `SASE_PYTEST_DIST`                    | xdist scheduler for the `just` pytest recipes: `worksteal` (default) or `loadfile` (fallback). Invalid values fail before worker-token acquisition; serial inline-snapshot modes ignore it.                                                                                                            |
@@ -3498,6 +3506,16 @@ workspace claims.
 Command groups that default to a nested `list` command still parse flags at the
 subcommand level. Use the explicit `list` form when passing list options, such as
 `sase notify list -j`, `sase memory list -j`, or `sase workspace list --json`.
+
+### `sase (global)`
+
+These options are recognized only in the leading run of option tokens, before the first
+subcommand. They do not steal `-f`/`-F` from commands such as `sase bead list -f json`.
+
+| Flag                    | Values              | Default | Description                                                                                                                                                            |
+| ----------------------- | ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers and an inherited `SASE_FEATURE_FLAGS` value.  |
+| `-F, --disable-feature` | registered flag key | -       | Force a registered feature flag off for this invocation and every process it launches. Repeatable. Outranks config layers and an inherited `SASE_FEATURE_FLAGS` value. |
 
 ### `sase ace`
 

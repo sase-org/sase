@@ -3,7 +3,7 @@
   "root": {
     "aliases": [],
     "default_child": null,
-    "description_digest": "fb90059c4514cf02",
+    "description_digest": "ee5f42199cf6b042",
     "hidden": false,
     "mutex_groups": [],
     "name": "sase",
@@ -31,6 +31,30 @@
           "--full-help"
         ],
         "takes_value": false
+      },
+      {
+        "choices": null,
+        "dest": "enable_feature",
+        "hidden": false,
+        "kind": "flag",
+        "repeatable": true,
+        "strings": [
+          "-f",
+          "--enable-feature"
+        ],
+        "takes_value": true
+      },
+      {
+        "choices": null,
+        "dest": "disable_feature",
+        "hidden": false,
+        "kind": "flag",
+        "repeatable": true,
+        "strings": [
+          "-F",
+          "--disable-feature"
+        ],
+        "takes_value": true
       }
     ],
     "path": [],

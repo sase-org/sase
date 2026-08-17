@@ -294,6 +294,18 @@ _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase agent list",
     "sase --full-help",
 )
+_COMPACT_ROOT_USAGE = "sase [-h] [-H] [-f <flag>] [-F <flag>] <command> [args...]"
+_COMPACT_GLOBAL_OPTIONS: tuple[tuple[str, str], ...] = (
+    (
+        "-f, --enable-feature <flag>",
+        "Enable a registered feature flag for this invocation",
+    ),
+    (
+        "-F, --disable-feature <flag>",
+        "Disable a registered feature flag for this invocation",
+    ),
+)
+_COMPACT_GLOBAL_OPTION_EXAMPLE = 'sase -f coder_inherits_planner_chat run "..."'
 
 
 class _CompactRootHelpAction(argparse.Action):
@@ -371,6 +383,14 @@ def _validated_compact_root_commands(
     return tuple(sorted(_COMPACT_ROOT_COMMANDS, key=lambda command: command.name))
 
 
+def _compact_global_option_rows() -> list[str]:
+    option_width = max(len(name) for name, _summary in _COMPACT_GLOBAL_OPTIONS)
+    return [
+        f"  {name:<{option_width}}  {summary}"
+        for name, summary in _COMPACT_GLOBAL_OPTIONS
+    ]
+
+
 def _format_compact_root_help(parser: argparse.ArgumentParser) -> str:
     commands = _validated_compact_root_commands(parser)
     command_width = max(len(command.name) for command in commands)
@@ -380,9 +400,14 @@ def _format_compact_root_help(parser: argparse.ArgumentParser) -> str:
     example_rows = [f"  {example}" for example in _COMPACT_ROOT_EXAMPLES]
     return "\n".join(
         [
-            "usage: sase [-h] [-H] <command> [args...]",
+            f"usage: {_COMPACT_ROOT_USAGE}",
             "",
             "SASE - Structured Agentic Software Engineering",
+            "",
+            "Global options:",
+            *_compact_global_option_rows(),
+            "",
+            f"  Example: {_COMPACT_GLOBAL_OPTION_EXAMPLE}",
             "",
             "Common commands:",
             *command_rows,
@@ -420,9 +445,22 @@ def _format_colored_compact_root_help(parser: argparse.ArgumentParser) -> Text:
     help_text = Text()
 
     help_text.append("usage:", style="bold dim")
-    help_text.append(" sase [-h] [-H] <command> [args...]", style="dim")
+    help_text.append(f" {_COMPACT_ROOT_USAGE}", style="dim")
     help_text.append("\n\n")
     help_text.append("SASE - Structured Agentic Software Engineering", style="bold")
+    help_text.append("\n\n")
+    help_text.append("Global options:", style="bold cyan")
+    help_text.append("\n")
+    option_width = max(len(name) for name, _summary in _COMPACT_GLOBAL_OPTIONS)
+    for name, summary in _COMPACT_GLOBAL_OPTIONS:
+        help_text.append("  ")
+        help_text.append(f"{name:<{option_width}}", style="bold green")
+        help_text.append("  ")
+        help_text.append(summary)
+        help_text.append("\n")
+    help_text.append("\n")
+    help_text.append("  Example: ")
+    help_text.append(_COMPACT_GLOBAL_OPTION_EXAMPLE, style="yellow")
     help_text.append("\n\n")
     help_text.append("Common commands:", style="bold cyan")
     help_text.append("\n")
@@ -610,6 +648,9 @@ def create_parser(*, only: str | None = None) -> argparse.ArgumentParser:
         action=_FullRootHelpAction,
         help="show full command inventory and exit",
     )
+    from .global_options import register_global_feature_flag_options
+
+    register_global_feature_flag_options(parser)
 
     # Top-level subparsers
     top_level_subparsers = parser.add_subparsers(

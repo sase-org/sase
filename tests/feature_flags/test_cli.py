@@ -162,6 +162,32 @@ def test_flag_list_surfaces_deprecated_env_diagnostic() -> None:
     assert "SASE_DISABLE_PRETTIER" in out
 
 
+def test_flag_list_row_includes_cli_provenance() -> None:
+    console, buf = _console()
+    flag = demo_flag("demo_flag", scope="global")
+    args = create_parser().parse_args(["flag", "list"])
+
+    exit_code = handle_flag_list(
+        args,
+        console=console,
+        definitions={str(flag.key): flag},
+        snapshot=snapshot_for(
+            flag,
+            enabled={"demo_flag": True},
+            source="cli",
+            source_detail="--enable-feature",
+        ),
+        beads=(flag_bead("demo_flag"),),
+        today=date(2026, 8, 16),
+        release="0.16.0",
+    )
+
+    assert exit_code == 0
+    out = buf.getvalue()
+    assert "demo_flag" in out
+    assert "CLI:--enable-feature" in out
+
+
 def test_flag_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     flag = demo_flag("demo_flag")
     args = create_parser().parse_args(["flag", "list", "--json"])
@@ -225,6 +251,43 @@ def test_flag_show_includes_layers_bead_and_call_sites() -> None:
     assert "2026-12-01" in out
     assert "CALL SITES" in out
     assert "consumer.py:12" in out
+
+
+def test_flag_show_renders_cli_layer_without_env_row() -> None:
+    console, buf = _console()
+    flag = demo_flag("demo_flag", scope="global")
+    args = create_parser().parse_args(["flag", "show", "demo_flag"])
+
+    exit_code = handle_flag_show(
+        args,
+        console=console,
+        definitions={str(flag.key): flag},
+        snapshot=snapshot_for(
+            flag,
+            enabled={"demo_flag": False},
+            source="cli",
+            source_detail="--disable-feature",
+        ),
+        beads=(flag_bead("demo_flag"),),
+        layers=(),
+        call_sites=(),
+        today=date(2026, 8, 16),
+        release="0.16.0",
+    )
+
+    assert exit_code == 0
+    out = buf.getvalue()
+    assert "CLI:--disable-feature" in out
+    assert "effective:  off" in out
+    layer_names = [
+        line.split()[0]
+        for line in out.splitlines()
+        if line.startswith("  ")
+        and line.split()[0] in {"default", "env", "cli", "user", "local"}
+    ]
+    assert "cli" in layer_names
+    assert "env" not in layer_names
+    assert "--disable-feature" in out
 
 
 def test_flag_new_requires_sase_managed(

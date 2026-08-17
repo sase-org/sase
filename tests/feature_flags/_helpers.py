@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 from sase.feature_flags import FeatureFlag, FeatureFlagDefinition
-from sase.feature_flags.models import FlagKind, FlagScope
+from sase.feature_flags.models import FlagKind, FlagScope, FlagSource
 from sase.feature_flags.beads import FlagBeadSnapshot
 from sase.feature_flags.models import FeatureFlagDecision, FeatureFlagSnapshot
 from sase.feature_flags.resolver import FeatureFlagLayerInput
@@ -48,7 +48,7 @@ def layer(
 def snapshot_for(
     *flags: FeatureFlagDefinition,
     enabled: dict[str, bool] | None = None,
-    source: str = "default",
+    source: FlagSource = "default",
     source_detail: str = "",
     diagnostics: tuple[Any, ...] = (),
 ) -> FeatureFlagSnapshot:

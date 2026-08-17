@@ -77,6 +77,8 @@ def handle_flag_show(
         layers if layers is not None else current_flag_layers(),
         env_value=_env_value_from_decision(view.decision),
         env_detail=view.decision.source_detail,
+        cli_value=_cli_value_from_decision(view.decision),
+        cli_detail=view.decision.source_detail,
     )
     if bool(getattr(args, "json", False)):
         print(
@@ -173,6 +175,8 @@ def _layer_rows(
     *,
     env_value: bool | None,
     env_detail: str = "",
+    cli_value: bool | None = None,
+    cli_detail: str = "",
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = [
         {
@@ -200,6 +204,15 @@ def _layer_rows(
                 "note": env_detail or SASE_FEATURE_FLAGS_ENV,
             }
         )
+    if cli_value is not None:
+        rows.append(
+            {
+                "name": "cli",
+                "value": cli_value,
+                "note": cli_detail
+                or ("--enable-feature" if cli_value else "--disable-feature"),
+            }
+        )
     return rows
 
 
@@ -221,6 +234,12 @@ def _layer_note(
 
 def _env_value_from_decision(decision: FeatureFlagDecision) -> bool | None:
     if decision.source == "env":
+        return decision.enabled
+    return None
+
+
+def _cli_value_from_decision(decision: FeatureFlagDecision) -> bool | None:
+    if decision.source == "cli":
         return decision.enabled
     return None
 

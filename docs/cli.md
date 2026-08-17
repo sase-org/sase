@@ -7,6 +7,10 @@ detailed command, flag, or subsystem reference.
 For exhaustive flag tables, see the
 [configuration reference](configuration.md#cli-flags).
 
+The root `sase` command accepts `-f/--enable-feature` and `-F/--disable-feature` before
+the subcommand to force a registered feature flag on or off for that invocation and its
+children. See the [configuration reference](configuration.md#feature_flags).
+
 ## Daily Operation
 
 | Command                         | Purpose                                                                                                                                                                                                             | Details                                                                  |

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 FlagKind = Literal["beta", "wip", "sunset", "ops"]
 FlagScope = Literal["global", "project"]
-FlagSource = Literal["default", "user", "overlay", "local", "override", "env"]
+FlagSource = Literal["default", "user", "overlay", "local", "override", "env", "cli"]
 
 _SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 

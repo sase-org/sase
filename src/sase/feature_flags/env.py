@@ -73,12 +73,29 @@ def parse_feature_flags_env(raw: str) -> dict[str, bool]:
     return values
 
 
+def _encode_feature_flags_values(values: Mapping[str, bool]) -> str:
+    """Encode flag values into stable JSON."""
+    return json.dumps(dict(values), sort_keys=True, separators=(",", ":"))
+
+
 def _encode_feature_flags_env(snapshot: FeatureFlagSnapshot) -> str:
     """Encode every resolved flag value into stable JSON."""
     values = {
         key: snapshot.decisions[key].enabled for key in sorted(snapshot.decisions)
     }
-    return json.dumps(values, sort_keys=True, separators=(",", ":"))
+    return _encode_feature_flags_values(values)
+
+
+def merge_feature_flags_env(
+    values: Mapping[str, bool],
+    env: MutableMapping[str, str] = os.environ,
+) -> None:
+    """Merge *values* over the inherited ``SASE_FEATURE_FLAGS`` transport."""
+    raw = env.get(SASE_FEATURE_FLAGS_ENV)
+    inherited = parse_feature_flags_env(raw) if raw else {}
+    merged = dict(inherited)
+    merged.update(values)
+    env[SASE_FEATURE_FLAGS_ENV] = _encode_feature_flags_values(merged)
 
 
 def apply_feature_flags_env(
@@ -93,5 +110,6 @@ __all__ = [
     "SASE_FEATURE_FLAGS_ENV",
     "apply_feature_flags_env",
     "collect_legacy_env_values",
+    "merge_feature_flags_env",
     "parse_feature_flags_env",
 ]

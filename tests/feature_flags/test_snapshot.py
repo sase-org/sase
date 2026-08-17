@@ -12,7 +12,7 @@ import pytest
 
 from sase.config.core import ConfigLayer
 from sase.feature_flags import FeatureFlagError
-from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV
+from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.models import FeatureFlagDiagnostic
 from sase.feature_flags.resolver import FeatureFlagLayerInput
 from sase.feature_flags import snapshot as snapshot_mod
@@ -151,6 +151,34 @@ def test_legacy_env_is_mapped_when_building_the_process_snapshot(
     assert [diagnostic.code for diagnostic in resolved.diagnostics] == [
         "deprecated_env"
     ]
+
+
+def test_set_cli_feature_flags_invalidates_snapshot_and_exports_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_snapshot_inputs(
+        monkeypatch,
+        defs=definitions(
+            demo_flag("demo_flag", default=False),
+            demo_flag("keep_me", default=False),
+        ),
+    )
+    monkeypatch.setenv(SASE_FEATURE_FLAGS_ENV, '{"keep_me":true}')
+    first = snapshot_mod.current_flags()
+    assert first.enabled("demo_flag") is False
+    assert first.decision("demo_flag").source == "default"
+
+    snapshot_mod.set_cli_feature_flags({"demo_flag": True})
+    second = snapshot_mod.current_flags()
+
+    assert second is not first
+    assert second.enabled("demo_flag") is True
+    assert second.decision("demo_flag").source == "cli"
+    assert second.decision("demo_flag").source_detail == "--enable-feature"
+    assert parse_feature_flags_env(os.environ[SASE_FEATURE_FLAGS_ENV]) == {
+        "demo_flag": True,
+        "keep_me": True,
+    }
 
 
 def test_importing_feature_flags_and_sase_performs_no_resolution() -> None:

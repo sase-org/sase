@@ -28,6 +28,11 @@ def source_text(decision: FeatureFlagDecision) -> Text:
     if decision.source == "env":
         env_name = decision.source_detail or SASE_FEATURE_FLAGS_ENV
         return Text(f"ENV:{env_name}", style="bold reverse")
+    if decision.source == "cli":
+        option = decision.source_detail or (
+            "--enable-feature" if decision.enabled else "--disable-feature"
+        )
+        return Text(f"CLI:{option}", style="bold reverse")
     if decision.source == "default":
         return Text("default", style="dim")
     if decision.source_detail:

@@ -6,6 +6,11 @@ from typing import NoReturn
 
 def main() -> NoReturn:
     """Main entry point for the SASE CLI tool."""
+    if len(sys.argv) > 1 and sys.argv[1].startswith("-"):
+        from .global_options import consume_global_options
+
+        consume_global_options()
+
     if len(sys.argv) >= 2 and sys.argv[1] == "bead":
         from .bead_fast_path import try_handle_bead_fast_path
 

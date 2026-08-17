@@ -183,6 +183,56 @@ def test_empty_legacy_env_does_not_apply() -> None:
     assert snapshot.diagnostics == ()
 
 
+def test_cli_beats_env_override_and_config_layers() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag(default=False)),
+        layers=[
+            layer("user", {"demo_flag": False}, detail="user.yml"),
+            layer("overlay:extra.yml", {"demo_flag": False}, detail="extra.yml"),
+            layer("local", {"demo_flag": False}, detail="local.yml"),
+        ],
+        overrides={"demo_flag": False},
+        env_value='{"demo_flag":false}',
+        cli={"demo_flag": True},
+    )
+
+    decision = snapshot.decision("demo_flag")
+    assert decision.enabled is True
+    assert decision.source == "cli"
+    assert decision.source_detail == "--enable-feature"
+    assert decision.overridden is True
+
+
+def test_cli_disable_beats_env_and_records_disable_option() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(demo_flag(default=True)),
+        layers=[],
+        overrides={"demo_flag": True},
+        env_value='{"demo_flag":true}',
+        cli={"demo_flag": False},
+    )
+
+    decision = snapshot.decision("demo_flag")
+    assert decision.enabled is False
+    assert decision.source == "cli"
+    assert decision.source_detail == "--disable-feature"
+
+
+def test_cli_can_set_a_project_scoped_flag() -> None:
+    snapshot = resolve_feature_flags(
+        definitions=definitions(
+            demo_flag("project_flag", scope="project", default=False)
+        ),
+        layers=[],
+        cli={"project_flag": True},
+    )
+
+    decision = snapshot.decision("project_flag")
+    assert decision.enabled is True
+    assert decision.source == "cli"
+    assert decision.source_detail == "--enable-feature"
+
+
 def test_env_beats_overrides_and_unknown_env_key_warns_only() -> None:
     snapshot = resolve_feature_flags(
         definitions=definitions(demo_flag(default=False)),

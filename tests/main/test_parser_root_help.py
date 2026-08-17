@@ -27,8 +27,14 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     common_command_rows = compact_common_command_rows(help_text)
     common_commands = compact_common_commands(help_text)
 
-    assert help_text.startswith("usage: sase [-h] [-H] <command> [args...]\n")
+    assert help_text.startswith(
+        "usage: sase [-h] [-H] [-f <flag>] [-F <flag>] <command> [args...]\n"
+    )
     assert "SASE - Structured Agentic Software Engineering" in help_text
+    assert "Global options:" in help_text
+    assert "-f, --enable-feature <flag>" in help_text
+    assert "-F, --disable-feature <flag>" in help_text
+    assert 'sase -f coder_inherits_planner_chat run "..."' in help_text
     assert "Common commands:" in help_text
     assert "Examples:" in help_text
     assert (
@@ -152,6 +158,8 @@ def test_root_full_help_renders_every_top_level_command(
 
     assert "-h, --help" in help_text
     assert "-H, --full-help" in help_text
+    assert "--enable-feature" in help_text
+    assert "--disable-feature" in help_text
     assert expected_commands <= help_commands
 
 

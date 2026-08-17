@@ -172,6 +172,7 @@ def reset_process_feature_flags() -> None:
         flag_snapshot._snapshot = None
         flag_snapshot._installed = False
         flag_snapshot._override_stack.clear()
+        flag_snapshot._cli_values.clear()
 
 
 def _stop_orphaned_proc_observers_if_loaded() -> None:

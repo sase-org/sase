@@ -122,8 +122,9 @@ def resolve_feature_flags(
     overrides: Mapping[str, bool] | None = None,
     env_value: str | None = None,
     legacy_env: Mapping[str, str] | None = None,
+    cli: Mapping[str, bool] | None = None,
 ) -> FeatureFlagSnapshot:
-    """Resolve feature flags through config layers, overrides, and env."""
+    """Resolve feature flags through config layers, overrides, env, and CLI."""
     decisions = {
         key: FeatureFlagDecision(
             key=key,
@@ -212,5 +213,29 @@ def resolve_feature_flags(
             diagnostic_source="env",
             diagnostics=diagnostics,
         )
+
+    if cli:
+        cli_enabled = {key: True for key, value in cli.items() if value}
+        cli_disabled = {key: False for key, value in cli.items() if not value}
+        if cli_enabled:
+            _apply_values(
+                decisions=decisions,
+                definitions=definitions,
+                values=cli_enabled,
+                source="cli",
+                source_detail="--enable-feature",
+                diagnostic_source="cli",
+                diagnostics=diagnostics,
+            )
+        if cli_disabled:
+            _apply_values(
+                decisions=decisions,
+                definitions=definitions,
+                values=cli_disabled,
+                source="cli",
+                source_detail="--disable-feature",
+                diagnostic_source="cli",
+                diagnostics=diagnostics,
+            )
 
     return FeatureFlagSnapshot(decisions=decisions, diagnostics=tuple(diagnostics))

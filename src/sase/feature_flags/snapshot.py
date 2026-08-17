@@ -9,7 +9,11 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
-from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, apply_feature_flags_env
+from sase.feature_flags.env import (
+    SASE_FEATURE_FLAGS_ENV,
+    apply_feature_flags_env,
+    merge_feature_flags_env,
+)
 from sase.feature_flags.models import (
     FeatureFlagDiagnostic,
     FeatureFlagSnapshot,
@@ -24,6 +28,7 @@ _lock = threading.RLock()
 _snapshot: FeatureFlagSnapshot | None = None
 _installed = False
 _override_stack: list[dict[str, bool]] = []
+_cli_values: dict[str, bool] = {}
 
 
 def _current_overrides() -> dict[str, bool]:
@@ -75,11 +80,23 @@ def _build_snapshot() -> FeatureFlagSnapshot:
         overrides=_current_overrides(),
         env_value=os.environ.get(SASE_FEATURE_FLAGS_ENV),
         legacy_env=os.environ,
+        cli=dict(_cli_values) if _cli_values else None,
     )
     return FeatureFlagSnapshot(
         decisions=snapshot.decisions,
         diagnostics=(*projection_diagnostics, *snapshot.diagnostics),
     )
+
+
+def set_cli_feature_flags(values: Mapping[str, bool]) -> None:
+    """Record CLI flag values as the highest-precedence source."""
+    global _snapshot
+    recorded = dict(values)
+    with _lock:
+        _cli_values.clear()
+        _cli_values.update(recorded)
+        _snapshot = None
+        merge_feature_flags_env(recorded)
 
 
 def current_flag_layers() -> tuple[FeatureFlagLayerInput, ...]:
