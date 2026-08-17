@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
+import fcntl
 import json
-import multiprocessing
+import os
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -28,22 +31,43 @@ from tests.workspace_lease_helpers import (
 )
 
 
-def _hold_epic_approval_lock(
-    anchor: str,
-    acquired: Any,
-    release: Any,
-    plan_file: str,
-) -> None:
-    from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
+@contextmanager
+def _foreign_epic_launch_lock_holder(anchor: Path, plan_file: str) -> Iterator[None]:
+    """Hold the epic plan launch lock the way a foreign process would.
 
-    with epic_plan_launch_lock(
-        Path(anchor),
-        plan_file=plan_file,
-        op="test in-flight epic launch",
-    ) as locked:
-        assert locked is True
-        acquired.set()
-        assert release.wait(5.0)
+    ``flock`` ownership belongs to the open file description, not the
+    process, so a second ``open()`` of this lock path in this same process
+    is refused exactly as it would be from a separate process. The
+    contended window is bounded by this ``with`` block instead of a
+    wall-clock timer, which replaces forking from a multi-threaded xdist
+    worker -- the actual defect behind this node's flakiness -- with an
+    in-process seam.
+    """
+    from sase.bead.cli_work_from_plan_store import _epic_plan_launch_lock_path
+
+    lock_path = _epic_plan_launch_lock_path(anchor)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            holder = {
+                "pid": os.getpid(),
+                "op": "test in-flight epic launch",
+                "plan_file": plan_file,
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+            lock_file.seek(0)
+            lock_file.truncate()
+            json.dump(holder, lock_file, sort_keys=True)
+            lock_file.flush()
+
+            with lock_path.open("a+", encoding="utf-8") as probe:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 @pytest.mark.parametrize(
@@ -377,22 +401,8 @@ def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
     plan = Path(context.host_files[0])
     anchor = epic_launch_lock_anchor(workspace)
     monkeypatch.setenv("SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT", "0.02")
-    process_context = multiprocessing.get_context("fork")
-    holder_acquired = process_context.Event()
-    release_holder = process_context.Event()
-    process = process_context.Process(
-        target=_hold_epic_approval_lock,
-        args=(
-            str(anchor),
-            holder_acquired,
-            release_holder,
-            str(plan),
-        ),
-    )
-    process.start()
-    assert holder_acquired.wait(2.0) is True
 
-    try:
+    with _foreign_epic_launch_lock_holder(anchor, str(plan)):
         with (
             patch(
                 "sase.bead.epic_launch.resolve_epic_launch_project",
@@ -414,13 +424,9 @@ def test_headless_epic_approval_submits_while_inflight_launch_holds_anchor(
             ) as start_launch,
         ):
             result = execute_plan_approval_response(context, "epic")
-    finally:
-        release_holder.set()
-        process.join(timeout=2.0)
 
     assert result.epic_launch_monitor_id == "mon-contended"
     start_launch.assert_called_once()
-    assert process.exitcode == 0
 
 
 def test_epic_launch_project_resolves_from_project_file_without_project_dir(
