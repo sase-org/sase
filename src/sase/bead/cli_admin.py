@@ -413,6 +413,7 @@ Quick Start:
   sase bead snooze <id> -u 3d -r "why"           Defer a task until a wake time
   sase bead snooze <id> -u 3d -p 2               Also wake it at 2 more +1s
   sase bead snooze <id> --cancel                 Wake a snoozed task now
+  sase bead epic-symbols [<id>]                  List Justfile --epic-symbol entries
   sase bead close <id> --note "verified"         Close with completion evidence
   sase bead rm <id> [<id2> ...]                 Remove issues (and children)
   sase bead dep add <issue> <depends-on>         Add dependency

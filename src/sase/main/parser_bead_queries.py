@@ -16,6 +16,49 @@ def register_bead_blocked_parser(
     subparsers.add_parser("blocked", help="Show blocked issues")
 
 
+def register_bead_epic_symbols_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead epic-symbols``."""
+    parser = subparsers.add_parser(
+        "epic-symbols",
+        help="List Justfile --epic-symbol whitelist entries",
+        description=(
+            "List --epic-symbol entries from the working tree's Justfile. "
+            "With an ID, only entries keyed to that bead or its descendant "
+            "suffixes are shown. Land and phase agents should run this "
+            "before closing: leftover entries go stale the instant the bead "
+            "closes, and sase bead close refuses while any remain."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead epic-symbols\n"
+            "  sase bead epic-symbols sase-64\n"
+            "  sase bead epic-symbols sase-64 --format json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-c",
+        "--color",
+        choices=["auto", "always", "never"],
+        default="auto",
+        help="Color output: auto, always, or never (default: auto)",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=["compact", "json"],
+        default="compact",
+        help="Output format: compact or json (default: compact)",
+    )
+    parser.add_argument(
+        "id",
+        nargs="?",
+        help="Full or shorthand issue ID; omit to list every entry",
+    )
+
+
 def register_bead_history_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:

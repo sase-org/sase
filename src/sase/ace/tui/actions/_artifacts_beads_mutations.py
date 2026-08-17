@@ -335,7 +335,18 @@ class ArtifactsBeadsMutationActionsMixin(ArtifactsBeadsCommonMixin):
         row: BeadRow,
         result: BeadCloseResult,
     ) -> None:
+        snapshot = pane.snapshot
+        workspace = (
+            None if snapshot is None else snapshot.workspace_dirs.get(row.project)
+        )
+
         def mutate(project: Any) -> Issue:
+            from sase.bead.epic_symbols import raise_if_leftover_epic_symbols
+
+            raise_if_leftover_epic_symbols(
+                [project.show(row.issue.id)],
+                start=Path(workspace) if workspace else None,
+            )
             project.close(
                 [row.issue.id],
                 reason=result.reason,

@@ -1001,6 +1001,13 @@ matching `sase bead note`; forced closes apply it only to the listed beads, neve
 swept descendants. Keep `sase bead note` for mid-work progress notes and for adding
 evidence to a bead that is already closed.
 
+Closing a plan or phase bead that still has Justfile `--epic-symbol` entries keyed to it
+(or to a descendant suffix) is rejected before any store write. The error lists the
+exact flags. They go stale the instant the bead closes and turn unrelated agents'
+`just check` red, so resolve each symbol or re-key the line to a still-open bead first.
+List the entries with `sase bead epic-symbols <id>`. Already-closed no-ops skip this
+check. `--force` does not bypass it: leftover entries still break the lint gate.
+
 Closing a delegated child plan/epic also closes its parent phase automatically once
 every child of that phase is closed. This upward cascade continues only through phase
 parents and never auto-closes a parent plan/epic; the parent land agent retains that
@@ -1184,6 +1191,19 @@ the old prefix, and only new top-level beads use the corrected one.
 | `-I, --fix-issue-prefix` | Repair a leaked ProjectSpec-key issue prefix to the project name after confirmation |
 | `-P, --fix-projection`   | Rewrite `issues.jsonl` from canonical event streams after confirmation              |
 | `-y, --yes`              | Apply the requested doctor repair without an interactive confirmation               |
+
+### `sase bead epic-symbols [<id>]`
+
+List `--epic-symbol` whitelist entries from the working tree's Justfile. With no ID,
+every entry is printed. With an ID, only entries keyed to that bead or a descendant
+suffix (`sase-64` matches `sase-64` and `sase-64.2`) are shown. Land and phase agents
+should run this before closing: leftover entries go stale the instant the bead closes,
+and `sase bead close` refuses while any remain.
+
+| Flag           | Description                                                |
+| -------------- | ---------------------------------------------------------- |
+| `-c, --color`  | Color output: `auto`, `always`, or `never` (default: auto) |
+| `-f, --format` | `compact` (default) or `json`                              |
 
 ### `sase bead history [<id>]`
 

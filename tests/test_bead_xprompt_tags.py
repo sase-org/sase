@@ -132,6 +132,8 @@ def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
     assert "review every child note" in land_body
     assert "Unresolved issues caused by this epic remain epic work" in land_body
     assert "use `/sase_new_task`" in land_body
+    assert "sase bead epic-symbols {{ bead_id }}" in land_body
+    assert "`sase bead close` refuses while any of these entries remain" in land_body
     assert "sase bead create -T task" not in land_body
 
 
@@ -140,6 +142,7 @@ def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
     prose = _single_spaced(body)
 
     assert "close only this bead with" in body
+    assert "sase bead epic-symbols {{ bead_id }}" in body
     assert "Do NOT close the parent epic or any ancestor plan bead" in body
     assert (
         "Any instruction in a phase description or child plan to close an ancestor "
@@ -170,6 +173,7 @@ def test_builtin_land_prompt_resumes_nested_parent_handoffs() -> None:
     assert "review the parent's previous landing note" in prose
     assert "rerun descendant and linked-plan readiness checks" in prose
     assert "close it normally with `sase bead close <parent-bead>" in prose
+    assert "sase bead epic-symbols <parent-bead>" in prose
     assert "repeat through directly parented plan ancestors" in body
     assert "Stop at the first incomplete or ambiguous parent" in body
     assert "never use `--force` to advance a successful nested landing" in body

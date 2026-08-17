@@ -1129,12 +1129,17 @@ xprompts:
       3. Land. Unresolved issues caused by this epic remain epic work: plan and finish them before closing. For each
          genuinely distinct follow-up that is not caused by the epic, use `/sase_new_task` with details identifying the
          proposing bead; it will corroborate a duplicate, attach a causally related active-epic issue, or create a sized
-         task as appropriate. Record every outcome, including why any proposal was declined, in your close note. Close
-         the epic with `sase bead close {{ bead_id }} --note "<what you verified in steps 1-2>"`. AFTER closing, run
-         `just symvision` if available (epic-symbol whitelist entries for {{ bead_id }} expire at close) and remove the
-         stale entries and unused code it reports. Finally, set `status: done` in the frontmatter of the epic's plan
-         file (the PLAN path shown by `sase bead show`). If the close is rejected, the named phases were never
-         completed: finish or reopen them, or record the outcome deliberately with
+         task as appropriate. Record every outcome, including why any proposal was declined, in your close note. Before
+         closing, run `sase bead epic-symbols {{ bead_id }}`. Every listed `--epic-symbol` entry is keyed to this epic
+         or one of its phases and goes stale the instant that bead closes. For each entry, either resolve the symbol
+         (wire it up, privatize it, add a non-test pragma, or delete it per the Symvision epic-whitelist policy) or,
+         only when a still-open later bead still needs the exemption, re-key the Justfile line to that open bead. Do not
+         leave that judgment for the next agent. `sase bead close` refuses while any of these entries remain. Close the
+         epic with `sase bead close {{ bead_id }} --note "<what you verified in steps 1-2>"`. After closing, run
+         `just symvision` if available to confirm the whitelist is clean. Finally, set `status: done` in the frontmatter
+         of the epic's plan file (the PLAN path shown by `sase bead show`). If the close is rejected because leftover
+         `--epic-symbol` entries remain, finish that cleanup and close again. If the close is rejected because named
+         phases were never completed: finish or reopen them, or record the outcome deliberately with
          `--force --reason ... --resolution canceled|superseded`. Never force merely to make the command succeed, and
          never use `--force` to advance a successful nested landing.
 
@@ -1148,10 +1153,11 @@ xprompts:
       by that phase, close only that parent phase normally with `sase bead close <parent-bead> --note "<what you
       verified>"`, and leave the containing epic to its already-waiting land agent. If the parent is a plan bead, review
       the parent's previous landing note, all descendants and notes, linked plan file, and post-child drift; rerun
-      descendant and linked-plan readiness checks before closing it. When the parent plan is still complete, close it
-      normally with `sase bead close <parent-bead> --note "<what you rechecked>"`, run its post-close symvision cleanup,
-      mark its linked plan file done, and then repeat through directly parented plan ancestors while each remains fully
-      complete. Stop at the first incomplete or ambiguous parent, record a note on that parent describing the blocker,
+      descendant and linked-plan readiness checks before closing it. When the parent plan is still complete, retire any leftover `--epic-symbol`
+      entries first (`sase bead epic-symbols <parent-bead>`), close it normally with
+      `sase bead close <parent-bead> --note "<what you rechecked>"`, confirm with `just
+      symvision`, mark its linked plan file done, and then repeat through directly parented plan ancestors
+      while each remains fully complete. Stop at the first incomplete or ambiguous parent, record a note on that parent describing the blocker,
       and report it in your final response.
   bd/review/plan:
     input:
@@ -1183,8 +1189,11 @@ xprompts:
       name: it was set to status=in_progress before you started reading this, either by the `sase bead work` launch
       checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. Read its
       description and design file, do the work, and close only this bead with
-      `sase bead close {{ bead_id }} --note "<what you verified>"`. Closing an assigned phase bead is unaffected by the
-      parent-close descendant guard. Do NOT close the parent epic or any ancestor plan bead. Any instruction in a phase
+      `sase bead close {{ bead_id }} --note "<what you verified>"`. Before closing, run
+      `sase bead epic-symbols {{ bead_id }}`. If this phase still has `--epic-symbol` entries, resolve each symbol or
+      re-key the Justfile line to a still-open bead (the parent epic or a later phase). `sase bead close` refuses while
+      leftovers remain; they go stale the instant this phase closes and turn unrelated agents' `just check` red. Closing
+      an assigned phase bead is unaffected by the parent-close descendant guard. Do NOT close the parent epic or any ancestor plan bead. Any instruction in a phase
       description or child plan to close an ancestor is preparation and evidence for that ancestor's land agent, not
       authorization for a phase worker. Do not create beads yourself: record discovered follow-up work as a
       `PROPOSED FOLLOW-UP:` entry via

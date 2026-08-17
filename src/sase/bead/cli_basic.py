@@ -25,6 +25,7 @@ from sase.bead.cli_dep import (
     handle_bead_dep_list,
     handle_bead_dep_tree,
 )
+from sase.bead.cli_epic_symbols import handle_bead_epic_symbols
 from sase.bead.cli_history import handle_bead_history
 from sase.bead.cli_query import (
     handle_bead_blocked,
@@ -47,6 +48,7 @@ __all__ = [
     "handle_bead_dep_list",
     "handle_bead_dep_tree",
     "handle_bead_doctor",
+    "handle_bead_epic_symbols",
     "handle_bead_init",
     "handle_bead_history",
     "handle_bead_list",

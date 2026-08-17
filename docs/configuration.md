@@ -4025,9 +4025,9 @@ initialization.
 
 With no subcommand, `sase bead` defaults to `sase bead list`.
 
-| Flag         | Values                                                                                                                                                                                                       | Default | Description     |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | --------------- |
-| _subcommand_ | `blocked`, `close`, `create`, `dep`, `doctor`, `history`, `init`, `list`, `note`, `onboard`, `open`, `pages`, `ready`, `ref`, `resolve-conflicts`, `rm`, `search`, `show`, `stats`, `sync`, `update`, `work` | `list`  | Bead subcommand |
+| Flag         | Values                                                                                                                                                                                                                       | Default | Description     |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------- |
+| _subcommand_ | `blocked`, `close`, `create`, `dep`, `doctor`, `epic-symbols`, `history`, `init`, `list`, `note`, `onboard`, `open`, `pages`, `ready`, `ref`, `resolve-conflicts`, `rm`, `search`, `show`, `stats`, `sync`, `update`, `work` | `list`  | Bead subcommand |
 
 #### `sase bead create`
 
@@ -4065,6 +4065,14 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-s, --status` | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default |
 | `-r, --tier`   | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                               |
 | `-t, --type`   | `plan`, `phase`, `task`, `flag`                     | -           | Filter by type (repeatable)                                         |
+
+#### `sase bead epic-symbols`
+
+| Flag           | Values                    | Default   | Description                                |
+| -------------- | ------------------------- | --------- | ------------------------------------------ |
+| `id`           | string                    | (all)     | Optional bead ID; omit to list every entry |
+| `-c, --color`  | `auto`, `always`, `never` | `auto`    | Color mode for compact output              |
+| `-f, --format` | `compact`, `json`         | `compact` | Output format                              |
 
 #### `sase bead show`
 

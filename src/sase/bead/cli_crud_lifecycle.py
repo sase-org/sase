@@ -7,6 +7,7 @@ import sys
 
 from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
 from sase.bead.cli_crud_common import mutation_outcome_ids, resolve_mutation_author
+from sase.bead.epic_symbols import raise_if_leftover_epic_symbols
 from sase.bead.model import Issue, IssueType
 from sase.bead.mutation_commit import (
     close_mutation_commit_message,
@@ -86,6 +87,12 @@ def _print_close_result_row(
     print(f"{prefix:<18}{issue.id} — {issue.title}{suffix}")
 
 
+def _refuse_leftover_epic_symbols(project: BeadProject, issue_ids: list[str]) -> None:
+    """Refuse a close that would stale remaining Justfile ``--epic-symbol`` entries."""
+    issues = [project.show(issue_id) for issue_id in issue_ids]
+    raise_if_leftover_epic_symbols(issues)
+
+
 def handle_bead_close(args: argparse.Namespace) -> None:
     with bead_store_mutation(
         auto_commit_bead_store,
@@ -93,6 +100,7 @@ def handle_bead_close(args: argparse.Namespace) -> None:
     ) as mutation:
         try:
             resolved_ids = _resolve_close_ids(args, mutation.project)
+            _refuse_leftover_epic_symbols(mutation.project, resolved_ids)
             note = getattr(args, "note", None)
             author = None
             if note is not None:
