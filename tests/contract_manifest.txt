@@ -35,6 +35,8 @@ tests/test_suite_gate.py
 tests/test_timezone_display_guard.py
 tests/test_validate_changelog_tool.py
 tests/test_validate_dependency_group_tool.py
+tests/test_validate_sase_core_rs_contracts_tool.py
+tests/test_validate_sase_core_rs_environment_tool.py
 tests/test_validate_sase_core_rs_tool.py
 tests/test_validate_sase_core_rs_version_tool.py
 tests/test_validate_test_environment_tool.py

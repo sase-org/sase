@@ -60,8 +60,13 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # cut that to 0.46 s. The whole 41-entry set measured 24.0 s under the same
 # `pytest -m contract $(cat tests/contract_manifest.txt) -p no:randomly
 # --durations=0` command, still inside the 30 s serial budget the plan sets.
-_MANIFEST_ENTRY_BUDGET = 41
-_MEASURED_SERIAL_COST = "24.0 serial seconds across 41 entries"
+#
+# Re-curated to 43 on 2026-08-16 when `test_validate_sase_core_rs_tool.py` was
+# split by test domain. The two added paths redistribute the same 25 validator
+# tests rather than expanding contract membership. The whole 43-entry set
+# measured 26.1 s under the command above, still inside the 30 s serial budget.
+_MANIFEST_ENTRY_BUDGET = 43
+_MEASURED_SERIAL_COST = "26.1 serial seconds across 43 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
