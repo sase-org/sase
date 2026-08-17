@@ -198,17 +198,18 @@ use convention-based template files in the SASE user-config directory (or its ch
 source counterpart). Template variables and validation rules are listed in the
 [generated templates configuration](configuration.md#generated-templates).
 
-A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also rendered
-during memory initialization. `sase memory init` validates the project-local entries,
-writes a managed `sase/memory/glossary.md` note with `sase_generated: glossary`
-frontmatter, adds it to the memory README, and lists it as a long note in `AGENTS.md`
-and the provider instruction files. The generated long-note description indexes every
-displayed glossary term and alias so agents can read definitions on demand with
-`sase memory read glossary.md`. An empty or absent glossary produces no empty note. If a
-manual `sase/memory/glossary.md` already exists without the generated marker, the
-initializer stops with migration guidance instead of overwriting it. See
-[glossary configuration](configuration.md#memoryglossary) for the schema, matching
-behavior, and collision rules.
+A SASE-managed project's `memory.glossary` section in `sase/sase.yml` is also validated
+during memory initialization, but it no longer generates a note. `sase memory init`
+instead prepends a `**GLOSSARY TERMS:**` block to the Tier 2 section of `AGENTS.md` and
+the provider instruction files, naming every displayed glossary term and alias and
+pointing agents at `sase glossary read <term> -r "<why>"` to fetch a definition plus the
+terms its definition depends on. An empty or absent glossary emits no block. If an
+earlier run of this project left behind a marked `sase/memory/glossary.md` (frontmatter
+`sase_generated: glossary`), initialization deletes it as part of the same migration; an
+unmarked, hand-authored `sase/memory/glossary.md` is left alone as an ordinary long
+note. See [glossary configuration](configuration.md#memoryglossary) for the schema and
+matching behavior, and [Glossary](memory.md#glossary) for the `sase glossary` command
+group.
 
 For a SASE-managed project, `sase memory init` inlines each short-term note into Tier 1
 and numbers every heading in the generated document, renders Tier 2 as one numbered

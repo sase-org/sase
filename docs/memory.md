@@ -34,11 +34,13 @@ a human approve or reject those proposals with `sase memory review`.
 ## XPrompt Inclusion
 
 Every valid, flat, non-README note is also available as an explicit `#memory/<stem>`
-xprompt reference: `sase/memory/glossary.md` (or the home equivalent) expands with
-`#memory/glossary`. The `memory/` prefix is required — there is no bare `#glossary`
+xprompt reference: `sase/memory/sase_beads.md` (or the home equivalent) expands with
+`#memory/sase_beads`. The `memory/` prefix is required — there is no bare `#<stem>`
 alias, and an ordinary xprompt cannot claim the `memory/` namespace. A selected
 project's note shadows a same-stem home note using the same first-wins precedence
-described in [Audited Reads](#audited-reads) below.
+described in [Audited Reads](#audited-reads) below. Project glossary terms are not a
+memory note and have no `#memory/glossary` form; fetch a definition on demand with
+`sase glossary read`, covered in [Glossary](#glossary) below.
 
 This is explicit, launch-time prompt composition, not an audited lookup: expanding
 `#memory/<stem>` strips frontmatter and inlines the note body but does not append the
@@ -105,6 +107,62 @@ you are intentionally simulating an agent identity.
 Pass `--include proposals` to include memory proposal and review ledger events in the
 same audit dashboard. Path and agent filters also apply to proposal target paths and
 proposal/review actors.
+
+## Glossary
+
+Project glossary entries authored under `memory.glossary` in `sase/sase.yml` (see
+[glossary configuration](configuration.md#memoryglossary)) are not rendered into an
+always-loaded memory note. `sase memory init` instead renders a compact
+`**GLOSSARY TERMS:**` block into Tier 2 naming every term, and agents fetch a definition
+on demand with the `sase glossary` command group:
+
+```bash
+sase glossary list
+sase glossary list hood -f names
+sase glossary show "Agent Hood"
+sase glossary show Stitch -d 0 -f markdown
+sase glossary read "Agent Hood" -r "Need the hood/agent distinction"
+sase glossary log
+sase glossary log -t Stitch -a agent-a
+```
+
+`sase glossary` with no subcommand defaults to `sase glossary list`. Every subcommand
+accepts `-p/--project REF` (default: the project owning the current directory) before or
+after the subcommand name.
+
+`sase glossary list [PATTERN]` prints the terms configured for a project. `PATTERN` is
+an optional case-insensitive substring match against each term and its display aliases;
+`-d/--definitions` extends the match into definition bodies. `-f/--format` selects
+`table` (the default, with term, aliases, reference count, and a summary), `names` (one
+canonical term per line, pipe-friendly), or `json` (full records including aliases,
+definition, reference terms, and source location).
+
+`sase glossary show TERM [TERM ...]` resolves one or more terms — by canonical term,
+alias, or an unambiguous prefix — and prints each definition plus the recursive closure
+of terms its definition depends on. Every related term shows why it appeared: which
+requesting term's definition mentioned it, and the exact matched phrase. `-d/--depth N`
+caps the recursion (`-d 0` prints only the requested terms; the default is unlimited).
+`-f/--format` selects `rich` (the default terminal rendering), `markdown` (plain
+Markdown for pasting into a prompt), or `json` (the closure with full provenance). An
+unresolvable term exits 1 with near-miss candidates.
+
+`sase glossary read TERM [TERM ...] -r/--reason TEXT` is identical to `show` in every
+other respect, except it requires a non-empty reason and records an audited read before
+printing — the same audited-read discipline as [`sase memory read`](#audited-reads).
+Agents should always use `read`, not `show`, when consulting the glossary to accomplish
+a task; nothing is printed unless the read was recorded. Reads are attributed the same
+way as memory reads (`SASE_AGENT_NAME`, `SASE_AGENT`, or
+`SASE_ARTIFACTS_DIR/agent_meta.json`), and each event records the requested terms, every
+related term the closure added, the depth limit, and the total bytes of definition
+served. The read also appears in the `GLOSSARY` lane of the agent metadata panel in
+[ACE](ace.md#agents-tab-metadata-panel).
+
+`sase glossary log` summarizes recorded reads: with no selector, a dashboard shows
+totals plus by-term and by-agent breakdowns and recent events. `-t/--term` and
+`-a/--agent` filter the event set, and both are echoed in the dashboard header so a
+filtered view is never mistaken for the whole log. `-i/--id READ_ID` selects one event
+by id or unambiguous prefix and prints its full detail. `-f/--format json` emits
+deterministic JSON for both the summary and the single-event view.
 
 ## Propose Memory
 

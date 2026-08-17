@@ -1102,21 +1102,21 @@ for exhaustive detail. These keys are configurable; see
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel
 adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the same run
 also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `PLAN`, `BEAD`,
-`ARTIFACTS`, the audited `MEMORY`, `SKILLS`, and `WORKSPACES`, with absent lanes omitted
-once they have resolved. A plan or any recorded output is enough to show the context
-section. An epic phase worker never shows its parent epic as a `PLAN` lane. Instead, its
-launch metadata identifies the epic plan and exact phase bead, and ACE derives one
-phase-local `BEAD` lane from that phase's validated, frontmatter-ordered entry. The lane
-shows `Phase Title`, `Description`, `Size`, `Epic Plan`, and `Epic Title`; `Size` uses
-the literal `xsmall`, `small`, `medium`, `large`, or `xlarge` label and the same
-accessible chip palette as epic summaries. The phase title comes from the same validated
-entry, is normalized to one line, and wraps losslessly like the other values. Authored
-descriptions are also normalized to one line; a missing description uses the same stable
-plan-and-phase pointer generated during deterministic bead creation. This modern path
-does not read the bead store, and missing, unreadable, damaged, explicitly invalid, or
-out-of-range metadata keeps the known identity/path fallbacks while rendering optional
-fields as `unavailable`, without exposing the epic goal, dependencies, or any peer
-phase.
+`ARTIFACTS`, the audited `MEMORY`, `GLOSSARY`, `SKILLS`, and `WORKSPACES`, with absent
+lanes omitted once they have resolved. A plan or any recorded output is enough to show
+the context section. An epic phase worker never shows its parent epic as a `PLAN` lane.
+Instead, its launch metadata identifies the epic plan and exact phase bead, and ACE
+derives one phase-local `BEAD` lane from that phase's validated, frontmatter-ordered
+entry. The lane shows `Phase Title`, `Description`, `Size`, `Epic Plan`, and
+`Epic Title`; `Size` uses the literal `xsmall`, `small`, `medium`, `large`, or `xlarge`
+label and the same accessible chip palette as epic summaries. The phase title comes from
+the same validated entry, is normalized to one line, and wraps losslessly like the other
+values. Authored descriptions are also normalized to one line; a missing description
+uses the same stable plan-and-phase pointer generated during deterministic bead
+creation. This modern path does not read the bead store, and missing, unreadable,
+damaged, explicitly invalid, or out-of-range metadata keeps the known identity/path
+fallbacks while rendering optional fields as `unavailable`, without exposing the epic
+goal, dependencies, or any peer phase.
 
 `SASE CONTEXT` **streams**: its lanes are resolved cheapest-first in batches and each
 batch is published as it lands, so the section appears almost immediately instead of
@@ -3718,8 +3718,17 @@ pinned attempt view resets the cursor.
   show `phases unavailable` in the lane header without leaking partial entries; tales do
   not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every
   combination of present lanes, the full order is `PLAN`, `BEAD`, `ARTIFACTS`, `MEMORY`,
-  `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve and
-  still-resolving lanes holding their slot with a dim `resolving…` row.
+  `GLOSSARY`, `SKILLS`, then `WORKSPACES`, with absent lanes omitted once they resolve
+  and still-resolving lanes holding their slot with a dim `resolving…` row.
+- **SASE CONTEXT / GLOSSARY**: Shown directly after `MEMORY` whenever the selected agent
+  or family has at least one audited `sase glossary read`. The lane header counts reads
+  and distinct requested terms, adding the agent count for a multi-agent family. Each
+  row shows the read's requested terms (truncated the same way `MEMORY` truncates
+  paths), with a `+N related` suffix when the closure expanded past the requested terms,
+  and the recorded reason on its own indented line. A numbered file hint targets the
+  term's recorded `source_path` in `sase/sase.yml`. Loading, attribution, and the
+  mtime/size snapshot cache mirror `MEMORY`'s reference implementation; the lane is
+  skipped rather than rendered empty when there are no reads to show.
 - **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`,
   `Deltas`, and `Files` as compact fields, preserves that internal order, and summarizes
   only the present fields in its header. Commits persisted by the selected agent's
@@ -4842,6 +4851,11 @@ file to the artifact viewer when a source path is available. `Ctrl+]` opens the
 project-local `sase/sase.yml` definition range through the normal editor/tmux jump flow.
 If the catalog is still loading, ACE schedules a warm and asks you to retry rather than
 falling through to word lookup or an unrelated jump target.
+
+The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver behind
+`sase glossary show`/`read` (see [Glossary](memory.md#glossary)): both walk outgoing
+reference spans from the shared `sase.glossary.resolution` module, so the preview card
+and the CLI can never disagree about which terms a definition references.
 
 #### Word definitions & spellcheck
 
