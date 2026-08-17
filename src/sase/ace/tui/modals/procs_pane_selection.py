@@ -9,7 +9,8 @@ from textual import events
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
-from ..proc_observer import ObservedProc, ProcProjection
+from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
+from ..proc_observer import ObservedProc, ProcProjection, is_monitor_shell_row
 from ..util.selection import restore_selection_by_identity
 from .pane_entry_jump import apply_jump_hint_prefix
 from .procs_pane_render import is_active, task_row_label
@@ -356,11 +357,19 @@ class ProcsPaneSelectionMixin(_MixinBase):
         except Exception:
             pass
 
-    def _title_text(self) -> str:
+    def _title_text(self) -> Text:
         running = sum(1 for task in self._tasks if is_active(task))
+        monitor_running = sum(
+            1 for task in self._tasks if is_active(task) and is_monitor_shell_row(task)
+        )
+        proc_running = running - monitor_running
         done = len(self._tasks) - running
         scope = "all sessions" if self._all_sessions else "this session"
-        return f"Procs · {scope}  [{running} running · {done} done]"
+        text = Text(f"Procs · {scope}  ")
+        text.append(gear_chip(proc_running, PROC_GEAR_HUE, hide_at_zero=False))
+        text.append(gear_chip(monitor_running, MONITOR_GEAR_HUE, hide_at_zero=False))
+        text.append(f"  [{running} running · {done} done]")
+        return text
 
 
 __all__ = ["ProcsPaneSelectionMixin", "TaskList"]

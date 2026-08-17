@@ -5,16 +5,7 @@ from typing import Any
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.monitor_state import MONITOR_GLYPH
-
-_GEAR = MONITOR_GLYPH  # same glyph for both lanes; hue is the lane
-
-
-def _gear_chip(count: int, background: str) -> Text:
-    """Build a gear chip, or an empty ``Text`` when *count* is zero."""
-    if count <= 0:
-        return Text("")
-    return Text(f" {_GEAR} {count} ", style=f"bold #1a1a1a on {background}")
+from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
 
 
 class ProcIndicator(Static):
@@ -43,7 +34,7 @@ class ProcIndicator(Static):
     @staticmethod
     def _build_content(count: int) -> Text:
         """Build the indicator text."""
-        return _gear_chip(count, "#48CAE4")
+        return gear_chip(count, PROC_GEAR_HUE)
 
 
 class MonitorIndicator(Static):
@@ -73,4 +64,4 @@ class MonitorIndicator(Static):
     @staticmethod
     def _build_content(count: int) -> Text:
         """Build the indicator text."""
-        return _gear_chip(count, "#FFAF5F")
+        return gear_chip(count, MONITOR_GEAR_HUE)

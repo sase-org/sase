@@ -218,6 +218,8 @@ def store_task(
     session_label: str | None = None,
     kind: str = "command",
     message: str = "",
+    origin: str = "cli",
+    shell_name: str | None = None,
 ) -> Proc:
     return Proc(
         proc_id=proc_id,
@@ -226,7 +228,7 @@ def store_task(
         status=status,
         command=["sase", "bead", "work", "plan.md"],
         cwd="/tmp",
-        origin="cli",
+        origin=origin,
         created_at="2026-06-26T11:58:00Z",
         started_at="2026-06-26T11:58:00Z",
         finished_at=None
@@ -236,6 +238,7 @@ def store_task(
         session_id=session_id,
         session_label=session_label,
         message=message or None,
+        shell_name=shell_name,
     )
 
 
@@ -266,6 +269,9 @@ def _store_task_row(
         session_id=record.session_id,
         session_label=record.session_label,
         session_live=bool(record.session_id and record.session_id in live_session_ids),
+        origin=record.origin,
+        log_path=record.log_path,
+        shell_name=record.shell_name,
     )
 
 
