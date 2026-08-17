@@ -2,19 +2,29 @@
 
 One lane may only carry one active monitor. These tests pin which repeat
 requests are idempotent replays of the record already running and which are
-rejected outright.
+rejected outright, including when the requests race each other.
 """
 
 from __future__ import annotations
 
+import json
 import os
+import threading
 from pathlib import Path
 
 import pytest
 
+from sase.core.agent_scan_wire_records import AgentArtifactRecordWire
+from sase.core.paths import sase_projects_dir
 from sase.monitor.models import MonitorAlreadyRunningError, MonitorRecord
 from sase.monitor.start import StartMonitorRequest, start_monitor
-from tests.monitor._fixtures import make_starter_agent, patch_project_records
+from tests.monitor._fixtures import (
+    make_starter_agent,
+    patch_project_records,
+    record_from_disk,
+    wait_for_done,
+    write_project_file,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -266,3 +276,92 @@ def test_implicit_start_conflicts_on_durable_family_not_member_name(
 
     with pytest.raises(MonitorAlreadyRunningError, match="lane '02i'"):
         start_monitor(request)
+
+
+def test_start_monitor_serializes_concurrent_starts_in_one_lane(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.monitor import store as store_module
+
+    write_project_file("proj")
+    make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+
+    def dynamic_project_records(
+        project_name: str | None, *, only_monitors: bool = False
+    ) -> list[AgentArtifactRecordWire]:
+        records: list[AgentArtifactRecordWire] = []
+        projects_root = sase_projects_dir()
+        project_names = [project_name] if project_name else ["proj"]
+        for name in project_names:
+            artifacts_root = projects_root / name / "artifacts" / "ace-run"
+            for meta_path in artifacts_root.glob("*/*/*/agent_meta.json"):
+                record = record_from_disk(meta_path.parent)
+                if only_monitors and (
+                    record.agent_meta is None
+                    or record.agent_meta.agent_family_role != "monitor"
+                ):
+                    continue
+                records.append(record)
+        return records
+
+    monkeypatch.setattr(store_module, "_project_records", dynamic_project_records)
+
+    barrier = threading.Barrier(3)
+    records: list[MonitorRecord] = []
+    expected_errors: list[str] = []
+    unexpected_errors: list[BaseException] = []
+
+    def worker(command: str) -> None:
+        request = StartMonitorRequest(
+            command=command,
+            reason="verify",
+            timeout_seconds=30.0,
+            cwd=str(tmp_path),
+            project_name="proj",
+            lane="acme",
+            inherit_lane_workspace_claim=False,
+        )
+        barrier.wait()
+        try:
+            records.append(start_monitor(request))
+        except MonitorAlreadyRunningError as exc:
+            expected_errors.append(str(exc))
+        except BaseException as exc:
+            unexpected_errors.append(exc)
+
+    threads = [
+        threading.Thread(target=worker, args=("sleep 2",)),
+        threading.Thread(target=worker, args=("sleep 3",)),
+    ]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join(timeout=10.0)
+
+    if unexpected_errors:
+        raise unexpected_errors[0]
+    assert [thread.is_alive() for thread in threads] == [False, False]
+    assert len(records) == 1
+    assert len(expected_errors) == 1
+    assert "already has an active monitor" in expected_errors[0]
+
+    monitor_meta_paths = [
+        p
+        for p in (sase_projects_dir() / "proj" / "artifacts" / "ace-run").glob(
+            "*/*/*/agent_meta.json"
+        )
+        if json.loads(p.read_text()).get("agent_family_role") == "monitor"
+    ]
+    assert len(monitor_meta_paths) == 1
+    wait_for_done(records[0].artifacts_dir)
