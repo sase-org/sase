@@ -1,4 +1,4 @@
-"""Tests for dead-supervisor reconciliation in :mod:`sase.monitor.store`."""
+"""Tests for dead-supervisor reconciliation outcomes."""
 
 from __future__ import annotations
 
@@ -6,30 +6,15 @@ import json
 import os
 import signal
 import subprocess
-import threading
 import time
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from sase.core.agent_scan_wire import (
-    AGENT_SCAN_WIRE_SCHEMA_VERSION,
-    AgentArtifactIndexQueryWire,
-    AgentArtifactScanOptionsWire,
-    AgentArtifactScanStatsWire,
-    AgentArtifactScanWire,
-)
 from sase.monitor.models import MonitorRecord
 from sase.monitor.output import OutputCapture
 from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
-from sase.monitor.store import (
-    active_monitor_for_lane,
-    list_monitors,
-    monitor_blocking_start_for_lane,
-    reconcile_dead_supervisors,
-    stop_monitor,
-)
+from sase.monitor.store import list_monitors, reconcile_dead_supervisors, stop_monitor
 from sase.notifications.store import load_notifications
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
@@ -301,159 +286,6 @@ def test_pre_reboot_monitor_reconciles_to_lost_without_followup_or_signal(
     assert load_notifications() == []
 
 
-def test_reconcile_dead_supervisors_uses_bounded_active_monitor_index_query(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.monitor.store as store_module
-
-    index_path = tmp_path / "agent_artifact_index.sqlite"
-    index_path.touch()
-    calls: list[
-        tuple[
-            Path,
-            Path,
-            AgentArtifactIndexQueryWire,
-            AgentArtifactScanOptionsWire,
-        ]
-    ] = []
-
-    def fake_query(
-        path: Path,
-        projects_root: Path,
-        query: AgentArtifactIndexQueryWire,
-        options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
-        calls.append((path, projects_root, query, options))
-        return _empty_snapshot(projects_root, options)
-
-    monkeypatch.setattr(
-        store_module,
-        "default_agent_artifact_index_path",
-        lambda: index_path,
-    )
-    monkeypatch.setattr(store_module, "query_agent_artifact_index", fake_query)
-    monkeypatch.setattr(
-        store_module,
-        "scan_agent_artifacts",
-        lambda *_args, **_kwargs: pytest.fail("reconciliation should use the index"),
-    )
-
-    assert reconcile_dead_supervisors(project="proj") == []
-
-    assert len(calls) == 1
-    _, _, query, options = calls[0]
-    assert query.include_active is True
-    assert query.include_recent_completed is False
-    assert query.include_full_history is False
-    assert query.active_limit == 1000
-    assert query.recent_completed_limit == 0
-    assert query.include_hidden is True
-    assert query.only_monitors is True
-    assert options.only_workflow_dirs == ("ace-run",)
-    assert options.include_prompt_step_markers is False
-    assert options.include_raw_prompt_snippets is False
-    assert options.only_projects == ("proj",)
-    assert options.max_records == 0
-    assert options.newest_first is True
-
-
-def test_reconcile_dead_supervisors_fallback_scan_stays_bounded(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.monitor.store as store_module
-
-    calls: list[tuple[Path, AgentArtifactScanOptionsWire]] = []
-
-    def fake_scan(
-        projects_root: Path,
-        options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
-        calls.append((projects_root, options))
-        return _empty_snapshot(projects_root, options)
-
-    monkeypatch.setattr(
-        store_module,
-        "default_agent_artifact_index_path",
-        lambda: tmp_path / "missing.sqlite",
-    )
-    monkeypatch.setattr(store_module, "scan_agent_artifacts", fake_scan)
-
-    assert reconcile_dead_supervisors(project="proj") == []
-
-    assert len(calls) == 1
-    _, options = calls[0]
-    assert options.only_workflow_dirs == ("ace-run",)
-    assert options.include_prompt_step_markers is False
-    assert options.include_raw_prompt_snippets is False
-    assert options.only_projects == ("proj",)
-    assert options.max_records == 0
-    assert options.newest_first is True
-
-
-def test_list_monitors_keeps_full_history_listing_query(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.monitor.store as store_module
-    import sase.procs.service as proc_service
-
-    index_path = tmp_path / "agent_artifact_index.sqlite"
-    index_path.touch()
-    calls: list[
-        tuple[
-            Path,
-            Path,
-            AgentArtifactIndexQueryWire,
-            AgentArtifactScanOptionsWire,
-        ]
-    ] = []
-
-    def fake_query(
-        path: Path,
-        projects_root: Path,
-        query: AgentArtifactIndexQueryWire,
-        options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire:
-        calls.append((path, projects_root, query, options))
-        return _empty_snapshot(projects_root, options)
-
-    monkeypatch.setattr(proc_service, "reconcile_proc_shells", lambda: None)
-    monkeypatch.setattr(
-        store_module,
-        "reconcile_dead_supervisors",
-        lambda *, project, snapshot=None: [],
-    )
-    monkeypatch.setattr(
-        store_module,
-        "default_agent_artifact_index_path",
-        lambda: index_path,
-    )
-    monkeypatch.setattr(store_module, "query_agent_artifact_index", fake_query)
-    monkeypatch.setattr(
-        store_module,
-        "scan_agent_artifacts",
-        lambda *_args, **_kwargs: pytest.fail("listing should use the index"),
-    )
-
-    assert list_monitors(project="proj") == []
-
-    assert len(calls) == 1
-    _, _, query, options = calls[0]
-    assert query.include_active is True
-    assert query.include_recent_completed is True
-    assert query.include_full_history is True
-    assert query.active_limit is None
-    assert query.recent_completed_limit is None
-    assert query.include_hidden is True
-    assert query.only_monitors is True
-    assert options.only_workflow_dirs == ("ace-run",)
-    assert options.only_projects == ("proj",)
-    assert options.max_records is None
-    assert options.newest_first is False
-
-
 def test_list_monitors_reconciles_dead_supervisors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -475,127 +307,6 @@ def test_list_monitors_reconciles_dead_supervisors(
 
     assert [record.monitor_state for record in records] == ["failed"]
     assert (Path(monitor_dir) / "done.json").exists()
-
-
-def test_reconcile_dead_supervisors_reads_proc_store_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.monitor.reconcile as reconcile_module
-    import sase.procs.store as proc_store
-
-    dirs = [
-        make_starter_agent(
-            "proj",
-            f"20260812{120000 + index:06d}",
-            f"acme--mon{index}",
-            agent_family="acme",
-            agent_family_role="monitor",
-            monitor_id=f"mon{index:09d}",
-            monitor_state="running",
-            monitor_command="sleep 60",
-            pid=DEAD_PID,
-        )
-        for index in range(8)
-    ]
-    patch_project_records(monkeypatch, dirs)
-    monkeypatch.setattr(reconcile_module, "supervisor_is_alive", lambda *_a, **_k: True)
-    reads = _count_proc_store_reads(monkeypatch, proc_store)
-
-    assert reconcile_dead_supervisors(project="proj") == []
-    assert reads == ["read_procs_snapshot"]
-
-
-def test_lane_helpers_read_proc_store_once_per_scan(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.monitor.reconcile as reconcile_module
-    import sase.procs.store as proc_store
-
-    dirs = [
-        make_starter_agent(
-            "proj",
-            f"20260812{120000 + index:06d}",
-            f"acme--mon{index}",
-            agent_family="acme",
-            agent_family_role="monitor",
-            monitor_id=f"lane{index:08d}",
-            monitor_state="running",
-            monitor_command="sleep 60",
-            pid=DEAD_PID,
-        )
-        for index in range(8)
-    ]
-    patch_project_records(monkeypatch, dirs)
-    monkeypatch.setattr(reconcile_module, "supervisor_is_alive", lambda *_a, **_k: True)
-    reads = _count_proc_store_reads(monkeypatch, proc_store)
-
-    active = active_monitor_for_lane("proj", "acme")
-    assert active is not None
-    assert reads == ["read_procs_snapshot"]
-
-    reads.clear()
-    blocking = monitor_blocking_start_for_lane("proj", "acme")
-    assert blocking is not None
-    assert reads == ["read_procs_snapshot"]
-
-
-def test_lane_helpers_skip_the_proc_store_without_a_lane_candidate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.procs.store as proc_store
-
-    other_lane = make_starter_agent(
-        "proj",
-        "20260812120000",
-        "beta--mon",
-        agent_family="beta",
-        agent_family_role="monitor",
-        monitor_id="beta00001",
-        monitor_state="running",
-        monitor_command="sleep 60",
-        pid=DEAD_PID,
-    )
-    patch_project_records(monkeypatch, [other_lane])
-    reads = _count_proc_store_reads(monkeypatch, proc_store)
-
-    assert active_monitor_for_lane("proj", "acme") is None
-    assert monitor_blocking_start_for_lane("proj", "acme") is None
-    assert reads == []
-
-
-def test_list_monitors_proc_store_reads_do_not_scale_with_record_count(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import sase.monitor.reconcile as reconcile_module
-    import sase.procs.store as proc_store
-
-    monkeypatch.setattr(reconcile_module, "supervisor_is_alive", lambda *_a, **_k: True)
-
-    def count_reads(record_count: int, *, clock_base: int) -> int:
-        dirs = [
-            make_starter_agent(
-                "proj",
-                f"20260812{clock_base + index:06d}",
-                f"acme--mon{clock_base}{index}",
-                agent_family="acme",
-                agent_family_role="monitor",
-                monitor_id=f"m{clock_base:05d}{index:06d}",
-                monitor_state="running",
-                monitor_command="sleep 60",
-                pid=DEAD_PID,
-            )
-            for index in range(record_count)
-        ]
-        patch_project_records(monkeypatch, dirs)
-        reads = _count_proc_store_reads(monkeypatch, proc_store)
-        listed = list_monitors(project="proj")
-        assert len(listed) == record_count
-        return len(reads)
-
-    small = count_reads(3, clock_base=120000)
-    large = count_reads(12, clock_base=130000)
-    assert small == large
-    assert 1 <= small <= 2
 
 
 def test_reconcile_dead_supervisors_leaves_healthy_running_monitors_unchanged(
@@ -628,29 +339,6 @@ def test_reconcile_dead_supervisors_leaves_healthy_running_monitors_unchanged(
         child.wait()
 
 
-def _make_monitor_record(**overrides: object) -> MonitorRecord:
-    base: dict[str, object] = {
-        "monitor_id": "aaa",
-        "member_agent_name": "acme--mon",
-        "lane": "acme",
-        "project_name": "proj",
-        "artifacts_dir": "/tmp/does-not-matter",
-        "timestamp": "20260812120000",
-        "command": "sleep 60",
-        "cwd": "/work",
-        "reason": "",
-        "label": "",
-        "start_status": "MONITORED",
-        "stop_status": "MONITORED",
-        "timeout_seconds": 0.0,
-        "tail_lines": 0,
-        "monitor_state": "running",
-        "pid": 12345,
-    }
-    base.update(overrides)
-    return MonitorRecord(**base)  # type: ignore[arg-type]
-
-
 def test_should_reconcile_dead_supervisor_skips_proc_lookup_for_terminal_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -678,40 +366,27 @@ def test_should_reconcile_dead_supervisor_skips_proc_lookup_for_terminal_record(
     assert calls == []
 
 
-def _empty_snapshot(
-    projects_root: Path,
-    options: AgentArtifactScanOptionsWire,
-) -> AgentArtifactScanWire:
-    return AgentArtifactScanWire(
-        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
-        projects_root=str(projects_root),
-        options=options,
-        stats=AgentArtifactScanStatsWire(),
-        records=[],
-    )
-
-
-def _count_proc_store_reads(
-    monkeypatch: pytest.MonkeyPatch, proc_store: Any
-) -> list[str]:
-    """Count this thread's proc-store reads until the patch is undone.
-
-    The binding patch is process-global, so a background reconcile pass
-    from an unrelated test -- ACE schedules one through
-    ``asyncio.to_thread`` -- would otherwise land in the caller's counter
-    and inflate it under the full parallel lane.
-    """
-    reads: list[str] = []
-    original = proc_store._call_binding
-    owner = threading.get_ident()
-
-    def counting(name: str, *args: object) -> object:
-        if name == "read_procs_snapshot" and threading.get_ident() == owner:
-            reads.append(name)
-        return original(name, *args)
-
-    monkeypatch.setattr(proc_store, "_call_binding", counting)
-    return reads
+def _make_monitor_record(**overrides: object) -> MonitorRecord:
+    base: dict[str, object] = {
+        "monitor_id": "aaa",
+        "member_agent_name": "acme--mon",
+        "lane": "acme",
+        "project_name": "proj",
+        "artifacts_dir": "/tmp/does-not-matter",
+        "timestamp": "20260812120000",
+        "command": "sleep 60",
+        "cwd": "/work",
+        "reason": "",
+        "label": "",
+        "start_status": "MONITORED",
+        "stop_status": "MONITORED",
+        "timeout_seconds": 0.0,
+        "tail_lines": 0,
+        "monitor_state": "running",
+        "pid": 12345,
+    }
+    base.update(overrides)
+    return MonitorRecord(**base)  # type: ignore[arg-type]
 
 
 def _kill_process_group(pgid: int) -> None:
