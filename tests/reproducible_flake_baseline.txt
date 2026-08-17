@@ -53,6 +53,18 @@
 # views" (committed 2026-08-16T23:43:38Z).
 # fixed-at: 2026-08-16T23:43:38Z tests/test_bead/test_cli_golden.py::test_bead_cli_golden_contract[stats]
 #
+# sase-nd: fixed by f9ab15d9c "test(monitor): deflake idle timeout liveness
+# bound" (committed 2026-08-17T08:41:25Z). The in-process wall-clock bound
+# measured the xdist worker's own scheduling delay; the supervisor now runs in
+# a child process whose no-hang guard is subprocess.run(timeout=...).
+# fixed-at: 2026-08-17T08:41:25Z tests/monitor/test_monitor_supervise.py::test_run_supervisor_idle_timeout_fires_after_output_stalls
+#
+# sase-nz: fixed by b6246f1cf "test: deflake headless epic approval against an
+# in-flight launch" (committed 2026-08-17T08:54:01Z). The foreign lock holder
+# forked from a multi-threaded xdist worker; it now takes the same flock
+# in-process, which no fork hazard can reach.
+# fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
