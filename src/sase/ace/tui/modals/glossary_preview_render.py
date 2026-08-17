@@ -9,7 +9,13 @@ from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 
-from sase.core.glossary_facade import GlossaryEntry, GlossarySpan, scan_glossary_spans
+from sase.core.glossary_facade import (
+    GlossaryCatalog,
+    GlossaryEntry,
+    GlossarySpan,
+    scan_glossary_spans,
+)
+from sase.glossary.resolution import resolve_glossary_closure
 from sase.xprompt.highlight_theme import derive_argument_color
 
 _COLOR_MUTED = "dim"
@@ -171,23 +177,15 @@ def glossary_cross_references(
     spans: tuple[GlossarySpan, ...] | None = None,
 ) -> tuple[GlossaryEntry, ...]:
     """Return referenced glossary entries in first-mention order, capped at nine."""
-    entries_by_index = {candidate.index: candidate for candidate in catalog.entries}
-    references: list[GlossaryEntry] = []
-    seen: set[int] = {entry.index}
-    reference_spans = (
-        spans if spans is not None else glossary_reference_spans(catalog, entry)
+    closure = resolve_glossary_closure(
+        _as_glossary_catalog(catalog),
+        getattr(catalog, "compiled", None),
+        (entry,),
+        depth=1,
+        precomputed_spans=None if spans is None else {entry.index: spans},
     )
-    for span in reference_spans:
-        if span.entry_index in seen:
-            continue
-        reference = entries_by_index.get(span.entry_index)
-        if reference is None:
-            continue
-        references.append(reference)
-        seen.add(span.entry_index)
-        if len(references) >= 9:
-            break
-    return tuple(references)
+    related = tuple(node.entry for node in closure.nodes if node.origin == "related")
+    return related[:9]
 
 
 def glossary_definition_markdown(
@@ -237,6 +235,18 @@ def glossary_reference_spans(
         return scan_glossary_spans(catalog.compiled, entry.definition.strip())
     except Exception:
         return ()
+
+
+def _as_glossary_catalog(catalog: Any) -> GlossaryCatalog:
+    inner = getattr(catalog, "catalog", None)
+    if isinstance(inner, GlossaryCatalog):
+        return inner
+    if isinstance(catalog, GlossaryCatalog):
+        return catalog
+    return GlossaryCatalog(
+        schema_version=int(getattr(catalog, "schema_version", 1) or 1),
+        entries=tuple(getattr(catalog, "entries", ())),
+    )
 
 
 def _append_chip(text: Text, label: str, *, accent: str) -> None:
