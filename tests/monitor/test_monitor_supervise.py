@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -24,9 +24,33 @@ from ._fixtures import make_starter_agent, write_project_file
 
 _STOP_POLL_TIMEOUT = 60.0
 _STOP_POLL_INTERVAL = 0.1
-# Must stay independent of BoundedLogPipe's join timeout. close() is bounded
-# by close_drain_seconds (0.5s here) plus a short scheduling allowance.
-_NO_HANG_TIMEOUT = 5.0
+# A hard liveness deadline for the supervisor child process: it must not
+# still be alive this long after every node in scope arranges a 30s hold
+# (sleep 30, or an infinite echo loop) for a descendant or pipe-EOF wait.
+# Less than half the 30s hold so a reintroduced wait still fails
+# deterministically, with headroom for host scheduling pressure. Do not
+# raise it to quiet a failure -- a child still alive at this deadline is a
+# real hang.
+_NO_HANG_TIMEOUT = 15.0
+
+_SUPERVISOR_DRIVER_SETUP_FAILURE = 91
+
+_SUPERVISOR_OVERRIDE_DRIVER = f"""\
+import json
+import sys
+
+try:
+    import sase.monitor.supervise as supervise
+
+    for name, value in json.loads(sys.argv[2]).items():
+        getattr(supervise, name)  # a renamed constant must not be skipped
+        setattr(supervise, name, value)
+except BaseException as exc:  # noqa: BLE001 - reported through the exit code
+    print(f"supervisor driver setup failed: {{exc!r}}", file=sys.stderr)
+    raise SystemExit({_SUPERVISOR_DRIVER_SETUP_FAILURE}) from None
+
+raise SystemExit(supervise.run_supervisor(sys.argv[1]))
+"""
 
 
 @pytest.fixture(autouse=True)
@@ -95,16 +119,30 @@ def _make_member(
     return artifacts_dir, project_file
 
 
-def _run_supervisor_subprocess(artifacts_dir: str) -> subprocess.CompletedProcess[str]:
+def _run_supervisor_subprocess(
+    artifacts_dir: str,
+    *,
+    overrides: Mapping[str, float] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if overrides is None:
+        argv = [
+            sys.executable,
+            "-m",
+            "sase.monitor.supervise",
+            "--artifacts-dir",
+            artifacts_dir,
+        ]
+    else:
+        argv = [
+            sys.executable,
+            "-c",
+            _SUPERVISOR_OVERRIDE_DRIVER,
+            artifacts_dir,
+            json.dumps(overrides),
+        ]
     try:
-        return subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "sase.monitor.supervise",
-                "--artifacts-dir",
-                artifacts_dir,
-            ],
+        completed = subprocess.run(
+            argv,
             env=os.environ.copy(),
             capture_output=True,
             text=True,
@@ -116,6 +154,9 @@ def _run_supervisor_subprocess(artifacts_dir: str) -> subprocess.CompletedProces
             f"supervisor subprocess did not exit within {_NO_HANG_TIMEOUT:g}s; "
             f"stdout={exc.stdout!r}; stderr={exc.stderr!r}"
         )
+    if completed.returncode == _SUPERVISOR_DRIVER_SETUP_FAILURE:
+        pytest.fail(f"supervisor driver setup failed: {completed.stderr}")
+    return completed
 
 
 def test_run_supervisor_records_a_clean_completion_and_releases_the_claim(
@@ -241,12 +282,9 @@ def test_run_supervisor_kills_the_whole_process_group_on_timeout(
     command = f"sh -c 'sleep 30 & echo $! > {pidfile}; wait'"
     artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=0.3)
 
-    started = time.monotonic()
-    exit_status = run_supervisor(artifacts_dir)
-    elapsed = time.monotonic() - started
+    completed = _run_supervisor_subprocess(artifacts_dir)
 
-    assert exit_status == 1
-    assert elapsed < _NO_HANG_TIMEOUT
+    assert completed.returncode == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
 
@@ -376,12 +414,9 @@ def test_run_supervisor_times_out_continuous_output(
         timeout_seconds=0.2,
     )
 
-    started = time.monotonic()
-    exit_status = run_supervisor(artifacts_dir)
-    elapsed = time.monotonic() - started
+    completed = _run_supervisor_subprocess(artifacts_dir)
 
-    assert exit_status == 1
-    assert elapsed < _NO_HANG_TIMEOUT
+    assert completed.returncode == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").stat().st_size <= 4096
@@ -393,15 +428,12 @@ def test_run_supervisor_times_out_after_partial_line(tmp_path: Path) -> None:
         command="sh -c 'printf partial; sleep 30'",
         # Long enough for spawn+printf under load; the child still sleeps 30s
         # so this remains a timeout, not a completion.
-        timeout_seconds=1.0,
+        timeout_seconds=3.0,
     )
 
-    started = time.monotonic()
-    exit_status = run_supervisor(artifacts_dir)
-    elapsed = time.monotonic() - started
+    completed = _run_supervisor_subprocess(artifacts_dir)
 
-    assert exit_status == 1
-    assert elapsed < _NO_HANG_TIMEOUT
+    assert completed.returncode == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").read_text() == "partial"
@@ -414,13 +446,10 @@ def test_run_supervisor_completes_when_grandchild_holds_stdout(
     command = f"sh -c 'sleep 30 & echo $! > {pidfile}; echo parent done'"
     artifacts_dir, _ = _make_member(tmp_path, command=command, timeout_seconds=30.0)
 
-    started = time.monotonic()
     try:
-        exit_status = run_supervisor(artifacts_dir)
-        elapsed = time.monotonic() - started
+        completed = _run_supervisor_subprocess(artifacts_dir)
 
-        assert exit_status == 0
-        assert elapsed < _NO_HANG_TIMEOUT
+        assert completed.returncode == 0
         meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
         assert meta["monitor_state"] == "completed"
         assert "parent done" in (Path(artifacts_dir) / "live_reply.md").read_text()
@@ -437,12 +466,9 @@ def test_run_supervisor_times_out_after_child_closes_stdio(tmp_path: Path) -> No
         timeout_seconds=0.2,
     )
 
-    started = time.monotonic()
-    exit_status = run_supervisor(artifacts_dir)
-    elapsed = time.monotonic() - started
+    completed = _run_supervisor_subprocess(artifacts_dir)
 
-    assert exit_status == 1
-    assert elapsed < _NO_HANG_TIMEOUT
+    assert completed.returncode == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
 
@@ -527,9 +553,6 @@ def test_run_supervisor_escalates_term_ignoring_chatty_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import sase.monitor.supervise as supervise_module
-
-    monkeypatch.setattr(supervise_module, "_KILL_GRACE_SECONDS", 0.2)
     monkeypatch.setenv("SASE_MONITOR_LOG_MAX_BYTES", "4096")
     artifacts_dir, _ = _make_member(
         tmp_path,
@@ -537,12 +560,11 @@ def test_run_supervisor_escalates_term_ignoring_chatty_child(
         timeout_seconds=0.2,
     )
 
-    started = time.monotonic()
-    exit_status = run_supervisor(artifacts_dir)
-    elapsed = time.monotonic() - started
+    completed = _run_supervisor_subprocess(
+        artifacts_dir, overrides={"_KILL_GRACE_SECONDS": 0.2}
+    )
 
-    assert exit_status == 1
-    assert elapsed < _NO_HANG_TIMEOUT
+    assert completed.returncode == 1
     meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert meta["monitor_state"] == "timeout"
     assert (Path(artifacts_dir) / "live_reply.md").stat().st_size <= 4096
