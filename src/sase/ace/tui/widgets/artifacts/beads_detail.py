@@ -2,61 +2,58 @@
 
 from __future__ import annotations
 
-from rich.console import Group, RenderableType
-from rich.table import Table
+from rich.console import RenderableType
 from rich.text import Text
 
-from sase.bead_flag_presentation import flag_key_chip
-from sase.bead.model import BeadTier, CloseRecord, Issue, IssueType, PhaseSize, Status
+from sase.bead.model import BeadTier, Issue, IssueType, PhaseSize, Status
 from sase.bead.plus_one_presentation import (
     PLUS_ONE_RICH_STYLE,
-    PLUS_ONE_SECTION_LABEL,
     POST_CLOSE_RICH_STYLE,
-    POST_CLOSE_EVIDENCE_MARKER,
-    evidence_recorded_after_current_close,
     post_close_plus_one_badge,
     post_close_plus_one_count,
     plus_one_badge,
-    plus_one_evidence_label,
     plus_one_reports_label,
 )
-from sase.bead.reopen_presentation import (
-    REOPEN_RICH_STYLE,
-    close_history_display_order,
-    close_record_label,
-    close_record_reopened_label,
-    reopen_badge,
-)
 from sase.bead.snooze_presentation import (
-    SNOOZE_ACCENT,
     SNOOZE_RICH_STYLE,
-    snooze_plus_one_label,
-    snooze_readiness_label,
-    snooze_until_label,
     snooze_wake_chip,
 )
 from sase.bead_status_presentation import bead_status_presentation
-from sase.bead_time_presentation import (
-    BEAD_TIME_RICH_STYLE,
-    BEAD_TIME_UNKNOWN_LABEL,
-    bead_created_label,
-)
+from sase.bead_time_presentation import bead_created_label
 from sase.bead_type_presentation import bead_type_chip
 from sase.core.time import format_local
-from sase.phase_size_presentation import (
-    PHASE_SIZE_STYLES,
-    PHASE_SIZE_VALUES,
-    normalize_phase_size,
-    phase_size_chip,
-)
+from sase.phase_size_presentation import phase_size_chip
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .beads_data import BeadsSnapshot, PendingTriage
 from .beads_data_models import ExternalIssueLink
-from .types import EXTERNAL_ACCENT
-
-DetailProperty = tuple[str, str | Text]
-_REMOTE_BODY_PREVIEW_CHARS = 4000
+from .beads_detail_body import (
+    close_history_markdown as _close_history_markdown,
+    flag_markdown as _flag_markdown,
+    plus_one_evidence_markdown as _plus_one_evidence_markdown,
+)
+from .beads_detail_external import (
+    external_issue_inline as _external_issue_inline,
+    external_issue_markdown as _external_issue_markdown,
+    external_issue_property_text as _external_issue_property_text,
+)
+from .beads_detail_properties import (
+    DetailProperty,
+    created_text as _created_text,
+    dependencies_text as _dependencies_text,
+    dependency_state as _dependency_state,
+    epic_phase_sizes as _epic_phase_sizes,
+    flag_properties as _flag_properties,
+    plan_reference_properties as _plan_reference_properties,
+    previously_closed_text as _previously_closed_text,
+    properties_header as _properties_header,
+    readiness_chip as _readiness_chip,
+    readiness_label as _readiness_label,
+    references_text as _references_text,
+    resolved_plan_path,
+    snooze_text as _snooze_text,
+    status_chip as _status_chip,
+)
 
 
 def bead_properties_header(
@@ -274,427 +271,6 @@ def bead_preview_markdown(
     if issue.close_reason:
         lines.append(f"- Close reason: {issue.close_reason}")
     return "\n".join(lines)
-
-
-def _previously_closed_text(history: list[CloseRecord]) -> Text:
-    latest = close_history_display_order(history)[0]
-    text = Text(reopen_badge(len(history)), style=REOPEN_RICH_STYLE)
-    text.append(f"  {close_record_label(latest)}", style="white")
-    return text
-
-
-def _close_history_markdown(issue: Issue) -> list[str]:
-    if not issue.close_history:
-        return []
-    lines = ["## Previously Closed", ""]
-    for index, record in enumerate(close_history_display_order(issue.close_history)):
-        if index:
-            lines.append("")
-        reason = (record.close_reason or "(none)").replace("`", "\\`")
-        lines.append(f"> [!WARNING] **{close_record_label(record)}**")
-        lines.extend(f"> {line}" if line else ">" for line in reason.splitlines())
-        lines.append(">")
-        lines.append(f"> {close_record_reopened_label(record)}")
-    lines.append("")
-    return lines
-
-
-def _plus_one_evidence_markdown(issue: Issue) -> list[str]:
-    if not issue.plus_one_evidence:
-        return []
-    lines = ["", f"## {PLUS_ONE_SECTION_LABEL.title()}", ""]
-    for index, evidence in enumerate(issue.plus_one_evidence):
-        if index:
-            lines.append("")
-        label = plus_one_evidence_label(evidence).replace("`", "\\`")
-        if evidence_recorded_after_current_close(issue, evidence):
-            label = f"{label} {POST_CLOSE_EVIDENCE_MARKER}"
-        lines.append(f"> [!TIP] **{label}**")
-        if evidence.observed_since:
-            lines.append(f"> **Observed since:** {evidence.observed_since}")
-        lines.extend(
-            f"> {line}" if line else ">" for line in evidence.note.splitlines()
-        )
-        if evidence.refs:
-            lines.append(">")
-            lines.append(f"> **Refs:** {', '.join(evidence.refs)}")
-    return lines
-
-
-def _flag_markdown(issue: Issue) -> list[str]:
-    record = issue.flag
-    if record is None:
-        return []
-    return [
-        "## Flag",
-        "",
-        f"- Key: `{_inline_code(record.key)}`",
-        f"- Remove by date: `{_inline_code(record.remove_by_date)}`",
-        f"- Remove by release: `v{_inline_code(record.remove_by_release)}`",
-        "",
-    ]
-
-
-def _flag_properties(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> list[DetailProperty]:
-    record = issue.flag
-    if record is None:
-        return []
-    due = None if snapshot is None else snapshot.flag_due.get((project, issue.id))
-    due_text = Text("—", style="dim")
-    if due is not None:
-        due_text = Text(due.label, style=due.style.rich)
-        due_text.append(f"  {due.state}", style="dim")
-    return [
-        ("Flag", flag_key_chip(record.key)),
-        (
-            "Removal",
-            f"{record.remove_by_date} · v{record.remove_by_release}",
-        ),
-        ("Due state", due_text),
-    ]
-
-
-def _inline_code(value: str) -> str:
-    return value.replace("`", "\\`")
-
-
-def resolved_plan_path(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> str | None:
-    if snapshot is None:
-        return None
-    return snapshot.plan_links.get((project, issue.id)) or None
-
-
-def _plan_reference_properties(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> tuple[DetailProperty, ...]:
-    reference = issue.design.strip()
-    if not reference:
-        return (("Plan reference", ""),)
-    resolved = resolved_plan_path(issue, snapshot, project=project)
-    if resolved is None:
-        return (
-            ("Plan reference", reference),
-            ("Linked plan", Text("cannot resolve", style="#FF8787")),
-        )
-    return (("Plan reference", reference), ("Linked plan", resolved))
-
-
-def _references_text(issue: Issue) -> Text:
-    if not issue.refs:
-        return Text("—", style="dim")
-    text = Text()
-    for index, reference in enumerate(issue.refs):
-        if index:
-            text.append("\n")
-        text.append(reference, style="white")
-    return text
-
-
-def _external_issue_property_text(
-    links: tuple[ExternalIssueLink, ...],
-) -> Text:
-    if not links:
-        return Text("—", style="dim")
-    text = Text()
-    for index, link in enumerate(links):
-        if index:
-            text.append("\n")
-        text.append(_external_issue_chip_label(link), style=_external_issue_style(link))
-        text.append(f" {link.relation}", style="dim")
-        if link.issue is not None and link.issue.title:
-            text.append(f"  {link.issue.title}", style="white")
-        elif link.stale:
-            text.append("  not present in cached issue list", style=EXTERNAL_ACCENT)
-        if link.drift:
-            text.append("  drift", style=f"bold {EXTERNAL_ACCENT}")
-    return text
-
-
-def _external_issue_markdown(
-    issue: Issue,
-    links: tuple[ExternalIssueLink, ...],
-) -> list[str]:
-    if not links:
-        return []
-    lines = ["## External Issues", ""]
-    for index, link in enumerate(links):
-        if index:
-            lines.append("")
-        lines.append(f"### {_external_issue_inline(link)}")
-        details = [
-            f"- Relation: {link.relation}",
-            f"- Project: {link.display_project}",
-            f"- State: {link.state}",
-            f"- Ref: `{link.external_ref}`",
-        ]
-        if link.issue is not None:
-            details.extend(
-                [
-                    f"- Title: {link.issue.title}",
-                    f"- Author: {link.issue.author or '(unknown)'}",
-                    f"- Comments: {link.issue.comment_count}",
-                    f"- Updated: {format_local(link.issue.updated_at, default='')}",
-                ]
-            )
-            if link.issue.labels:
-                details.append(f"- Labels: {', '.join(link.issue.labels)}")
-            if link.issue.assignees:
-                details.append(f"- Assignees: {', '.join(link.issue.assignees)}")
-            if link.issue.url:
-                details.append(f"- URL: {link.issue.url}")
-        if link.stale:
-            details.append("- Cache: stale local link, absent from complete issue list")
-        if link.drift:
-            details.append("- Drift: mirrored local bead differs from cached issue")
-        reverse_beads = tuple(
-            bead.id for bead in link.reverse_beads if bead.id != issue.id
-        )
-        if reverse_beads:
-            details.append(f"- Linked beads: {', '.join(reverse_beads)}")
-        if link.reverse_patches:
-            details.append(
-                f"- Linked Patches: {', '.join(patch.name for patch in link.reverse_patches)}"
-            )
-        lines.extend(details)
-        if link.issue is not None:
-            body = link.issue.body.strip()
-            if body:
-                lines.extend(["", "#### Remote Body Preview", "", _preview_body(body)])
-    lines.append("")
-    return lines
-
-
-def _external_issue_inline(link: ExternalIssueLink) -> str:
-    state = link.state
-    flags = [
-        flag
-        for flag, active in (("stale", link.stale), ("drift", link.drift))
-        if active
-    ]
-    suffix = f" ({', '.join(flags)})" if flags else ""
-    return f"{link.display_project} #{link.issue_id} · {state}{suffix}"
-
-
-def _external_issue_chip_label(link: ExternalIssueLink) -> str:
-    glyph = (
-        "?"
-        if link.stale
-        else "●"
-        if link.issue and link.issue.state == "closed"
-        else "○"
-    )
-    return f"{glyph}#{link.issue_id}"
-
-
-def _external_issue_style(link: ExternalIssueLink) -> str:
-    if link.stale or link.drift:
-        return f"bold #1a1a1a on {EXTERNAL_ACCENT}"
-    return f"bold {EXTERNAL_ACCENT}"
-
-
-def _preview_body(body: str) -> str:
-    if len(body) <= _REMOTE_BODY_PREVIEW_CHARS:
-        return body
-    return f"{body[:_REMOTE_BODY_PREVIEW_CHARS].rstrip()}\n\n_(truncated)_"
-
-
-def _dependencies_text(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> Text:
-    if not issue.dependencies:
-        return Text("—", style="dim")
-    text = Text()
-    statuses = {status.value: status for status in Status}
-    for index, dependency in enumerate(issue.dependencies):
-        if index:
-            text.append("\n")
-        state = _dependency_state(snapshot, dependency.depends_on_id, project=project)
-        status = statuses.get(state)
-        glyph = "?" if status is None else bead_status_presentation(status).tui_glyph
-        style = "dim" if status is None else bead_status_presentation(status).rich_style
-        text.append(glyph, style=style)
-        text.append(f" {dependency.depends_on_id}", style="white")
-        text.append(f"  {state.replace('_', ' ')}", style=style)
-    return text
-
-
-def _epic_phase_sizes(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> Text | None:
-    if snapshot is None:
-        return None
-    phases = snapshot.phases_by_epic.get((project, issue.id))
-    if not phases:
-        return None
-    counts = dict.fromkeys(PHASE_SIZE_VALUES, 0)
-    for phase in phases:
-        size = normalize_phase_size(phase.issue.size or PhaseSize.SMALL)
-        if size is None:
-            return None
-        counts[size] += 1
-    text = Text()
-    for size in PHASE_SIZE_VALUES:
-        if not counts[size]:
-            continue
-        if text:
-            text.append(" · ", style="dim")
-        text.append(f"{counts[size]} ", style="white")
-        text.append(size, style=PHASE_SIZE_STYLES[size])
-    return text or None
-
-
-def _dependency_state(
-    snapshot: BeadsSnapshot | None,
-    issue_id: str,
-    *,
-    project: str,
-) -> str:
-    if snapshot is None:
-        return "unknown"
-    for item in snapshot.tasks:
-        if item.project == project and item.issue.id == issue_id:
-            return item.issue.status.value
-    for item in snapshot.flags:
-        if item.project == project and item.issue.id == issue_id:
-            return item.issue.status.value
-    for item in snapshot.epics:
-        if item.project == project and item.issue.id == issue_id:
-            return item.issue.status.value
-    for (owner, _epic_id), phases in snapshot.phases_by_epic.items():
-        if owner != project:
-            continue
-        for item in phases:
-            if item.issue.id == issue_id:
-                return item.issue.status.value
-    return "unknown"
-
-
-def _properties_header(
-    title: Text,
-    properties: list[DetailProperty],
-) -> RenderableType:
-    table = Table.grid(padding=(0, 1), expand=True)
-    table.add_column(justify="right", style="dim", no_wrap=True)
-    table.add_column(ratio=1, overflow="fold")
-    for label, value in properties:
-        table.add_row(label, _property_text(value))
-    divider = Text("─" * 72, style="dim #5F5F87", no_wrap=True, overflow="crop")
-    return Group(title, table, divider)
-
-
-def _created_text(issue: Issue) -> Text:
-    """Render the shared creation label in the provenance accent."""
-    label = bead_created_label(issue.created_at)
-    if label == BEAD_TIME_UNKNOWN_LABEL:
-        return Text("—", style="dim")
-    return Text(label, style=BEAD_TIME_RICH_STYLE, overflow="fold")
-
-
-def _property_text(value: str | Text) -> Text:
-    if isinstance(value, Text):
-        return value
-    if value:
-        return Text(value, style="white", overflow="fold")
-    return Text("—", style="dim")
-
-
-def _chip(label: str, color: str, *, glyph: str = "") -> Text:
-    prefix = f"{glyph} " if glyph else ""
-    text = Text()
-    text.append(f" {prefix}{label} ", style=f"bold #1a1a1a on {color}")
-    text.append(" ")
-    return text
-
-
-def _status_chip(status: Status) -> Text:
-    presentation = bead_status_presentation(status)
-    return _chip(
-        presentation.label.replace("_", " ").lower(),
-        presentation.rich_color,
-        glyph=presentation.tui_glyph,
-    )
-
-
-def _snooze_text(issue: Issue) -> Text:
-    """Render the wake conditions in one cell, wake time first."""
-    record = issue.snooze
-    assert record is not None
-    parts = [snooze_until_label(record.until)]
-    if plus_one := snooze_plus_one_label(issue):
-        parts.append(f"+1 target: {plus_one}")
-    if record.reason:
-        parts.append(record.reason)
-    return Text(" · ".join(parts), style=SNOOZE_ACCENT, overflow="fold")
-
-
-def _readiness_chip(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> Text:
-    label = _readiness_label(issue, snapshot, project=project)
-    if issue.status in {
-        Status.CLOSED,
-        Status.CLAIMED,
-        Status.READY,
-        Status.SNOOZED,
-        Status.IN_PROGRESS,
-    }:
-        presentation = bead_status_presentation(issue.status)
-        return _chip(label, presentation.rich_color, glyph=presentation.tui_glyph)
-    color, glyph = {
-        "blocked": ("#FF5F5F", "×"),
-        "ready": ("#5FD787", "✓"),
-        "waiting": ("#87D7FF", "○"),
-        "unknown": ("#878787", "?"),
-    }[label]
-    return _chip(label, color, glyph=glyph)
-
-
-def _readiness_label(
-    issue: Issue,
-    snapshot: BeadsSnapshot | None,
-    *,
-    project: str,
-) -> str:
-    if issue.status is Status.CLOSED:
-        return "closed"
-    if issue.status is Status.CLAIMED:
-        return "claimed"
-    if issue.status is Status.READY:
-        return "ready"
-    if issue.status is Status.SNOOZED:
-        return snooze_readiness_label(issue.snooze)
-    if issue.status is Status.IN_PROGRESS:
-        return "in progress"
-    if snapshot is None:
-        return "unknown"
-    key = (project, issue.id)
-    if key in snapshot.blocked_ids:
-        return "blocked"
-    if key in snapshot.ready_ids:
-        return "ready"
-    return "waiting"
 
 
 __all__ = [
