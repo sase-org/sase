@@ -231,7 +231,7 @@ def active_monitor_for_lane(
             continue
         if should_reconcile_dead_supervisor(monitor, snapshot=procs.get()):
             monitor = reconcile_dead_supervisor(
-                monitor, get_monitor=get_monitor, snapshot=procs.get()
+                monitor, get_monitor=read_monitor_marker, snapshot=procs.get()
             )
         if not monitor.is_terminal:
             candidates.append(record)
@@ -264,7 +264,7 @@ def monitor_blocking_start_for_lane(
             continue
         if should_reconcile_dead_supervisor(monitor, snapshot=procs.get()):
             monitor = reconcile_dead_supervisor(
-                monitor, get_monitor=get_monitor, snapshot=procs.get()
+                monitor, get_monitor=read_monitor_marker, snapshot=procs.get()
             )
         if monitor.monitor_state == "lost" or not monitor.is_terminal:
             candidates.append(monitor)
@@ -302,7 +302,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
         return current if current is not None else record
     pid = record.pid
     if pid is None or not supervisor_is_alive(pid, record.supervisor_identity):
-        return reconcile_dead_supervisor(record, get_monitor=get_monitor)
+        return reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
 
     # The supervisor's own SIGTERM handler forwards to the monitored
     # command's process group; signal the supervisor pid directly rather
@@ -310,7 +310,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     try:
         os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
-        return reconcile_dead_supervisor(record, get_monitor=get_monitor)
+        return reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
 
     deadline = time.monotonic() + _STOP_WAIT_SECONDS
     while time.monotonic() < deadline:
@@ -318,7 +318,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
         if current is None or current.monitor_state != "running":
             return current if current is not None else record
         if not supervisor_is_alive(pid, record.supervisor_identity):
-            return reconcile_dead_supervisor(record, get_monitor=get_monitor)
+            return reconcile_dead_supervisor(record, get_monitor=read_monitor_marker)
         time.sleep(_STOP_POLL_SECONDS)
 
     return record
@@ -340,11 +340,11 @@ def read_monitor_marker(project_name: str, artifacts_dir: str) -> MonitorRecord 
 
     ``get_monitor()`` runs a full-history, unlimited, hidden-inclusive index
     query (or a full filesystem scan when the index is unavailable) to find
-    one record it already knows the path to. Tight polling loops that
-    already hold the member's ``artifacts_dir`` -- ``--follow``,
-    ``stop_monitor()``'s wait loop, and callers waiting for a monitor to go
-    terminal -- should read that member's own ``agent_meta.json`` and
-    ``done.json`` directly instead.
+    one record it already knows the path to. Tight polling loops and locked
+    re-reads that already hold the member's ``artifacts_dir`` -- ``--follow``,
+    ``stop_monitor()``'s wait loop, dead-supervisor reconciliation, and
+    callers waiting for a monitor to go terminal -- should read that
+    member's own ``agent_meta.json`` and ``done.json`` directly instead.
     """
     raw_meta = _read_json_object(os.path.join(artifacts_dir, "agent_meta.json"))
     if raw_meta is None:
@@ -413,7 +413,7 @@ def reconcile_dead_supervisors(
     """Reconcile all running monitors whose supervisors are no longer alive."""
     return reconcile_dead_supervisors_for_records(
         _reconciliation_monitor_records(project),
-        get_monitor=get_monitor,
+        get_monitor=read_monitor_marker,
         snapshot=snapshot,
     )
 
