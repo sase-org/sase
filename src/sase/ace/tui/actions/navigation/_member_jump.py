@@ -300,7 +300,9 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         if callable(refresh):
             refresh()
 
-    def _reveal_agent_row(self, target_identity: MemberIdentity) -> bool:
+    def _reveal_agent_row(
+        self, target_identity: MemberIdentity, *, subject: str = "Member"
+    ) -> bool:
         """Reveal a roster target through folds, then select it by identity."""
         plan, failure = prepare_agent_navigation_target(
             self,
@@ -308,7 +310,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             require_current=False,
         )
         if plan is None:
-            self._notify_member_reveal_failure(failure)
+            self._notify_member_reveal_failure(failure, subject=subject)
             return False
 
         old_idx = self.current_idx
@@ -330,7 +332,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         reveal = outcome.result
         if reveal is None:
             self._restore_member_jump_history(back_stack, forward_stack)
-            self._notify_member_reveal_failure(outcome.failure)
+            self._notify_member_reveal_failure(outcome.failure, subject=subject)
             return False
         if old_agent is not None and reveal.tree_changed:
             rebase_anchor = getattr(self, "_rebase_latest_agents_jump_anchor", None)
@@ -394,21 +396,28 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
     def _notify_member_reveal_failure(
         self,
         failure: AgentRevealFailure | None,
+        *,
+        subject: str = "Member",
     ) -> None:
-        """Preserve the member-jump notification contract after extraction."""
+        """Preserve the member-jump notification contract after extraction.
+
+        ``subject`` swaps the wording for callers outside the member-roster
+        jump (e.g. the Procs tab's monitor-agent jump), without changing the
+        default member-jump notifications any existing caller depends on.
+        """
         if failure in {
             AgentRevealFailure.TARGET_MISSING,
             AgentRevealFailure.TARGET_AMBIGUOUS,
             AgentRevealFailure.TARGET_FILTERED,
         }:
-            self._notify_member_jump("Member roster changed; jump cancelled")
+            self._notify_member_jump(f"{subject} roster changed; jump cancelled")
         elif failure in {
             AgentRevealFailure.PANEL_MISSING,
             AgentRevealFailure.TARGET_NOT_VISIBLE,
         }:
-            self._notify_member_jump("Member is no longer visible")
+            self._notify_member_jump(f"{subject} is no longer visible")
         else:
-            self._notify_member_jump("Member is no longer available")
+            self._notify_member_jump(f"{subject} is no longer available")
 
 
 __all__ = ["MemberJumpNavigationMixin"]

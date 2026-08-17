@@ -155,6 +155,8 @@ class ProcsPaneSelectionMixin(_MixinBase):
 
         def jump_hint_for(self, index: int) -> str | None: ...
 
+        def _update_hints(self) -> None: ...
+
     def _merged_tasks(self) -> list[ObservedProc]:
         """Return observer rows in the pane's current scope."""
         return self._proc_projection().scoped_rows(all_sessions=self._all_sessions)
@@ -314,6 +316,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
                 )
                 self._record_bookmark(current_row, authoritative=not stand_in_echo)
                 self._display_output(task)
+                self._update_hints()
                 if not task.output:
                     self._request_store_reload(force=True)
 
@@ -388,6 +391,7 @@ class ProcsPaneSelectionMixin(_MixinBase):
         )
 
         self._display_output(self._get_selected_task())
+        self._update_hints()
         if self._is_active_tab():
             option_list.focus()
 

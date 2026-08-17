@@ -110,6 +110,8 @@ class ProcsTestApp(App[None]):
         proc_queue: ProcQueue,
         session_rows: tuple[ObservedProc, ...] = (),
         agents: tuple[Any, ...] = (),
+        *,
+        reveal_result: bool = True,
     ) -> None:
         super().__init__()
         self._proc_queue = proc_queue
@@ -117,6 +119,19 @@ class ProcsTestApp(App[None]):
         self._agents = agents
         self.killed_task_ids: list[str] = []
         self.notifications: list[tuple[str, str | None]] = []
+        self.current_tab = "axe"
+        self.save_tab_position_calls = 0
+        self.reveal_calls: list[tuple[Any, str]] = []
+        self._reveal_result = reveal_result
+
+    def _save_current_tab_position(self) -> None:
+        self.save_tab_position_calls += 1
+
+    def _reveal_agent_row(
+        self, target_identity: Any, *, subject: str = "Member"
+    ) -> bool:
+        self.reveal_calls.append((target_identity, subject))
+        return self._reveal_result
 
     @property
     def _proc_projection(self) -> ProcProjection:
@@ -213,6 +228,10 @@ async def open_procs_pane(
 
 def output_plain(pane: ProcsPane) -> str:
     return pane.query_one("#procs-output-content", Static).render().plain
+
+
+def hints_plain(pane: ProcsPane) -> str:
+    return pane.query_one("#procs-hints", Static).render().plain
 
 
 def store_task(

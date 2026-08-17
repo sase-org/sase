@@ -21,6 +21,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_PROC_ORIGIN
 from tests.ace.tui._procs_pane_helpers import (
     ProcsTestApp,
+    hints_plain,
     open_procs_pane,
     output_plain,
     patch_other_panes,
@@ -502,3 +503,162 @@ async def test_tasks_tab_refresh_removing_hinted_task_clears_jump_mode() -> None
         assert pane.jump_mode_active is False
         assert option_list.option_count == 1
         assert not _option_plain(option_list, 0).startswith("[0]")
+
+
+async def test_tasks_tab_enter_on_monitor_row_dismisses_and_reveals_agent() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=3,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
+
+    async with ProcsTestApp(queue(monitor), agents=(agent,)).run_test() as pilot:
+        modal, pane = await open_procs_pane(pilot)
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        app = cast(ProcsTestApp, pilot.app)
+        assert pilot.app.screen is not modal
+        assert app.current_tab == "agents"
+        assert app.save_tab_position_calls == 1
+        assert app.reveal_calls == [(agent.identity, "Monitor agent")]
+
+
+async def test_tasks_tab_enter_on_monitor_row_without_agent_notifies_once() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=3,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+
+    async with ProcsTestApp(queue(monitor)).run_test() as pilot:
+        modal, pane = await open_procs_pane(pilot)
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        app = cast(ProcsTestApp, pilot.app)
+        assert pilot.app.screen is modal
+        assert app.reveal_calls == []
+        assert app.notifications == [
+            ("No agent row for acme--mon on the Agents tab", "warning")
+        ]
+
+
+async def test_tasks_tab_enter_on_plain_row_does_nothing() -> None:
+    plain = task("run", label="sync sase-42", status="running", age_seconds=1)
+
+    async with ProcsTestApp(queue(plain)).run_test() as pilot:
+        modal, pane = await open_procs_pane(pilot)
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        app = cast(ProcsTestApp, pilot.app)
+        assert pilot.app.screen is modal
+        assert app.reveal_calls == []
+        assert app.notifications == []
+
+
+async def test_tasks_tab_enter_during_jump_mode_is_consumed_by_jump_mode() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=3,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
+
+    async with ProcsTestApp(queue(monitor), agents=(agent,)).run_test() as pilot:
+        modal, pane = await open_procs_pane(pilot)
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert pane.jump_mode_active is True
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        app = cast(ProcsTestApp, pilot.app)
+        assert pilot.app.screen is modal
+        assert app.reveal_calls == []
+
+
+async def test_tasks_tab_click_selection_reaches_agent_jump_action() -> None:
+    monitor = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=3,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
+
+    async with ProcsTestApp(queue(monitor), agents=(agent,)).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
+
+        pane.on_option_list_option_selected(
+            OptionList.OptionSelected(
+                option_list, option_list.get_option_at_index(0), 0
+            )
+        )
+        await pilot.pause()
+
+        app = cast(ProcsTestApp, pilot.app)
+        assert app.reveal_calls == [(agent.identity, "Monitor agent")]
+
+
+async def test_tasks_tab_hints_show_agent_token_only_for_resolvable_monitor_rows() -> (
+    None
+):
+    resolvable = task(
+        "mon-1",
+        label="just check-full",
+        status="running",
+        age_seconds=1,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="acme--mon",
+    )
+    unresolvable = task(
+        "mon-2",
+        label="pytest -x",
+        status="running",
+        age_seconds=2,
+        origin=MONITOR_PROC_ORIGIN,
+        shell_name="hotfix--mon",
+    )
+    plain = task("run", label="sync sase-42", status="running", age_seconds=3)
+    agent = _agent(monitor_id="mon-1", presented_agent_name="acme--mon")
+
+    async with ProcsTestApp(
+        queue(resolvable, unresolvable, plain), agents=(agent,)
+    ).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        option_list = pane.query_one("#procs-list", OptionList)
+        assert option_list.highlighted == 0
+
+        assert "⏎: agent" in pane._hints()
+        assert "⏎: agent" in hints_plain(pane)
+
+        await pilot.press("j")
+        await pilot.pause()
+        assert option_list.highlighted == 1
+        assert "⏎: agent" not in pane._hints()
+        assert "⏎: agent" not in hints_plain(pane)
+
+        await pilot.press("j")
+        await pilot.pause()
+        assert option_list.highlighted == 2
+        assert "⏎: agent" not in pane._hints()

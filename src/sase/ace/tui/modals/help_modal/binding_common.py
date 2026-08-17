@@ -68,6 +68,7 @@ ADMIN_CENTER_TASKS_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("K", "Kill selected running proc"),
         ("d / D", "Dismiss done / all done"),
         ("e / y", "Edit / copy proc output"),
+        ("Enter", "Open the monitor's agent"),
         ("Ctrl+D / Ctrl+U, g / G", "Scroll output"),
     ],
 )

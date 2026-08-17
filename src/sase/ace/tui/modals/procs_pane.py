@@ -22,6 +22,7 @@ from ..util.selection import ProgrammaticSelectionGuard
 from .config_center_session import ProcsSessionState
 from .pane_entry_jump import PaneEntryJumpMixin
 from .procs_pane_actions import ProcsPaneActionsMixin
+from .procs_pane_agent_jump import ProcsPaneAgentJumpMixin
 from .procs_pane_render import BodyCache
 from .procs_pane_selection import ProcsPaneSelectionMixin, TaskList
 from .procs_pane_store import ProcsPaneStoreMixin
@@ -31,6 +32,7 @@ from .procs_store_rows import kill_store_task
 class ProcsPane(
     PaneEntryJumpMixin,
     ProcsPaneActionsMixin,
+    ProcsPaneAgentJumpMixin,
     ProcsPaneStoreMixin,
     ProcsPaneSelectionMixin,
     Vertical,
@@ -56,6 +58,7 @@ class ProcsPane(
         ("g", "scroll_to_top", "Top"),
         ("G", "scroll_to_bottom", "Bottom"),
         ("shift+g", "scroll_to_bottom", "Bottom"),
+        ("enter", "open_monitor_agent", "Open Agent"),
         ("apostrophe", "jump_to_entry", "Jump"),
     ]
 
@@ -170,9 +173,11 @@ class ProcsPane(
         if self.jump_mode_active:
             action = "back" if self.jump_back_stack else "first"
             return f"JUMP ' {action}  <esc> cancel"
+        agent_hint = self._monitor_jump_hint()
+        agent_token = f"{agent_hint}  " if agent_hint else ""
         return (
             "j/k: move  a: scope  d/D: dismiss  K: kill  e: edit  y: copy  "
-            "': jump  ctrl+d/u, g/G: scroll  Tab: tab  Esc: close"
+            f"{agent_token}': jump  ctrl+d/u, g/G: scroll  Tab: tab  Esc: close"
         )
 
 
