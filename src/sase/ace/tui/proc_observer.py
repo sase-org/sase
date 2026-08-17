@@ -4,302 +4,56 @@ The observer is the one bridge from supervisor-owned durable procs into the
 Textual UI. Store reads, session discovery, log tails, and typed-result
 decoding happen on a daemon thread; the UI receives immutable snapshots and
 completion records through the callback supplied by the app.
+
+This module owns the observer thread itself. The read models it publishes live
+in :mod:`._proc_observer_models`, the presentation log in
+:mod:`._proc_observer_log`, and the durable-store reads in
+:mod:`._proc_observer_store`; all three are re-exported here so callers keep a
+single import site.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import threading
-import time
 import uuid
 import weakref
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from sase.core.state_write_guard import pytest_path_is_sandboxed
-from sase.core.time import local_now, to_local
-from sase.monitor_state import MONITOR_PROC_ORIGIN
-from sase.ops import DurableOperationResult, OperationIOError, read_operation_result
-from sase.procs import (
-    ACTIVE_PROC_STATUSES,
-    Proc,
-    proc_store_path,
-    read_proc_log_tail,
-    read_procs,
+from sase.core.time import local_now
+from sase.procs import proc_store_path, read_procs
+
+from ._proc_observer_log import ObservedProcLog, ProcLogLine, ProcLogStream
+from ._proc_observer_models import (
+    ObservedProc,
+    ProcCompletionRecord,
+    ProcObserverSnapshot,
+    ProcProjection,
+    compose_proc_projection,
+    is_monitor_shell_row,
+    monitor_row_agent_name,
+    proc_projection_for,
+    proc_status_is_active,
+    recount_projection,
 )
-from sase.procs.runtime import proc_operation_result_path
-from sase.project_display_names import humanize_cl_name
+from ._proc_observer_store import (
+    DETAIL_LOG_LINES,
+    ObserverContext,
+    ProcWatch,
+    decode_completion,
+    live_session_ids,
+    load_observer_context,
+    proc_is_relevant,
+    store_proc_row,
+)
 
 log = logging.getLogger(__name__)
 
-ProcLogStream = Literal["stdout", "stderr", "progress", "header", "result"]
-
 POLL_SECONDS = 0.5
 PROC_OBSERVER_THREAD_NAME = "sase-ace-proc-observer"
-DETAIL_LOG_LINES = 400
-_MAX_PROC_LOG_LINES = 5_000
-_MAX_PROC_LOG_CHARS = 512 * 1024
-_ACTIVE_STATUSES = frozenset(ACTIVE_PROC_STATUSES)
-
-
-@dataclass(frozen=True)
-class ProcLogLine:
-    """One append-only presentation log line."""
-
-    text: str
-    stream: ProcLogStream
-    ts: datetime
-
-
-@dataclass(frozen=True)
-class _ProcLogSnapshot:
-    """Immutable view of a presentation log."""
-
-    lines: tuple[ProcLogLine, ...]
-    version: int
-    trimmed_count: int
-
-
-@dataclass
-class _ObservedProcLog:
-    """Thread-safe, bounded log used only for ACE-local presentation rows."""
-
-    max_lines: int = _MAX_PROC_LOG_LINES
-    max_chars: int = _MAX_PROC_LOG_CHARS
-    _lines: list[ProcLogLine] = field(default_factory=list, init=False, repr=False)
-    _chars: int = field(default=0, init=False, repr=False)
-    _trimmed_count: int = field(default=0, init=False, repr=False)
-    _version: int = field(default=0, init=False, repr=False)
-    _lock: threading.Lock = field(
-        default_factory=threading.Lock, init=False, repr=False
-    )
-
-    @property
-    def version(self) -> int:
-        with self._lock:
-            return self._version
-
-    def append(self, text: str, *, stream: ProcLogStream = "stdout") -> None:
-        """Append text to the log, splitting multi-line chunks into log lines."""
-        if text == "":
-            return
-        entries = text.splitlines() or [text]
-        with self._lock:
-            for entry in entries:
-                self._lines.append(
-                    ProcLogLine(text=entry.rstrip("\r"), stream=stream, ts=local_now())
-                )
-                self._chars += len(entry)
-            while self._lines and (
-                len(self._lines) > self.max_lines or self._chars > self.max_chars
-            ):
-                removed = self._lines.pop(0)
-                self._chars -= len(removed.text)
-                self._trimmed_count += 1
-            self._version += 1
-
-    def snapshot(self) -> _ProcLogSnapshot:
-        with self._lock:
-            return _ProcLogSnapshot(
-                lines=tuple(self._lines),
-                version=self._version,
-                trimmed_count=self._trimmed_count,
-            )
-
-    def text(self) -> str:
-        snapshot = self.snapshot()
-        lines: list[str] = []
-        if snapshot.trimmed_count:
-            lines.append(f"... {snapshot.trimmed_count} earlier lines trimmed")
-        lines.extend(line.text for line in snapshot.lines)
-        if not lines:
-            return ""
-        return "\n".join(lines) + "\n"
-
-
-@dataclass
-class ObservedProc:
-    """Read-only presentation state for one proc row."""
-
-    proc_id: str
-    proc_type: str
-    cl_name: str
-    project_file: str
-    status: str
-    message: str
-    started_at: datetime
-    display_name: str | None = None
-    dedup_key: str | None = None
-    exclusive_scopes: frozenset[str] = frozenset()
-    finished_at: datetime | None = None
-    output: str = ""
-    error: str | None = None
-    log: _ObservedProcLog = field(default_factory=_ObservedProcLog)
-    command: list[str] | None = None
-    phase: str | None = None
-    exit_code: int | None = None
-    durable_proc_id: str | None = None
-    store_backed: bool = False
-    session_id: str | None = None
-    session_label: str | None = None
-    session_live: bool = True
-    origin: str = ""
-    # Authoritative combined-log path (``Proc.log_path``). Store-owned rows
-    # repeat the store path; a monitor carries ``<artifacts_dir>/live_reply.md``.
-    log_path: str = ""
-    # Named proc shell (``Proc.shell_name``). For a monitor row
-    # (``origin == MONITOR_PROC_ORIGIN``) this is the monitor's member agent
-    # name (``acme--mon``).
-    shell_name: str | None = None
-
-    @property
-    def label(self) -> str:
-        """Return the user-facing proc label."""
-        if self.display_name:
-            return self.display_name
-        if self.cl_name:
-            return f"{self.proc_type} {humanize_cl_name(self.cl_name)}"
-        return self.proc_type
-
-    def get_live_output(self) -> str:
-        """Return retained presentation log output or durable log text."""
-        log_text = self.log.text()
-        if log_text:
-            return log_text
-        return self.output
-
-
-@dataclass(frozen=True)
-class ProcProjection:
-    """UI-side read model for observed procs."""
-
-    rows: tuple[ObservedProc, ...] = ()
-    active_count: int = 0
-    active_monitor_count: int = 0
-    session_id: str | None = None
-
-    def scoped_rows(self, *, all_sessions: bool) -> list[ObservedProc]:
-        """Return rows for the Procs pane's current scope."""
-        if all_sessions:
-            return list(self.rows)
-        return [
-            row
-            for row in self.rows
-            if row.session_id is None
-            or row.session_id == self.session_id
-            or not row.session_live
-        ]
-
-    def active_rows(self, *, all_sessions: bool = False) -> list[ObservedProc]:
-        """Return active rows whose session owner can still be live."""
-        return [
-            row
-            for row in self.scoped_rows(all_sessions=all_sessions)
-            if row.status in _ACTIVE_STATUSES
-            and (row.session_id is None or row.session_live)
-        ]
-
-    def active_monitor_rows(self, *, all_sessions: bool = False) -> list[ObservedProc]:
-        """Return active rows that are ``sase monitor start`` proc shells."""
-        return [
-            row
-            for row in self.active_rows(all_sessions=all_sessions)
-            if is_monitor_shell_row(row)
-        ]
-
-    def scope_conflict(self, exclusive_scopes: Collection[str]) -> ObservedProc | None:
-        """Return the active row claiming any requested exclusive scope."""
-        requested = frozenset(exclusive_scopes)
-        if not requested:
-            return None
-        for row in self.rows:
-            if row.status in _ACTIVE_STATUSES and requested & row.exclusive_scopes:
-                return row
-        return None
-
-
-def compose_proc_projection(
-    durable: ProcProjection,
-    session_rows: Sequence[ObservedProc] = (),
-) -> ProcProjection:
-    """Combine the durable observer snapshot with live session-local rows."""
-    if not session_rows:
-        return durable
-    seen = {row.proc_id for row in durable.rows}
-    extra: list[ObservedProc] = []
-    for row in session_rows:
-        if row.proc_id in seen:
-            continue
-        extra.append(_attribute_session_row(row, durable.session_id))
-        seen.add(row.proc_id)
-    if not extra:
-        return durable
-    rows = [*durable.rows, *extra]
-    rows.sort(key=lambda item: item.started_at, reverse=True)
-    projection = ProcProjection(
-        rows=tuple(rows),
-        session_id=durable.session_id,
-    )
-    return replace(
-        projection,
-        active_count=len(projection.active_rows()),
-        active_monitor_count=len(projection.active_monitor_rows()),
-    )
-
-
-def proc_projection_for(app: Any) -> ProcProjection:
-    """Return the UI-effective proc projection for *app*."""
-    compose = getattr(app, "_effective_proc_projection", None)
-    if callable(compose):
-        projection = compose()
-        if isinstance(projection, ProcProjection):
-            return projection
-    projection = getattr(app, "_proc_projection", None)
-    return projection if isinstance(projection, ProcProjection) else ProcProjection()
-
-
-def _attribute_session_row(row: ObservedProc, session_id: str | None) -> ObservedProc:
-    if row.session_id == session_id:
-        return row
-    return replace(row, session_id=session_id, session_live=True)
-
-
-@dataclass(frozen=True)
-class ProcCompletionRecord:
-    """One terminal typed completion decoded by the observer thread."""
-
-    proc_id: str
-    operation: str
-    result: DurableOperationResult | None
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class ProcObserverSnapshot:
-    """Immutable observer-to-UI delivery record."""
-
-    projection: ProcProjection
-    completions: tuple[ProcCompletionRecord, ...] = ()
-
-
-@dataclass(frozen=True)
-class _Watch:
-    operation: str
-    result_path: str
-    placeholder_id: str | None = None
-
-
-@dataclass(frozen=True)
-class _ObserverContext:
-    session_id: str | None
-    session_label: str | None
-    project: str | None
-    workspace_num: int | None
-    cwd: str
 
 
 @dataclass
@@ -311,10 +65,10 @@ class ProcObserver:
     _stop: threading.Event = field(default_factory=threading.Event, init=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False)
     _pending: dict[str, ObservedProc] = field(default_factory=dict, init=False)
-    _watches: dict[str, _Watch] = field(default_factory=dict, init=False)
+    _watches: dict[str, ProcWatch] = field(default_factory=dict, init=False)
     _delivered: set[str] = field(default_factory=set, init=False)
     _detail_proc_id: str | None = field(default=None, init=False)
-    _context: _ObserverContext | None = field(default=None, init=False)
+    _context: ObserverContext | None = field(default=None, init=False)
     _last_signature: tuple[Any, ...] | None = field(default=None, init=False)
     _owner_ref: weakref.ref[Any] | None = field(default=None, init=False, repr=False)
 
@@ -405,7 +159,7 @@ class ProcObserver:
                     message="Submitted to proc supervisor",
                     store_backed=True,
                 )
-            self._watches[proc_id] = _Watch(
+            self._watches[proc_id] = ProcWatch(
                 operation=operation,
                 result_path=result_path,
                 placeholder_id=placeholder_id,
@@ -455,23 +209,23 @@ class ProcObserver:
             detail_proc_id = self._detail_proc_id
         rows: list[ObservedProc] = []
         completions: list[ProcCompletionRecord] = []
-        live_session_ids = _live_session_ids()
+        session_ids = live_session_ids()
         store_rows = read_procs()
         seen_proc_ids: set[str] = set()
         for proc in store_rows:
-            if not _is_relevant(proc, context=context, watched=watches):
+            if not proc_is_relevant(proc, context=context, watched=watches):
                 continue
             seen_proc_ids.add(proc.proc_id)
             rows.append(
-                _store_proc_row(
+                store_proc_row(
                     proc,
-                    live_session_ids=live_session_ids,
+                    live_session_ids=session_ids,
                     with_output=proc.proc_id == detail_proc_id,
                 )
             )
-            if proc.proc_id in watches and proc.status not in _ACTIVE_STATUSES:
+            if proc.proc_id in watches and not proc_status_is_active(proc.status):
                 if proc.proc_id not in delivered:
-                    completions.append(_decode_completion(proc, watches[proc.proc_id]))
+                    completions.append(decode_completion(proc, watches[proc.proc_id]))
 
         for placeholder_id, placeholder in pending.items():
             durable_id = placeholder.durable_proc_id
@@ -480,14 +234,11 @@ class ProcObserver:
             rows.append(placeholder)
 
         rows.sort(key=lambda row: row.started_at, reverse=True)
-        projection = ProcProjection(
-            rows=tuple(rows),
-            session_id=context.session_id,
-        )
-        projection = replace(
-            projection,
-            active_count=len(projection.active_rows()),
-            active_monitor_count=len(projection.active_monitor_rows()),
+        projection = recount_projection(
+            ProcProjection(
+                rows=tuple(rows),
+                session_id=context.session_id,
+            )
         )
         if completions:
             with self._lock:
@@ -501,173 +252,10 @@ class ProcObserver:
             completions=tuple(completions),
         )
 
-    def _resolve_context(self) -> _ObserverContext:
+    def _resolve_context(self) -> ObserverContext:
         if self._context is None:
-            self._context = _load_context()
+            self._context = load_observer_context()
         return self._context
-
-
-def is_monitor_shell_row(row: ObservedProc) -> bool:
-    """Return whether an observed row is a ``sase monitor start`` proc shell."""
-    return row.origin == MONITOR_PROC_ORIGIN
-
-
-def monitor_row_agent_name(row: ObservedProc) -> str | None:
-    """Return a monitor row's member agent name, or ``None``.
-
-    For ``origin == MONITOR_PROC_ORIGIN`` this is ``ObservedProc.shell_name``
-    (the named proc shell, e.g. ``acme--mon``). Non-monitor rows — even ones
-    that carry a ``shell_name`` — return ``None``.
-    """
-    if not is_monitor_shell_row(row):
-        return None
-    return row.shell_name or None
-
-
-def _store_proc_row(
-    proc: Proc,
-    *,
-    live_session_ids: frozenset[str] = frozenset(),
-    with_output: bool = False,
-) -> ObservedProc:
-    """Adapt one durable proc row into an observed row."""
-    started_at = _local_datetime(proc.started_at or proc.created_at) or local_now()
-    output = _read_log_tail(proc.proc_id, proc.log_path) if with_output else ""
-    return ObservedProc(
-        proc_id=proc.proc_id,
-        proc_type=proc.kind,
-        cl_name=proc.cl_name or "",
-        project_file="",
-        status=proc.status,
-        message=proc.message or "",
-        started_at=started_at,
-        display_name=proc.label,
-        finished_at=_local_datetime(proc.finished_at),
-        output=output,
-        error=proc.message if proc.status in {"error", "killed"} else None,
-        command=list(proc.command) or None,
-        phase=proc.phase,
-        exit_code=proc.exit_code,
-        durable_proc_id=proc.proc_id,
-        store_backed=True,
-        session_id=proc.session_id,
-        session_label=proc.session_label,
-        session_live=bool(proc.session_id and proc.session_id in live_session_ids),
-        exclusive_scopes=frozenset(proc.concurrency_keys),
-        origin=proc.origin,
-        log_path=proc.log_path,
-        shell_name=proc.shell_name,
-    )
-
-
-def _decode_completion(proc: Proc, watch: _Watch) -> ProcCompletionRecord:
-    raw_result_path = watch.result_path
-    if not raw_result_path and isinstance(proc.result, Mapping):
-        value = proc.result.get("result_path")
-        raw_result_path = value if isinstance(value, str) else ""
-    if not raw_result_path:
-        raw_result_path = str(proc_operation_result_path(proc.proc_id))
-    try:
-        result = read_operation_result(
-            raw_result_path,
-            expected_operation=watch.operation,
-            expected_proc_id=proc.proc_id,
-        )
-    except OperationIOError as exc:
-        return ProcCompletionRecord(
-            proc_id=proc.proc_id,
-            operation=watch.operation,
-            result=None,
-            error=str(exc),
-        )
-    return ProcCompletionRecord(
-        proc_id=proc.proc_id,
-        operation=watch.operation,
-        result=result,
-    )
-
-
-def _is_relevant(
-    proc: Proc,
-    *,
-    context: _ObserverContext,
-    watched: Mapping[str, _Watch],
-) -> bool:
-    if proc.proc_id in watched:
-        return True
-    if proc.session_id is None:
-        return True
-    if context.session_id is not None and proc.session_id == context.session_id:
-        return True
-    if proc.origin == "ace":
-        return True
-    if context.project is not None and proc.project == context.project:
-        return True
-    if "ace" in proc.tags:
-        return True
-    return False
-
-
-def _load_context() -> _ObserverContext:
-    """Resolve this process's session attribution on the observer thread."""
-    from sase.sessions import current_session_id, live_sessions, session_display_label
-
-    try:
-        session_id: str | None = current_session_id()
-    except Exception:
-        session_id = None
-    identity = None
-    if session_id is not None:
-        try:
-            identity = next(
-                (item for item in live_sessions() if item.session_id == session_id),
-                None,
-            )
-        except Exception:
-            identity = None
-    if identity is None:
-        return _ObserverContext(
-            session_id=session_id,
-            session_label=None,
-            project=None,
-            workspace_num=None,
-            cwd=os.getcwd(),
-        )
-    return _ObserverContext(
-        session_id=identity.session_id,
-        session_label=session_display_label(identity),
-        project=identity.project,
-        workspace_num=identity.workspace_num,
-        cwd=identity.cwd or os.getcwd(),
-    )
-
-
-def _live_session_ids() -> frozenset[str]:
-    try:
-        from sase.sessions import live_sessions
-
-        return frozenset(identity.session_id for identity in live_sessions())
-    except Exception:
-        return frozenset()
-
-
-def _read_log_tail(proc_id: str, log_path: str = "") -> str:
-    try:
-        return read_proc_log_tail(proc_id, DETAIL_LOG_LINES, log_path=log_path or None)
-    except (OSError, ValueError):
-        return ""
-
-
-def _local_datetime(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed
-    return to_local(parsed)
 
 
 def _snapshot_signature(snapshot: ProcObserverSnapshot) -> tuple[Any, ...]:
@@ -751,16 +339,18 @@ __all__ = [
     "POLL_SECONDS",
     "PROC_OBSERVER_THREAD_NAME",
     "ObservedProc",
+    "ObservedProcLog",
+    "ObserverContext",
     "ProcCompletionRecord",
     "ProcLogLine",
     "ProcLogStream",
     "ProcObserver",
     "ProcObserverSnapshot",
     "ProcProjection",
-    "_store_proc_row",
+    "ProcWatch",
     "compose_proc_projection",
     "is_monitor_shell_row",
     "monitor_row_agent_name",
     "proc_projection_for",
-    "stop_orphaned_proc_observers",
+    "store_proc_row",
 ]

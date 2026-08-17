@@ -29,7 +29,8 @@ from sase.ace.tui.modals.statistics_pane_projects import (
 )
 from sase.ace.tui.modals.procs_pane_render import _elapsed, _relative_time
 from sase.ace.tui.proc_observer import ObservedProc
-from sase.ace.tui import proc_observer as po
+from sase.ace.tui import _proc_observer_log as po_log
+from sase.ace.tui import _proc_observer_store as po_store
 from sase.ace.tui.tools.cache import (
     ToolsCacheEntry,
     cached_tool_calls_end_reference,
@@ -147,7 +148,7 @@ def test_task_rows_and_default_references_share_configured_wall_time(
         started_at=local,
     )
 
-    assert po._local_datetime("2026-07-03T10:24:49Z") == local
+    assert po_store._local_datetime("2026-07-03T10:24:49Z") == local
     assert _relative_time(local) == "1m ago"
     assert _elapsed(task) == "1:00"
 
@@ -157,10 +158,11 @@ def test_proc_observer_mints_configured_wall_times(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     local = datetime(2026, 7, 3, 6, 24, 49)
-    monkeypatch.setattr("sase.ace.tui.proc_observer.local_now", lambda: local)
-    log = po._ObservedProcLog()
+    monkeypatch.setattr("sase.ace.tui._proc_observer_log.local_now", lambda: local)
+    monkeypatch.setattr("sase.ace.tui._proc_observer_store.local_now", lambda: local)
+    log = po_log.ObservedProcLog()
     log.append("hello")
-    task = po._store_proc_row(
+    task = po_store.store_proc_row(
         Proc(
             proc_id="proc-1",
             label="sync change",

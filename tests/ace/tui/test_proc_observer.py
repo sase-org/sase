@@ -6,6 +6,7 @@ from pathlib import Path
 import threading
 
 from sase.ace.tui import AceApp
+from sase.ace.tui import _proc_observer_store as po_store
 from sase.ace.tui import proc_observer as po
 from sase.ace.tui.proc_observer import (
     PROC_OBSERVER_THREAD_NAME,
@@ -26,7 +27,7 @@ from sase.procs.models import ARTIFACTS_LOG_OWNER, STORE_LOG_OWNER
 
 
 def test_observed_proc_log_is_bounded_and_textual() -> None:
-    log = po._ObservedProcLog(max_lines=2, max_chars=100)
+    log = po.ObservedProcLog(max_lines=2, max_chars=100)
 
     log.append("one\ntwo\nthree")
 
@@ -264,10 +265,10 @@ def test_observer_active_count_uses_session_scoped_live_rows(monkeypatch) -> Non
     ]
     monkeypatch.setattr(
         po,
-        "_load_context",
-        lambda: po._ObserverContext("session-a", None, None, None, "/tmp"),
+        "load_observer_context",
+        lambda: po.ObserverContext("session-a", None, None, None, "/tmp"),
     )
-    monkeypatch.setattr(po, "_live_session_ids", lambda: frozenset({"session-a"}))
+    monkeypatch.setattr(po, "live_session_ids", lambda: frozenset({"session-a"}))
     monkeypatch.setattr(po, "read_procs", lambda: procs)
 
     snapshot = ProcObserver(on_snapshot=lambda _snapshot: None)._build_snapshot()
@@ -312,10 +313,10 @@ def test_observer_active_monitor_count_isolates_monitor_origin_rows(
     ]
     monkeypatch.setattr(
         po,
-        "_load_context",
-        lambda: po._ObserverContext(None, None, None, None, "/tmp"),
+        "load_observer_context",
+        lambda: po.ObserverContext(None, None, None, None, "/tmp"),
     )
-    monkeypatch.setattr(po, "_live_session_ids", lambda: frozenset())
+    monkeypatch.setattr(po, "live_session_ids", lambda: frozenset())
     monkeypatch.setattr(po, "read_procs", lambda: procs)
 
     snapshot = ProcObserver(on_snapshot=lambda _snapshot: None)._build_snapshot()
@@ -393,9 +394,9 @@ def test_compose_proc_projection_counts_monitor_rows_and_keeps_overlay_rows_blue
 
 def test_store_proc_row_adapts_durable_state(monkeypatch) -> None:
     monkeypatch.setattr(
-        po, "_read_log_tail", lambda proc_id, log_path="": f"log {proc_id}\n"
+        po_store, "_read_log_tail", lambda proc_id, log_path="": f"log {proc_id}\n"
     )
-    row = po._store_proc_row(
+    row = po.store_proc_row(
         Proc(
             proc_id="proc-1",
             label="Patch sync",
@@ -450,12 +451,14 @@ def test_observer_delivers_terminal_completion_once(
         result={"result_path": str(result_path)},
     )
     monkeypatch.setattr(
-        po, "_load_context", lambda: po._ObserverContext(None, None, None, None, "/tmp")
+        po,
+        "load_observer_context",
+        lambda: po.ObserverContext(None, None, None, None, "/tmp"),
     )
-    monkeypatch.setattr(po, "_live_session_ids", lambda: frozenset())
+    monkeypatch.setattr(po, "live_session_ids", lambda: frozenset())
     monkeypatch.setattr(po, "read_procs", lambda: [proc])
     monkeypatch.setattr(
-        po,
+        po_store,
         "read_operation_result",
         lambda *_args, **_kwargs: DurableOperationResult(
             operation="patch.sync",
@@ -496,10 +499,10 @@ def test_observer_delivers_terminal_completion_once(
 def _observer_context_stubs(monkeypatch) -> None:
     monkeypatch.setattr(
         po,
-        "_load_context",
-        lambda: po._ObserverContext(None, None, None, None, "/tmp"),
+        "load_observer_context",
+        lambda: po.ObserverContext(None, None, None, None, "/tmp"),
     )
-    monkeypatch.setattr(po, "_live_session_ids", lambda: frozenset())
+    monkeypatch.setattr(po, "live_session_ids", lambda: frozenset())
 
 
 def _monitor_proc(*, proc_id: str, log_path: str, shell_name: str | None) -> Proc:
