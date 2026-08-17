@@ -228,6 +228,16 @@ class NotificationAttachmentMixin:
         height = scroll.scrollable_content_region.height
         scroll.scroll_relative(y=-(height // 2), animate=False)
 
+    def action_scroll_file_top(self: Any) -> None:
+        """Jump the file content pane to the top."""
+        scroll = self.query_one("#notification-file-scroll", VerticalScroll)
+        scroll.scroll_home(animate=False)
+
+    def action_scroll_file_bottom(self: Any) -> None:
+        """Jump the file content pane to the bottom."""
+        scroll = self.query_one("#notification-file-scroll", VerticalScroll)
+        scroll.scroll_end(animate=False)
+
     def action_open_in_editor(self: Any) -> None:
         """Open the currently displayed file in $EDITOR."""
         notification = self._get_highlighted_notification()

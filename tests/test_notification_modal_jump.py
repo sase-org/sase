@@ -193,6 +193,31 @@ async def test_notification_jump_pilot_keeps_modal_open_and_moves_highlight() ->
         assert modal._get_selected_index() == 1
 
 
+def test_notification_jump_mode_consumes_g_and_capital_g_without_scrolling() -> None:
+    """Jump hints intercept g/G before the detail-pane scroll bindings see them."""
+    notifications = [
+        _make_notification(f"n{i}", action="JumpToAgent") for i in range(3)
+    ]
+    modal = NotificationModal(notifications)
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+    modal.dismiss = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_jump_to_entry()
+    lower_event = _KeyEvent(key="g", character="g")
+    modal.on_key(lower_event)  # type: ignore[arg-type]
+
+    assert lower_event.prevented is True
+    assert lower_event.stopped is True
+
+    modal.action_jump_to_entry()
+    upper_event = _KeyEvent(key="G", character="G")
+    modal.on_key(upper_event)  # type: ignore[arg-type]
+
+    assert upper_event.prevented is True
+    assert upper_event.stopped is True
+
+
 def test_notification_two_character_hint_waits_and_cleans_up() -> None:
     notifications = [
         _make_notification(f"n{i:02d}", action="JumpToAgent") for i in range(63)

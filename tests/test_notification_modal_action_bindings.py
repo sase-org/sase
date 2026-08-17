@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 from textual.content import Content
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
-from sase.ace.tui.modals.notification_modal_constants import DEFAULT_HINT_TEXT
+from sase.ace.tui.modals.notification_modal_constants import (
+    DEFAULT_HINT_TEXT,
+    GATE_HINT_TEXT,
+    QUESTION_HINT_TEXT,
+)
 
 from tests._notification_modal_helpers import _make_notification
 
@@ -47,6 +51,53 @@ def test_notification_modal_footer_hint_advertises_tag_tab_brackets() -> None:
     """The default footer exposes square-bracket tag navigation."""
     assert "[]: tags" in DEFAULT_HINT_TEXT
     assert "V: view" in DEFAULT_HINT_TEXT
+    assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
+
+
+def test_notification_modal_binds_g_and_capital_g_to_detail_scroll() -> None:
+    """g/G jump the detail pane to the top/bottom, mirroring Ctrl+D/Ctrl+U."""
+    assert ("g", "scroll_file_top", "Top") in NotificationModal.BINDINGS
+    assert ("G", "scroll_file_bottom", "Bottom") in NotificationModal.BINDINGS
+    assert ("shift+g", "scroll_file_bottom", "Bottom") in NotificationModal.BINDINGS
+
+
+def test_notification_modal_g_scrolls_detail_pane_home() -> None:
+    notification = _make_notification("n1")
+    modal = NotificationModal([notification])
+    scroll = MagicMock()
+
+    def fake_query_one(selector, _type=None):
+        if selector == "#notification-file-scroll":
+            return scroll
+        raise AssertionError(selector)
+
+    with patch.object(modal, "query_one", fake_query_one):
+        modal.action_scroll_file_top()
+
+    scroll.scroll_home.assert_called_once_with(animate=False)
+
+
+def test_notification_modal_capital_g_scrolls_detail_pane_end() -> None:
+    notification = _make_notification("n1")
+    modal = NotificationModal([notification])
+    scroll = MagicMock()
+
+    def fake_query_one(selector, _type=None):
+        if selector == "#notification-file-scroll":
+            return scroll
+        raise AssertionError(selector)
+
+    with patch.object(modal, "query_one", fake_query_one):
+        modal.action_scroll_file_bottom()
+
+    scroll.scroll_end.assert_called_once_with(animate=False)
+
+
+def test_notification_modal_footer_hints_advertise_top_bottom_jump() -> None:
+    """All three footer hints advertise g/G, and markup round-trips unchanged."""
+    assert "g/G: top/bot" in DEFAULT_HINT_TEXT
+    assert "g/G: top/bot" in QUESTION_HINT_TEXT
+    assert "g/G: top/bot" in GATE_HINT_TEXT
     assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
 
 

@@ -85,6 +85,9 @@ class NotificationModal(
         ("apostrophe", "jump_to_entry", "Jump"),
         ("ctrl+d", "scroll_file_down", "Scroll down"),
         ("ctrl+u", "scroll_file_up", "Scroll up"),
+        ("g", "scroll_file_top", "Top"),
+        ("G", "scroll_file_bottom", "Bottom"),
+        ("shift+g", "scroll_file_bottom", "Bottom"),
     ]
 
     def __init__(

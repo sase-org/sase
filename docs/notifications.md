@@ -35,6 +35,7 @@ relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
 | `V`                 | Open the current image attachment in the image viewer                       |
 | `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                               |
+| `g` / `G`           | Jump the detail pane to the top / bottom of its contents                    |
 | `[` / `]`           | Switch notification tabs                                                    |
 | `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
 | `Esc` / `q`         | Close modal                                                                 |
