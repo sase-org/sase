@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from sase.notification_gates.adapters import GateAdapter
 from sase.notification_gates.kind_validation import (
     validate_bead_snooze_spec,
+    validate_bead_stale_cleanup_spec,
     validate_custom_spec,
     validate_flag_triage_spec,
     validate_launch_spec,
@@ -224,6 +225,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         validate_bead_snooze_spec(spec)
     if adapter.kind == "flag_triage":
         validate_flag_triage_spec(spec)
+    if adapter.kind == "bead_stale_cleanup":
+        validate_bead_stale_cleanup_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         validate_plan_spec(spec, adapter)
     expected_primary = {
@@ -235,6 +238,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "task_triage": ("launch",),
         "bead_snooze": ("close",),
         "flag_triage": ("remove",),
+        "bead_stale_cleanup": ("close",),
     }.get(adapter.kind)
     if expected_primary is not None and spec.primary_branch != expected_primary:
         raise GateError(

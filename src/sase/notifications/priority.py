@@ -17,6 +17,7 @@ _PRIORITY_ACTIONS = frozenset(
         "TaskTriage",
         "BeadSnooze",
         "FlagTriage",
+        "BeadStaleCleanup",
         "JumpToMentorReview",
     }
 )

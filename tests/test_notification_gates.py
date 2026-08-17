@@ -408,9 +408,10 @@ def test_gate_adapter_registry_declares_surface_capabilities() -> None:
         kind
         for kind, adapter in adapters.items()
         if adapter.default_feedback == "optional"
-    } == {"custom"}
+    } == {"bead_stale_cleanup", "custom"}
     assert {kind for kind, adapter in adapters.items() if adapter.generic_form} == {
         "bead_snooze",
+        "bead_stale_cleanup",
         "custom",
         "flag_triage",
         "task_triage",

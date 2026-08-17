@@ -342,6 +342,7 @@ def _icon_for_action(action: str | None) -> str:
         "CustomGate": "✨",
         "HITL": "✋",
         "FlagTriage": "⚑",
+        "BeadStaleCleanup": "🧹",
     }
     return icons.get(action, "🔔") if action is not None else "🔔"
 

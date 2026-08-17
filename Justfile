@@ -329,6 +329,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-n4(parse_reset_hint)" \
         --epic-symbol "sase-oc.8(set_completion_kind)" \
         --epic-symbol "sase-oc.8(set_completion_summary)" \
+        --epic-symbol "sase-on(create_bead_stale_cleanup_gate)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
