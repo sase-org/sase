@@ -215,7 +215,7 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
     app._dismiss_done_agent(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction",
+        "sase.ace.tui.actions.agents._dismissing.persist_single_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
         run_tracked_proc(app, app.tracked_procs[0])
@@ -225,7 +225,7 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
     assert app.notification_refreshes_async == 1
     assert app.notification_refreshes == 0
     assert app.async_refreshes == 1
-    assert any(sev == "error" for _, sev in app.notifications)
+    assert ("Dismiss cleanup failed: boom", "error") in app.notifications
 
 
 def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
@@ -326,15 +326,14 @@ def test_do_dismiss_all_persistence_failure_notifies_and_refreshes() -> None:
     app._do_dismiss_all([a1])
 
     with patch(
-        "sase.ace.tui.actions.agents._dismissing._persist_bulk_dismiss_transaction",
+        "sase.ace.tui.actions.agents._dismissing.persist_bulk_dismiss_transaction",
         side_effect=RuntimeError("boom"),
     ):
         run_tracked_proc(app, _find_bulk_persistence_task(app))
 
     assert app.async_refreshes == 1
     assert app.notification_refreshes_async == 0
-    assert any(sev == "error" for _, sev in app.notifications)
-    assert any("in memory" in msg for msg, _ in app.notifications)
+    assert ("Dismiss cleanup failed: boom", "error") in app.notifications
 
 
 def test_bulk_dismiss_passes_added_to_artifact_index_sync() -> None:

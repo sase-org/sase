@@ -7,6 +7,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from textual.widgets import Static
@@ -300,22 +301,66 @@ def _patch_dismissed_archive_paths(
 
 
 def _patch_local_cleanup_submit(monkeypatch: pytest.MonkeyPatch) -> None:
-    def submit(
+    """Apply cleanup persistence synchronously instead of via a durable proc.
+
+    ``_submit_cleanup_proc`` builds the real request payload and submits it
+    through ``_submit_durable_proc``, exactly like production. Only the
+    durable-submit boundary is stubbed here -- and only for cleanup -- so the
+    payload still goes through ``_apply_cleanup_payload_for_result``, the same
+    seam ``sase agent persist-cleanup`` runs, rather than a discarded
+    in-process callable. Non-cleanup durable submissions fall through to the
+    real implementation unchanged.
+    """
+    original_submit_durable_proc: Any = AceApp._submit_durable_proc
+
+    def submit_durable_proc(
         self: AceApp,
+        argv: Any,
         *,
-        proc_callable=None,
-        on_settled=None,
-        **_kwargs: object,
-    ) -> bool:
+        operation: str = "",
+        request: Any = None,
+        on_complete: Any = None,
+        on_settled: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        from sase.ops.names import AGENT_CLEANUP
+
+        if operation != AGENT_CLEANUP:
+            return original_submit_durable_proc(
+                self,
+                argv,
+                operation=operation,
+                request=request,
+                on_complete=on_complete,
+                on_settled=on_settled,
+                **kwargs,
+            )
         try:
-            if proc_callable is not None:
-                proc_callable()
+            from sase.ace.tui.actions.proc_actions import TrackedProcCompletion
+            from sase.ops.commands.agent import _apply_cleanup_payload_for_result
+
+            success, message, result_payload = _apply_cleanup_payload_for_result(
+                dict(request or {})
+            )
+            if on_complete is not None:
+                on_complete(
+                    TrackedProcCompletion(
+                        proc_info=None,  # type: ignore[arg-type]
+                        success=success,
+                        message=message,
+                        output="",
+                        payload=dict(result_payload),
+                        error=None if success else message,
+                    )
+                )
         finally:
             if on_settled is not None:
                 on_settled()
-        return True
+        return object()
 
-    monkeypatch.setattr(AceApp, "_submit_cleanup_proc", submit, raising=False)
+    monkeypatch.setattr(
+        AceApp, "_submit_durable_proc", submit_durable_proc, raising=False
+    )
 
 
 def _write_done_agent_artifacts(

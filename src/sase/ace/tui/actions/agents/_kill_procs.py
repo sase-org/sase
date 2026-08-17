@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import logging
-import time
 from typing import TYPE_CHECKING
 
-from ._cleanup_procs import CleanupProcOutcome
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
 
 if TYPE_CHECKING:
     from ...models import Agent
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
-
-log = logging.getLogger(__name__)
 
 
 class AgentKillPersistenceProcMixin:
@@ -50,45 +45,6 @@ class AgentKillPersistenceProcMixin:
         )
 
         from ..cleanup_payload import json_identities, serialize_agents
-
-        def _worker() -> CleanupProcOutcome:
-            started = time.perf_counter()
-            register_expected_deletion = None
-            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
-                register_expected_deletion = (
-                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
-                )
-            try:
-                killing_compat._persist_bulk_kill_transaction(
-                    kill_items,
-                    dismissable,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    cleanup_plan,
-                    recent_group,
-                    register_expected_deletion=register_expected_deletion,
-                )
-            except Exception as exc:
-                return CleanupProcOutcome(
-                    message=f"Bulk kill cleanup failed: {exc}",
-                    severity="error",
-                    notify=True,
-                    schedule_agents_refresh_source="kill_error_recovery",
-                )
-            finally:
-                self._kill_persistence_inflight.difference_update(inflight)
-                log.debug(
-                    "bulk agent kill persistence: killed=%d dismissed=%d elapsed=%.3fs",
-                    killed_count,
-                    dismissed_count,
-                    time.perf_counter() - started,
-                )
-            return CleanupProcOutcome(
-                message=killing_compat._bulk_kill_summary(
-                    killed_count, dismissed_count
-                ),
-                refresh_notifications=True,
-            )
 
         payload = {
             "action": "kill",
@@ -130,7 +86,6 @@ class AgentKillPersistenceProcMixin:
             cl_name="",
             project_file="",
             payload=payload,
-            proc_callable=_worker,
             on_settled=_release,
         ):
             _release()
@@ -163,45 +118,6 @@ class AgentKillPersistenceProcMixin:
 
         from ..cleanup_payload import json_identities, serialize_agent, serialize_agents
 
-        def _worker() -> CleanupProcOutcome:
-            from . import _killing as killing_compat
-
-            started = time.perf_counter()
-            register_expected_deletion = None
-            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
-                register_expected_deletion = (
-                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
-                )
-            try:
-                killing_compat._persist_single_kill_transaction(
-                    agent,
-                    kind,
-                    agents_with_children_snapshot,
-                    dismissed_snapshot,
-                    cleanup_plan,
-                    related_agents,
-                    register_expected_deletion=register_expected_deletion,
-                )
-            except Exception as exc:
-                return CleanupProcOutcome(
-                    message=f"Kill cleanup failed for {agent.display_name}: {exc}",
-                    severity="error",
-                    notify=True,
-                    schedule_agents_refresh_source="kill_error_recovery",
-                )
-            finally:
-                self._kill_persistence_inflight.discard(identity)
-                log.debug(
-                    "agent kill persistence: kind=%s identity=%s elapsed=%.3fs",
-                    kind,
-                    identity,
-                    time.perf_counter() - started,
-                )
-            return CleanupProcOutcome(
-                message=f"Killed {agent.display_name}",
-                refresh_notifications=True,
-            )
-
         payload = {
             "action": "kill",
             "agent": serialize_agent(agent),
@@ -229,7 +145,6 @@ class AgentKillPersistenceProcMixin:
             cl_name=agent.cl_name,
             project_file=agent.project_file,
             payload=payload,
-            proc_callable=_worker,
             on_settled=_release,
         ):
             _release()

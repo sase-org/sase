@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import logging
-import time
 from typing import TYPE_CHECKING
 
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 
-from ._cleanup_procs import CleanupProcOutcome
 from ._dismiss_cleanup import AgentIdentity
 from ._marking_kill import AgentMarkedKillMixin
 from ._recent_dismissal_groups import cache_recent_dismissed_agent_group
@@ -24,8 +21,6 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
-
-log = logging.getLogger(__name__)
 
 
 def _persist_marked_agent_group_save(
@@ -195,38 +190,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
 
         count = len(agents)
 
-        def _worker() -> CleanupProcOutcome:
-            started = time.perf_counter()
-            try:
-                _persist_marked_agent_group_save(
-                    agents,
-                    dismissed_snapshot,
-                    added,
-                    group,
-                    group_name,
-                )
-            except Exception as exc:
-                return CleanupProcOutcome(
-                    message=(
-                        f"Saved {count} {plural_agent(count)} in memory, but group "
-                        f"archive failed: {exc}. Refresh recommended."
-                    ),
-                    severity="error",
-                    notify=True,
-                    schedule_agents_refresh_source="mark_error_recovery",
-                )
-            finally:
-                self._dismiss_persistence_inflight.difference_update(identities)
-                log.debug(
-                    "marked agent group save persistence: count=%d elapsed=%.3fs",
-                    count,
-                    time.perf_counter() - started,
-                )
-            return CleanupProcOutcome(
-                message=f"Saved {count} {plural_agent(count)}",
-                refresh_notifications=True,
-            )
-
         from sase.core.agent_group_archive_wire import (
             saved_agent_group_wire_to_json_dict,
         )
@@ -255,7 +218,6 @@ class AgentMarkingMixin(AgentMarkedKillMixin):
             cl_name="",
             project_file="",
             payload=payload,
-            proc_callable=_worker,
             on_settled=_release,
         ):
             _release()

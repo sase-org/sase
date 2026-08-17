@@ -136,7 +136,7 @@ def test_save_marked_group_tracked_task_failure_toasts_and_refreshes() -> None:
     assert app._dismiss_persistence_inflight == {running.identity}
 
     with patch(
-        "sase.ace.tui.actions.agents._marking._persist_marked_agent_group_save",
+        "sase.ace.tui.actions.agents._marking.persist_marked_agent_group_save",
         side_effect=RuntimeError("boom"),
     ):
         completion = run_tracked_proc(app, app.tracked_procs[0])
@@ -147,11 +147,7 @@ def test_save_marked_group_tracked_task_failure_toasts_and_refreshes() -> None:
     assert app.async_refresh_sources == ["mark_error_recovery"]
     assert app.notifications == [
         ("Saved and dismissed 1 agent", "information"),
-        (
-            "Saved 1 agent in memory, but group archive failed: boom. "
-            "Refresh recommended.",
-            "error",
-        ),
+        ("Save cleanup failed: boom", "error"),
     ]
 
 

@@ -226,5 +226,5 @@ def test_run_kill_persistence_refreshes_on_failure() -> None:
     mock_persist.assert_called_once_with(agent, "hook", [agent])
     mock_save.assert_not_called()
     assert app.refresh_schedules == 1
-    assert app._notifications == [("Kill cleanup failed for my_feature: boom", "error")]
+    assert app._notifications == [("Kill cleanup failed: boom", "error")]
     assert app._kill_persistence_inflight == set()

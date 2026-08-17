@@ -13,7 +13,7 @@ CleanupSeverity = Literal["warning", "error"]
 
 
 @dataclass(frozen=True)
-class CleanupProcOutcome:
+class _CleanupProcOutcome:
     """UI-thread effects to apply after a cleanup proc completes."""
 
     message: str
@@ -39,11 +39,9 @@ class CleanupProcMixin:
         cl_name: str,
         project_file: str,
         payload: dict[str, object] | None = None,
-        proc_callable: Callable[[], CleanupProcOutcome] | None = None,
         on_settled: Callable[[], None] | None = None,
     ) -> bool:
         """Submit a durable cleanup persist proc and return whether it was accepted."""
-        del proc_callable
         from ..agent_durable import submit_agent_cleanup
         from ..cleanup_payload import json_identities
 
@@ -79,7 +77,7 @@ class CleanupProcMixin:
 
     def _on_cleanup_proc_complete(
         self,
-        completion: TrackedProcCompletion[CleanupProcOutcome],
+        completion: TrackedProcCompletion[_CleanupProcOutcome],
     ) -> None:
         """Apply cleanup-specific completion effects on the UI thread."""
         outcome = _cleanup_outcome_from_completion(completion)
@@ -127,15 +125,15 @@ class CleanupProcMixin:
 
 
 def _cleanup_outcome_from_completion(
-    completion: TrackedProcCompletion[CleanupProcOutcome],
-) -> CleanupProcOutcome | None:
+    completion: TrackedProcCompletion[_CleanupProcOutcome],
+) -> _CleanupProcOutcome | None:
     payload = completion.payload
-    if isinstance(payload, CleanupProcOutcome):
+    if isinstance(payload, _CleanupProcOutcome):
         return payload
     if not isinstance(payload, dict):
         return None
     severity = payload.get("severity")
-    return CleanupProcOutcome(
+    return _CleanupProcOutcome(
         message=str(payload.get("message") or completion.message),
         severity=severity if severity in {"warning", "error"} else None,
         notify=bool(payload.get("notify", False)),
@@ -150,5 +148,4 @@ def _cleanup_outcome_from_completion(
 
 __all__ = [
     "CleanupProcMixin",
-    "CleanupProcOutcome",
 ]

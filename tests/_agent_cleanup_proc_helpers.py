@@ -1,11 +1,16 @@
 """Shared harness helpers for tracked kill/dismiss cleanup-task tests.
 
-The kill/dismiss persistence stage is submitted through
-``CleanupProcMixin._submit_cleanup_proc`` -> ``_submit_session_worker``. Test
-harnesses mix in :class:`TrackedProcRecorderMixin` to record those
-submissions, and :func:`run_tracked_proc` replays a recorded task body and
-its completion callback synchronously (including any coroutine callbacks the
-completion schedules via ``call_later``, e.g. the off-thread
+The kill/dismiss/save persistence stage is submitted through the real
+``CleanupProcMixin._submit_cleanup_proc`` -> ``submit_agent_cleanup`` ->
+``app._submit_durable_proc`` chain, exactly like production. Test harnesses
+mix in :class:`TrackedProcRecorderMixin`, which only stubs the durable-submit
+boundary: by default it applies the submitted payload through
+``sase.ops.commands.agent._apply_cleanup_payload_for_result`` -- the same
+function ``sase agent persist-cleanup`` runs -- so tests assert against what
+production actually submits and persists rather than against a discarded
+in-process callable. :func:`run_tracked_proc` replays a recorded task body
+and its completion callback synchronously (including any coroutine callbacks
+the completion schedules via ``call_later``, e.g. the off-thread
 notification-count refresh).
 """
 
@@ -18,49 +23,16 @@ from typing import Any
 
 from sase.ace.tui.actions.proc_actions import TrackedProcCompletion, TrackedProcResult
 from sase.ace.tui.proc_queue import ProcInfo
+from sase.ops.names import AGENT_CLEANUP
 
 
 class TrackedProcRecorderMixin:
-    """Records session-worker submissions for later synchronous replay."""
+    """Records durable-proc submissions for later synchronous replay."""
 
     tracked_procs: list[dict[str, Any]]
 
     def _init_tracked_task_recorder(self) -> None:
         self.tracked_procs = []
-
-    def _submit_cleanup_proc(
-        self,
-        *,
-        proc_type: str,
-        display_name: str,
-        cl_name: str,
-        project_file: str,
-        payload: dict[str, object] | None = None,
-        proc_callable: Any = None,
-        on_settled: Any = None,
-    ) -> bool:
-        del payload
-
-        def _callable() -> Any:
-            try:
-                if proc_callable is None:
-                    return TrackedProcResult(success=True, message="ok")
-                return _coerce_tracked_result(proc_callable())
-            finally:
-                if on_settled is not None:
-                    on_settled()
-
-        self._submit_tracked_proc(
-            proc_type,
-            cl_name,
-            project_file,
-            _callable,
-            display_name=display_name,
-            on_complete=self._on_cleanup_proc_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
-        )
-        return True
 
     def _submit_durable_proc(
         self,
@@ -81,13 +53,15 @@ class TrackedProcRecorderMixin:
         on_settled: Any = None,
         **kwargs: Any,
     ) -> ProcInfo:
-        del argv, operation, request_fingerprint, concurrency_keys, kwargs
+        del argv, request_fingerprint, concurrency_keys, kwargs
         payload = dict(request or {})
 
         def _callable() -> Any:
             try:
                 if live_body is not None:
                     return _coerce_tracked_result(live_body())
+                if operation == AGENT_CLEANUP:
+                    return _coerce_tracked_result(_apply_cleanup_live_body(payload))
                 return TrackedProcResult(
                     success=payload.get("success", True) is not False,
                     message=str(payload.get("message") or "ok"),
@@ -220,14 +194,27 @@ def run_tracked_proc(app: Any, task: dict[str, Any]) -> TrackedProcCompletion[An
     return completion
 
 
+def _apply_cleanup_live_body(payload: dict[str, object]) -> TrackedProcResult[Any]:
+    """Apply a submitted cleanup payload the way ``persist-cleanup`` does."""
+    from sase.ops.commands.agent import _apply_cleanup_payload_for_result
+
+    success, message, result_payload = _apply_cleanup_payload_for_result(payload)
+    return TrackedProcResult(
+        success=success,
+        message=message,
+        payload=dict(result_payload),
+        error=None if success else message,
+    )
+
+
 def _coerce_tracked_result(result: Any) -> TrackedProcResult[Any]:
     """Normalize cleanup test callables to the central tracked-result shape."""
     if isinstance(result, TrackedProcResult):
         return result
 
-    from sase.ace.tui.actions.agents._cleanup_procs import CleanupProcOutcome
+    from sase.ace.tui.actions.agents._cleanup_procs import _CleanupProcOutcome
 
-    if isinstance(result, CleanupProcOutcome):
+    if isinstance(result, _CleanupProcOutcome):
         return TrackedProcResult(
             success=result.success,
             message=result.message,

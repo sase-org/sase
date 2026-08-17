@@ -93,40 +93,6 @@ class _CleanupProcApp(AgentsMixin):
     def _reload_and_reposition(self) -> None:
         self.reloads += 1
 
-    def _submit_cleanup_proc(
-        self,
-        *,
-        proc_type: str,
-        display_name: str,
-        cl_name: str,
-        project_file: str,
-        payload: dict[str, object] | None = None,
-        proc_callable: Any = None,
-        on_settled: Any = None,
-    ) -> bool:
-        del payload
-
-        def _callable() -> Any:
-            try:
-                if proc_callable is None:
-                    return TrackedProcResult(success=True, message="ok")
-                return proc_callable()
-            finally:
-                if on_settled is not None:
-                    on_settled()
-
-        self._submit_tracked_proc(
-            proc_type,
-            cl_name,
-            project_file,
-            _callable,
-            display_name=display_name,
-            on_complete=self._on_cleanup_proc_complete,
-            reload_on_complete=False,
-            notify_on_complete=False,
-        )
-        return True
-
     def _submit_durable_proc(
         self,
         argv: Any,
@@ -146,15 +112,19 @@ class _CleanupProcApp(AgentsMixin):
         on_settled: Any = None,
         **kwargs: Any,
     ) -> Any:
-        del argv, operation, request, request_fingerprint, concurrency_keys, kwargs
-        from sase.ace.tui.actions.agents._cleanup_procs import CleanupProcOutcome
+        del argv, request_fingerprint, concurrency_keys, kwargs
+        from sase.ace.tui.actions.agents._cleanup_procs import _CleanupProcOutcome
         from sase.ace.tui.actions.proc_actions import TrackedProcResult
+        from sase.ops.commands.agent import _apply_cleanup_payload_for_result
+        from sase.ops.names import AGENT_CLEANUP
+
+        payload = dict(request or {})
 
         def _callable() -> TrackedProcResult[Any]:
             try:
                 if live_body is not None:
                     outcome = live_body()
-                    if isinstance(outcome, CleanupProcOutcome):
+                    if isinstance(outcome, _CleanupProcOutcome):
                         return TrackedProcResult(
                             success=outcome.success,
                             message=outcome.message,
@@ -162,6 +132,16 @@ class _CleanupProcApp(AgentsMixin):
                             error=outcome.message if not outcome.success else None,
                         )
                     return outcome
+                if operation == AGENT_CLEANUP:
+                    success, message, result_payload = (
+                        _apply_cleanup_payload_for_result(payload)
+                    )
+                    return TrackedProcResult(
+                        success=success,
+                        message=message,
+                        payload=dict(result_payload),
+                        error=None if success else message,
+                    )
                 return TrackedProcResult(success=True, message="ok")
             finally:
                 if on_settled is not None:
@@ -344,7 +324,7 @@ def test_dismiss_done_agent_submits_tracked_dismiss_proc() -> None:
     assert proc.label == f"dismiss {agent.display_name}"
 
     with patch(
-        "sase.ace.tui.actions.agents._dismissing._persist_single_dismiss_transaction"
+        "sase.ace.tui.actions.agents._dismissing.persist_single_dismiss_transaction"
     ) as mock_persist:
         app.run_pending_worker()
 
@@ -381,17 +361,14 @@ def test_kill_persistence_failure_preserves_toast_and_recovery_refresh() -> None
         app._do_kill_agent(agent)
 
     with patch(
-        "sase.ace.tui.actions.agents._killing._persist_single_kill_transaction",
+        "sase.ace.tui.actions.agents._kill_transactions.persist_single_kill_transaction",
         side_effect=RuntimeError("boom"),
     ):
         app.run_pending_worker()
 
     proc = app._proc_queue.get_all()[0]
     assert proc.status == "error"
-    assert (
-        f"Kill cleanup failed for {agent.display_name}: boom",
-        "error",
-    ) in app.notifications
+    assert ("Kill cleanup failed: boom", "error") in app.notifications
     assert app.refresh_sources == ["kill_error_recovery"]
     assert app._kill_persistence_inflight == set()
 

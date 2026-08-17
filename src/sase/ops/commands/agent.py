@@ -287,13 +287,53 @@ def _run_revert(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]
     )
 
 
-def _run_persist_cleanup(
-    args: argparse.Namespace,
+# The dead in-process kill/dismiss/save workers each hard-coded their own
+# ``schedule_agents_refresh_source`` on failure so the optimistic UI update
+# got a corrective reload -- and, for single-agent dismiss only, an extra
+# off-thread notification-count refresh. The durable path applies the same
+# payload out of process, so this table is what lets a persistence failure
+# still trigger the same recovery effects instead of leaving stale
+# optimistic state on screen. Keyed by ``transaction`` (not ``action``)
+# because single-dismiss and bulk-dismiss shared an action but disagreed
+# about the notification refresh.
+_CLEANUP_ERROR_RECOVERY: Mapping[str, tuple[str, bool]] = {
+    "single_kill": ("kill_error_recovery", False),
+    "bulk_kill": ("kill_error_recovery", False),
+    "single_dismiss": ("dismiss_error_recovery", True),
+    "bulk_dismiss": ("dismiss_error_recovery", False),
+    "save": ("mark_error_recovery", False),
+}
+
+
+def _apply_cleanup_payload_for_result(
+    payload: Mapping[str, Any],
 ) -> tuple[bool, str, Mapping[str, Any]]:
-    request = load_request(AGENT_CLEANUP, args, required=True)
-    payload = dict(request.payload)
+    """Apply one cleanup payload and report the durable-proc result shape.
+
+    Shared by ``sase agent persist-cleanup`` and the in-process test harnesses
+    so both exercise the exact same persistence call and failure-recovery
+    surface, rather than tests re-deriving it against a code path production
+    does not run.
+    """
     action = str(payload.get("action") or "cleanup")
-    _apply_cleanup_payload(payload)
+    transaction = str(payload.get("transaction") or action)
+    try:
+        _apply_cleanup_payload(payload)
+    except Exception as exc:
+        refresh_source, refresh_notifications = _CLEANUP_ERROR_RECOVERY.get(
+            transaction, (f"{action}_error_recovery", False)
+        )
+        return (
+            False,
+            f"{action.capitalize()} cleanup failed: {exc}",
+            {
+                "action": action,
+                "notify": True,
+                "refresh_notifications": refresh_notifications,
+                "schedule_agents_refresh_source": refresh_source,
+                "severity": "error",
+            },
+        )
     return (
         True,
         str(payload.get("message") or f"Persisted {action}"),
@@ -307,6 +347,13 @@ def _run_persist_cleanup(
             "severity": payload.get("severity"),
         },
     )
+
+
+def _run_persist_cleanup(
+    args: argparse.Namespace,
+) -> tuple[bool, str, Mapping[str, Any]]:
+    request = load_request(AGENT_CLEANUP, args, required=True)
+    return _apply_cleanup_payload_for_result(dict(request.payload))
 
 
 def _apply_cleanup_payload(payload: Mapping[str, Any]) -> None:

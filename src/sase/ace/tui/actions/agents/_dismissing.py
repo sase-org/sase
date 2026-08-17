@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -17,7 +15,7 @@ if TYPE_CHECKING:
 # in attribute declarations (not just in function signatures).
 from ....patch import Patch
 
-from ._cleanup_procs import CleanupProcMixin, CleanupProcOutcome
+from ._cleanup_procs import CleanupProcMixin
 from ._dismiss_cleanup import (
     AgentIdentity,
     agent_identity_from_wire,
@@ -49,7 +47,6 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 
-log = logging.getLogger(__name__)
 _agent_identity_from_wire = agent_identity_from_wire
 _plan_dismissal_side_effects = plan_dismissal_side_effects
 _agents_related_to_dismissal = agents_related_to_dismissal
@@ -215,45 +212,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
 
         from ..cleanup_payload import json_identities, serialize_agents
 
-        def _worker() -> CleanupProcOutcome:
-            started = time.perf_counter()
-            register_expected_deletion = None
-            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
-                register_expected_deletion = (
-                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
-                )
-            try:
-                _persist_bulk_dismiss_transaction(
-                    agents,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    cleanup_plan,
-                    added,
-                    recent_group,
-                    register_expected_deletion=register_expected_deletion,
-                )
-            except Exception as exc:
-                return CleanupProcOutcome(
-                    message=(
-                        f"Dismissed {count} agent{s} in memory, but cleanup "
-                        f"failed: {exc}. Refresh recommended."
-                    ),
-                    severity="error",
-                    notify=True,
-                    schedule_agents_refresh_source="dismiss_error_recovery",
-                )
-            finally:
-                self._dismiss_persistence_inflight.difference_update(identities)
-                log.debug(
-                    "bulk agent dismiss persistence: count=%d elapsed=%.3fs",
-                    count,
-                    time.perf_counter() - started,
-                )
-            return CleanupProcOutcome(
-                message=f"Dismissed {count} agent{s}",
-                refresh_notifications=True,
-            )
-
         payload = {
             "action": "dismiss",
             "added_identities": json_identities(added or ()),
@@ -285,7 +243,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             cl_name="",
             project_file="",
             payload=payload,
-            proc_callable=_worker,
             on_settled=_release,
         ):
             _release()
@@ -376,46 +333,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
 
         from ..cleanup_payload import json_identities, serialize_agent, serialize_agents
 
-        def _worker() -> CleanupProcOutcome:
-            started = time.perf_counter()
-            register_expected_deletion = None
-            if hasattr(self, "_expected_agent_artifact_deletions_lock"):
-                register_expected_deletion = (
-                    self._register_expected_agent_artifact_deletion  # type: ignore[attr-defined]
-                )
-            try:
-                _persist_single_dismiss_transaction(
-                    agent,
-                    dismissed_snapshot,
-                    agents_with_children_snapshot,
-                    cleanup_plan,
-                    added,
-                    recent_group,
-                    register_expected_deletion=register_expected_deletion,
-                )
-            except Exception as exc:
-                return CleanupProcOutcome(
-                    message=(
-                        f"Dismissed {agent.display_name} in memory, but cleanup "
-                        f"failed: {exc}. Refresh recommended."
-                    ),
-                    severity="error",
-                    notify=True,
-                    refresh_notifications=True,
-                    schedule_agents_refresh_source="dismiss_error_recovery",
-                )
-            finally:
-                self._dismiss_persistence_inflight.discard(identity)
-                log.debug(
-                    "agent dismiss persistence: identity=%s elapsed=%.3fs",
-                    identity,
-                    time.perf_counter() - started,
-                )
-            return CleanupProcOutcome(
-                message=f"Dismissed {agent.display_name}",
-                refresh_notifications=True,
-            )
-
         payload = {
             "action": "dismiss",
             "added_identities": json_identities(added or ()),
@@ -447,7 +364,6 @@ class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
             cl_name=agent.cl_name,
             project_file=agent.project_file,
             payload=payload,
-            proc_callable=_worker,
             on_settled=_release,
         ):
             _release()

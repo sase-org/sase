@@ -392,7 +392,7 @@ def test_run_bulk_kill_persistence_refreshes_on_failure() -> None:
 
     mock_persist.assert_called_once_with([item], [], dismissed_snapshot, [agent])
     assert app.refresh_schedules == 1
-    assert app._notifications == [("Bulk kill cleanup failed: boom", "error")]
+    assert app._notifications == [("Kill cleanup failed: boom", "error")]
     assert app._kill_persistence_inflight == set()
 
 
