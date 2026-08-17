@@ -197,7 +197,7 @@ def test_generated_child_long_note_metadata_renders_single_pass(
 
     assert plan.blockers == ()
     assert plan.agents_content is not None
-    assert "**`sase/memory/parent.md`**" in plan.agents_content
+    assert "### 2.1 `sase/memory/parent.md`" in plan.agents_content
     assert "sase/memory/generated_child.md" not in plan.agents_content
     assert render_children_section((parent, generated_child), parent) == (
         "## Children\n\n"

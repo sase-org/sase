@@ -11,8 +11,9 @@ from sase.memory.notes import (
     collapse_description,
     discover_memory_notes,
     parse_memory_note_text,
+    _render_memory_note_references,
     render_children_section,
-    render_memory_note_references,
+    render_long_memory_sections,
 )
 
 
@@ -212,7 +213,7 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
         "sase/memory/child_a.md",
         "sase/memory/child_b.md",
     )
-    assert render_memory_note_references(children) == (
+    assert _render_memory_note_references(children) == (
         "**`sase/memory/child_a.md`**  \n"
         "Alpha child.\n\n"
         "**`sase/memory/child_b.md`**  \n"
@@ -229,4 +230,68 @@ def test_children_and_reference_rendering_match_agents_shape() -> None:
         "Alpha child.\n\n"
         "**`sase/memory/child_b.md`**  \n"
         "Beta child.\n"
+    )
+
+
+def test_render_long_memory_sections_orders_and_filters_notes() -> None:
+    short_note = _note(
+        "sase/memory/aaa.md",
+        note_type="short",
+        description="Must not appear.",
+    )
+    later = _note("sase/memory/later.md", description="Later.")
+    earlier = _note("sase/memory/earlier.md", description="Earlier.")
+
+    assert render_long_memory_sections((later, short_note, earlier)) == (
+        "### `sase/memory/earlier.md`\n"
+        "\n"
+        "Earlier.\n"
+        "\n"
+        "### `sase/memory/later.md`\n"
+        "\n"
+        "Later."
+    )
+
+
+def test_render_long_memory_sections_preserves_block_descriptions() -> None:
+    note = MemoryNote(
+        path=Path("sase/memory/block.md"),
+        type="long",
+        parent=AGENTS_PARENT,
+        description="Lead paragraph.\n\n- One\n- Two\n\nTrailer.",
+        body="# Block\n",
+        frontmatter={},
+        type_source="frontmatter",
+        parent_source="frontmatter",
+    )
+
+    assert render_long_memory_sections((note,)) == (
+        "### `sase/memory/block.md`\n\nLead paragraph.\n\n- One\n- Two\n\nTrailer."
+    )
+
+
+def test_render_long_memory_sections_omits_empty_description_body() -> None:
+    empty = MemoryNote(
+        path=Path("sase/memory/empty.md"),
+        type="long",
+        parent=AGENTS_PARENT,
+        description="",
+        body="",
+        frontmatter={},
+        type_source="frontmatter",
+        parent_source="frontmatter",
+    )
+    missing = MemoryNote(
+        path=Path("sase/memory/missing.md"),
+        type="long",
+        parent=AGENTS_PARENT,
+        description=None,
+        body="",
+        frontmatter={},
+        type_source="frontmatter",
+        parent_source="frontmatter",
+    )
+
+    assert render_long_memory_sections((empty, missing)) == (
+        "### `sase/memory/empty.md`\n\n### `sase/memory/missing.md`"
     )

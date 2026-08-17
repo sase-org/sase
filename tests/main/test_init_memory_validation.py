@@ -144,7 +144,7 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
     assert first_line.endswith(" - Agent Instructions")
     assert "## 1. Tier 1 (short-term) Memory" in agents
     assert "## 2. Tier 2 (long-term) Memory" in agents
-    assert "**`sase/memory/cli_rules.md`**" in agents
+    assert "### 2.1 `sase/memory/cli_rules.md`" in agents
     # The repaired graph must validate cleanly on a follow-up run.
     assert run_memory() == 0
     assert plan_memory().actions == ()

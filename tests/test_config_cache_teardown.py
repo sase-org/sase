@@ -14,6 +14,7 @@ from unittest.mock import patch
 import pytest
 from sase.config import core as config_core
 from sase.config.core import current_config_token
+from tests._config_cache_helpers import _reset_config_token_cache
 from tests._conftest_runtime import (
     _drain_config_token_refresh,
     _reset_derived_config_caches,
@@ -80,6 +81,7 @@ def test_drain_config_token_refresh_joins_worker_and_advances_epoch() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
+        _reset_config_token_cache()
         try:
             assert current_config_token() == ("token", 1)
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
@@ -169,6 +171,7 @@ def test_prior_refresh_worker_cannot_publish_after_drain() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
+        _reset_config_token_cache()
         try:
             assert current_config_token() == ("inline", 1)
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01

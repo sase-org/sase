@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import sase.config.core as config_core
-from sase.amd._agents_doc import parse_amd_agents_document
+from sase.amd._agents_doc import long_memory_entry_path, parse_amd_agents_document
 from sase.main import init_memory_handler
 from tests.main.init_memory_handler_helpers import (
     long_note,
@@ -60,6 +60,74 @@ def test_amd_parser_preserves_block_long_memory_descriptions() -> None:
         "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
     )
     assert parsed.long_memory_entries[1].description == "Next description."
+
+
+def test_amd_parser_reads_numbered_and_unnumbered_long_memory_sections() -> None:
+    unnumbered = parse_amd_agents_document(
+        "## Tier 1 (short-term) Memory\n\n"
+        "### SASE (sase)\n\n"
+        "## Tier 2 (long-term) Memory\n\n"
+        "### `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n\n"
+        "- One\n"
+        "- Two\n\n"
+        "Trailer.\n\n"
+        "### `sase/memory/next.md`\n\n"
+        "Next description.\n"
+    )
+    numbered = parse_amd_agents_document(
+        "## 2. Tier 2 (long-term) Memory\n\n"
+        "### 2.1 `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n\n"
+        "- One\n"
+        "- Two\n\n"
+        "Trailer.\n\n"
+        "### 2.2 `sase/memory/next.md`\n\n"
+        "Next description.\n"
+    )
+
+    for parsed in (unnumbered, numbered):
+        assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+            "sase/memory/block.md",
+            "sase/memory/next.md",
+        )
+        assert parsed.long_memory_entries[0].description == (
+            "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
+        )
+        assert parsed.long_memory_entries[1].description == "Next description."
+
+
+def test_amd_parser_reads_mixed_legacy_and_section_long_memory_entries() -> None:
+    parsed = parse_amd_agents_document(
+        "## Tier 2 (long-term) Memory\n\n"
+        "### `sase/memory/section.md`\n\n"
+        "Section description.\n\n"
+        "**`memory/legacy.md`**  \n"
+        "Legacy description.\n"
+    )
+
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/section.md",
+        "sase/memory/legacy.md",
+    )
+    assert parsed.long_memory_entries[0].description == "Section description."
+    assert parsed.long_memory_entries[1].description == "Legacy description."
+
+
+def test_long_memory_entry_path_accepts_section_and_legacy_shapes() -> None:
+    assert (
+        long_memory_entry_path("### `sase/memory/cli_rules.md`")
+        == "sase/memory/cli_rules.md"
+    )
+    assert (
+        long_memory_entry_path("### 2.1 `memory/cli_rules.md`")
+        == "sase/memory/cli_rules.md"
+    )
+    assert (
+        long_memory_entry_path("**`memory/cli_rules.md`**  Details.")
+        == "sase/memory/cli_rules.md"
+    )
+    assert long_memory_entry_path("### Extra (extra)") is None
 
 
 def _managed_template(marker: str) -> str:

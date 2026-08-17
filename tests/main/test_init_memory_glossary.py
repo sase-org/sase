@@ -99,7 +99,7 @@ memory:
     tier2 = _tier2_memory(agents)
     assert "Glossary of Terms" not in tier1
     assert "A named, rootless container" not in agents
-    assert "**`sase/memory/glossary.md`**" in tier2
+    assert "### 2.1 `sase/memory/glossary.md`" in tier2
     assert "Agent Clan (aka clan)" in single_line(tier2)
     assert "`sase memory read glossary.md`" in tier2
 
@@ -231,7 +231,7 @@ memory:
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "Glossary of Terms" not in _tier1_memory(agents)
-    assert "**`sase/memory/glossary.md`**" in _tier2_memory(agents)
+    assert "### 2.1 `sase/memory/glossary.md`" in _tier2_memory(agents)
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents
 
@@ -276,7 +276,7 @@ memory:
     assert glossary_note.type == "long"
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "Glossary of Terms" not in _tier1_memory(agents)
-    assert "**`sase/memory/glossary.md`**" in _tier2_memory(agents)
+    assert "### 2.1 `sase/memory/glossary.md`" in _tier2_memory(agents)
 
     assert run_memory(check=True) == 0
 

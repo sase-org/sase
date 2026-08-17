@@ -24,6 +24,7 @@ from sase.config.core import (
     load_merged_config,
 )
 from sase.core.paths import machine_name_path
+from tests._config_cache_helpers import _reset_config_token_cache
 
 
 pytest_plugins = ["pytester"]
@@ -59,6 +60,7 @@ def test_poisoner_leaves_blocked_refresh_worker() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
+        _reset_config_token_cache()
         assert current_config_token() == ("poison", 1)
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         assert current_config_token() == ("poison", 1)

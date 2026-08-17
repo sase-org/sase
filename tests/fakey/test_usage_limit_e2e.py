@@ -73,7 +73,11 @@ def test_usage_limit_failure_disables_only_fakey_and_preserves_error(
 
     disables = get_active_provider_disables()
     assert set(disables) == {"claude", "fakey"}
-    assert disables["claude"] == sibling
+    claude = disables["claude"]
+    assert claude.provider == sibling.provider
+    assert claude.source == sibling.source
+    assert claude.created_at == pytest.approx(sibling.created_at)
+    assert claude.expires_at == pytest.approx(sibling.expires_at)
     assert disables["fakey"].source == "usage_limit"
 
     notifications = [

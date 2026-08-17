@@ -415,8 +415,8 @@ def _children_of(
     return tuple(sorted(children, key=lambda note: note.relative_path))
 
 
-def render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
-    """Render notes in the AGENTS.md long-memory reference-list shape."""
+def _render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
+    """Render notes in the long-memory reference-list shape."""
     lines: list[str] = []
     long_notes = sorted(
         (note for note in notes if note.type == "long"),
@@ -430,12 +430,29 @@ def render_memory_note_references(notes: Iterable[MemoryNote]) -> str:
     return "\n".join(lines)
 
 
+def render_long_memory_sections(notes: Iterable[MemoryNote]) -> str:
+    """Render notes as the AGENTS.md Tier 2 numbered-section shape."""
+    lines: list[str] = []
+    long_notes = sorted(
+        (note for note in notes if note.type == "long"),
+        key=lambda note: note.relative_path,
+    )
+    for index, note in enumerate(long_notes):
+        if index:
+            lines.append("")
+        lines.append(f"### `{note.relative_path}`")
+        if note.description:
+            lines.append("")
+            lines.append(note.description)
+    return "\n".join(lines)
+
+
 def render_children_section(
     notes: Iterable[MemoryNote],
     parent: MemoryNote | str | Path,
 ) -> str:
     """Render a ``## Children`` section for ``parent`` or return ``""``."""
-    references = render_memory_note_references(_children_of(notes, parent))
+    references = _render_memory_note_references(_children_of(notes, parent))
     if not references:
         return ""
     return (
@@ -463,5 +480,5 @@ __all__ = [
     "discover_memory_notes",
     "parse_memory_note_text",
     "render_children_section",
-    "render_memory_note_references",
+    "render_long_memory_sections",
 ]

@@ -14,8 +14,8 @@ Each non-README note declares its tier in YAML frontmatter:
 - **Long-term memory** uses `type: long`. It is reference context, requires
   `description` frontmatter, and can set `parent: sase/memory/<note>.md` to appear under
   another long note's `## Children` section. A long note description may be a Markdown
-  block authored as a YAML literal block scalar; generated Tier 2 entries render that
-  block verbatim, while single-line surfaces collapse it.
+  block authored as a YAML literal block scalar; that block renders verbatim as the body
+  of the note's numbered Tier 2 section, while single-line surfaces collapse it.
 - **Audited memory operations** live under the project state directory and record agent
   reads plus proposed writes and human review decisions.
 

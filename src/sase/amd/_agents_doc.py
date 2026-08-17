@@ -28,12 +28,15 @@ _SHORT_MEMORY_HEADER_RE = re.compile(r"^### (?:.* )?\((?P<name>[A-Za-z0-9_.-]+)\
 _LONG_MEMORY_ENTRY_RE = re.compile(
     r"^\*\*`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`\*\*(?P<description>.*?)$"
 )
+_LONG_MEMORY_SECTION_RE = re.compile(
+    r"^###\s+(?:\d+(?:\.\d+)*\.?\s+)?`(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)`$"
+)
 _LEGACY_READ_WHEN_SUFFIX_RE = re.compile(r"\s+_Read when\b.*?_$")
 
 
 @dataclass(frozen=True)
 class _AmdLongMemoryEntry:
-    """One long-memory entry in AMD's visible description-list shape."""
+    """One long-memory entry parsed from a managed or legacy AGENTS.md."""
 
     path: str
     description: str
@@ -140,28 +143,46 @@ def _description_text(lines: list[str]) -> str:
     return normalize_long_memory_description_lines(lines)
 
 
-def _long_memory_entries(
-    lines: list[str],
-    bounds: tuple[int, int] | None,
-) -> tuple[_AmdLongMemoryEntry, ...]:
-    if bounds is None:
-        return ()
+def long_memory_entry_path(line: str) -> str | None:
+    """Return the canonical path if *line* starts a long-memory entry."""
+    stripped = line.strip()
+    section_match = _LONG_MEMORY_SECTION_RE.match(stripped)
+    if section_match is not None:
+        return canonical_memory_reference(section_match.group("path")).as_posix()
+    legacy_match = _LONG_MEMORY_ENTRY_RE.match(stripped)
+    if legacy_match is not None:
+        return canonical_memory_reference(legacy_match.group("path")).as_posix()
+    return None
 
+
+def _legacy_long_memory_inline_description(line: str) -> str:
+    match = _LONG_MEMORY_ENTRY_RE.match(line.strip())
+    if match is None:
+        return ""
+    return match.group("description").strip()
+
+
+def _collect_long_memory_entries(
+    lines: list[str],
+    start: int,
+    end: int,
+) -> tuple[_AmdLongMemoryEntry, ...]:
+    """Parse long-memory entries from ``lines[start:end]``."""
     entries: list[_AmdLongMemoryEntry] = []
-    index, end = bounds
+    index = start
     while index < end:
         raw_line = lines[index]
         if _is_legacy_amd_comment(raw_line) or not raw_line.strip():
             index += 1
             continue
 
-        match = _LONG_MEMORY_ENTRY_RE.match(raw_line.strip())
-        if match is None:
+        path = long_memory_entry_path(raw_line)
+        if path is None:
             index += 1
             continue
 
         description_lines: list[str] = []
-        inline_description = match.group("description").strip()
+        inline_description = _legacy_long_memory_inline_description(raw_line)
         if inline_description:
             description_lines.append(inline_description)
         index += 1
@@ -171,18 +192,28 @@ def _long_memory_entries(
             if _is_legacy_amd_comment(candidate):
                 index += 1
                 continue
-            if _LONG_MEMORY_ENTRY_RE.match(candidate.strip()) is not None:
+            if long_memory_entry_path(candidate) is not None:
                 break
             description_lines.append(candidate)
             index += 1
 
         entries.append(
             _AmdLongMemoryEntry(
-                path=canonical_memory_reference(match.group("path")).as_posix(),
+                path=path,
                 description=_description_text(description_lines),
             )
         )
     return tuple(entries)
+
+
+def _long_memory_entries(
+    lines: list[str],
+    bounds: tuple[int, int] | None,
+) -> tuple[_AmdLongMemoryEntry, ...]:
+    if bounds is None:
+        return ()
+    start, end = bounds
+    return _collect_long_memory_entries(lines, start, end)
 
 
 def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
@@ -207,6 +238,7 @@ def parse_amd_agents_document(text: str | None) -> _AmdAgentsDocument:
 
 
 __all__ = [
+    "long_memory_entry_path",
     "normalize_long_memory_description_lines",
     "parse_amd_agents_document",
 ]

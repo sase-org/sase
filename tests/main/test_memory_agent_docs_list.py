@@ -42,6 +42,7 @@ def managed_agents(
     *,
     markered: bool = False,
     numbered: bool = False,
+    long_sections: bool = False,
 ) -> str:
     short_markers = ([legacy_marker("short-memory:start")] if markered else []) + (
         [legacy_marker("short-memory:end")] if markered else []
@@ -65,6 +66,18 @@ def managed_agents(
         if numbered
         else "### 2. SASE = Structured Agentic Software Engineering (sase)"
     )
+    if long_sections:
+        long_entry = (
+            "### 2.1 `sase/memory/generated_skills.md`"
+            if numbered
+            else "### `sase/memory/generated_skills.md`"
+        )
+        long_block = [long_entry, "", "Skill pipeline notes."]
+    else:
+        long_block = [
+            "**`sase/memory/generated_skills.md`**  ",
+            "Skill pipeline notes.",
+        ]
     return "\n".join(
         [
             f"# {title}",
@@ -84,8 +97,7 @@ def managed_agents(
             "Prose mentions @sase/memory/prose.md and sase/memory/prose.md.",
             "",
             *long_markers[:1],
-            "**`sase/memory/generated_skills.md`**  ",
-            "Skill pipeline notes.",
+            *long_block,
             *long_markers[1:],
             "",
         ]
@@ -106,6 +118,20 @@ def test_amd_parser_accepts_numbered_and_unnumbered_tier_headings() -> None:
         assert tuple(entry.path for entry in parsed.long_memory_entries) == (
             "sase/memory/generated_skills.md",
         )
+
+
+def test_amd_parser_accepts_section_shaped_long_memory_entries() -> None:
+    unnumbered = parse_amd_agents_document(managed_agents(long_sections=True))
+    numbered = parse_amd_agents_document(
+        managed_agents(numbered=True, long_sections=True)
+    )
+
+    for parsed in (unnumbered, numbered):
+        assert parsed.has_long_section
+        assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+            "sase/memory/generated_skills.md",
+        )
+        assert parsed.long_memory_entries[0].description == "Skill pipeline notes."
 
 
 def entry_by_path(inventory_path: str, paths_to_entries):
@@ -314,6 +340,26 @@ def test_build_inventory_treats_numbered_current_structure_as_managed(
     project = tmp_path / "repo"
     (project / ".git").mkdir(parents=True)
     write(project / "AGENTS.md", managed_agents(numbered=True))
+
+    inventory = _build_amd_inventory(
+        root=project,
+        home_root=tmp_path / "home",
+        chezmoi_root=tmp_path / "chezmoi",
+        include_chezmoi=False,
+    )
+
+    entry = entry_by_path("AGENTS.md", inventory.entries)
+    assert entry.management == "managed"
+    assert entry.short_memory_refs == 2
+    assert entry.long_memory_refs == 1
+
+
+def test_build_inventory_counts_section_shaped_long_memory_entries(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "repo"
+    (project / ".git").mkdir(parents=True)
+    write(project / "AGENTS.md", managed_agents(numbered=True, long_sections=True))
 
     inventory = _build_amd_inventory(
         root=project,

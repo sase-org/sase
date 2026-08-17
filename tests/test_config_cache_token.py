@@ -13,7 +13,10 @@ from unittest.mock import patch
 
 from sase.config import core as config_core
 from sase.config.core import clear_config_cache, current_config_token
-from tests._config_cache_helpers import _wait_for_config_token
+from tests._config_cache_helpers import (
+    _reset_config_token_cache,
+    _wait_for_config_token,
+)
 
 
 def test_current_config_token_serves_stale_while_refreshing() -> None:
@@ -38,6 +41,7 @@ def test_current_config_token_serves_stale_while_refreshing() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
+        _reset_config_token_cache()
         try:
             first = current_config_token()
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
@@ -78,6 +82,7 @@ def test_current_config_token_refresh_is_single_flight() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
+        _reset_config_token_cache()
         try:
             first = current_config_token()
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
@@ -110,6 +115,7 @@ def test_first_config_token_read_does_not_start_worker() -> None:
         "sase.config.core._compute_current_config_token",
         return_value=("token", 1),
     ):
+        _reset_config_token_cache()
         assert current_config_token() == ("token", 1)
 
     assert config_core._current_config_token_refresh_thread is None
@@ -121,6 +127,7 @@ def test_clear_config_cache_resets_config_token_time_gate() -> None:
         "sase.config.core._compute_current_config_token",
         side_effect=[("token", 1), ("token", 2)],
     ) as compute:
+        _reset_config_token_cache()
         assert current_config_token() == ("token", 1)
         clear_config_cache()
         assert current_config_token() == ("token", 2)
@@ -150,6 +157,7 @@ def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
         patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
+        _reset_config_token_cache()
         try:
             assert current_config_token() == ("token", 1)
             now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01

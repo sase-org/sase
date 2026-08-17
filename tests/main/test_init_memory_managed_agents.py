@@ -10,6 +10,7 @@ import pytest
 from sase.amd._agents_doc import parse_amd_agents_document
 from sase.amd._memory import _existing_agents_long_descriptions
 from sase.amd.constants import PROVIDER_SHIM_FILES
+from sase.memory.inventory_reachability import unreferenced_memory_files_for_init
 from tests.main.init_memory_handler_helpers import (
     long_note,
     patch_standard_paths,
@@ -141,8 +142,8 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert "## 2. Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
     assert "#### Long-Term Memory Files" not in agents
-    assert "**`sase/memory/curated.md`**  \nCurated description survives." in agents
-    assert "**`sase/memory/described.md`**  \nExisting description." in agents
+    assert "### 2.1 `sase/memory/curated.md`\n\nCurated description survives." in agents
+    assert "### 2.2 `sase/memory/described.md`\n\nExisting description." in agents
     assert ("sase-" + "amd:") not in agents
 
     curated = (project_root / "sase" / "memory" / "curated.md").read_text(
@@ -273,14 +274,16 @@ def test_init_memory_managed_agents_renders_block_long_memory_descriptions(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert (
-        "**`sase/memory/block.md`**  \nLead paragraph.\n\n- One\n- Two\n\nTrailer.\n"
+        "### 2.1 `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n\n- One\n- Two\n\nTrailer.\n"
     ) in agents
     parsed = parse_amd_agents_document(agents)
-    block_entry = next(
-        entry
-        for entry in parsed.long_memory_entries
-        if entry.path == "sase/memory/block.md"
+    expected_paths = (
+        "sase/memory/block.md",
+        "sase/memory/sase_beads.md",
     )
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == expected_paths
+    block_entry = parsed.long_memory_entries[0]
     assert block_entry.description == "Lead paragraph.\n\n- One\n- Two\n\nTrailer."
     assert plan_memory().actions == ()
 
@@ -302,6 +305,34 @@ def test_existing_agents_long_descriptions_preserves_legacy_block_descriptions(
         "\n"
         "**`memory/next.md`**  \n"
         "Next description.\n",
+    )
+
+    assert _existing_agents_long_descriptions(root) == {
+        "sase/memory/block.md": "Lead paragraph.\n\n- One\n\nTrailer.",
+        "sase/memory/next.md": "Next description.",
+    }
+
+
+def test_existing_agents_long_descriptions_reads_section_shape_without_anchor(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    write(
+        root / "AGENTS.md",
+        "# Custom\n\n"
+        "### `sase/memory/block.md`\n\n"
+        "Lead paragraph.\n"
+        "\n"
+        "- One\n"
+        "\n"
+        "Trailer. _Read when touching block memory._\n"
+        "\n"
+        "### 2.2 `memory/next.md`\n\n"
+        "Next description.\n"
+        "\n"
+        "## Other\n"
+        "Should not be part of the description.\n",
     )
 
     assert _existing_agents_long_descriptions(root) == {
@@ -408,3 +439,118 @@ def test_init_memory_rejects_missing_memory_parent(
     assert "sase/memory/ghost.md" in err
     assert "parent target does not exist" in err
     assert "sase/memory/orphan.md" in err
+
+
+def test_tier2_section_heading_keeps_top_level_long_note_reachable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "only.md",
+        long_note("# Only\n", description="The only extra top-level long note."),
+    )
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "### 2.1 `sase/memory/only.md`" in agents
+    assert unreferenced_memory_files_for_init(project_root) == ()
+
+
+def test_init_memory_rejects_long_memory_description_with_heading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "foo.md",
+        "---\n"
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: |-\n"
+        "  Intro.\n"
+        "\n"
+        "  ## Heading\n"
+        "\n"
+        "  More.\n"
+        "---\n"
+        "# Foo\n",
+    )
+
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "sase/memory/foo.md" in err
+    assert "must not contain Markdown headings" in err
+
+
+def test_init_memory_allows_fenced_hash_in_long_memory_description(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        'is_sase_managed: true\nmemory:\n  h1_title: "Managed Instructions"\n',
+    )
+    write(
+        project_root / "sase" / "memory" / "foo.md",
+        "---\n"
+        "type: long\n"
+        "parent: AGENTS.md\n"
+        "description: |-\n"
+        "  Intro.\n"
+        "\n"
+        "  ```\n"
+        "  # comment\n"
+        "  ```\n"
+        "\n"
+        "  More.\n"
+        "---\n"
+        "# Foo\n",
+    )
+
+    assert run_handler() == 0
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    assert "### 2.1 `sase/memory/foo.md`" in agents
+    assert "# comment" in agents
+    assert plan_memory().blockers == ()

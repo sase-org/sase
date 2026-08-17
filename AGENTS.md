@@ -189,15 +189,18 @@ The below files contain detailed reference material. When working in their domai
 MUST use your `/sase_memory_read` skill to review their contents. Do not read canonical
 memory files directly.
 
-**`sase/memory/cli_rules.md`**  
+### 2.1 `sase/memory/cli_rules.md`
+
 Read anytime new CLI subcommands or options are added.
 
-**`sase/memory/generated_skills.md`**  
+### 2.2 `sase/memory/generated_skills.md`
+
 Read when working with sase agent skills (aka xprompt skills), which are generated from
 source templates in the `src/sase/xprompts/skills/` and deployed to managed locations
 (my chezmoi repo, for example).
 
-**`sase/memory/glossary.md`**  
+### 2.3 `sase/memory/glossary.md`
+
 Read this note before relying on any of these SASE glossary terms and aliases:
 
 - Agent Clan
@@ -232,22 +235,27 @@ Read it with `sase memory read glossary.md` whenever one of those terms or alias
 appears in a prompt, bead, plan, or code comment and you are not certain what it means
 in SASE.
 
-**`sase/memory/sase_beads.md`**  
+### 2.4 `sase/memory/sase_beads.md`
+
 Read before creating, updating, closing, or querying sase beads — bead types and tiers,
 the status lifecycle agents must never hand-edit, task-bead triage, phase-bead
 description prefixes, and non-cascading close, resolution, and note semantics.
 
-**`sase/memory/sase_flags.md`**  
+### 2.5 `sase/memory/sase_flags.md`
+
 Read before adding, deferring, or removing a SASE feature flag or flag bead.
 
-**`sase/memory/symvision.md`**  
+### 2.6 `sase/memory/symvision.md`
+
 Read before fixing Symvision lint failures, including unused symbols, private misuse,
 pragmas, and epic whitelists.
 
-**`sase/memory/tui_perf.md`**  
+### 2.7 `sase/memory/tui_perf.md`
+
 Read before changing anything that affects TUI performance or responsiveness
 (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or stalls.
 
-**`sase/memory/xprompts.md`**  
+### 2.8 `sase/memory/xprompts.md`
+
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow
 blocks.

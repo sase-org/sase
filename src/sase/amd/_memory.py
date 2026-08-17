@@ -8,10 +8,12 @@ from pathlib import Path
 import re
 
 from ._agents_doc import (
+    long_memory_entry_path,
     normalize_long_memory_description_lines,
     parse_amd_agents_document,
 )
 from ._config import resolve_amd_h1_title
+from ._headings import iter_headings
 from ._shared import (
     AmdLongMemoryDescriptionUpdate,
     AmdMemorySyncPlan,
@@ -26,18 +28,20 @@ from sase.memory.notes import (
     MemoryNote,
     apply_memory_frontmatter,
     discover_memory_notes,
-    render_memory_note_references,
+    render_long_memory_sections,
 )
-from sase.memory.paths import (
-    CANONICAL_MEMORY_RELATIVE_ROOT,
-    canonical_memory_reference,
-)
+from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT
 
-_AGENTS_LONG_MEMORY_RE = re.compile(
-    r"^\*\*`(?P<path>(?:sase/)?memory/[^`]+\.md)`\*\*[ \t]*\n"
-    r"(?P<body>.*?)(?=^\*\*`(?:sase/)?memory/[^`]+\.md`\*\*|^##\s+|\Z)",
-    re.MULTILINE | re.DOTALL,
-)
+_H2_LINE_RE = re.compile(r"^##\s+")
+
+
+def _legacy_inline_description(line: str) -> str:
+    stripped = line.strip()
+    marker = "`**"
+    close = stripped.find(marker)
+    if not stripped.startswith("**`") or close == -1:
+        return ""
+    return stripped[close + len(marker) :].strip()
 
 
 def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
@@ -56,12 +60,29 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
         }
 
     descriptions: dict[str, str] = {}
-    for match in _AGENTS_LONG_MEMORY_RE.finditer(text):
-        body = normalize_long_memory_description_lines(match.group("body").splitlines())
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        path = long_memory_entry_path(lines[index])
+        if path is None:
+            index += 1
+            continue
+        description_lines: list[str] = []
+        inline = _legacy_inline_description(lines[index])
+        if inline:
+            description_lines.append(inline)
+        index += 1
+        while index < len(lines):
+            candidate = lines[index]
+            if long_memory_entry_path(candidate) is not None:
+                break
+            if _H2_LINE_RE.match(candidate):
+                break
+            description_lines.append(candidate)
+            index += 1
+        body = normalize_long_memory_description_lines(description_lines)
         if body:
-            descriptions[canonical_memory_reference(match.group("path")).as_posix()] = (
-                body
-            )
+            descriptions[path] = body
     return descriptions
 
 
@@ -239,6 +260,20 @@ def _short_memory_structure_blockers(
     return tuple(blockers)
 
 
+def _long_memory_description_blockers(
+    descriptions: Mapping[str, str],
+) -> tuple[str, ...]:
+    """Return blockers for long notes whose descriptions would break Tier 2."""
+    blockers: list[str] = []
+    for relative_path, description in sorted(descriptions.items()):
+        if iter_headings(description):
+            blockers.append(
+                f"{relative_path}: long memory note description must not contain "
+                "Markdown headings"
+            )
+    return tuple(blockers)
+
+
 def _render_managed_agents(
     root: Path,
     title: str,
@@ -299,7 +334,7 @@ def _render_managed_agents(
             existing_agents_descriptions=existing_descriptions,
         )
         rendered_long_notes.append(replace(note, description=description))
-    tier2_entries = render_memory_note_references(rendered_long_notes)
+    tier2_entries = render_long_memory_sections(rendered_long_notes)
 
     rendered, render_error = render_agents_template(
         root,
@@ -429,6 +464,14 @@ def plan_amd_memory_sync(
         source_memory_root=source_memory_root,
         excluded_note_paths=excluded_note_paths,
     )
+    description_blockers = _long_memory_description_blockers(descriptions)
+    if description_blockers:
+        return AmdMemorySyncPlan(
+            title=title,
+            agents_content=None,
+            description_updates=(),
+            blockers=description_blockers,
+        )
     updates = _long_memory_description_updates(
         root,
         descriptions,
