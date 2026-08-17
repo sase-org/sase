@@ -118,7 +118,6 @@ def test_project_template_override_renders_and_round_trips(
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
         "sase/memory/detail.md",
         "sase/memory/sase_beads.md",
-        "sase/memory/sase_flags.md",
     )
     assert plan_memory().actions == ()
 

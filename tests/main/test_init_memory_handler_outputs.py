@@ -109,9 +109,6 @@ def test_init_memory_renders_data_driven_readme_and_asset(
         "### `sase/memory/sase_beads.md`"
     )
     assert readme.index("### `sase/memory/sase_beads.md`") < readme.index(
-        "### `sase/memory/sase_flags.md`"
-    )
-    assert readme.index("### `sase/memory/sase_flags.md`") < readme.index(
         "### `sase/memory/sase_sizes.md`"
     )
     assert "- Type: `short`" in readme
@@ -128,9 +125,9 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert f"- Approx. tokens: {extra_stats.approx_token_count}" in readme
     assert f"- Lines: {reference_stats.line_count}" in readme
     assert f"- Approx. tokens: {reference_stats.approx_token_count}" in readme
-    assert "- Total notes: 6" in readme
+    assert "- Total notes: 5" in readme
     assert "- Short notes: 2" in readme
-    assert "- Long notes: 4" in readme
+    assert "- Long notes: 3" in readme
 
     asset_path = (
         project_root / "sase" / "memory" / "assets" / "memory-directory-map.png"
@@ -186,6 +183,8 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
     assert SASE_MEMORY_HEADER in home_memory
+    assert "## Feature Flags" not in project_memory
+    assert "## Feature Flags" not in home_memory
 
     plan_warning = (
         "IMPORTANT: Do NOT mention your workspace directory (or any sibling "

@@ -37,13 +37,19 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     action_by_path = {action.path: action for action in plan.actions}
     assert project_root / "sase" / "memory" / "sase.md" in action_by_path
     assert project_root / "sase" / "memory" / "sase_beads.md" in action_by_path
-    assert project_root / "sase" / "memory" / "sase_flags.md" in action_by_path
+    assert project_root / "sase" / "memory" / "sase_flags.md" not in action_by_path
     assert project_root / "sase" / "memory" / "sase_sizes.md" in action_by_path
     assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
     assert "**`sase/memory/sase_beads.md`**" in str(
         action_by_path[project_root / "AGENTS.md"].new_content
     )
-    assert "**`sase/memory/sase_flags.md`**" in str(
+    assert "**`sase/memory/sase_flags.md`**" not in str(
+        action_by_path[project_root / "AGENTS.md"].new_content
+    )
+    assert "## Feature Flags" not in str(
+        action_by_path[project_root / "sase" / "memory" / "sase.md"].new_content
+    )
+    assert "## Feature Flags" not in str(
         action_by_path[project_root / "AGENTS.md"].new_content
     )
     assert "sase/memory/sase_sizes.md" not in str(
@@ -52,7 +58,7 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     assert "### `sase/memory/sase_beads.md`" in str(
         action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
     )
-    assert "### `sase/memory/sase_flags.md`" in str(
+    assert "### `sase/memory/sase_flags.md`" not in str(
         action_by_path[project_root / "sase" / "memory" / "README.md"].new_content
     )
     assert "### `sase/memory/sase_sizes.md`" in str(

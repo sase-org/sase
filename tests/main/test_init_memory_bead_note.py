@@ -47,7 +47,7 @@ def test_home_root_omits_bead_memory_note(
     assert run_memory() == 0
 
     assert (project_root / "sase" / "memory" / "sase_beads.md").exists()
-    assert (project_root / "sase" / "memory" / "sase_flags.md").exists()
+    assert not (project_root / "sase" / "memory" / "sase_flags.md").exists()
     assert (project_root / "sase" / "memory" / "sase_sizes.md").exists()
     assert not (home_root / "sase" / "memory" / "sase_beads.md").exists()
     assert not (home_root / "sase" / "memory" / "sase_flags.md").exists()
@@ -56,10 +56,12 @@ def test_home_root_omits_bead_memory_note(
     project_agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     home_agents = (home_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "sase/memory/sase_beads.md" in project_agents
-    assert "sase/memory/sase_flags.md" in project_agents
+    assert "sase/memory/sase_flags.md" not in project_agents
     assert "sase/memory/sase_sizes.md" not in project_agents
+    assert "## Feature Flags" not in project_agents
     assert "sase/memory/sase_beads.md" not in home_agents
     assert "sase/memory/sase_flags.md" not in home_agents
+    assert "## Feature Flags" not in home_agents
 
     project_readme = (project_root / "sase" / "memory" / "README.md").read_text(
         encoding="utf-8"
@@ -68,7 +70,7 @@ def test_home_root_omits_bead_memory_note(
         encoding="utf-8"
     )
     assert "### `sase/memory/sase_beads.md`" in project_readme
-    assert "### `sase/memory/sase_flags.md`" in project_readme
+    assert "### `sase/memory/sase_flags.md`" not in project_readme
     assert "### `sase/memory/sase_sizes.md`" in project_readme
     assert "### `sase/memory/sase_beads.md`" not in home_readme
     assert "### `sase/memory/sase_flags.md`" not in home_readme
@@ -108,9 +110,6 @@ def test_retirement_converges_in_one_pass(
     beads_content = _generated_project_note("sase/memory/sase_beads.md")
     beads_path = home_root / "sase" / "memory" / "sase_beads.md"
     write(beads_path, beads_content)
-    flags_content = _generated_project_note("sase/memory/sase_flags.md")
-    flags_path = home_root / "sase" / "memory" / "sase_flags.md"
-    write(flags_path, flags_content)
     sizes_content = _generated_project_note("sase/memory/sase_sizes.md")
     sizes_path = home_root / "sase" / "memory" / "sase_sizes.md"
     write(sizes_path, sizes_content)
@@ -127,13 +126,11 @@ def test_retirement_converges_in_one_pass(
 
     assert plan.blockers == ()
     assert ("delete", beads_path) in changes
-    assert ("delete", flags_path) in changes
     assert ("delete", sizes_path) in changes
 
     assert run_memory() == 0
 
     assert not beads_path.exists()
-    assert not flags_path.exists()
     assert not sizes_path.exists()
     home_agents = agents_path.read_text(encoding="utf-8")
     home_readme = (home_root / "sase" / "memory" / "README.md").read_text(
@@ -211,8 +208,6 @@ def test_retirement_reports_no_unreferenced_blocker(
 
     beads_content = _generated_project_note("sase/memory/sase_beads.md")
     write(home_root / "sase" / "memory" / "sase_beads.md", beads_content)
-    flags_content = _generated_project_note("sase/memory/sase_flags.md")
-    write(home_root / "sase" / "memory" / "sase_flags.md", flags_content)
     sizes_content = _generated_project_note("sase/memory/sase_sizes.md")
     write(home_root / "sase" / "memory" / "sase_sizes.md", sizes_content)
 

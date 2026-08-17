@@ -63,7 +63,17 @@ accept intentional visual changes. Local runs use exact pixel equality by defaul
 CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and
 fontconfig/Fira Code to keep rendering deterministic.
 
-### 1.2 Code Conventions and Gotchas (gotchas)
+### 1.2 Feature Flags (feature_flags)
+
+You MUST put a feature flag on user-reaching behavior before it is ready: a disabled
+beta, an early landed path, or a deprecation whose old branch must stay reachable. You
+SHOULD NOT flag anything users are meant to choose forever; that is a config field.
+
+Create one only with `sase flag new <key>`, which also files its `flag` removal bead.
+Read `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
+removing any flag.
+
+### 1.3 Code Conventions and Gotchas (gotchas)
 
 **Default Keymap Config**  
 When changing keymaps, leader mode keys, or any configuration values, don't forget to
@@ -92,7 +102,7 @@ resolved `display_name`, falling back to the key only when no name is known. Thi
 includes query tokens, completions, picker rows, task labels, and notifications; keys
 remain identity and storage.
 
-### 1.3 Rust Core Backend Boundary (rust_core_backend_boundary)
+### 1.4 Rust Core Backend Boundary (rust_core_backend_boundary)
 
 Shared backend and domain behavior belongs in the sibling Rust core repo at
 `../sase-core/crates/sase_core`. Python and TUI code in this repo should call through
@@ -106,9 +116,9 @@ Presentation-only Textual state, keybindings, layout, widget rendering, and Pyth
 can stay in this repo. When a change crosses the boundary, update the Rust wire/API,
 bindings, and tests in `../sase-core`, then update the Python callers or adapters here.
 
-### 1.4 SASE = Structured Agentic Software Engineering (sase)
+### 1.5 SASE = Structured Agentic Software Engineering (sase)
 
-#### 1.4.1 Ephemeral `sase_<N>` Workspace Directories
+#### 1.5.1 Ephemeral `sase_<N>` Workspace Directories
 
 SASE runs agents (like you) from ephemeral workspace directories, which are full clones
 of the sase repo. These directories are named `sase_<N>` where `<N>` is some integer.
@@ -119,7 +129,7 @@ IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace dir
 in any plan files that you generate using your `/sase_plan` skill. The agent(s) that
 implement the plan might not run in the same workspace directory as you!
 
-#### 1.4.2 Repositories
+#### 1.5.2 Repositories
 
 Configured linked and sidecar repositories for this context:
 
@@ -152,7 +162,7 @@ discussions.
 IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another repo's contents any other
 way than by using `/sase_repo`!
 
-#### 1.4.3 File Discovered Work As Task Beads
+#### 1.5.3 File Discovered Work As Task Beads
 
 Unless your prompt explicitly forbids creating beads (epic phase workers, for example,
 must record `PROPOSED FOLLOW-UP:` notes on their own bead instead), you can and SHOULD
@@ -172,16 +182,6 @@ link, and records the issue in the right place. Only a genuinely new task become
 `open` draft, and every new task requires an intentional `--size`. Ready task beads are
 proposed to the project owner, who either launches an agent to work them or closes them
 with a reason.
-
-#### 1.4.4 Feature Flags
-
-You MUST put a feature flag on user-reaching behavior before it is ready: a disabled
-beta, an early landed path, or a deprecation whose old branch must stay reachable. You
-SHOULD NOT flag anything users are meant to choose forever; that is a config field.
-
-Create one only with `sase flag new <key>`, which also files its `flag` removal bead.
-Read `sase/memory/sase_flags.md` with `/sase_memory_read` before adding, deferring, or
-removing any flag.
 
 ## 2. Tier 2 (long-term) Memory
 

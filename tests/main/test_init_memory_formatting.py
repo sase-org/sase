@@ -49,7 +49,6 @@ linked_repos:
     generated = [
         project_root / "sase" / "memory" / "sase.md",
         project_root / "sase" / "memory" / "sase_beads.md",
-        project_root / "sase" / "memory" / "sase_flags.md",
         project_root / "sase" / "memory" / "sase_sizes.md",
         project_root / "sase" / "memory" / "README.md",
         home_root / "sase" / "memory" / "sase.md",
@@ -97,7 +96,6 @@ def test_init_memory_generated_markdown_passes_prettier_check(
     generated = [
         project_root / "sase" / "memory" / "sase.md",
         project_root / "sase" / "memory" / "sase_beads.md",
-        project_root / "sase" / "memory" / "sase_flags.md",
         project_root / "sase" / "memory" / "sase_sizes.md",
         project_root / "sase" / "memory" / "README.md",
     ]

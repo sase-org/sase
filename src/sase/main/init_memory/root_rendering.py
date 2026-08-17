@@ -37,7 +37,6 @@ MEMORY_DIRECTORY_MAP_RELATIVE_PATH = (
 )
 MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
 MEMORY_SASE_BEADS_TEMPLATE_FILENAME = "memory-sase-beads.template.md"
-MEMORY_SASE_FLAGS_TEMPLATE_FILENAME = "memory-sase-flags.template.md"
 MEMORY_SASE_SIZES_TEMPLATE_FILENAME = "memory-sase-sizes.template.md"
 MEMORY_README_TEMPLATE_FILENAME = "memory-README.template.md"
 _MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
@@ -124,10 +123,6 @@ def _generated_beads_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_beads.md"
 
 
-def _generated_flags_memory_relative_path() -> Path:
-    return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_flags.md"
-
-
 def _generated_sizes_memory_relative_path() -> Path:
     return CANONICAL_MEMORY_RELATIVE_ROOT / "sase_sizes.md"
 
@@ -138,12 +133,6 @@ _GENERATED_BEADS_MEMORY_SPEC = _GeneratedLongMemorySpec(
     parent=AGENTS_PARENT,
     detail="generated SASE bead memory",
 )
-_GENERATED_FLAGS_MEMORY_SPEC = _GeneratedLongMemorySpec(
-    template_filename=MEMORY_SASE_FLAGS_TEMPLATE_FILENAME,
-    relative_path=_generated_flags_memory_relative_path(),
-    parent=AGENTS_PARENT,
-    detail="generated SASE feature flag memory",
-)
 _GENERATED_SIZES_MEMORY_SPEC = _GeneratedLongMemorySpec(
     template_filename=MEMORY_SASE_SIZES_TEMPLATE_FILENAME,
     relative_path=_generated_sizes_memory_relative_path(),
@@ -152,7 +141,6 @@ _GENERATED_SIZES_MEMORY_SPEC = _GeneratedLongMemorySpec(
 )
 _GENERATED_PROJECT_LONG_MEMORY_SPECS = (
     _GENERATED_BEADS_MEMORY_SPEC,
-    _GENERATED_FLAGS_MEMORY_SPEC,
     _GENERATED_SIZES_MEMORY_SPEC,
 )
 

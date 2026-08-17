@@ -110,7 +110,7 @@ memory:
     assert "- Type: `long`" in readme
     assert "Agent Clan (aka clan)" in single_line(readme)
     assert "- Short notes: 1" in readme
-    assert "- Long notes: 4" in readme
+    assert "- Long notes: 3" in readme
 
 
 def test_memory_plan_omits_alias_line_when_only_alias_is_term_plural(
