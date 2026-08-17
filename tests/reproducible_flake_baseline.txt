@@ -31,6 +31,12 @@
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_first_config_token_read_does_not_start_worker
 # fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_yaml_content_cache_survives_config_cache_clear
 #
+# sase-md: fixed by d9b2984a7 "fix(tui): isolate config center state
+# replacement" (committed 2026-08-17T01:44:57Z). The node's own baseline
+# entry came out in that commit; this retires the pre-fix evidence the
+# process-wide `os.replace` patch had already recorded.
+# fixed-at: 2026-08-17T01:44:57Z tests/ace/tui/test_config_center_state.py::test_save_atomically_replaces_existing_state
+#
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
 # sase-j6
