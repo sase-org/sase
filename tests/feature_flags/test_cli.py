@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import io
 import json
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
-from sase.bead.model import IssueType
+from sase.bead.model import FlagRecord, Issue, IssueType
 from sase.bead.project import BeadProject
+from sase.feature_flags.beads import create_flag_bead
 from sase.feature_flags.cli import (
     _LIST_JSON_SCHEMA_VERSION,
     _build_flag_scaffold,
@@ -331,6 +333,94 @@ def test_flag_new_creates_a_flag_bead(
     assert issues[0].flag.remove_by_release == "0.18.0"
     assert f"Created flag bead: {issues[0].id}" in buf.getvalue()
     assert f"bead={issues[0].id!r}" in buf.getvalue()
+
+
+def test_flag_new_reports_the_committed_bead_id_after_remint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.feature_flags.cli.project_is_sase_managed", lambda _cwd=None: True
+    )
+    with BeadProject.init(tmp_path):
+        pass
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
+
+    stale_id = "sase-nv"
+    real_create = BeadProject.create
+
+    def create_returning_stale_id(
+        self: BeadProject, *args: object, **kwargs: object
+    ) -> Issue:
+        issue = real_create(self, *args, **kwargs)
+        assert issue.id != stale_id
+        return replace(issue, id=stale_id)
+
+    monkeypatch.setattr(BeadProject, "create", create_returning_stale_id)
+
+    created: list[Issue] = []
+    real_create_flag_bead = create_flag_bead
+
+    def capture_create_flag_bead(*args: object, **kwargs: object) -> Issue:
+        issue = real_create_flag_bead(*args, **kwargs)
+        created.append(issue)
+        return issue
+
+    monkeypatch.setattr(
+        "sase.feature_flags.cli.create_flag_bead", capture_create_flag_bead
+    )
+
+    console, buf = _console()
+    args = create_parser().parse_args(["flag", "new", "demo_key"])
+
+    exit_code = _handle_flag_new_command(
+        args,
+        console=console,
+        definitions={},
+        today=date(2026, 8, 16),
+        version="0.16.0",
+        cwd=tmp_path,
+    )
+
+    assert exit_code == 0
+    with BeadProject(tmp_path) as project:
+        issues = project.list_issues(issue_types=[IssueType.FLAG])
+    assert len(issues) == 1
+    committed_id = issues[0].id
+    assert committed_id != stale_id
+    assert len(created) == 1
+    assert created[0].id == committed_id
+    out = buf.getvalue()
+    assert f"Created flag bead: {committed_id}" in out
+    assert f"bead={committed_id!r}" in out
+    assert stale_id not in out
+
+
+def test_create_flag_bead_fails_when_committed_bead_cannot_be_reread(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with BeadProject.init(tmp_path):
+        pass
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "sase.feature_flags.beads.load_flag_bead_snapshots",
+        lambda cwd=None: (),
+    )
+
+    with pytest.raises(
+        FeatureFlagError,
+        match="was not found after the store mutation committed",
+    ):
+        create_flag_bead(
+            FlagRecord(
+                key="demo_key",
+                remove_by_date="2026-11-14",
+                remove_by_release="0.18.0",
+            ),
+            title="Retire demo_key",
+            cwd=tmp_path,
+        )
 
 
 def test_flag_new_ops_skips_bead_and_uses_description_as_rationale() -> None:

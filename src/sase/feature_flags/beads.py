@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from sase.bead.cli_common import (
@@ -105,7 +105,11 @@ def create_flag_bead(
     size: str | None = None,
     cwd: Path | None = None,
 ) -> Issue:
-    """Create the dedicated removal bead for *record* and return it."""
+    """Create the dedicated removal bead for *record* and return it.
+
+    Re-read the bead by key after the store mutation commits. A colliding
+    id can be reminted on the commit/push path after ``create`` returns.
+    """
     from sase.bead.attribution import resolve_bead_creator
 
     existing = load_flag_bead_snapshots(cwd=cwd)
@@ -129,7 +133,19 @@ def create_flag_bead(
             mutation.commit(require_mutation_commit_message("create", [issue.id]))
     except (ValueError, RuntimeError, OSError) as exc:
         raise FeatureFlagError(str(exc)) from exc
-    return issue
+    return _committed_flag_issue(issue, record.key, cwd=cwd)
+
+
+def _committed_flag_issue(issue: Issue, key: str, *, cwd: Path | None) -> Issue:
+    """Return the committed flag bead for *key*, or fail if it vanished."""
+    snapshot = flag_bead_for_key(load_flag_bead_snapshots(cwd=cwd), key)
+    if snapshot is None:
+        raise FeatureFlagError(
+            f"flag bead for {key!r} was not found after the store mutation committed"
+        )
+    if snapshot.id == issue.id:
+        return issue
+    return replace(issue, id=snapshot.id)
 
 
 def flag_record_from_snapshot(bead: FlagBeadSnapshot) -> FlagRecord | None:
